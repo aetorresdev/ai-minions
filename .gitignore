@@ -1,0 +1,26 @@
+# IDE
+.vscode/
+.idea/
+
+# Debug files
+debug/
+*.log
+
+# Cache
+cache/
+__pycache__/
+*.pyc
+*.pyo
+.cache/
+.pytest_cache/
+
+# Downloads
+downloads/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
