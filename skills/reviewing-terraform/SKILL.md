@@ -113,7 +113,7 @@ terraform plan -var-file=envs/<env>.tfvars
 
 ## Agents
 
-This skill uses 3 agents with clearly separated responsibilities. No checks are duplicated between agents.
+This skill uses 3 agents + 2 shared agents. No checks are duplicated between agents.
 
 ### 1. `static-analysis-runner` (green)
 **Tools**: tflint, trivy, AWS Labs MCP
@@ -160,6 +160,47 @@ This skill uses 3 agents with clearly separated responsibilities. No checks are 
 | `.terraform-version` matches `required_version` | Manual review |
 | Provider version constraints pinned | Manual review |
 
+### 4. `network-validator` (cyan) — shared agent, if networking present
+**Tools**: Read, Grep, Glob, Shell, terraform-mcp-server, awslabs.terraform-mcp-server
+**Responsibility**: Validate networking and DNS resources in reviewed HCL
+
+Activated when the component contains VPC, subnet, peering, TGW, SG, NACL, Route 53, or Cloud Map resources.
+
+| Check | Method |
+|---|---|
+| CIDR overlap against existing infra | Parse CIDRs from HCL + ask user for existing inventory |
+| Subnet sizing for workload type | Compare CIDR size vs workload requirements |
+| Route table completeness | Verify bidirectional routes for peering/TGW |
+| SG connectivity between components | Verify ingress/egress rules match required traffic |
+| NACL stateless rules | Verify ephemeral port rules exist |
+| Cross-VPC SG references | Flag SG-to-SG refs that cross VPC boundaries |
+| VPC endpoint opportunities | Identify missing S3/DynamoDB gateway endpoints |
+| Private zone associations | Verify zones are associated with all VPCs that need resolution |
+| DNS record targets | Alias/CNAME targets exist, failover has health checks |
+| Resolver endpoints | At least 2 AZs, SG allows TCP+UDP 53, rules associated |
+| Cloud Map | TTLs, health checks, VPC associations for consumers |
+
+Reference: `designing-terraform/references/network_validation.md`
+
+### 5. `compliance-checker` (red) — shared agent, if framework declared
+**Tools**: Read, Grep, Glob, Shell, awslabs.terraform-mcp-server
+**Responsibility**: Validate reviewed HCL against compliance frameworks
+
+Activated only when `.compliance.yaml` exists or user declares a framework.
+
+| Check | Method |
+|---|---|
+| Framework-specific policies | Checkov with CKV_PCI_*, CKV_HIPAA_*, etc. |
+| Encryption at rest | All data stores have KMS encryption |
+| Encryption in transit | TLS enforced on all communication paths |
+| IAM least privilege | No wildcard actions or resources |
+| Audit logging | CloudTrail, access logs, VPC flow logs enabled |
+| Log retention | Meets framework minimum (PCI: 1yr, HIPAA: 6yr) |
+| Network segmentation | PCI CDE isolation if applicable |
+| Manual verification flags | Controls that can't be checked from code |
+
+Reference: `designing-terraform/references/compliance_frameworks.md`
+
 ## MCP Integration
 
 ### HashiCorp Terraform MCP (`terraform-mcp-server`)
@@ -205,6 +246,15 @@ Use colored indicators for each severity level:
 ---
 Summary: 🔴 X critical, 🟠 Y warnings, 🟢 Z passed
 ```
+
+## Documentation (optional)
+
+After the review, run `infra-documenter` if findings warrant persistent documentation:
+- **Changelog entry**: Record significant findings and fixes applied
+- **ADR**: If the review uncovers a pattern that should be standardized as a team decision
+- **Config decision record**: If a security or convention choice needs rationale documented
+
+Skip if the review is clean or findings are trivial.
 
 ## Rules
 
