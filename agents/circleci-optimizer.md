@@ -32,7 +32,7 @@ When invoked:
 | **`when` conditions** | Pipeline parameters + `when` used instead of duplicated workflows per branch |
 | **`store_test_results`** | Test jobs produce JUnit XML and use `store_test_results` for CircleCI Insights |
 | **`store_artifacts`** | Relevant outputs (coverage, reports, binaries) use `store_artifacts` |
-| **Checkout optimization** | `checkout: method: blobless` used for large repos when full history is not needed |
+| **Checkout optimization** | Flag `checkout: method: full` as wasteful — `blobless` is the default and sufficient for most pipelines |
 
 ## Output format
 
