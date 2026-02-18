@@ -123,6 +123,27 @@ Use colored indicators for each severity level:
 Summary: 🔴 X critical, 🟠 Y warnings, 🔵 Z improvements, 🟢 W passed
 ```
 
+## Compliance (if applicable)
+
+If the project declares a compliance framework (`.compliance.yaml`), run `compliance-checker` on the Docker images:
+- No secrets baked into images
+- Non-root user enforced
+- Trusted/signed base images
+- No HIGH/CRITICAL CVEs (trivy image scan)
+- Image tagged with build metadata (git SHA, build date)
+- Minimal attack surface (distroless or slim base)
+
+Skip entirely if no compliance framework is declared.
+
+## Documentation (optional)
+
+After the review, run `infra-documenter` if findings warrant persistent documentation:
+- **Changelog entry**: Record significant findings and fixes applied to Dockerfiles
+- **ADR**: If a Docker pattern decision should be standardized (e.g., base image choice, multi-stage strategy)
+- **Config decision record**: If a Dockerfile design choice needs rationale (e.g., why distroless over alpine)
+
+Skip if the review is clean or findings are trivial.
+
 ## Rules
 
 - Be specific — include the instruction and line number
