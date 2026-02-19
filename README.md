@@ -26,6 +26,12 @@ My personal collection of AI skills and agents for Claude Code, compatible with 
 |---|---|---|
 | `configuring-observability` | "configure otel", "create grafana dashboard", "observability setup" | Creates OTEL collector configs and Grafana dashboards. Cloud-agnostic (Prometheus, CloudWatch, Datadog, Loki, Tempo). Cross-signal validation between collector and dashboards. |
 
+### n8n
+
+| Skill | Trigger | What it does |
+|---|---|---|
+| `managing-n8n` | "create", "review", "optimize", "document n8n workflow" | Creates workflow JSON from requirements, validates structure/connections/error handling, optimizes performance and patterns, generates documentation and flow diagrams. Parallel agents for review. |
+
 ### CI/CD
 
 | Skill | Trigger | What it does |
@@ -40,8 +46,8 @@ These agents are not tied to a single skill — they activate across multiple sk
 | Agent | Color | Activates when | Used by |
 |---|---|---|---|
 | `network-validator` | 🔵 cyan | VPCs, subnets, peering, TGW, DNS, SGs, NACLs | designing-terraform, creating-terraform, reviewing-terraform |
-| `compliance-checker` | 🔴 red | `.compliance.yaml` exists or user declares a framework | designing-terraform, creating-terraform, reviewing-terraform, reviewing-docker, configuring-observability |
-| `infra-documenter` | 🟠 orange | Non-obvious decisions that need persistent docs | designing-terraform (always), creating-terraform, reviewing-terraform, reviewing-docker, configuring-observability |
+| `compliance-checker` | 🔴 red | `.compliance.yaml` exists or user declares a framework | designing-terraform, creating-terraform, reviewing-terraform, reviewing-docker, configuring-observability, managing-n8n |
+| `infra-documenter` | 🟠 orange | Non-obvious decisions that need persistent docs | designing-terraform (always), creating-terraform, reviewing-terraform, reviewing-docker, configuring-observability, managing-n8n |
 
 ### network-validator
 
@@ -79,6 +85,8 @@ Generates persistent documentation: ADRs, design docs, runbooks, changelogs, con
 | `trivy` | reviewing-docker, reviewing-terraform | [aquasecurity/trivy](https://github.com/aquasecurity/trivy) |
 | `tflint` | reviewing-terraform | [terraform-linters/tflint](https://github.com/terraform-linters/tflint) |
 | `terraform` | creating-terraform, reviewing-terraform | [hashicorp.com](https://developer.hashicorp.com/terraform/install) |
+| `jq` | managing-n8n | Pre-installed on most systems |
+| `n8n` | managing-n8n (optional) | `npm install -g n8n` |
 
 ## Structure
 
@@ -113,8 +121,14 @@ Generates persistent documentation: ADRs, design docs, runbooks, changelogs, con
 │   ├── creating-circleci/
 │   │   ├── SKILL.md
 │   │   └── templates.md
-│   └── reviewing-circleci/
-│       └── SKILL.md
+│   ├── reviewing-circleci/
+│   │   └── SKILL.md
+│   └── managing-n8n/
+│       ├── SKILL.md
+│       └── references/
+│           ├── node_patterns.md
+│           ├── error_handling.md
+│           └── workflow_templates.md
 ├── agents/
 │   ├── architecture-planner.md
 │   ├── component-scaffolder.md
@@ -132,7 +146,11 @@ Generates persistent documentation: ADRs, design docs, runbooks, changelogs, con
 │   ├── structure-reviewer.md
 │   ├── circleci-optimizer.md
 │   ├── circleci-security-reviewer.md
-│   └── circleci-structural-validator.md
+│   ├── circleci-structural-validator.md
+│   ├── n8n-workflow-builder.md
+│   ├── n8n-workflow-validator.md
+│   ├── n8n-workflow-optimizer.md
+│   └── n8n-workflow-documenter.md
 └── README.md
 ```
 
