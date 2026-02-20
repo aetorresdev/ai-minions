@@ -19,7 +19,7 @@ Copy or clone this repo so that skills live under `~/.claude/skills/`:
 
 ```bash
 # Option A: clone
-git clone https://github.com/YOUR_USER/ai-minions.git ~/.claude
+git clone https://github.com/aetorresdev/ai-minions.git ~/.claude
 # Option B: copy only skills
 mkdir -p ~/.claude/skills
 cp -r /path/to/this/repo/skills/* ~/.claude/skills/
