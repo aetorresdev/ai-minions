@@ -28,6 +28,28 @@ Required for API operations. Store in `~/.config/n8n/credentials` (chmod 600), s
 
 See `references/api_reference.md` for full API documentation.
 
+### n8n-MCP server (recommended for correct node/connection data)
+
+To avoid schema errors when creating or connecting nodes, use the **n8n-MCP** server in Cursor. It provides up-to-date node types, properties, and validation.
+
+- **Docker image**: `ghcr.io/czlonkowski/n8n-mcp:latest` — Cursor runs the container on demand (stdio); no long-lived container to manage.
+- **Setup**: See `references/mcp_docker_setup.md` for pull command and Cursor MCP config (documentation-only or with `N8N_API_URL`/`N8N_API_KEY` for workflow management).
+
+### Using the n8n-MCP server
+
+When the **n8n-mcp** MCP server is configured in Cursor, **prefer its tools** for node discovery, schemas, and validation. Fall back to static references (`node_patterns.md`, `workflow_templates.md`) only if the MCP is unavailable.
+
+| MCP tool | Use when |
+|---|---|
+| `search_nodes` | Finding node types by keyword (e.g. "webhook", "slack", "schedule"); use `includeExamples: true` for config examples. |
+| `get_node` | Getting full node schema, required parameters, and operations before configuring a node. |
+| `validate_node` | Validating a node config before adding to the workflow: `mode: 'minimal'` for quick checks, `mode: 'full', profile: 'runtime'` before finalizing. |
+| `validate_workflow` | Validating the full workflow (nodes + connections + expressions) after building or after changes. |
+| Create/update/execute (when `N8N_API_URL` + `N8N_API_KEY` are set) | Prefer the MCP’s workflow management tools over direct `curl` to the n8n API when the MCP has API credentials (passed from env into the container). |
+
+- **Build (Step 2)**: Use `search_nodes` / `get_node` to resolve node types and parameters; use `validate_node` for each non-trivial node; use `validate_workflow` once the workflow JSON is complete.
+- **Validate (Step 3)**: Call `validate_workflow` first when MCP is available; then run manual checks (orphans, error paths, credentials, execution health) as needed. If MCP is unavailable, run all checks from this skill and the validator agent.
+
 ### Cursor Command Allowlist
 
 Add to allowlist for auto-run: `jq`, `curl`, `n8n`, `node`, `ls`, `cat`, `grep`, `diff`
@@ -52,6 +74,8 @@ The user provides one or more of:
 3. n8n-workflow-validator → validates structure, connections, error handling
        ↓
 4. n8n-workflow-optimizer → performance, patterns, complexity reduction
+       ↓
+4b. n8n-workflow-metrics-optimizer (optional, API required) → execution metrics, success/error rate, duration, recommendations
        ↓
 5. n8n-workflow-documenter → markdown docs + flow diagram
        ↓
@@ -85,20 +109,16 @@ Before generating any workflow:
 ### Step 2: Build Workflow
 
 Run `n8n-workflow-builder` to create the workflow JSON:
-- Read `references/node_patterns.md` for standard node configurations
-- Read `references/workflow_templates.md` for common flow patterns
-- Generate valid n8n workflow JSON with proper node connections
-- Position nodes in a readable left-to-right layout
+- **When n8n-mcp MCP is available**: Use `search_nodes` to find node types, `get_node` for schemas and required parameters, `validate_node` for each node config, and `validate_workflow` when the workflow is complete.
+- **When MCP is unavailable**: Read `references/node_patterns.md` and `references/workflow_templates.md` for standard configs and patterns.
+- Generate valid n8n workflow JSON with proper node connections; position nodes in a readable left-to-right layout.
 
 ### Step 3: Validate
 
 Run `n8n-workflow-validator` to check:
-- JSON structure matches n8n schema
-- All nodes have valid types and required parameters
-- Connections reference existing node names
-- Error handling paths exist for critical nodes
-- No orphan nodes (disconnected from the flow)
-- Credential references are consistent
+- **When n8n-mcp MCP is available**: Call `validate_workflow` first and include its results; then run manual checks below as needed.
+- **When MCP is unavailable**: Run all checks from the validator agent and references.
+- JSON structure matches n8n schema; all nodes have valid types and required parameters; connections reference existing node names; error handling paths exist for critical nodes; no orphan nodes; credential references consistent.
 
 ### Step 4: Optimize
 
@@ -110,6 +130,17 @@ Run `n8n-workflow-optimizer` to suggest:
 - Expression simplification
 - Sub-workflow extraction for complex flows (>15 nodes)
 
+The optimizer must report in **concise** form: **(1) Already applied** (short bullets), **(2) Pending** (table or short list of suggested changes only), **(3) Summary** (one sentence). Do not produce long Current/Suggested/Why blocks unless the user asks for detail.
+
+### Step 4b: Metrics (optional, API required)
+
+Run `n8n-workflow-metrics-optimizer` when the n8n API is available and you want data-driven recommendations:
+- Fetch recent executions for the workflow (`GET /executions?workflowId=<id>`).
+- Compute success/error rate, duration stats, failing nodes, timeouts.
+- Suggest improvements (retry, batching, error handling, rate limiting) based on patterns.
+- Output in the same concise form: Already applied / Pending / Summary.
+- If API is unavailable, skip and note "Metrics step skipped (API required)."
+
 ### Step 5: Document
 
 Run `n8n-workflow-documenter` to generate:
@@ -120,7 +151,7 @@ Run `n8n-workflow-documenter` to generate:
 
 ### Step 6: Sync with Instance (optional)
 
-If API is available (`N8N_API_URL` + `N8N_API_TOKEN` set), the agents can:
+If API is available (`N8N_API_URL` + `N8N_API_TOKEN` or `N8N_API_KEY` set), the agents can push, update, and manage workflows. **When the n8n-mcp MCP is configured with API credentials** (e.g. `N8N_API_URL` and `N8N_API_KEY` passed from env into the container), prefer the MCP’s create/update/execute tools over direct `curl`; otherwise use the API with curl:
 
 | Operation | Command | When |
 |---|---|---|
@@ -144,35 +175,36 @@ See `references/api_reference.md` for full endpoint documentation.
 
 ## Agents
 
-This skill uses 4 agents + 2 shared agents. All 4 primary agents can run in parallel when reviewing an existing workflow.
+This skill uses 5 agents + 2 shared agents. The 4 primary workflow agents (builder, validator, optimizer, documenter) can run in parallel when reviewing an existing workflow; the metrics optimizer runs when API is available and metrics review is requested.
 
 ### 1. `n8n-workflow-builder` (green)
-**Tools**: Read, Grep, Glob, Shell
+**Tools**: Read, Grep, Glob, Shell, **n8n-mcp** (when configured: `search_nodes`, `get_node`, `validate_node`, `validate_workflow`)
 **Responsibility**: Create workflow JSON from requirements + push to instance
 
 | Action | Details |
 |---|---|
 | API preflight | Check connectivity, list credentials if available |
-| Read node patterns | `references/node_patterns.md` for standard configs |
-| Read templates | `references/workflow_templates.md` for common flows |
+| Node discovery | **MCP**: `search_nodes` + `get_node` for types and params. **Fallback**: `references/node_patterns.md` |
+| Templates | **MCP**: use examples from `search_nodes` with `includeExamples: true`. **Fallback**: `references/workflow_templates.md` |
 | Generate trigger node | Webhook, Cron, Manual Trigger, or event-based |
 | Generate processing nodes | HTTP Request, Code, Set, IF, Switch, Merge |
 | Generate integration nodes | Slack, GitHub, AWS, database, email, etc. |
 | Wire connections | Proper main and error output connections |
 | Position nodes | Left-to-right, 250px horizontal spacing, grouped vertically |
-| Validate JSON | `jq . <workflow.json>` syntax check |
+| Validate | **MCP**: `validate_node` per node (minimal/full), then `validate_workflow`. **Always**: `jq . <workflow.json>` syntax check |
 | Push to instance | `POST /workflows` if API available and user confirms |
 | Update on instance | Deactivate → `jq 'del(.id, .active)'` → `PUT /workflows/<id>`; see `references/api_reference.md` § Update Workflow |
 
 ### 2. `n8n-workflow-validator` (blue)
-**Tools**: Read, Grep, Glob, Shell
+**Tools**: Read, Grep, Glob, Shell, **n8n-mcp** (when configured: `validate_workflow`, optionally `validate_node`)
 **Responsibility**: Validate workflow structure, connections, and error handling
 
 | Action | Details |
 |---|---|
 | Fetch or read | `GET /workflows/<id>` if remote, or read local JSON |
-| Schema validation | Required fields: name, nodes, connections |
-| Node type validation | All `type` values are valid n8n node identifiers |
+| Schema / nodes / connections | **MCP**: Call `validate_workflow` first, include its output in the report. **Fallback**: Manual checks below |
+| Required fields | name, nodes, connections |
+| Node type validation | All `type` values valid n8n node identifiers |
 | Connection integrity | All connection targets exist as node names |
 | Orphan detection | Every node is reachable from the trigger |
 | Error path check | Critical nodes (HTTP, Code, DB) have error outputs |
@@ -198,7 +230,20 @@ This skill uses 4 agents + 2 shared agents. All 4 primary agents can run in para
 | Memory management | Flag nodes that load full datasets into memory |
 | Rate limiting | Add Wait nodes before rate-limited APIs |
 
-### 4. `n8n-workflow-documenter` (purple)
+### 4. `n8n-workflow-metrics-optimizer` (cyan) — optional, API required
+**Tools**: Read, Grep, Glob, Shell
+**Responsibility**: Execution metrics and data-driven recommendations
+
+| Action | Details |
+|--------|---------|
+| Require API | Skip with clear message if `N8N_API_URL` / `N8N_API_TOKEN` not set |
+| Fetch executions | `GET /executions?workflowId=<id>&limit=50`; optionally `status=error` for failures |
+| Compute metrics | Success/error rate, duration (min/median/max or p95), failing node frequency |
+| Analyze patterns | Same node failing, duration growth, timeouts, failure bursts |
+| Suggest improvements | Retry, timeout, batching, error handling, rate limiting based on data |
+| Output | Concise: Already applied / Pending / Summary (same format as optimizer) |
+
+### 5. `n8n-workflow-documenter` (purple)
 **Tools**: Read, Glob, Shell, awslabs.aws-diagram-mcp-server
 **Responsibility**: Generate documentation and flow diagrams
 
@@ -213,7 +258,7 @@ This skill uses 4 agents + 2 shared agents. All 4 primary agents can run in para
 | Execution summary | Recent execution stats from API if available |
 | Generate runbook | How to deploy, test, monitor, and troubleshoot |
 
-### 5. `compliance-checker` (red) — shared agent, if framework declared
+### 6. `compliance-checker` (red) — shared agent, if framework declared
 **Tools**: Read, Grep, Glob, Shell
 **Responsibility**: Validate workflow against compliance requirements
 
@@ -224,7 +269,7 @@ This skill uses 4 agents + 2 shared agents. All 4 primary agents can run in para
 | Webhook security | Authentication configured on webhook triggers |
 | Audit trail | Workflow logs sensitive operations |
 
-### 6. `infra-documenter` (orange) — shared agent, optional
+### 7. `infra-documenter` (orange) — shared agent, optional
 **Tools**: Read, Glob, Shell, awslabs.aws-diagram-mcp-server
 **Responsibility**: Persist documentation for workflow decisions
 
@@ -337,7 +382,7 @@ n8n-workflows/
 - Workflows >15 nodes should be evaluated for sub-workflow extraction
 - Do NOT activate workflows without explicit user confirmation
 - If reviewing an existing workflow, run validator and optimizer in parallel
-- Read `references/node_patterns.md` before generating any node configuration
+- When n8n-mcp MCP is available, use its tools (`search_nodes`, `get_node`, `validate_node`, `validate_workflow`) for node discovery and validation; otherwise use `references/node_patterns.md` and manual checks
 
 ### API Safety Rules
 
