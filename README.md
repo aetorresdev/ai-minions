@@ -150,6 +150,7 @@ Generates persistent documentation: ADRs, design docs, runbooks, changelogs, con
 │   ├── n8n-workflow-builder.md
 │   ├── n8n-workflow-validator.md
 │   ├── n8n-workflow-optimizer.md
+│   ├── n8n-workflow-metrics-optimizer.md
 │   └── n8n-workflow-documenter.md
 └── README.md
 ```
