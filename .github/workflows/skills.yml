@@ -1,0 +1,29 @@
+# Optional: validate that each skill directory contains SKILL.md
+name: Skill structure
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "skills/**"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "skills/**"
+
+jobs:
+  skill-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check each skill has SKILL.md
+        run: |
+          missing=0
+          for dir in skills/*/; do
+            if [ ! -f "${dir}SKILL.md" ]; then
+              echo "::error::Missing SKILL.md in $dir"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
