@@ -1,4 +1,5 @@
 # Markdown lint — consistent formatting and style
+# Validates README.md and skills/** first, then all other .md (agents/ and cache/ excluded via config)
 name: Markdown Lint
 
 on:
@@ -13,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run markdownlint
+      - name: Run markdownlint (README, skills, docs, examples; agents/cache excluded)
         uses: DavidAnson/markdownlint-cli2-action@v22
         with:
           globs: "**/*.md"

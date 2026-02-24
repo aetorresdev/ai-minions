@@ -1,0 +1,4 @@
+{
+  // Exclude agent definitions and generated/cache content from doc lint
+  "ignores": ["**/agents/**", "**/cache/**"]
+}
