@@ -34,6 +34,7 @@ In Cursor or Warp, ask:
 - **“Review this Dockerfile”** (with a Dockerfile open) → should trigger `reviewing-docker`
 - **“Review this Terraform module”** (with `.tf` files in context) → should trigger `reviewing-terraform`
 - **“Create a CircleCI pipeline for a Node app”** → should trigger `creating-circleci`
+- **"Diseña el spec para aplicar AIOps al repo devops-jenkins-automation"** or **"Epic and tickets for adding observability"** → should trigger `feature-spec-and-tasks`
 
 If the model mentions the skill or follows its instructions, the skill is active. See [Examples](#examples) for reproducible demos.
 
@@ -76,6 +77,14 @@ If the model mentions the skill or follows its instructions, the skill is active
 | `creating-circleci` | "create", "scaffold circleci pipeline" | Gathers requirements interactively and generates CircleCI 2.1 configs from templates. Separate app and infra workflows when needed. |
 | `reviewing-circleci` | "review", "check circleci config" | Static analysis of `.circleci/config.yml` — structure, security, optimization, best practices. No API access needed. |
 
+### Feature specs (Kiro-style)
+
+| Skill | Trigger | What it does |
+|---|---|---|
+| `feature-spec-and-tasks` | "design spec for initiative", "apply X to repo", "epic and tickets", "plan with tasks", "what to do before executing" | One spec doc with requirements (EARS), design, and discrete tasks (tickets) with prerequisites and steps — for initiatives like "apply AIOps to devops-jenkins-automation". |
+
+**Workflow**: spec-writer → single doc (requirements + design + tasks + before executing).
+
 ## Shared Agents
 
 These agents are not tied to a single skill — they activate across multiple skills when their context applies.
@@ -84,7 +93,7 @@ These agents are not tied to a single skill — they activate across multiple sk
 |---|---|---|---|
 | `network-validator` | 🔵 cyan | VPCs, subnets, peering, TGW, DNS, SGs, NACLs | designing-terraform, creating-terraform, reviewing-terraform |
 | `compliance-checker` | 🔴 red | `.compliance.yaml` exists or user declares a framework | designing-terraform, creating-terraform, reviewing-terraform, reviewing-docker, configuring-observability, managing-n8n |
-| `infra-documenter` | 🟠 orange | Non-obvious decisions that need persistent docs | designing-terraform (always), creating-terraform, reviewing-terraform, reviewing-docker, configuring-observability, managing-n8n |
+| `infra-documenter` | 🟠 orange | Non-obvious decisions that need persistent docs | designing-terraform (always), creating-terraform, reviewing-terraform, reviewing-docker, configuring-observability, managing-n8n, feature-spec-and-tasks |
 
 ### network-validator
 
@@ -113,7 +122,6 @@ Generates persistent documentation: ADRs, design docs, runbooks, changelogs, con
 | `terraform-mcp-server` (HashiCorp) | creating-terraform, reviewing-terraform, designing-terraform | Resource/module docs lookup |
 | `awslabs.terraform-mcp-server` (AWS Labs) | creating-terraform, reviewing-terraform, designing-terraform, compliance-checker | AWS best practices, provider docs, checkov scans |
 | `awslabs.aws-diagram-mcp-server` | designing-terraform, infra-documenter | Architecture diagram generation |
-
 ## CLI Tools
 
 | Tool | Used by | Install |
@@ -166,12 +174,16 @@ Generates persistent documentation: ADRs, design docs, runbooks, changelogs, con
 │   │   └── templates.md
 │   ├── reviewing-circleci/
 │   │   └── SKILL.md
-│   └── managing-n8n/
+│   ├── managing-n8n/
+│   │   ├── SKILL.md
+│   │   └── references/
+│   │       ├── node_patterns.md
+│   │       ├── error_handling.md
+│   │       └── workflow_templates.md
+│   └── feature-spec-and-tasks/
 │       ├── SKILL.md
 │       └── references/
-│           ├── node_patterns.md
-│           ├── error_handling.md
-│           └── workflow_templates.md
+│           └── ears_and_format.md
 ├── agents/
 │   ├── architecture-planner.md
 │   ├── component-scaffolder.md
@@ -194,7 +206,8 @@ Generates persistent documentation: ADRs, design docs, runbooks, changelogs, con
 │   ├── n8n-workflow-validator.md
 │   ├── n8n-workflow-optimizer.md
 │   ├── n8n-workflow-metrics-optimizer.md
-│   └── n8n-workflow-documenter.md
+│   ├── n8n-workflow-documenter.md
+│   └── spec-writer.md
 └── README.md
 ```
 
