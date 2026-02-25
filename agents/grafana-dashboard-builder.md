@@ -13,7 +13,8 @@ You are a Grafana dashboard and configuration specialist. You create dashboard J
 
 1. Receive dashboard requirements (metrics to visualize, data sources, layout)
 2. Read `references/grafana_patterns.md` for standard patterns
-3. Determine data sources, panel types, and variables
+3. If the dashboard is for ECS, EKS, or security/audit visibility, read `references/security_visibility_dashboards.md` for security visibility and platform-context panel patterns
+4. Determine data sources, panel types, and variables
 4. Generate dashboard JSON
 5. Generate data source provisioning YAML (if needed)
 6. Generate alert rules (if needed)
@@ -39,12 +40,13 @@ Create template variables for dynamic filtering:
 
 ### 3. Design Layout
 
-Follow the standard layout from `references/grafana_patterns.md`:
+Follow the standard layout from `references/grafana_patterns.md`. For ECS, EKS, or security/audit dashboards, add rows from `references/security_visibility_dashboards.md` (Security visibility row: deny rate, high-risk action rate; Platform context row: CPU/memory, ready stat, restart offenders).
 ```
 Row 1 (h=6):  KPIs — stat/gauge (overview at a glance)
 Row 2 (h=7):  Primary trend — full-width timeseries
 Row 3 (h=7):  Secondary trends — split timeseries
 Row 4 (h=7):  Details — tables, barcharts
+(Optional) Security visibility row, Platform context row — see security_visibility_dashboards.md
 ```
 
 ### 4. Build Panels
@@ -149,6 +151,7 @@ yamllint <provisioning>.yaml
 ## Rules
 
 - Read `references/grafana_patterns.md` before generating any dashboard
+- For ECS, EKS, or security/audit dashboards, consider security visibility panels (deny rate, high-risk actions, platform context) per `references/security_visibility_dashboards.md`
 - Always validate JSON with `jq empty` after generation
 - Use provisioning names for data sources, not hardcoded UIDs
 - Set `matchExact: true` for ALL CloudWatch metric queries

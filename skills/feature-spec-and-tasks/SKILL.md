@@ -60,11 +60,27 @@ The user provides one or more of:
 Run **spec-writer** to generate the full document:
 
 - Read or infer repo structure (files, existing patterns) when possible.
+- **Enrich by initiative type** (see below): if the goal matches a known initiative type, include that type’s design and task checklist in the spec **so the spec is complete before implementation** and implementation does not drift.
 - Write **requirements** in EARS (see `references/ears_and_format.md`).
 - Add **design** (high-level architecture, constraints, decisions).
 - List **tasks** as tickets: ID, title, **Skill/Agent**, **Deliverables**, description, prerequisites, steps/checklist, acceptance, optional estimate. Order by dependencies.
 - Add **documentation** tasks (Skill: `infra-documenter`) or a Documentation subsection so every deliverable is documented.
 - State explicitly what must be done **before executing** (env, credentials, branch, tools).
+
+#### Initiative-type checklists (pre-implementation)
+
+Use these **only when the user’s goal clearly matches** the initiative type. They are not global; they avoid drift by making the spec complete up front.
+
+- **Central reusable-workflows / CI repo** (e.g. a repo that only stores versioned, callable workflows for other repos to `uses:`):
+  - **Design**: Include `.github/actions/` (composite actions) and list which ones (validate-inputs, install-deps, run-script, lint/scan, etc.) and their inputs/outputs; state that workflows use them to minimize inline scripts and third-party actions.
+  - **Design**: Include a **validation workflow** (e.g. runs on PR when `.github/**` changes; runs a workflow/action linter so changes are validated before merge).
+  - **Design**: Define **release/versioning**: manual tag + CHANGELOG vs automated (e.g. semantic-release on push to main); if automated, a non-reusable release workflow.
+  - **Design**: Require an **invocation example** in each reusable workflow file: a top-of-file comment block with “Example in consumer repo” (trigger + job with `uses:` and typical inputs).
+  - **Design**: If the org restricts “no curl” or “no third-party actions” for some tools, state that those tools are installed via **clone-at-version + install script or build**; add a task or acceptance for it.
+  - **Design**: If workflows must post to PRs, state **PR comment behavior**: single create/update comment per run, identified by a marker; use only official actions (e.g. `actions/github-script`).
+  - **Tasks**: Add explicit tasks for composite actions, validation workflow, release workflow (if automated), and “invocation example in each workflow file”; add acceptance criteria that match the design.
+
+Other initiative types may have their own checklists (e.g. in `docs/specs/` or references); when the goal matches, incorporate that checklist into the spec.
 
 ### Step 3: Output location
 
@@ -139,3 +155,4 @@ Follow the structure in `references/ears_and_format.md`. Summary:
 - Prerequisites and "Before executing" must answer **what to do before execution** explicitly.
 - If the user mentions a repo, try to reflect its structure and stack in design and tasks; if you cannot read the repo, say so and produce a generic spec.
 - Do not execute tasks or run destructive commands — only produce the spec document.
+- **Post-implementation**: If the user asks to align the spec with an existing implementation (e.g. detect drift), add a **Drift and alignment** section: a short table (spec vs implemented) and bullets to update the spec so it stays the source of truth. Initiative-specific patterns belong in that spec or in separate reference docs, not in this skill.
