@@ -82,6 +82,18 @@ Run `observability-validator` to check:
 - No high-cardinality dimension bombs
 - Data contract compliance (if `data-contract-v1.yaml` exists)
 
+## Security visibility
+
+When building dashboards or observability rules for a platform (ECS, EKS, or both), aim for **"we have visibility"**, not just **"we have logs"**: use curated, high-signal events (high-risk actions and operational signals) instead of collecting everything. See [docs/FOLLOW_UPS.md](../../docs/FOLLOW_UPS.md) for the cloud-agnostic model (ECS + EKS).
+
+**Platform hints:**
+
+- **ECS:** ECS Exec sessions; task definition or IAM changes; Secrets Manager or SSM access; ALB/API 4xx/5xx.
+- **EKS:** RBAC changes; secret writes; exec, port-forward, or attach; 401/403 and non-2xx.
+- **Both:** Deny rate, non-2xx, throttle metrics; platform context (CPU/memory, nodes or tasks ready, restart offenders).
+
+**Validation:** Simulate operator actions (e.g. ECS: change task definition, run ECS Exec; EKS: change RoleBinding, run exec) and confirm they appear in logs and dashboard panels.
+
 ## Agents
 
 ### 1. `otel-config-builder` (green)
@@ -236,3 +248,8 @@ Particularly valuable for observability — config files don't document intent.
 - Dashboard panels must use `matchExact: true` for CloudWatch queries to avoid aggregation errors
 - Do NOT hardcode data source UIDs — use provisioning names
 - Prefer Terraform templatefile for dynamic OTEL configs (for infra-managed collectors)
+- When building dashboards for ECS or EKS, consider security visibility (high-risk actions and operational signals); see [Security visibility](#security-visibility) and [docs/FOLLOW_UPS.md](../../docs/FOLLOW_UPS.md).
+
+## Follow-ups
+
+For improvement ideas when creating dashboards and rules (e.g. security visibility beyond “green metrics”, audit pipelines, high-signal curation), see [docs/FOLLOW_UPS.md](../../docs/FOLLOW_UPS.md).
