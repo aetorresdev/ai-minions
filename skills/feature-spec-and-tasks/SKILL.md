@@ -7,6 +7,8 @@ description: "Generate a feature/initiative spec document with requirements (EAR
 
 Turn a natural-language goal (e.g. "apply AIOps to devops-jenkins-automation", "add observability to this repo") into a **single spec document**: structured **requirements** (EARS), **design** (architecture/constraints), and **discrete tasks** (tickets) with prerequisites and steps — so you know **what to do before executing**. Inspired by [Kiro's spec-driven development](https://kiro.dev/docs/).
 
+In agentic workflows the bottleneck shifts from "how do humans collaborate to build" to **what to build and validating it works**. The spec encodes **intent**; acceptance criteria should support **validation** (did we get the desired outcome?) not only verification (did we follow the steps?). Unclear requirements lead to endless iterations—specs must be explicit and testable.
+
 ## What this skill produces
 
 - **Epic-level doc**: Goal, scope, prerequisites.
@@ -23,6 +25,10 @@ Turn a natural-language goal (e.g. "apply AIOps to devops-jenkins-automation", "
 
 - **Read access** to the repo or codebase the user refers to (so you can propose design and tasks that match the project).
 - No mandatory CLI or MCP; optional: `infra-documenter` for ADRs if the initiative has major design decisions.
+
+### Context / AI-readiness (when the initiative touches legacy or complex systems)
+
+When the initiative touches legacy systems, many moving parts, or domain-heavy codebases, the spec can include a **Context** note: key existing assets (ADRs, runbooks, glossary, or critical files) the implementer—human or agent—should read first. That makes the system "AI-ready" and reduces misinterpretation. List them in Overview or in a short "Context (read first)" subsection.
 
 ## Input
 
@@ -80,6 +86,10 @@ Use these **only when the user’s goal clearly matches** the initiative type. T
   - **Design**: If workflows must post to PRs, state **PR comment behavior**: single create/update comment per run, identified by a marker; use only official actions (e.g. `actions/github-script`).
   - **Tasks**: Add explicit tasks for composite actions, validation workflow, release workflow (if automated), and “invocation example in each workflow file”; add acceptance criteria that match the design.
 
+- **Compliance / regulatory-driven** (e.g. "implement 2026 fee revision", "meet new regulation X"):
+  - **Requirements**: Trace each requirement to its source (e.g. "REQ-XXX: per [regulation/spec ref], section Y").
+  - **Design or Requirements**: Add a subsection **Points open to interpretation** listing items where the regulation or policy is ambiguous and human judgment is required; this avoids agents making assumptions on grey areas.
+
 Other initiative types may have their own checklists (e.g. in `docs/specs/` or references); when the goal matches, incorporate that checklist into the spec.
 
 ### Step 3: Output location
@@ -97,7 +107,7 @@ This skill uses 1 agent + 1 shared agent (optional).
 
 | Action | Details |
 |--------|--------|
-| Overview | Initiative name, goal, scope, prerequisites |
+| Overview | Initiative name, goal, scope, prerequisites; when relevant, **Context** (key assets to read first for AI-readiness) |
 | Requirements | EARS statements; group by theme; IDs REQ-001, … |
 | Design | Architecture, constraints, key decisions |
 | Tasks | TASK-001, …; title, **Skill/Agent**, **Deliverables**, description, prerequisites, steps, acceptance, estimate |
@@ -149,10 +159,10 @@ Follow the structure in `references/ears_and_format.md`. Summary:
 ## Rules
 
 - All spec content (requirements, design, tasks) in **English**.
-- Tasks must be **discrete** and **implementable**; each with clear acceptance.
+- Tasks must be **discrete** and **implementable**; each with clear, **verifiable** acceptance (automated check, checklist, or explicit sign-off—not vague success criteria).
 - Every task must have **Skill / Agent** and **Deliverables** so Terraform, observability, and other skills can implement with minimal human intervention.
 - **Documentation is required**: include documentation tasks (Skill: `infra-documenter`) or a Documentation subsection so every deliverable is documented (ADRs, runbooks, changelog, diagrams).
 - Prerequisites and "Before executing" must answer **what to do before execution** explicitly.
 - If the user mentions a repo, try to reflect its structure and stack in design and tasks; if you cannot read the repo, say so and produce a generic spec.
 - Do not execute tasks or run destructive commands — only produce the spec document.
-- **Post-implementation**: If the user asks to align the spec with an existing implementation (e.g. detect drift), add a **Drift and alignment** section: a short table (spec vs implemented) and bullets to update the spec so it stays the source of truth. Initiative-specific patterns belong in that spec or in separate reference docs, not in this skill.
+- **Post-implementation**: If the user asks to align the spec with an existing implementation (e.g. detect drift), add a **Drift and alignment** section: a short table (spec vs implemented) and bullets to update the spec so it stays the source of truth. Treat the spec as a **living contract**—update it when implementation or intent changes. Initiative-specific patterns belong in that spec or in separate reference docs, not in this skill.

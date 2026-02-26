@@ -39,7 +39,7 @@ The output is a **single spec document** (e.g. `docs/specs/<initiative>.md` or u
 
 - **Architecture / approach**: High-level (components, integrations, data flow).
 - **Constraints**: Tech stack, existing patterns, non-functional (e.g. no new cloud account).
-- **Decisions**: Key choices (e.g. "Use Datadog for metrics; keep logs in CloudWatch").
+- **Decisions**: Key choices (e.g. "Use Datadog for metrics; keep logs in CloudWatch"). When the initiative relies on domain or tribal knowledge, **explicitly capture** in the spec the decisions and rationale that aren’t written elsewhere—so the spec becomes the single source of truth and reduces reliance on tacit knowledge.
 
 ### 4. Tasks (Tickets)
 
@@ -51,7 +51,7 @@ The output is a **single spec document** (e.g. `docs/specs/<initiative>.md` or u
   - **Description**: What to do; links to requirements (e.g. satisfies REQ-001, REQ-002).
   - **Prerequisites**: What must be done before this task (other tasks or external).
   - **Steps / checklist**: Ordered steps or checklist so the user (or an agent) knows what to do before/during execution.
-  - **Acceptance**: How to verify the task is done (testable; e.g. "terraform validate passes", "dashboard shows metric X").
+  - **Acceptance**: How to verify the task is done. Acceptance criteria must be **verifiable**—e.g. automated check, concrete checklist, or explicit sign-off—not vague (e.g. avoid "works correctly"). Prefer **validation** (did we get the desired outcome?) over only **verification** (did we follow the steps?).
   - **Estimate** (optional): S/M/L or hours.
 
 - **Order**: List tasks in dependency order. If dependencies are complex, add a short "Suggested order" or dependency note (e.g. "TASK-002 after TASK-001").
@@ -150,3 +150,9 @@ The output is a **single spec document** (e.g. `docs/specs/<initiative>.md` or u
 ```
 
 All content (requirements, design, tasks, "before executing") in **English** in the spec.
+
+## References / further reading
+
+- **Fujitsu AI-Driven Software Development Platform** (2026): AI-Ready Engineering (preparing assets so agents understand systems), compliance/regulatory tracing, multi-layer quality. [Electronics Media](https://www.electronicsmedia.info/2026/02/17/fujitsu-ai-driven-software-development-platform/).
+- **InfoQ – Does AI Make the Agile Manifesto Obsolete?** (2026): In agentic SDLCs the bottleneck shifts to "what to build and validate it works"; documentation and intent design become more critical. Verification (did it do what I said?) vs validation (did it do what I wanted?). [InfoQ](https://www.infoq.com/news/2026/02/ai-agile-manifesto-debate/).
+- **Agent Factory – Preface (agent-native)**: Spec as living contract; intent before implementation; specs as executable. [Agent Factory](https://agentfactory.panaversity.org/docs/preface-agent-native).
