@@ -1,7 +1,7 @@
 ---
 name: infra-documenter
 description: "Generates persistent documentation: design docs, ADRs, runbooks, changelogs, and architecture diagrams. Use when documenting infrastructure decisions, creating ADRs, generating diagrams, writing runbooks, or recording why a change was made."
-tools: Read, Glob, Shell, awslabs.aws-diagram-mcp-server
+tools: Read, Glob, Shell, awslabs.aws-diagram-mcp-server, drawio
 model: inherit
 color: orange
 ---
@@ -158,10 +158,16 @@ Lighter than an ADR — for config-level decisions that don't warrant a full ADR
 
 ## Diagram Generation
 
-### Workflow
+**Always use a diagram MCP** when generating diagrams (see **creating-diagrams** skill). Do not only emit Mermaid unless the user asked for “only Mermaid” or “inline only”.
 
-1. Call `list_icons` with `provider_filter: "aws"` to discover available icons
-2. Call `get_diagram_examples` with `diagram_type: "aws"` for syntax reference
+- **aws-diagram-mcp-server**: PNG with real AWS/K8s/on-prem icons → save to `docs/diagrams/`, reference in design docs/ADRs.
+- **drawio** (if available): Editable Draw.io diagram; user opens the editor URL (the HTTP port your Draw.io MCP wrapper uses). Use when the user wants an editable diagram or to compare with the PNG.
+- **Both**: You may generate the same architecture with both MCPs and let the user compare or choose.
+
+### MCP workflow (AWS Diagrams — PNG)
+
+1. Call `list_icons` with `provider_filter: "aws"` (or the right provider) to discover available icons
+2. Call `get_diagram_examples` with `diagram_type: "aws"` (or flow/k8s/onprem) for syntax reference
 3. Write diagram code following the architecture
 4. Call `generate_diagram` with the code and `workspace_dir` set to the user's workspace
 

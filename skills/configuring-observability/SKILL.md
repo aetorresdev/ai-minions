@@ -84,7 +84,7 @@ Run `observability-validator` to check:
 
 ## Security visibility
 
-When building dashboards or observability rules for a platform (ECS, EKS, or both), aim for **"we have visibility"**, not just **"we have logs"**: use curated, high-signal events (high-risk actions and operational signals) instead of collecting everything. See [docs/FOLLOW_UPS.md](../../docs/FOLLOW_UPS.md) for the cloud-agnostic model (ECS + EKS).
+When building dashboards or observability rules for a platform (ECS, EKS, or both), aim for **"we have visibility"**, not just **"we have logs"**: use curated, high-signal events (high-risk actions and operational signals) instead of collecting everything.
 
 **Platform hints:**
 
@@ -93,6 +93,8 @@ When building dashboards or observability rules for a platform (ECS, EKS, or bot
 - **Both:** Deny rate, non-2xx, throttle metrics; platform context (CPU/memory, nodes or tasks ready, restart offenders).
 
 **Validation:** Simulate operator actions (e.g. ECS: change task definition, run ECS Exec; EKS: change RoleBinding, run exec) and confirm they appear in logs and dashboard panels.
+
+See also `references/security_visibility_dashboards.md` for panel patterns and layout.
 
 ## Agents
 
@@ -136,14 +138,34 @@ When building dashboards or observability rules for a platform (ECS, EKS, or bot
 
 ## Supported Backends
 
+### Grafana LGTM stack and metrics at scale (context for neophytes)
+
+**LGTM** = **L**oki (logs), **G**rafana (visualization), **T**empo (traces), **M**imir (metrics). It’s the standard open-source stack from Grafana Labs: one vendor, one UI (Grafana), and backends that integrate well together.
+
+| Component | Role | OTEL exporter | Grafana data source |
+|-----------|------|----------------|---------------------|
+| **Loki** | Log aggregation (LogQL) | `loki` | Loki |
+| **Grafana** | Dashboards, alerts, exploration | — | — |
+| **Tempo** | Distributed tracing | `otlp` (gRPC/HTTP to Tempo) | Tempo |
+| **Mimir** | Metrics (Prometheus-compatible, multi-tenant, long-term) | `prometheusremotewrite` to Mimir | Prometheus (same endpoint) |
+
+For **metrics at scale** (long retention, multi-tenant, global view), two common options are:
+
+- **Mimir**: Grafana Labs, part of LGTM, Prometheus remote write, good fit if you already use Grafana/Tempo/Loki.
+- **Thanos**: CNCF, also Prometheus-compatible (sidecar or receive path), often used for federation and long-term storage. Grafana talks to Thanos via the Prometheus data source (Thanos exposes Prometheus API).
+
+Choosing between them is mostly operational and vendor preference; both work with the same OTEL exporter (`prometheusremotewrite`) and Grafana panels. The skill applies to either.
+
 ### Metrics
 
 | Backend | Exporter | Grafana Data Source |
-|---|---|---|
+|---------|----------|---------------------|
 | Prometheus | `prometheusremotewrite` | Prometheus |
+| Mimir (LGTM) | `prometheusremotewrite` | Prometheus (Mimir endpoint) |
+| Thanos | `prometheusremotewrite` | Prometheus (Thanos query endpoint) |
 | CloudWatch | `awsemf` | CloudWatch |
 | Datadog | `datadog` | Datadog |
-| OTLP endpoint | `otlp` | Tempo/Mimir |
+| OTLP endpoint | `otlp` | Tempo/Mimir (OTLP) |
 
 ### Traces
 
@@ -164,6 +186,17 @@ When building dashboards or observability rules for a platform (ECS, EKS, or bot
 | Elasticsearch | `elasticsearch` | Elasticsearch |
 | OTLP endpoint | `otlp` | Loki (via OTLP) |
 
+## Optional: MCPs for observability and AIOps
+
+The skill does **not** require any observability MCP to configure OTEL or Grafana; the agents (otel-config-builder, grafana-dashboard-builder, observability-validator) work with Read/Glob/Shell and the references in this repo.
+
+If you want the AI to **query live observability data** (e.g. “analyze my traces”, “why is this slow?”), that’s a different use case (AIOps):
+
+- **Grafana Cloud** (and **Tempo 2.9+** open source) expose an **MCP server for tracing**: the LLM can run TraceQL queries against your trace backend. Useful for incident analysis and performance hints, not for writing collector or dashboard configs.
+- **Install:** Add the `grafana-cloud-traces` MCP in Cursor (streamable HTTP) with your Grafana Cloud stack URL and API token. It is preconfigured in `mcp.json` as disabled; enable and set credentials when you use Grafana Cloud. See [mcp_grafana_cloud_traces_setup.md](references/mcp_grafana_cloud_traces_setup.md).
+- Docs: [Grafana Cloud MCP for Traces](https://grafana.com/docs/grafana-cloud/send-data/traces/mcp-server), [MCP Observability](https://grafana.com/docs/grafana-cloud/monitor-applications/ai-observability/mcp-observability/).
+
+You can add such an MCP to Cursor if you use Grafana Cloud or self-hosted Tempo and want the AI to reason over trace data; it’s optional and complementary to this skill.
 ## Output Format
 
 ```
@@ -248,8 +281,5 @@ Particularly valuable for observability — config files don't document intent.
 - Dashboard panels must use `matchExact: true` for CloudWatch queries to avoid aggregation errors
 - Do NOT hardcode data source UIDs — use provisioning names
 - Prefer Terraform templatefile for dynamic OTEL configs (for infra-managed collectors)
-- When building dashboards for ECS or EKS, consider security visibility (high-risk actions and operational signals); see [Security visibility](#security-visibility) and [docs/FOLLOW_UPS.md](../../docs/FOLLOW_UPS.md).
+- When building dashboards for ECS or EKS, consider security visibility (high-risk actions and operational signals); see [Security visibility](#security-visibility) and `references/security_visibility_dashboards.md`.
 
-## Follow-ups
-
-For improvement ideas when creating dashboards and rules (e.g. security visibility beyond “green metrics”, audit pipelines, high-signal curation), see [docs/FOLLOW_UPS.md](../../docs/FOLLOW_UPS.md).
