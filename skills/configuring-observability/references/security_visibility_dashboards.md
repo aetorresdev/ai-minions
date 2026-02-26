@@ -2,8 +2,6 @@
 
 Use these patterns when building dashboards for **ECS**, **EKS**, or both. Aim for **visibility** (curated, high-signal events), not just "we have logs." Cloud-agnostic: panel types and layout apply to any backend (Loki, CloudWatch, Prometheus); data sources and queries depend on platform and log or metric source.
 
-**Reference:** [docs/FOLLOW_UPS.md](../../../docs/FOLLOW_UPS.md) for the full security visibility model (ECS + EKS).
-
 ---
 
 ## Row 1: Security visibility (high-signal)

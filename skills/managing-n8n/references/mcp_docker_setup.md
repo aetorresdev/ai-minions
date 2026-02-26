@@ -41,18 +41,18 @@ Append a new server entry. Use one of the following blocks depending on whether 
 ### With n8n instance (workflow create/update/execute)
 
 **Option A – Wrapper script (recommended if you already export vars in bash)**  
-So that `mcp.json` does not contain secrets and still passes your env into the container, use a script that sources your credentials and then runs Docker. A script is at `~/.cursor/n8n-mcp-docker.sh`: it sources `~/.config/n8n/credentials` if present, maps `N8N_API_TOKEN` → `N8N_API_KEY` for the MCP, and runs the container. In `mcp.json`:
+So that `mcp.json` does not contain secrets and still passes your env into the container, use a script that sources your credentials and then runs Docker. Example: a script (e.g. in `$HOME/.cursor/` or your preferred path) that sources `~/.config/n8n/credentials` if present, maps `N8N_API_TOKEN` → `N8N_API_KEY` for the MCP, and runs the container. In `mcp.json`:
 
 ```json
 {
   "n8n-mcp": {
-    "command": "/home/andres/.cursor/n8n-mcp-docker.sh",
+    "command": "<path-to-your-n8n-mcp-wrapper.sh>",
     "args": []
   }
 }
 ```
 
-Ensure `~/.cursor/n8n-mcp-docker.sh` is executable (`chmod +x ~/.cursor/n8n-mcp-docker.sh`). The script reads `N8N_API_URL` and `N8N_API_TOKEN` (or `N8N_API_KEY`) from the sourced file or from the environment when Cursor starts the script.
+Ensure the script is executable. The script should read `N8N_API_URL` and `N8N_API_TOKEN` (or `N8N_API_KEY`) from the sourced file or from the environment when Cursor starts the script.
 
 **Option B – Pass env through Docker (Cursor started from a terminal with vars exported)**  
 If you start Cursor from a shell where you already `export N8N_API_URL` and `export N8N_API_KEY` (or `N8N_API_TOKEN` with `export N8N_API_KEY=$N8N_API_TOKEN`), you can call Docker directly with `-e N8N_API_URL` and `-e N8N_API_KEY` so the container receives them. See the “Documentation and validation only” block and add those two `-e` args before the image name.
@@ -82,7 +82,7 @@ With either option, the MCP can create, update, and execute workflows on your in
 }
 ```
 
-**Important:** The MCP expects **`N8N_API_KEY`**. The wrapper script `n8n-mcp-docker.sh` sources `~/.config/n8n/credentials` and, if you use `N8N_API_TOKEN`, sets `N8N_API_KEY=$N8N_API_TOKEN` so the container receives the key. With Option B, Docker’s `-e VAR` (no value) passes the host variable into the container.
+**Important:** The MCP expects **`N8N_API_KEY`**. Your wrapper script can source credentials `~/.config/n8n/credentials` and, if you use `N8N_API_TOKEN`, sets `N8N_API_KEY=$N8N_API_TOKEN` so the container receives the key. With Option B, Docker’s `-e VAR` (no value) passes the host variable into the container.
 
 ## 3. Restart Cursor
 

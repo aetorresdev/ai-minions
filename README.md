@@ -34,7 +34,7 @@ In Cursor or Warp, ask:
 - **“Review this Dockerfile”** (with a Dockerfile open) → should trigger `reviewing-docker`
 - **“Review this Terraform module”** (with `.tf` files in context) → should trigger `reviewing-terraform`
 - **“Create a CircleCI pipeline for a Node app”** → should trigger `creating-circleci`
-- **"Diseña el spec para aplicar AIOps al repo devops-jenkins-automation"** or **"Epic and tickets for adding observability"** → should trigger `feature-spec-and-tasks`
+- **"Design the spec to apply AIOps to repo X"** or **"Epic and tickets for adding observability"** → should trigger `feature-spec-and-tasks`
 
 If the model mentions the skill or follows its instructions, the skill is active. See [Examples](#examples) for reproducible demos.
 
@@ -85,6 +85,14 @@ If the model mentions the skill or follows its instructions, the skill is active
 
 **Workflow**: spec-writer → single doc (requirements + design + tasks + before executing).
 
+### Diagrams
+
+| Skill | Trigger | What it does |
+|---|---|---|
+| `creating-diagrams` | "architecture diagram", "flow diagram", "diagram for docs", "diagram with AWS icons" | Creates diagrams for documentation: **Mermaid** (embedded in Markdown) or **PNG with real icons** via `awslabs.aws-diagram-mcp-server`. Use Mermaid for simple flows/sequences in .md; use MCP for architecture with AWS/K8s/on-prem icons. |
+
+Used by `infra-documenter` and `n8n-workflow-documenter` when generating diagrams.
+
 ## Shared Agents
 
 These agents are not tied to a single skill — they activate across multiple skills when their context applies.
@@ -113,15 +121,22 @@ frameworks:
 
 ### infra-documenter
 
-Generates persistent documentation: ADRs, design docs, runbooks, changelogs, config decision records, and architecture diagrams (via `awslabs.aws-diagram-mcp-server`).
+Generates persistent documentation: ADRs, design docs, runbooks, changelogs, config decision records, and architecture diagrams (via `awslabs.aws-diagram-mcp-server` and optionally `drawio` for editable diagrams or comparison).
 
 ## MCP Servers Required
 
-| MCP Server | Used by | Purpose |
-|---|---|---|
-| `terraform-mcp-server` (HashiCorp) | creating-terraform, reviewing-terraform, designing-terraform | Resource/module docs lookup |
-| `awslabs.terraform-mcp-server` (AWS Labs) | creating-terraform, reviewing-terraform, designing-terraform, compliance-checker | AWS best practices, provider docs, checkov scans |
-| `awslabs.aws-diagram-mcp-server` | designing-terraform, infra-documenter | Architecture diagram generation |
+MCP setup is in each skill’s **`references/`** (see links below). Configure in Cursor via `~/.cursor/mcp.json` or workspace `.cursor/mcp.json`; restart Cursor after changes.
+
+| MCP Server | Used by | Purpose / full setup |
+|------------|---------|----------------------|
+| `terraform-mcp-server` (HashiCorp) | creating-terraform, reviewing-terraform, designing-terraform | Resource/module docs lookup. [mcp_terraform_setup.md](skills/reviewing-terraform/references/mcp_terraform_setup.md) |
+| `awslabs.terraform-mcp-server` (AWS Labs) | creating-terraform, reviewing-terraform, designing-terraform, compliance-checker | AWS best practices, provider docs, checkov. [mcp_awslabs_terraform_setup.md](skills/reviewing-terraform/references/mcp_awslabs_terraform_setup.md) |
+| `awslabs.aws-diagram-mcp-server` | designing-terraform, infra-documenter, creating-diagrams | Architecture/diagram PNG with real icons. [mcp_aws_diagram_setup.md](skills/creating-diagrams/references/mcp_aws_diagram_setup.md) |
+| `drawio` (drawio-mcp-server) | creating-diagrams, infra-documenter | Draw.io editor (wrapper’s HTTP port); optional. [mcp_drawio_setup.md](skills/creating-diagrams/references/mcp_drawio_setup.md) |
+| `n8n-mcp` | managing-n8n | Node schemas, validation, workflow create/update/execute. [mcp_docker_setup.md](skills/managing-n8n/references/mcp_docker_setup.md) |
+| `grafana-cloud-traces` | configuring-observability (optional AIOps) | Query live traces (TraceQL). Optional. [mcp_grafana_cloud_traces_setup.md](skills/configuring-observability/references/mcp_grafana_cloud_traces_setup.md) |
+
+**Draw.io:** use a wrapper script (local path) that starts drawio-mcp-server and filters stdout; Node.js v20+. See [mcp_drawio_setup.md](skills/creating-diagrams/references/mcp_drawio_setup.md).
 ## CLI Tools
 
 | Tool | Used by | Install |
@@ -184,6 +199,8 @@ Generates persistent documentation: ADRs, design docs, runbooks, changelogs, con
 │       ├── SKILL.md
 │       └── references/
 │           └── ears_and_format.md
+│   ├── creating-diagrams/
+│   │   └── SKILL.md
 ├── agents/
 │   ├── architecture-planner.md
 │   ├── component-scaffolder.md
