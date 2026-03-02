@@ -1,6 +1,6 @@
 # AWS Labs AWS Diagram MCP Server
 
-The [awslabs.aws-diagram-mcp-server](https://github.com/awslabs/aws-diagram-mcp-server) generates architecture diagrams (PNG) using the Python `diagrams` package with real AWS, Kubernetes, and on-prem icons. Used by `designing-terraform`, `infra-documenter`, and `creating-diagrams` skills.
+The [awslabs.aws-diagram-mcp-server](https://github.com/awslabs/mcp/tree/main/src/aws-diagram-mcp-server) generates architecture diagrams (PNG) using the Python `diagrams` package with real AWS, Kubernetes, and on-prem icons. Used by `designing-terraform`, `infra-documenter`, and `creating-diagrams` skills.
 
 - **Package**: `awslabs.aws-diagram-mcp-server` (run via uvx)
 - **Mode**: stdio — Cursor starts the process when the MCP is used.
@@ -43,4 +43,4 @@ Restart Cursor (or reload MCP servers) so it picks up the new server. When you a
 ## Reference
 
 - Package: https://pypi.org/project/awslabs.aws-diagram-mcp-server/
-- Repo: https://github.com/awslabs/aws-diagram-mcp-server
+- Repo (monorepo): https://github.com/awslabs/mcp — source under `src/aws-diagram-mcp-server`

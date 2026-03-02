@@ -1,6 +1,6 @@
 # AWS Labs Terraform MCP Server
 
-The [awslabs.terraform-mcp-server](https://github.com/awslabs/terraform-mcp-server) provides AWS provider documentation, best practices, and Checkov security scans. Used by `creating-terraform`, `reviewing-terraform`, `designing-terraform`, and `compliance-checker` agents.
+The [awslabs.terraform-mcp-server](https://github.com/awslabs/mcp/tree/main/src/terraform-mcp-server) provides AWS provider documentation, best practices, and Checkov security scans. Used by `creating-terraform`, `reviewing-terraform`, `designing-terraform`, and `compliance-checker` agents.
 
 - **Package**: `awslabs.terraform-mcp-server` (run via uvx)
 - **Mode**: stdio — Cursor starts the process when the MCP is used.
@@ -42,4 +42,4 @@ Restart Cursor (or reload MCP servers) so it picks up the new server.
 ## Reference
 
 - Package: https://pypi.org/project/awslabs.terraform-mcp-server/
-- Repo: https://github.com/awslabs/terraform-mcp-server
+- Repo (monorepo): https://github.com/awslabs/mcp — source under `src/terraform-mcp-server`

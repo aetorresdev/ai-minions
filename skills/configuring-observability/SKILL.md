@@ -282,4 +282,3 @@ Particularly valuable for observability — config files don't document intent.
 - Do NOT hardcode data source UIDs — use provisioning names
 - Prefer Terraform templatefile for dynamic OTEL configs (for infra-managed collectors)
 - When building dashboards for ECS or EKS, consider security visibility (high-risk actions and operational signals); see [Security visibility](#security-visibility) and `references/security_visibility_dashboards.md`.
-
