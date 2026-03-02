@@ -18,7 +18,7 @@ Create a wrapper script that:
 2. Spawns `npx -y drawio-mcp-server --editor --extension-port <port> --http-port <port>` with those ports.
 3. Pipes stdin to the child and forwards to stdout only lines that look like JSON-RPC (e.g. start with `{` and contain `"jsonrpc"`); send everything else to stderr.
 
-Make the script executable and note its path for step 2. The server prints the editor URL to stderr (e.g. "Editor at http://localhost:XXXX"); open that URL in the browser.
+Make the script executable and note its path for step 2. The server prints the editor URL to stderr (e.g. `Editor at http://localhost:<port>`); open that URL in the browser.
 
 ## 2. Add MCP server in Cursor
 
@@ -37,7 +37,7 @@ Append a new server entry using your wrapper script path:
 }
 ```
 
-When the MCP is active, open the editor URL in your browser. If the wrapper picks ports dynamically, the server prints the URL to stderr (e.g. "Editor at http://localhost:49302"); otherwise use the HTTP port you passed with `--http-port` (default 3000).
+When the MCP is active, open the editor URL in your browser. If the wrapper picks ports dynamically, the server prints the URL to stderr (e.g. `http://localhost:<port>`); otherwise use the HTTP port you passed with `--http-port` (default 3000).
 
 ### Alternative: HTTP transport (no wrapper)
 
@@ -86,7 +86,7 @@ Pick any free port; ensure the same ports are used when you open the editor URL 
 
 ## Reference
 
-- Repo: https://github.com/lgazo/drawio-mcp-server  
-- npm: https://www.npmjs.com/package/drawio-mcp-server
+- Repo: https://github.com/lgazo/drawio-mcp-server
+- npm package: `drawio-mcp-server` (run with `npx -y drawio-mcp-server`; see [npm registry](https://registry.npmjs.org/drawio-mcp-server) for metadata)
 
 **Note:** The skill uses this MCP for editable diagrams and for comparison with PNG from the AWS Diagram MCP. If the Draw.io MCP is not configured, the skill falls back to AWS Diagram MCP and optionally Mermaid.
