@@ -75,12 +75,12 @@ taxonomy:
 ```yaml
 version: "1"
 owner: "devops"
-description: "Observability contract for Jenkins CI/CD pipelines"
+description: "Observability contract for CI/CD pipelines"
 last_updated: "2026-02-17"
 
 signals:
   metrics:
-    namespace: "jenkins/otel-${service}"
+    namespace: "ci/otel-${service}"
     source: "spanmetrics"
     metrics:
       - name: "traces.span.metrics.calls"
@@ -90,7 +90,7 @@ signals:
         dimensions:
           required:
             - name: "ci.pipeline.name"
-              description: "Jenkins job name"
+              description: "CI job or pipeline name"
               cardinality: "medium"
               examples: ["build-android", "deploy-atlas"]
             - name: "OTelLib"
@@ -113,7 +113,7 @@ signals:
         dimensions:
           required:
             - name: "ci.pipeline.name"
-              description: "Jenkins job name"
+              description: "CI job or pipeline name"
               cardinality: "medium"
               examples: ["build-android", "deploy-atlas"]
             - name: "OTelLib"
@@ -132,11 +132,11 @@ signals:
             use_case: "Slowest pipeline runs"
 
   traces:
-    service_name: "jenkins-${service}"
-    service_namespace: "jenkins"
+    service_name: "ci-${service}"
+    service_namespace: "ci"
     resource_attributes:
       - name: "service.name"
-        description: "Jenkins service identifier"
+        description: "CI service identifier"
         source: "static"
       - name: "service.namespace"
         description: "Service group"
@@ -146,7 +146,7 @@ signals:
         source: "environment"
     span_attributes:
       - name: "ci.pipeline.name"
-        description: "Jenkins job name"
+        description: "CI job or pipeline name"
         examples: ["build-android", "deploy-atlas"]
       - name: "ci.pipeline.run.number"
         description: "Build number"
@@ -167,7 +167,7 @@ signals:
   logs:
     structured_fields:
       - name: "service.name"
-        description: "Jenkins service identifier"
+        description: "CI service identifier"
         type: "string"
         required: true
       - name: "deployment.environment"
@@ -175,7 +175,7 @@ signals:
         type: "string"
         required: true
       - name: "ci.pipeline.name"
-        description: "Jenkins job name"
+        description: "CI job or pipeline name"
         type: "string"
         required: false
       - name: "ci.pipeline.run.id"
@@ -199,9 +199,9 @@ signals:
         type: "string"
         required: true
     log_groups:
-      - pattern: "/ecs/jenkins-${service}/<task-type>"
-        description: "Jenkins service container logs"
-      - pattern: "/aws/otel/otel-fargate-${cluster}"
+      - pattern: "/ecs/ci-${service}/<task-type>"
+        description: "CI service container logs"
+      - pattern: "/aws/otel/collector-${cluster}"
         description: "OTEL collector logs"
 
 correlation:
@@ -258,3 +258,13 @@ The `observability-validator` agent should validate:
 2. **Validate**: On every OTEL config or dashboard change
 3. **Update**: When adding new metrics, dimensions, or signals
 4. **Version**: Increment version on breaking changes (dimension rename/removal)
+
+## Example: Specs that include a data contract (Kiro-style)
+
+When writing a feature/initiative spec that defines or uses an observability data contract (e.g. metrics, traces, logs, DORA), use the same structure as this reference:
+
+- **Glossary**: Define terms such as Run_ID, Data_Contract, Collector, and any namespace or attribute names (e.g. `ci.pipeline.run.id`, `metrics/otel-*`) so requirements and tasks use them consistently.
+- **Requirements**: State data contract requirements in EARS (e.g. "THE Data_Contract SHALL define …") with numbered acceptance criteria.
+- **Tasks**: Reference those requirements (e.g. Satisfies: REQ-001.1, REQ-001.2) and include deliverables such as `docs/monitoring/data-contract-v1.md` and `data-contract-v1.yaml`.
+
+For the Kiro multi-file layout (requirements.md, design.md, tasks.md), see `feature-spec-and-tasks/references/kiro_spec_format.md`.

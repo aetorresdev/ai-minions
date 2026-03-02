@@ -14,10 +14,11 @@ The server writes progress messages to stdout, which breaks MCP over stdio. Use 
 
 Create a wrapper script that:
 
-1. Spawns `npx -y drawio-mcp-server --editor` (and optionally `--extension-port`, `--http-port` if defaults 3333/3000 are in use).
-2. Pipes stdin to the child and forwards to stdout only lines that look like JSON-RPC (e.g. start with `{` and contain `"jsonrpc"`); send everything else to stderr.
+1. Finds a **free pair of ports** in a high range (e.g. 49301–49399) so multiple instances (e.g. Cursor reload) do not conflict.
+2. Spawns `npx -y drawio-mcp-server --editor --extension-port <port> --http-port <port>` with those ports.
+3. Pipes stdin to the child and forwards to stdout only lines that look like JSON-RPC (e.g. start with `{` and contain `"jsonrpc"`); send everything else to stderr.
 
-Make the script executable and note its path for step 2.
+Make the script executable and note its path for step 2. The server prints the editor URL to stderr (e.g. "Editor at http://localhost:XXXX"); open that URL in the browser.
 
 ## 2. Add MCP server in Cursor
 
@@ -36,7 +37,7 @@ Append a new server entry using your wrapper script path:
 }
 ```
 
-When the MCP is active, open the editor URL in your browser (the HTTP port your wrapper uses; default 3000, or the port you pass with `--http-port`).
+When the MCP is active, open the editor URL in your browser. If the wrapper picks ports dynamically, the server prints the URL to stderr (e.g. "Editor at http://localhost:49302"); otherwise use the HTTP port you passed with `--http-port` (default 3000).
 
 ### Alternative: HTTP transport (no wrapper)
 
@@ -67,6 +68,21 @@ Remove the cache and try again; the server will re-download assets:
 ```bash
 rm -rf ~/.cache/drawio-mcp-server
 ```
+
+## Optional: port already in use
+
+If you see errors like "port 3334 already in use" (extension port) or "port 3000/3001 already in use" (HTTP port), edit your **wrapper script** and pass different ports:
+
+- **Extension port** (for the Draw.io browser extension): default 3333. If 3333 or 3334 are taken, use e.g. `--extension-port 3335` or `--extension-port 3336`.
+- **HTTP port** (for the editor in the browser): default 3000. If taken, use e.g. `--http-port 3002`.
+
+Example in the wrapper:
+
+```bash
+npx -y drawio-mcp-server --editor --extension-port 3335 --http-port 3002
+```
+
+Pick any free port; ensure the same ports are used when you open the editor URL in the browser (HTTP port) or when configuring the extension (extension port).
 
 ## Reference
 
