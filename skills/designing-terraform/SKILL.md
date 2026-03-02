@@ -66,7 +66,8 @@ The user provides one or more of:
 Before designing, clarify:
 - **What**: What problem does this solve? What workload runs here?
 - **Scale**: Expected traffic/load, number of environments
-- **Constraints**: Budget, compliance, existing infrastructure to integrate with
+- **Constraints**: Budget (approved spend cap or limit), compliance, existing infrastructure to integrate with
+- **Budget and billing (critical)**: Ask explicitly: **What is the approved budget or spend cap for this component/account? Are AWS Budgets and billing alerts required? At what thresholds should alerts fire?** Uncontrolled AWS spend can lead to very large surprise bills; the design must include cost controls (Budgets, alerts, cost allocation tags) from the start, not as an afterthought.
 - **Team**: Who operates this? DevOps, developers, both?
 - **Timeline**: MVP vs production-grade
 
@@ -206,6 +207,7 @@ designing-terraform ──→ creating-terraform ──→ reviewing-terraform
 - Compute: <service> — <why>
 - Storage: <service> — <why>
 - Networking: <service> — <why>
+- **Cost controls**: AWS Budget(s) and alerts at X% of budget; cost allocation tags (environment, application, costbucket); who owns cost visibility
 - Cost estimate: <relative — low/medium/high>
 - Complexity: <low/medium/high>
 - Operational burden: <low/medium/high>
@@ -229,7 +231,7 @@ designing-terraform ──→ creating-terraform ──→ reviewing-terraform
 
 ```
 docs/
-├── design-<name>.md          # Architecture design document
+├── design-<name>.md          # Architecture design document (include Cost controls section)
 ├── adr/
 │   ├── ADR-001-<decision>.md
 │   └── ADR-002-<decision>.md
@@ -237,9 +239,12 @@ docs/
     └── <name>-architecture.png
 ```
 
+Design document must include a **Cost controls** section: budget/alert strategy, cost allocation tags, and handoff to creating-terraform so that Budgets and tags are implemented.
+
 ## Rules
 
 - Always present options with trade-offs — do not prescribe a single solution without justification
+- **Budget and billing are mandatory for design**: Every architecture that deploys billable AWS resources must address cost controls (AWS Budgets, billing alerts at defined thresholds, cost allocation tags). Do not leave this to "we'll add it later"—surprise bills are a serious risk.
 - Validate that proposed AWS resources actually exist via MCP before including them
 - Wait for user validation before generating documentation
 - Design documents go in `docs/` at the repo root (or wherever the user specifies)

@@ -54,6 +54,7 @@ Before generating any code:
 - Determine if an existing module in `terrarium` covers the use case
 - Ask the user for environments if not specified (default: dev, uat, prod)
 - Ask for the target directory if not obvious
+- **Budget and billing (critical)**: Ask whether this component has an approved budget or spend cap and whether **AWS Budgets and billing alerts** are required. If yes, add a cost-control task (create budget + alerts at defined thresholds). Ensure all resources will have **cost allocation tags** (via default_tags: costbucket, environment, application, terraform) so spend is visible; never create billable resources without a plan for cost visibility and alerts—surprise bills are a serious risk.
 
 ### Step 2: Scaffold
 
@@ -112,6 +113,15 @@ Skip entirely if no compliance framework is declared.
 ### Step 7: User Review
 
 Present a summary of what was created. Do NOT apply or push — the user handles that.
+
+### Step 7b: Cost controls (mandatory for billable resources)
+
+Before considering the component complete:
+- **Tags**: Confirm that `default_tags` in `providers.tf` include cost allocation tags (`costbucket`, `environment`, `application`, `terraform` or org equivalents). Every billable resource must be taggable for cost visibility.
+- **AWS Budgets and alerts**: If the design or user requires budget/alert for this component or account, either:
+  - Add a task (or separate small Terraform/script) to create an AWS Budget and alerts at the agreed thresholds, and document it in the component README or runbook, or
+  - Document explicitly: "Budget/alerts are managed at account level" or "User to create budget and alerts per design doc" so it is not forgotten.
+- Do not leave cost controls implicit: unplanned spend can result in very large bills.
 
 ### Step 8: Document (optional)
 
@@ -242,6 +252,10 @@ After creation, present a summary:
 🔴 terraform validate — <error>
     Fix: <how to fix>
 
+### Cost controls
+🟢 default_tags include cost allocation (costbucket, environment, application, terraform)
+🟢 Budget/alert: <created per design | documented in README/runbook | managed at account level>
+
 ### Next Steps
 - [ ] Review generated code
 - [ ] Fill environment-specific values in `envs/*.tfvars`
@@ -261,3 +275,4 @@ After creation, present a summary:
 - Do NOT run `terraform apply` — only fmt and validate
 - If unsure about a resource attribute, look it up via MCP before generating
 - Prefer modules from terrarium when available over raw resources
+- **Cost controls are mandatory**: Every component that creates billable AWS resources must have (1) cost allocation tags via default_tags, and (2) a documented plan for AWS Budgets/alerts (either implemented in this component, in a separate one, or explicitly documented as account-level or "user to create"). Never ship without cost visibility and alerting—surprise bills are a serious risk.
