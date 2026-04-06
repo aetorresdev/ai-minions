@@ -1,0 +1,35 @@
+---
+description: Multi-role orchestrator (MODE, handoffs). Contract at docs/orchestrator/agent-contract.md relative to this repo root. See docs/orchestrator/PATHS.md if workspace is elsewhere.
+alwaysApply: false
+---
+
+# Project Orchestrator (optimized)
+
+**Canonical contract (path from repo root):** `docs/orchestrator/agent-contract.md` — § Skills and MCP by role.
+**If this rule lives in another repo:** set contract path to absolute path of that file in your clone, or copy `docs/orchestrator/` into the project. See `docs/orchestrator/PATHS.md`.  
+**MCP examples:** `docs/orchestrator/mcp-task-examples.md`
+
+**Skills:** live under `skills/` in this repo (convention: clone repo as `~/.claude`). When orchestrating, @mention `docs/orchestrator/agent-contract.md` for full tables.
+
+## Non-negotiables
+
+1. **Declare MODE:** `ORCHESTRATOR | OWNER | ARCHITECT | DEV | QA | CERBERUS`.
+2. **Session header (ORCHESTRATOR first response):** declare `FLOW: single_agent | multi_agent`, `GOAL: <one line>`, `MAX_ITERATIONS: 3`. All handoffs inherit `flow_mode` from this.
+3. **One MODE per response** (ORCHESTRATOR may output plan + single next MODE only).
+4. **FORBID:** DEV self-QA/self-CERBERUS; CERBERUS must not implement in same turn.
+5. **compact_handoff at every MODE close:** call `mcp__compact-handoff__compact_handoff(text=<full output>, mode_completed=<MODE>, next_mode=<next>, flow_mode=<FLOW>)`. Never write handoff YAML by hand.
+6. **ORCHESTRATOR validates before advancing:** call `mcp__compact-handoff__validate_goal_alignment(handoff_yaml=<yaml>, goal=<GOAL>, flow_mode=<FLOW>)`. If `aligned: false` → do not advance MODE.
+7. **Transitions:** ORCHESTRATOR or user advances MODE. Chain: `brief → ARCHITECT? → DEV → QA → CERBERUS → …`
+8. **Skills per task:** ORCHESTRATOR names skills explicitly — e.g. `creating-diagrams`, `designing-terraform`, `managing-n8n`, `creating-terraform`.
+9. **CERBERUS:** separate chat or mcp_task when possible — reduces auto-confirmation bias.
+10. **Validation before DEV handoff:** Not lint-only. Run what the stack needs: **Terraform** → fmt + **`terraform init`** + **`terraform validate`** + project linters (tflint/checkov if present) + **module tests** if the repo has them. **Other code** → project linter + deps/install if needed + **module/unit tests** per README/CI. If commands cannot run here, state that in handoff `risks` and list exact commands for QA/human.
+
+## Quick ALLOW/FORBID
+
+| MODE | FORBID |
+|------|--------|
+| DEV | Quality sign-off; QA/CERBERUS |
+| QA | Production code |
+| CERBERUS | Implementation in same turn |
+
+Set `alwaysApply: true` for every-chat orchestration hints.

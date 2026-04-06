@@ -2,9 +2,16 @@
 .vscode/
 .idea/
 
-# Debug files
+# Debug / runtime
 debug/
 *.log
+session-env/
+sessions/
+shell-snapshots/
+todos/
+ide/
+file-history/
+backups/
 
 # Cache
 cache/
@@ -16,12 +23,32 @@ __pycache__/
 
 # Downloads
 downloads/
+telemetry/
 
 # System files
 .DS_Store
 Thumbs.db
 
-# Environment
+# Credentials and secrets
+.credentials.json
 .env
 .env.local
-docs/*
+secrets/
+
+# Claude Code runtime data (personal, not repo content)
+projects/
+history.jsonl
+metrics/
+plugins/
+
+# MCP server virtualenvs and lock files
+mcp-servers/**/.venv/
+mcp-servers/**/node_modules/
+mcp-servers/**/uv.lock
+
+# Settings (contains local paths and hooks — copy from settings.example.json)
+settings.json
+
+# Work-in-progress specs and ADRs — not ready for public repo
+docs/specs/
+docs/adr/
