@@ -285,8 +285,6 @@ claude mcp add compact-handoff \
 │   │   ├── mcp-task-examples.md     # MCP/subagent usage examples
 │   │   ├── CURSOR_RULE_SETUP.md     # How to install the Cursor rule in other repos
 │   │   └── PATHS.md                 # Path conventions for multi-repo setups
-│   ├── adr/                         # Architecture Decision Records
-│   ├── specs/                       # Feature/initiative specs
 │   ├── drawio-mcp-setup.md          # Draw.io MCP server setup guide
 │   └── mcp-installation.md          # General MCP installation guide
 ├── examples/                        # Reproducible demos (input + expected output)
