@@ -1,12 +1,12 @@
 # AI Minions 🍌
 
-My personal collection of AI skills and agents for Claude Code, compatible with both Cursor and Warp.
+A collection of AI skills, agents, and orchestration tools for Claude Code — compatible with Cursor and Warp.
 
 ---
 
 ## 🔧 Quickstart (90 seconds)
 
-Get from zero to “one skill works” in under two minutes.
+Get from zero to "one skill works" in under two minutes.
 
 ### Prerequisites
 
@@ -18,8 +18,9 @@ Get from zero to “one skill works” in under two minutes.
 Copy or clone this repo so that skills live under `~/.claude/skills/`:
 
 ```bash
-# Option A: clone
-git clone https://github.com/aetorresdev/ai-minions.git ~/.claude
+# Option A: clone directly into ~/.claude
+git clone https://github.com/YOUR_USERNAME/ai-minions.git ~/.claude
+
 # Option B: copy only skills
 mkdir -p ~/.claude/skills
 cp -r /path/to/this/repo/skills/* ~/.claude/skills/
@@ -31,12 +32,146 @@ Ensure each skill is in its own folder with a `SKILL.md` (e.g. `~/.claude/skills
 
 In Cursor or Warp, ask:
 
-- **“Review this Dockerfile”** (with a Dockerfile open) → should trigger `reviewing-docker`
-- **“Review this Terraform module”** (with `.tf` files in context) → should trigger `reviewing-terraform`
-- **“Create a CircleCI pipeline for a Node app”** → should trigger `creating-circleci`
+- **"Review this Dockerfile"** (with a Dockerfile open) → should trigger `reviewing-docker`
+- **"Review this Terraform module"** (with `.tf` files in context) → should trigger `reviewing-terraform`
+- **"Create a CircleCI pipeline for a Node app"** → should trigger `creating-circleci`
 - **"Design the spec to apply AIOps to repo X"** or **"Epic and tickets for adding observability"** → should trigger `feature-spec-and-tasks`
 
 If the model mentions the skill or follows its instructions, the skill is active. See [Examples](#examples) for reproducible demos.
+
+---
+
+## 🧠 Orchestrator (multi-role protocol)
+
+The orchestrator enforces **MODE-based role separation** to prevent a single agent from mixing implementation, review, and critique in the same response — the main source of quality degradation in single-agent setups.
+
+### MODEs
+
+| MODE | Role |
+|------|------|
+| `ORCHESTRATOR` | Decomposes goals, assigns next MODE, enforces handoffs |
+| `OWNER` | Scope, priorities, definition of done |
+| `ARCHITECT` | Design, trade-offs, diagrams — no code |
+| `DEV` | Implementation only — no self-review |
+| `QA` | Break it, edge cases, evidence — no production code |
+| `CERBERUS` | Adversarial last-mile review after DEV+QA — no fixes in same turn |
+
+### Session header (ORCHESTRATOR — first response)
+
+```text
+MODE: ORCHESTRATOR
+FLOW: single_agent | multi_agent
+GOAL: <one line — what will be accomplished>
+MAX_ITERATIONS: 3
+```
+
+`FLOW` tags the architecture for benchmarking. All handoffs in the session inherit `flow_mode` from this.
+
+### Handoff via MCP (required at every MODE transition)
+
+Instead of writing handoff YAML by hand, every MODE calls the local `compact-handoff` MCP server:
+
+```
+mcp__compact-handoff__compact_handoff(
+  text="<full MODE output>",
+  mode_completed="DEV",
+  next_mode="QA",
+  flow_mode="single_agent"
+)
+```
+
+The MCP uses a local Ollama model (qwen2.5-coder:7b) to extract and structure the handoff — no cloud API cost for coordination.
+
+ORCHESTRATOR then validates alignment before advancing:
+
+```
+mcp__compact-handoff__validate_goal_alignment(
+  handoff_yaml="<yaml>",
+  goal="<session GOAL>",
+  flow_mode="single_agent"
+)
+```
+
+If `aligned: false` → ORCHESTRATOR does not advance MODE.
+
+### Anti-loop
+
+- QA only returns to DEV with `blocker` findings. `improvement` and `nice-to-have` go to backlog.
+- If `iteration >= max_iterations` → escalate to ORCHESTRATOR, not another DEV round.
+
+### Paths (repo-relative, clone anywhere)
+
+| What | Path |
+|------|------|
+| Agent contract + skills | [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md) |
+| MCP / subagent examples | [`docs/orchestrator/mcp-task-examples.md`](docs/orchestrator/mcp-task-examples.md) |
+| Cursor rule | [`.cursor/rules/orchestrator.mdc`](.cursor/rules/orchestrator.mdc) |
+| Paths & conventions | [`docs/orchestrator/PATHS.md`](docs/orchestrator/PATHS.md) |
+
+Install rule into another repo: `./scripts/install-orchestrator-rule.sh /path/to/repo`.
+
+---
+
+## 🪝 Hooks
+
+Claude Code hooks that run automatically during sessions:
+
+| Hook | Event | What it does |
+|------|-------|--------------|
+| `mem0-search.py` | `UserPromptSubmit` | Semantic memory retrieval from local OpenMemory (Qdrant + Ollama) |
+| `session-state.py` | `PostToolUse` | Live session state: tokens, cost, MODE, agent calls |
+| `agent-metrics.py` | `PostToolUse` (Agent) | Per-subagent token usage, duration, tool count |
+| `mem0-stop.sh` | `Stop` | Reminds to save memories to OpenMemory |
+| `flow-metrics.py` | `Stop` | Session summary: tokens/cost per MODE, DEV→QA cycles, handoff count, goal alignment |
+
+Configure hooks in `settings.json` (see `settings.json` at repo root — copy and adapt, do not commit your local version).
+
+### Flow metrics output (`~/.claude/metrics/flow-metrics.jsonl`)
+
+Each session appends one record:
+
+```json
+{
+  "flow_mode": "single_agent",
+  "session_goal": "...",
+  "phases": [{"mode": "DEV", "turns": 4, "input_tokens": 12000, "output_tokens": 3200}],
+  "dev_qa_cycles": 1,
+  "handoff_count": 3,
+  "goal_aligned_count": 2,
+  "blockers_found": 1,
+  "cost_usd": 0.42
+}
+```
+
+This is the raw data for the **single-agent vs multi-agent benchmark**.
+
+---
+
+## 🤖 compact-handoff MCP server
+
+Local MCP server (`mcp-servers/compact-handoff/`) that compacts agent outputs and validates goal alignment using a local Ollama model.
+
+### Setup
+
+```bash
+# Requires: uv, Ollama with qwen2.5-coder:7b pulled
+cd mcp-servers/compact-handoff
+uv sync --no-install-project
+
+# Register with Claude Code
+claude mcp add compact-handoff \
+  /absolute/path/to/.venv/bin/python \
+  /absolute/path/to/mcp-servers/compact-handoff/server.py \
+  --scope user
+```
+
+### Tools
+
+| Tool | Purpose |
+|------|---------|
+| `compact_handoff` | Compacts raw MODE output → structured handoff YAML |
+| `classify_finding` | Classifies a QA finding as `blocker / improvement / nice-to-have` |
+| `validate_goal_alignment` | Validates handoff against session goal, returns `aligned: true/false` |
 
 ---
 
@@ -81,7 +216,7 @@ If the model mentions the skill or follows its instructions, the skill is active
 
 | Skill | Trigger | What it does |
 |---|---|---|
-| `feature-spec-and-tasks` | "design spec for initiative", "apply X to repo", "epic and tickets", "plan with tasks", "what to do before executing" | One spec doc with requirements (EARS), design, and discrete tasks (tickets) with prerequisites and steps — for initiatives like "apply AIOps to devops-jenkins-automation". |
+| `feature-spec-and-tasks` | "design spec for initiative", "apply X to repo", "epic and tickets", "plan with tasks" | One spec doc with requirements (EARS), design, and discrete tasks (tickets) with prerequisites and steps. |
 
 **Workflow**: spec-writer → single doc (requirements + design + tasks + before executing).
 
@@ -89,144 +224,114 @@ If the model mentions the skill or follows its instructions, the skill is active
 
 | Skill | Trigger | What it does |
 |---|---|---|
-| `creating-diagrams` | "architecture diagram", "flow diagram", "diagram for docs", "diagram with AWS icons" | Creates diagrams for documentation: **Mermaid** (embedded in Markdown) or **PNG with real icons** via `awslabs.aws-diagram-mcp-server`. Use Mermaid for simple flows/sequences in .md; use MCP for architecture with AWS/K8s/on-prem icons. |
+| `creating-diagrams` | "architecture diagram", "flow diagram", "diagram with AWS icons" | Creates diagrams: **Mermaid** (embedded in Markdown) or **PNG with real icons** via `awslabs.aws-diagram-mcp-server`. |
 
-Used by `infra-documenter` and `n8n-workflow-documenter` when generating diagrams.
+### Orchestration
+
+| Skill | Trigger | What it does |
+|---|---|---|
+| `contracts-with-llm` | "LLM contract", "structured output", "API contract for AI" | Defines structured contracts between agents or LLM calls. |
+| `audit-patterns` | "audit patterns", "detect patterns in history" | Detects recurring patterns across sessions for process improvement. |
+| `git-best-practices` | "git", "branch", "PR", "commit" | Branch naming, PR structure, commit conventions. |
+| `prepare-context-clear` | "prepare context", "clear context" | Compresses and structures context before starting a long session. |
+| `proposal-*` | "proposal", "refine proposal", "review proposal" | Proposal drafting, refinement, review, and synthesis. |
+
+---
 
 ## Shared Agents
 
-These agents are not tied to a single skill — they activate across multiple skills when their context applies.
+| Agent | Activates when | Used by |
+|---|---|---|
+| `network-validator` | VPCs, subnets, peering, TGW, DNS | designing/creating/reviewing-terraform |
+| `compliance-checker` | `.compliance.yaml` exists or framework declared | terraform, docker, observability, n8n |
+| `infra-documenter` | Non-obvious decisions needing persistent docs | designing-terraform (always), others |
 
-| Agent | Color | Activates when | Used by |
-|---|---|---|---|
-| `network-validator` | 🔵 cyan | VPCs, subnets, peering, TGW, DNS, SGs, NACLs | designing-terraform, creating-terraform, reviewing-terraform |
-| `compliance-checker` | 🔴 red | `.compliance.yaml` exists or user declares a framework | designing-terraform, creating-terraform, reviewing-terraform, reviewing-docker, configuring-observability, managing-n8n |
-| `infra-documenter` | 🟠 orange | Non-obvious decisions that need persistent docs | designing-terraform (always), creating-terraform, reviewing-terraform, reviewing-docker, configuring-observability, managing-n8n, feature-spec-and-tasks |
-
-### network-validator
-
-Detects CIDR overlaps, missing routes, unreachable services, DNS resolution failures, and subnet sizing issues. Builds a connectivity map showing network + DNS path for each service pair.
-
-### compliance-checker
-
-Validates against PCI-DSS, HIPAA, SOC 2, and NIST 800-53. Runs checkov with framework-specific policies + manual control checks. **Only activates when a compliance framework is declared** — zero overhead otherwise.
-
-Activation: place a `.compliance.yaml` in the project root:
-
-```yaml
-frameworks:
-  - PCI-DSS
-  - HIPAA
-```
-
-### infra-documenter
-
-Generates persistent documentation: ADRs, design docs, runbooks, changelogs, config decision records, and architecture diagrams (via `awslabs.aws-diagram-mcp-server` and optionally `drawio` for editable diagrams or comparison).
+---
 
 ## MCP Servers Required
 
-MCP setup is in each skill’s **`references/`** (see links below). Configure in Cursor via `~/.cursor/mcp.json` or workspace `.cursor/mcp.json`; restart Cursor after changes.
+| MCP Server | Used by | Purpose |
+|------------|---------|---------|
+| `terraform-mcp-server` (HashiCorp) | creating/reviewing/designing-terraform | Resource/module docs lookup |
+| `awslabs.terraform-mcp-server` | creating/reviewing/designing-terraform, compliance-checker | AWS best practices, provider docs, checkov |
+| `awslabs.aws-diagram-mcp-server` | designing-terraform, infra-documenter, creating-diagrams | Architecture PNG with real icons |
+| `drawio` | creating-diagrams, infra-documenter | Draw.io editor (optional) |
+| `n8n-mcp` | managing-n8n | Node schemas, validation, workflow operations |
+| `compact-handoff` (this repo) | ORCHESTRATOR, all MODEs | Local handoff compaction + goal validation via Ollama |
 
-| MCP Server | Used by | Purpose / full setup |
-|------------|---------|----------------------|
-| `terraform-mcp-server` (HashiCorp) | creating-terraform, reviewing-terraform, designing-terraform | Resource/module docs lookup. [mcp_terraform_setup.md](skills/reviewing-terraform/references/mcp_terraform_setup.md) |
-| `awslabs.terraform-mcp-server` (AWS Labs) | creating-terraform, reviewing-terraform, designing-terraform, compliance-checker | AWS best practices, provider docs, checkov. [mcp_awslabs_terraform_setup.md](skills/reviewing-terraform/references/mcp_awslabs_terraform_setup.md) |
-| `awslabs.aws-diagram-mcp-server` | designing-terraform, infra-documenter, creating-diagrams | Architecture/diagram PNG with real icons. [mcp_aws_diagram_setup.md](skills/creating-diagrams/references/mcp_aws_diagram_setup.md) |
-| `drawio` (drawio-mcp-server) | creating-diagrams, infra-documenter | Draw.io editor (wrapper’s HTTP port); optional. [mcp_drawio_setup.md](skills/creating-diagrams/references/mcp_drawio_setup.md) |
-| `n8n-mcp` | managing-n8n | Node schemas, validation, workflow create/update/execute. [mcp_docker_setup.md](skills/managing-n8n/references/mcp_docker_setup.md) |
-| `grafana-cloud-traces` | configuring-observability (optional AIOps) | Query live traces (TraceQL). Optional. [mcp_grafana_cloud_traces_setup.md](skills/configuring-observability/references/mcp_grafana_cloud_traces_setup.md) |
+---
 
-**Draw.io:** use a wrapper script (local path) that starts drawio-mcp-server and filters stdout; Node.js v20+. See [mcp_drawio_setup.md](skills/creating-diagrams/references/mcp_drawio_setup.md).
 ## CLI Tools
 
 | Tool | Used by | Install |
 |---|---|---|
-| `hadolint` | reviewing-docker | `wget -O /usr/local/bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 && chmod +x /usr/local/bin/hadolint` |
+| `hadolint` | reviewing-docker | [github.com/hadolint/hadolint](https://github.com/hadolint/hadolint/releases) |
 | `trivy` | reviewing-docker, reviewing-terraform | [aquasecurity/trivy](https://github.com/aquasecurity/trivy) |
 | `tflint` | reviewing-terraform | [terraform-linters/tflint](https://github.com/terraform-linters/tflint) |
-| `terraform` | creating-terraform, reviewing-terraform | [hashicorp.com](https://developer.hashicorp.com/terraform/install) |
-| `jq` | managing-n8n | Pre-installed on most systems |
-| `n8n` | managing-n8n (optional) | `npm install -g n8n` |
+| `terraform` | creating-terraform, reviewing-terraform | [developer.hashicorp.com/terraform](https://developer.hashicorp.com/terraform/install) |
+| `ollama` | compact-handoff MCP, mem0-search hook | [ollama.com](https://ollama.com) — pull `qwen2.5-coder:7b` and `nomic-embed-text` |
+| `uv` | compact-handoff MCP | [docs.astral.sh/uv](https://docs.astral.sh/uv) |
+
+---
 
 ## Structure
 
 ```
-~/.claude/
-├── examples/                    # Reproducible demos (input + expected output)
-│   ├── review-terraform-module.md
-│   ├── review-dockerfile.md
-│   └── create-circleci-pipeline.md
-├── .github/
-│   └── workflows/              # CI: markdown lint, link check, skill structure
-├── skills/
-│   ├── designing-terraform/
-│   │   ├── SKILL.md
-│   │   └── references/
-│   │       ├── documentation_templates.md
-│   │       ├── network_validation.md
-│   │       └── compliance_frameworks.md
-│   ├── creating-terraform/
-│   │   ├── SKILL.md
-│   │   └── references/
-│   │       └── component_templates.md
-│   ├── reviewing-terraform/
-│   │   ├── SKILL.md
-│   │   └── references/
-│   │       ├── naming_conventions.md
-│   │       └── version_notes.md
-│   ├── reviewing-docker/
-│   │   ├── SKILL.md
-│   │   └── references/
-│   │       └── best_practices.md
+~/.claude/                           # clone this repo here
+├── agents/                          # Subagent definitions for Claude Code
+├── docs/
+│   ├── orchestrator/                 # Orchestrator contract and examples
+│   │   ├── agent-contract.md       # Full MODE protocol, handoff schema, anti-loop rules
+│   │   ├── mcp-task-examples.md     # MCP/subagent usage examples
+│   │   ├── CURSOR_RULE_SETUP.md     # How to install the Cursor rule in other repos
+│   │   └── PATHS.md                 # Path conventions for multi-repo setups
+│   ├── adr/                         # Architecture Decision Records
+│   ├── specs/                       # Feature/initiative specs
+│   ├── drawio-mcp-setup.md          # Draw.io MCP server setup guide
+│   └── mcp-installation.md          # General MCP installation guide
+├── examples/                        # Reproducible demos (input + expected output)
+├── mcp-servers/
+│   └── compact-handoff/             # Local MCP: handoff compaction + goal validation
+│       ├── server.py                # FastMCP server — compact_handoff, classify_finding, validate_goal_alignment
+│       ├── pyproject.toml
+│       └── uv.lock
+├── scripts/
+│   ├── hooks/                       # Claude Code hooks
+│   │   ├── mem0-search.py           # UserPromptSubmit: semantic memory retrieval
+│   │   ├── session-state.py         # PostToolUse: live tokens/cost/MODE tracking
+│   │   ├── agent-metrics.py         # PostToolUse(Agent): per-subagent metrics
+│   │   ├── mem0-stop.sh             # Stop: reminder to save memories
+│   │   └── flow-metrics.py          # Stop: session summary + benchmark data
+│   ├── install-orchestrator-rule.sh
+│   └── openmemory-start.sh          # Start local OpenMemory (Qdrant + Ollama)
+├── skills/                          # Skill definitions (one folder per skill)
+│   ├── audit-patterns/
 │   ├── configuring-observability/
-│   │   ├── SKILL.md
-│   │   └── references/
-│   │       ├── otel_patterns.md
-│   │       ├── grafana_patterns.md
-│   │       └── data_contract.md
+│   ├── context-budget/
+│   ├── contracts-with-llm/
 │   ├── creating-circleci/
-│   │   ├── SKILL.md
-│   │   └── templates.md
-│   ├── reviewing-circleci/
-│   │   └── SKILL.md
-│   ├── managing-n8n/
-│   │   ├── SKILL.md
-│   │   └── references/
-│   │       ├── node_patterns.md
-│   │       ├── error_handling.md
-│   │       └── workflow_templates.md
-│   └── feature-spec-and-tasks/
-│       ├── SKILL.md
-│       └── references/
-│           └── ears_and_format.md
 │   ├── creating-diagrams/
-│   │   └── SKILL.md
-├── agents/
-│   ├── architecture-planner.md
-│   ├── component-scaffolder.md
-│   ├── compliance-checker.md
-│   ├── dockerfile-linter.md
-│   ├── grafana-dashboard-builder.md
-│   ├── image-security-scanner.md
-│   ├── infra-documenter.md
-│   ├── network-validator.md
-│   ├── observability-validator.md
-│   ├── otel-config-builder.md
-│   ├── provider-validator.md
-│   ├── resource-builder.md
-│   ├── static-analysis-runner.md
-│   ├── structure-reviewer.md
-│   ├── circleci-optimizer.md
-│   ├── circleci-security-reviewer.md
-│   ├── circleci-structural-validator.md
-│   ├── n8n-workflow-builder.md
-│   ├── n8n-workflow-validator.md
-│   ├── n8n-workflow-optimizer.md
-│   ├── n8n-workflow-metrics-optimizer.md
-│   ├── n8n-workflow-documenter.md
-│   └── spec-writer.md
+│   ├── creating-terraform/
+│   ├── designing-terraform/
+│   ├── feature-spec-and-tasks/
+│   ├── git-best-practices/
+│   ├── managing-n8n/
+│   ├── prepare-context-clear/
+│   ├── proposal-refine/
+│   ├── proposal-review/
+│   ├── proposal-synthesize/
+│   ├── reviewing-circleci/
+│   ├── reviewing-docker/
+│   └── reviewing-terraform/
+├── .cursor/
+│   └── rules/
+│       └── orchestrator.mdc  # Cursor rule — MODE non-negotiables
+├── .gitignore
+├── settings.json.example            # Hook config template — copy to settings.json and adapt
 └── README.md
 ```
+
+---
 
 ## Examples
 
@@ -236,48 +341,35 @@ The [`examples/`](examples/) folder contains **reproducible demos** with sample 
 |------|--------|------------------|
 | [Review Terraform module](examples/review-terraform-module.md) | Sample `.tf` or module path | tflint/trivy + structure + provider validation report |
 | [Review Dockerfile](examples/review-dockerfile.md) | Sample Dockerfile | hadolint + build check + trivy findings + best-practice notes |
-| [Create CircleCI pipeline](examples/create-circleci-pipeline.md) | App type (e.g. Node, Python) + requirements | Generated `.circleci/config.yml` with build/test (and optional deploy) |
-
-Use these to verify skills in your environment or to show “before/after” in a portfolio.
+| [Create CircleCI pipeline](examples/create-circleci-pipeline.md) | App type + requirements | Generated `.circleci/config.yml` |
 
 ---
 
 ## Safety & scope
 
-- **Read-only vs write**: Most skills are **read-heavy** (review, validate, suggest). Skills that **write** (e.g. `creating-terraform`, `creating-circleci`) generate files or configs; they do not run `terraform apply`, `docker push`, or deploy pipelines without your explicit action.
-- **Avoid dangerous executions**: Do not ask the model to run `apply`, `destroy`, or production deploys unless you intend to. Prefer `plan` / validate steps first.
-- **Sensitive data**: **Never paste** API keys, tokens, passwords, or long-lived credentials into chats. Use env vars, secret managers, or local config that the model cannot see. Skills do not log or store your inputs, but prompts may be processed by the host (Cursor/Warp) per their policies.
+- **Read-only vs write**: Most skills are read-heavy. Skills that write (e.g. `creating-terraform`) generate files — they do not run `terraform apply` or deploy without your explicit action.
+- **No production executions**: Never ask the model to run `apply`, `destroy`, or production deploys without a `plan` step first.
+- **Sensitive data**: Never paste API keys, tokens, or passwords into chats. Use env vars or secret managers.
+- **settings.json**: Contains local hook paths. Add to `.gitignore` — the repo provides it as a reference only.
 
 ---
 
 ## CI
 
-This repo uses GitHub Actions for basic quality checks:
-
 | Workflow | Purpose |
 |----------|---------|
-| Markdown lint | Consistent formatting and style |
-| Link check | Ensures URLs in the repo do not 404 |
-| (Optional) Skill structure | Validates that each skill directory contains a `SKILL.md` |
+| Markdown lint | Consistent formatting |
+| Link check | Ensures URLs do not 404 |
 
-See [`.github/workflows/`](.github/workflows/) for definitions.
+See [`.github/workflows/`](.github/workflows/).
 
 ---
 
 ## License & contributing
 
-- **License**: [MIT](LICENSE).
-- **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md) for minimal rules (scope of changes, how to add a skill, PR expectations).
+- **License**: [MIT](LICENSE)
+- **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 
-## Usage
-
-These skills can be used with:
-- **Cursor** — Claude Code integration
-- **Warp** — Oz platform agents
-
-Skills activate automatically based on the user's request. Each skill's `description` field in its YAML frontmatter defines the trigger phrases.
-
----
 *Because even AI needs its minions* 🦹‍♂️

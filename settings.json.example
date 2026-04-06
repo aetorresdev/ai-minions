@@ -1,0 +1,68 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "repo=$(basename \"$PWD\"); ctx=\"/path/to/your/context/CLAUDE_${repo}.md\"; if [ -f \"$ctx\" ]; then echo \"{\\\"hookSpecificOutput\\\": {\\\"hookEventName\\\": \\\"SessionStart\\\", \\\"additionalContext\\\": \\\"$(sed 's/\\\\/\\\\\\\\/g; s/\\\"/\\\\\\\"/g; s/$/\\\\n/g' \"$ctx\" | tr -d '\\n')\\\"}}\" ; fi",
+            "statusMessage": "Loading project context..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/scripts/hooks/mem0-search.py",
+            "statusMessage": "Searching memories..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/scripts/hooks/agent-metrics.py",
+            "statusMessage": "Recording agent metrics..."
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/scripts/hooks/session-state.py",
+            "statusMessage": "Updating session state..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/hooks/mem0-stop.sh",
+            "statusMessage": "Checking mem0 for memory capture..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/scripts/hooks/flow-metrics.py",
+            "statusMessage": "Computing flow metrics..."
+          }
+        ]
+      }
+    ]
+  }
+}
