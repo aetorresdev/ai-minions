@@ -49,6 +49,7 @@ mcp-servers/**/uv.lock
 # Settings (contains local paths and hooks — copy from settings.example.json)
 settings.json
 
-# Work-in-progress specs and ADRs — not ready for public repo
+# Work-in-progress specs, ADRs, and internal follow-ups — not ready for public repo
 docs/specs/
 docs/adr/
+docs/FOLLOW_UPS.md
