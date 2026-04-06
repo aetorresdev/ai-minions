@@ -83,4 +83,4 @@ Ideas and references for future work on skills, agents, dashboards, and rules.
 
 ---
 
-*When adding or improving dashboards and rules in skills/agents, consider whether you’re only monitoring metrics or also providing security visibility. See [docs/specs/security-visibility-observability.md](specs/security-visibility-observability.md) for the full spec.*
+*When adding or improving dashboards and rules in skills/agents, consider whether you’re only monitoring metrics or also providing security visibility.*
