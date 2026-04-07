@@ -4,6 +4,16 @@ An autonomous orchestrator that follows the [MODE protocol](../../docs/orchestra
 
 Give it a goal — it plans, runs agents, validates transitions through hard gates, runs Cerberus review, and iterates until done or max iterations.
 
+> **Normal invocation is via the Claude Code header** — just type the MODE header in any chat and the `UserPromptSubmit` hook launches this runner automatically:
+> ```
+> MODE: ORCHESTRATOR
+> FLOW: multi_agent
+> GOAL: your goal here
+> MAX_ITERATIONS: 3
+> CWD: /path/to/project
+> ```
+> The `node` commands below are for direct use, testing, or bringing your own runner.
+
 > **This is one way to run the protocol autonomously. Bring your own orchestrator if you prefer** — the contract and MCPs work independently of this example.
 
 ---
