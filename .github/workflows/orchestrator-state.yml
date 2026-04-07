@@ -1,0 +1,32 @@
+# Tests for mcp-servers/orchestrator-state (L2 store + gates; no Ollama required)
+name: orchestrator-state
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "mcp-servers/orchestrator-state/**"
+      - ".github/workflows/orchestrator-state.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "mcp-servers/orchestrator-state/**"
+      - ".github/workflows/orchestrator-state.yml"
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps and run tests
+        run: |
+          cd mcp-servers/orchestrator-state
+          python -m venv .venv
+          .venv/bin/pip install -U pip
+          .venv/bin/pip install -e ".[dev]"
+          .venv/bin/pytest tests/ -v --tb=short

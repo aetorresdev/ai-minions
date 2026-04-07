@@ -19,6 +19,7 @@ On **Linux/macOS**, `~` is your home directory. On **Windows** (PowerShell): `$H
 | MCP / subagent examples | `docs/orchestrator/mcp-task-examples.md` |
 | Cursor rule | `.cursor/rules/orchestrator.mdc` |
 | Script to install rule in another repo | `scripts/install-orchestrator-rule.sh` |
+| State store MCP (`orchestrator-state`) | `mcp-servers/orchestrator-state/server.py` + `README.md` |
 
 ## Cursor: workspace = this repo
 

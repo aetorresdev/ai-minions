@@ -33,6 +33,46 @@ MAX_ITERATIONS: 3
 
 ---
 
+## Authoritative state (state store) — disk + MCP, not the chat
+
+For **hard gates** (not prompt discipline alone), orchestrated work uses an **authoritative on-disk store** and the **`orchestrator-state` MCP**. The chat transcript is **not** a source of truth for whether a MODE transition happened.
+
+### Authority rules
+
+1. **If no transition is recorded** in the task’s append-only log (`events.jsonl`), **the step did not happen** for protocol purposes.
+2. **If a path is not in `approved_artifacts`**, downstream MODEs must **not** treat it as consumable evidence when artifact gating is enabled (`enforce_approved_artifacts`, default **true**).
+3. **`session_id`** is optional **metadata** for audit (phase 1). It does **not** prove session isolation until a **dedicated runner** controls the host. Do not treat it as hard isolation by itself.
+4. **Units of work:** each task runs from a **registered envelope** (goal, allowed inputs, forbidden context, limits). On hosts without session control, **state store gates** enforce policy; a dedicated runner (new session per task) is the path to full session isolation — design for it, implement the state store first.
+
+### Layout (default)
+
+Under `ORCHESTRATOR_STATE_ROOT` (default `~/.claude/.state/orchestrator/`):
+
+```text
+<task_id>/envelope.json    # current envelope snapshot (updated only via MCP tools)
+<task_id>/events.jsonl     # append-only events + hash chain
+```
+
+See `mcp-servers/orchestrator-state/README.md` for env vars and setup.
+
+### Required tool flow (strict orchestration)
+
+1. **`register_task`** — obtain `task_id`; set `goal`, `flow_mode`, `max_iterations`, optional `approved_artifacts` / `allowed_inputs` / `session_id`.
+2. **`record_artifact`** — add every repo path that **QA** / **CERBERUS** may rely on (or pass `approved_artifacts` at registration). Before advancing to **QA** or **CERBERUS** from **DEV** or **ARCHITECT**, every path listed under `files_modified` in the handoff YAML must appear in `approved_artifacts` when enforcement is on.
+3. **`compact_handoff`** (MCP `compact-handoff`) — produce handoff YAML from raw MODE output (Ollama compaction).
+4. **`validate_goal_alignment`** (MCP **`orchestrator-state`**) — runs the alignment check **and persists** `goal_alignment_status` on the envelope. Prefer this so the store records the outcome. (`compact-handoff`’s `validate_goal_alignment` remains available for flows that do not use the store.)
+5. **`validate_transition`** — dry-run: alignment, `max_iterations` (from explicit `iteration` arg or `handoff.iteration` in YAML), approved artifacts vs `files_modified`.
+6. **`advance_mode`** — if and only if gates pass, append `mode_advanced` and update `current_mode`. After a successful advance, `goal_alignment_status` resets to `pending` for the next handoff cycle.
+7. **`close_task`** when the unit of work ends.
+
+**ORCHESTRATOR** must not authorize the next MODE if `advance_mode` returned an error or `validate_transition` returned `allowed: false`.
+
+### QA / CERBERUS context
+
+**QA** and **CERBERUS** must run from **exported** context: `open_envelope` + handoff YAML + **only** `approved_artifacts` (and `allowed_inputs`), not from unconstrained long implementation history when avoidable. Prefer a **separate thread or subagent** with that package pasted in; state store gates constrain what is **valid to record** — a dedicated runner is needed to **strip** host history automatically.
+
+---
+
 ## MODE Protocol (required in orchestrated flow)
 
 At each phase the model declares at the start:
@@ -150,7 +190,7 @@ Returns `{"aligned": true/false, "confidence": 0-1, "notes": "...", "missing": [
 | QA | `managing-n8n`, domain reviewers; **avoid** infra MCPs unrelated to the test |
 | CERBERUS | `reviewing-*`, `proposal-review`, `audit-patterns`; Read/Grep only unless citing |
 
-*(Cursor does not restrict MCP by MODE at a technical level; this is prompt discipline.)*
+*Cursor does not restrict MCP by MODE at the product level. **`orchestrator-state`** adds **recorded gates** (alignment, iterations, approved paths); full tool restriction per MODE still requires a dedicated runner or host support.*
 
 ### Validation before handoff (DEV — required when applicable to the stack)
 
