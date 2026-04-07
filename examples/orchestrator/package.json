@@ -1,0 +1,12 @@
+{
+  "name": "ai-minions-orchestrator-example",
+  "version": "1.0.0",
+  "description": "Autonomous orchestrator example for ai-minions — MODE protocol + state store gates",
+  "main": "agents.js",
+  "scripts": {
+    "start": "node cli.js",
+    "orchestrate": "node run-orchestrator.js",
+    "orchestrate:no-gates": "node run-orchestrator.js --skip-gates"
+  },
+  "dependencies": {}
+}
