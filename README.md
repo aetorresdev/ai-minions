@@ -45,6 +45,12 @@ If the model mentions the skill or follows its instructions, the skill is active
 
 Three ways to use this repo — pick the one that fits your task.
 
+| Mode | Uses MCP? | Hard gates? | Best for |
+|------|-----------|-------------|----------|
+| **Skills only** | Optional (external MCPs) | No | Single-concern tasks: review, create, design |
+| **Single-agent orchestration** | `compact-handoff` | Soft (prompt discipline) | Multi-step work with explicit role separation |
+| **Strict orchestration** | `compact-handoff` + `orchestrator-state` | Yes (disk-backed, tamper-evident) | Production, compliance, or any flow where "the chat said so" is not enough |
+
 ---
 
 ### 1. Skills only (no orchestration)
@@ -105,7 +111,7 @@ mcp__compact-handoff__compact_handoff(
 
 ### 3. Strict orchestration (state store + hard gates)
 
-Same as above, but with the `orchestrator-state` MCP as the authority. Every transition is recorded on disk and gated.
+Same as mode 2, but the `orchestrator-state` MCP is the authority. Every transition is recorded on disk (`envelope.json` + `events.jsonl`) and gated — unapproved files and unaligned goals block `advance_mode` before QA or CERBERUS can run.
 
 ```
 MODE: ORCHESTRATOR
@@ -114,37 +120,11 @@ GOAL: migrate auth middleware to comply with new session policy
 MAX_ITERATIONS: 3
 ```
 
-Then at session start:
+Gate sequence per transition: `register_task` → `compact_handoff` → `validate_goal_alignment` → `validate_transition` → `advance_mode` → `close_task`.
 
-```
-mcp__orchestrator-state__register_task(
-  goal="migrate auth middleware to comply with new session policy",
-  task_id="auth-migration",
-  flow_mode="single_agent",
-  max_iterations=3,
-  approved_artifacts='["src/auth/middleware.py", "tests/test_auth.py"]'
-)
-```
+**When to use:** Production work, compliance-sensitive tasks, or any flow where "the chat said so" is not enough.
 
-From there, every MODE advance goes through the gate sequence:
-
-```
-# DEV finishes → compact → validate → advance
-mcp__compact-handoff__compact_handoff(text=<DEV output>, mode_completed="DEV", next_mode="QA", ...)
-mcp__orchestrator-state__validate_goal_alignment(task_id="auth-migration", handoff_yaml=<yaml>)
-mcp__orchestrator-state__validate_transition(task_id="auth-migration", from_mode="DEV", to_mode="QA", handoff_yaml=<yaml>, iteration=1)
-mcp__orchestrator-state__advance_mode(task_id="auth-migration", to_mode="QA", from_mode="DEV", handoff_yaml=<yaml>, iteration=1)
-```
-
-If `advance_mode` returns `ok: false` → ORCHESTRATOR does not authorize the next MODE.
-
-At session end:
-
-```
-mcp__orchestrator-state__close_task(task_id="auth-migration", reason="accepted by CERBERUS")
-```
-
-**When to use:** Production work, compliance-sensitive tasks, or any flow where "the chat said so" is not enough — you need a tamper-evident log of what happened and hard gates on what paths are approved.
+Full call syntax, envelope/events examples, and failure cases: [`docs/orchestrator/strict-mode.md`](docs/orchestrator/strict-mode.md).
 
 ---
 
