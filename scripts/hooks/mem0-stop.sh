@@ -11,4 +11,4 @@ if ! curl -sf --max-time 2 "${MEM0_URL}/api/v1/memories/" -G \
   exit 0  # silent — don't block session end if mem0 is down
 fi
 
-echo "{\"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": \"mem0 is running. Before closing: use add_memory to save any new facts about the user, project decisions, or feedback learned in this session. user_id=andres. Only save what would be useful in a future session — skip ephemeral task details.\"}}"
+echo "{\"systemMessage\": \"mem0 is running. Before closing: use add_memory to save any new facts about the user, project decisions, or feedback learned in this session. user_id=andres. Only save what would be useful in a future session — skip ephemeral task details.\"}"
