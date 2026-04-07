@@ -111,13 +111,13 @@ mcp__compact-handoff__compact_handoff(
 
 ### 3. Strict orchestration (state store + hard gates)
 
-Same as mode 2, but the `orchestrator-state` MCP is the authority. Every transition is recorded on disk (`envelope.json` + `events.jsonl`) and gated — unapproved files and unaligned goals block `advance_mode` before QA or CERBERUS can run.
+Runs the autonomous Node.js orchestrator (`examples/orchestrator/`) — each role is a separate `claude` CLI subprocess. The `orchestrator-state` MCP is the authority: every transition is recorded on disk (`envelope.json` + `events.jsonl`) and gated — unapproved files and unaligned goals block `advance_mode` before QA or CERBERUS can run.
 
 ```
-MODE: ORCHESTRATOR
-FLOW: single_agent
-GOAL: migrate auth middleware to comply with new session policy
-MAX_ITERATIONS: 3
+node examples/orchestrator/run-orchestrator.js \
+  --cwd /path/to/your/project \
+  --flow multi_agent \
+  "Migrate auth middleware to comply with new session policy"
 ```
 
 Gate sequence per transition: `register_task` → `compact_handoff` → `validate_goal_alignment` → `validate_transition` → `advance_mode` → `close_task`.
