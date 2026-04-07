@@ -86,21 +86,46 @@ This MCP enforces **state store constraints** (gates, artifact lists, iteration 
 
 ## Tools
 
-| Tool | Required? | Role |
-|------|-----------|------|
-| `register_task` | **Required** — first call | Create `task_id`, initial envelope, first event |
-| `open_envelope` | Recommended | Read envelope + recent events (source of truth) |
-| `record_artifact` | Required if new paths appear after registration | Add path to `approved_artifacts` |
-| `validate_goal_alignment` | Required when `enforce_goal_alignment: true` | Ollama check + persist `goal_alignment_status` |
-| `validate_transition` | Recommended (dry-run) | Check gates without writing — returns `allowed: true/false` + `errors` |
-| `advance_mode` | **Required** — replaces prompt-only transitions | Append event + update `current_mode` if all gates pass |
-| `close_task` | **Required** — signals end of task | Mark task closed — blocks all further transitions |
+**Required (hard):**
 
-> `validate_transition` is a dry-run and optional, but skipping it means `advance_mode` is your first signal of a gate failure — after the agent has already committed to the transition. Use `validate_transition` first.
+| Tool | When |
+|------|------|
+| `register_task` | Always — must be first call |
+| `advance_mode` | Every MODE transition — replaces prompt-only authorization |
+| `close_task` | Always — signals end of task, blocks further transitions |
+
+**Conditional:**
+
+| Tool | When |
+|------|------|
+| `record_artifact` | Any time a new file path appears after registration |
+| `validate_goal_alignment` | Required when `enforce_goal_alignment: true` (default) |
+
+**Recommended (not enforced by the MCP itself):**
+
+| Tool | Why |
+|------|-----|
+| `validate_transition` | Dry-run before `advance_mode` — surfaces gate failures before the agent commits to the transition |
+| `open_envelope` | Pass to QA/CERBERUS as clean context instead of full chat history |
+
+> Skipping `validate_transition` means `advance_mode` is your first signal of a block — after the agent has already prepared the transition. Run the dry-run first.
 
 ---
 
 ## Happy path (minimal)
+
+```mermaid
+flowchart LR
+    R([register_task]) --> A1[advance_mode\nORCHESTRATOR→DEV]
+    A1 --> W[DEV works]
+    W --> CH[compact_handoff\nMCP → YAML]
+    CH --> VG[validate_goal_alignment\npersists aligned status]
+    VG --> VT{validate_transition\ndry-run}
+    VT -->|allowed: true| A2[advance_mode\nDEV→QA]
+    VT -->|allowed: false| BLK[🟥 BLOCK\nfix and retry]
+    A2 --> OE[open_envelope\ncontext for QA]
+    OE --> CL([close_task])
+```
 
 ```
 register_task(goal=..., task_id="t1", approved_artifacts='["src/x.py"]')
