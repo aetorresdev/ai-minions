@@ -41,6 +41,92 @@ If the model mentions the skill or follows its instructions, the skill is active
 
 ---
 
+## How it works
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#1e1e2e", "primaryTextColor": "#cdd6f4", "primaryBorderColor": "#89b4fa", "lineColor": "#89b4fa", "secondaryColor": "#181825", "tertiaryColor": "#313244", "edgeLabelBackground": "#313244", "clusterBkg": "#181825", "clusterBorder": "#45475a", "titleColor": "#cdd6f4", "fontFamily": "monospace"}}}%%
+flowchart TD
+    U([🧑 User Prompt]):::user --> SK
+
+    subgraph Skills ["⚡ Skills  •  skills/"]
+        SK[Skill\ntriggered by intent]:::skill
+        SA[Specialized\nSubagent]:::skill
+        SK -->|spawns| SA
+    end
+
+    SK --> ORC
+    SA --> ORC
+
+    subgraph Orch ["🎭 Orchestrator Protocol  •  orchestrator.mdc"]
+        ORC[ORCHESTRATOR\ndeclares MODE + GOAL]:::orch
+        ORC --> DEV[DEV\nImplement]:::mode
+        DEV --> QA[QA\nBreak it]:::mode
+        QA -->|blocker| DEV
+        QA --> CER[CERBERUS\nAdversarial review]:::mode
+        CER -->|another round| DEV
+    end
+
+    DEV -->|full output| CH
+    QA -->|full output| CH
+    CER -->|full output| CH
+
+    subgraph MCP ["🔌 Local MCP Servers  •  mcp-servers/"]
+        CH["compact-handoff\ncompact_handoff → YAML\nvalidate_goal_alignment"]:::mcp
+        SS["orchestrator-state\nregister_task · advance_mode\nvalidate_transition · record_artifact"]:::mcp
+    end
+
+    CH -->|handoff YAML| ORC
+    ORC -->|validate_goal_alignment\nadvance_mode| SS
+    SS -->|gates pass / block| ORC
+
+    subgraph OLLAMA ["🦙 Ollama  (local LLM)"]
+        OL[qwen2.5-coder:7b\nnomic-embed-text]:::ollama
+    end
+
+    CH -->|alignment check| OL
+    SS -->|alignment check| OL
+
+    subgraph Hooks ["🪝 Claude Code Hooks  •  scripts/hooks/"]
+        H1[mem0-search\nUserPromptSubmit]:::hook
+        H2[session-state · agent-metrics\nPostToolUse]:::hook
+        H3[flow-metrics · mem0-stop\nStop]:::hook
+    end
+
+    U -->|UserPromptSubmit| H1
+    H1 -->|context injected| SK
+    ORC -->|PostToolUse| H2
+    ORC -->|Stop| H3
+
+    subgraph Ext ["🌐 External MCPs  (optional)"]
+        E1[terraform-mcp-server]:::ext
+        E2[aws-diagram-mcp-server]:::ext
+        E3[n8n-mcp · drawio]:::ext
+    end
+
+    SA -->|uses| Ext
+
+    subgraph Store ["💾 State Store  •  ~/.claude/.state/orchestrator/"]
+        F1["envelope.json"]:::store
+        F2["events.jsonl\nappend-only · hash chain"]:::store
+    end
+
+    SS --- Store
+    OL -->|embeddings| MEM[(OpenMemory\nQdrant)]:::ollama
+    H1 --- MEM
+
+    classDef user        fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e,font-weight:bold
+    classDef skill       fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e
+    classDef orch        fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,font-weight:bold
+    classDef mode        fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e
+    classDef mcp         fill:#fab387,stroke:#fab387,color:#1e1e2e
+    classDef ollama      fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e
+    classDef hook        fill:#94e2d5,stroke:#94e2d5,color:#1e1e2e
+    classDef ext         fill:#45475a,stroke:#6c7086,color:#cdd6f4
+    classDef store       fill:#313244,stroke:#585b70,color:#cdd6f4
+```
+
+---
+
 ## 🧠 Orchestrator (multi-role protocol)
 
 The orchestrator enforces **MODE-based role separation** to prevent a single agent from mixing implementation, review, and critique in the same response — the main source of quality degradation in single-agent setups.
