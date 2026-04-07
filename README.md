@@ -114,11 +114,14 @@ mcp__compact-handoff__compact_handoff(
 Runs the autonomous Node.js orchestrator (`examples/orchestrator/`) — each role is a separate `claude` CLI subprocess. The `orchestrator-state` MCP is the authority: every transition is recorded on disk (`envelope.json` + `events.jsonl`) and gated — unapproved files and unaligned goals block `advance_mode` before QA or CERBERUS can run.
 
 ```
-node examples/orchestrator/run-orchestrator.js \
-  --cwd /path/to/your/project \
-  --flow multi_agent \
-  "Migrate auth middleware to comply with new session policy"
+MODE: ORCHESTRATOR
+FLOW: multi_agent
+GOAL: Migrate auth middleware to comply with new session policy
+MAX_ITERATIONS: 3
+CWD: /path/to/your/project
 ```
+
+The `UserPromptSubmit` hook detects `FLOW: multi_agent`, launches `run-orchestrator.js` in a separate terminal, and blocks the prompt from reaching the model — no extra command needed.
 
 Gate sequence per transition: `register_task` → `compact_handoff` → `validate_goal_alignment` → `validate_transition` → `advance_mode` → `close_task`.
 
