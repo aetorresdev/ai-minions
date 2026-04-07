@@ -94,6 +94,8 @@ mcp__compact-handoff__validate_goal_alignment(
 
 If `aligned: false` → ORCHESTRATOR does not advance MODE.
 
+For **hard gates** (disk-backed transitions, approved path lists, persisted alignment), add the **`orchestrator-state`** MCP: `register_task` → `record_artifact` → `compact_handoff` → **`orchestrator-state`** `validate_goal_alignment` (persists status) → `validate_transition` → **`advance_mode`**. Details: [`mcp-servers/orchestrator-state/README.md`](mcp-servers/orchestrator-state/README.md) and the contract § *Authoritative state (L2)*.
+
 ### Anti-loop
 
 - QA only returns to DEV with `blocker` findings. `improvement` and `nice-to-have` go to backlog.
@@ -258,6 +260,7 @@ claude mcp add compact-handoff \
 | `drawio` | creating-diagrams, infra-documenter | Draw.io editor (optional) |
 | `n8n-mcp` | managing-n8n | Node schemas, validation, workflow operations |
 | `compact-handoff` (this repo) | ORCHESTRATOR, all MODEs | Local handoff compaction + goal validation via Ollama |
+| `orchestrator-state` (this repo) | ORCHESTRATOR, strict L2 flow | Authoritative disk store, append-only events, gates: `advance_mode`, `validate_transition`, `record_artifact` |
 
 ---
 
@@ -269,8 +272,8 @@ claude mcp add compact-handoff \
 | `trivy` | reviewing-docker, reviewing-terraform | [aquasecurity/trivy](https://github.com/aquasecurity/trivy) |
 | `tflint` | reviewing-terraform | [terraform-linters/tflint](https://github.com/terraform-linters/tflint) |
 | `terraform` | creating-terraform, reviewing-terraform | [developer.hashicorp.com/terraform](https://developer.hashicorp.com/terraform/install) |
-| `ollama` | compact-handoff MCP, mem0-search hook | [ollama.com](https://ollama.com) — pull `qwen2.5-coder:7b` and `nomic-embed-text` |
-| `uv` | compact-handoff MCP | [docs.astral.sh/uv](https://docs.astral.sh/uv) |
+| `ollama` | compact-handoff MCP, orchestrator-state `validate_goal_alignment`, mem0-search hook | [ollama.com](https://ollama.com) — pull `qwen2.5-coder:7b` and `nomic-embed-text` |
+| `uv` | MCP servers in `mcp-servers/*` | [docs.astral.sh/uv](https://docs.astral.sh/uv) |
 
 ---
 
@@ -289,10 +292,14 @@ claude mcp add compact-handoff \
 │   └── mcp-installation.md          # General MCP installation guide
 ├── examples/                        # Reproducible demos (input + expected output)
 ├── mcp-servers/
-│   └── compact-handoff/             # Local MCP: handoff compaction + goal validation
-│       ├── server.py                # FastMCP server — compact_handoff, classify_finding, validate_goal_alignment
-│       ├── pyproject.toml
-│       └── uv.lock
+│   ├── compact-handoff/             # Local MCP: handoff compaction + goal validation
+│   │   ├── server.py                # compact_handoff, classify_finding, validate_goal_alignment
+│   │   └── pyproject.toml
+│   └── orchestrator-state/          # L2: authoritative store + transition gates
+│       ├── server.py                # register_task, advance_mode, validate_*, record_artifact, …
+│       ├── tests/                   # pytest (no Ollama; mocked alignment)
+│       ├── README.md
+│       └── pyproject.toml
 ├── scripts/
 │   ├── hooks/                       # Claude Code hooks
 │   │   ├── mem0-search.py           # UserPromptSubmit: semantic memory retrieval
@@ -301,6 +308,7 @@ claude mcp add compact-handoff \
 │   │   ├── mem0-stop.sh             # Stop: reminder to save memories
 │   │   └── flow-metrics.py          # Stop: session summary + benchmark data
 │   ├── install-orchestrator-rule.sh
+│   ├── test-orchestrator-state.sh   # pytest for orchestrator-state MCP
 │   └── openmemory-start.sh          # Start local OpenMemory (Qdrant + Ollama)
 ├── skills/                          # Skill definitions (one folder per skill)
 │   ├── audit-patterns/

@@ -23,6 +23,26 @@ alwaysApply: false
 8. **Skills per task:** ORCHESTRATOR names skills explicitly — e.g. `creating-diagrams`, `designing-terraform`, `managing-n8n`, `creating-terraform`.
 9. **CERBERUS:** separate chat or mcp_task when possible — reduces auto-confirmation bias.
 10. **Validation before DEV handoff:** Not lint-only. Run what the stack needs: **Terraform** → fmt + **`terraform init`** + **`terraform validate`** + project linters (tflint/checkov if present) + **module tests** if the repo has them. **Other code** → project linter + deps/install if needed + **module/unit tests** per README/CI. If commands cannot run here, state that in handoff `risks` and list exact commands for QA/human.
+11. **Authoritative state store (strict orchestration):** Disk store + MCP are authority; chat is not. See contract § *Authoritative state (state store)* and `docs/orchestrator/mcp-task-examples.md § State store flow`.
+
+    ```
+    # 1. Session start
+    mcp__orchestrator-state__register_task(
+      goal="<GOAL>", task_id="<slug>", flow_mode="<FLOW>",
+      max_iterations=3, approved_artifacts='["path/a.tf"]'
+    )
+
+    # 2. Before advancing to QA/CERBERUS from DEV/ARCHITECT
+    mcp__orchestrator-state__record_artifact(task_id="<slug>", path="path/a.tf")
+    mcp__compact-handoff__compact_handoff(text=<full DEV output>, mode_completed="DEV", next_mode="QA", ...)
+    mcp__orchestrator-state__validate_goal_alignment(task_id="<slug>", handoff_yaml=<yaml>)
+    mcp__orchestrator-state__validate_transition(task_id="<slug>", from_mode="DEV", to_mode="QA", handoff_yaml=<yaml>, iteration=1)
+    mcp__orchestrator-state__advance_mode(task_id="<slug>", to_mode="QA", from_mode="DEV", handoff_yaml=<yaml>, iteration=1)
+
+    # 3. Session end
+    mcp__orchestrator-state__close_task(task_id="<slug>", reason="done")
+    ```
+12. **`session_id`** on the envelope is optional audit metadata only until a **dedicated runner** enforces real session isolation — do not treat it as proof of isolation by itself.
 
 ## Quick ALLOW/FORBID
 

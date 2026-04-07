@@ -13,6 +13,9 @@ ide/
 file-history/
 backups/
 
+# Python packaging (local editable installs)
+*.egg-info/
+
 # Cache
 cache/
 __pycache__/
@@ -34,6 +37,9 @@ Thumbs.db
 .env
 .env.local
 secrets/
+
+# Orchestrator L2 state (on-disk authority; may live under repo if ORCHESTRATOR_STATE_ROOT points here)
+.state/
 
 # Claude Code runtime data (personal, not repo content)
 projects/
