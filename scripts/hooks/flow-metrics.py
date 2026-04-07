@@ -279,10 +279,7 @@ def main():
     summary = format_summary(data, cost)
 
     output = {
-        "hookSpecificOutput": {
-            "hookEventName": "Stop",
-            "additionalContext": summary,
-        }
+        "systemMessage": summary,
     }
     print(json.dumps(output))
 
