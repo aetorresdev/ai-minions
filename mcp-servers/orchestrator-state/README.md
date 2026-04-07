@@ -70,17 +70,33 @@ claude mcp add orchestrator-state \
 
 ---
 
+## Enforcement boundary
+
+This MCP enforces **state store constraints** (gates, artifact lists, iteration caps, goal alignment). It does **not** isolate sessions — a different agent process can still read the same chat history. Full session isolation requires a dedicated runner (L3) that controls the host. Design for it; implement this first.
+
+| What this MCP controls | What it does NOT control |
+|------------------------|--------------------------|
+| Whether a MODE transition is recorded | Which tools an agent can call per MODE |
+| Whether approved artifacts match `files_modified` | Chat history available to an agent |
+| Whether goal alignment passed before advancing | Process or session boundaries |
+| Iteration cap enforcement | External API calls made by agents |
+| Tamper-evident audit log (hash chain) | Enforcement in hosts without MCP support |
+
+---
+
 ## Tools
 
-| Tool | Role |
-|------|------|
-| `register_task` | Create `task_id`, initial envelope, first event |
-| `open_envelope` | Read envelope + recent events (source of truth) |
-| `record_artifact` | Add path to `approved_artifacts` |
-| `validate_goal_alignment` | Ollama check + persist `goal_alignment_status` |
-| `validate_transition` | Dry-run gates — no write, returns `allowed: true/false` + `errors` |
-| `advance_mode` | Append `mode_advanced` + update `current_mode` if all gates pass |
-| `close_task` | Mark task closed — blocks all further transitions |
+| Tool | Required? | Role |
+|------|-----------|------|
+| `register_task` | **Required** — first call | Create `task_id`, initial envelope, first event |
+| `open_envelope` | Recommended | Read envelope + recent events (source of truth) |
+| `record_artifact` | Required if new paths appear after registration | Add path to `approved_artifacts` |
+| `validate_goal_alignment` | Required when `enforce_goal_alignment: true` | Ollama check + persist `goal_alignment_status` |
+| `validate_transition` | Recommended (dry-run) | Check gates without writing — returns `allowed: true/false` + `errors` |
+| `advance_mode` | **Required** — replaces prompt-only transitions | Append event + update `current_mode` if all gates pass |
+| `close_task` | **Required** — signals end of task | Mark task closed — blocks all further transitions |
+
+> `validate_transition` is a dry-run and optional, but skipping it means `advance_mode` is your first signal of a gate failure — after the agent has already committed to the transition. Use `validate_transition` first.
 
 ---
 
