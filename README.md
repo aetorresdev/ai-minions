@@ -565,6 +565,18 @@ The [`examples/`](examples/) folder contains **reproducible demos** with sample 
 | [Review Dockerfile](examples/review-dockerfile.md) | Sample Dockerfile | hadolint + build check + trivy findings + best-practice notes |
 | [Create CircleCI pipeline](examples/create-circleci-pipeline.md) | App type + requirements | Generated `.circleci/config.yml` |
 
+### Orchestrator example
+
+[`examples/orchestrator/`](examples/orchestrator/) — a full autonomous orchestrator implementation that follows the MODE protocol and uses `orchestrator-state` for hard gates.
+
+```bash
+node examples/orchestrator/run-orchestrator.js \
+  --cwd /path/to/your/project \
+  "Create a REST API for user management with pagination"
+```
+
+Agents: `owner` → `architect` → `dev-*` → `qa` → `cerberus`. Every transition gated by `orchestrator-state` MCP. Bring your own orchestrator instead if you prefer — the contract and MCPs work independently of this example.
+
 ---
 
 ## Safety & scope
