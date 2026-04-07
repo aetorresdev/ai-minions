@@ -41,88 +41,238 @@ If the model mentions the skill or follows its instructions, the skill is active
 
 ---
 
+## Usage modes
+
+Three ways to use this repo — pick the one that fits your task.
+
+---
+
+### 1. Skills only (no orchestration)
+
+Just ask. Skills activate by intent — no setup required.
+
+```
+Review this Dockerfile
+```
+```
+Create a CircleCI pipeline for a Node app
+```
+```
+Design the Terraform architecture for an API + RDS setup
+```
+
+Skills run inline in the current chat. They may spawn specialized subagents automatically (e.g. `reviewing-terraform` spawns `static-analysis-runner`). No MODE declaration needed.
+
+**When to use:** Single-concern tasks — review, create, design — where you don't need role separation or iteration tracking.
+
+---
+
+### 2. Single-agent orchestration (multi-role, one chat)
+
+Declare the session header and the model switches roles within the same chat.
+
+```
+MODE: ORCHESTRATOR
+FLOW: single_agent
+GOAL: add billing module to the API
+MAX_ITERATIONS: 3
+```
+
+The orchestrator decomposes the goal, assigns the first MODE, and enforces handoffs:
+
+```
+→ ORCHESTRATOR plans and assigns: execute MODE: DEV
+→ DEV implements, calls compact_handoff at the end
+→ ORCHESTRATOR validates alignment, advances to QA
+→ QA reviews, classifies findings (blocker / improvement / nice-to-have)
+→ ORCHESTRATOR advances to CERBERUS or closes
+```
+
+Each MODE transition requires a handoff via MCP:
+
+```
+mcp__compact-handoff__compact_handoff(
+  text="<full DEV output>",
+  mode_completed="DEV",
+  next_mode="QA",
+  flow_mode="single_agent"
+)
+```
+
+**When to use:** Non-trivial tasks where you want explicit role separation and anti-loop enforcement, but don't need a separate process per role.
+
+---
+
+### 3. Strict orchestration (state store + hard gates)
+
+Same as above, but with the `orchestrator-state` MCP as the authority. Every transition is recorded on disk and gated.
+
+```
+MODE: ORCHESTRATOR
+FLOW: single_agent
+GOAL: migrate auth middleware to comply with new session policy
+MAX_ITERATIONS: 3
+```
+
+Then at session start:
+
+```
+mcp__orchestrator-state__register_task(
+  goal="migrate auth middleware to comply with new session policy",
+  task_id="auth-migration",
+  flow_mode="single_agent",
+  max_iterations=3,
+  approved_artifacts='["src/auth/middleware.py", "tests/test_auth.py"]'
+)
+```
+
+From there, every MODE advance goes through the gate sequence:
+
+```
+# DEV finishes → compact → validate → advance
+mcp__compact-handoff__compact_handoff(text=<DEV output>, mode_completed="DEV", next_mode="QA", ...)
+mcp__orchestrator-state__validate_goal_alignment(task_id="auth-migration", handoff_yaml=<yaml>)
+mcp__orchestrator-state__validate_transition(task_id="auth-migration", from_mode="DEV", to_mode="QA", handoff_yaml=<yaml>, iteration=1)
+mcp__orchestrator-state__advance_mode(task_id="auth-migration", to_mode="QA", from_mode="DEV", handoff_yaml=<yaml>, iteration=1)
+```
+
+If `advance_mode` returns `ok: false` → ORCHESTRATOR does not authorize the next MODE.
+
+At session end:
+
+```
+mcp__orchestrator-state__close_task(task_id="auth-migration", reason="accepted by CERBERUS")
+```
+
+**When to use:** Production work, compliance-sensitive tasks, or any flow where "the chat said so" is not enough — you need a tamper-evident log of what happened and hard gates on what paths are approved.
+
+---
+
 ## How it works
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"primaryColor": "#1e1e2e", "primaryTextColor": "#cdd6f4", "primaryBorderColor": "#89b4fa", "lineColor": "#89b4fa", "secondaryColor": "#181825", "tertiaryColor": "#313244", "edgeLabelBackground": "#313244", "clusterBkg": "#181825", "clusterBorder": "#45475a", "titleColor": "#cdd6f4", "fontFamily": "monospace"}}}%%
-flowchart TD
-    U([🧑 User Prompt]):::user --> SK
+flowchart LR
 
+    %% ── Input ────────────────────────────────────────────────────────────
+    U([🧑 User Prompt]):::user
+
+    %% ── Skills ───────────────────────────────────────────────────────────
     subgraph Skills ["⚡ Skills  •  skills/"]
+        direction TB
         SK[Skill\ntriggered by intent]:::skill
-        SA[Specialized\nSubagent]:::skill
-        SK -->|spawns| SA
+        SA[Specialized Subagent]:::skill
+        SK -.->|spawns| SA
     end
 
-    SK --> ORC
-    SA --> ORC
+    U ==> SK
 
-    subgraph Orch ["🎭 Orchestrator Protocol  •  orchestrator.mdc"]
-        ORC[ORCHESTRATOR\ndeclares MODE + GOAL]:::orch
-        ORC --> DEV[DEV\nImplement]:::mode
-        DEV --> QA[QA\nBreak it]:::mode
-        QA -->|blocker| DEV
-        QA --> CER[CERBERUS\nAdversarial review]:::mode
-        CER -->|another round| DEV
-    end
-
-    DEV -->|full output| CH
-    QA -->|full output| CH
-    CER -->|full output| CH
-
-    subgraph MCP ["🔌 Local MCP Servers  •  mcp-servers/"]
-        CH["compact-handoff\ncompact_handoff → YAML\nvalidate_goal_alignment"]:::mcp
-        SS["orchestrator-state\nregister_task · advance_mode\nvalidate_transition · record_artifact"]:::mcp
-    end
-
-    CH -->|handoff YAML| ORC
-    ORC -->|validate_goal_alignment\nadvance_mode| SS
-    SS -->|gates pass / block| ORC
-
-    subgraph OLLAMA ["🦙 Ollama  (local LLM)"]
-        OL[qwen2.5-coder:7b\nnomic-embed-text]:::ollama
-    end
-
-    CH -->|alignment check| OL
-    SS -->|alignment check| OL
-
-    subgraph Hooks ["🪝 Claude Code Hooks  •  scripts/hooks/"]
+    %% ── Hooks (lifecycle, vertical strip on the left) ────────────────────
+    subgraph Hooks ["🪝 Hooks  •  scripts/hooks/"]
+        direction TB
         H1[mem0-search\nUserPromptSubmit]:::hook
         H2[session-state · agent-metrics\nPostToolUse]:::hook
         H3[flow-metrics · mem0-stop\nStop]:::hook
     end
 
-    U -->|UserPromptSubmit| H1
-    H1 -->|context injected| SK
-    ORC -->|PostToolUse| H2
-    ORC -->|Stop| H3
+    U -.->|lifecycle| H1
 
+    %% ── Orchestrator ─────────────────────────────────────────────────────
+    subgraph Orch ["🎭 Orchestrator Protocol"]
+        direction TB
+        ORC[ORCHESTRATOR\ndeclares MODE + GOAL]:::orch
+        DEV[DEV\nImplement]:::mode
+        QA[QA\nBreak it]:::mode
+        CER[CERBERUS\nAdversarial review]:::mode
+        ORC ==> DEV
+        DEV ==>|handoff YAML| QA
+        QA ==>|handoff YAML| CER
+        QA -.->|blocker only| DEV
+        CER -.->|another round| DEV
+    end
+
+    SK ==> ORC
+    SA -.->|uses| Ext
+
+    %% ── compact-handoff ──────────────────────────────────────────────────
+    CH["🔌 compact-handoff\ncompact_handoff → YAML\nvalidate_goal_alignment"]:::mcp
+
+    DEV -->|full output| CH
+    QA  -->|full output| CH
+    CER -->|full output| CH
+    CH  -->|handoff YAML| ORC
+
+    %% ── Task boundary (state store + gates) ──────────────────────────────
+    subgraph Task ["📋 Task Boundary  •  task_id"]
+        direction TB
+
+        subgraph Gates ["🔌 orchestrator-state MCP"]
+            direction TB
+            GT_R[register_task\nrecord_artifact]:::mcp
+            GT_V{"validate_transition\nvalidate_goal_alignment"}:::gate
+            GT_A[advance_mode]:::mcp
+            GT_R --> GT_V
+            GT_V -->|"🟩 PASS"| GT_A
+            GT_V -->|"🟥 BLOCK"| ORC
+        end
+
+        subgraph Store ["💾 Disk  •  ~/.claude/.state/orchestrator/"]
+            direction TB
+            F1["envelope.json\ngoal · mode · artifacts"]:::store
+            F2["events.jsonl\nappend-only · hash chain"]:::store
+        end
+
+        GT_A --> F1
+        GT_A --> F2
+    end
+
+    ORC -.->|register / advance| GT_R
+    ORC -.->|validate| GT_V
+    GT_A -.->|current_mode| ORC
+    ORC -.->|PostToolUse| H2
+    ORC -.->|Stop| H3
+
+    %% ── Ollama ───────────────────────────────────────────────────────────
+    subgraph OLLAMA ["🦙 Ollama  (local LLM)"]
+        OL[qwen2.5-coder:7b\nnomic-embed-text]:::ollama
+        MEM[(OpenMemory\nQdrant)]:::ollama
+        OL -->|embeddings| MEM
+    end
+
+    CH  -.->|alignment check| OL
+    GT_V -.->|alignment check| OL
+    H1  ---  MEM
+
+    %% ── External MCPs ────────────────────────────────────────────────────
     subgraph Ext ["🌐 External MCPs  (optional)"]
+        direction TB
         E1[terraform-mcp-server]:::ext
         E2[aws-diagram-mcp-server]:::ext
         E3[n8n-mcp · drawio]:::ext
     end
 
-    SA -->|uses| Ext
-
-    subgraph Store ["💾 State Store  •  ~/.claude/.state/orchestrator/"]
-        F1["envelope.json"]:::store
-        F2["events.jsonl\nappend-only · hash chain"]:::store
+    %% ── Legend ───────────────────────────────────────────────────────────
+    subgraph Legend ["Legend"]
+        direction LR
+        LD1[ ]:::spacer
+        LD2[ ]:::spacer
+        LD1 ==>|data flow| LD2
+        LD3[ ]:::spacer
+        LD4[ ]:::spacer
+        LD3 -.->|control flow| LD4
     end
 
-    SS --- Store
-    OL -->|embeddings| MEM[(OpenMemory\nQdrant)]:::ollama
-    H1 --- MEM
-
-    classDef user        fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e,font-weight:bold
-    classDef skill       fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e
-    classDef orch        fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,font-weight:bold
-    classDef mode        fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e
-    classDef mcp         fill:#fab387,stroke:#fab387,color:#1e1e2e
-    classDef ollama      fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e
-    classDef hook        fill:#94e2d5,stroke:#94e2d5,color:#1e1e2e
-    classDef ext         fill:#45475a,stroke:#6c7086,color:#cdd6f4
-    classDef store       fill:#313244,stroke:#585b70,color:#cdd6f4
+    classDef user    fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e,font-weight:bold
+    classDef skill   fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e
+    classDef orch    fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,font-weight:bold
+    classDef mode    fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e
+    classDef mcp     fill:#fab387,stroke:#fab387,color:#1e1e2e
+    classDef gate    fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e,font-weight:bold
+    classDef ollama  fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e
+    classDef hook    fill:#94e2d5,stroke:#94e2d5,color:#1e1e2e
+    classDef ext     fill:#45475a,stroke:#6c7086,color:#cdd6f4
+    classDef store   fill:#313244,stroke:#585b70,color:#cdd6f4
+    classDef spacer  fill:none,stroke:none,color:transparent
 ```
 
 ---
