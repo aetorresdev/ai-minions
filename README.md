@@ -339,8 +339,9 @@ Claude Code hooks that run automatically during sessions:
 
 | Hook | Event | What it does |
 |------|-------|--------------|
-| `mem0-search.py` | `UserPromptSubmit` | Semantic memory retrieval from local OpenMemory (Qdrant + Ollama) |
-| `session-state.py` | `PostToolUse` | Live session state: tokens, cost, MODE, agent calls |
+| `mem0-search.py` | `UserPromptSubmit` | Semantic memory retrieval from OpenMemory. When `FLOW: single_agent` or `multi_agent` header detected, injects MODE tracking instruction so the model declares its active role on every response |
+| `multi-agent-orchestrator.py` | `UserPromptSubmit` | Detects `FLOW: multi_agent` header, launches `run-orchestrator.js` in background, writes active agent to `~/.claude/metrics/active-agent.json`, blocks prompt (`exit 2`) |
+| `session-state.py` | `PostToolUse` | Live session state: tokens, cost, current MODE (single-agent) or active agent (multi-agent), subagent calls |
 | `agent-metrics.py` | `PostToolUse` (Agent) | Per-subagent token usage, duration, tool count |
 | `mem0-stop.sh` | `Stop` | Reminds to save memories to OpenMemory |
 | `flow-metrics.py` | `Stop` | Session summary: tokens/cost per MODE, DEV→QA cycles, handoff count, goal alignment |
@@ -521,8 +522,9 @@ claude mcp add compact-handoff \
 │       └── pyproject.toml
 ├── scripts/
 │   ├── hooks/                       # Claude Code hooks
-│   │   ├── mem0-search.py           # UserPromptSubmit: semantic memory retrieval
-│   │   ├── session-state.py         # PostToolUse: live tokens/cost/MODE tracking
+│   │   ├── mem0-search.py           # UserPromptSubmit: memory retrieval + MODE tracking instruction
+│   │   ├── multi-agent-orchestrator.py  # UserPromptSubmit: launch runner on FLOW: multi_agent
+│   │   ├── session-state.py         # PostToolUse: live tokens/cost/MODE/active-agent tracking
 │   │   ├── agent-metrics.py         # PostToolUse(Agent): per-subagent metrics
 │   │   ├── mem0-stop.sh             # Stop: reminder to save memories
 │   │   └── flow-metrics.py          # Stop: session summary + benchmark data

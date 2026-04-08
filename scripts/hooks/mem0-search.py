@@ -54,18 +54,43 @@ def filter_memories(query: str) -> list[dict]:
     except Exception:
         return []
 
+MODE_HEADER_RE = re.compile(
+    r'FLOW\s*:\s*(single_agent|multi_agent)', re.IGNORECASE
+)
+
+def orchestrator_context(prompt: str) -> str | None:
+    """If the prompt contains a MODE header, return the role-tracking instruction."""
+    m = MODE_HEADER_RE.search(prompt)
+    if not m:
+        return None
+    return (
+        "ORCHESTRATOR SESSION ACTIVE.\n"
+        "You MUST declare your active role at the START of every response, "
+        "on its own line, in this exact format:\n"
+        "  MODE: <ROLE>\n"
+        "Valid roles: ORCHESTRATOR, OWNER, ARCHITECT, DEV, QA, CERBERUS.\n"
+        "When transitioning roles, announce it explicitly:\n"
+        "  Advancing to MODE: QA\n"
+        "Never skip this declaration — it is required for role tracking and flow metrics."
+    )
+
+
 def main():
     prompt = os.environ.get("CLAUDE_USER_PROMPT", "").strip()
     if not prompt:
         sys.exit(0)
 
+    parts = []
+
+    # Inject MODE tracking instruction if this is an orchestrator session
+    orch_ctx = orchestrator_context(prompt)
+    if orch_ctx:
+        parts.append(orch_ctx)
+
     # Try semantic search first, fall back to filter
     results = search_memories(prompt)
     if not results:
         results = filter_memories(prompt)
-
-    if not results:
-        sys.exit(0)
 
     memories = []
     for r in results:
@@ -73,16 +98,18 @@ def main():
         if text.strip():
             memories.append(text.strip())
 
-    if not memories:
+    if memories:
+        parts.append("Relevant memories from past sessions:\n" + "\n".join(
+            f"- {m}" for m in memories
+        ))
+
+    if not parts:
         sys.exit(0)
 
-    context = "Relevant memories from past sessions:\n" + "\n".join(
-        f"- {m}" for m in memories
-    )
     output = {
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit",
-            "additionalContext": context,
+            "additionalContext": "\n\n".join(parts),
         }
     }
     print(json.dumps(output))
