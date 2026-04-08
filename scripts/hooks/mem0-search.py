@@ -77,7 +77,37 @@ def orchestrator_context(prompt: str) -> str | None:
 
 
 def main():
+    session_id = os.environ.get("CLAUDE_SESSION_ID", "unknown")
+
+    # UserPromptSubmit passes data via stdin as JSON (VSCode/Cursor extension)
+    # and via CLAUDE_USER_PROMPT env var (CLI). Support both.
     prompt = os.environ.get("CLAUDE_USER_PROMPT", "").strip()
+    if not prompt:
+        try:
+            raw = sys.stdin.read().strip()
+            if raw:
+                data = json.loads(raw)
+                prompt = (
+                    data.get("prompt") or
+                    data.get("user_prompt") or
+                    data.get("message") or
+                    ""
+                ).strip()
+                if not session_id or session_id == "unknown":
+                    session_id = data.get("session_id") or data.get("sessionId") or "unknown"
+        except Exception:
+            pass
+
+    # Debug log — remove once confirmed working
+    try:
+        log_dir = Path(os.path.expanduser("~/.claude/logs"))
+        log_dir.mkdir(parents=True, exist_ok=True)
+        import datetime
+        with open(log_dir / "hook-debug.log", "a") as lf:
+            lf.write(f"{datetime.datetime.now().isoformat()} mem0-search session={session_id} prompt_len={len(prompt)} prompt_start={prompt[:60].replace(chr(10),' ')}\n")
+    except Exception:
+        pass
+
     if not prompt:
         sys.exit(0)
 
