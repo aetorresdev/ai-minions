@@ -4,7 +4,7 @@ mem0-search.py — UserPromptSubmit hook
 Searches OpenMemory for relevant memories and injects them as context.
 Silent on failure — never blocks the user prompt.
 """
-import json, os, sys, urllib.request, urllib.error
+import json, os, re, sys, urllib.request, urllib.error
 
 MEM0_URL = "http://localhost:8765"
 USER_ID = "andres"
