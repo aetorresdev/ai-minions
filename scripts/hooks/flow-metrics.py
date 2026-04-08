@@ -76,6 +76,8 @@ def parse_transcript(path: Path) -> dict:
     handoff_count    = 0
     goal_aligned_count = 0
     blockers_found   = 0
+    model_time_s     = 0.0   # sum of user→assistant gaps (inference time only)
+    _last_user_ts = None  # datetime | None
 
     def flush():
         nonlocal current
@@ -94,8 +96,25 @@ def parse_transcript(path: Path) -> dict:
                 continue
 
             etype = entry.get("type")
+            ts_raw = entry.get("timestamp", "")
+
+            if etype == "user":
+                try:
+                    _last_user_ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+                except Exception:
+                    pass
 
             if etype == "assistant":
+                if _last_user_ts and ts_raw:
+                    try:
+                        asst_ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+                        gap = (asst_ts - _last_user_ts).total_seconds()
+                        if 0 < gap < 600:  # ignore gaps > 10 min (likely AFK)
+                            model_time_s += gap
+                        _last_user_ts = None
+                    except Exception:
+                        pass
+
                 msg     = entry.get("message", {})
                 usage   = msg.get("usage", {})
                 content = msg.get("content", [])
@@ -192,6 +211,7 @@ def parse_transcript(path: Path) -> dict:
         "handoff_count":      handoff_count,
         "goal_aligned_count": goal_aligned_count,
         "blockers_found":     blockers_found,
+        "model_time_s":       round(model_time_s),
     }
 
 # ── Cost estimate ─────────────────────────────────────────────────────────────
@@ -226,7 +246,8 @@ def save_record(data: dict, transcript: Path, cost: float):
             "cache_write": data["total_cache_w"],
             "cache_read":  data["total_cache_r"],
         },
-        "cost_usd": round(cost, 4),
+        "cost_usd":            round(cost, 4),
+        "model_time_s":        data["model_time_s"],
     }
     with open(METRICS_FILE, "a") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -257,6 +278,9 @@ def format_summary(data: dict, cost: float) -> str:
     lines.append(f"  Blockers found: {data['blockers_found']}")
 
     total_tok = data["total_input"] + data["total_output"]
+    mt = data["model_time_s"]
+    mt_fmt = f"{mt // 60:.0f}m {mt % 60:.0f}s" if mt >= 60 else f"{mt:.0f}s"
+    lines.append(f"  Model time: {mt_fmt} (inference only, AFK excluded)")
     lines.append(f"  Total tokens: {total_tok:,} (~${cost:.4f} USD)")
     lines.append(f"  Saved to: {METRICS_FILE}")
     return "\n".join(lines)
