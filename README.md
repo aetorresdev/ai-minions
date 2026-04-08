@@ -255,17 +255,6 @@ The orchestrator enforces **MODE-based role separation** to prevent a single age
 | `QA` | Break it, edge cases, evidence — no production code |
 | `CERBERUS` | Adversarial last-mile review after DEV+QA — no fixes in same turn |
 
-### Session header (ORCHESTRATOR — first response)
-
-```text
-MODE: ORCHESTRATOR
-FLOW: single_agent | multi_agent
-GOAL: <one line — what will be accomplished>
-MAX_ITERATIONS: 3
-```
-
-`FLOW` tags the architecture for benchmarking and metrics.
-
 ### Anti-loop
 
 - QA only returns to DEV with `blocker` findings. `improvement` and `nice-to-have` go to backlog.
@@ -298,25 +287,6 @@ Claude Code hooks that run automatically during sessions:
 | `flow-metrics.py` | `Stop` | Session summary: tokens/cost per MODE, DEV→QA cycles, handoff count, goal alignment |
 
 Configure hooks in `settings.json` (see `settings.json` at repo root — copy and adapt, do not commit your local version).
-
-### Flow metrics output (`~/.claude/metrics/flow-metrics.jsonl`)
-
-Each session appends one record:
-
-```json
-{
-  "flow_mode": "single_agent",
-  "session_goal": "...",
-  "phases": [{"mode": "DEV", "turns": 4, "input_tokens": 12000, "output_tokens": 3200}],
-  "dev_qa_cycles": 1,
-  "handoff_count": 3,
-  "goal_aligned_count": 2,
-  "blockers_found": 1,
-  "cost_usd": 0.42
-}
-```
-
-This is the raw data for the **single-agent vs multi-agent benchmark**.
 
 ---
 
