@@ -75,7 +75,7 @@ Skills run inline in the current chat. They may spawn specialized subagents auto
 
 ### 2. Single-agent orchestration (multi-role, one chat)
 
-Declare the session header and the model switches roles within the same chat.
+Paste the header at the start of your message. The model handles the rest — role switching, handoffs, and iteration tracking are automatic.
 
 ```
 MODE: ORCHESTRATOR
@@ -84,34 +84,13 @@ GOAL: add billing module to the API
 MAX_ITERATIONS: 3
 ```
 
-The orchestrator decomposes the goal, assigns the first MODE, and enforces handoffs:
-
-```
-→ ORCHESTRATOR plans and assigns: execute MODE: DEV
-→ DEV implements, calls compact_handoff at the end
-→ ORCHESTRATOR validates alignment, advances to QA
-→ QA reviews, classifies findings (blocker / improvement / nice-to-have)
-→ ORCHESTRATOR advances to CERBERUS or closes
-```
-
-Each MODE transition requires a handoff via MCP:
-
-```
-mcp__compact-handoff__compact_handoff(
-  text="<full DEV output>",
-  mode_completed="DEV",
-  next_mode="QA",
-  flow_mode="single_agent"
-)
-```
-
-**When to use:** Non-trivial tasks where you want explicit role separation and anti-loop enforcement, but don't need a separate process per role.
+**When to use:** Multi-step work where you want explicit role separation (ORCHESTRATOR → DEV → QA → CERBERUS) without running a separate process per role.
 
 ---
 
-### 3. Strict orchestration (state store + hard gates)
+### 3. Strict orchestration (autonomous runner + hard gates)
 
-Runs the autonomous Node.js orchestrator (`examples/orchestrator/`) — each role is a separate `claude` CLI subprocess. The `orchestrator-state` MCP is the authority: every transition is recorded on disk (`envelope.json` + `events.jsonl`) and gated — unapproved files and unaligned goals block `advance_mode` before QA or CERBERUS can run.
+Same header format, different `FLOW`. The hook intercepts the prompt, launches the Node.js runner in the background, and each role runs as a separate `claude` CLI process with disk-backed state and hard gates.
 
 ```
 MODE: ORCHESTRATOR
@@ -121,13 +100,14 @@ MAX_ITERATIONS: 3
 CWD: /path/to/your/project
 ```
 
-The `UserPromptSubmit` hook detects `FLOW: multi_agent`, launches `run-orchestrator.js` in a separate terminal, and blocks the prompt from reaching the model — no extra command needed.
+Follow progress in a terminal:
+```bash
+tail -f ~/.claude/logs/orchestrator.log
+```
 
-Gate sequence per transition: `register_task` → `compact_handoff` → `validate_goal_alignment` → `validate_transition` → `advance_mode` → `close_task`.
+**When to use:** Production work, compliance-sensitive tasks, or any flow where you need an auditable record of every role transition.
 
-**When to use:** Production work, compliance-sensitive tasks, or any flow where "the chat said so" is not enough.
-
-Full call syntax, envelope/events examples, and failure cases: [`docs/orchestrator/strict-mode.md`](docs/orchestrator/strict-mode.md).
+Internals, gate sequence, and failure cases: [`docs/orchestrator/strict-mode.md`](docs/orchestrator/strict-mode.md).
 
 ---
 
