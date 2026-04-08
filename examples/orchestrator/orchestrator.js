@@ -58,6 +58,19 @@ function log(agentId, message) {
   console.log(`${DIM}${ts}${RESET} ${agentLabel(agentId)} ${message}`);
 }
 
+const AGENT_STATE_FILE = require("os").homedir() + "/.claude/metrics/active-agent.json";
+
+function writeAgentState(agentId, goal) {
+  try {
+    require("fs").writeFileSync(AGENT_STATE_FILE, JSON.stringify({
+      flow: "multi_agent",
+      goal,
+      active_agent: agentId.toUpperCase(),
+      updated_at: new Date().toISOString(),
+    }));
+  } catch { /* non-fatal */ }
+}
+
 function extractJson(text) {
   const trimmed = text.trim();
   const block = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -306,6 +319,7 @@ Assign one agent per step. Reply with JSON only.`;
       if (!agentId || !VALID_WORKER_AGENTS.has(agentId)) continue;
 
       const contextBlock = contextHeader + [goal, ...artifacts.map(contextChunk)].join("\n\n---\n\n");
+      writeAgentState(agentId, goal);
       log(agentId, `Executing: ${step.task.slice(0, 80)}${step.task.length > 80 ? "..." : ""}`);
 
       const result = await askAgent(
@@ -540,6 +554,9 @@ Reply with JSON only.`;
       log("gate", `WARNING: close_task failed (${err.message})`);
     }
   }
+
+  // Clear active agent state
+  try { require("fs").unlinkSync(AGENT_STATE_FILE); } catch { /* already gone */ }
 
   return { done, summary, artifacts, iterations, taskId };
 }

@@ -18,9 +18,11 @@ exits with code 2 to block the prompt from reaching the model.
 If not detected: exits 0 silently (hook is a no-op).
 """
 import json, os, re, subprocess, sys
+from pathlib import Path
 
 ORCHESTRATOR_JS = os.path.expanduser("~/.claude/examples/orchestrator/run-orchestrator.js")
-NODE_BIN = os.environ.get("NODE_BIN", "node")
+NODE_BIN        = os.environ.get("NODE_BIN", "node")
+AGENT_STATE_FILE = Path.home() / ".claude/metrics/active-agent.json"
 
 def parse_header(prompt: str) -> dict | None:
     """
@@ -44,10 +46,25 @@ def parse_header(prompt: str) -> dict | None:
     return fields
 
 
-def launch_orchestrator(fields: dict) -> None:
-    goal          = fields["GOAL"]
-    max_iter      = fields.get("MAX_ITERATIONS", "3")
-    cwd           = fields.get("CWD", os.getcwd())
+def write_agent_state(goal: str, agent: str = "ORCHESTRATOR") -> None:
+    """Write active agent to state file so session-state.py can surface it."""
+    AGENT_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    AGENT_STATE_FILE.write_text(json.dumps({
+        "flow": "multi_agent",
+        "goal": goal,
+        "active_agent": agent,
+    }))
+
+
+def launch_orchestrator(fields: dict) -> str:
+    """Launch run-orchestrator.js in background. Returns log file path."""
+    goal     = fields["GOAL"]
+    max_iter = fields.get("MAX_ITERATIONS", "3")
+    cwd      = fields.get("CWD", os.getcwd())
+
+    log_dir  = Path.home() / ".claude/logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = str(log_dir / "orchestrator.log")
 
     cmd = [
         NODE_BIN, ORCHESTRATOR_JS,
@@ -57,39 +74,11 @@ def launch_orchestrator(fields: dict) -> None:
         goal,
     ]
 
-    # Try to open a visible terminal. Fall back to detached background process.
-    terminal_launched = False
-    for term_cmd in [
-        ["gnome-terminal", "--", *cmd],
-        ["xterm", "-e", " ".join(cmd)],
-        ["konsole", "-e", *cmd],
-    ]:
-        try:
-            subprocess.Popen(term_cmd, cwd=cwd, start_new_session=True,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            terminal_launched = True
-            break
-        except FileNotFoundError:
-            continue
+    with open(log_file, "w") as f:
+        subprocess.Popen(cmd, cwd=cwd, start_new_session=True, stdout=f, stderr=f)
 
-    if not terminal_launched:
-        # No GUI terminal (e.g. VSCode) — run detached in background, log to ~/.claude/
-        log_dir = os.path.expanduser("~/.claude/logs")
-        os.makedirs(log_dir, exist_ok=True)
-        log_file = os.path.join(log_dir, "orchestrator.log")
-        with open(log_file, "w") as f:
-            subprocess.Popen(cmd, cwd=cwd, start_new_session=True, stdout=f, stderr=f)
-        print(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": "UserPromptSubmit",
-                "additionalContext": (
-                    f"[multi-agent-orchestrator] No GUI terminal found. "
-                    f"Runner launched in background — follow progress:\n"
-                    f"  tail -f {log_file}"
-                ),
-            }
-        }))
-        sys.exit(2)  # block prompt — runner owns this session
+    write_agent_state(goal)
+    return log_file
 
 
 def main():
@@ -101,16 +90,17 @@ def main():
     if not fields:
         sys.exit(0)  # not a multi_agent header — pass through
 
-    launch_orchestrator(fields)
+    log_file = launch_orchestrator(fields)
 
     # Block the prompt: runner owns this session now
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit",
             "additionalContext": (
-                f"[multi-agent-orchestrator] Launched autonomous runner for: {fields['GOAL']}\n"
+                f"[multi-agent-orchestrator] Launched autonomous runner.\n"
+                f"GOAL: {fields['GOAL']}\n"
                 f"CWD: {fields.get('CWD', os.getcwd())} | iterations: {fields.get('MAX_ITERATIONS', '3')}\n"
-                "The orchestrator is running in a separate terminal."
+                f"Follow progress: tail -f {log_file}"
             ),
         }
     }))

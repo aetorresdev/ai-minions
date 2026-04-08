@@ -240,7 +240,18 @@ def main():
     n_agents  = len(state["agents"])
     mode_str  = state["modes"]["current"] or "—"
 
-    lines = [f"Session live: MODE={mode_str} | {tok_total:,} tok | ${state['cost_usd']:.4f}"]
+    # Check for active multi-agent runner state
+    active_agent_file = CLAUDE_HOME / "metrics/active-agent.json"
+    multi_agent_str = ""
+    try:
+        if active_agent_file.exists():
+            aa = json.loads(active_agent_file.read_text())
+            if aa.get("active_agent"):
+                multi_agent_str = f" | agent={aa['active_agent']}"
+    except Exception:
+        pass
+
+    lines = [f"Session live: MODE={mode_str}{multi_agent_str} | {tok_total:,} tok | ${state['cost_usd']:.4f}"]
     if n_agents:
         last = state["agents"][-1]
         lines.append(
