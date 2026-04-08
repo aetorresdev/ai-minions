@@ -40,22 +40,35 @@ MODE_COLORS = {
 def load_latest_session() -> dict | None:
     if not SESSIONS_DIR.exists():
         return None
+    from datetime import datetime, timezone, timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
+
+    session_id  = os.environ.get("CLAUDE_SESSION_ID", "")
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "")
+
     files = sorted(
         SESSIONS_DIR.glob("*.json"),
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
-    from datetime import datetime, timezone, timedelta
+
+    best = None
     for f in files:
         try:
             data = json.loads(f.read_text())
             updated = datetime.fromisoformat(data.get("updated_at", "2000-01-01T00:00:00+00:00"))
-            if datetime.now(timezone.utc) - updated > timedelta(hours=2):
+            if updated < cutoff:
                 continue
-            return data
+            # Exact session match — highest priority
+            if session_id and data.get("session_id") == session_id:
+                return data
+            # Same project — use as fallback
+            if project_dir and data.get("project") == project_dir and best is None:
+                best = data
         except Exception:
             continue
-    return None
+
+    return best
 
 
 def load_active_agent() -> str | None:
