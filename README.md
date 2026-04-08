@@ -45,11 +45,11 @@ If the model mentions the skill or follows its instructions, the skill is active
 
 Three ways to use this repo — pick the one that fits your task.
 
-| Mode | Uses MCP? | Hard gates? | Best for |
-|------|-----------|-------------|----------|
-| **Skills only** | Optional (external MCPs) | No | Single-concern tasks: review, create, design |
-| **Single-agent orchestration** | `compact-handoff` | Soft (prompt discipline) | Multi-step work with explicit role separation |
-| **Strict orchestration** | `compact-handoff` + `orchestrator-state` | Yes (disk-backed, tamper-evident) | Production, compliance, or any flow where "the chat said so" is not enough |
+| Mode | Hard gates? | Best for |
+|------|-------------|----------|
+| **Skills only** | No | Single-concern tasks: review, create, design |
+| **Single-agent orchestration** | No | Multi-step work with explicit role separation |
+| **Strict orchestration** | Yes | Production, compliance, or auditable workflows |
 
 ---
 
@@ -264,36 +264,7 @@ GOAL: <one line — what will be accomplished>
 MAX_ITERATIONS: 3
 ```
 
-`FLOW` tags the architecture for benchmarking. All handoffs in the session inherit `flow_mode` from this.
-
-### Handoff via MCP (required at every MODE transition)
-
-Instead of writing handoff YAML by hand, every MODE calls the local `compact-handoff` MCP server:
-
-```
-mcp__compact-handoff__compact_handoff(
-  text="<full MODE output>",
-  mode_completed="DEV",
-  next_mode="QA",
-  flow_mode="single_agent"
-)
-```
-
-The MCP uses a local Ollama model (qwen2.5-coder:7b) to extract and structure the handoff — no cloud API cost for coordination.
-
-ORCHESTRATOR then validates alignment before advancing:
-
-```
-mcp__compact-handoff__validate_goal_alignment(
-  handoff_yaml="<yaml>",
-  goal="<session GOAL>",
-  flow_mode="single_agent"
-)
-```
-
-If `aligned: false` → ORCHESTRATOR does not advance MODE.
-
-For **hard gates** (disk-backed transitions, approved path lists, persisted alignment), add the **`orchestrator-state`** MCP: `register_task` → `record_artifact` → `compact_handoff` → **`orchestrator-state`** `validate_goal_alignment` (persists status) → `validate_transition` → **`advance_mode`**. Details: [`mcp-servers/orchestrator-state/README.md`](mcp-servers/orchestrator-state/README.md) and the contract § *Authoritative state (L2)*.
+`FLOW` tags the architecture for benchmarking and metrics.
 
 ### Anti-loop
 
@@ -346,34 +317,6 @@ Each session appends one record:
 ```
 
 This is the raw data for the **single-agent vs multi-agent benchmark**.
-
----
-
-## 🤖 compact-handoff MCP server
-
-Local MCP server (`mcp-servers/compact-handoff/`) that compacts agent outputs and validates goal alignment using a local Ollama model.
-
-### Setup
-
-```bash
-# Requires: uv, Ollama with qwen2.5-coder:7b pulled
-cd mcp-servers/compact-handoff
-uv sync --no-install-project
-
-# Register with Claude Code
-claude mcp add compact-handoff \
-  /absolute/path/to/.venv/bin/python \
-  /absolute/path/to/mcp-servers/compact-handoff/server.py \
-  --scope user
-```
-
-### Tools
-
-| Tool | Purpose |
-|------|---------|
-| `compact_handoff` | Compacts raw MODE output → structured handoff YAML |
-| `classify_finding` | Classifies a QA finding as `blocker / improvement / nice-to-have` |
-| `validate_goal_alignment` | Validates handoff against session goal, returns `aligned: true/false` |
 
 ---
 
