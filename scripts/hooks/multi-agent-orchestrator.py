@@ -73,21 +73,23 @@ def launch_orchestrator(fields: dict) -> None:
             continue
 
     if not terminal_launched:
-        # No GUI terminal — run detached in background, log to file
-        log_file = os.path.join(cwd, ".orchestrator.log")
+        # No GUI terminal (e.g. VSCode) — run detached in background, log to ~/.claude/
+        log_dir = os.path.expanduser("~/.claude/logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, "orchestrator.log")
         with open(log_file, "w") as f:
             subprocess.Popen(cmd, cwd=cwd, start_new_session=True, stdout=f, stderr=f)
         print(json.dumps({
             "hookSpecificOutput": {
                 "hookEventName": "UserPromptSubmit",
                 "additionalContext": (
-                    f"[multi-agent-orchestrator] Launched in background. "
-                    f"Follow progress: tail -f {log_file}"
+                    f"[multi-agent-orchestrator] No GUI terminal found. "
+                    f"Runner launched in background — follow progress:\n"
+                    f"  tail -f {log_file}"
                 ),
             }
         }))
-        # Don't block — let the model know what happened
-        sys.exit(0)
+        sys.exit(2)  # block prompt — runner owns this session
 
 
 def main():
