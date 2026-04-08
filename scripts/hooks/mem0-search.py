@@ -59,11 +59,39 @@ MODE_HEADER_RE = re.compile(
     r'FLOW\s*:\s*(single_agent|multi_agent)', re.IGNORECASE
 )
 
+GOAL_HEADER_RE = re.compile(r'GOAL\s*:\s*(.+)', re.IGNORECASE)
+
 def orchestrator_context(prompt: str) -> str | None:
     """If the prompt contains a MODE header, return the role-tracking instruction."""
     m = MODE_HEADER_RE.search(prompt)
     if not m:
         return None
+
+    has_goal = bool(GOAL_HEADER_RE.search(prompt))
+
+    if has_goal:
+        startup = (
+            "STARTUP SEQUENCE (follow strictly, in order):\n"
+            "1. Call open_envelope — check for prior session state.\n"
+            "   - If open_envelope returns existing artifacts (session-summary, prior handoffs): "
+            "use them as project context. Do NOT re-read files already summarized there.\n"
+            "2. GOAL is already in this prompt: extract it, register it with register_task.\n"
+            "3. Advance immediately to OWNER. Do NOT stay in ORCHESTRATOR.\n"
+            "4. Do NOT read files or scan the repo before advancing roles.\n"
+            "5. Role progression: ORCHESTRATOR → OWNER → ARCHITECT → DEV → QA → CERBERUS.\n"
+        )
+    else:
+        startup = (
+            "STARTUP SEQUENCE (follow strictly, in order):\n"
+            "1. Call open_envelope — check for prior session state.\n"
+            "   - If open_envelope returns existing artifacts (session-summary, prior handoffs): "
+            "use them as project context. Do NOT re-read files already summarized there.\n"
+            "2. No GOAL in prompt: ask the user for the goal in ONE sentence. Wait for response.\n"
+            "3. Do NOT read files or scan the repo before the user confirms the goal.\n"
+            "4. Once goal is set, advance to OWNER.\n"
+            "5. Role progression: ORCHESTRATOR → OWNER → ARCHITECT → DEV → QA → CERBERUS.\n"
+        )
+
     return (
         "ORCHESTRATOR SESSION ACTIVE.\n"
         "You MUST declare your active role at the START of every response, "
@@ -72,7 +100,8 @@ def orchestrator_context(prompt: str) -> str | None:
         "Valid roles: ORCHESTRATOR, OWNER, ARCHITECT, DEV, QA, CERBERUS.\n"
         "When transitioning roles, announce it explicitly:\n"
         "  Advancing to MODE: QA\n"
-        "Never skip this declaration — it is required for role tracking and flow metrics."
+        "Never skip this declaration — it is required for role tracking and flow metrics.\n\n"
+        + startup
     )
 
 
@@ -97,16 +126,6 @@ def main():
                     session_id = data.get("session_id") or data.get("sessionId") or "unknown"
         except Exception:
             pass
-
-    # Debug log — remove once confirmed working
-    try:
-        log_dir = Path(os.path.expanduser("~/.claude/logs"))
-        log_dir.mkdir(parents=True, exist_ok=True)
-        import datetime
-        with open(log_dir / "hook-debug.log", "a") as lf:
-            lf.write(f"{datetime.datetime.now().isoformat()} mem0-search session={session_id} prompt_len={len(prompt)} prompt_start={prompt[:60].replace(chr(10),' ')}\n")
-    except Exception:
-        pass
 
     if not prompt:
         sys.exit(0)
