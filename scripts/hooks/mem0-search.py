@@ -5,6 +5,7 @@ Searches OpenMemory for relevant memories and injects them as context.
 Silent on failure — never blocks the user prompt.
 """
 import json, os, re, sys, urllib.request, urllib.error
+from pathlib import Path
 
 MEM0_URL = "http://localhost:8765"
 USER_ID = "andres"
@@ -86,6 +87,14 @@ def main():
     orch_ctx = orchestrator_context(prompt)
     if orch_ctx:
         parts.append(orch_ctx)
+        # Write flag so mode-enforcer.py knows this session requires MODE declarations
+        try:
+            flag_dir = Path(os.path.expanduser("~/.claude/metrics"))
+            flag_dir.mkdir(parents=True, exist_ok=True)
+            session_id = os.environ.get("CLAUDE_SESSION_ID", "unknown")
+            (flag_dir / f"orch-session-{session_id}.flag").write_text("1")
+        except Exception:
+            pass
 
     # Try semantic search first, fall back to filter
     results = search_memories(prompt)

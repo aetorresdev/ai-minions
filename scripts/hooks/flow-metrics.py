@@ -278,6 +278,13 @@ def main():
     save_record(data, transcript, cost)
     summary = format_summary(data, cost)
 
+    # Clean up orchestrator session flag
+    try:
+        flag = Path(os.path.expanduser("~/.claude/metrics")) / f"orch-session-{SESSION_ID}.flag"
+        flag.unlink(missing_ok=True)
+    except Exception:
+        pass
+
     output = {
         "systemMessage": summary,
     }
