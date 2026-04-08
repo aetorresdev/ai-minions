@@ -545,6 +545,31 @@ Reply with JSON only.`;
     log("orchestrator", summary);
   }
 
+  // ── Record session summary artifact before closing ───────────────────────
+  if (!skipStateMcp) {
+    try {
+      const sessionSummary = [
+        `goal: ${goal}`,
+        `iterations: ${iterations}/${maxIterations}`,
+        `agents_run: ${[...new Set(artifacts.map(a => a.agentId))].join(", ")}`,
+        `outcome: ${summary}`,
+        artifacts.length > 0
+          ? `last_artifacts:\n${artifacts.slice(-3).map(a => `  - ${a.agentId}: ${a.task.slice(0, 80)}`).join("\n")}`
+          : "",
+      ].filter(Boolean).join("\n");
+
+      callStateMcp("record_artifact", {
+        task_id: taskId,
+        artifact_id: "session-summary",
+        content: sessionSummary,
+        agent_id: "orchestrator",
+      }, { cwd });
+      log("gate", "Session summary recorded in envelope.");
+    } catch (err) {
+      log("gate", `WARNING: record_artifact failed (${err.message})`);
+    }
+  }
+
   // ── Close task (state store) ──────────────────────────────────────────────
   if (!skipStateMcp) {
     try {
