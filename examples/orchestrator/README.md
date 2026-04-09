@@ -103,6 +103,21 @@ Use this to pick the right setup for your situation.
 | Soft (MCPs registered, default) | Gates run but empty handoff YAML passes | Contracts + goal alignment + transition checks | ~5–8 min/iteration |
 | Strict (gates + full handoff) | Empty YAML fails; all keys required | Full enforcement including approved-artifact check | ~5–8 min/iteration |
 
+### Guarantees by mode
+
+| Guarantee | Off (`--skip-gates`) | Soft (MCPs) | Strict (MCPs + full handoff) |
+|-----------|:-------------------:|:-----------:|:----------------------------:|
+| Output contracts enforced | ✅ | ✅ | ✅ |
+| Transitions recorded on disk | ❌ | ✅ | ✅ |
+| Goal alignment checked | ❌ | ✅ | ✅ |
+| Approved-artifact enforcement | ❌ | ✅ | ✅ |
+| Handoff YAML required (non-empty) | ❌ | ❌ | ✅ |
+| Fallback model allowed (dev-\*, qa) | ✅ | ✅ | ✅ |
+| Fallback model allowed (architect, cerberus) | ❌ | ❌ | ❌ |
+| Critical role contract fail stops iteration | ✅ | ✅ | ✅ |
+| QA degraded flagged in trace + warning | ✅ | ✅ | ✅ |
+| Goal redacted in traces + active-agent.json | `TRACE_REDACT_GOAL=1` | `TRACE_REDACT_GOAL=1` | `TRACE_REDACT_GOAL=1` |
+
 ---
 
 ## Quickstart (no MCPs — 2 minutes)

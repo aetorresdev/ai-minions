@@ -108,9 +108,13 @@ const AGENT_STATE_FILE = require("os").homedir() + "/.claude/metrics/active-agen
 
 function writeAgentState(agentId, goal) {
   try {
+    const goalHash = _hashGoal(goal);
+    const goalField = TRACE_REDACT_GOAL
+      ? `[redacted:${goalHash}]`
+      : `${String(goal).slice(0, 80)}… [sha256:${goalHash}]`;
     require("fs").writeFileSync(AGENT_STATE_FILE, JSON.stringify({
       flow: "multi_agent",
-      goal,
+      goal: goalField,
       active_agent: agentId.toUpperCase(),
       updated_at: new Date().toISOString(),
     }));

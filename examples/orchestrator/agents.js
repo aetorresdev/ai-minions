@@ -654,7 +654,9 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
     try { fb = resolveFallback(agentId); } catch (policyErr) {
       throw new Error(`[${agentId}] primary failed and policy blocks fallback: ${policyErr.message}. Original: ${primaryErr.message}`);
     }
-    console.warn(`[${agentId}] primary failed — degraded mode with ${fb.model} (${fb.reason})`);
+    if (!_degradedAgents.has(agentId)) {
+      console.warn(`[${agentId}] primary failed — degraded mode with ${fb.model} (${fb.reason})`);
+    }
     _degradedAgents.add(agentId);
     output = runClaude(prompt, { cwd, model: fb.model, maxTokens });
   }
