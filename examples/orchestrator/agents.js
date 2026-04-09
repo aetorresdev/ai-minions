@@ -18,6 +18,11 @@
 const { spawnSync } = require("child_process");
 const http = require("http");
 
+// ── Contract version ──────────────────────────────────────────────────────────
+// Bump when handoff schema, role permissions, or gate sequence change.
+// Passed to register_task so the envelope records the version that produced it.
+const CONTRACT_VERSION = "1.0";
+
 // ── Model routing config ──────────────────────────────────────────────────────
 //
 // primary    : model used when Claude CLI is available
@@ -43,6 +48,28 @@ const MODEL_ROUTING = {
   cerberus:     { primary: "claude-sonnet-4-6",        fallback: null,                        localSafe: false },
 };
 
+// ── Fallback policy ───────────────────────────────────────────────────────────
+//
+// Defines what happens when both primary and fallback models fail for a role.
+//
+// degraded: true  → run with fallback model, log warning, continue flow
+// degraded: false → hard fail, block step, surface as blocker in artifacts
+//
+// Roles with degraded: false are critical — their output cannot be safely
+// approximated by a weaker model (adversarial review, infra decisions).
+//
+const FALLBACK_POLICY = {
+  orchestrator:  { degraded: true,  reason: "JSON plan only — local model acceptable" },
+  summarizer:    { degraded: true,  reason: "Summary only — local model acceptable" },
+  owner:         { degraded: true,  reason: "Scope decisions tolerate lower model quality" },
+  "dev-backend": { degraded: true,  reason: "Haiku fallback acceptable with careful review" },
+  "dev-frontend":{ degraded: true,  reason: "Haiku fallback acceptable with careful review" },
+  "dev-devops":  { degraded: true,  reason: "Haiku fallback acceptable with careful review" },
+  architect:     { degraded: false, reason: "Design decisions require strong reasoning — no fallback" },
+  qa:            { degraded: true,  reason: "Haiku fallback acceptable; CERBERUS catches gaps" },
+  cerberus:      { degraded: false, reason: "Adversarial review must not be degraded — hard fail" },
+};
+
 /**
  * Resolve the active model for a role, respecting env overrides.
  * @param {string} role - agent id
@@ -52,6 +79,28 @@ function resolveModel(role) {
   const envKey = `MODEL_OVERRIDE_${role.toUpperCase().replace(/-/g, "_")}`;
   if (process.env[envKey]) return process.env[envKey];
   return MODEL_ROUTING[role]?.primary ?? "claude-sonnet-4-6";
+}
+
+/**
+ * Resolve fallback model for a role when primary fails.
+ * Returns { model, degraded, reason } or throws if role must hard-fail.
+ */
+function resolveFallback(role) {
+  const routing = MODEL_ROUTING[role];
+  const policy  = FALLBACK_POLICY[role] ?? { degraded: false, reason: "unknown role" };
+
+  if (!routing?.fallback) {
+    if (!policy.degraded) {
+      throw new Error(`[fallback] ${role}: no fallback model and degraded=false — hard fail. Reason: ${policy.reason}`);
+    }
+    throw new Error(`[fallback] ${role}: no fallback model configured`);
+  }
+
+  if (!policy.degraded) {
+    throw new Error(`[fallback] ${role}: fallback model exists but policy requires hard fail. Reason: ${policy.reason}`);
+  }
+
+  return { model: routing.fallback, degraded: true, reason: policy.reason };
 }
 
 const AGENTS = {
@@ -498,7 +547,20 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv } = {}) {
   const systemPrompt = envContext
     ? `${agent.system}\n\n---\n\n${envContext}`
     : agent.system;
-  return runClaude(`${systemPrompt}\n\n---\n\n${userMessage}`, { cwd, model: agent.model, maxTokens });
+  const prompt = `${systemPrompt}\n\n---\n\n${userMessage}`;
+
+  try {
+    return runClaude(prompt, { cwd, model: agent.model, maxTokens });
+  } catch (primaryErr) {
+    // Primary model failed — attempt fallback per policy
+    let fb;
+    try { fb = resolveFallback(agentId); } catch (policyErr) {
+      // Policy says hard fail (degraded: false or no fallback)
+      throw new Error(`[${agentId}] primary failed and policy blocks fallback: ${policyErr.message}. Original: ${primaryErr.message}`);
+    }
+    console.warn(`[${agentId}] primary failed — degraded mode with ${fb.model} (${fb.reason})`);
+    return runClaude(prompt, { cwd, model: fb.model, maxTokens });
+  }
 }
 
 async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
@@ -525,4 +587,4 @@ function listAgents() {
   return Object.entries(AGENTS).map(([id, a]) => ({ id, name: a.name, title: a.title, mode: a.mode }));
 }
 
-module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama, effectiveMode, resolveCredentials, buildEnvContext };
+module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama, effectiveMode, resolveCredentials, buildEnvContext, CONTRACT_VERSION, FALLBACK_POLICY };

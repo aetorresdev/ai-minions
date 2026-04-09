@@ -23,7 +23,7 @@
  *   - compact-handoff MCP registered (claude mcp add compact-handoff ...)
  */
 
-const { askAgent, summarizeHandoff, effectiveMode } = require("./agents");
+const { askAgent, summarizeHandoff, effectiveMode, CONTRACT_VERSION } = require("./agents");
 const { formatArtifactLine, envInt, truncateForContext } = require("./context-utils");
 const { spawnSync } = require("child_process");
 const { randomUUID } = require("crypto");
@@ -309,6 +309,7 @@ async function run(goal, options = {}) {
         flow_mode: flowMode,
         max_iterations: maxIterations,
         approved_artifacts: JSON.stringify(approvedArtifacts),
+        contract_version: CONTRACT_VERSION,
       }, { cwd });
       if (!reg.ok) throw new Error(reg.error || "register_task failed");
       log("gate", `Task registered — envelope: ${reg.envelope_path}`);
