@@ -293,7 +293,19 @@ npm test   # node --test tests/*.test.js — no auth, no Ollama, no MCPs require
 
 CI: runs on every push/PR via `.github/workflows/orchestrator-example.yml`.
 
-### What is covered
+### Coverage at a glance
+
+| Area | Covered | Notes |
+|------|---------|-------|
+| Output contracts (per role) | ✅ | Unit |
+| Fallback policy (primary → secondary, hard-fail) | ✅ | Integration (CLI mocked) |
+| Strict handoff enforcement (empty YAML) | ✅ | Unit |
+| Blocker detection (CERBERUS regex) | ✅ | Unit |
+| Handoff structure (DEV/QA/CERBERUS keys) | ✅ | Unit |
+| Full orchestrator loop (plan → gate → decide) | ❌ | Requires Claude auth + MCPs |
+| Real MCP gate sequence | ❌ | Requires registered MCPs |
+
+### Detail by file
 
 | Type | File | Covers | Mocked / real |
 |------|------|--------|---------------|
