@@ -154,6 +154,25 @@ All events include `ts` (ISO timestamp) and `task_id`.
 
 Gate names: `handoff_structure`, `goal_alignment`, `transition`.
 
+### Example trace file (`~/.claude/metrics/traces/task-b4013eec.jsonl`)
+
+```jsonl
+{"ts":"2026-04-09T10:27:01.000Z","task_id":"task-b4013eec","event":"session_start","flow_mode":"multi_agent","max_iterations":3,"goal":"Add input validation to POST /users"}
+{"ts":"2026-04-09T10:27:03.000Z","task_id":"task-b4013eec","event":"agent_start","agent":"dev-backend","iteration":1,"task":"Implement input validation on POST /users endpoint"}
+{"ts":"2026-04-09T10:27:41.000Z","task_id":"task-b4013eec","event":"agent_done","agent":"dev-backend","iteration":1,"duration_ms":38200,"output_chars":2841}
+{"ts":"2026-04-09T10:27:44.000Z","task_id":"task-b4013eec","event":"gate_result","agent":"dev-backend","iteration":1,"gate":"handoff_structure","passed":true}
+{"ts":"2026-04-09T10:27:52.000Z","task_id":"task-b4013eec","event":"gate_result","agent":"dev-backend","iteration":1,"gate":"goal_alignment","passed":true,"confidence":0.91}
+{"ts":"2026-04-09T10:27:58.000Z","task_id":"task-b4013eec","event":"gate_result","agent":"dev-backend","iteration":1,"gate":"transition","from_mode":"DEV","to_mode":"QA","passed":true}
+{"ts":"2026-04-09T10:28:30.000Z","task_id":"task-b4013eec","event":"agent_start","agent":"qa","iteration":1,"task":"Validate POST /users input validation implementation"}
+{"ts":"2026-04-09T10:28:55.000Z","task_id":"task-b4013eec","event":"contract_fail","agent":"qa","iteration":1,"duration_ms":25100,"reason":"qa: output must classify at least one finding as blocker | improvement | nice-to-have"}
+{"ts":"2026-04-09T10:29:10.000Z","task_id":"task-b4013eec","event":"cerberus_check","iteration":1,"blockers":1,"items":["blocker: no rate limiting on the endpoint"]}
+{"ts":"2026-04-09T10:29:12.000Z","task_id":"task-b4013eec","event":"iteration_done","iteration":1,"outcome":"iterate","blockers":1,"corrections":1}
+{"ts":"2026-04-09T10:31:45.000Z","task_id":"task-b4013eec","event":"iteration_done","iteration":2,"outcome":"done","summary":"Input validation and rate limiting implemented. No blockers."}
+{"ts":"2026-04-09T10:31:46.000Z","task_id":"task-b4013eec","event":"session_end","iterations":2,"done":true,"agents_run":["dev-backend","qa","cerberus"],"gate_blocks":1}
+```
+
+Read it with: `cat ~/.claude/metrics/traces/<task_id>.jsonl | jq .`
+
 ---
 
 ## Strict output enforcement (`validateOutput`)
