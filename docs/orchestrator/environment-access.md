@@ -206,13 +206,18 @@ Each role has a fixed permission level. The session `mode` is the **ceiling** �
 
 ## Implementation status
 
-**Current status: design / backlog**
+**Current status: implemented** (`examples/orchestrator/agents.js` + `orchestrator.js`)
 
-Not yet implemented in `agents.js` or `orchestrator.js`. When implemented:
+| Component | Status | Location |
+|---|---|---|
+| `parseEnvironment()` | ✅ | `orchestrator.js` — parses ENVIRONMENT block from session header via regex |
+| `resolveCredentials()` | ✅ | `agents.js` — reads env vars at call time, warns on missing |
+| `effectiveMode()` | ✅ | `agents.js` — applies role permission matrix against session ceiling |
+| `buildEnvContext()` | ✅ | `agents.js` — generates context string injected into each agent's system prompt |
+| `askAgent()` injection | ✅ | `agents.js` — passes `sessionEnv` to `buildEnvContext` before claude CLI call |
+| CERBERUS hardcoded read | ✅ | `effectiveMode()` — returns `"read"` for cerberus regardless of session mode |
+| Missing env var blocker | ✅ | `resolveCredentials()` — missing vars surfaced in agent context as blockers |
 
-- `ENVIRONMENT` block parsed from session header in `orchestrator.js`
-- Credentials injected into each agent's context as `env_credentials` object
-- `mode` enforced in each agent's system prompt via `ENVIRONMENT.mode` substitution
-- CERBERUS system prompt hardcodes `mode: read` regardless of session declaration
-
-**Tracked in:** `EXPERIMENT.md` backlog section.
+**Pending:**
+- Automated tests verifying that `mode: read` blocks write operations end-to-end
+- Runtime validation in multi-agent sessions with real credentials
