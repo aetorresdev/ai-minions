@@ -75,6 +75,9 @@ When the primary model fails, the runner attempts the fallback model per role. I
 
 **Hard fail** means the step throws, `gateBlocked: true` is recorded in the artifact, and the iteration stops for that step. `architect` and `cerberus` never degrade silently.
 
+> **QA degraded — operationally tolerable, not quality-equivalent.**
+> When QA falls back to Haiku, it can still produce classified findings and a verdict. However, Haiku may miss edge cases or accept weaker evidence than Sonnet would. CERBERUS runs after QA regardless and will catch gaps — but only gaps it can observe from the final artifact. Evidence that was never collected by a degraded QA cannot be retroactively surfaced. This tradeoff is accepted; the assumption should be explicit: **QA degraded = reduced coverage, not zero coverage.**
+
 ---
 
 ## Contract versioning
