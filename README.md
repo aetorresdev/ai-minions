@@ -266,6 +266,7 @@ The orchestrator enforces **MODE-based role separation** to prevent a single age
 |------|------|
 | Agent contract + skills | [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md) |
 | MCP / subagent examples | [`docs/orchestrator/mcp-task-examples.md`](docs/orchestrator/mcp-task-examples.md) |
+| Environment access + credentials | [`docs/orchestrator/environment-access.md`](docs/orchestrator/environment-access.md) |
 | Cursor rule | [`.cursor/rules/orchestrator.mdc`](.cursor/rules/orchestrator.mdc) |
 | Paths & conventions | [`docs/orchestrator/PATHS.md`](docs/orchestrator/PATHS.md) |
 
@@ -285,6 +286,7 @@ Claude Code hooks that run automatically during sessions:
 | `agent-metrics.py` | `PostToolUse` (Agent) | Per-subagent token usage, duration, tool count |
 | `mem0-stop.sh` | `Stop` | Reminds to save memories to OpenMemory |
 | `flow-metrics.py` | `Stop` | Session summary: tokens/cost per MODE, DEV→QA cycles, handoff count, goal alignment, model inference time (AFK excluded) |
+
 
 Configure hooks in `settings.json` (see `settings.json` at repo root — copy and adapt, do not commit your local version).
 
@@ -397,8 +399,9 @@ Configure hooks in `settings.json` (see `settings.json` at repo root — copy an
 ├── agents/                          # Subagent definitions for Claude Code
 ├── docs/
 │   ├── orchestrator/                 # Orchestrator contract and examples
-│   │   ├── agent-contract.md       # Full MODE protocol, handoff schema, anti-loop rules
+│   │   ├── agent-contract.md        # Full MODE protocol, handoff schema, anti-loop rules
 │   │   ├── mcp-task-examples.md     # MCP/subagent usage examples
+│   │   ├── environment-access.md    # Agent credential contract, read/write mode, per-service examples
 │   │   ├── CURSOR_RULE_SETUP.md     # How to install the Cursor rule in other repos
 │   │   └── PATHS.md                 # Path conventions for multi-repo setups
 │   ├── drawio-mcp-setup.md          # Draw.io MCP server setup guide

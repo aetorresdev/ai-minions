@@ -91,7 +91,7 @@ It acts only according to the rules of that MODE until **Orchestrator** (or the 
 | **OWNER** (or PO) | Scope, priorities, definition of done, what is out of scope | Implement; review implementation in detail |
 | **ARCHITECT** (Software or Infra) | Design, trade-offs, conceptual diagrams, component list; **cost controls** in Infra | Application code; complete HCL Terraform (only resource proposal if the flow requires it) |
 | **DEV** (Backend / Frontend / DevOps implementing) | Implement per spec; document minimal decisions in handoff | Evaluate "overall quality"; assume QA or Critic role; question requirements unless there is an explicit **blocker** (then handoff to OWNER) |
-| **QA** | Test cases, edge cases, try to break the design, acceptance checklist, run validation scripts. When returning to DEV: label each finding as `blocker`, `improvement`, or `nice-to-have` — only `blocker` items block the flow | Write production code or change business logic "to fix it"; approve without evidence; return to DEV without classifying the finding |
+| **QA** | Test cases, edge cases, try to break the design, acceptance checklist, run validation scripts. For each platform-specific artifact, invoke the relevant skill and apply its validation checklist before passing to CERBERUS — do not approve assumptions about platform behavior without verifying them. When returning to DEV: label each finding as `blocker`, `improvement`, or `nice-to-have` — only `blocker` items block the flow | Write production code or change business logic "to fix it"; approve without evidence; approve platform assumptions without skill verification; return to DEV without classifying the finding |
 | **CERBERUS** | Risks, hidden assumptions, alternatives, open questions; **assume there are errors**. Reviews any output already approved by DEV+QA: simplicity, security, design, unconsidered alternatives. Not an additional QA — it is adversarial last-mile review before human validation. | Implement, patches, "I'll fix that for you"; propose a detailed solution **in the same turn** (maximum: "consider option A vs B" in 1–2 lines) |
 
 Roles **PM**, **Software/Infra Architect**, **Backend/Frontend/DevOps** map to the above MODEs when executing (e.g. Infra Architect → **ARCHITECT** infra; DevOps implementing → **DEV**).
@@ -113,6 +113,8 @@ Roles **PM**, **Software/Infra Architect**, **Backend/Frontend/DevOps** map to t
 ## Handoff between phases (required when closing ANY MODE)
 
 When finishing **any MODE** (ARCHITECT, DEV, QA, CERBERUS), the agent calls the MCP `compact_handoff` with its full output. The result is the official handoff passed to the next MODE. **Do not write the YAML by hand** — always generate it via MCP to guarantee metrics comparability.
+
+**Enforcement:** A `PreToolUse` hook blocks `advance_mode` if `compact_handoff` was not called first in the same cycle. The hook consumes the flag on success — one handoff per advance. ORCHESTRATOR and OWNER transitions are exempt.
 
 ```
 mcp__compact-handoff__compact_handoff(
@@ -344,7 +346,7 @@ This reduces self-confirmation bias. See [mcp-task-examples.md](mcp-task-example
 ## 9. QA
 
 - **MODE:** `QA`.
-- **Responsibility**: Break things, edge cases, evidence; **no** production code.
+- **Responsibility**: Break things, edge cases, evidence; **no** production code. For each platform-specific artifact, invoke the relevant skill and apply its validation checklist before passing to CERBERUS — do not approve assumptions about platform behavior without verifying them.
 - **Skills:** `managing-n8n` (flows), `reviewing-terraform` / `reviewing-docker` / `reviewing-circleci` per deliverable; n8n validators as subagent if available.
 
 ---
@@ -371,4 +373,5 @@ This reduces self-confirmation bias. See [mcp-task-examples.md](mcp-task-example
 ## References
 
 - [mcp-task-examples.md](mcp-task-examples.md)
+- [environment-access.md](environment-access.md) — agent credential contract, read vs write mode, per-service examples
 - Cursor rule: `.cursor/rules/orchestrator.mdc` (from `REPO_ROOT`). User Rules / other projects: [CURSOR_RULE_SETUP.md](CURSOR_RULE_SETUP.md), [PATHS.md](PATHS.md)
