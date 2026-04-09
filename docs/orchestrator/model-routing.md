@@ -118,6 +118,22 @@ All agents share the global guardrail in `CLAUDE.md`:
 
 ---
 
+## Strict output enforcement (`validateOutput`)
+
+`validateOutput(agentId, output, { phase })` in `agents.js` enforces the per-role output contract **inside `askAgent()`** — runs after every agent call, before the result is returned to the orchestrator. Throws on failure; no silent retry.
+
+| Trigger | Behavior |
+|---------|---------|
+| Empty output (any role) | Throws — `${agentId}: empty output` |
+| Orchestrator non-JSON | Throws — `orchestrator: output is not valid JSON` |
+| DEV missing file reference | Throws — must mention at least one file modified |
+| DEV missing validation run | Throws — must include at least one validation run |
+| QA/CERBERUS no classified finding | Throws — must classify at least one finding |
+
+The `phase` parameter (`"plan"` / `"decide"`) is passed from `orchestrator.js` for orchestrator calls to select the correct sub-contract. Single-agent and multi-agent flows use the same validation path.
+
+---
+
 ## Handoff structure rules
 
 After each agent completes, `compact-handoff` MCP produces a YAML handoff. `validateHandoffStructure()` (in `orchestrator.js`) performs a shallow key-presence check before the MCP gates run.
