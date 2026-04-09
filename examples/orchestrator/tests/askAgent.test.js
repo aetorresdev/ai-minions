@@ -29,7 +29,7 @@ function stubSpawnSync(cmd, args, opts) {
 }
 
 cp.spawnSync = stubSpawnSync;
-const { askAgent } = require("../agents");
+const { askAgent, getDegradedAgents, clearDegradedAgents } = require("../agents");
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -188,5 +188,57 @@ describe("askAgent — unknown agent", () => {
       () => askAgent("made-up-agent", "do something"),
       /Unknown agent/
     );
+  });
+});
+
+// ── degraded-agent tracking ───────────────────────────────────────────────────
+
+describe("getDegradedAgents / clearDegradedAgents", () => {
+  beforeEach(() => {
+    callCount = 0;
+    calledModels = [];
+    responseQueue = [];
+    clearDegradedAgents();
+  });
+
+  it("is empty after clearDegradedAgents", () => {
+    assert.equal(getDegradedAgents().size, 0);
+  });
+
+  it("records agent id when fallback is used", async () => {
+    queueResponses(
+      { output: "", error: new Error("primary unavailable") },
+      { output: VALID_DEV_OUTPUT }
+    );
+    await askAgent("dev-backend", "implement X");
+    assert.ok(getDegradedAgents().has("dev-backend"));
+  });
+
+  it("does not record agent when primary succeeds", async () => {
+    queueResponses({ output: VALID_DEV_OUTPUT });
+    await askAgent("dev-backend", "implement X");
+    assert.equal(getDegradedAgents().has("dev-backend"), false);
+  });
+
+  it("clearDegradedAgents empties the set", async () => {
+    queueResponses(
+      { output: "", error: new Error("fail") },
+      { output: VALID_DEV_OUTPUT }
+    );
+    await askAgent("dev-backend", "implement X");
+    assert.ok(getDegradedAgents().size > 0);
+    clearDegradedAgents();
+    assert.equal(getDegradedAgents().size, 0);
+  });
+
+  it("getDegradedAgents returns a copy — external mutations do not affect internal state", async () => {
+    queueResponses(
+      { output: "", error: new Error("fail") },
+      { output: VALID_DEV_OUTPUT }
+    );
+    await askAgent("dev-backend", "implement X");
+    const copy = getDegradedAgents();
+    copy.clear();
+    assert.ok(getDegradedAgents().size > 0);
   });
 });

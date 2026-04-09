@@ -23,7 +23,7 @@
  *   - compact-handoff MCP registered (claude mcp add compact-handoff ...)
  */
 
-const { askAgent, summarizeHandoff, effectiveMode, CONTRACT_VERSION } = require("./agents");
+const { askAgent, summarizeHandoff, effectiveMode, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
 const { formatArtifactLine, envInt, truncateForContext } = require("./context-utils");
 const { spawnSync } = require("child_process");
 const { randomUUID } = require("crypto");
@@ -34,15 +34,44 @@ const path = require("path");
 // Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
 // Event types: session_start, agent_start, agent_done, gate_result,
 //              contract_fail, iteration_done, session_end
+//
+// Sensitive field handling:
+//   goal  → truncated to 80 chars + SHA-256 hash (TRACE_REDACT_GOAL=1 omits text entirely)
+//   task  → truncated to 120 chars
+//   reason/summary → truncated to 300 chars
+// Trace write failures emit a one-time stderr warning (not silenced).
 
 const TRACES_DIR = path.join(require("os").homedir(), ".claude", "metrics", "traces");
+const TRACE_REDACT_GOAL = process.env.TRACE_REDACT_GOAL === "1";
+let _traceWarnEmitted = false;
+
+function _hashGoal(text) {
+  return require("crypto").createHash("sha256").update(text).digest("hex").slice(0, 12);
+}
+
+function _sanitize(event) {
+  const out = { ...event };
+  if ("goal" in out) {
+    const h = _hashGoal(out.goal);
+    out.goal = TRACE_REDACT_GOAL ? `[redacted:${h}]` : `${String(out.goal).slice(0, 80)}… [sha256:${h}]`;
+  }
+  if ("task"    in out) out.task    = String(out.task).slice(0, 120);
+  if ("reason"  in out) out.reason  = String(out.reason).slice(0, 300);
+  if ("summary" in out) out.summary = String(out.summary).slice(0, 300);
+  return out;
+}
 
 function traceEvent(taskId, event) {
   try {
     fs.mkdirSync(TRACES_DIR, { recursive: true });
-    const line = JSON.stringify({ ts: new Date().toISOString(), task_id: taskId, ...event });
+    const line = JSON.stringify({ ts: new Date().toISOString(), task_id: taskId, ..._sanitize(event) });
     fs.appendFileSync(path.join(TRACES_DIR, `${taskId}.jsonl`), line + "\n");
-  } catch { /* non-fatal */ }
+  } catch (err) {
+    if (!_traceWarnEmitted) {
+      process.stderr.write(`[trace] WARNING: could not write trace (${err.message}) — tracing disabled for this session\n`);
+      _traceWarnEmitted = true;
+    }
+  }
 }
 
 const DEFAULT_MAX_ITERATIONS = 3;
@@ -353,6 +382,8 @@ async function run(goal, options = {}) {
   let done        = false;
   let summary     = "";
   let currentMode = "ORCHESTRATOR";
+  const degradedInRun = new Set(); // agents that ran in fallback at least once this run
+  clearDegradedAgents();
 
   log("orchestrator", `Working directory: ${cwd}`);
   log("orchestrator", `task_id: ${taskId} | flow: ${flowMode} | max_iterations: ${maxIterations}`);
@@ -485,12 +516,21 @@ Assign one agent per step. Reply with JSON only.`;
         );
       } catch (err) {
         const duration_ms = Date.now() - stepStart;
-        traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, duration_ms, reason: err.message.slice(0, 300) });
+        const isCritical = ["architect", "qa", "cerberus"].includes(agentId);
+        traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, duration_ms, reason: err.message.slice(0, 300), critical: isCritical });
         log(agentId, `🟥 Output contract failed: ${err.message}`);
         artifacts.push({ agentId, task: step.task, result: "", gateBlocked: true, gateReason: err.message });
+        if (isCritical) {
+          log(agentId, `🟥 Critical role contract fail — stopping iteration (no QA/CERBERUS/ARCHITECT degradation allowed)`);
+          break;
+        }
         continue;
       }
-      traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, duration_ms: Date.now() - stepStart, output_chars: result.length });
+      // Collect any agents that fell back to a secondary model during this call
+      for (const id of getDegradedAgents()) degradedInRun.add(id);
+      clearDegradedAgents();
+      const stepDegraded = degradedInRun.has(agentId);
+      traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, duration_ms: Date.now() - stepStart, output_chars: result.length, ...(stepDegraded ? { degraded: true } : {}) });
 
       // ── Compact handoff (compact-handoff MCP) ──────────────────────────────
       let handoffYaml = "";
@@ -814,9 +854,14 @@ Reply with JSON only.`;
   // Clear active agent state
   try { require("fs").unlinkSync(AGENT_STATE_FILE); } catch { /* already gone */ }
 
-  traceEvent(taskId, { event: "session_end", iterations, done, summary: summary.slice(0, 200), agents_run: [...new Set(artifacts.map(a => a.agentId))], gate_blocks: artifacts.filter(a => a.gateBlocked).length });
+  const qaDegraded = degradedInRun.has("qa");
+  if (qaDegraded) {
+    log("qa", "⚠ QA ran in degraded mode (fallback model) — coverage may be reduced. Manual review recommended.");
+  }
+  const manualReviewRecommended = qaDegraded || (summary.includes("Manual review") || summary.includes("unresolved blocker"));
+  traceEvent(taskId, { event: "session_end", iterations, done, summary: summary.slice(0, 200), agents_run: [...new Set(artifacts.map(a => a.agentId))], gate_blocks: artifacts.filter(a => a.gateBlocked).length, ...(qaDegraded ? { qa_degraded: true } : {}), ...(manualReviewRecommended ? { manual_review_recommended: true } : {}) });
 
   return { done, summary, artifacts, iterations, taskId };
 }
 
-module.exports = { run, detectBlockers, validateHandoffStructure };
+module.exports = { run, detectBlockers, validateHandoffStructure, _sanitize, _hashGoal };
