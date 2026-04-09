@@ -327,6 +327,8 @@ CI: runs on every push/PR via `.github/workflows/orchestrator-example.yml`.
 |------|---------|-------|
 | Output contracts (per role) | ✅ | Unit |
 | Fallback policy (primary → secondary, hard-fail) | ✅ | Integration (CLI mocked) |
+| Degraded-agent tracking (`getDegradedAgents`) | ✅ | Integration (CLI mocked) |
+| Trace redaction (`_sanitize`, `_hashGoal`) | ✅ | Unit |
 | Strict handoff enforcement (empty YAML) | ✅ | Unit |
 | Blocker detection (CERBERUS regex) | ✅ | Unit |
 | Handoff structure (DEV/QA/CERBERUS keys) | ✅ | Unit |
@@ -338,9 +340,10 @@ CI: runs on every push/PR via `.github/workflows/orchestrator-example.yml`.
 | Type | File | Covers | Mocked / real |
 |------|------|--------|---------------|
 | Unit | `tests/validateOutput.test.js` | Output contract per role: orchestrator JSON plan/decide, dev-* file+validation, qa/cerberus finding classification, free-form roles | Pure logic — nothing mocked |
-| Unit | `tests/orchestrator.test.js` | `detectBlockers()` regex (10 cases); `validateHandoffStructure()` DEV/QA/CERBERUS keys + exempt modes | Pure logic — nothing mocked |
-| Integration | `tests/askAgent.test.js` | `askAgent()`: contract throws, fallback primary→secondary (2 CLI calls verified), hard-fail architect/cerberus, unknown agentId | `child_process.spawnSync` mocked — no Claude auth, no network |
-| **Not covered** | — | Full orchestrator loop, real MCP gate sequence, real Claude CLI output | Requires Claude auth + registered MCPs |
+| Unit | `tests/orchestrator.test.js` | `detectBlockers()` regex (10 cases); `validateHandoffStructure()` DEV/QA/CERBERUS keys + exempt modes + strict empty YAML | Pure logic — nothing mocked |
+| Unit | `tests/internals.test.js` | `_hashGoal()` determinism; `_sanitize()` goal truncation + hash suffix + field caps + immutability | Pure logic — nothing mocked |
+| Integration | `tests/askAgent.test.js` | `askAgent()`: contract throws, fallback primary→secondary (2 CLI calls verified), hard-fail architect/cerberus, unknown agentId, `getDegradedAgents`/`clearDegradedAgents` | `child_process.spawnSync` mocked — no Claude auth, no network |
+| **Not covered** | — | Full orchestrator loop, critical-role contract fail breaks iteration, real MCP gate sequence | Requires Claude auth + registered MCPs |
 
 ---
 
@@ -354,7 +357,14 @@ The system has three layers that can block progress. Here is what each rejection
 10:27:33 AM [dev-backend] 🟥 Output contract failed: dev-backend: output must mention at least one file modified
 ```
 
-The step is skipped, a `contract_fail` trace event is written, and the loop continues to the next step. No advance_mode is attempted.
+For non-critical roles (dev-*): the step is skipped, a `contract_fail` trace event is written, and the loop continues to the next step.
+
+For **critical roles** (architect, qa, cerberus): the step loop `break`s — no further steps in the iteration run. The `contract_fail` trace event includes `critical: true`.
+
+```
+10:27:33 AM [qa] 🟥 Output contract failed: qa: output must classify at least one finding as blocker | improvement | nice-to-have
+10:27:33 AM [qa] 🟥 Critical role contract fail — stopping iteration (no QA/CERBERUS/ARCHITECT degradation allowed)
+```
 
 ### 2. Handoff structure invalid (`validateHandoffStructure`) — compact-handoff YAML is malformed
 
