@@ -33,6 +33,34 @@ MODEL_OVERRIDE_QA=qwen2.5-coder:7b node run-orchestrator.js "goal"   # local fal
 
 ---
 
+## Output token controls
+
+Configured in `examples/orchestrator/agents.js` (`MAX_OUTPUT_TOKENS` + `OUTPUT RULE` in system prompts).
+
+### Hard token caps (`--max-tokens` flag via claude CLI)
+
+Applied only to structured/JSON roles — cutting code agents mid-output breaks their response.
+
+| Role | `max_tokens` | Reason |
+|------|-------------|--------|
+| `orchestrator` | 400 | JSON plan/decide only |
+| `summarizer` | 500 | Structured handoff summary |
+| All others | unlimited | Code output must not be truncated |
+
+### Output format enforcement (`OUTPUT RULE` in system prompt)
+
+QA and CERBERUS include an explicit rule:
+
+> "Respond only with the required format. Any text outside this format will cause your output to be rejected."
+
+This is soft enforcement (instruction-level, not validated by code). The goal is to reduce narrative padding in findings lists.
+
+All agents share the global guardrail in `CLAUDE.md`:
+
+> "Respond only with what your role requires. Any text outside the required format will cause your output to be rejected."
+
+---
+
 ## Handoff structure rules
 
 After each agent completes, `compact-handoff` MCP produces a YAML handoff. `validateHandoffStructure()` (in `orchestrator.js`) performs a shallow key-presence check before the MCP gates run.

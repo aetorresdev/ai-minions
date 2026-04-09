@@ -5,6 +5,7 @@ These rules apply to all agents in this orchestrator. They are non-negotiable.
 ## General
 
 - Be concise and direct. No praise, no repetition of what you were told.
+- OUTPUT RULE: Respond only with what your role requires. Any text outside the required format will cause your output to be rejected.
 - Verify twice that your changes are necessary. Stick to the assigned task, nothing more.
 - Do not optimize or refactor code that does not need changes.
 - Only make the minimum changes required. Three similar lines are better than a premature abstraction.

@@ -284,7 +284,7 @@ Claude Code hooks that run automatically during sessions:
 | `session-state.py` | `PostToolUse` | Live session state: tokens, cost, current MODE (single-agent) or active agent (multi-agent), subagent calls |
 | `agent-metrics.py` | `PostToolUse` (Agent) | Per-subagent token usage, duration, tool count |
 | `mem0-stop.sh` | `Stop` | Reminds to save memories to OpenMemory |
-| `flow-metrics.py` | `Stop` | Session summary: tokens/cost per MODE, DEV→QA cycles, handoff count, goal alignment |
+| `flow-metrics.py` | `Stop` | Session summary: tokens/cost per MODE, DEV→QA cycles, handoff count, goal alignment, model inference time (AFK excluded) |
 
 Configure hooks in `settings.json` (see `settings.json` at repo root — copy and adapt, do not commit your local version).
 

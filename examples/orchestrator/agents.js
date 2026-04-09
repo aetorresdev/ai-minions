@@ -243,7 +243,9 @@ Skills available — invoke via the Skill tool when relevant:
 - reviewing-circleci: audit CircleCI configs in the delivery
 
 Always read the code you are testing. Run tests and report real results.
-Be direct and demanding. No praise, no repetition.`,
+OUTPUT RULE: Respond only with the required format (findings list + verdict).
+Any text outside this format will cause your output to be rejected.
+No explanations, no praise, no repetition.`,
   },
 
   // ── CERBERUS ─────────────────────────────────────────────────────────────────
@@ -270,7 +272,9 @@ Skills available — invoke via the Skill tool when relevant:
 
 Classify each finding as: blocker | improvement | nice-to-have.
 Only blockers require another DEV iteration. The rest go to backlog.
-Be concise, adversarial, and constructive. No praise, no repetition.`,
+OUTPUT RULE: Respond only with classified findings (blocker | improvement | nice-to-have).
+Any narrative outside finding entries will cause your output to be rejected.
+No praise, no repetition, no proposed solutions.`,
   },
 };
 
@@ -362,12 +366,21 @@ ${body}`;
   return runOllama(SUMMARY_SYSTEM, [{ role: "user", content: user }], { model, timeoutMs });
 }
 
+// ── Output token limits (hard cap per role) ───────────────────────────────────
+// Only applied to roles that produce structured/JSON output — not code agents.
+// DEV/ARCHITECT/QA/CERBERUS are excluded: cutting mid-code breaks output.
+const MAX_OUTPUT_TOKENS = {
+  orchestrator: 400,   // JSON plan or decide only
+  summarizer:   500,   // structured handoff summary
+};
+
 // ── Claude CLI ────────────────────────────────────────────────────────────────
 
-function runClaude(prompt, { cwd, model } = {}) {
+function runClaude(prompt, { cwd, model, maxTokens } = {}) {
   const timeoutMs = parseInt(process.env.CLAUDE_CLI_TIMEOUT, 10) || 180000;
   const args = ["-p", prompt, "--dangerously-skip-permissions"];
   if (model) args.push("--model", model);
+  if (maxTokens) args.push("--max-tokens", String(maxTokens));
   const result = spawnSync("claude", args, {
     encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024,
@@ -387,7 +400,8 @@ async function askAgent(agentId, userMessage, { cwd } = {}) {
   if (agent.provider === "ollama") {
     return runOllama(agent.system, [{ role: "user", content: userMessage }], { model: agent.model });
   }
-  return runClaude(`${agent.system}\n\n---\n\n${userMessage}`, { cwd, model: agent.model });
+  const maxTokens = MAX_OUTPUT_TOKENS[agentId] ?? undefined;
+  return runClaude(`${agent.system}\n\n---\n\n${userMessage}`, { cwd, model: agent.model, maxTokens });
 }
 
 async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
