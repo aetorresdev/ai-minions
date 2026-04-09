@@ -100,7 +100,12 @@ function extractJson(text) {
 /**
  * Shallow key-presence check on a handoff YAML string per MODE.
  * No semantic parsing — validates structural completeness only.
- * An empty or unparseable YAML passes (compact-handoff may not have run).
+ *
+ * @param {string} mode - ORCHESTRATOR mode (DEV, QA, CERBERUS, ...)
+ * @param {string} yaml - handoff YAML produced by compact-handoff MCP
+ * @param {{ strict?: boolean }} options
+ *   strict=false (default): empty YAML passes — compact-handoff may not be registered
+ *   strict=true:            empty YAML fails — compact-handoff is required in strict mode
  *
  * Required keys:
  *   DEV      → files_modified OR validation_run
@@ -109,8 +114,11 @@ function extractJson(text) {
  *
  * Returns { valid: boolean, reason: string }
  */
-function validateHandoffStructure(mode, yaml) {
-  if (!yaml || !yaml.trim()) return { valid: true, reason: "" };
+function validateHandoffStructure(mode, yaml, { strict = false } = {}) {
+  if (!yaml || !yaml.trim()) {
+    if (strict) return { valid: false, reason: `${mode} handoff is empty — compact_handoff must be called before advance_mode in strict mode` };
+    return { valid: true, reason: "" };
+  }
 
   // Extract top-level keys from YAML without a full parser
   // Matches "key:" at the start of a line (with optional leading spaces)
@@ -509,8 +517,8 @@ Assign one agent per step. Reply with JSON only.`;
       }
 
       // ── Structural handoff validation (per-MODE key check) ────────────────
-      if (AGENTS_REQUIRING_GATE.has(agentId) && handoffYaml) {
-        const sv = validateHandoffStructure(toMode, handoffYaml);
+      if (AGENTS_REQUIRING_GATE.has(agentId)) {
+        const sv = validateHandoffStructure(toMode, handoffYaml, { strict: !skipStateMcp });
         if (!sv.valid) {
           log("gate", `🟥 Handoff structure invalid (${toMode}): ${sv.reason}`);
           traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "handoff_structure", passed: false, reason: sv.reason });

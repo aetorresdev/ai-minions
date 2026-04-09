@@ -94,9 +94,21 @@ describe("validateHandoffStructure / DEV", () => {
     assert.match(r.reason, /files_modified or validation_run/);
   });
 
-  it("passes on empty YAML (compact-handoff may not have run)", () => {
+  it("passes on empty YAML in soft mode (compact-handoff may not be registered)", () => {
     const r = validateHandoffStructure("DEV", "");
     assert.equal(r.valid, true);
+  });
+
+  it("fails on empty YAML in strict mode", () => {
+    const r = validateHandoffStructure("DEV", "", { strict: true });
+    assert.equal(r.valid, false);
+    assert.match(r.reason, /empty.*strict mode|strict mode.*empty/i);
+  });
+
+  it("fails on empty YAML in strict mode for QA", () => {
+    const r = validateHandoffStructure("QA", "   \n", { strict: true });
+    assert.equal(r.valid, false);
+    assert.match(r.reason, /empty/i);
   });
 });
 

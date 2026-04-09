@@ -195,7 +195,9 @@ The `phase` parameter (`"plan"` / `"decide"`) is passed from `orchestrator.js` f
 
 After each agent completes, `compact-handoff` MCP produces a YAML handoff. `validateHandoffStructure()` (in `orchestrator.js`) performs a shallow key-presence check before the MCP gates run.
 
-An **empty or unparseable YAML always passes** — compact-handoff may not be registered.
+**Empty YAML behavior depends on mode:**
+- **Soft mode** (default, `--skip-gates`): empty YAML passes — compact-handoff may not be registered.
+- **Strict mode** (gates active): empty YAML fails — `compact_handoff` is required before `advance_mode`.
 
 ### Required keys per MODE
 
