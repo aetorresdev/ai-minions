@@ -23,6 +23,20 @@ const http = require("http");
 // Passed to register_task so the envelope records the version that produced it.
 const CONTRACT_VERSION = "1.0";
 
+// ── Ollama model config ───────────────────────────────────────────────────────
+// Set OLLAMA_MODEL to use a local model for orchestrator/summarizer roles.
+// If not set or Ollama is unreachable, these roles fall back to claude-haiku.
+//
+// Supported local models (run `ollama pull <model>` first):
+//   qwen2.5-coder:7b (default if OLLAMA_MODEL is set)
+//   llama3.1:8b, mistral:7b, codellama:13b, deepseek-coder:6.7b
+//
+// If OLLAMA_MODEL is not set → Ollama is disabled, roles use OLLAMA_FALLBACK_MODEL.
+const OLLAMA_MODEL          = process.env.OLLAMA_MODEL || null;
+const OLLAMA_FALLBACK_MODEL = "claude-haiku-4-5-20251001";  // used when Ollama unavailable
+const OLLAMA_HOST           = process.env.OLLAMA_HOST || "localhost";
+const OLLAMA_PORT           = parseInt(process.env.OLLAMA_PORT || "11434", 10);
+
 // ── Model routing config ──────────────────────────────────────────────────────
 //
 // primary    : model used when Claude CLI is available
@@ -34,12 +48,12 @@ const CONTRACT_VERSION = "1.0";
 // e.g. MODEL_OVERRIDE_QA=claude-haiku-4-5-20251001
 //
 const MODEL_ROUTING = {
-  // Ollama-native roles — local is the primary, no fallback needed
-  orchestrator: { primary: "qwen2.5-coder:7b",      fallback: null,                        localSafe: true  },
-  summarizer:   { primary: "qwen2.5-coder:7b",      fallback: null,                        localSafe: true  },
+  // Ollama-native roles — fall back to claude-haiku if Ollama not available
+  orchestrator: { primary: OLLAMA_MODEL || OLLAMA_FALLBACK_MODEL, fallback: OLLAMA_FALLBACK_MODEL, localSafe: true,  provider: OLLAMA_MODEL ? "ollama" : "claude" },
+  summarizer:   { primary: OLLAMA_MODEL || OLLAMA_FALLBACK_MODEL, fallback: OLLAMA_FALLBACK_MODEL, localSafe: true,  provider: OLLAMA_MODEL ? "ollama" : "claude" },
 
   // Claude roles — grouped by local-safety
-  owner:        { primary: "claude-haiku-4-5-20251001", fallback: "qwen2.5-coder:7b",      localSafe: true  },
+  owner:        { primary: "claude-haiku-4-5-20251001", fallback: OLLAMA_MODEL || OLLAMA_FALLBACK_MODEL, localSafe: true  },
   "dev-backend":{ primary: "claude-sonnet-4-6",        fallback: "claude-haiku-4-5-20251001", localSafe: false },
   "dev-frontend":{ primary: "claude-sonnet-4-6",       fallback: "claude-haiku-4-5-20251001", localSafe: false },
   "dev-devops": { primary: "claude-sonnet-4-6",        fallback: "claude-haiku-4-5-20251001", localSafe: false },
@@ -109,7 +123,7 @@ const AGENTS = {
     name: "Orchestrator",
     title: "Orchestrator",
     mode: "ORCHESTRATOR",
-    provider: "ollama",
+    get provider() { return OLLAMA_MODEL ? "ollama" : "claude"; },
     get model() { return resolveModel("orchestrator"); },
     system: `You are the Orchestrator of an autonomous agent team. You receive a goal and coordinate
 Owner, Architect, Dev (backend/frontend/devops), QA, and Cerberus agents following the MODE protocol.

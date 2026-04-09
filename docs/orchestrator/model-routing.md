@@ -10,9 +10,9 @@ Configured in `examples/orchestrator/agents.js` (`MODEL_ROUTING`).
 
 | Role | Primary | Fallback | Local safe? |
 |------|---------|----------|-------------|
-| `orchestrator` | `qwen2.5-coder:7b` (Ollama) | — | Yes |
-| `summarizer` | `qwen2.5-coder:7b` (Ollama) | — | Yes |
-| `owner` | `claude-haiku-4-5-20251001` | `qwen2.5-coder:7b` | Yes |
+| `orchestrator` | `$OLLAMA_MODEL` or `claude-haiku` | `claude-haiku-4-5-20251001` | Yes |
+| `summarizer` | `$OLLAMA_MODEL` or `claude-haiku` | `claude-haiku-4-5-20251001` | Yes |
+| `owner` | `claude-haiku-4-5-20251001` | `$OLLAMA_MODEL` or `claude-haiku` | Yes |
 | `dev-backend` | `claude-sonnet-4-6` | `claude-haiku-4-5-20251001` | No |
 | `dev-frontend` | `claude-sonnet-4-6` | `claude-haiku-4-5-20251001` | No |
 | `dev-devops` | `claude-sonnet-4-6` | `claude-haiku-4-5-20251001` | No |
@@ -20,7 +20,29 @@ Configured in `examples/orchestrator/agents.js` (`MODEL_ROUTING`).
 | `qa` | `claude-sonnet-4-6` | `claude-haiku-4-5-20251001` | No |
 | `cerberus` | `claude-sonnet-4-6` | — | No |
 
-**Local safe = true** means `qwen2.5-coder:7b` (Ollama) can substitute when no API key is available. Roles where this is `false` require strong reasoning (implementation, adversarial review) that small local models cannot reliably provide.
+**Local safe = true** means a local or cheaper model can substitute. Roles with `false` require strong reasoning (implementation, adversarial review) that weaker models cannot reliably provide.
+
+### Ollama configuration
+
+`orchestrator` and `summarizer` run on Ollama when `OLLAMA_MODEL` is set. If unset or Ollama is unreachable, they fall back to `claude-haiku-4-5-20251001` automatically.
+
+```bash
+# Enable Ollama (run `ollama pull <model>` first):
+OLLAMA_MODEL=qwen2.5-coder:7b node run-orchestrator.js "goal"
+
+# Supported alternatives:
+# OLLAMA_MODEL=llama3.1:8b
+# OLLAMA_MODEL=mistral:7b
+# OLLAMA_MODEL=deepseek-coder:6.7b
+
+# Custom Ollama host/port (default: localhost:11434):
+OLLAMA_HOST=192.168.1.10 OLLAMA_PORT=11434 OLLAMA_MODEL=qwen2.5-coder:7b node run-orchestrator.js "goal"
+
+# Without Ollama — orchestrator/summarizer use claude-haiku:
+node run-orchestrator.js "goal"
+```
+
+At startup, the runner pings Ollama and logs whether it is available. No silent failures.
 
 ### Per-role override
 
@@ -28,8 +50,43 @@ Set `MODEL_OVERRIDE_<ROLE>` environment variable (role uppercased, hyphens → u
 
 ```bash
 MODEL_OVERRIDE_DEV_BACKEND=claude-haiku-4-5-20251001 node run-orchestrator.js "goal"
-MODEL_OVERRIDE_QA=qwen2.5-coder:7b node run-orchestrator.js "goal"   # local fallback, not recommended
+MODEL_OVERRIDE_QA=claude-haiku-4-5-20251001 node run-orchestrator.js "goal"
 ```
+
+---
+
+## Fallback policy
+
+Configured in `examples/orchestrator/agents.js` (`FALLBACK_POLICY`).
+
+When the primary model fails, the runner attempts the fallback model per role. If both fail, behavior depends on the role's `degraded` flag:
+
+| Role | Degraded allowed? | Reason |
+|------|------------------|--------|
+| `orchestrator` | Yes | JSON plan only — local model acceptable |
+| `summarizer` | Yes | Summary only — local model acceptable |
+| `owner` | Yes | Scope decisions tolerate lower model quality |
+| `dev-backend` | Yes | Haiku fallback acceptable; CERBERUS catches gaps |
+| `dev-frontend` | Yes | Haiku fallback acceptable; CERBERUS catches gaps |
+| `dev-devops` | Yes | Haiku fallback acceptable; CERBERUS catches gaps |
+| `architect` | **No** | Design decisions require strong reasoning — hard fail |
+| `qa` | Yes | Haiku fallback acceptable; CERBERUS catches gaps |
+| `cerberus` | **No** | Adversarial review must not be degraded — hard fail |
+
+**Hard fail** means the step throws, `gateBlocked: true` is recorded in the artifact, and the iteration stops for that step. `architect` and `cerberus` never degrade silently.
+
+---
+
+## Contract versioning
+
+`CONTRACT_VERSION` in `agents.js` is passed to `register_task` and stored in the task envelope. Bump it when any of the following change:
+
+- Handoff YAML schema (required keys, field names)
+- Role permission matrix (`ROLE_PERMISSION`)
+- Gate sequence (`advance_mode`, `validate_transition` requirements)
+- Fallback policy (`FALLBACK_POLICY`)
+
+Current version: **1.0**
 
 ---
 
