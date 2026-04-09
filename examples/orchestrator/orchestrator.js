@@ -368,6 +368,17 @@ async function run(goal, options = {}) {
   log("orchestrator", `Context: ${stepSummary ? "Ollama handoff between steps" : "no Ollama summary"}; truncation: ${maxContextChars > 0 ? `${maxContextChars} chars/step` : "off"}`);
   traceEvent(taskId, { event: "session_start", flow_mode: flowMode, max_iterations: maxIterations, cwd, goal: goal.slice(0, 200) });
 
+  // ── Degraded mode banner ──────────────────────────────────────────────────────
+  if (skipStateMcp) {
+    const YELLOW = "\x1b[33m", BOLD = "\x1b[1m", RESET = "\x1b[0m";
+    console.log(`\n${YELLOW}${BOLD}⚠  DEGRADED MODE — hard gates DISABLED${RESET}`);
+    console.log(`${YELLOW}   orchestrator-state and compact-handoff MCPs are not active.`);
+    console.log(`   No transitions are recorded. No goal alignment is checked.`);
+    console.log(`   No approved-artifact enforcement. Output contracts still apply.`);
+    console.log(`   Run without --skip-gates to enable strict mode.\n${RESET}`);
+    traceEvent(taskId, { event: "degraded_mode", reason: "skipStateMcp=true" });
+  }
+
   // ── Register task (state store) ──────────────────────────────────────────────
   if (!skipStateMcp) {
     log("gate", `Registering task "${taskId}" in state store...`);
@@ -383,7 +394,8 @@ async function run(goal, options = {}) {
       if (!reg.ok) throw new Error(reg.error || "register_task failed");
       log("gate", `Task registered — envelope: ${reg.envelope_path}`);
     } catch (err) {
-      log("gate", `WARNING: Could not register task in state store (${err.message}). Continuing without hard gates.`);
+      log("gate", `\x1b[33m\x1b[1m⚠  DEGRADED MODE — state store unavailable\x1b[0m (${err.message}). Continuing without hard gates.`);
+      traceEvent(taskId, { event: "degraded_mode", reason: err.message });
     }
   }
 
@@ -795,4 +807,4 @@ Reply with JSON only.`;
   return { done, summary, artifacts, iterations, taskId };
 }
 
-module.exports = { run };
+module.exports = { run, detectBlockers, validateHandoffStructure };
