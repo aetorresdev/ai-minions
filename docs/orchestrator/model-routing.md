@@ -118,6 +118,28 @@ All agents share the global guardrail in `CLAUDE.md`:
 
 ---
 
+## Execution trace
+
+Every multi-agent run writes a structured JSONL trace to `~/.claude/metrics/traces/<task_id>.jsonl`. One event per step — allows post-run analysis without parsing logs.
+
+### Event types
+
+| Event | Fields | When |
+|-------|--------|------|
+| `session_start` | `flow_mode`, `max_iterations`, `cwd`, `goal` (truncated) | Before plan |
+| `agent_start` | `agent`, `iteration`, `task` (truncated) | Before `askAgent()` |
+| `agent_done` | `agent`, `iteration`, `duration_ms`, `output_chars` | After successful `askAgent()` |
+| `contract_fail` | `agent`, `iteration`, `duration_ms`, `reason` | When `validateOutput()` throws |
+| `gate_result` | `agent`, `iteration`, `gate`, `passed`, `reason?`, `confidence?`, `from_mode?`, `to_mode?` | After each gate check |
+| `iteration_done` | `iteration`, `outcome` (`done`\|`iterate`\|`stopped`), `summary?`, `corrections?` | After orchestrator decide |
+| `session_end` | `iterations`, `done`, `summary`, `agents_run[]`, `gate_blocks` | Before return |
+
+All events include `ts` (ISO timestamp) and `task_id`.
+
+Gate names: `handoff_structure`, `goal_alignment`, `transition`.
+
+---
+
 ## Strict output enforcement (`validateOutput`)
 
 `validateOutput(agentId, output, { phase })` in `agents.js` enforces the per-role output contract **inside `askAgent()`** — runs after every agent call, before the result is returned to the orchestrator. Throws on failure; no silent retry.
