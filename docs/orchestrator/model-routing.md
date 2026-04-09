@@ -147,11 +147,11 @@ Every multi-agent run writes a structured JSONL trace to `~/.claude/metrics/trac
 |-------|--------|------|
 | `session_start` | `flow_mode`, `max_iterations`, `cwd`, `goal` (truncated) | Before plan |
 | `agent_start` | `agent`, `iteration`, `task` (truncated) | Before `askAgent()` |
-| `agent_done` | `agent`, `iteration`, `duration_ms`, `output_chars` | After successful `askAgent()` |
-| `contract_fail` | `agent`, `iteration`, `duration_ms`, `reason` | When `validateOutput()` throws |
+| `agent_done` | `agent`, `iteration`, `duration_ms`, `output_chars`, `degraded?` | After successful `askAgent()` — `degraded: true` when fallback model was used |
+| `contract_fail` | `agent`, `iteration`, `duration_ms`, `reason`, `critical` | When `validateOutput()` throws — `critical: true` for architect/qa/cerberus, which stops the iteration |
 | `gate_result` | `agent`, `iteration`, `gate`, `passed`, `reason?`, `confidence?`, `from_mode?`, `to_mode?` | After each gate check |
 | `iteration_done` | `iteration`, `outcome` (`done`\|`iterate`\|`stopped`), `summary?`, `corrections?` | After orchestrator decide |
-| `session_end` | `iterations`, `done`, `summary`, `agents_run[]`, `gate_blocks` | Before return |
+| `session_end` | `iterations`, `done`, `summary`, `agents_run[]`, `gate_blocks`, `qa_degraded?`, `manual_review_recommended?` | Before return |
 
 All events include `ts` (ISO timestamp) and `task_id`.
 
@@ -189,6 +189,8 @@ Read it with: `cat ~/.claude/metrics/traces/<task_id>.jsonl | jq .`
 | DEV missing file reference | Throws — must mention at least one file modified |
 | DEV missing validation run | Throws — must include at least one validation run |
 | QA/CERBERUS no classified finding | Throws — must classify at least one finding |
+
+**Critical-role contract fail** (architect, qa, cerberus): when `validateOutput()` throws for these roles, the step loop `break`s — no further steps in the iteration run. A `contract_fail` trace event is written with `critical: true`. This prevents a broken QA from being silently skipped with DEV output passing to CERBERUS unchecked.
 
 The `phase` parameter (`"plan"` / `"decide"`) is passed from `orchestrator.js` for orchestrator calls to select the correct sub-contract. Single-agent and multi-agent flows use the same validation path.
 

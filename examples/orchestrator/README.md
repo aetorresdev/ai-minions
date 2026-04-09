@@ -77,6 +77,34 @@ The MCPs (`orchestrator-state`, `compact-handoff`) are **optional** — the orch
 
 ---
 
+## Configuration decision table
+
+Use this to pick the right setup for your situation.
+
+| Situation | Recommended config | Why |
+|-----------|-------------------|-----|
+| First run / trying it out | `--skip-gates`, `--iterations 1` | No MCP setup needed, fast feedback |
+| Local dev on a real project | `--skip-gates`, `--iterations 3` | Output contracts still enforce quality; gates add setup friction |
+| Production / compliance work | Gates enabled (no `--skip-gates`) | Hard gates, tamper-evident log, approved-artifact enforcement |
+| No Ollama / want pure API | Unset `OLLAMA_MODEL` | Orchestrator/summarizer fall back to `claude-haiku` automatically |
+| Ollama available | `OLLAMA_MODEL=qwen2.5-coder:7b` | Free planning + summarization, no API cost for orchestrator role |
+| Slow machine / CI | `CLAUDE_CLI_TIMEOUT=300000` | Default 180s may be too short for cold starts |
+| Sensitive goal (logs to disk) | `TRACE_REDACT_GOAL=1` | Goal text omitted from trace files; only SHA-256 hash retained |
+| Single focused task | `--iterations 1`, `--flow single_agent` | Skip multi-agent overhead; one DEV + CERBERUS pass |
+| Complex multi-role task | `--iterations 3`, `--flow multi_agent` | Full plan → DEV → QA → CERBERUS loop with corrections |
+| QA ran degraded (Haiku fallback) | Add manual review | `qa_degraded: true` in `session_end` trace — coverage may be reduced |
+| Cerberus keeps blocking | Check Cerberus output in artifacts | May be too strict; use `--iterations 1` to force single pass |
+
+### Gates: soft vs strict vs off
+
+| Mode | How | Protection | Cost |
+|------|-----|-----------|------|
+| Off (`--skip-gates`) | No MCPs needed | Output contracts only | Fastest |
+| Soft (MCPs registered, default) | Gates run but empty handoff YAML passes | Contracts + goal alignment + transition checks | ~5–8 min/iteration |
+| Strict (gates + full handoff) | Empty YAML fails; all keys required | Full enforcement including approved-artifact check | ~5–8 min/iteration |
+
+---
+
 ## Quickstart (no MCPs — 2 minutes)
 
 ```bash
@@ -371,6 +399,17 @@ This means:
 - Costs accrue per agent invocation (Sonnet for DEV/QA/CERBERUS, Haiku for OWNER).
 
 If you need a provider-independent runner, replace `runClaude()` in `agents.js` with any LLM client — the MODE protocol and MCP gates are decoupled from the CLI.
+
+### Agent isolation
+
+Each agent call is a **fresh `claude` CLI invocation** — there is no shared session or conversation state between agents. Context is passed explicitly as text (the `contextBlock` string built in `orchestrator.js`). This means:
+
+- Agents do not have access to prior turn history unless it is included in the prompt.
+- No cross-agent memory leakage: one agent's internal reasoning is not visible to the next.
+- Each call is independently billed and rate-limited by the Anthropic API.
+- If an agent call fails (timeout, rate limit, contract violation), only that step is affected — the loop continues or retries depending on the role's fallback policy.
+
+The tradeoff: context must be explicitly managed. The orchestrator controls what each agent sees via `maxContextChars` and optional Ollama handoff summaries (`AI_TEAM_STEP_SUMMARY=1`).
 
 ---
 

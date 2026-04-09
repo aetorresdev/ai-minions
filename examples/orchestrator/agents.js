@@ -23,6 +23,14 @@ const http = require("http");
 // Passed to register_task so the envelope records the version that produced it.
 const CONTRACT_VERSION = "1.0";
 
+// ── Degraded-agent tracking ───────────────────────────────────────────────────
+// When an agent falls back to a secondary model, its id is added here.
+// The orchestrator reads this after each step via getDegradedAgents().
+// clearDegradedAgents() is called at the start of each run.
+const _degradedAgents = new Set();
+function getDegradedAgents() { return new Set(_degradedAgents); }
+function clearDegradedAgents() { _degradedAgents.clear(); }
+
 // ── Ollama model config ───────────────────────────────────────────────────────
 // Set OLLAMA_MODEL to use a local model for orchestrator/summarizer roles.
 // If not set or Ollama is unreachable, these roles fall back to claude-haiku.
@@ -647,6 +655,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
       throw new Error(`[${agentId}] primary failed and policy blocks fallback: ${policyErr.message}. Original: ${primaryErr.message}`);
     }
     console.warn(`[${agentId}] primary failed — degraded mode with ${fb.model} (${fb.reason})`);
+    _degradedAgents.add(agentId);
     output = runClaude(prompt, { cwd, model: fb.model, maxTokens });
   }
 
@@ -679,4 +688,4 @@ function listAgents() {
   return Object.entries(AGENTS).map(([id, a]) => ({ id, name: a.name, title: a.title, mode: a.mode }));
 }
 
-module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama, effectiveMode, resolveCredentials, buildEnvContext, CONTRACT_VERSION, FALLBACK_POLICY, validateOutput };
+module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama, effectiveMode, resolveCredentials, buildEnvContext, CONTRACT_VERSION, FALLBACK_POLICY, validateOutput, getDegradedAgents, clearDegradedAgents };
