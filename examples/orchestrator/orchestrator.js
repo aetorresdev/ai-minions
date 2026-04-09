@@ -197,6 +197,26 @@ const VALID_WORKER_AGENTS = new Set(Object.keys(AGENT_TO_MODE));
 // Agents that require compact_handoff + validate_goal_alignment before advancing
 const AGENTS_REQUIRING_GATE = new Set(["dev-backend", "dev-frontend", "dev-devops", "qa", "cerberus"]);
 
+// ── Ollama connectivity check ─────────────────────────────────────────────────
+
+/**
+ * Ping Ollama API to verify it is reachable.
+ * Returns true if Ollama responds, false otherwise.
+ */
+function checkOllama() {
+  const host = process.env.OLLAMA_HOST || "localhost";
+  const port = parseInt(process.env.OLLAMA_PORT || "11434", 10);
+  return new Promise((resolve) => {
+    const http = require("http");
+    const req = http.request({ hostname: host, port, path: "/api/tags", method: "GET" }, (res) => {
+      resolve(res.statusCode === 200);
+    });
+    req.setTimeout(3000, () => { req.destroy(); resolve(false); });
+    req.on("error", () => resolve(false));
+    req.end();
+  });
+}
+
 // ── Environment access parsing ────────────────────────────────────────────────
 
 /**
@@ -296,6 +316,19 @@ async function run(goal, options = {}) {
   if (sessionEnv) {
     const credNames = sessionEnv.credentials.map(c => c.name).join(", ");
     log("orchestrator", `Environment: mode=${sessionEnv.mode} | credentials: ${credNames || "none"}`);
+  }
+
+  // ── Ollama connectivity check ────────────────────────────────────────────────
+  const ollamaModel = process.env.OLLAMA_MODEL || null;
+  if (ollamaModel) {
+    const ollamaOk = await checkOllama();
+    if (!ollamaOk) {
+      log("orchestrator", `WARNING: OLLAMA_MODEL=${ollamaModel} set but Ollama unreachable at ${process.env.OLLAMA_HOST || "localhost"}:${process.env.OLLAMA_PORT || "11434"}. orchestrator/summarizer will use claude-haiku fallback.`);
+    } else {
+      log("orchestrator", `Ollama ready — model: ${ollamaModel}`);
+    }
+  } else {
+    log("orchestrator", "Ollama not configured (OLLAMA_MODEL unset) — orchestrator/summarizer using claude-haiku.");
   }
   log("orchestrator", `Context: ${stepSummary ? "Ollama handoff between steps" : "no Ollama summary"}; truncation: ${maxContextChars > 0 ? `${maxContextChars} chars/step` : "off"}`);
 
