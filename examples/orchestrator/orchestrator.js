@@ -27,6 +27,23 @@ const { askAgent, summarizeHandoff, effectiveMode, CONTRACT_VERSION } = require(
 const { formatArtifactLine, envInt, truncateForContext } = require("./context-utils");
 const { spawnSync } = require("child_process");
 const { randomUUID } = require("crypto");
+const fs = require("fs");
+const path = require("path");
+
+// ── Execution trace ───────────────────────────────────────────────────────────
+// Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
+// Event types: session_start, agent_start, agent_done, gate_result,
+//              contract_fail, iteration_done, session_end
+
+const TRACES_DIR = path.join(require("os").homedir(), ".claude", "metrics", "traces");
+
+function traceEvent(taskId, event) {
+  try {
+    fs.mkdirSync(TRACES_DIR, { recursive: true });
+    const line = JSON.stringify({ ts: new Date().toISOString(), task_id: taskId, ...event });
+    fs.appendFileSync(path.join(TRACES_DIR, `${taskId}.jsonl`), line + "\n");
+  } catch { /* non-fatal */ }
+}
 
 const DEFAULT_MAX_ITERATIONS = 3;
 const DEFAULT_MAX_CONTEXT_CHARS = 12000;
@@ -331,6 +348,7 @@ async function run(goal, options = {}) {
     log("orchestrator", "Ollama not configured (OLLAMA_MODEL unset) — orchestrator/summarizer using claude-haiku.");
   }
   log("orchestrator", `Context: ${stepSummary ? "Ollama handoff between steps" : "no Ollama summary"}; truncation: ${maxContextChars > 0 ? `${maxContextChars} chars/step` : "off"}`);
+  traceEvent(taskId, { event: "session_start", flow_mode: flowMode, max_iterations: maxIterations, cwd, goal: goal.slice(0, 200) });
 
   // ── Register task (state store) ──────────────────────────────────────────────
   if (!skipStateMcp) {
@@ -413,12 +431,24 @@ Assign one agent per step. Reply with JSON only.`;
       const contextBlock = contextHeader + [goal, ...artifacts.map(contextChunk)].join("\n\n---\n\n");
       writeAgentState(agentId, goal);
       log(agentId, `Executing: ${step.task.slice(0, 80)}${step.task.length > 80 ? "..." : ""}`);
+      const stepStart = Date.now();
+      traceEvent(taskId, { event: "agent_start", agent: agentId, iteration: iterations, task: step.task.slice(0, 200) });
 
-      const result = await askAgent(
-        agentId,
-        `Working directory: ${cwd}\n\nContext:\n${contextBlock}\n\nYour task:\n${step.task}`,
-        { cwd, sessionEnv }
-      );
+      let result;
+      try {
+        result = await askAgent(
+          agentId,
+          `Working directory: ${cwd}\n\nContext:\n${contextBlock}\n\nYour task:\n${step.task}`,
+          { cwd, sessionEnv }
+        );
+      } catch (err) {
+        const duration_ms = Date.now() - stepStart;
+        traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, duration_ms, reason: err.message.slice(0, 300) });
+        log(agentId, `🟥 Output contract failed: ${err.message}`);
+        artifacts.push({ agentId, task: step.task, result: "", gateBlocked: true, gateReason: err.message });
+        continue;
+      }
+      traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, duration_ms: Date.now() - stepStart, output_chars: result.length });
 
       // ── Compact handoff (compact-handoff MCP) ──────────────────────────────
       let handoffYaml = "";
@@ -449,10 +479,12 @@ Assign one agent per step. Reply with JSON only.`;
         const sv = validateHandoffStructure(toMode, handoffYaml);
         if (!sv.valid) {
           log("gate", `🟥 Handoff structure invalid (${toMode}): ${sv.reason}`);
+          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "handoff_structure", passed: false, reason: sv.reason });
           artifacts.push({ agentId, task: step.task, result, handoffYaml,
             gateBlocked: true, gateReason: `handoff_structure: ${sv.reason}` });
           continue;
         }
+        traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "handoff_structure", passed: true });
       }
 
       // ── validate_goal_alignment + advance_mode ─────────────────────────────
@@ -468,11 +500,13 @@ Assign one agent per step. Reply with JSON only.`;
             log("gate", `WARNING: validate_goal_alignment failed: ${alignment.error}`);
           } else if (alignment.aligned === false) {
             log("gate", `🟥 Goal not aligned: ${alignment.notes}. Skipping advance_mode for this step.`);
+            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "goal_alignment", passed: false, confidence: alignment.confidence, reason: alignment.notes });
             artifacts.push({ agentId, task: step.task, result, handoffYaml,
               gateBlocked: true, gateReason: `goal_alignment: ${alignment.notes}` });
             continue;
           } else {
             log("gate", `🟩 Goal aligned (confidence: ${alignment.confidence ?? "n/a"})`);
+            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "goal_alignment", passed: true, confidence: alignment.confidence });
           }
 
           log("gate", `validate_transition: ${currentMode} → ${nextMode} (iteration ${iterations})`);
@@ -486,12 +520,14 @@ Assign one agent per step. Reply with JSON only.`;
 
           if (!vt.allowed) {
             log("gate", `🟥 Transition blocked: ${(vt.errors || []).join("; ")}`);
+            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: false, reason: (vt.errors || []).join("; ") });
             artifacts.push({ agentId, task: step.task, result, handoffYaml,
               gateBlocked: true, gateReason: (vt.errors || []).join("; ") });
             continue;
           }
 
           log("gate", `🟩 Transition allowed — advancing to ${nextMode}`);
+          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: true });
           const adv = callStateMcp("advance_mode", {
             task_id: taskId,
             to_mode: nextMode,
@@ -619,16 +655,19 @@ Reply with JSON only.`;
       done = true;
       summary = decide.summary || "Completed.";
       log("orchestrator", `✓ Done: ${summary}`);
+      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "done", summary: summary.slice(0, 200) });
     } else if (decide && Array.isArray(decide.corrections) && decide.corrections.length > 0) {
       log("orchestrator", `↻ Iterating — ${decide.corrections.length} correction(s):`);
       decide.corrections.forEach((c) =>
         log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
       );
+      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate", corrections: decide.corrections.length });
       plan = { steps: decide.corrections };
     } else {
       done = true;
       summary = "Stopped (no corrections or invalid orchestrator response).";
       log("orchestrator", summary);
+      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "stopped", summary });
     }
   }
 
@@ -674,6 +713,8 @@ Reply with JSON only.`;
 
   // Clear active agent state
   try { require("fs").unlinkSync(AGENT_STATE_FILE); } catch { /* already gone */ }
+
+  traceEvent(taskId, { event: "session_end", iterations, done, summary: summary.slice(0, 200), agents_run: [...new Set(artifacts.map(a => a.agentId))], gate_blocks: artifacts.filter(a => a.gateBlocked).length });
 
   return { done, summary, artifacts, iterations, taskId };
 }
