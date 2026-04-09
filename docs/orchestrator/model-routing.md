@@ -118,6 +118,22 @@ All agents share the global guardrail in `CLAUDE.md`:
 
 ---
 
+## Hard blocker enforcement (deterministic)
+
+`detectBlockers(cerberusOutput)` in `orchestrator.js` parses CERBERUS output with a regex (`/^.*\bblocker\b.*$/gim`) — no model interpretation.
+
+### Decision tree after CERBERUS
+
+```
+blockers > 0 AND iterations < max  → force iterate (orchestrator asked only for corrections)
+blockers > 0 AND iterations >= max → done=true, summary flags unresolved blockers, manual review required
+blockers = 0                       → orchestrator decides freely (done or corrections)
+```
+
+The orchestrator model **cannot** declare `done=true` when blockers exist — the code enforces iterate before the decide prompt is even sent. A `cerberus_check` trace event records blocker count and matched lines per iteration.
+
+---
+
 ## Execution trace
 
 Every multi-agent run writes a structured JSONL trace to `~/.claude/metrics/traces/<task_id>.jsonl`. One event per step — allows post-run analysis without parsing logs.
