@@ -243,6 +243,8 @@ Skills available — invoke via the Skill tool when relevant:
 - reviewing-circleci: audit CircleCI configs in the delivery
 
 Always read the code you are testing. Run tests and report real results.
+For each platform-specific artifact, invoke the relevant skill and apply its validation checklist before passing to CERBERUS. Do not approve assumptions about platform behavior without verifying them.
+
 OUTPUT RULE: Respond only with the required format (findings list + verdict).
 Any text outside this format will cause your output to be rejected.
 No explanations, no praise, no repetition.`,
@@ -366,6 +368,97 @@ ${body}`;
   return runOllama(SUMMARY_SYSTEM, [{ role: "user", content: user }], { model, timeoutMs });
 }
 
+// ── Environment access — role permission matrix ───────────────────────────────
+
+// Fixed permission per role. Session mode is the ceiling — roles cannot exceed it.
+// "none"  = no credentials consumed
+// "read"  = query, describe, logs, plan/diff, dry-run
+// "write" = all read + execute, apply, insert, update, activate
+const ROLE_PERMISSION = {
+  orchestrator:  "none",
+  owner:         "none",
+  architect:     "read",
+  "dev-backend": "write",
+  "dev-frontend":"read",
+  "dev-devops":  "write",
+  qa:            "read",
+  cerberus:      "read",   // hardcoded — cannot be elevated
+  summarizer:    "none",
+};
+
+/**
+ * Returns the effective access mode for a role given the session ceiling.
+ * CERBERUS is always read regardless of session mode.
+ */
+function effectiveMode(agentId, sessionMode) {
+  const rolePerm = ROLE_PERMISSION[agentId] ?? "none";
+  if (rolePerm === "none") return "none";
+  if (agentId === "cerberus") return "read";  // hardcoded
+  if (sessionMode === "read") return "read";  // ceiling
+  return rolePerm;  // write only if role allows and session allows
+}
+
+/**
+ * Resolve credential env vars and return a safe object (values, not var names).
+ * Logs a warning for any missing env var — does not throw.
+ */
+function resolveCredentials(credentials, agentId) {
+  if (!credentials || !credentials.length) return [];
+  return credentials.map(({ name, type, vars }) => {
+    const resolved = {};
+    const missing = [];
+    for (const [key, envVar] of Object.entries(vars)) {
+      const val = process.env[envVar];
+      if (val) {
+        resolved[key] = val;
+      } else {
+        missing.push(envVar);
+      }
+    }
+    if (missing.length) {
+      console.warn(`[env] credential "${name}" (${agentId}): missing env vars: ${missing.join(", ")}`);
+    }
+    return { name, type, resolved, missing };
+  });
+}
+
+/**
+ * Build the ENVIRONMENT context string to inject into an agent's prompt.
+ * Only includes credentials with at least one resolved var.
+ */
+function buildEnvContext(agentId, sessionEnv) {
+  if (!sessionEnv) return "";
+  const mode = effectiveMode(agentId, sessionEnv.mode);
+  if (mode === "none") return "";
+
+  const creds = resolveCredentials(sessionEnv.credentials, agentId);
+  const available = creds.filter(c => Object.keys(c.resolved).length > 0);
+  const blockers  = creds.filter(c => c.missing.length > 0);
+
+  const lines = [
+    `ENVIRONMENT ACCESS: mode=${mode}`,
+    `You MAY${mode === "read" ? " NOT execute writes —" : ""} use the following credentials:`,
+  ];
+
+  for (const c of available) {
+    const kvs = Object.entries(c.resolved).map(([k, v]) => `${k}=${v}`).join(", ");
+    lines.push(`  ${c.name} (${c.type}): ${kvs}`);
+  }
+
+  if (blockers.length) {
+    lines.push(`BLOCKERS — missing env vars (surface in handoff):`);
+    for (const c of blockers) {
+      lines.push(`  ${c.name}: ${c.missing.join(", ")}`);
+    }
+  }
+
+  if (mode === "read") {
+    lines.push("HARD LIMIT: read-only. Do not execute, apply, insert, update, or activate anything.");
+  }
+
+  return lines.join("\n");
+}
+
 // ── Output token limits (hard cap per role) ───────────────────────────────────
 // Only applied to roles that produce structured/JSON output — not code agents.
 // DEV/ARCHITECT/QA/CERBERUS are excluded: cutting mid-code breaks output.
@@ -394,14 +487,18 @@ function runClaude(prompt, { cwd, model, maxTokens } = {}) {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-async function askAgent(agentId, userMessage, { cwd } = {}) {
+async function askAgent(agentId, userMessage, { cwd, sessionEnv } = {}) {
   const agent = AGENTS[agentId];
   if (!agent) throw new Error(`Unknown agent "${agentId}". Available: ${Object.keys(AGENTS).join(", ")}`);
   if (agent.provider === "ollama") {
     return runOllama(agent.system, [{ role: "user", content: userMessage }], { model: agent.model });
   }
   const maxTokens = MAX_OUTPUT_TOKENS[agentId] ?? undefined;
-  return runClaude(`${agent.system}\n\n---\n\n${userMessage}`, { cwd, model: agent.model, maxTokens });
+  const envContext = sessionEnv ? buildEnvContext(agentId, sessionEnv) : "";
+  const systemPrompt = envContext
+    ? `${agent.system}\n\n---\n\n${envContext}`
+    : agent.system;
+  return runClaude(`${systemPrompt}\n\n---\n\n${userMessage}`, { cwd, model: agent.model, maxTokens });
 }
 
 async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
@@ -428,4 +525,4 @@ function listAgents() {
   return Object.entries(AGENTS).map(([id, a]) => ({ id, name: a.name, title: a.title, mode: a.mode }));
 }
 
-module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama };
+module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama, effectiveMode, resolveCredentials, buildEnvContext };

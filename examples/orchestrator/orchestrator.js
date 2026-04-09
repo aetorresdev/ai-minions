@@ -23,7 +23,7 @@
  *   - compact-handoff MCP registered (claude mcp add compact-handoff ...)
  */
 
-const { askAgent, summarizeHandoff } = require("./agents");
+const { askAgent, summarizeHandoff, effectiveMode } = require("./agents");
 const { formatArtifactLine, envInt, truncateForContext } = require("./context-utils");
 const { spawnSync } = require("child_process");
 const { randomUUID } = require("crypto");
@@ -197,6 +197,58 @@ const VALID_WORKER_AGENTS = new Set(Object.keys(AGENT_TO_MODE));
 // Agents that require compact_handoff + validate_goal_alignment before advancing
 const AGENTS_REQUIRING_GATE = new Set(["dev-backend", "dev-frontend", "dev-devops", "qa", "cerberus"]);
 
+// ── Environment access parsing ────────────────────────────────────────────────
+
+/**
+ * Parse the ENVIRONMENT block from a session prompt header.
+ * Supports:
+ *   ENVIRONMENT:
+ *     mode: read | write
+ *     credentials:
+ *       - name: n8n
+ *         type: api_key
+ *         vars:
+ *           url: N8N_URL
+ *           key: N8N_API_KEY
+ *
+ * Returns null if no ENVIRONMENT block found.
+ * Returns { mode: "read"|"write", credentials: [{ name, type, vars: {} }] }
+ */
+function parseEnvironment(prompt) {
+  // Extract everything after ENVIRONMENT: until next top-level key or end
+  const envMatch = prompt.match(/^ENVIRONMENT:\s*\n((?:[ \t]+[^\n]*\n?)*)/m);
+  if (!envMatch) return null;
+
+  const block = envMatch[1];
+
+  // Parse mode
+  const modeMatch = block.match(/^\s+mode:\s*(read|write)\s*$/m);
+  const mode = modeMatch ? modeMatch[1] : "read";  // default: read (safe)
+
+  // Parse credentials list — each starts with "- name:"
+  const credentials = [];
+  const credBlocks = block.split(/\n\s+-\s+name:/);
+  for (let i = 1; i < credBlocks.length; i++) {
+    const cb = credBlocks[i];
+    const name = cb.match(/^([^\n]+)/)?.[1]?.trim();
+    const type = cb.match(/\btype:\s*([^\n]+)/)?.[1]?.trim();
+    if (!name || !type) continue;
+
+    // Parse vars block (indented key: ENV_VAR pairs)
+    const vars = {};
+    const varsMatch = cb.match(/\bvars:\s*\n((?:\s{8,}[^\n]+\n?)*)/);
+    if (varsMatch) {
+      for (const line of varsMatch[1].split("\n")) {
+        const kv = line.match(/^\s+(\w+):\s*([^\s#][^\n]*)/);
+        if (kv) vars[kv[1].trim()] = kv[2].trim();
+      }
+    }
+    credentials.push({ name, type, vars });
+  }
+
+  return { mode, credentials };
+}
+
 // ── Main run function ─────────────────────────────────────────────────────────
 
 /**
@@ -230,6 +282,8 @@ async function run(goal, options = {}) {
     ? Boolean(options.stepSummary)
     : process.env.AI_TEAM_STEP_SUMMARY !== "0";
 
+  const sessionEnv = options.sessionEnv || parseEnvironment(goal) || null;
+
   const artifacts = [];
   let plan        = { steps: [] };
   let iterations  = 0;
@@ -239,6 +293,10 @@ async function run(goal, options = {}) {
 
   log("orchestrator", `Working directory: ${cwd}`);
   log("orchestrator", `task_id: ${taskId} | flow: ${flowMode} | max_iterations: ${maxIterations}`);
+  if (sessionEnv) {
+    const credNames = sessionEnv.credentials.map(c => c.name).join(", ");
+    log("orchestrator", `Environment: mode=${sessionEnv.mode} | credentials: ${credNames || "none"}`);
+  }
   log("orchestrator", `Context: ${stepSummary ? "Ollama handoff between steps" : "no Ollama summary"}; truncation: ${maxContextChars > 0 ? `${maxContextChars} chars/step` : "off"}`);
 
   // ── Register task (state store) ──────────────────────────────────────────────
@@ -270,7 +328,7 @@ Working directory: ${cwd}
 Decompose this goal into ordered execution steps following the MODE protocol.
 Assign one agent per step. Reply with JSON only.`;
 
-  const planResponse = await askAgent("orchestrator", planPrompt, { cwd });
+  const planResponse = await askAgent("orchestrator", planPrompt, { cwd, sessionEnv });
   const parsed = extractJson(planResponse);
   if (parsed && Array.isArray(parsed.steps)) {
     plan = parsed;
@@ -325,7 +383,7 @@ Assign one agent per step. Reply with JSON only.`;
       const result = await askAgent(
         agentId,
         `Working directory: ${cwd}\n\nContext:\n${contextBlock}\n\nYour task:\n${step.task}`,
-        { cwd }
+        { cwd, sessionEnv }
       );
 
       // ── Compact handoff (compact-handoff MCP) ──────────────────────────────
@@ -458,7 +516,7 @@ ${reviewChunks.join("\n\n---\n\n")}
 Review the above. Classify each finding as blocker | improvement | nice-to-have.
 Only blockers require another DEV iteration.`;
 
-    const cerberusResult = await askAgent("cerberus", cerberusPrompt, { cwd });
+    const cerberusResult = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
     log("cerberus", `Review ready (${cerberusResult.length} chars)`);
 
     // ── Compact cerberus handoff + advance to ORCHESTRATOR ────────────────────
@@ -520,7 +578,7 @@ Is this done? Remember: only Cerberus "blocker" findings require another iterati
 "improvement" and "nice-to-have" findings go to backlog — they do not block completion.
 Reply with JSON only.`;
 
-    const decideResponse = await askAgent("orchestrator", decidePrompt, { cwd });
+    const decideResponse = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv });
     const decide = extractJson(decideResponse);
 
     if (decide && decide.done === true) {
