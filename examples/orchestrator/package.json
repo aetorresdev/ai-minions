@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node cli.js",
     "orchestrate": "node run-orchestrator.js",
-    "orchestrate:no-gates": "node run-orchestrator.js --skip-gates"
+    "orchestrate:no-gates": "node run-orchestrator.js --skip-gates",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {}
 }
