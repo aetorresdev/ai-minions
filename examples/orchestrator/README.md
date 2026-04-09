@@ -39,7 +39,9 @@ ORCHESTRATOR (Ollama)
   └─ done=false  → next iteration (blockers only — improvements go to backlog)
 ```
 
-If `orchestrator-state` or `compact-handoff` MCPs are not registered, the runner **degrades gracefully** — it logs a WARNING and continues without hard gates. Gates are opt-in.
+If `orchestrator-state` or `compact-handoff` MCPs are not registered (or `--skip-gates` is passed), the runner prints a prominent **⚠ DEGRADED MODE** banner and continues without hard gates. In degraded mode: no transitions are recorded, no goal alignment is checked, no approved-artifact enforcement. Output contracts (`validateOutput`) still apply regardless.
+
+> **Gates are opt-in — but degraded mode is not silent.** If you see the banner, you are not running with full protection.
 
 ---
 
@@ -282,6 +284,71 @@ Use `--iterations 1` to force a single pass.
 
 ---
 
+## Tests
+
+```bash
+cd examples/orchestrator
+npm test   # node --test tests/*.test.js — no auth, no Ollama, no MCPs required
+```
+
+CI: runs on every push/PR via `.github/workflows/orchestrator-example.yml`.
+
+### What is covered
+
+| Type | File | What it tests | Requires |
+|------|------|---------------|----------|
+| Unit | `tests/validateOutput.test.js` | Output contract per role: orchestrator JSON plan/decide, dev-* file+validation, qa/cerberus finding classification, owner/architect/summarizer free-form | Nothing |
+| Unit | `tests/orchestrator.test.js` | `detectBlockers()` regex patterns; `validateHandoffStructure()` DEV/QA/CERBERUS required keys | Nothing |
+| Integration | `tests/askAgent.test.js` | `askAgent()` with mocked `spawnSync`: contract enforcement throws, fallback primary→secondary, hard-fail architect/cerberus, unknown agentId | Nothing (CLI mocked) |
+| **Not covered** | — | Full loop end-to-end, real Claude CLI calls, real MCP gate sequence | Claude auth + MCPs |
+
+---
+
+## Rejection path — what "no" looks like
+
+The system has three layers that can block progress. Here is what each rejection looks like in the logs:
+
+### 1. Output contract (`validateOutput`) — agent emits invalid output
+
+```
+10:27:33 AM [dev-backend] 🟥 Output contract failed: dev-backend: output must mention at least one file modified
+```
+
+The step is skipped, a `contract_fail` trace event is written, and the loop continues to the next step. No advance_mode is attempted.
+
+### 2. Handoff structure invalid (`validateHandoffStructure`) — compact-handoff YAML is malformed
+
+```
+10:27:44 AM [gate] 🟥 Handoff structure invalid (QA): QA handoff must include verdict
+```
+
+`gateBlocked: true` is set on the artifact. Neither validate_goal_alignment nor advance_mode runs for this step.
+
+### 3. Goal alignment / transition blocked (orchestrator-state MCP)
+
+```
+10:27:52 AM [gate] 🟥 Goal not aligned: session expiry policy not implemented
+10:27:52 AM [gate] Skipping advance_mode for this step.
+```
+
+```
+10:27:58 AM [gate] 🟥 Transition blocked: files_modified not in approved_artifacts: src/auth/legacy.py
+```
+
+`gateBlocked: true` is set on the artifact. The mode does not advance — the current MODE stays open until the next iteration resolves the issue.
+
+### 4. CERBERUS blockers — deterministic iterate enforcement
+
+```
+10:28:10 AM [cerberus] 🟥 2 blocker(s) detected — forcing iteration (deterministic)
+10:28:10 AM [cerberus]   ↳ blocker: no rate limiting on the endpoint
+10:28:10 AM [cerberus]   ↳ blocker: missing CSRF token validation
+```
+
+The orchestrator **cannot** declare `done=true` when blockers exist. It is asked only for corrections. If max iterations is reached with open blockers, the run closes with a manual review warning.
+
+---
+
 ## Bring your own orchestrator
 
 This example shows one implementation. You can replace it with any runner that:
@@ -301,12 +368,16 @@ References:
 
 ```
 examples/orchestrator/
-├── agents.js           # Agent definitions: MODE, model, system prompt
+├── agents.js           # Agent definitions: MODE, model, system prompt, validateOutput()
 ├── orchestrator.js     # Autonomous loop: plan → execute → gate → cerberus → decide
 ├── context-utils.js    # Context truncation helpers
 ├── run-orchestrator.js # CLI entry point
 ├── cli.js              # Interactive single-agent chat
 ├── CLAUDE.md           # Guardrails loaded by Claude Code agents
-├── package.json
-└── .env.example        # All environment variables with defaults
+├── package.json        # npm test → node --test tests/*.test.js
+├── .env.example        # All environment variables with defaults
+└── tests/
+    ├── validateOutput.test.js   # Unit: output contracts per role (31 tests)
+    ├── orchestrator.test.js     # Unit: detectBlockers + validateHandoffStructure (26 tests)
+    └── askAgent.test.js         # Integration: askAgent() with mocked CLI (15 tests)
 ```

@@ -212,6 +212,68 @@ After `close_task`, `advance_mode` is rejected with `ok: false`.
 
 ---
 
+## Degraded mode — when gates are missing
+
+If the MCPs are not registered or `--skip-gates` is passed, the runner prints:
+
+```
+⚠  DEGRADED MODE — hard gates DISABLED
+   orchestrator-state and compact-handoff MCPs are not active.
+   No transitions are recorded. No goal alignment is checked.
+   No approved-artifact enforcement. Output contracts still apply.
+   Run without --skip-gates to enable strict mode.
+```
+
+This is not a soft warning buried in logs — it is printed before the run starts. **Output contracts (`validateOutput`) remain active** in degraded mode; only the MCP gate sequence is skipped.
+
+---
+
+## Rejection path — what each gate failure looks like
+
+### Output contract failure (pre-gate, always active)
+
+```
+10:27:33 AM [dev-backend] 🟥 Output contract failed: dev-backend: output must mention at least one file modified
+```
+
+Step skipped. `contract_fail` written to trace. No handoff, no advance_mode attempted.
+
+### Handoff structure invalid
+
+```
+10:27:44 AM [gate] 🟥 Handoff structure invalid (QA): QA handoff must include verdict
+```
+
+`gateBlocked: true` on artifact. `validate_goal_alignment` and `advance_mode` do not run for this step.
+
+### Goal alignment blocked
+
+```
+10:27:52 AM [gate] 🟥 Goal not aligned: session expiry policy not implemented
+10:27:52 AM [gate] Skipping advance_mode for this step.
+```
+
+`gateBlocked: true`. Mode does not advance. Next iteration must address the gap.
+
+### Transition blocked (unapproved artifact)
+
+```
+10:27:58 AM [gate] 🟥 Transition blocked: files_modified not in approved_artifacts: src/auth/legacy.py
+```
+
+`gateBlocked: true`. Orchestrator must either approve the artifact via `record_artifact` or restrict DEV to approved paths.
+
+### CERBERUS blockers — deterministic iterate
+
+```
+10:28:10 AM [cerberus] 🟥 2 blocker(s) detected — forcing iteration (deterministic)
+10:28:10 AM [cerberus]   ↳ blocker: no rate limiting on the endpoint
+```
+
+Orchestrator cannot declare `done=true`. Asked only for corrections. At max iterations → closes with manual review warning.
+
+---
+
 ## Environment variables
 
 | Variable | Default | Purpose |
