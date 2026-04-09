@@ -295,12 +295,12 @@ CI: runs on every push/PR via `.github/workflows/orchestrator-example.yml`.
 
 ### What is covered
 
-| Type | File | What it tests | Requires |
-|------|------|---------------|----------|
-| Unit | `tests/validateOutput.test.js` | Output contract per role: orchestrator JSON plan/decide, dev-* file+validation, qa/cerberus finding classification, owner/architect/summarizer free-form | Nothing |
-| Unit | `tests/orchestrator.test.js` | `detectBlockers()` regex patterns; `validateHandoffStructure()` DEV/QA/CERBERUS required keys | Nothing |
-| Integration | `tests/askAgent.test.js` | `askAgent()` with mocked `spawnSync`: contract enforcement throws, fallback primary→secondary, hard-fail architect/cerberus, unknown agentId | Nothing (CLI mocked) |
-| **Not covered** | — | Full loop end-to-end, real Claude CLI calls, real MCP gate sequence | Claude auth + MCPs |
+| Type | File | Covers | Mocked / real |
+|------|------|--------|---------------|
+| Unit | `tests/validateOutput.test.js` | Output contract per role: orchestrator JSON plan/decide, dev-* file+validation, qa/cerberus finding classification, free-form roles | Pure logic — nothing mocked |
+| Unit | `tests/orchestrator.test.js` | `detectBlockers()` regex (10 cases); `validateHandoffStructure()` DEV/QA/CERBERUS keys + exempt modes | Pure logic — nothing mocked |
+| Integration | `tests/askAgent.test.js` | `askAgent()`: contract throws, fallback primary→secondary (2 CLI calls verified), hard-fail architect/cerberus, unknown agentId | `child_process.spawnSync` mocked — no Claude auth, no network |
+| **Not covered** | — | Full orchestrator loop, real MCP gate sequence, real Claude CLI output | Requires Claude auth + registered MCPs |
 
 ---
 
@@ -346,6 +346,19 @@ The step is skipped, a `contract_fail` trace event is written, and the loop cont
 ```
 
 The orchestrator **cannot** declare `done=true` when blockers exist. It is asked only for corrections. If max iterations is reached with open blockers, the run closes with a manual review warning.
+
+---
+
+## Runtime dependency on the claude CLI
+
+This example is autonomous at the orchestration layer — the planner (Ollama) and the loop logic run locally without human input. However, it is **not provider-independent at execution time**: every worker agent (`dev-backend`, `qa`, `cerberus`, etc.) calls the `claude` CLI, which requires an active Claude Code session and network access to Anthropic's API.
+
+This means:
+- Running in CI or on a headless server requires a valid `claude` session pre-authenticated.
+- API rate limits, quotas, or outages affect every agent call.
+- Costs accrue per agent invocation (Sonnet for DEV/QA/CERBERUS, Haiku for OWNER).
+
+If you need a provider-independent runner, replace `runClaude()` in `agents.js` with any LLM client — the MODE protocol and MCP gates are decoupled from the CLI.
 
 ---
 

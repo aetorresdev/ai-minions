@@ -436,7 +436,11 @@ Assign one agent per step. Reply with JSON only.`;
   }
 
   // ── Main loop ─────────────────────────────────────────────────────────────────
+  const RED = "\x1b[31m", BOLD_C = "\x1b[1m", RESET_C = "\x1b[0m";
   while (!done && iterations < maxIterations) {
+    if (skipStateMcp) {
+      console.log(`${RED}${BOLD_C}  ⚠ NO HARD GATES ACTIVE — iteration unprotected${RESET_C}`);
+    }
     iterations += 1;
     log("orchestrator", `── Iteration ${iterations}/${maxIterations} ──`);
 
