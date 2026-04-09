@@ -197,6 +197,24 @@ compact_handoff(
   return result.stdout.trim();
 }
 
+// ── Blocker detection (deterministic) ────────────────────────────────────────
+//
+// Parses CERBERUS output for blocker findings without model interpretation.
+// Returns { count, items } where items are the matched lines.
+//
+// Matches lines like:
+//   - blocker: missing validation
+//   **blocker** — no auth check
+//   type: blocker
+//   [blocker] broken flow
+//
+const BLOCKER_LINE_RE = /^.*\bblocker\b.*$/gim;
+
+function detectBlockers(cerberusOutput) {
+  const matches = cerberusOutput.match(BLOCKER_LINE_RE) || [];
+  return { count: matches.length, items: matches.map(l => l.trim()) };
+}
+
 // ── MODE mapping ──────────────────────────────────────────────────────────────
 
 const AGENT_TO_MODE = {
@@ -624,8 +642,67 @@ Only blockers require another DEV iteration.`;
       }
     }
 
-    // ── ORCHESTRATOR decides ──────────────────────────────────────────────────
-    log("orchestrator", "Evaluating result...");
+    // ── Hard blocker enforcement (deterministic) ──────────────────────────────
+    // Detect blockers from CERBERUS output directly — does not rely on the
+    // orchestrator model to interpret whether iteration is required.
+    // If blockers exist and iterations remain → force iterate.
+    // If no blockers → allow orchestrator to declare done.
+    const cerberusBlockers = detectBlockers(cerberusResult);
+    traceEvent(taskId, { event: "cerberus_check", iteration: iterations, blockers: cerberusBlockers.count, items: cerberusBlockers.items.slice(0, 5) });
+
+    if (cerberusBlockers.count > 0 && iterations < maxIterations) {
+      log("cerberus", `🟥 ${cerberusBlockers.count} blocker(s) detected — forcing iteration (deterministic)`);
+      cerberusBlockers.items.forEach(b => log("cerberus", `  ↳ ${b.slice(0, 120)}`));
+
+      // Ask orchestrator only for corrections — done=true is not an option when blockers exist
+      const artifactsBlob = artifacts
+        .map((a) => {
+          const { text } = truncateForContext(a.result, maxReviewChars);
+          return `## ${a.agentId}\nTask: ${a.task}\n\n${text}`;
+        })
+        .join("\n\n---\n\n");
+
+      const correctPrompt = `Original goal:
+${goal}
+
+Iteration: ${iterations}/${maxIterations}
+
+Deliverables:
+${artifactsBlob}
+
+Cerberus blockers (must be fixed):
+${cerberusBlockers.items.join("\n")}
+
+List the correction steps required. Reply with JSON: { "done": false, "corrections": [{ "agentId": "...", "task": "..." }] }`;
+
+      const correctResponse = await askAgent("orchestrator", correctPrompt, { cwd, sessionEnv, phase: "decide" });
+      const corrections = extractJson(correctResponse);
+      if (corrections && Array.isArray(corrections.corrections) && corrections.corrections.length > 0) {
+        log("orchestrator", `↻ Correcting — ${corrections.corrections.length} step(s):`);
+        corrections.corrections.forEach((c) =>
+          log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
+        );
+        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate", blockers: cerberusBlockers.count, corrections: corrections.corrections.length });
+        plan = { steps: corrections.corrections };
+      } else {
+        // Orchestrator failed to produce corrections — generate generic DEV retry
+        log("orchestrator", "WARNING: orchestrator returned no corrections — retrying last DEV steps");
+        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate_fallback", blockers: cerberusBlockers.count });
+        plan = { steps: artifacts.filter(a => a.agentId?.startsWith("dev-")).map(a => ({ agentId: a.agentId, task: `Fix blockers: ${cerberusBlockers.items.slice(0, 2).join("; ")}` })) };
+      }
+      continue;
+    }
+
+    if (cerberusBlockers.count > 0 && iterations >= maxIterations) {
+      done = true;
+      summary = `Max iterations reached with ${cerberusBlockers.count} unresolved blocker(s). Manual review required.`;
+      log("orchestrator", `⚠ ${summary}`);
+      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_blockers", blockers: cerberusBlockers.count });
+      continue;
+    }
+
+    // ── ORCHESTRATOR decides (no blockers path) ───────────────────────────────
+    log("orchestrator", "No blockers — evaluating completion...");
     const artifactsBlob = artifacts
       .map((a) => {
         const { text } = truncateForContext(a.result, maxReviewChars);
@@ -641,11 +718,10 @@ Iteration: ${iterations}/${maxIterations}
 Deliverables:
 ${artifactsBlob}
 
-Cerberus review:
+Cerberus review (no blockers):
 ${cerberusResult}
 
-Is this done? Remember: only Cerberus "blocker" findings require another iteration.
-"improvement" and "nice-to-have" findings go to backlog — they do not block completion.
+No blockers were found. Confirm completion or list any remaining corrections.
 Reply with JSON only.`;
 
     const decideResponse = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv, phase: "decide" });
