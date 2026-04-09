@@ -157,6 +157,20 @@ handoff:
 
 **DEV** must ensure its output includes `validation_run` with real commands and results before calling `compact_handoff`. The next MODE uses **only** the generated YAML + cited artifacts.
 
+### Output contracts (strict mode — enforced by `validateOutput()`)
+
+Each role has a minimum output contract. If the output does not meet it, the runner throws — no silent retry, no auto-correction.
+
+| Role | Contract |
+|------|---------|
+| `orchestrator` / plan | Valid JSON `{ steps: [{ agentId, task }] }` — non-empty |
+| `orchestrator` / decide | Valid JSON `{ done: bool, summary }` or `{ done: false, corrections: [] }` |
+| `dev-*` | Mentions ≥1 file modified **and** ≥1 validation run (lint, test, terraform validate, etc.) |
+| `qa` / `cerberus` | ≥1 finding classified as `blocker` \| `improvement` \| `nice-to-have` |
+| `owner` / `architect` / `summarizer` | Any non-empty output |
+
+Implemented in `examples/orchestrator/agents.js` (`validateOutput()`). Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
+
 ### Goal alignment validation (ORCHESTRATOR — required before advancing MODE)
 
 After receiving the compacted handoff, ORCHESTRATOR calls:

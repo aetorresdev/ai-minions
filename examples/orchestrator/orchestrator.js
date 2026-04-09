@@ -362,7 +362,7 @@ Working directory: ${cwd}
 Decompose this goal into ordered execution steps following the MODE protocol.
 Assign one agent per step. Reply with JSON only.`;
 
-  const planResponse = await askAgent("orchestrator", planPrompt, { cwd, sessionEnv });
+  const planResponse = await askAgent("orchestrator", planPrompt, { cwd, sessionEnv, phase: "plan" });
   const parsed = extractJson(planResponse);
   if (parsed && Array.isArray(parsed.steps)) {
     plan = parsed;
@@ -612,7 +612,7 @@ Is this done? Remember: only Cerberus "blocker" findings require another iterati
 "improvement" and "nice-to-have" findings go to backlog — they do not block completion.
 Reply with JSON only.`;
 
-    const decideResponse = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv });
+    const decideResponse = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv, phase: "decide" });
     const decide = extractJson(decideResponse);
 
     if (decide && decide.done === true) {

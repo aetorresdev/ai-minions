@@ -522,6 +522,77 @@ function buildEnvContext(agentId, sessionEnv) {
   return lines.join("\n");
 }
 
+// ── Output contract validation (strict mode) ─────────────────────────────────
+//
+// Each role has a minimum output contract. If the output does not meet it,
+// validateOutput() returns { valid: false, reason } — the caller throws.
+// No silent retry. No auto-correction. Hard fail.
+//
+// Contracts:
+//   orchestrator/plan   → JSON { steps: [{ agentId, task }] }
+//   orchestrator/decide → JSON { done: bool, summary } or { done: false, corrections: [] }
+//   dev-*               → mentions ≥1 file modified + ≥1 validation run
+//   qa / cerberus       → ≥1 finding classified blocker|improvement|nice-to-have
+//   owner / architect   → any non-empty output (free-form design/scope)
+//   summarizer          → any non-empty output
+
+const FINDING_RE    = /\b(blocker|improvement|nice-to-have)\b/i;
+const FILE_RE       = /(?:files?_modified|modified|changed|updated|created|edited)\s*[:\-]?\s*\S|[`'"]?\/[\w./-]+\.\w{1,6}[`'"]?/i;
+const VALIDATION_RE = /\b(validation_run|ran|executed|tested|passed|failed|lint|pytest|npm\s+test|terraform\s+validate|node\s+|output:)\b/i;
+
+/**
+ * Validate agent output against its role contract.
+ * @param {string} agentId
+ * @param {string} output
+ * @param {{ phase?: "plan"|"decide" }} options
+ * @returns {{ valid: boolean, reason: string }}
+ */
+function validateOutput(agentId, output, { phase } = {}) {
+  if (!output || !output.trim()) {
+    return { valid: false, reason: `${agentId}: empty output` };
+  }
+
+  if (agentId === "orchestrator") {
+    const raw = output.trim().replace(/^```(?:json)?\s*/m, "").replace(/```\s*$/m, "");
+    const json = (() => { try { return JSON.parse(raw); } catch { return null; } })();
+    if (!json) return { valid: false, reason: "orchestrator: output is not valid JSON" };
+
+    if (phase === "decide") {
+      if (typeof json.done !== "boolean")
+        return { valid: false, reason: "orchestrator/decide: missing 'done' boolean field" };
+      if (json.done && !json.summary)
+        return { valid: false, reason: "orchestrator/decide: done=true requires 'summary'" };
+      if (!json.done && (!Array.isArray(json.corrections) || json.corrections.length === 0))
+        return { valid: false, reason: "orchestrator/decide: done=false requires non-empty 'corrections[]'" };
+    } else {
+      if (!Array.isArray(json.steps) || json.steps.length === 0)
+        return { valid: false, reason: "orchestrator/plan: 'steps' must be a non-empty array" };
+      for (const s of json.steps) {
+        if (!s.agentId || !s.task)
+          return { valid: false, reason: `orchestrator/plan: step missing agentId or task — ${JSON.stringify(s)}` };
+      }
+    }
+    return { valid: true, reason: "" };
+  }
+
+  if (agentId.startsWith("dev-")) {
+    if (!FILE_RE.test(output))
+      return { valid: false, reason: `${agentId}: output must mention at least one file modified (files_modified, path, or explicit change reference)` };
+    if (!VALIDATION_RE.test(output))
+      return { valid: false, reason: `${agentId}: output must include at least one validation run (lint, test, terraform validate, etc.)` };
+    return { valid: true, reason: "" };
+  }
+
+  if (agentId === "qa" || agentId === "cerberus") {
+    if (!FINDING_RE.test(output))
+      return { valid: false, reason: `${agentId}: output must classify at least one finding as blocker | improvement | nice-to-have` };
+    return { valid: true, reason: "" };
+  }
+
+  // owner, architect, summarizer — any non-empty output passes
+  return { valid: true, reason: "" };
+}
+
 // ── Output token limits (hard cap per role) ───────────────────────────────────
 // Only applied to roles that produce structured/JSON output — not code agents.
 // DEV/ARCHITECT/QA/CERBERUS are excluded: cutting mid-code breaks output.
@@ -550,11 +621,14 @@ function runClaude(prompt, { cwd, model, maxTokens } = {}) {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-async function askAgent(agentId, userMessage, { cwd, sessionEnv } = {}) {
+async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
   const agent = AGENTS[agentId];
   if (!agent) throw new Error(`Unknown agent "${agentId}". Available: ${Object.keys(AGENTS).join(", ")}`);
   if (agent.provider === "ollama") {
-    return runOllama(agent.system, [{ role: "user", content: userMessage }], { model: agent.model });
+    const output = await runOllama(agent.system, [{ role: "user", content: userMessage }], { model: agent.model });
+    const check = validateOutput(agentId, output, { phase });
+    if (!check.valid) throw new Error(`[output contract] ${check.reason}`);
+    return output;
   }
   const maxTokens = MAX_OUTPUT_TOKENS[agentId] ?? undefined;
   const envContext = sessionEnv ? buildEnvContext(agentId, sessionEnv) : "";
@@ -563,18 +637,22 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv } = {}) {
     : agent.system;
   const prompt = `${systemPrompt}\n\n---\n\n${userMessage}`;
 
+  let output;
   try {
-    return runClaude(prompt, { cwd, model: agent.model, maxTokens });
+    output = runClaude(prompt, { cwd, model: agent.model, maxTokens });
   } catch (primaryErr) {
     // Primary model failed — attempt fallback per policy
     let fb;
     try { fb = resolveFallback(agentId); } catch (policyErr) {
-      // Policy says hard fail (degraded: false or no fallback)
       throw new Error(`[${agentId}] primary failed and policy blocks fallback: ${policyErr.message}. Original: ${primaryErr.message}`);
     }
     console.warn(`[${agentId}] primary failed — degraded mode with ${fb.model} (${fb.reason})`);
-    return runClaude(prompt, { cwd, model: fb.model, maxTokens });
+    output = runClaude(prompt, { cwd, model: fb.model, maxTokens });
   }
+
+  const check = validateOutput(agentId, output, { phase });
+  if (!check.valid) throw new Error(`[output contract] ${check.reason}`);
+  return output;
 }
 
 async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
@@ -601,4 +679,4 @@ function listAgents() {
   return Object.entries(AGENTS).map(([id, a]) => ({ id, name: a.name, title: a.title, mode: a.mode }));
 }
 
-module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama, effectiveMode, resolveCredentials, buildEnvContext, CONTRACT_VERSION, FALLBACK_POLICY };
+module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama, effectiveMode, resolveCredentials, buildEnvContext, CONTRACT_VERSION, FALLBACK_POLICY, validateOutput };
