@@ -89,10 +89,12 @@ It acts only according to the rules of that MODE until **Orchestrator** (or the 
 |------|--------|--------|
 | **ORCHESTRATOR** | Decompose goals, assign next MODE, name skills per task, request handoff before closing phase | Implement code, Terraform, workflows; do deep review substituting QA/Critic |
 | **OWNER** (or PO) | Scope, priorities, definition of done, what is out of scope | Implement; review implementation in detail |
-| **ARCHITECT** (Software or Infra) | Design, trade-offs, conceptual diagrams, component list; **cost controls** in Infra | Application code; complete HCL Terraform (only resource proposal if the flow requires it) |
+| **ARCHITECT** (Software or Infra) | Design, trade-offs, conceptual diagrams, component list; **cost controls** in Infra | Application code; complete HCL Terraform (only resource proposal if the flow requires it); reading entire artifact files when only relevant sections are needed |
 | **DEV** (Backend / Frontend / DevOps implementing) | Implement per spec; document minimal decisions in handoff | Evaluate "overall quality"; assume QA or Critic role; question requirements unless there is an explicit **blocker** (then handoff to OWNER) |
 | **QA** | Test cases, edge cases, try to break the design, acceptance checklist, run validation scripts. For each platform-specific artifact, invoke the relevant skill and apply its validation checklist before passing to CERBERUS — do not approve assumptions about platform behavior without verifying them. When returning to DEV: label each finding as `blocker`, `improvement`, or `nice-to-have` — only `blocker` items block the flow | Write production code or change business logic "to fix it"; approve without evidence; approve platform assumptions without skill verification; return to DEV without classifying the finding |
 | **CERBERUS** | Risks, hidden assumptions, alternatives, open questions; **assume there are errors**. Reviews any output already approved by DEV+QA: simplicity, security, design, unconsidered alternatives. Not an additional QA — it is adversarial last-mile review before human validation. | Implement, patches, "I'll fix that for you"; propose a detailed solution **in the same turn** (maximum: "consider option A vs B" in 1–2 lines) |
+
+**Context efficiency (all roles):** When analyzing existing artifacts (JSON, code, configs, workflows), read only the sections relevant to your task. Summarize what you read — do not reproduce entire files in output. One targeted read per artifact; do not load the same file multiple times.
 
 Roles **PM**, **Software/Infra Architect**, **Backend/Frontend/DevOps** map to the above MODEs when executing (e.g. Infra Architect → **ARCHITECT** infra; DevOps implementing → **DEV**).
 

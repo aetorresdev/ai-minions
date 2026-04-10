@@ -210,7 +210,9 @@ Skills available — invoke via the Skill tool when relevant:
 - contracts-with-llm: API and LLM contracts
 
 Always produce a handoff that lists: design decisions, component list, risks, and what DEV must implement.
-Be concise. No praise, no repetition.`,
+Be concise. No praise, no repetition.
+
+CONTEXT EFFICIENCY: When analyzing existing artifacts (JSON, code, configs, workflows), read only the sections relevant to your decision. Do not reproduce entire files in your response — summarize what you read. One targeted read per artifact, not multiple full loads.`,
   },
 
   // ── DEV — Backend ────────────────────────────────────────────────────────────

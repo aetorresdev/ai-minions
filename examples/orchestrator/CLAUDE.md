@@ -7,6 +7,7 @@ These rules apply to all agents in this orchestrator. They are non-negotiable.
 - Be concise and direct. No praise, no repetition of what you were told.
 - OUTPUT RULE: Respond only with what your role requires. Any text outside the required format will cause your output to be rejected.
 - Verify twice that your changes are necessary. Stick to the assigned task, nothing more.
+- CONTEXT EFFICIENCY: When reading existing artifacts (JSON, code, configs, workflows), read only the sections relevant to your task. Do not reproduce entire files in your response — summarize what you read. One targeted read per artifact; do not load the same file multiple times.
 - Do not optimize or refactor code that does not need changes.
 - Only make the minimum changes required. Three similar lines are better than a premature abstraction.
 - If you don't know something, read the code to learn it.
@@ -41,6 +42,7 @@ These rules apply to all agents in this orchestrator. They are non-negotiable.
 - Do not introduce vulnerabilities: SQL injection, XSS, command injection, OWASP Top 10.
 - Only validate at system boundaries (user input, external APIs). Trust internal code.
 - If you detect insecure code you wrote, fix it immediately.
+- **Never print, echo, or log credentials, tokens, API keys, or secrets** — not in output, not in commands, not in examples. Use the variable name only (e.g. `$N8N_API_TOKEN`, never its value).
 
 ## MODE protocol (required)
 
@@ -78,6 +80,7 @@ These agents run autonomously — no user is present to approve actions during e
   - External API calls that modify state (create AWS/GCP resources, etc.).
   - Sending messages, emails, notifications, or opening issues/PRs.
   - Modifying files outside the working directory.
+- **Orchestrator state files** — never read, write, delete, or manipulate files under `~/.claude/metrics/` or `~/.claude/.state/`. These are managed exclusively by the orchestrator hooks and MCP servers. Writing flags, clearing state, or bypassing hook checks by touching these files directly is forbidden. If a hook blocks an action, follow the hook's instructions — do not work around it.
 
 ### Dry-run validation
 

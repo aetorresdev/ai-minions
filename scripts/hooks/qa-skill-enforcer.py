@@ -79,9 +79,7 @@ def handle_post_tool(hook: dict):
     if tool_name != "Skill":
         sys.exit(0)
 
-    if not is_orchestrator_session():
-        sys.exit(0)
-
+    # Allow both single_agent (no orch flag) and multi_agent sessions
     if current_mode() != "QA":
         sys.exit(0)
 
@@ -103,8 +101,7 @@ def handle_pre_tool(hook: dict):
     if "advance_mode" not in tool_name:
         sys.exit(0)
 
-    if not is_orchestrator_session():
-        sys.exit(0)
+    # Enforce in both single_agent and multi_agent sessions
 
     tool_input = hook.get("tool_input") or hook.get("toolInput") or {}
     from_mode  = (tool_input.get("from_mode") or "").upper()
@@ -115,8 +112,7 @@ def handle_pre_tool(hook: dict):
 
     fp = flag_path()
     if fp.exists():
-        fp.unlink()  # consume flag
-        sys.exit(0)
+        sys.exit(0)  # flag present — allow advance, keep flag until session ends
 
     skills = sorted(review_skills())
     skills_list = "\n".join(f"  - {s}" for s in skills) if skills else "  (none found)"
