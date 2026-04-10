@@ -55,12 +55,24 @@ const OLLAMA_PORT           = parseInt(process.env.OLLAMA_PORT || "11434", 10);
 // To override at runtime: set MODEL_OVERRIDE_<ROLE>=<model-id> env var
 // e.g. MODEL_OVERRIDE_QA=claude-haiku-4-5-20251001
 //
+// ── Provider extension point ──────────────────────────────────────────────────
+// To add OpenAI, Gemini, or other providers:
+//   1. Add a runner function (e.g. runOpenAI, runGemini) modeled after runOllama()
+//   2. Add provider: "openai" | "gemini" to the relevant MODEL_ROUTING entries
+//   3. In askAgent(), dispatch to the new runner based on routing.provider
+//      (same pattern as the existing ollama branch)
+// validateOutput(), context_stats, and all gates are provider-agnostic —
+// they operate on output text regardless of who generated it.
+// Note: provider routing only applies to the multi-agent runner (run-orchestrator.js).
+// Single-agent (Claude Code header) always uses the Anthropic API.
+
 const MODEL_ROUTING = {
   // Ollama-native roles — fall back to claude-haiku if Ollama not available
   orchestrator: { primary: OLLAMA_MODEL || OLLAMA_FALLBACK_MODEL, fallback: OLLAMA_FALLBACK_MODEL, localSafe: true,  provider: OLLAMA_MODEL ? "ollama" : "claude" },
   summarizer:   { primary: OLLAMA_MODEL || OLLAMA_FALLBACK_MODEL, fallback: OLLAMA_FALLBACK_MODEL, localSafe: true,  provider: OLLAMA_MODEL ? "ollama" : "claude" },
 
   // Claude roles — grouped by local-safety
+  // provider defaults to "claude" when not specified (uses runClaude / claude CLI)
   owner:        { primary: "claude-haiku-4-5-20251001", fallback: OLLAMA_MODEL || OLLAMA_FALLBACK_MODEL, localSafe: true  },
   "dev-backend":{ primary: "claude-sonnet-4-6",        fallback: "claude-haiku-4-5-20251001", localSafe: false },
   "dev-frontend":{ primary: "claude-sonnet-4-6",       fallback: "claude-haiku-4-5-20251001", localSafe: false },
@@ -573,31 +585,31 @@ const FILES_MODIFIED_RE  = /(?:files?_modified|modified)\s*[:\-]\s*\n((?:\s*-\s*
  * @param {string} agentId
  * @param {string} output
  * @param {{ phase?: "plan"|"decide" }} options
- * @returns {{ valid: boolean, reason: string }}
+ * @returns {{ valid: boolean, reason: string, gate_id?: string, context_stats?: object }}
  */
 function validateOutput(agentId, output, { phase } = {}) {
   if (!output || !output.trim()) {
-    return { valid: false, reason: `${agentId}: empty output` };
+    return { valid: false, reason: `${agentId}: empty output`, gate_id: "empty_output" };
   }
 
   if (agentId === "orchestrator") {
     const raw = output.trim().replace(/^```(?:json)?\s*/m, "").replace(/```\s*$/m, "");
     const json = (() => { try { return JSON.parse(raw); } catch { return null; } })();
-    if (!json) return { valid: false, reason: "orchestrator: output is not valid JSON" };
+    if (!json) return { valid: false, reason: "orchestrator: output is not valid JSON", gate_id: "orchestrator_json" };
 
     if (phase === "decide") {
       if (typeof json.done !== "boolean")
-        return { valid: false, reason: "orchestrator/decide: missing 'done' boolean field" };
+        return { valid: false, reason: "orchestrator/decide: missing 'done' boolean field", gate_id: "orchestrator_decide_done" };
       if (json.done && !json.summary)
-        return { valid: false, reason: "orchestrator/decide: done=true requires 'summary'" };
+        return { valid: false, reason: "orchestrator/decide: done=true requires 'summary'", gate_id: "orchestrator_decide_summary" };
       if (!json.done && (!Array.isArray(json.corrections) || json.corrections.length === 0))
-        return { valid: false, reason: "orchestrator/decide: done=false requires non-empty 'corrections[]'" };
+        return { valid: false, reason: "orchestrator/decide: done=false requires non-empty 'corrections[]'", gate_id: "orchestrator_decide_corrections" };
     } else {
       if (!Array.isArray(json.steps) || json.steps.length === 0)
-        return { valid: false, reason: "orchestrator/plan: 'steps' must be a non-empty array" };
+        return { valid: false, reason: "orchestrator/plan: 'steps' must be a non-empty array", gate_id: "orchestrator_plan_steps" };
       for (const s of json.steps) {
         if (!s.agentId || !s.task)
-          return { valid: false, reason: `orchestrator/plan: step missing agentId or task — ${JSON.stringify(s)}` };
+          return { valid: false, reason: `orchestrator/plan: step missing agentId or task — ${JSON.stringify(s)}`, gate_id: "orchestrator_plan_step_fields" };
       }
     }
     return { valid: true, reason: "" };
@@ -605,41 +617,56 @@ function validateOutput(agentId, output, { phase } = {}) {
 
   if (agentId === "architect") {
     if (!FILES_READ_RE.test(output))
-      return { valid: false, reason: `${agentId}: output must declare files_read[] before reading artifacts` };
+      return { valid: false, reason: `${agentId}: output must declare files_read[] before reading artifacts`, gate_id: "files_read_missing" };
     if (FILES_READ_EMPTY_RE.test(output))
-      return { valid: false, reason: `${agentId}: files_read[] must not be empty — declare at least one file` };
-    return { valid: true, reason: "" };
+      return { valid: false, reason: `${agentId}: files_read[] must not be empty — declare at least one file`, gate_id: "files_read_empty" };
+    return { valid: true, reason: "", ...extractContextStats(agentId, output) };
   }
 
   if (agentId.startsWith("dev-")) {
     if (!FILES_READ_RE.test(output))
-      return { valid: false, reason: `${agentId}: output must declare files_read[] before reading artifacts` };
+      return { valid: false, reason: `${agentId}: output must declare files_read[] before reading artifacts`, gate_id: "files_read_missing" };
     if (FILES_READ_EMPTY_RE.test(output))
-      return { valid: false, reason: `${agentId}: files_read[] must not be empty — declare at least one file` };
+      return { valid: false, reason: `${agentId}: files_read[] must not be empty — declare at least one file`, gate_id: "files_read_empty" };
     if (!VALIDATION_RE.test(output))
-      return { valid: false, reason: `${agentId}: output must include at least one validation run (lint, test, terraform validate, etc.)` };
+      return { valid: false, reason: `${agentId}: output must include at least one validation run (lint, test, terraform validate, etc.)`, gate_id: "validation_run_missing" };
     // files_modified is mandatory — absence is not allowed (would bypass the cross-check gate)
     const modifiedMatch = output.match(FILES_MODIFIED_RE);
     if (!modifiedMatch)
-      return { valid: false, reason: `${agentId}: output must include a files_modified: list — absence bypasses the context gate` };
+      return { valid: false, reason: `${agentId}: output must include a files_modified: list — absence bypasses the context gate`, gate_id: "files_modified_missing" };
     // Strict mode: every file in files_modified must appear in files_read
     const modified = modifiedMatch[1].split("\n")
       .map(l => l.replace(/^\s*-\s*/, "").trim()).filter(Boolean);
     const readBlock = output.match(/\bfiles?_read\s*[:\-][^\n]*\n?([\s\S]*?)(?=\n\S|\n\n|$)/i)?.[0] || "";
     const unread = modified.filter(f => !readBlock.includes(f));
     if (unread.length > 0)
-      return { valid: false, reason: `${agentId}: files_modified contains paths not declared in files_read: ${unread.join(", ")}` };
-    return { valid: true, reason: "" };
+      return { valid: false, reason: `${agentId}: files_modified contains paths not declared in files_read: ${unread.join(", ")}`, gate_id: "files_read_vs_modified" };
+    return { valid: true, reason: "", ...extractContextStats(agentId, output) };
   }
 
   if (agentId === "qa" || agentId === "cerberus") {
     if (!FINDING_RE.test(output))
-      return { valid: false, reason: `${agentId}: output must classify at least one finding as blocker | improvement | nice-to-have` };
+      return { valid: false, reason: `${agentId}: output must classify at least one finding as blocker | improvement | nice-to-have`, gate_id: "finding_classification_missing" };
     return { valid: true, reason: "" };
   }
 
-  // owner, architect, summarizer — any non-empty output passes
+  // owner, summarizer — any non-empty output passes
   return { valid: true, reason: "" };
+}
+
+/**
+ * Extract context efficiency stats from agent output.
+ * Parses files_read and files_modified counts for trace metrics.
+ * @param {string} agentId
+ * @param {string} output
+ * @returns {{ context_stats: { files_read_count: number, files_modified_count: number } }}
+ */
+function extractContextStats(agentId, output) {
+  const readMatch  = output.match(/\bfiles?_read\s*[:\-][^\n]*\n((?:\s*-\s*\S[^\n]*\n?)*)/i);
+  const modMatch   = output.match(FILES_MODIFIED_RE);
+  const filesRead  = readMatch  ? readMatch[1].split("\n").map(l => l.trim()).filter(l => l.startsWith("-")).length : 0;
+  const filesModified = modMatch ? modMatch[1].split("\n").map(l => l.trim()).filter(l => l.startsWith("-")).length : 0;
+  return { context_stats: { files_read_count: filesRead, files_modified_count: filesModified } };
 }
 
 // ── Output token limits (hard cap per role) ───────────────────────────────────
@@ -676,8 +703,8 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
   if (agent.provider === "ollama") {
     const output = await runOllama(agent.system, [{ role: "user", content: userMessage }], { model: agent.model });
     const check = validateOutput(agentId, output, { phase });
-    if (!check.valid) throw new Error(`[output contract] ${check.reason}`);
-    return output;
+    if (!check.valid) { const err = new Error(`[output contract] ${check.reason}`); err.gate_id = check.gate_id; throw err; }
+    return { output, context_stats: check.context_stats || null };
   }
   const maxTokens = MAX_OUTPUT_TOKENS[agentId] ?? undefined;
   const envContext = sessionEnv ? buildEnvContext(agentId, sessionEnv) : "";
@@ -703,8 +730,8 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
   }
 
   const check = validateOutput(agentId, output, { phase });
-  if (!check.valid) throw new Error(`[output contract] ${check.reason}`);
-  return output;
+  if (!check.valid) { const err = new Error(`[output contract] ${check.reason}`); err.gate_id = check.gate_id; throw err; }
+  return { output, context_stats: check.context_stats || null };
 }
 
 async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {

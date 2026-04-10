@@ -50,7 +50,13 @@ function queueResponses(...responses) {
 
 const VALID_PLAN = JSON.stringify({ steps: [{ agentId: "dev-backend", task: "implement" }] });
 const VALID_DECIDE_DONE = JSON.stringify({ done: true, summary: "all good" });
-const VALID_DEV_OUTPUT  = "Modified `/src/api.py`\nTests passed: pytest — 5 passed.";
+const VALID_DEV_OUTPUT  = [
+  "files_read:",
+  "  - src/api.py",
+  "files_modified:",
+  "  - src/api.py",
+  "validation_run: pytest — 5 passed",
+].join("\n");
 const VALID_QA_OUTPUT   = "- blocker: missing auth\n- improvement: add pagination";
 
 // ── orchestrator / plan ───────────────────────────────────────────────────────
@@ -59,8 +65,8 @@ describe("askAgent — orchestrator/plan", () => {
   beforeEach(() => reset(VALID_PLAN));
 
   it("returns output when plan JSON is valid", async () => {
-    const out = await askAgent("orchestrator", "plan this", { phase: "plan" });
-    assert.ok(out.includes("steps"));
+    const { output } = await askAgent("orchestrator", "plan this", { phase: "plan" });
+    assert.ok(output.includes("steps"));
   });
 
   it("throws [output contract] when plan JSON is invalid", async () => {
@@ -85,8 +91,8 @@ describe("askAgent — orchestrator/plan", () => {
 describe("askAgent — orchestrator/decide", () => {
   it("returns output when decide JSON is valid (done=true)", async () => {
     reset(VALID_DECIDE_DONE);
-    const out = await askAgent("orchestrator", "decide", { phase: "decide" });
-    assert.ok(out.includes("done"));
+    const { output } = await askAgent("orchestrator", "decide", { phase: "decide" });
+    assert.ok(output.includes("done"));
   });
 
   it("throws when done=true has no summary", async () => {
@@ -111,8 +117,11 @@ describe("askAgent — orchestrator/decide", () => {
 describe("askAgent — dev-backend", () => {
   it("returns output when contract is met", async () => {
     reset(VALID_DEV_OUTPUT);
-    const out = await askAgent("dev-backend", "implement X");
-    assert.ok(out.length > 0);
+    const { output, context_stats } = await askAgent("dev-backend", "implement X");
+    assert.ok(output.length > 0);
+    assert.ok(context_stats, "should include context_stats");
+    assert.equal(context_stats.files_read_count, 1);
+    assert.equal(context_stats.files_modified_count, 1);
   });
 
   it("throws when file reference is missing", async () => {
@@ -137,8 +146,8 @@ describe("askAgent — dev-backend", () => {
 describe("askAgent — qa", () => {
   it("returns output when finding is classified", async () => {
     reset(VALID_QA_OUTPUT);
-    const out = await askAgent("qa", "review this");
-    assert.ok(out.length > 0);
+    const { output } = await askAgent("qa", "review this");
+    assert.ok(output.length > 0);
   });
 
   it("throws when no finding is classified", async () => {
@@ -158,8 +167,8 @@ describe("askAgent — fallback", () => {
       { output: "", error: new Error("primary unavailable") },  // primary fails
       { output: VALID_DEV_OUTPUT }                               // fallback succeeds
     );
-    const out = await askAgent("dev-backend", "implement X");
-    assert.ok(out.includes("pytest"));
+    const { output } = await askAgent("dev-backend", "implement X");
+    assert.ok(output.includes("pytest"));
     assert.equal(callCount, 2, "should have called spawnSync twice (primary + fallback)");
   });
 

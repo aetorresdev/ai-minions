@@ -453,7 +453,7 @@ Working directory: ${cwd}
 Decompose this goal into ordered execution steps following the MODE protocol.
 Assign one agent per step. Reply with JSON only.`;
 
-  const planResponse = await askAgent("orchestrator", planPrompt, { cwd, sessionEnv, phase: "plan" });
+  const { output: planResponse } = await askAgent("orchestrator", planPrompt, { cwd, sessionEnv, phase: "plan" });
   const parsed = extractJson(planResponse);
   if (parsed && Array.isArray(parsed.steps)) {
     plan = parsed;
@@ -511,17 +511,20 @@ Assign one agent per step. Reply with JSON only.`;
       const stepStart = Date.now();
       traceEvent(taskId, { event: "agent_start", agent: agentId, iteration: iterations, task: step.task.slice(0, 200) });
 
-      let result;
+      let result, contextStats;
       try {
-        result = await askAgent(
+        const agentResult = await askAgent(
           agentId,
           `Working directory: ${cwd}\n\nContext:\n${contextBlock}\n\nYour task:\n${step.task}`,
           { cwd, sessionEnv }
         );
+        result = agentResult.output;
+        contextStats = agentResult.context_stats || null;
       } catch (err) {
         const duration_ms = Date.now() - stepStart;
         const isCritical = ["architect", "qa", "cerberus"].includes(agentId);
-        traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, duration_ms, reason: err.message.slice(0, 300), critical: isCritical });
+        const gateId = err.gate_id || null;
+        traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, duration_ms, reason: err.message.slice(0, 300), critical: isCritical, ...(gateId ? { gate_id: gateId } : {}) });
         log(agentId, `🟥 Output contract failed: ${err.message}`);
         artifacts.push({ agentId, task: step.task, result: "", gateBlocked: true, gateReason: err.message });
         if (isCritical) {
@@ -535,6 +538,7 @@ Assign one agent per step. Reply with JSON only.`;
       clearDegradedAgents();
       const stepDegraded = degradedInRun.has(agentId);
       traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, duration_ms: Date.now() - stepStart, output_chars: result.length, ...(stepDegraded ? { degraded: true } : {}) });
+      if (contextStats) traceEvent(taskId, { event: "context_stats", agent: agentId, iteration: iterations, ...contextStats });
 
       // ── Compact handoff (compact-handoff MCP) ──────────────────────────────
       let handoffYaml = "";
@@ -672,7 +676,7 @@ ${reviewChunks.join("\n\n---\n\n")}
 Review the above. Classify each finding as blocker | improvement | nice-to-have.
 Only blockers require another DEV iteration.`;
 
-    const cerberusResult = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
+    const { output: cerberusResult } = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
     log("cerberus", `Review ready (${cerberusResult.length} chars)`);
 
     // ── Compact cerberus handoff + advance to ORCHESTRATOR ────────────────────
@@ -743,7 +747,7 @@ ${cerberusBlockers.items.join("\n")}
 
 List the correction steps required. Reply with JSON: { "done": false, "corrections": [{ "agentId": "...", "task": "..." }] }`;
 
-      const correctResponse = await askAgent("orchestrator", correctPrompt, { cwd, sessionEnv, phase: "decide" });
+      const { output: correctResponse } = await askAgent("orchestrator", correctPrompt, { cwd, sessionEnv, phase: "decide" });
       const corrections = extractJson(correctResponse);
       if (corrections && Array.isArray(corrections.corrections) && corrections.corrections.length > 0) {
         log("orchestrator", `↻ Correcting — ${corrections.corrections.length} step(s):`);
@@ -792,7 +796,7 @@ ${cerberusResult}
 No blockers were found. Confirm completion or list any remaining corrections.
 Reply with JSON only.`;
 
-    const decideResponse = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv, phase: "decide" });
+    const { output: decideResponse } = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv, phase: "decide" });
     const decide = extractJson(decideResponse);
 
     if (decide && decide.done === true) {

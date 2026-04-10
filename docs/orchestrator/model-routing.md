@@ -148,14 +148,17 @@ Every multi-agent run writes a structured JSONL trace to `~/.claude/metrics/trac
 | `session_start` | `flow_mode`, `max_iterations`, `cwd`, `goal` (truncated) | Before plan |
 | `agent_start` | `agent`, `iteration`, `task` (truncated) | Before `askAgent()` |
 | `agent_done` | `agent`, `iteration`, `duration_ms`, `output_chars`, `degraded?` | After successful `askAgent()` — `degraded: true` when fallback model was used |
-| `contract_fail` | `agent`, `iteration`, `duration_ms`, `reason`, `critical` | When `validateOutput()` throws — `critical: true` for architect/qa/cerberus, which stops the iteration |
+| `contract_fail` | `agent`, `iteration`, `duration_ms`, `reason`, `critical`, `gate_id?` | When `validateOutput()` throws — `critical: true` for architect/qa/cerberus; `gate_id` identifies which specific gate failed |
+| `context_stats` | `agent`, `iteration`, `files_read_count`, `files_modified_count` | After successful ARCHITECT or DEV step — counts declared files for efficiency tracking |
 | `gate_result` | `agent`, `iteration`, `gate`, `passed`, `reason?`, `confidence?`, `from_mode?`, `to_mode?` | After each gate check |
 | `iteration_done` | `iteration`, `outcome` (`done`\|`iterate`\|`stopped`), `summary?`, `corrections?` | After orchestrator decide |
 | `session_end` | `iterations`, `done`, `summary`, `agents_run[]`, `gate_blocks`, `qa_degraded?`, `manual_review_recommended?` | Before return |
 
 All events include `ts` (ISO timestamp) and `task_id`.
 
-Gate names: `handoff_structure`, `goal_alignment`, `transition`.
+Gate names (`gate_result`): `handoff_structure`, `goal_alignment`, `transition`.
+
+Gate IDs (`contract_fail.gate_id`): `empty_output`, `orchestrator_json`, `orchestrator_plan_steps`, `orchestrator_plan_step_fields`, `orchestrator_decide_done`, `orchestrator_decide_summary`, `orchestrator_decide_corrections`, `files_read_missing`, `files_read_empty`, `files_modified_missing`, `files_read_vs_modified`, `validation_run_missing`, `finding_classification_missing`.
 
 ### Example trace file (`~/.claude/metrics/traces/task-b4013eec.jsonl`)
 
@@ -163,11 +166,12 @@ Gate names: `handoff_structure`, `goal_alignment`, `transition`.
 {"ts":"2026-04-09T10:27:01.000Z","task_id":"task-b4013eec","event":"session_start","flow_mode":"multi_agent","max_iterations":3,"goal":"Add input validation to POST /users"}
 {"ts":"2026-04-09T10:27:03.000Z","task_id":"task-b4013eec","event":"agent_start","agent":"dev-backend","iteration":1,"task":"Implement input validation on POST /users endpoint"}
 {"ts":"2026-04-09T10:27:41.000Z","task_id":"task-b4013eec","event":"agent_done","agent":"dev-backend","iteration":1,"duration_ms":38200,"output_chars":2841}
+{"ts":"2026-04-09T10:27:41.000Z","task_id":"task-b4013eec","event":"context_stats","agent":"dev-backend","iteration":1,"files_read_count":2,"files_modified_count":1}
 {"ts":"2026-04-09T10:27:44.000Z","task_id":"task-b4013eec","event":"gate_result","agent":"dev-backend","iteration":1,"gate":"handoff_structure","passed":true}
 {"ts":"2026-04-09T10:27:52.000Z","task_id":"task-b4013eec","event":"gate_result","agent":"dev-backend","iteration":1,"gate":"goal_alignment","passed":true,"confidence":0.91}
 {"ts":"2026-04-09T10:27:58.000Z","task_id":"task-b4013eec","event":"gate_result","agent":"dev-backend","iteration":1,"gate":"transition","from_mode":"DEV","to_mode":"QA","passed":true}
 {"ts":"2026-04-09T10:28:30.000Z","task_id":"task-b4013eec","event":"agent_start","agent":"qa","iteration":1,"task":"Validate POST /users input validation implementation"}
-{"ts":"2026-04-09T10:28:55.000Z","task_id":"task-b4013eec","event":"contract_fail","agent":"qa","iteration":1,"duration_ms":25100,"reason":"qa: output must classify at least one finding as blocker | improvement | nice-to-have"}
+{"ts":"2026-04-09T10:28:55.000Z","task_id":"task-b4013eec","event":"contract_fail","agent":"qa","iteration":1,"duration_ms":25100,"reason":"qa: output must classify at least one finding as blocker | improvement | nice-to-have","critical":true,"gate_id":"finding_classification_missing"}
 {"ts":"2026-04-09T10:29:10.000Z","task_id":"task-b4013eec","event":"cerberus_check","iteration":1,"blockers":1,"items":["blocker: no rate limiting on the endpoint"]}
 {"ts":"2026-04-09T10:29:12.000Z","task_id":"task-b4013eec","event":"iteration_done","iteration":1,"outcome":"iterate","blockers":1,"corrections":1}
 {"ts":"2026-04-09T10:31:45.000Z","task_id":"task-b4013eec","event":"iteration_done","iteration":2,"outcome":"done","summary":"Input validation and rate limiting implemented. No blockers."}
