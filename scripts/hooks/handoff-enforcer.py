@@ -1,30 +1,59 @@
 #!/usr/bin/env python3
 """
-handoff-enforcer.py — PostToolUse hook (PreToolUse for advance_mode)
+handoff-enforcer.py — PostToolUse + PreToolUse hook
 
 Enforces that compact_handoff is called before advance_mode in orchestrator sessions.
 
 Flow:
-  - On compact_handoff call (PostToolUse): write a flag for this session + current mode
-  - On advance_mode call (PreToolUse): check flag exists — if not, block with demand
+  - On compact_handoff call (PostToolUse): write a flag keyed by task_id (multi-agent)
+    or SESSION_ID (single-agent fallback).
+  - On advance_mode call (PreToolUse): check flag exists — if not, block with demand.
 
-Flag file: ~/.claude/metrics/handoff-ready-<SESSION_ID>.flag
+Flag file: ~/.claude/metrics/handoff-ready-<task_id>.flag  (multi-agent)
+           ~/.claude/metrics/handoff-ready-<SESSION_ID>.flag (single-agent fallback)
   Contents: the mode_completed value from the compact_handoff call
 
 Roles that skip enforcement (no handoff required):
   ORCHESTRATOR, OWNER — structural roles, not DEV/QA/CERBERUS producers
 """
-import json, os, sys
+import json, os, re, sys
 from pathlib import Path
 
 METRICS_DIR = Path.home() / ".claude/metrics"
+STATE_DIR   = Path.home() / ".claude/.state/orchestrator"
 SESSION_ID  = os.environ.get("CLAUDE_SESSION_ID", "unknown")
 
 SKIP_ADVANCE_FROM = {"ORCHESTRATOR", "OWNER"}  # no handoff required from these roles
 
 
-def flag_path() -> Path:
-    return METRICS_DIR / f"handoff-ready-{SESSION_ID}.flag"
+def active_task_id(mode: str) -> str | None:
+    """
+    Scan orchestrator state envelopes for a task with current_mode matching `mode`.
+    Returns task_id if found — used to share flags across all agent processes in
+    a multi-agent run.
+    """
+    if not STATE_DIR.exists():
+        return None
+    try:
+        for task_dir in STATE_DIR.iterdir():
+            envelope = task_dir / "envelope.json"
+            if not envelope.exists():
+                continue
+            data = json.loads(envelope.read_text())
+            if data.get("current_mode", "").upper() == mode.upper():
+                return data.get("task_id") or task_dir.name
+    except Exception:
+        pass
+    return None
+
+
+def flag_path(task_id: str = None) -> Path:
+    """
+    Flag keyed by task_id when available (shared across all agent processes in a
+    multi-agent run). Falls back to SESSION_ID for single-agent sessions.
+    """
+    key = task_id if task_id else SESSION_ID
+    return METRICS_DIR / f"handoff-ready-{key}.flag"
 
 
 def is_orchestrator_session() -> bool:
@@ -37,17 +66,24 @@ def handle_post_tool(hook: dict):
     if "compact_handoff" not in tool_name:
         sys.exit(0)
 
-    # Extract mode_completed from tool input or output
-    tool_input  = hook.get("tool_input") or hook.get("toolInput") or {}
+    tool_input = hook.get("tool_input") or hook.get("toolInput") or {}
     mode = tool_input.get("mode_completed", "unknown")
 
-    flag_path().parent.mkdir(parents=True, exist_ok=True)
-    flag_path().write_text(mode)
+    # Resolve task_id from active envelope for the completed mode (multi-agent)
+    # Falls back to SESSION_ID for single-agent sessions
+    task_id = active_task_id(mode)
+    fp = flag_path(task_id)
+    fp.parent.mkdir(parents=True, exist_ok=True)
+    fp.write_text(mode)
     sys.exit(0)
 
 
 def handle_pre_tool(hook: dict):
-    """Before advance_mode — verify compact_handoff was called first."""
+    """Before advance_mode — verify compact_handoff was called first.
+
+    Checks task_id flag first (from advance_mode input — reliable in both SA and MA),
+    then falls back to SESSION_ID flag (single-agent).
+    """
     tool_name = hook.get("tool_name") or hook.get("toolName", "")
     if "advance_mode" not in tool_name:
         sys.exit(0)
@@ -55,15 +91,19 @@ def handle_pre_tool(hook: dict):
     if not is_orchestrator_session():
         sys.exit(0)
 
-    # Check from_mode — skip if transitioning from structural roles
     tool_input = hook.get("tool_input") or hook.get("toolInput") or {}
     from_mode  = (tool_input.get("from_mode") or "").upper()
     if from_mode in SKIP_ADVANCE_FROM:
         sys.exit(0)
 
-    fp = flag_path()
-    if fp.exists():
-        fp.unlink()  # consume the flag — one handoff per advance
+    # Check task_id flag (from advance_mode input — reliable in both SA and MA)
+    # then fall back to SESSION_ID flag for sessions without task_id
+    task_id = (tool_input.get("task_id") or "").strip()
+    if task_id and flag_path(task_id).exists():
+        flag_path(task_id).unlink()  # consume — one handoff per advance
+        sys.exit(0)
+    if flag_path().exists():
+        flag_path().unlink()  # consume — session-level flag (single-agent fallback)
         sys.exit(0)
 
     # Block — no compact_handoff was called before this advance_mode
