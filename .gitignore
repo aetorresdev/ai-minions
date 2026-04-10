@@ -46,7 +46,7 @@ projects/
 history.jsonl
 metrics/
 plugins/
-
+tasks/
 # MCP server virtualenvs and lock files
 mcp-servers/**/.venv/
 mcp-servers/**/node_modules/

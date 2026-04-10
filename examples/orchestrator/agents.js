@@ -212,7 +212,11 @@ Skills available — invoke via the Skill tool when relevant:
 Always produce a handoff that lists: design decisions, component list, risks, and what DEV must implement.
 Be concise. No praise, no repetition.
 
-CONTEXT EFFICIENCY: When analyzing existing artifacts (JSON, code, configs, workflows), read only the sections relevant to your decision. Do not reproduce entire files in your response — summarize what you read. One targeted read per artifact, not multiple full loads.`,
+CONTEXT EFFICIENCY: Before reading any file, declare which files are relevant to this task:
+  files_read: [list only what you need]
+Then read only those files, only the sections relevant to your decision.
+Do not reproduce entire files in your response — summarize what you read.
+One targeted read per artifact, not multiple full loads. Do not re-read the same file.`,
   },
 
   // ── DEV — Backend ────────────────────────────────────────────────────────────
@@ -235,8 +239,9 @@ Skills available — invoke via the Skill tool when relevant:
 - git-best-practices: branch naming, PR workflow, commit conventions
 - claude-api: when the code uses the Anthropic SDK or Claude API
 
-Always read existing files before modifying them. Write changes directly to the filesystem.
-Run tests and linting. Include validation_run results in your handoff.
+Before reading any file, declare which files are relevant:
+  files_read: [list only what you need]
+Then read only those files. Include files_read[] and validation_run results in your handoff.
 Be concise. No praise, no repetition.`,
   },
 
@@ -258,8 +263,9 @@ Skills available — invoke via the Skill tool when relevant:
 - simplify: review written code for reuse, quality, and efficiency
 - git-best-practices: branch naming, PR workflow, commit conventions
 
-Always read existing files before modifying them. Write changes directly to the filesystem.
-Include validation_run results (compile check, lint) in your handoff.
+Before reading any file, declare which files are relevant:
+  files_read: [list only what you need]
+Then read only those files. Include files_read[] and validation_run results in your handoff.
 Be concise. No praise, no repetition.`,
   },
 
@@ -287,9 +293,12 @@ Skills available — invoke via the Skill tool when relevant:
 - reviewing-docker: audit Dockerfiles for quality and security
 - git-best-practices: branch naming, PR workflow, commit conventions
 
-Minimum validation before handoff (Terraform): fmt → init → validate → tflint/checkov if present.
+Before reading any file, declare which files are relevant:
+  files_read: [list only what you need]
+Then read only those files. Minimum validation before handoff (Terraform): fmt → init → validate → tflint/checkov if present.
 Other stacks: linter + install deps + run tests per README/CI.
 If commands cannot run here, note that in handoff risks and list exact commands for QA.
+Include files_read[] and validation_run results in your handoff.
 Be concise. No praise, no repetition.`,
   },
 
@@ -549,6 +558,7 @@ function buildEnvContext(agentId, sessionEnv) {
 const FINDING_RE    = /\b(blocker|improvement|nice-to-have)\b/i;
 const FILE_RE       = /(?:files?_modified|modified|changed|updated|created|edited)\s*[:\-]?\s*\S|[`'"]?\/[\w./-]+\.\w{1,6}[`'"]?/i;
 const VALIDATION_RE = /\b(validation_run|ran|executed|tested|passed|failed|lint|pytest|npm\s+test|terraform\s+validate|node\s+|output:)\b/i;
+const FILES_READ_RE = /\bfiles?_read\s*[:\-]?\s*(?:[\[`'"\w]|\n\s*-)/i;
 
 /**
  * Validate agent output against its role contract.
@@ -585,7 +595,15 @@ function validateOutput(agentId, output, { phase } = {}) {
     return { valid: true, reason: "" };
   }
 
+  if (agentId === "architect") {
+    if (!FILES_READ_RE.test(output))
+      return { valid: false, reason: `${agentId}: output must declare files_read[] before reading artifacts` };
+    return { valid: true, reason: "" };
+  }
+
   if (agentId.startsWith("dev-")) {
+    if (!FILES_READ_RE.test(output))
+      return { valid: false, reason: `${agentId}: output must declare files_read[] before reading artifacts` };
     if (!FILE_RE.test(output))
       return { valid: false, reason: `${agentId}: output must mention at least one file modified (files_modified, path, or explicit change reference)` };
     if (!VALIDATION_RE.test(output))

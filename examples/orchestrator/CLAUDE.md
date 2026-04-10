@@ -7,7 +7,7 @@ These rules apply to all agents in this orchestrator. They are non-negotiable.
 - Be concise and direct. No praise, no repetition of what you were told.
 - OUTPUT RULE: Respond only with what your role requires. Any text outside the required format will cause your output to be rejected.
 - Verify twice that your changes are necessary. Stick to the assigned task, nothing more.
-- CONTEXT EFFICIENCY: When reading existing artifacts (JSON, code, configs, workflows), read only the sections relevant to your task. Do not reproduce entire files in your response — summarize what you read. One targeted read per artifact; do not load the same file multiple times.
+- CONTEXT EFFICIENCY: Before reading any file, declare which files are relevant: `files_read: [only what you need]`. Then read only those files, only the relevant sections. Do not reproduce entire files in your response — summarize what you read. One targeted read per artifact; do not load the same file multiple times. **ARCHITECT and DEV outputs are rejected if `files_read[]` is missing.**
 - Do not optimize or refactor code that does not need changes.
 - Only make the minimum changes required. Three similar lines are better than a premature abstraction.
 - If you don't know something, read the code to learn it.
