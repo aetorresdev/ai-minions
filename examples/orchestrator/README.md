@@ -386,7 +386,7 @@ For **critical roles** (architect, qa, cerberus): the step loop `break`s — no 
 10:27:33 AM [dev-backend] 🟥 Output contract failed: dev-backend: files_modified contains paths not declared in files_read: src/config.js
 ```
 
-The gate enforces **consistency** — every path modified must have been declared in `files_read`. It does not enforce completeness (whether all relevant files were declared). See [agent-contract.md](../../docs/orchestrator/agent-contract.md) for the known limitation.
+The gate enforces **consistency** — every path modified must have been declared in `files_read`, and `files_modified` is mandatory (absence would bypass the cross-check). It does not enforce completeness (whether all relevant files were declared). See [agent-contract.md](../../docs/orchestrator/agent-contract.md) for the known limitation.
 
 ```
 10:27:33 AM [qa] 🟥 Output contract failed: qa: output must classify at least one finding as blocker | improvement | nice-to-have

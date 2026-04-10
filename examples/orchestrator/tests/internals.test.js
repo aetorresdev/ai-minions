@@ -83,7 +83,7 @@ describe("_sanitize — other fields", () => {
 
 describe("validateOutput — context gating (files_read)", () => {
   const devOutput = (filesRead) =>
-    `${filesRead}\nmodified: /src/app.js\nvalidation_run: npm test → pass`;
+    `${filesRead}\nfiles_modified:\n  - src/app.js\nvalidation_run: npm test → pass`;
 
   it("rejects architect output missing files_read", () => {
     const r = validateOutput("architect", "Design: use module X. Components: A, B.");
@@ -108,7 +108,15 @@ describe("validateOutput — context gating (files_read)", () => {
   });
 
   it("accepts dev-devops output with files_read block syntax", () => {
-    const r = validateOutput("dev-devops", devOutput("files_read:\n  - main.tf\n  - variables.tf"));
+    const output = [
+      "files_read:",
+      "  - main.tf",
+      "  - variables.tf",
+      "files_modified:",
+      "  - main.tf",
+      "validation_run: terraform validate → pass",
+    ].join("\n");
+    const r = validateOutput("dev-devops", output);
     assert.equal(r.valid, true);
   });
 
@@ -159,11 +167,23 @@ describe("validateOutput — files_read vs files_modified (strict mode)", () => 
     assert.match(r.reason, /files_modified.*files_read|files_read.*files_modified/i);
   });
 
-  it("accepts dev-devops when no files_modified block present", () => {
+  it("rejects dev-devops when files_modified block is absent", () => {
     const output = [
       "files_read:",
       "  - main.tf",
-      "modified: main.tf",
+      "validation_run: terraform validate → pass",
+    ].join("\n");
+    const r = validateOutput("dev-devops", output);
+    assert.equal(r.valid, false);
+    assert.match(r.reason, /files_modified/);
+  });
+
+  it("accepts dev-devops with files_modified matching files_read", () => {
+    const output = [
+      "files_read:",
+      "  - main.tf",
+      "files_modified:",
+      "  - main.tf",
       "validation_run: terraform validate → pass",
     ].join("\n");
     const r = validateOutput("dev-devops", output);
