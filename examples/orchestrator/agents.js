@@ -241,7 +241,9 @@ Skills available — invoke via the Skill tool when relevant:
 
 Before reading any file, declare which files are relevant:
   files_read: [list only what you need]
-Then read only those files. Include files_read[] and validation_run results in your handoff.
+Then read only those files. Your handoff MUST include both fields or it will be rejected:
+  files_modified: [every file you changed]
+  validation_run: [commands and results]
 Be concise. No praise, no repetition.`,
   },
 
@@ -265,7 +267,9 @@ Skills available — invoke via the Skill tool when relevant:
 
 Before reading any file, declare which files are relevant:
   files_read: [list only what you need]
-Then read only those files. Include files_read[] and validation_run results in your handoff.
+Then read only those files. Your handoff MUST include both fields or it will be rejected:
+  files_modified: [every file you changed]
+  validation_run: [commands and results]
 Be concise. No praise, no repetition.`,
   },
 
@@ -298,7 +302,9 @@ Before reading any file, declare which files are relevant:
 Then read only those files. Minimum validation before handoff (Terraform): fmt → init → validate → tflint/checkov if present.
 Other stacks: linter + install deps + run tests per README/CI.
 If commands cannot run here, note that in handoff risks and list exact commands for QA.
-Include files_read[] and validation_run results in your handoff.
+Your handoff MUST include both fields or it will be rejected:
+  files_modified: [every file you changed]
+  validation_run: [commands and results]
 Be concise. No praise, no repetition.`,
   },
 
@@ -610,20 +616,19 @@ function validateOutput(agentId, output, { phase } = {}) {
       return { valid: false, reason: `${agentId}: output must declare files_read[] before reading artifacts` };
     if (FILES_READ_EMPTY_RE.test(output))
       return { valid: false, reason: `${agentId}: files_read[] must not be empty — declare at least one file` };
-    if (!FILE_RE.test(output))
-      return { valid: false, reason: `${agentId}: output must mention at least one file modified (files_modified, path, or explicit change reference)` };
     if (!VALIDATION_RE.test(output))
       return { valid: false, reason: `${agentId}: output must include at least one validation run (lint, test, terraform validate, etc.)` };
-    // Strict mode: every file in files_modified must appear in files_read
+    // files_modified is mandatory — absence is not allowed (would bypass the cross-check gate)
     const modifiedMatch = output.match(FILES_MODIFIED_RE);
-    if (modifiedMatch) {
-      const modified = modifiedMatch[1].split("\n")
-        .map(l => l.replace(/^\s*-\s*/, "").trim()).filter(Boolean);
-      const readBlock = output.match(/\bfiles?_read\s*[:\-][^\n]*\n?([\s\S]*?)(?=\n\S|\n\n|$)/i)?.[0] || "";
-      const unread = modified.filter(f => !readBlock.includes(f));
-      if (unread.length > 0)
-        return { valid: false, reason: `${agentId}: files_modified contains paths not declared in files_read: ${unread.join(", ")}` };
-    }
+    if (!modifiedMatch)
+      return { valid: false, reason: `${agentId}: output must include a files_modified: list — absence bypasses the context gate` };
+    // Strict mode: every file in files_modified must appear in files_read
+    const modified = modifiedMatch[1].split("\n")
+      .map(l => l.replace(/^\s*-\s*/, "").trim()).filter(Boolean);
+    const readBlock = output.match(/\bfiles?_read\s*[:\-][^\n]*\n?([\s\S]*?)(?=\n\S|\n\n|$)/i)?.[0] || "";
+    const unread = modified.filter(f => !readBlock.includes(f));
+    if (unread.length > 0)
+      return { valid: false, reason: `${agentId}: files_modified contains paths not declared in files_read: ${unread.join(", ")}` };
     return { valid: true, reason: "" };
   }
 

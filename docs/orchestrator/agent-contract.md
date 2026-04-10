@@ -103,6 +103,7 @@ Then read only those files, only the relevant sections. Summarize what you read 
 **Gate (enforced by `validateOutput()` in both single-agent and multi-agent flows):**
 - `files_read[]` missing → rejected
 - `files_read: []` empty → rejected
+- `files_modified` missing in DEV output → rejected (absence bypasses the cross-check gate)
 - DEV strict mode: every path in `files_modified` must appear in `files_read` — if not → rejected
 
 **Known limitation:** the gate enforces *consistency* (what you touch, you declared) — not *completeness* (whether you declared enough). An agent that reads `service.js` but misses `config.js` as a dependency will pass the gate. Completeness requires semantic knowledge of the codebase.
