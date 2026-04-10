@@ -43,7 +43,7 @@ alwaysApply: false
     mcp__orchestrator-state__close_task(task_id="<slug>", reason="done")
     ```
 12. **`session_id`** on the envelope is optional audit metadata only until a **dedicated runner** enforces real session isolation — do not treat it as proof of isolation by itself.
-13. **Context efficiency (all roles):** Read only relevant sections of artifacts — do not load full files repeatedly. Summarize reads; never reproduce entire files in output.
+13. **Context efficiency (all roles):** Before reading any file, declare `files_read: [list]`. Read only those files, only relevant sections. ARCHITECT and DEV: `validateOutput()` rejects output missing `files_read[]`.
 
 ## Quick ALLOW/FORBID
 

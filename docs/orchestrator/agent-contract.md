@@ -94,7 +94,13 @@ It acts only according to the rules of that MODE until **Orchestrator** (or the 
 | **QA** | Test cases, edge cases, try to break the design, acceptance checklist, run validation scripts. For each platform-specific artifact, invoke the relevant skill and apply its validation checklist before passing to CERBERUS — do not approve assumptions about platform behavior without verifying them. When returning to DEV: label each finding as `blocker`, `improvement`, or `nice-to-have` — only `blocker` items block the flow | Write production code or change business logic "to fix it"; approve without evidence; approve platform assumptions without skill verification; return to DEV without classifying the finding |
 | **CERBERUS** | Risks, hidden assumptions, alternatives, open questions; **assume there are errors**. Reviews any output already approved by DEV+QA: simplicity, security, design, unconsidered alternatives. Not an additional QA — it is adversarial last-mile review before human validation. | Implement, patches, "I'll fix that for you"; propose a detailed solution **in the same turn** (maximum: "consider option A vs B" in 1–2 lines) |
 
-**Context efficiency (all roles):** When analyzing existing artifacts (JSON, code, configs, workflows), read only the sections relevant to your task. Summarize what you read — do not reproduce entire files in output. One targeted read per artifact; do not load the same file multiple times.
+**Context efficiency (all roles):** Before reading any file, declare which files are relevant:
+```
+files_read: [only what you need]
+```
+Then read only those files, only the relevant sections. Summarize what you read — do not reproduce entire files in output. One targeted read per artifact; do not load the same file multiple times.
+
+**Gate:** For ARCHITECT and DEV roles, `validateOutput()` rejects output that does not include `files_read[]`. This is enforced in both single-agent and multi-agent flows.
 
 Roles **PM**, **Software/Infra Architect**, **Backend/Frontend/DevOps** map to the above MODEs when executing (e.g. Infra Architect → **ARCHITECT** infra; DevOps implementing → **DEV**).
 

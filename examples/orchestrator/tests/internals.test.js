@@ -17,6 +17,7 @@ const cp = require("child_process");
 cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 
 const { _sanitize, _hashGoal } = require("../orchestrator");
+const { validateOutput } = require("../agents");
 
 describe("_hashGoal", () => {
   it("returns a 12-char hex string", () => {
@@ -77,6 +78,44 @@ describe("_sanitize — other fields", () => {
     _sanitize(original);
     assert.equal(original.goal, "some goal");
     assert.equal(original.task, "some task");
+  });
+});
+
+describe("validateOutput — context gating (files_read)", () => {
+  const devOutput = (filesRead) =>
+    `${filesRead}\nmodified: /src/app.js\nvalidation_run: npm test → pass`;
+
+  it("rejects architect output missing files_read", () => {
+    const r = validateOutput("architect", "Design: use module X. Components: A, B.");
+    assert.equal(r.valid, false);
+    assert.match(r.reason, /files_read/);
+  });
+
+  it("accepts architect output with files_read", () => {
+    const r = validateOutput("architect", "files_read: [docs/api.yaml]\nDesign: use module X.");
+    assert.equal(r.valid, true);
+  });
+
+  it("rejects dev-backend output missing files_read", () => {
+    const r = validateOutput("dev-backend", "modified: /src/app.js\nvalidation_run: npm test → pass");
+    assert.equal(r.valid, false);
+    assert.match(r.reason, /files_read/);
+  });
+
+  it("accepts dev-backend output with files_read", () => {
+    const r = validateOutput("dev-backend", devOutput("files_read: [src/app.js]"));
+    assert.equal(r.valid, true);
+  });
+
+  it("accepts dev-devops output with files_read block syntax", () => {
+    const r = validateOutput("dev-devops", devOutput("files_read:\n  - main.tf\n  - variables.tf"));
+    assert.equal(r.valid, true);
+  });
+
+  it("rejects dev-frontend output missing files_read even with file and validation", () => {
+    const r = validateOutput("dev-frontend", "modified: /src/App.tsx\nvalidation_run: lint → pass");
+    assert.equal(r.valid, false);
+    assert.match(r.reason, /files_read/);
   });
 });
 
