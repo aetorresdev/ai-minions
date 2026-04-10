@@ -1,21 +1,24 @@
-# AI Minions 🍌
+# AI Minions
 
-A collection of AI skills, agents, and orchestration tools for Claude Code — compatible with Cursor and Warp.
+**AI Minions is not a prompt collection.** It is an **orchestration system** for AI agents: enforceable role contracts, validation gates, disk-backed authoritative state, and **cost- and context-aware** execution—with enough telemetry to compare **single-agent vs multi-agent** flows without pretending the chat transcript is the source of truth.
+
+If that sentence is opaque, this repository is probably not what you are looking for. If it is clear, everything below is the same idea unpacked.
 
 ---
 
-## 🔧 Quickstart (90 seconds)
+## Quickstart (~2 minutes)
 
-Get from zero to "one skill works" in under two minutes.
+Get from zero to “one skill responds correctly” quickly.
 
 ### Prerequisites
 
-- **Cursor** or **Warp** with Claude Code / Oz agents enabled
-- (Optional, for full feature set) MCP servers and CLI tools listed in [MCP Servers Required](#mcp-servers-required) and [CLI Tools](#cli-tools)
+- **Cursor** or **Warp** with Claude Code (or compatible agent runtime).
+- **Hooks + strict runner (optional):** Node.js ≥ 18 for [`examples/orchestrator/run-orchestrator.js`](examples/orchestrator/run-orchestrator.js); register MCPs per [`examples/orchestrator/README.md`](examples/orchestrator/README.md).
+- **Optional (full stack):** MCP servers and CLI tools your skills need — see [`docs/mcp-installation.md`](docs/mcp-installation.md) and the skill you plan to run (e.g. Terraform / Docker linters).
 
 ### Install skills
 
-Copy or clone this repo so that skills live under `~/.claude/skills/`:
+Copy or clone this repo so skills live under `~/.claude/skills/`:
 
 ```bash
 # Option A: clone directly into ~/.claude
@@ -26,546 +29,283 @@ mkdir -p ~/.claude/skills
 cp -r /path/to/this/repo/skills/* ~/.claude/skills/
 ```
 
-Ensure each skill is in its own folder with a `SKILL.md` (e.g. `~/.claude/skills/reviewing-docker/SKILL.md`).
+Each skill is a folder with a `SKILL.md` (e.g. `~/.claude/skills/reviewing-docker/SKILL.md`).
 
 ### Test one skill
 
-In Cursor or Warp, ask:
+In Cursor or Warp, try:
 
-- **"Review this Dockerfile"** (with a Dockerfile open) → should trigger `reviewing-docker`
-- **"Review this Terraform module"** (with `.tf` files in context) → should trigger `reviewing-terraform`
-- **"Create a CircleCI pipeline for a Node app"** → should trigger `creating-circleci`
-- **"Design the spec to apply AIOps to repo X"** or **"Epic and tickets for adding observability"** → should trigger `feature-spec-and-tasks`
+- **“Review this Dockerfile”** (Dockerfile in context) → `reviewing-docker`
+- **“Review this Terraform module”** (`.tf` in context) → `reviewing-terraform`
+- **“Create a CircleCI pipeline for a Node app”** → `creating-circleci`
 
-If the model mentions the skill or follows its instructions, the skill is active. See [Examples](#examples) for reproducible demos.
+Reproducible demos: [`examples/`](examples/).
 
 ---
 
 ## Usage modes
 
-Three ways to use this repo — pick the one that fits your task.
-
 | Mode | Hard gates? | Best for |
 |------|-------------|----------|
-| **Skills only** | No | Single-concern tasks: review, create, design |
-| **Single-agent orchestration** | No | Multi-step work with explicit role separation |
-| **Strict orchestration** | Yes | Production, compliance, or auditable workflows |
+| **Skills only** | No | Single-concern tasks: review, scaffold, design |
+| **Single-agent orchestration** | No | Multi-step work, one chat, explicit roles (`FLOW: single_agent`) |
+| **Strict orchestration** | Yes (when MCPs + runner configured) | Auditable transitions, artifact allowlists (`FLOW: multi_agent` via hook-driven runner) |
 
----
+### Session header fields
 
-### 1. Skills only (no orchestration)
+- **`GOAL`** (required for orchestrated modes): plain-language scope for the unit of work. It can be short or several lines; keep it factual (symptoms, constraints, definition of done).
+- **`ENVIRONMENT`** (optional): declare **read vs write** and which **logical services** agents may use. Values are **never** pasted in the prompt—only **names of environment variables** that you already set in your shell (or that your launcher injects). If you omit `ENVIRONMENT`, runs stay file- and dry-run–oriented unless the model finds creds another way. Full schema, `type` table, and multi-service examples: [`docs/orchestrator/environment-access.md`](docs/orchestrator/environment-access.md).
+- **Shell**: before `run-orchestrator.js` (or any tool that resolves the header), `export` the variables your YAML references (e.g. `$N8N_API_URL`, `$N8N_API_TOKEN`). If a referenced var is missing, the runner logs a warning and agents see **blockers** for missing env in the injected context—nothing fails silently.
+- **`CWD`** (optional, typical in `multi_agent`): working directory for the runner; must match the project you want agents to edit.
 
-Just ask. Skills activate by intent — no setup required.
+**Example (generic `GOAL` + optional n8n access via env var names):**
+
+```
+MODE: ORCHESTRATOR
+FLOW: single_agent
+GOAL: Debug and fix the failing automation workflow: execution loops, wrong state transitions, or bad catalog data. Use execution history and prior notes in memory; deliver a minimal fix with evidence.
+MAX_ITERATIONS: 3
+
+ENVIRONMENT:
+  mode: write
+  credentials:
+    - name: n8n
+      type: api_key
+      vars:
+        url: N8N_API_URL
+        key: N8N_API_TOKEN
+```
+
+Same header works with `FLOW: multi_agent`; add `CWD: /path/to/your/project` when using the background runner.
+
+### 1. Skills only
+
+Ask naturally — no MODE header.
 
 ```
 Review this Dockerfile
 ```
-```
-Create a CircleCI pipeline for a Node app
-```
-```
-Design the Terraform architecture for an API + RDS setup
-```
 
-Skills run inline in the current chat. They may spawn specialized subagents automatically (e.g. `reviewing-terraform` spawns `static-analysis-runner`). No MODE declaration needed.
+Skills may spawn subagents (e.g. `reviewing-terraform` → `static-analysis-runner`).
 
-**When to use:** Single-concern tasks — review, create, design — where you don't need role separation or iteration tracking.
+### 2. Single-agent orchestration (`FLOW: single_agent`)
 
----
+One session rotates roles (ORCHESTRATOR → DEV → QA → CERBERUS, etc.) per the contract. Paste a header at the **start** of your message.
 
-### 2. Single-agent orchestration (multi-role, one chat)
-
-Paste the header at the start of your message. The model handles the rest — role switching, handoffs, and iteration tracking are automatic.
+Minimal header (no live APIs):
 
 ```
 MODE: ORCHESTRATOR
 FLOW: single_agent
-GOAL: add billing module to the API
+GOAL: Ship the agreed API change with tests and a short validation note.
 MAX_ITERATIONS: 3
 ```
 
-**When to use:** Multi-step work where you want explicit role separation (ORCHESTRATOR → DEV → QA → CERBERUS) without running a separate process per role.
+Same header with **optional** `ENVIRONMENT` (only when you need external services). Shape, `mode`, `credentials`, `type`, and `vars` → [`docs/orchestrator/environment-access.md`](docs/orchestrator/environment-access.md); only **env var names** in YAML, values in your shell — see [Session header fields](#session-header-fields).
 
----
+```
+MODE: ORCHESTRATOR
+FLOW: single_agent
+GOAL: Ship the agreed API change with tests and a short validation note.
+MAX_ITERATIONS: 3
 
-### 3. Strict orchestration (autonomous runner + hard gates)
+ENVIRONMENT:
+  mode: write
+  credentials:
+    - name: n8n
+      type: api_key
+      vars:
+        url: N8N_API_URL
+        key: N8N_API_TOKEN
+```
 
-Same header format, different `FLOW`. The hook intercepts the prompt, launches the Node.js runner in the background, and each role runs as a separate `claude` CLI process with disk-backed state and hard gates.
+### 3. Strict orchestration (`FLOW: multi_agent`)
+
+Same idea: **`FLOW: multi_agent`** triggers the hook that launches the Node runner so each role can run as a separate `claude` CLI step with disk-backed state and gates (when MCPs are registered). **`ENVIRONMENT`** is still optional — omit it for file-only work; add it under the same contract as above ([`environment-access.md`](docs/orchestrator/environment-access.md)).
+
+Minimal header:
 
 ```
 MODE: ORCHESTRATOR
 FLOW: multi_agent
-GOAL: Migrate auth middleware to comply with new session policy
+GOAL: Ship the agreed API change with tests and a short validation note.
 MAX_ITERATIONS: 3
 CWD: /path/to/your/project
 ```
 
-Follow progress in a terminal:
+With optional **`ENVIRONMENT`** (example — adjust `credentials` to your services):
+
+```
+MODE: ORCHESTRATOR
+FLOW: multi_agent
+GOAL: Ship the agreed API change with tests and a short validation note.
+MAX_ITERATIONS: 3
+CWD: /path/to/your/project
+
+ENVIRONMENT:
+  mode: write
+  credentials:
+    - name: n8n
+      type: api_key
+      vars:
+        url: N8N_API_URL
+        key: N8N_API_TOKEN
+```
+
+Watch logs:
+
 ```bash
 tail -f ~/.claude/logs/orchestrator.log
 ```
 
-**When to use:** Production work, compliance-sensitive tasks, or any flow where you need an auditable record of every role transition.
+Gate sequence and failure modes: [`docs/orchestrator/strict-mode.md`](docs/orchestrator/strict-mode.md).
 
-Internals, gate sequence, and failure cases: [`docs/orchestrator/strict-mode.md`](docs/orchestrator/strict-mode.md).
+### CLI reference runner (`single_agent` vs `multi_agent`)
+
+Direct invocation (bypasses the chat header); use `--skip-gates` until MCPs are installed. The first argument is the **same text** you would paste in chat: you can pass **only** a `GOAL` sentence, or a **full header** including optional `ENVIRONMENT` / `CWD`. The runner parses `ENVIRONMENT` from that string — see [Session header fields](#session-header-fields) and [`docs/orchestrator/environment-access.md`](docs/orchestrator/environment-access.md). Export the referenced variables before running.
+
+```bash
+# Goal text only (no ENVIRONMENT)
+node ~/.claude/examples/orchestrator/run-orchestrator.js \
+  --cwd /path/to/project \
+  --flow single_agent \
+  --skip-gates \
+  "Ship the agreed API change with tests and a short validation note."
+
+# Full header + ENVIRONMENT (newlines inside the quoted string).
+# Set N8N_API_URL and N8N_API_TOKEN in your shell (or CI secrets) before running — never in the repo.
+node ~/.claude/examples/orchestrator/run-orchestrator.js \
+  --cwd /path/to/project \
+  --flow multi_agent \
+  --skip-gates \
+  "MODE: ORCHESTRATOR
+FLOW: multi_agent
+GOAL: Ship the agreed API change with tests and a short validation note.
+MAX_ITERATIONS: 3
+
+ENVIRONMENT:
+  mode: write
+  credentials:
+    - name: n8n
+      type: api_key
+      vars:
+        url: N8N_API_URL
+        key: N8N_API_TOKEN"
+```
+
+Full flags, degraded mode, and MCP setup: [`examples/orchestrator/README.md`](examples/orchestrator/README.md). Cursor rule (MODE non‑negotiables): [`.cursor/rules/orchestrator.mdc`](.cursor/rules/orchestrator.mdc) — install elsewhere with `./scripts/install-orchestrator-rule.sh /path/to/repo`.
+
+### Anti-loop (reminder)
+
+- QA returns to DEV only for **`blocker`** findings; other severities go to backlog.
+- If `iteration >= max_iterations`, escalate to **ORCHESTRATOR**, not another blind DEV round.
 
 ---
 
-## How it works
+## The problem
+
+- **Agents without control** drift: they mix implementation, self-review, and “ship it” in one turn. Quality collapses; nobody knows who “signed off” on what.
+- **Prompts alone do not scale:** they are suggestions, not invariants. Production needs *gates*, not vibes.
+- **Multi-agent is expensive:** more boundaries mean more tokens, more latency, and more failure modes—so you should only pay for separation when it buys *predictability* or *auditability*.
+- **Outputs without structure are not evidence:** “the model said it worked” is not a validation run.
+
+**Operating principle:** *If I do not understand it, I do not ship it.* This repo encodes that as contracts, traces, and explicit non-goals—not as clever wording.
+
+---
+
+## Core concepts (the mental model)
+
+| Concept | What it is in this repo |
+|--------|-------------------------|
+| **Agents (roles)** | Fixed **MODE**s (`ORCHESTRATOR`, `OWNER`, `ARCHITECT`, `DEV`, `QA`, `CERBERUS`) with explicit **FORBID** rules so one hat cannot substitute for another. See [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md). |
+| **Contracts** | **Structured handoffs** (YAML schema) plus **per-role output contracts** in strict execution: minimum content and shape before a step counts as done. |
+| **Gates** | **Hard checks** before a MODE advance: goal alignment, transition validation, approved artifacts vs `files_modified`. Implemented via the **`orchestrator-state`** MCP and an append-only **hash-chained** event log—not the chat. |
+| **Orchestration** | **Single-agent** (`FLOW: single_agent`): one session, disciplined role switching. **Multi-agent** (`FLOW: multi_agent`): separate processes per role via the reference runner and hooks. Same protocol; different cost and isolation trade-offs. |
+| **Context efficiency** | Deliberate limits on what crosses step boundaries (e.g. `AI_TEAM_MAX_CONTEXT_CHARS`), **context_stats** (files read / modified counts) attached to validation, and a **`context-budget`** skill for auditing context bloat. |
+| **Traceability** | **JSONL execution traces** under `~/.claude/metrics/traces/` (session start, agent lifecycle, contract failures, gate results, `context_stats`, session end). Hooks aggregate **tokens, cost, and MODE** into session summaries on `Stop`. |
+
+Skills and hooks still exist—they are **adapters and sensors** around this core, not the definition of the system.
+
+---
+
+## What makes this different
+
+- **Not a LangChain clone, not CrewAI, not “agents because agents.”** There is no generic DAG-of-tools narrative. The unit of design is **governed execution**: roles, handoffs, and provable transitions when gates are on.
+- **Most agent stacks optimize for capability.** This stack optimizes for **control, cost, and predictability**: local planning where it makes sense (Ollama), strict output validation (`validateOutput` in the reference runner), and optional **degraded mode** that is **loud**, not silent.
+- **Authority is explicit:** when strict orchestration is enabled, **disk + MCP** define what happened; the transcript is commentary.
+
+Reference implementation and gate semantics: [`examples/orchestrator/README.md`](examples/orchestrator/README.md). State store layout and tools: [`mcp-servers/orchestrator-state/README.md`](mcp-servers/orchestrator-state/README.md).
+
+---
+
+## Experiments and metrics (credibility surface)
+
+This repository is set up to **measure** flows, not only run them:
+
+- **`FLOW`** is a first-class label (`single_agent` | `multi_agent`) for comparing runs under the same goal.
+- **Hooks** (`session-state`, `flow-metrics`, `agent-metrics`) record tokens, cost, MODE/agent activity, handoffs, and goal-alignment summaries across a session.
+- **Traces** record per-step **contract failures**, **gate pass/fail**, **`qa_degraded`** flags, and **context_stats** for post-hoc analysis.
+
+**What we document honestly:** order-of-magnitude timings and trade-offs (e.g. faster iteration with gates off vs stronger guarantees with gates on) live in [`examples/orchestrator/README.md`](examples/orchestrator/README.md). **We do not publish fake benchmark tables here**—your hardware, models, and goals dominate numbers. The machinery is there so *you* can run comparable experiments and keep the data.
+
+---
+
+## Architecture (compressed)
+
+The diagram below is **intentionally minimal**: roles → handoffs → gates → authoritative disk → execution and telemetry. For the **full internal wiring** (skills, each hook, Ollama/OpenMemory, external MCPs, legend), see [`docs/orchestrator/system-architecture-diagram.md`](docs/orchestrator/system-architecture-diagram.md).
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"primaryColor": "#1e1e2e", "primaryTextColor": "#cdd6f4", "primaryBorderColor": "#89b4fa", "lineColor": "#89b4fa", "secondaryColor": "#181825", "tertiaryColor": "#313244", "edgeLabelBackground": "#313244", "clusterBkg": "#181825", "clusterBorder": "#45475a", "titleColor": "#cdd6f4", "fontFamily": "monospace"}}}%%
 flowchart LR
-
-    %% ── Input ────────────────────────────────────────────────────────────
-    U([🧑 User Prompt]):::user
-
-    %% ── Skills ───────────────────────────────────────────────────────────
-    subgraph Skills ["⚡ Skills  •  skills/"]
-        direction TB
-        SK[Skill\ntriggered by intent]:::skill
-        SA[Specialized Subagent]:::skill
-        SK -.->|spawns| SA
-    end
-
-    U ==> SK
-
-    %% ── Hooks (lifecycle, vertical strip on the left) ────────────────────
-    subgraph Hooks ["🪝 Hooks  •  scripts/hooks/"]
-        direction TB
-        H1[mem0-search\nUserPromptSubmit]:::hook
-        H2[session-state · agent-metrics\nPostToolUse]:::hook
-        H3[flow-metrics · mem0-stop\nStop]:::hook
-    end
-
-    U -.->|lifecycle| H1
-
-    %% ── Orchestrator ─────────────────────────────────────────────────────
-    subgraph Orch ["🎭 Orchestrator Protocol"]
-        direction TB
-        ORC[ORCHESTRATOR\ndeclares MODE + GOAL]:::orch
-        DEV[DEV\nImplement]:::mode
-        QA[QA\nBreak it]:::mode
-        CER[CERBERUS\nAdversarial review]:::mode
-        ORC ==> DEV
-        DEV ==>|handoff YAML| QA
-        QA ==>|handoff YAML| CER
-        QA -.->|blocker only| DEV
-        CER -.->|another round| DEV
-    end
-
-    SK ==> ORC
-    SA -.->|uses| Ext
-
-    %% ── compact-handoff ──────────────────────────────────────────────────
-    CH["🔌 compact-handoff\ncompact_handoff → YAML\nvalidate_goal_alignment"]:::mcp
-
-    DEV -->|full output| CH
-    QA  -->|full output| CH
-    CER -->|full output| CH
-    CH  -->|handoff YAML| ORC
-
-    %% ── Task boundary (state store + gates) ──────────────────────────────
-    subgraph Task ["📋 Task Boundary  •  task_id"]
-        direction TB
-
-        subgraph Gates ["🔌 orchestrator-state MCP"]
-            direction TB
-            GT_R[register_task\nrecord_artifact]:::mcp
-            GT_V{"validate_transition\nvalidate_goal_alignment"}:::gate
-            GT_A[advance_mode]:::mcp
-            GT_R --> GT_V
-            GT_V -->|"🟩 PASS"| GT_A
-            GT_V -->|"🟥 BLOCK"| ORC
-        end
-
-        subgraph Store ["💾 Disk  •  ~/.claude/.state/orchestrator/"]
-            direction TB
-            F1["envelope.json\ngoal · mode · artifacts"]:::store
-            F2["events.jsonl\nappend-only · hash chain"]:::store
-        end
-
-        GT_A --> F1
-        GT_A --> F2
-    end
-
-    ORC -.->|register / advance| GT_R
-    ORC -.->|validate| GT_V
-    GT_A -.->|current_mode| ORC
-    ORC -.->|PostToolUse| H2
-    ORC -.->|Stop| H3
-
-    %% ── Ollama ───────────────────────────────────────────────────────────
-    subgraph OLLAMA ["🦙 Ollama  (local LLM)"]
-        OL[qwen2.5-coder:7b\nnomic-embed-text]:::ollama
-        MEM[(OpenMemory\nQdrant)]:::ollama
-        OL -->|embeddings| MEM
-    end
-
-    CH  -.->|alignment check| OL
-    GT_V -.->|alignment check| OL
-    H1  ---  MEM
-
-    %% ── External MCPs ────────────────────────────────────────────────────
-    subgraph Ext ["🌐 External MCPs  (optional)"]
-        direction TB
-        E1[terraform-mcp-server]:::ext
-        E2[aws-diagram-mcp-server]:::ext
-        E3[n8n-mcp · drawio]:::ext
-    end
-
-    %% ── Legend ───────────────────────────────────────────────────────────
-    subgraph Legend ["Legend"]
-        direction LR
-        LD1[ ]:::spacer
-        LD2[ ]:::spacer
-        LD1 ==>|data flow| LD2
-        LD3[ ]:::spacer
-        LD4[ ]:::spacer
-        LD3 -.->|control flow| LD4
-    end
-
-    classDef user    fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e,font-weight:bold
-    classDef skill   fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e
-    classDef orch    fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,font-weight:bold
-    classDef mode    fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e
-    classDef mcp     fill:#fab387,stroke:#fab387,color:#1e1e2e
-    classDef gate    fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e,font-weight:bold
-    classDef ollama  fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e
-    classDef hook    fill:#94e2d5,stroke:#94e2d5,color:#1e1e2e
-    classDef ext     fill:#45475a,stroke:#6c7086,color:#cdd6f4
-    classDef store   fill:#313244,stroke:#585b70,color:#cdd6f4
-    classDef spacer  fill:none,stroke:none,color:transparent
+    U[User / session] --> P[MODE protocol + YAML handoffs]
+    P --> G[Gates: alignment + transition + advance]
+    G --> D[(Disk: envelope + events.jsonl)]
+    P --> X[Runner + validateOutput + traces + hooks]
+    G -.->|same task| X
 ```
 
----
-
-## 🧠 Orchestrator (multi-role protocol)
-
-The orchestrator enforces **MODE-based role separation** to prevent a single agent from mixing implementation, review, and critique in the same response — the main source of quality degradation in single-agent setups.
-
-### MODEs
-
-| MODE | Role |
-|------|------|
-| `ORCHESTRATOR` | Decomposes goals, assigns next MODE, enforces handoffs |
-| `OWNER` | Scope, priorities, definition of done |
-| `ARCHITECT` | Design, trade-offs, diagrams — no code |
-| `DEV` | Implementation only — no self-review |
-| `QA` | Break it, edge cases, evidence — no production code |
-| `CERBERUS` | Adversarial last-mile review after DEV+QA — no fixes in same turn |
-
-### Running the orchestrator
-
-Via Claude Code header — triggers the runner automatically via `UserPromptSubmit` hook:
-
-**single_agent** (one Claude session handles all roles):
-```
-MODE: ORCHESTRATOR
-FLOW: single_agent
-GOAL: Audit and fix the order processing workflow — executions are failing silently.
-MAX_ITERATIONS: 3
-
-ENVIRONMENT:
-  mode: write
-  credentials:
-    - name: n8n
-      type: api_key
-      vars:
-        url: N8N_API_URL
-        key: N8N_API_TOKEN
-```
-
-**multi_agent** (each role runs in a separate subagent):
-```
-MODE: ORCHESTRATOR
-FLOW: multi_agent
-GOAL: Audit and fix the order processing workflow — executions are failing silently.
-MAX_ITERATIONS: 3
-
-ENVIRONMENT:
-  mode: write
-  credentials:
-    - name: n8n
-      type: api_key
-      vars:
-        url: N8N_API_URL
-        key: N8N_API_TOKEN
-```
-
-Or directly from the CLI:
-
-```bash
-N8N_API_URL=http://localhost:5678 N8N_API_TOKEN=$N8N_API_TOKEN \
-node ~/.claude/examples/orchestrator/run-orchestrator.js \
-  --cwd /path/to/project \
-  --skip-gates \
-  "Audit and fix the order processing workflow — executions are failing silently.
-
-ENVIRONMENT:
-  mode: write
-  credentials:
-    - name: n8n
-      type: api_key
-      vars:
-        url: N8N_API_URL
-        key: N8N_API_TOKEN
-"
-```
-
-> Credentials are resolved from environment variables — values are never written to disk or printed in output.
-> Full option reference: [`examples/orchestrator/README.md`](examples/orchestrator/README.md)
-
-### Anti-loop
-
-- QA only returns to DEV with `blocker` findings. `improvement` and `nice-to-have` go to backlog.
-- If `iteration >= max_iterations` → escalate to ORCHESTRATOR, not another DEV round.
-
-### Paths (repo-relative, clone anywhere)
-
-| What | Path |
-|------|------|
-| Agent contract + skills | [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md) |
-| MCP / subagent examples | [`docs/orchestrator/mcp-task-examples.md`](docs/orchestrator/mcp-task-examples.md) |
-| Environment access + credentials | [`docs/orchestrator/environment-access.md`](docs/orchestrator/environment-access.md) |
-| Cursor rule | [`.cursor/rules/orchestrator.mdc`](.cursor/rules/orchestrator.mdc) |
-| Paths & conventions | [`docs/orchestrator/PATHS.md`](docs/orchestrator/PATHS.md) |
-
-Install rule into another repo: `./scripts/install-orchestrator-rule.sh /path/to/repo`.
+Strict-mode operations (register task, artifact allowlists, gate order): [`docs/orchestrator/strict-mode.md`](docs/orchestrator/strict-mode.md).
 
 ---
 
-## 🪝 Hooks
+## Non-goals
 
-Claude Code hooks that run automatically during sessions:
-
-| Hook | Event | What it does |
-|------|-------|--------------|
-| `mem0-search.py` | `UserPromptSubmit` | Semantic memory retrieval from OpenMemory. When `FLOW: single_agent` or `multi_agent` header detected, injects MODE tracking instruction so the model declares its active role on every response |
-| `multi-agent-orchestrator.py` | `UserPromptSubmit` | Detects `FLOW: multi_agent` header, launches `run-orchestrator.js` in background, writes active agent to `~/.claude/metrics/active-agent.json`, blocks prompt (`exit 2`) |
-| `session-state.py` | `PostToolUse` | Live session state: tokens, cost, current MODE (single-agent) or active agent (multi-agent), subagent calls |
-| `agent-metrics.py` | `PostToolUse` (Agent) | Per-subagent token usage, duration, tool count |
-| `mem0-stop.sh` | `Stop` | Reminds to save memories to OpenMemory |
-| `flow-metrics.py` | `Stop` | Session summary: tokens/cost per MODE, DEV→QA cycles, handoff count, goal alignment, model inference time (AFK excluded) |
-
-
-Configure hooks in `settings.json` (see `settings.json` at repo root — copy and adapt, do not commit your local version).
+- **Not** trying to fully automate software engineering end-to-end without human ownership.
+- **Not** replacing human judgment on risk, compliance, or release decisions—only making the *machine* side more legible.
+- **Not** optimizing for clever prompts or “vibes-based” reliability.
+- **Not** claiming session isolation from metadata alone—see **§ Authoritative state** in the contract for the honest boundary (`session_id` is audit metadata until a dedicated runner enforces isolation).
 
 ---
 
-## Skills
+## Repository map (after you understand the thesis)
 
-### Terraform
+| Area | Purpose |
+|------|---------|
+| [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md) | Roles, handoff YAML, state-store authority, output contracts. |
+| [`docs/orchestrator/system-architecture-diagram.md`](docs/orchestrator/system-architecture-diagram.md) | Full operational Mermaid (skills, hooks, MCPs, disk, Ollama). |
+| [`examples/orchestrator/`](examples/orchestrator/) | Node reference runner: planning, `validateOutput`, MCP gates, traces. |
+| [`mcp-servers/orchestrator-state/`](mcp-servers/orchestrator-state/) | Disk-backed task store + gate MCP (pytest included). |
+| [`mcp-servers/compact-handoff/`](mcp-servers/compact-handoff/) | Handoff compaction + alignment helpers (local). |
+| [`scripts/hooks/`](scripts/hooks/) | Claude Code lifecycle: launch multi-agent runner, token/cost/MODE tracking, session summaries. |
+| [`skills/`](skills/) | Task-scoped playbooks (Terraform, Docker, CI, n8n, observability, specs, …). |
+| [`agents/`](agents/) | Specialized subagent definitions consumed by skills and workflows. |
 
-| Skill | Trigger | What it does |
-|---|---|---|
-| `designing-terraform` | "design", "architect", "plan", "evaluate infrastructure" | Explores AWS architecture options, compares trade-offs, generates diagrams and documentation (design docs, ADRs, component lists). No code — only decisions and docs. |
-| `creating-terraform` | "create", "scaffold", "generate terraform component" | Scaffolds directory structure, generates HCL using MCP provider docs, validates with `terraform fmt` + `validate`. Follows team conventions (S3 backend, default_tags, terrarium modules). |
-| `reviewing-terraform` | "review", "audit", "check terraform" | Runs tflint + trivy, validates structure/naming, checks resources against MCP provider docs. Three-phase review: static analysis, structure, provider validation. |
-
-**Workflow**: `designing-terraform` → `creating-terraform` → `reviewing-terraform`
-
-### Docker
-
-| Skill | Trigger | What it does |
-|---|---|---|
-| `reviewing-docker` | "review", "check", "audit dockerfile" | Runs hadolint (linting) + docker build --check (syntax) + trivy (security/vulnerabilities). Reviews code quality and security best practices. |
-
-### Observability
-
-| Skill | Trigger | What it does |
-|---|---|---|
-| `configuring-observability` | "configure otel", "create grafana dashboard", "observability setup" | Creates OTEL collector configs and Grafana dashboards. Cloud-agnostic (Prometheus, CloudWatch, Datadog, Loki, Tempo). Cross-signal validation between collector and dashboards. |
-
-### n8n
-
-| Skill | Trigger | What it does |
-|---|---|---|
-| `managing-n8n` | "create", "review", "optimize", "document n8n workflow" | Creates workflow JSON from requirements, validates structure/connections/error handling, optimizes performance and patterns, generates documentation and flow diagrams. Parallel agents for review. |
-
-### CI/CD
-
-| Skill | Trigger | What it does |
-|---|---|---|
-| `creating-circleci` | "create", "scaffold circleci pipeline" | Gathers requirements interactively and generates CircleCI 2.1 configs from templates. Separate app and infra workflows when needed. |
-| `reviewing-circleci` | "review", "check circleci config" | Static analysis of `.circleci/config.yml` — structure, security, optimization, best practices. No API access needed. |
-
-### Feature specs (Kiro-style)
-
-| Skill | Trigger | What it does |
-|---|---|---|
-| `feature-spec-and-tasks` | "design spec for initiative", "apply X to repo", "epic and tickets", "plan with tasks" | One spec doc with requirements (EARS), design, and discrete tasks (tickets) with prerequisites and steps. |
-
-**Workflow**: spec-writer → single doc (requirements + design + tasks + before executing).
-
-### Diagrams
-
-| Skill | Trigger | What it does |
-|---|---|---|
-| `creating-diagrams` | "architecture diagram", "flow diagram", "diagram with AWS icons" | Creates diagrams: **Mermaid** (embedded in Markdown) or **PNG with real icons** via `awslabs.aws-diagram-mcp-server`. |
-
-### Orchestration
-
-| Skill | Trigger | What it does |
-|---|---|---|
-| `contracts-with-llm` | "LLM contract", "structured output", "API contract for AI" | Defines structured contracts between agents or LLM calls. |
-| `audit-patterns` | "audit patterns", "detect patterns in history" | Detects recurring patterns across sessions for process improvement. |
-| `git-best-practices` | "git", "branch", "PR", "commit" | Branch naming, PR structure, commit conventions. |
-| `prepare-context-clear` | "prepare context", "clear context" | Compresses and structures context before starting a long session. |
-| `proposal-*` | "proposal", "refine proposal", "review proposal" | Proposal drafting, refinement, review, and synthesis. |
+Hook wiring: copy [`settings.json.example`](settings.json.example) to your local `settings.json` and adapt paths (do not commit secrets).
 
 ---
 
-## Shared Agents
+## Safety and scope
 
-| Agent | Activates when | Used by |
-|---|---|---|
-| `network-validator` | VPCs, subnets, peering, TGW, DNS | designing/creating/reviewing-terraform |
-| `compliance-checker` | `.compliance.yaml` exists or framework declared | terraform, docker, observability, n8n |
-| `infra-documenter` | Non-obvious decisions needing persistent docs | designing-terraform (always), others |
+- **Read vs write:** skills that generate files do not imply `terraform apply`, production deploys, or unprompted pushes—human action stays in the loop.
+- **Secrets:** never paste credentials into prompts; use environment variables or your platform’s secret store.
 
 ---
 
-## MCP Servers Required
+## License and contributing
 
-| MCP Server | Used by | Purpose |
-|------------|---------|---------|
-| `terraform-mcp-server` (HashiCorp) | creating/reviewing/designing-terraform | Resource/module docs lookup |
-| `awslabs.terraform-mcp-server` | creating/reviewing/designing-terraform, compliance-checker | AWS best practices, provider docs, checkov |
-| `awslabs.aws-diagram-mcp-server` | designing-terraform, infra-documenter, creating-diagrams | Architecture PNG with real icons |
-| `drawio` | creating-diagrams, infra-documenter | Draw.io editor (optional) |
-| `n8n-mcp` | managing-n8n | Node schemas, validation, workflow operations |
-| `compact-handoff` (this repo) | ORCHESTRATOR, all MODEs | Local handoff compaction + goal validation via Ollama |
-| `orchestrator-state` (this repo) | ORCHESTRATOR, strict L2 flow | Authoritative disk store, append-only events, gates: `advance_mode`, `validate_transition`, `record_artifact` |
+- [MIT](LICENSE)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 
-## CLI Tools
-
-| Tool | Used by | Install |
-|---|---|---|
-| `hadolint` | reviewing-docker | [github.com/hadolint/hadolint](https://github.com/hadolint/hadolint/releases) |
-| `trivy` | reviewing-docker, reviewing-terraform | [aquasecurity/trivy](https://github.com/aquasecurity/trivy) |
-| `tflint` | reviewing-terraform | [terraform-linters/tflint](https://github.com/terraform-linters/tflint) |
-| `terraform` | creating-terraform, reviewing-terraform | [developer.hashicorp.com/terraform](https://developer.hashicorp.com/terraform/install) |
-| `ollama` | compact-handoff MCP, orchestrator-state `validate_goal_alignment`, mem0-search hook | [ollama.com](https://ollama.com) — pull `qwen2.5-coder:7b` and `nomic-embed-text` |
-| `uv` | MCP servers in `mcp-servers/*` | [docs.astral.sh/uv](https://docs.astral.sh/uv) |
-
----
-
-## Structure
-
-```
-~/.claude/                           # clone this repo here
-├── agents/                          # Subagent definitions for Claude Code
-├── docs/
-│   ├── orchestrator/                 # Orchestrator contract and examples
-│   │   ├── agent-contract.md        # Full MODE protocol, handoff schema, anti-loop rules
-│   │   ├── mcp-task-examples.md     # MCP/subagent usage examples
-│   │   ├── environment-access.md    # Agent credential contract, read/write mode, per-service examples
-│   │   ├── CURSOR_RULE_SETUP.md     # How to install the Cursor rule in other repos
-│   │   └── PATHS.md                 # Path conventions for multi-repo setups
-│   ├── drawio-mcp-setup.md          # Draw.io MCP server setup guide
-│   └── mcp-installation.md          # General MCP installation guide
-├── examples/                        # Reproducible demos (input + expected output)
-├── mcp-servers/
-│   ├── compact-handoff/             # Local MCP: handoff compaction + goal validation
-│   │   ├── server.py                # compact_handoff, classify_finding, validate_goal_alignment
-│   │   └── pyproject.toml
-│   └── orchestrator-state/          # L2: authoritative store + transition gates
-│       ├── server.py                # register_task, advance_mode, validate_*, record_artifact, …
-│       ├── tests/                   # pytest (no Ollama; mocked alignment)
-│       ├── README.md
-│       └── pyproject.toml
-├── scripts/
-│   ├── hooks/                       # Claude Code hooks
-│   │   ├── mem0-search.py           # UserPromptSubmit: memory retrieval + MODE tracking instruction
-│   │   ├── multi-agent-orchestrator.py  # UserPromptSubmit: launch runner on FLOW: multi_agent
-│   │   ├── session-state.py         # PostToolUse: live tokens/cost/MODE/active-agent tracking
-│   │   ├── agent-metrics.py         # PostToolUse(Agent): per-subagent metrics
-│   │   ├── mem0-stop.sh             # Stop: reminder to save memories
-│   │   └── flow-metrics.py          # Stop: session summary + benchmark data
-│   ├── install-orchestrator-rule.sh
-│   ├── test-orchestrator-state.sh   # pytest for orchestrator-state MCP
-│   └── openmemory-start.sh          # Start local OpenMemory (Qdrant + Ollama)
-├── skills/                          # Skill definitions (one folder per skill)
-│   ├── audit-patterns/
-│   ├── configuring-observability/
-│   ├── context-budget/
-│   ├── contracts-with-llm/
-│   ├── creating-circleci/
-│   ├── creating-diagrams/
-│   ├── creating-terraform/
-│   ├── designing-terraform/
-│   ├── feature-spec-and-tasks/
-│   ├── git-best-practices/
-│   ├── managing-n8n/
-│   ├── prepare-context-clear/
-│   ├── proposal-refine/
-│   ├── proposal-review/
-│   ├── proposal-synthesize/
-│   ├── reviewing-circleci/
-│   ├── reviewing-docker/
-│   └── reviewing-terraform/
-├── .cursor/
-│   └── rules/
-│       └── orchestrator.mdc  # Cursor rule — MODE non-negotiables
-├── .gitignore
-├── settings.json.example            # Hook config template — copy to settings.json and adapt
-└── README.md
-```
-
----
-
-## Examples
-
-The [`examples/`](examples/) folder contains **reproducible demos** with sample input and expected behavior:
-
-| Demo | Input | Expected outcome |
-|------|--------|------------------|
-| [Review Terraform module](examples/review-terraform-module.md) | Sample `.tf` or module path | tflint/trivy + structure + provider validation report |
-| [Review Dockerfile](examples/review-dockerfile.md) | Sample Dockerfile | hadolint + build check + trivy findings + best-practice notes |
-| [Create CircleCI pipeline](examples/create-circleci-pipeline.md) | App type + requirements | Generated `.circleci/config.yml` |
-
-### Orchestrator example
-
-[`examples/orchestrator/`](examples/orchestrator/) — a full autonomous orchestrator implementation that follows the MODE protocol and uses `orchestrator-state` for hard gates.
-
-```bash
-node examples/orchestrator/run-orchestrator.js \
-  --cwd /path/to/your/project \
-  "Create a REST API for user management with pagination"
-```
-
-Agents: `owner` → `architect` → `dev-*` → `qa` → `cerberus`. Every transition gated by `orchestrator-state` MCP. Bring your own orchestrator instead if you prefer — the contract and MCPs work independently of this example.
-
----
-
-## Safety & scope
-
-- **Read-only vs write**: Most skills are read-heavy. Skills that write (e.g. `creating-terraform`) generate files — they do not run `terraform apply` or deploy without your explicit action.
-- **No production executions**: Never ask the model to run `apply`, `destroy`, or production deploys without a `plan` step first.
-- **Sensitive data**: Never paste API keys, tokens, or passwords into chats. Use env vars or secret managers.
-- **settings.json**: Contains local hook paths. Add to `.gitignore` — the repo provides it as a reference only.
-
----
-
-## CI
-
-| Workflow | Purpose |
-|----------|---------|
-| Markdown lint | Consistent formatting |
-| Link check | Ensures URLs do not 404 |
-
-See [`.github/workflows/`](.github/workflows/).
-
----
-
-## License & contributing
-
-- **License**: [MIT](LICENSE)
-- **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md)
-
----
-
-*Because even AI needs its minions* 🦹‍♂️
+*Because even AI needs governed execution—not just louder instructions.*
