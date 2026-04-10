@@ -43,7 +43,7 @@ alwaysApply: false
     mcp__orchestrator-state__close_task(task_id="<slug>", reason="done")
     ```
 12. **`session_id`** on the envelope is optional audit metadata only until a **dedicated runner** enforces real session isolation — do not treat it as proof of isolation by itself.
-13. **Context efficiency (all roles):** Before reading any file, declare `files_read: [list]`. Read only those files, only relevant sections. ARCHITECT and DEV: `validateOutput()` rejects output missing `files_read[]`.
+13. **Context efficiency (all roles):** Before reading any file, declare `files_read: [list]` — must not be empty. Read only those files, only relevant sections. **Gate (ARCHITECT + DEV):** `validateOutput()` rejects if `files_read[]` is missing or empty, or if `files_modified` contains a path not in `files_read`. Enforces consistency, not completeness.
 
 ## Quick ALLOW/FORBID
 

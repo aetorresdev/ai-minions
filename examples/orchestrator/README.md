@@ -378,6 +378,16 @@ For non-critical roles (dev-*): the step is skipped, a `contract_fail` trace eve
 
 For **critical roles** (architect, qa, cerberus): the step loop `break`s — no further steps in the iteration run. The `contract_fail` trace event includes `critical: true`.
 
+**Context gate failures** (ARCHITECT and DEV):
+
+```
+10:27:33 AM [architect] 🟥 Output contract failed: architect: output must declare files_read[] before reading artifacts
+10:27:33 AM [dev-backend] 🟥 Output contract failed: dev-backend: files_read[] must not be empty — declare at least one file
+10:27:33 AM [dev-backend] 🟥 Output contract failed: dev-backend: files_modified contains paths not declared in files_read: src/config.js
+```
+
+The gate enforces **consistency** — every path modified must have been declared in `files_read`. It does not enforce completeness (whether all relevant files were declared). See [agent-contract.md](../../docs/orchestrator/agent-contract.md) for the known limitation.
+
 ```
 10:27:33 AM [qa] 🟥 Output contract failed: qa: output must classify at least one finding as blocker | improvement | nice-to-have
 10:27:33 AM [qa] 🟥 Critical role contract fail — stopping iteration (no QA/CERBERUS/ARCHITECT degradation allowed)

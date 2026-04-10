@@ -100,7 +100,14 @@ files_read: [only what you need]
 ```
 Then read only those files, only the relevant sections. Summarize what you read — do not reproduce entire files in output. One targeted read per artifact; do not load the same file multiple times.
 
-**Gate:** For ARCHITECT and DEV roles, `validateOutput()` rejects output that does not include `files_read[]`. This is enforced in both single-agent and multi-agent flows.
+**Gate (enforced by `validateOutput()` in both single-agent and multi-agent flows):**
+- `files_read[]` missing → rejected
+- `files_read: []` empty → rejected
+- DEV strict mode: every path in `files_modified` must appear in `files_read` — if not → rejected
+
+**Known limitation:** the gate enforces *consistency* (what you touch, you declared) — not *completeness* (whether you declared enough). An agent that reads `service.js` but misses `config.js` as a dependency will pass the gate. Completeness requires semantic knowledge of the codebase.
+
+**Trade-off:** ARCHITECT is now a critical point in the flow. If ARCHITECT declares an incomplete `files_read`, DEV cannot freely explore to compensate — the gate will block it. This is intentional: incomplete exploration by ARCHITECT is a visible, traceable failure rather than a silent cost overrun.
 
 Roles **PM**, **Software/Infra Architect**, **Backend/Frontend/DevOps** map to the above MODEs when executing (e.g. Infra Architect → **ARCHITECT** infra; DevOps implementing → **DEV**).
 

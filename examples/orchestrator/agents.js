@@ -558,7 +558,9 @@ function buildEnvContext(agentId, sessionEnv) {
 const FINDING_RE    = /\b(blocker|improvement|nice-to-have)\b/i;
 const FILE_RE       = /(?:files?_modified|modified|changed|updated|created|edited)\s*[:\-]?\s*\S|[`'"]?\/[\w./-]+\.\w{1,6}[`'"]?/i;
 const VALIDATION_RE = /\b(validation_run|ran|executed|tested|passed|failed|lint|pytest|npm\s+test|terraform\s+validate|node\s+|output:)\b/i;
-const FILES_READ_RE = /\bfiles?_read\s*[:\-]?\s*(?:[\[`'"\w]|\n\s*-)/i;
+const FILES_READ_RE      = /\bfiles?_read\s*[:\-]?\s*(?:[\[`'"\w]|\n\s*-)/i;
+const FILES_READ_EMPTY_RE = /\bfiles?_read\s*[:\-]?\s*(?:\[\s*\]|:\s*\[\s*\]|\s*\n(?!\s*-))/i;
+const FILES_MODIFIED_RE  = /(?:files?_modified|modified)\s*[:\-]\s*\n((?:\s*-\s*\S[^\n]*\n?)+)/i;
 
 /**
  * Validate agent output against its role contract.
@@ -598,16 +600,30 @@ function validateOutput(agentId, output, { phase } = {}) {
   if (agentId === "architect") {
     if (!FILES_READ_RE.test(output))
       return { valid: false, reason: `${agentId}: output must declare files_read[] before reading artifacts` };
+    if (FILES_READ_EMPTY_RE.test(output))
+      return { valid: false, reason: `${agentId}: files_read[] must not be empty — declare at least one file` };
     return { valid: true, reason: "" };
   }
 
   if (agentId.startsWith("dev-")) {
     if (!FILES_READ_RE.test(output))
       return { valid: false, reason: `${agentId}: output must declare files_read[] before reading artifacts` };
+    if (FILES_READ_EMPTY_RE.test(output))
+      return { valid: false, reason: `${agentId}: files_read[] must not be empty — declare at least one file` };
     if (!FILE_RE.test(output))
       return { valid: false, reason: `${agentId}: output must mention at least one file modified (files_modified, path, or explicit change reference)` };
     if (!VALIDATION_RE.test(output))
       return { valid: false, reason: `${agentId}: output must include at least one validation run (lint, test, terraform validate, etc.)` };
+    // Strict mode: every file in files_modified must appear in files_read
+    const modifiedMatch = output.match(FILES_MODIFIED_RE);
+    if (modifiedMatch) {
+      const modified = modifiedMatch[1].split("\n")
+        .map(l => l.replace(/^\s*-\s*/, "").trim()).filter(Boolean);
+      const readBlock = output.match(/\bfiles?_read\s*[:\-][^\n]*\n?([\s\S]*?)(?=\n\S|\n\n|$)/i)?.[0] || "";
+      const unread = modified.filter(f => !readBlock.includes(f));
+      if (unread.length > 0)
+        return { valid: false, reason: `${agentId}: files_modified contains paths not declared in files_read: ${unread.join(", ")}` };
+    }
     return { valid: true, reason: "" };
   }
 

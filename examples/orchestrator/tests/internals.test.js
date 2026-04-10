@@ -117,5 +117,57 @@ describe("validateOutput — context gating (files_read)", () => {
     assert.equal(r.valid, false);
     assert.match(r.reason, /files_read/);
   });
+
+  it("rejects architect output with empty files_read []", () => {
+    const r = validateOutput("architect", "files_read: []\nDesign: use module X.");
+    assert.equal(r.valid, false);
+    assert.match(r.reason, /empty/);
+  });
+
+  it("rejects dev-backend output with empty files_read []", () => {
+    const r = validateOutput("dev-backend", "files_read: []\nmodified: /src/app.js\nvalidation_run: npm test → pass");
+    assert.equal(r.valid, false);
+    assert.match(r.reason, /empty/);
+  });
+});
+
+describe("validateOutput — files_read vs files_modified (strict mode)", () => {
+  it("accepts dev-backend when files_modified is subset of files_read", () => {
+    const output = [
+      "files_read:",
+      "  - src/app.js",
+      "  - src/utils.js",
+      "files_modified:",
+      "  - src/app.js",
+      "validation_run: npm test → pass",
+    ].join("\n");
+    const r = validateOutput("dev-backend", output);
+    assert.equal(r.valid, true);
+  });
+
+  it("rejects dev-backend when files_modified contains path not in files_read", () => {
+    const output = [
+      "files_read:",
+      "  - src/app.js",
+      "files_modified:",
+      "  - src/app.js",
+      "  - src/config.js",
+      "validation_run: npm test → pass",
+    ].join("\n");
+    const r = validateOutput("dev-backend", output);
+    assert.equal(r.valid, false);
+    assert.match(r.reason, /files_modified.*files_read|files_read.*files_modified/i);
+  });
+
+  it("accepts dev-devops when no files_modified block present", () => {
+    const output = [
+      "files_read:",
+      "  - main.tf",
+      "modified: main.tf",
+      "validation_run: terraform validate → pass",
+    ].join("\n");
+    const r = validateOutput("dev-devops", output);
+    assert.equal(r.valid, true);
+  });
 });
 
