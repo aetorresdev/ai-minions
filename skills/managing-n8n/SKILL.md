@@ -163,6 +163,7 @@ If API is available (`N8N_API_URL` + `N8N_API_TOKEN` or `N8N_API_KEY` set), the 
 | Deactivate | `POST /workflows/<id>/deactivate` | Before updating a live workflow |
 | Check executions | `GET /executions?workflowId=<id>` | To diagnose failures |
 | List credentials | `GET /credentials` | To verify credential names during build |
+| Verify credentials post-update | `GET /workflows/<id>` after `PUT` | Check nodes still have credentials set |
 
 See `references/api_reference.md` for full endpoint documentation.
 
@@ -394,3 +395,4 @@ n8n-workflows/
 - Never `DELETE` workflows or credentials without explicit user confirmation
 - Use `curl -s` (silent) to suppress progress output
 - Read `references/api_reference.md` before making API calls
+- After any `PUT` update, fetch the workflow back with `GET /workflows/<id>` and verify that nodes with credentials still have their `credentials` field set. If any node lost its credentials (n8n known behavior: API PUT can silently drop credential associations), report it as a blocker: `blocker: credentials desassociated on <node_name> after PUT — manual re-assignment required in n8n UI before testing`. Do not attempt to re-set credentials via API.
