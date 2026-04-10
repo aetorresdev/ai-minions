@@ -14,7 +14,8 @@ Flow:
 Review skills are detected dynamically from ~/.claude/skills/ by reading each SKILL.md:
   Any skill whose name or description contains: review, audit, validate, verify.
 
-Flag file: ~/.claude/metrics/qa-skill-used-<SESSION_ID>.flag
+Flag file: ~/.claude/metrics/qa-skill-used-<task_id>.flag  (multi-agent)
+           ~/.claude/metrics/qa-skill-used-<SESSION_ID>.flag (single-agent fallback)
 """
 import json, os, re, sys
 from pathlib import Path
@@ -22,28 +23,41 @@ from pathlib import Path
 METRICS_DIR  = Path.home() / ".claude/metrics"
 SESSIONS_DIR = METRICS_DIR / "sessions"
 SKILLS_DIR   = Path.home() / ".claude/skills"
+STATE_DIR    = Path.home() / ".claude/.state/orchestrator"
 SESSION_ID   = os.environ.get("CLAUDE_SESSION_ID", "unknown")
 
 REVIEW_KEYWORDS = re.compile(r"\b(review|audit|validate|verify)\b", re.IGNORECASE)
 
 
-def flag_path() -> Path:
-    return METRICS_DIR / f"qa-skill-used-{SESSION_ID}.flag"
-
-
-def is_orchestrator_session() -> bool:
-    return (METRICS_DIR / f"orch-session-{SESSION_ID}.flag").exists()
-
-
-def current_mode() -> str:
-    state_file = SESSIONS_DIR / f"{SESSION_ID}.json"
-    if not state_file.exists():
-        return ""
+def active_task_id(mode: str = "QA") -> str | None:
+    """
+    Scan orchestrator state envelopes for a task with current_mode matching `mode`.
+    Returns the task_id if found — used to write/read a flag shared across all
+    agent processes in a multi-agent run.
+    """
+    if not STATE_DIR.exists():
+        return None
     try:
-        data = json.loads(state_file.read_text())
-        return data.get("modes", {}).get("current", "").upper()
+        for task_dir in STATE_DIR.iterdir():
+            envelope = task_dir / "envelope.json"
+            if not envelope.exists():
+                continue
+            data = json.loads(envelope.read_text())
+            if data.get("current_mode", "").upper() == mode.upper():
+                return data.get("task_id") or task_dir.name
     except Exception:
-        return ""
+        pass
+    return None
+
+
+def flag_path(task_id: str = None) -> Path:
+    """
+    Flag keyed by task_id when available — shared across all agent processes in
+    a multi-agent run. Falls back to SESSION_ID for single-agent sessions.
+    """
+    key = task_id if task_id else SESSION_ID
+    return METRICS_DIR / f"qa-skill-used-{key}.flag"
+
 
 
 def review_skills() -> set:
@@ -82,6 +96,9 @@ def handle_post_tool(hook: dict):
     turn-by-turn sessions, the state file reflects the last detected mode across
     the full session history — not the mode at the moment of this specific tool call.
     The PreToolUse gate on advance_mode QA→CERBERUS is the authoritative check.
+
+    Flag is keyed by task_id when available (multi-agent: shared across all agent
+    processes). Falls back to SESSION_ID for single-agent sessions.
     """
     tool_name = hook.get("tool_name") or hook.get("toolName", "")
     if tool_name != "Skill":
@@ -91,21 +108,26 @@ def handle_post_tool(hook: dict):
     skill_name = (tool_input.get("skill") or "").strip().lower()
     skill_base = skill_name.split(":")[0]  # strip namespace suffix if any
 
+    # Resolve task_id from active QA envelope (multi-agent) or fall back to SESSION_ID
+    task_id = active_task_id("QA")
+    fp = flag_path(task_id)
     known = {s.lower() for s in review_skills()}
     if skill_base in known or REVIEW_KEYWORDS.search(skill_base):
-        flag_path().parent.mkdir(parents=True, exist_ok=True)
-        flag_path().write_text(skill_base)
+        fp.parent.mkdir(parents=True, exist_ok=True)
+        fp.write_text(skill_base)
 
     sys.exit(0)
 
 
 def handle_pre_tool(hook: dict):
-    """Before advance_mode QA→CERBERUS — verify a review skill was used."""
+    """Before advance_mode QA→CERBERUS — verify a review skill was used.
+
+    Checks flag keyed by task_id first (multi-agent: written by QA process),
+    then falls back to SESSION_ID flag (single-agent).
+    """
     tool_name = hook.get("tool_name") or hook.get("toolName", "")
     if "advance_mode" not in tool_name:
         sys.exit(0)
-
-    # Enforce in both single_agent and multi_agent sessions
 
     tool_input = hook.get("tool_input") or hook.get("toolInput") or {}
     from_mode  = (tool_input.get("from_mode") or "").upper()
@@ -114,9 +136,13 @@ def handle_pre_tool(hook: dict):
     if from_mode != "QA" or to_mode != "CERBERUS":
         sys.exit(0)
 
-    fp = flag_path()
-    if fp.exists():
-        sys.exit(0)  # flag present — allow advance, keep flag until session ends
+    # Check task_id flag (from advance_mode input — reliable in both SA and MA)
+    # then fall back to SESSION_ID flag for sessions without task_id
+    task_id = (tool_input.get("task_id") or "").strip()
+    if task_id and flag_path(task_id).exists():
+        sys.exit(0)
+    if flag_path().exists():
+        sys.exit(0)  # session-level flag (single-agent fallback)
 
     skills = sorted(review_skills())
     skills_list = "\n".join(f"  - {s}" for s in skills) if skills else "  (none found)"
