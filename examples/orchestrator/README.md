@@ -143,6 +143,8 @@ node run-orchestrator.js \
   "Create a Node.js script that reads a JSON file and prints each key-value pair"
 ```
 
+For examples with environment access and credentials (n8n, write mode), see [Running the orchestrator](../../README.md#running-the-orchestrator) in the root README.
+
 Expected output:
 
 ```
