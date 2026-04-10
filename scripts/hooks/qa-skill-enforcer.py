@@ -5,8 +5,10 @@ qa-skill-enforcer.py — PostToolUse + PreToolUse hook
 Enforces that QA invokes at least one domain-review skill before advancing to CERBERUS.
 
 Flow:
-  - On Skill tool call (PostToolUse): if current MODE is QA and skill is a review skill,
-    write a flag for this session.
+  - On Skill tool call (PostToolUse): if a review skill is invoked at any point in the
+    session, write a flag. MODE is NOT checked here — in single-agent turn-by-turn sessions
+    the state file reflects the last detected mode across the full session, not the current
+    tool call. The PreToolUse gate is the authoritative enforcement point.
   - On advance_mode QA→CERBERUS (PreToolUse): check flag exists — if not, block.
 
 Review skills are detected dynamically from ~/.claude/skills/ by reading each SKILL.md:
@@ -74,13 +76,15 @@ def review_skills() -> set:
 
 
 def handle_post_tool(hook: dict):
-    """After Skill tool call — if QA used a review skill, write the flag."""
+    """After Skill tool call — if a review skill was used, write the flag.
+
+    NOTE: current_mode() is intentionally NOT checked here. In single-agent
+    turn-by-turn sessions, the state file reflects the last detected mode across
+    the full session history — not the mode at the moment of this specific tool call.
+    The PreToolUse gate on advance_mode QA→CERBERUS is the authoritative check.
+    """
     tool_name = hook.get("tool_name") or hook.get("toolName", "")
     if tool_name != "Skill":
-        sys.exit(0)
-
-    # Allow both single_agent (no orch flag) and multi_agent sessions
-    if current_mode() != "QA":
         sys.exit(0)
 
     tool_input = hook.get("tool_input") or hook.get("toolInput") or {}
