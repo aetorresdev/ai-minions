@@ -1,8 +1,36 @@
 # AI Minions
 
-**AI Minions is not a prompt collection.** It is an **orchestration system** for AI agents: enforceable role contracts, validation gates, disk-backed authoritative state, and **cost- and context-aware** execution—with enough telemetry to compare **single-agent vs multi-agent** flows without pretending the chat transcript is the source of truth.
+**AI Minions is not a prompt framework.** It is an **AI execution system** for agent-based workflows: **enforceable structure** (roles and contracts), **validated outputs** (per-role minimums and optional hard gates), **controlled cost** (tokens and context surfaced by hooks), and **traceability** (JSONL traces, disk-backed state when gates are on)—so it is harder to treat “the model agreed” as proof of anything in production.
 
-If that sentence is opaque, this repository is probably not what you are looking for. If it is clear, everything below is the same idea unpacked.
+Most stacks optimize for **capability**. This one optimizes for **control**: fewer unforced errors, fewer hat-swaps in a single reply, and a paper trail when something still goes wrong.
+
+If that sounds like overkill for a weekend script, it probably is. If it sounds like what you wish you had before the last production surprise, keep reading.
+
+---
+
+## Why this exists
+
+- **Prompts do not scale as guarantees.** They steer a model; they do not record what happened or block a bad transition.
+- **Multi-agent is expensive** in tokens, wall-clock, and failure modes—you pay for boundaries; you should get **auditability** or **separation of concerns** in return, not a diagram for LinkedIn.
+- **Unstructured outputs are not evidence.** “It said it passed” is not a validation run, an artifact list, or a signed-off review.
+- **Monolithic agent chats obscure ownership** when implementer, reviewer, and release authority collapse into one stream.
+
+**What ai-minions is for:** governed execution—contracts, gates where you enable them, explicit authority (disk + MCP over transcript when strict mode is on), and telemetry so you can **evaluate** flows instead of **romancing** them.
+
+---
+
+## Core principles
+
+How this maps to practice (not slide-deck values):
+
+| Principle | In this repo |
+|-----------|----------------|
+| **Delegation** | MODE routing—who plans, who implements, who breaks it, who reviews adversarially—without one process pretending to be all of them. |
+| **Description** | Handoffs as **structured data** (YAML contract) plus minimum output shapes; skills are adapters, not the center of gravity. |
+| **Discernment** | QA and CERBERUS lanes; goal alignment checks—**and** hard fails when output contracts are unmet (`validateOutput`, blocked `advance_mode`). |
+| **Diligence** | Append-only event log, optional artifact allowlists, session metrics on `Stop`, **degraded mode** that says so out loud when gates are off. |
+
+**Governing rule (from ops, not marketing):** *If I do not understand it, I do not ship it.* The repo encodes that as inspectable steps and explicit non-goals—not as cleverer wording in the system prompt.
 
 ---
 
@@ -202,18 +230,7 @@ Full flags, degraded mode, and MCP setup: [`examples/orchestrator/README.md`](ex
 
 ---
 
-## The problem
-
-- **Agents without control** drift: they mix implementation, self-review, and “ship it” in one turn. Quality collapses; nobody knows who “signed off” on what.
-- **Prompts alone do not scale:** they are suggestions, not invariants. Production needs *gates*, not vibes.
-- **Multi-agent is expensive:** more boundaries mean more tokens, more latency, and more failure modes—so you should only pay for separation when it buys *predictability* or *auditability*.
-- **Outputs without structure are not evidence:** “the model said it worked” is not a validation run.
-
-**Operating principle:** *If I do not understand it, I do not ship it.* This repo encodes that as contracts, traces, and explicit non-goals—not as clever wording.
-
----
-
-## Core concepts (the mental model)
+## Core concepts (technical vocabulary)
 
 | Concept | What it is in this repo |
 |--------|-------------------------|
@@ -230,23 +247,29 @@ Skills and hooks still exist—they are **adapters and sensors** around this cor
 
 ## What makes this different
 
-- **Not a LangChain clone, not CrewAI, not “agents because agents.”** There is no generic DAG-of-tools narrative. The unit of design is **governed execution**: roles, handoffs, and provable transitions when gates are on.
-- **Most agent stacks optimize for capability.** This stack optimizes for **control, cost, and predictability**: local planning where it makes sense (Ollama), strict output validation (`validateOutput` in the reference runner), and optional **degraded mode** that is **loud**, not silent.
+- **Not a LangChain clone, not CrewAI, not “agents because agents.”** Same category of noise this repo argues against: capability demos without **accountability** for what executed and who approved it.
+- **Most agent frameworks default to “more autonomy.”** Here the default posture is **less silent failure**: output contracts, optional gates, and telemetry instead of a single transcript pretending to be a log.
 - **Authority is explicit:** when strict orchestration is enabled, **disk + MCP** define what happened; the transcript is commentary.
 
 Reference implementation and gate semantics: [`examples/orchestrator/README.md`](examples/orchestrator/README.md). State store layout and tools: [`mcp-servers/orchestrator-state/README.md`](mcp-servers/orchestrator-state/README.md).
 
 ---
 
-## Experiments and metrics (credibility surface)
+## Experiments and metrics
 
-This repository is set up to **measure** flows, not only run them:
+The point is not a leaderboard—it is **evidence you can own**: same `GOAL`, different `FLOW`, same hooks writing tokens/cost/MODE summaries and traces capturing contract failures, gate results, and `context_stats`.
 
-- **`FLOW`** is a first-class label (`single_agent` | `multi_agent`) for comparing runs under the same goal.
-- **Hooks** (`session-state`, `flow-metrics`, `agent-metrics`) record tokens, cost, MODE/agent activity, handoffs, and goal-alignment summaries across a session.
-- **Traces** record per-step **contract failures**, **gate pass/fail**, **`qa_degraded`** flags, and **context_stats** for post-hoc analysis.
+**What the machinery records today**
 
-**What we document honestly:** order-of-magnitude timings and trade-offs (e.g. faster iteration with gates off vs stronger guarantees with gates on) live in [`examples/orchestrator/README.md`](examples/orchestrator/README.md). **We do not publish fake benchmark tables here**—your hardware, models, and goals dominate numbers. The machinery is there so *you* can run comparable experiments and keep the data.
+- **`FLOW`** as a label (`single_agent` | `multi_agent`) so runs are comparable under the same goal.
+- **Hooks** (`session-state`, `flow-metrics`, `agent-metrics`): tokens, cost, handoffs, goal-alignment summaries.
+- **Traces** (`~/.claude/metrics/traces/`): per-step failures, gate pass/fail, `qa_degraded`, `context_stats`.
+
+**Status of SA vs MA comparisons**
+
+Single-agent paths have more **informal** mileage in day-to-day use. **Multi-agent evaluation is still incomplete** (test matrix and workloads not closed). Any side-by-side observation you make with this repo should be read as **directional and provisional**—hypothesis-generating, not a proof that one flow “beats” the other. When MA tests are complete, numbers and conclusions belong next to the methodology that produced them, not in a slogan.
+
+Order-of-magnitude timings and gate trade-offs (e.g. `--skip-gates` vs full MCP path) are documented in [`examples/orchestrator/README.md`](examples/orchestrator/README.md). **No fabricated benchmark tables here:** hardware, model choice, and task shape dominate outcomes.
 
 ---
 
@@ -268,12 +291,12 @@ Strict-mode operations (register task, artifact allowlists, gate order): [`docs/
 
 ---
 
-## Non-goals
+## What this is NOT (non-goals)
 
-- **Not** trying to fully automate software engineering end-to-end without human ownership.
-- **Not** replacing human judgment on risk, compliance, or release decisions—only making the *machine* side more legible.
-- **Not** optimizing for clever prompts or “vibes-based” reliability.
-- **Not** claiming session isolation from metadata alone—see **§ Authoritative state** in the contract for the honest boundary (`session_id` is audit metadata until a dedicated runner enforces isolation).
+- **Not fully autonomous “AI engineering.”** Humans still own scope, risk, and ship decisions.
+- **Not a replacement for engineers**—a structure for how agents are run and reviewed, not a headcount argument.
+- **Not prompt-engineering magic**—if the contract and gates are wrong, the system fails in the open instead of cosplaying rigor.
+- **Not a promise of session isolation from metadata alone**—see **§ Authoritative state** in [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md): `session_id` is audit metadata until a dedicated runner enforces real isolation.
 
 ---
 
@@ -308,4 +331,4 @@ Hook wiring: copy [`settings.json.example`](settings.json.example) to your local
 
 ---
 
-*Because even AI needs governed execution—not just louder instructions.*
+*A technical stance on how agent-heavy work should be run—not how to write a prettier prompt.*
