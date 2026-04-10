@@ -255,6 +255,67 @@ The orchestrator enforces **MODE-based role separation** to prevent a single age
 | `QA` | Break it, edge cases, evidence — no production code |
 | `CERBERUS` | Adversarial last-mile review after DEV+QA — no fixes in same turn |
 
+### Running the orchestrator
+
+Via Claude Code header — triggers the runner automatically via `UserPromptSubmit` hook:
+
+**single_agent** (one Claude session handles all roles):
+```
+MODE: ORCHESTRATOR
+FLOW: single_agent
+GOAL: Audit and fix the order processing workflow — executions are failing silently.
+MAX_ITERATIONS: 3
+
+ENVIRONMENT:
+  mode: write
+  credentials:
+    - name: n8n
+      type: api_key
+      vars:
+        url: N8N_API_URL
+        key: N8N_API_TOKEN
+```
+
+**multi_agent** (each role runs in a separate subagent):
+```
+MODE: ORCHESTRATOR
+FLOW: multi_agent
+GOAL: Audit and fix the order processing workflow — executions are failing silently.
+MAX_ITERATIONS: 3
+
+ENVIRONMENT:
+  mode: write
+  credentials:
+    - name: n8n
+      type: api_key
+      vars:
+        url: N8N_API_URL
+        key: N8N_API_TOKEN
+```
+
+Or directly from the CLI:
+
+```bash
+N8N_API_URL=http://localhost:5678 N8N_API_TOKEN=$N8N_API_TOKEN \
+node ~/.claude/examples/orchestrator/run-orchestrator.js \
+  --cwd /path/to/project \
+  --skip-gates \
+  "Audit and fix the order processing workflow — executions are failing silently.
+
+ENVIRONMENT:
+  mode: write
+  credentials:
+    - name: n8n
+      type: api_key
+      vars:
+        url: N8N_API_URL
+        key: N8N_API_TOKEN
+"
+```
+
+> Credentials are resolved from environment variables — values are never written to disk or printed in output.
+> Full option reference: [`examples/orchestrator/README.md`](examples/orchestrator/README.md)
+
 ### Anti-loop
 
 - QA only returns to DEV with `blocker` findings. `improvement` and `nice-to-have` go to backlog.
