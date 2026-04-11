@@ -161,9 +161,15 @@ def _call_ollama(prompt: str, num_predict: int = 256) -> str:
         return resp.json().get("response", "").strip()
 
 
+def _sanitize_handoff_yaml(handoff_yaml: str) -> str:
+    """Remove backslash-escaping that models sometimes add when passing YAML as a string argument."""
+    return handoff_yaml.replace('\\"', '"').replace("\\'", "'")
+
+
 def _handoff_block(handoff_yaml: str) -> dict[str, Any]:
     if not handoff_yaml.strip():
         return {}
+    handoff_yaml = _sanitize_handoff_yaml(handoff_yaml)
     data = yaml.safe_load(handoff_yaml) or {}
     block = data.get("handoff")
     if isinstance(block, dict):

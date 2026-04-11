@@ -75,13 +75,49 @@ See `mcp-servers/orchestrator-state/README.md` for env vars and setup.
 
 ## MODE Protocol (required in orchestrated flow)
 
-At each phase the model declares at the start:
+### Role block format (mandatory)
+
+Every response MUST open with a role block:
 
 ```text
-MODE: <NAME>
+---
+## <EMOJI> ROLE: <ROLE_NAME>
+STATE: ACTIVE | COMPLETE | BLOCKED
+STEP: N/TOTAL
 ```
 
-It acts only according to the rules of that MODE until **Orchestrator** (or the user) authorizes the next MODE. **Do not switch MODE on your own initiative** within the same response (except for Orchestrator, which in one turn only plans, and then in the next turn the user says "execute MODE: DEV").
+| Role | Emoji |
+|------|-------|
+| ORCHESTRATOR | ⚫ |
+| OWNER | 🟣 |
+| ARCHITECT | 🟠 |
+| DEV | 🟢 |
+| QA | 🔵 |
+| CERBERUS | 🔴 |
+
+- `STATE: ACTIVE` while working, `COMPLETE` when handing off, `BLOCKED` if cannot proceed.
+- Content under the header: lists, tables, or code blocks — no unstructured prose.
+
+### Role transition format (mandatory)
+
+When switching roles, insert an explicit transition block before the next role header:
+
+```text
+---
+### 🔁 TRANSITION
+FROM: <ROLE>
+TO: <ROLE>
+REASON: <why>
+
+---
+## <EMOJI> ROLE: <NEXT_ROLE>
+STATE: ACTIVE
+STEP: N/TOTAL
+```
+
+Inline transition text (`"Advancing to MODE: QA"`) is **forbidden**. The transition block IS the announcement.
+
+The model acts only according to the rules of that MODE until **Orchestrator** (or the user) authorizes the next MODE. **Do not switch MODE on your own initiative** within the same response (except for Orchestrator, which in one turn only plans, and then in the next turn the user says "execute MODE: DEV").
 
 ### ALLOW / FORBID table by MODE
 
