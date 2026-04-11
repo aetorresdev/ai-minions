@@ -108,13 +108,16 @@ def handle_post_tool(hook: dict):
     skill_name = (tool_input.get("skill") or "").strip().lower()
     skill_base = skill_name.split(":")[0]  # strip namespace suffix if any
 
-    # Resolve task_id from active QA envelope (multi-agent) or fall back to SESSION_ID
-    task_id = active_task_id("QA")
-    fp = flag_path(task_id)
+    # Write flag with SESSION_ID key (always) and task_id key when available.
+    # Both keys ensure handle_pre_tool finds the flag regardless of which
+    # key it resolves first (single-agent vs multi-agent).
     known = {s.lower() for s in review_skills()}
     if skill_base in known or REVIEW_KEYWORDS.search(skill_base):
-        fp.parent.mkdir(parents=True, exist_ok=True)
-        fp.write_text(skill_base)
+        flag_path().parent.mkdir(parents=True, exist_ok=True)
+        flag_path().write_text(skill_base)  # SESSION_ID key (single-agent)
+        task_id = active_task_id("QA")
+        if task_id:
+            flag_path(task_id).write_text(skill_base)  # task_id key (multi-agent)
 
     sys.exit(0)
 

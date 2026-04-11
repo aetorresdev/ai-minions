@@ -94,14 +94,39 @@ const RESET = "\x1b[0m";
 const BOLD  = "\x1b[1m";
 const DIM   = "\x1b[2m";
 
+const AGENT_ICONS = {
+  orchestrator:  "◉",
+  owner:         "◆",
+  architect:     "⬢",
+  "dev-backend": "●",
+  "dev-frontend":"●",
+  "dev-devops":  "●",
+  qa:            "▲",
+  cerberus:      "✕",
+  summarizer:    "◈",
+  gate:          "⊙",
+};
+
 function agentLabel(agentId) {
   const color = AGENT_COLORS[agentId] || "";
-  return `${color}${BOLD}[${agentId}]${RESET}`;
+  const icon  = AGENT_ICONS[agentId] || "·";
+  return `${color}${BOLD}${icon} [${agentId.toUpperCase()}]${RESET}`;
 }
 
 function log(agentId, message) {
   const ts = new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   console.log(`${DIM}${ts}${RESET} ${agentLabel(agentId)} ${message}`);
+}
+
+function logRoleSwitch(fromId, toId) {
+  const fromColor = AGENT_COLORS[fromId] || "";
+  const toColor   = AGENT_COLORS[toId]   || "";
+  const fromIcon  = AGENT_ICONS[fromId]  || "·";
+  const toIcon    = AGENT_ICONS[toId]    || "·";
+  const sep = "─".repeat(52);
+  console.log(`\n${DIM}${sep}${RESET}`);
+  console.log(`${fromColor}${BOLD}${fromIcon} ${fromId.toUpperCase()}${RESET} ${BOLD}→${RESET} ${toColor}${BOLD}${toIcon} ${toId.toUpperCase()}${RESET}`);
+  console.log(`${DIM}${sep}${RESET}\n`);
 }
 
 const AGENT_STATE_FILE = require("os").homedir() + "/.claude/metrics/active-agent.json";
@@ -501,9 +526,13 @@ Assign one agent per step. Reply with JSON only.`;
     }
 
     // ── Execute each step ───────────────────────────────────────────────────────
+    let previousAgentId = null;
     for (const step of steps) {
       const agentId = step.agentId || step.agent;
       if (!agentId || !VALID_WORKER_AGENTS.has(agentId)) continue;
+
+      if (previousAgentId && previousAgentId !== agentId) logRoleSwitch(previousAgentId, agentId);
+      previousAgentId = agentId;
 
       const contextBlock = contextHeader + [goal, ...artifacts.map(contextChunk)].join("\n\n---\n\n");
       writeAgentState(agentId, goal);
@@ -660,6 +689,7 @@ Assign one agent per step. Reply with JSON only.`;
     }
 
     // ── Cerberus review ───────────────────────────────────────────────────────
+    logRoleSwitch(previousAgentId || "orchestrator", "cerberus");
     log("cerberus", "Reviewing deliverables...");
     const reviewChunks = artifacts.map((a) => {
       const { text } = truncateForContext(a.result, maxReviewChars);
@@ -747,6 +777,7 @@ ${cerberusBlockers.items.join("\n")}
 
 List the correction steps required. Reply with JSON: { "done": false, "corrections": [{ "agentId": "...", "task": "..." }] }`;
 
+      logRoleSwitch("cerberus", "orchestrator");
       const { output: correctResponse } = await askAgent("orchestrator", correctPrompt, { cwd, sessionEnv, phase: "decide" });
       const corrections = extractJson(correctResponse);
       if (corrections && Array.isArray(corrections.corrections) && corrections.corrections.length > 0) {
@@ -774,6 +805,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
     }
 
     // ── ORCHESTRATOR decides (no blockers path) ───────────────────────────────
+    logRoleSwitch("cerberus", "orchestrator");
     log("orchestrator", "No blockers — evaluating completion...");
     const artifactsBlob = artifacts
       .map((a) => {

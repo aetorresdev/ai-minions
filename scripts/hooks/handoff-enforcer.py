@@ -69,12 +69,16 @@ def handle_post_tool(hook: dict):
     tool_input = hook.get("tool_input") or hook.get("toolInput") or {}
     mode = tool_input.get("mode_completed", "unknown")
 
-    # Resolve task_id from active envelope for the completed mode (multi-agent)
-    # Falls back to SESSION_ID for single-agent sessions
+    # Write flag with task_id key (multi-agent: shared across processes) AND
+    # SESSION_ID key (single-agent: same process reads it back).
+    # Writing both ensures handle_pre_tool finds the flag regardless of which
+    # key it resolves first.
+    fp_session = flag_path()  # SESSION_ID key (always written)
+    fp_session.parent.mkdir(parents=True, exist_ok=True)
+    fp_session.write_text(mode)
     task_id = active_task_id(mode)
-    fp = flag_path(task_id)
-    fp.parent.mkdir(parents=True, exist_ok=True)
-    fp.write_text(mode)
+    if task_id:
+        flag_path(task_id).write_text(mode)
     sys.exit(0)
 
 

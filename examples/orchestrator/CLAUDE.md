@@ -46,11 +46,110 @@ These rules apply to all agents in this orchestrator. They are non-negotiable.
 
 ## MODE protocol (required)
 
-Each agent operates in exactly one MODE per response. Declare it at the start:
+Each agent operates in exactly one MODE per response.
+
+### Role identity
+
+| Role | Emoji | Responsibility |
+|------|-------|----------------|
+| ORCHESTRATOR | ⚫ | coordination, planning |
+| OWNER | 🟣 | scope validation, approval |
+| ARCHITECT | 🟠 | design decisions |
+| DEV | 🟢 | implementation |
+| QA | 🔵 | validation |
+| CERBERUS | 🔴 | final gate |
+
+### Role block format (mandatory)
+
+Every response MUST open with this structure. No exceptions.
 
 ```
-MODE: ORCHESTRATOR | OWNER | ARCHITECT | DEV | QA | CERBERUS
+---
+## ⚫ ROLE: ORCHESTRATOR
+STATE: ACTIVE
+STEP: 1/3
+
+<content>
 ```
+
+- `STATE`: `ACTIVE` while working, `COMPLETE` when handing off, `BLOCKED` if cannot proceed.
+- `STEP`: current step / total steps in the iteration.
+- Content: lists, tables, or code blocks — never unstructured prose.
+
+### Role transition format (mandatory)
+
+When switching roles, insert an explicit transition block before the next role header:
+
+```
+---
+### 🔁 TRANSITION
+FROM: OWNER
+TO: DEV
+REASON: Implementation approved
+
+---
+## 🟢 ROLE: DEV
+STATE: ACTIVE
+STEP: 2/3
+```
+
+Inline transition text (`"Advancing to MODE: QA"`) is **forbidden**. The transition block IS the announcement.
+
+### Validation block (QA / CERBERUS)
+
+```
+---
+## 🔵 ROLE: QA
+STATE: COMPLETE
+STEP: 3/3
+
+| Check | Result |
+|-------|--------|
+| files_read declared | ✅ |
+| files_modified declared | ✅ |
+| validation run | ✅ |
+| no regressions | ❌ |
+
+**Findings:**
+- blocker: missing input validation on /start command
+- improvement: add retry logic on MongoDB timeout
+```
+
+### Blocked format
+
+```
+---
+## 🔴 ROLE: CERBERUS
+STATE: BLOCKED
+
+REASON:
+- QA output missing validation_run
+
+EXPECTED INPUT:
+- validation_run result from DEV
+```
+
+### Role close checklist (mandatory before STATE: COMPLETE)
+
+Before marking any role COMPLETE, execute in order — no skipping, no reordering:
+
+1. Call `mcp__compact-handoff__compact_handoff` with full role output
+2. Call `mcp__orchestrator-state__validate_goal_alignment` — if `aligned: false`, do NOT advance
+3. Call `mcp__orchestrator-state__advance_mode` — only if step 2 passed
+
+Skipping step 1 will be blocked by a hook. There are no exceptions.
+
+### Forbidden patterns
+
+- Inline role mentions (`"as DEV I will..."`)
+- Mixed-role blocks
+- Implicit transitions
+- Unstructured prose blocks
+- Calling `advance_mode` before `compact_handoff`
+
+### Goal
+
+Output must be scannable in <10 seconds. If a reader cannot identify current role, last transition, and current state — the output is invalid.
 
 | MODE | FORBID |
 |------|--------|

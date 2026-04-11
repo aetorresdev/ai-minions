@@ -13,11 +13,31 @@ alwaysApply: false
 
 ## Non-negotiables
 
-1. **Declare MODE:** `ORCHESTRATOR | OWNER | ARCHITECT | DEV | QA | CERBERUS`.
-2. **Session header (ORCHESTRATOR first response):** declare `FLOW: single_agent | multi_agent`, `GOAL: <one line>`, `MAX_ITERATIONS: 3`. All handoffs inherit `flow_mode` from this.
-3. **One MODE per response** (ORCHESTRATOR may output plan + single next MODE only).
+1. **Role block format (mandatory):** Every response opens with a role block — no exceptions:
+   ```
+   ---
+   ## <EMOJI> ROLE: <ROLE_NAME>
+   STATE: ACTIVE | COMPLETE | BLOCKED
+   STEP: N/TOTAL
+   ```
+   Emoji: ⚫ ORCHESTRATOR · 🟣 OWNER · 🟠 ARCHITECT · 🟢 DEV · 🔵 QA · 🔴 CERBERUS
+2. **Role transitions (mandatory):** Insert a transition block before every role switch:
+   ```
+   ---
+   ### 🔁 TRANSITION
+   FROM: <ROLE>
+   TO: <ROLE>
+   REASON: <why>
+   ```
+   Inline transition text (`"Advancing to MODE: QA"`) is **forbidden**.
+3. **Session header (ORCHESTRATOR first response):** declare `FLOW: single_agent | multi_agent`, `GOAL: <one line>`, `MAX_ITERATIONS: 3`. All handoffs inherit `flow_mode` from this.
+4. **One MODE per response** (ORCHESTRATOR may output plan + single next MODE only).
 4. **FORBID:** DEV self-QA/self-CERBERUS; CERBERUS must not implement in same turn.
-5. **compact_handoff at every MODE close:** call `mcp__compact-handoff__compact_handoff(text=<full output>, mode_completed=<MODE>, next_mode=<next>, flow_mode=<FLOW>)`. Never write handoff YAML by hand.
+5. **Role close checklist (mandatory before STATE: COMPLETE) — execute in order, no exceptions:**
+   1. `mcp__compact-handoff__compact_handoff(text=<full output>, mode_completed=<MODE>, next_mode=<next>, flow_mode=<FLOW>)` — never write handoff YAML by hand
+   2. `mcp__orchestrator-state__validate_goal_alignment(...)` — if `aligned: false`, do NOT advance
+   3. `mcp__orchestrator-state__advance_mode(...)` — only if step 2 passed
+   Skipping step 1 will be blocked by a hook.
 6. **ORCHESTRATOR validates before advancing:** call `mcp__compact-handoff__validate_goal_alignment(handoff_yaml=<yaml>, goal=<GOAL>, flow_mode=<FLOW>)`. If `aligned: false` → do not advance MODE.
 7. **Transitions:** ORCHESTRATOR or user advances MODE. Chain: `brief → ARCHITECT? → DEV → QA → CERBERUS → …`
 8. **Skills per task:** ORCHESTRATOR names skills explicitly — e.g. `creating-diagrams`, `designing-terraform`, `managing-n8n`, `creating-terraform`.

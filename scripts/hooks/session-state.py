@@ -26,7 +26,7 @@ CLAUDE_HOME  = Path.home() / ".claude"
 STATE_FILE   = SESSIONS_DIR / f"{SESSION_ID}.json"
 
 KNOWN_MODES = {"ORCHESTRATOR", "OWNER", "ARCHITECT", "DEV", "QA", "CERBERUS"}
-MODE_RE     = re.compile(r'\bMODE\s*:\s*(' + '|'.join(KNOWN_MODES) + r')\b')
+MODE_RE     = re.compile(r'\b(?:MODE|ROLE)\s*:\s*(' + '|'.join(KNOWN_MODES) + r')\b')
 
 # Sonnet 4.6 pricing per million tokens
 PRICE = {"input": 3.00, "output": 15.00, "cache_w": 3.75, "cache_r": 0.30}
