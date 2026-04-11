@@ -20,6 +20,9 @@ Flag file: ~/.claude/metrics/qa-skill-used-<task_id>.flag  (multi-agent)
 import json, os, re, sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from gate_logger import log_gate_event
+
 METRICS_DIR  = Path.home() / ".claude/metrics"
 SESSIONS_DIR = METRICS_DIR / "sessions"
 SKILLS_DIR   = Path.home() / ".claude/skills"
@@ -118,6 +121,11 @@ def handle_post_tool(hook: dict):
         task_id = active_task_id("QA")
         if task_id:
             flag_path(task_id).write_text(skill_base)  # task_id key (multi-agent)
+        log_gate_event(
+            gate="qa-skill-enforcer", result="allowed", tool=tool_name,
+            reason=f"review skill invoked: {skill_base}",
+            task_id=task_id, from_mode="QA",
+        )
 
     sys.exit(0)
 
@@ -143,12 +151,27 @@ def handle_pre_tool(hook: dict):
     # then fall back to SESSION_ID flag for sessions without task_id
     task_id = (tool_input.get("task_id") or "").strip()
     if task_id and flag_path(task_id).exists():
+        log_gate_event(
+            gate="qa-skill-enforcer", result="allowed", tool=tool_name,
+            reason="review skill flag present (task_id key)",
+            task_id=task_id, from_mode="QA", to_mode="CERBERUS",
+        )
         sys.exit(0)
     if flag_path().exists():
+        log_gate_event(
+            gate="qa-skill-enforcer", result="allowed", tool=tool_name,
+            reason="review skill flag present (session key)",
+            task_id=task_id or None, from_mode="QA", to_mode="CERBERUS",
+        )
         sys.exit(0)  # session-level flag (single-agent fallback)
 
     skills = sorted(review_skills())
     skills_list = "\n".join(f"  - {s}" for s in skills) if skills else "  (none found)"
+    log_gate_event(
+        gate="qa-skill-enforcer", result="blocked", tool=tool_name,
+        reason="QA→CERBERUS without review skill invocation",
+        task_id=task_id or None, from_mode="QA", to_mode="CERBERUS",
+    )
     print(json.dumps({
         "decision": "block",
         "reason": (

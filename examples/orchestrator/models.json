@@ -1,0 +1,24 @@
+{
+  "_comment": "Override keys use the normalized role name: ROLE.toUpperCase().replace(/-/g, '_'). Examples: dev-backend → DEV_BACKEND, cerberus → CERBERUS. Env var MODEL_OVERRIDE_<KEY> uses the same format and always takes priority over profile overrides.",
+  "profiles": {
+    "fast": {
+      "default": "claude-haiku-4-5-20251001",
+      "overrides": {
+        "ARCHITECT": "claude-sonnet-4-6",
+        "CERBERUS": "claude-sonnet-4-6"
+      }
+    },
+    "balanced": {
+      "default": "claude-sonnet-4-6",
+      "overrides": {}
+    },
+    "quality": {
+      "default": "claude-opus-4-6",
+      "overrides": {
+        "DEV_BACKEND": "claude-sonnet-4-6",
+        "DEV_FRONTEND": "claude-sonnet-4-6",
+        "DEV_DEVOPS": "claude-sonnet-4-6"
+      }
+    }
+  }
+}

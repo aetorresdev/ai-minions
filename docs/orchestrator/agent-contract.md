@@ -20,10 +20,14 @@ This contract enforces **explicit MODEs**, **controlled transitions**, and **str
 
 ## Session declaration (ORCHESTRATOR — required in first response)
 
-When starting an orchestrated session, ORCHESTRATOR declares in its first response:
+When starting an orchestrated session, ORCHESTRATOR declares in its first response using the role block format:
 
 ```text
-MODE: ORCHESTRATOR
+---
+## ⚫ ROLE: ORCHESTRATOR
+STATE: ACTIVE
+STEP: 1/N
+
 FLOW: single_agent | multi_agent
 GOAL: <one line: what will be achieved>
 MAX_ITERATIONS: 3

@@ -19,6 +19,9 @@ Flow:
 import json, os, sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from gate_logger import log_gate_event
+
 METRICS_DIR  = Path.home() / ".claude/metrics"
 SESSIONS_DIR = METRICS_DIR / "sessions"
 SESSION_ID   = os.environ.get("CLAUDE_SESSION_ID", "unknown")
@@ -59,6 +62,10 @@ def main():
     if mode_already_declared():
         sys.exit(0)
 
+    log_gate_event(
+        gate="mode-enforcer", result="blocked", tool=tool_name,
+        reason="tool called before MODE declared in response",
+    )
     print(json.dumps({
         "decision": "block",
         "reason": (

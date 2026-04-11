@@ -20,10 +20,14 @@ In strict mode, the **disk store is the authority** — not the chat transcript.
 
 ## Session start
 
-Declare the session header, then immediately register the task:
+Declare the session header using the role block format, then immediately register the task:
 
 ```
-MODE: ORCHESTRATOR
+---
+## ⚫ ROLE: ORCHESTRATOR
+STATE: ACTIVE
+STEP: 1/N
+
 FLOW: single_agent
 GOAL: migrate auth middleware to comply with new session policy
 MAX_ITERATIONS: 3
@@ -281,3 +285,98 @@ Orchestrator cannot declare `done=true`. Asked only for corrections. At max iter
 | `ORCHESTRATOR_STATE_ROOT` | `~/.claude/.state/orchestrator/` | Root directory for all task state |
 | `ORCHESTRATOR_OLLAMA_URL` | `http://localhost:11434/api/generate` | Ollama endpoint for alignment checks |
 | `ORCHESTRATOR_OLLAMA_MODEL` | `qwen2.5-coder:7b` | Model used for `validate_goal_alignment` |
+
+---
+
+## Observability — live session tracking
+
+The following files are written automatically by PostToolUse/PreToolUse hooks. They require no MCP and are readable at any time.
+
+### Gate event log — `~/.claude/metrics/gate_events.jsonl`
+
+One JSON line per gate event across all enforcer hooks.
+
+| Field | Description |
+|-------|-------------|
+| `gate` | `handoff-enforcer` \| `qa-skill-enforcer` \| `mode-enforcer` |
+| `result` | `blocked` \| `allowed` |
+| `tool` | Tool that triggered the gate |
+| `task_id` | Orchestrator task ID (or SESSION_ID fallback) |
+| `from_mode` / `to_mode` | Transition context when applicable |
+| `reason` | Why blocked or allowed |
+| `iteration` | From envelope.json at time of event |
+
+```bash
+# Last blocked gates
+grep '"result": "blocked"' ~/.claude/metrics/gate_events.jsonl | tail -10
+
+# Gates for a specific task
+grep '"task_id": "auth-migration"' ~/.claude/metrics/gate_events.jsonl
+```
+
+### Loop trace — `~/.claude/metrics/sessions/loop_trace.jsonl`
+
+One JSON line per tool call with the active role at that moment.
+
+| Field | Description |
+|-------|-------------|
+| `role` | Active MODE at time of tool call |
+| `tool` | Tool name |
+| `input` | ≤120-char summary of tool input |
+
+```bash
+# Tool call sequence for a session
+grep "$CLAUDE_SESSION_ID" ~/.claude/metrics/sessions/loop_trace.jsonl
+```
+
+### Context efficiency — live in additionalContext
+
+`context-efficiency.py` (PostToolUse `*`, PreToolUse `Read`) emits after every tool call:
+
+```
+ctx=92/100 | cache=78% | re-reads=1 (worst: config.py×3)
+```
+
+- **`ctx`** — composite score 0–100 (deductions for re-reads, repeated bash, low cache ratio)
+- **`cache`** — `cache_read / (input + cache_read)` — higher means context is being reused efficiently
+- **re-reads** — same file read more than once; gate blocks on 3rd read of the same file+offset
+- **bash-repeats** — identical commands run more than once
+
+Use this to decide whether to abort a session that is burning context inefficiently.
+
+---
+
+## Shared hook modules
+
+These modules live in `scripts/hooks/` and are imported by the enforcer hooks — they are not standalone hooks.
+
+### `constants.py` — single source of truth for hook constants
+
+| Symbol | Value | Purpose |
+|--------|-------|---------|
+| `KNOWN_MODES` | `{"ORCHESTRATOR","OWNER","ARCHITECT","DEV","QA","CERBERUS"}` | Valid role names; used by all mode-aware hooks |
+| `MODE_RE` | compiled regex | Detects `MODE: <role>` or `ROLE: <role>` in transcript text |
+| `PRICE` | `{input, output, cache_w, cache_r}` | Sonnet 4.6 pricing per million tokens (update here to propagate everywhere) |
+| `cost_from_tokens()` | helper | Converts token counts to USD using `PRICE` |
+
+**Update pricing here only** — `agent-metrics.py` and `context-efficiency.py` import from this module.
+
+### `gate_logger.py` — shared gate event writer
+
+Imported by `handoff-enforcer.py`, `qa-skill-enforcer.py`, and `mode-enforcer.py`. Appends one JSON line per gate event to `~/.claude/metrics/gate_events.jsonl`.
+
+```python
+from gate_logger import log_gate_event
+
+log_gate_event(
+    gate="handoff-enforcer",
+    result="blocked",          # "blocked" | "allowed"
+    tool="advance_mode",
+    reason="compact_handoff not called before advance_mode",
+    task_id="auth-migration",  # optional; falls back to SESSION_ID
+    from_mode="DEV",
+    to_mode="QA",
+)
+```
+
+Never raises — all exceptions are swallowed so a logging failure never breaks the hook chain.

@@ -19,6 +19,9 @@ Roles that skip enforcement (no handoff required):
 import json, os, re, sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from gate_logger import log_gate_event
+
 METRICS_DIR = Path.home() / ".claude/metrics"
 STATE_DIR   = Path.home() / ".claude/.state/orchestrator"
 SESSION_ID  = os.environ.get("CLAUDE_SESSION_ID", "unknown")
@@ -79,6 +82,11 @@ def handle_post_tool(hook: dict):
     task_id = active_task_id(mode)
     if task_id:
         flag_path(task_id).write_text(mode)
+    log_gate_event(
+        gate="handoff-enforcer", result="allowed", tool=tool_name,
+        reason=f"compact_handoff called for mode={mode}",
+        task_id=task_id, from_mode=mode,
+    )
     sys.exit(0)
 
 
@@ -103,14 +111,30 @@ def handle_pre_tool(hook: dict):
     # Check task_id flag (from advance_mode input — reliable in both SA and MA)
     # then fall back to SESSION_ID flag for sessions without task_id
     task_id = (tool_input.get("task_id") or "").strip()
+    to_mode = (tool_input.get("to_mode") or "").upper()
     if task_id and flag_path(task_id).exists():
         flag_path(task_id).unlink()  # consume — one handoff per advance
+        log_gate_event(
+            gate="handoff-enforcer", result="allowed", tool=tool_name,
+            reason="handoff flag present (task_id key)",
+            task_id=task_id, from_mode=from_mode, to_mode=to_mode,
+        )
         sys.exit(0)
     if flag_path().exists():
         flag_path().unlink()  # consume — session-level flag (single-agent fallback)
+        log_gate_event(
+            gate="handoff-enforcer", result="allowed", tool=tool_name,
+            reason="handoff flag present (session key)",
+            task_id=task_id or None, from_mode=from_mode, to_mode=to_mode,
+        )
         sys.exit(0)
 
     # Block — no compact_handoff was called before this advance_mode
+    log_gate_event(
+        gate="handoff-enforcer", result="blocked", tool=tool_name,
+        reason=f"advance_mode without prior compact_handoff from {from_mode}",
+        task_id=task_id or None, from_mode=from_mode, to_mode=to_mode,
+    )
     print(json.dumps({
         "decision": "block",
         "reason": (

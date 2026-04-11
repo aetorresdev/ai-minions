@@ -18,6 +18,9 @@ import json, os, sys, re
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from constants import KNOWN_MODES, MODE_RE, PRICE, cost_from_tokens as _cost_from_tokens
+
 # ── Config ────────────────────────────────────────────────────────────────────
 SESSIONS_DIR = Path.home() / ".claude/metrics/sessions"
 SESSION_ID   = os.environ.get("CLAUDE_SESSION_ID", "unknown")
@@ -25,20 +28,12 @@ PROJECT_DIR  = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
 CLAUDE_HOME  = Path.home() / ".claude"
 STATE_FILE   = SESSIONS_DIR / f"{SESSION_ID}.json"
 
-KNOWN_MODES = {"ORCHESTRATOR", "OWNER", "ARCHITECT", "DEV", "QA", "CERBERUS"}
-MODE_RE     = re.compile(r'\b(?:MODE|ROLE)\s*:\s*(' + '|'.join(KNOWN_MODES) + r')\b')
-
-# Sonnet 4.6 pricing per million tokens
-PRICE = {"input": 3.00, "output": 15.00, "cache_w": 3.75, "cache_r": 0.30}
-
+LOOP_TRACE   = SESSIONS_DIR / "loop_trace.jsonl"
+# Tools whose inputs are too large or not useful to summarize
+_SKIP_TRACE  = {"session-state", "flow-metrics"}
 
 def cost_from_tokens(input_tok, output_tok, cache_w, cache_r) -> float:
-    return (
-        input_tok  / 1_000_000 * PRICE["input"]   +
-        output_tok / 1_000_000 * PRICE["output"]  +
-        cache_w    / 1_000_000 * PRICE["cache_w"] +
-        cache_r    / 1_000_000 * PRICE["cache_r"]
-    )
+    return _cost_from_tokens(input_tok, output_tok, cache_w, cache_r)
 
 
 # ── Transcript helpers ────────────────────────────────────────────────────────
@@ -167,6 +162,46 @@ def save_state(state: dict):
     STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2))
 
 
+def _summarize_input(tool_name: str, tool_input: dict) -> str:
+    """Return a short (≤120 char) summary of tool input for the loop trace."""
+    if not tool_input:
+        return ""
+    # Per-tool summaries for the most common tools
+    if tool_name in ("Read", "Write", "Edit"):
+        return (tool_input.get("file_path") or "")[:120]
+    if tool_name == "Bash":
+        cmd = (tool_input.get("command") or "")
+        return cmd[:120]
+    if tool_name == "Grep":
+        return f"{tool_input.get('pattern','')[:60]} in {tool_input.get('path','')[:40]}"
+    if tool_name == "Agent":
+        return (tool_input.get("description") or "")[:120]
+    if tool_name == "Skill":
+        return (tool_input.get("skill") or "")[:60]
+    # Generic: first key=value pairs up to 120 chars
+    parts = [f"{k}={str(v)[:30]}" for k, v in list(tool_input.items())[:4]]
+    return ", ".join(parts)[:120]
+
+
+def write_loop_trace(session_id: str, tool_name: str, tool_input: dict, current_mode: str | None):
+    """Append one line to loop_trace.jsonl. Never raises."""
+    if not tool_name or tool_name in _SKIP_TRACE:
+        return
+    try:
+        SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "ts":         datetime.now(timezone.utc).isoformat(),
+            "session_id": session_id,
+            "role":       current_mode or "unknown",
+            "tool":       tool_name,
+            "input":      _summarize_input(tool_name, tool_input),
+        }
+        with LOOP_TRACE.open("a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
+
+
 def main():
     try:
         raw = sys.stdin.read()
@@ -235,7 +270,15 @@ def main():
 
     save_state(state)
 
-    # ── 4. Emit live summary as hook context ──────────────────────────────────
+    # ── 4. Loop trace — one line per tool call with role + input summary ──────
+    write_loop_trace(
+        session_id=SESSION_ID,
+        tool_name=tool_name,
+        tool_input=hook.get("tool_input") or hook.get("toolInput") or {},
+        current_mode=state["modes"]["current"],
+    )
+
+    # ── 5. Emit live summary as hook context ──────────────────────────────────
     tok_total = state["tokens"]["input"] + state["tokens"]["output"]
     n_agents  = len(state["agents"])
     mode_str  = state["modes"]["current"] or "—"

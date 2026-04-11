@@ -17,13 +17,13 @@ CLAUDE_HOME  = Path.home() / ".claude"
 METRICS_FILE = CLAUDE_HOME / "metrics" / "flow-metrics.jsonl"
 
 # Sonnet 4.6 pricing (per million tokens, as of 2026-04)
-PRICE_INPUT_PER_M  = 3.00
-PRICE_OUTPUT_PER_M = 15.00
-PRICE_CACHE_WRITE  = 3.75   # ephemeral cache write
-PRICE_CACHE_READ   = 0.30   # cache read
+PRICE_INPUT_PER_M  = PRICE["input"]
+PRICE_OUTPUT_PER_M = PRICE["output"]
+PRICE_CACHE_WRITE  = PRICE["cache_w"]
+PRICE_CACHE_READ   = PRICE["cache_r"]
 
-KNOWN_MODES = {"ORCHESTRATOR", "OWNER", "ARCHITECT", "DEV", "QA", "CERBERUS"}
-MODE_RE     = re.compile(r'\bMODE\s*:\s*(' + '|'.join(KNOWN_MODES) + r')\b')
+sys.path.insert(0, str(Path(__file__).parent))
+from constants import KNOWN_MODES, MODE_RE, PRICE
 FLOW_RE     = re.compile(r'\bFLOW\s*:\s*(single_agent|multi_agent)\b')
 GOAL_RE     = re.compile(r'\bGOAL\s*:\s*(.+)')
 # Handoff compaction: detect compact_handoff tool calls in transcript

@@ -15,7 +15,19 @@
  *   --skip-gates         Skip orchestrator-state MCP gates (useful for testing)
  */
 
+const path = require("path");
+const fs   = require("fs");
 const { run } = require("./orchestrator");
+const { setModelProfile } = require("./agents");
+
+function loadModelsConfig() {
+  const configPath = path.join(__dirname, "models.json");
+  try {
+    return JSON.parse(fs.readFileSync(configPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
 
 async function readStdin() {
   return new Promise((resolve) => {
@@ -33,6 +45,7 @@ async function main() {
   let flowMode = "single_agent";
   let taskId;
   let skipGates = false;
+  let profile = null;
   const inputArgs = [];
 
   for (let i = 0; i < args.length; i++) {
@@ -41,17 +54,32 @@ async function main() {
     else if (args[i] === "--flow" && args[i + 1])       { flowMode = args[++i]; }
     else if (args[i] === "--task-id" && args[i + 1])    { taskId = args[++i]; }
     else if (args[i] === "--skip-gates")                { skipGates = true; }
+    else if (args[i] === "--profile" && args[i + 1])    { profile = args[++i]; }
     else                                                 { inputArgs.push(args[i]); }
+  }
+
+  // Load models.json and activate profile before any agent is invoked
+  const modelsConfig = loadModelsConfig();
+  if (profile) {
+    if (!modelsConfig) {
+      console.warn(`⚠  --profile ${profile} ignored: models.json not found at ${path.join(__dirname, "models.json")}`);
+    } else if (!modelsConfig.profiles?.[profile]) {
+      const available = Object.keys(modelsConfig.profiles || {}).join(", ");
+      console.warn(`⚠  --profile ${profile} not found. Available: ${available}`);
+    } else {
+      setModelProfile(profile, modelsConfig);
+      console.log(`Profile: ${profile}`);
+    }
   }
 
   const goal = inputArgs.join(" ") || await readStdin();
   if (!goal || !goal.trim()) {
-    console.error("Usage: node run-orchestrator.js [--cwd <dir>] [--iterations <n>] [--flow <mode>] \"<goal>\"");
+    console.error("Usage: node run-orchestrator.js [--cwd <dir>] [--iterations <n>] [--flow <mode>] [--profile fast|balanced|quality] \"<goal>\"");
     process.exit(1);
   }
 
   console.log(`\nOrchestrator starting in: ${cwd}`);
-  console.log(`Flow: ${flowMode} | Max iterations: ${maxIterations}${skipGates ? " | Gates: DISABLED" : ""}\n`);
+  console.log(`Flow: ${flowMode} | Max iterations: ${maxIterations}${profile ? ` | Profile: ${profile}` : ""}${skipGates ? " | Gates: DISABLED" : ""}\n`);
 
   const result = await run(goal.trim(), {
     maxIterations,
