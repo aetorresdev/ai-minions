@@ -53,6 +53,67 @@ MODEL_OVERRIDE_DEV_BACKEND=claude-haiku-4-5-20251001 node run-orchestrator.js "g
 MODEL_OVERRIDE_QA=claude-haiku-4-5-20251001 node run-orchestrator.js "goal"
 ```
 
+### Profile-based selection (config-driven)
+
+> **Status:** implemented 2026-04-11. Files: `models.json`, `agents.js` (`resolveModel`, `setModelProfile`), `run-orchestrator.js` (`--profile` flag).
+
+Instead of hardcoding models or setting individual env vars, `models.json` defines named profiles. Select a profile at runtime with `--profile`:
+
+```bash
+node run-orchestrator.js --profile fast "goal"      # haiku everywhere except CERBERUS/ARCHITECT
+node run-orchestrator.js --profile quality "goal"   # opus default, sonnet for DEV
+# no flag → "balanced" profile (current hardcoded defaults)
+```
+
+Override keys in `models.json` and `MODEL_OVERRIDE_*` env vars use the normalized role name — `role.toUpperCase().replace(/-/g, "_")`:
+
+| Role | Key |
+|------|-----|
+| `orchestrator` | `ORCHESTRATOR` |
+| `summarizer` | `SUMMARIZER` |
+| `owner` | `OWNER` |
+| `dev-backend` | `DEV_BACKEND` |
+| `dev-frontend` | `DEV_FRONTEND` |
+| `dev-devops` | `DEV_DEVOPS` |
+| `architect` | `ARCHITECT` |
+| `qa` | `QA` |
+| `cerberus` | `CERBERUS` |
+
+**`examples/orchestrator/models.json`** schema:
+
+```json
+{
+  "profiles": {
+    "fast": {
+      "default": "claude-haiku-4-5-20251001",
+      "overrides": {
+        "CERBERUS": "claude-sonnet-4-6",
+        "ARCHITECT": "claude-sonnet-4-6"
+      }
+    },
+    "balanced": {
+      "default": "claude-sonnet-4-6",
+      "overrides": {}
+    },
+    "quality": {
+      "default": "claude-opus-4-6",
+      "overrides": {
+        "DEV": "claude-sonnet-4-6"
+      }
+    }
+  }
+}
+```
+
+**Resolution order (highest priority first):**
+
+1. `MODEL_OVERRIDE_<ROLE>` env var — always wins, retrocompatible
+2. `profiles.<profile>.overrides.<ROLE>` from `models.json`
+3. `profiles.<profile>.default` from `models.json`
+4. Hardcoded `MODEL_ROUTING` in `agents.js` (current behavior, fallback)
+
+**Implementation target:** `resolveModel(role, profile, modelsConfig)` in `agents.js`; `--profile` flag parsed in `run-orchestrator.js`.
+
 ---
 
 ## Fallback policy

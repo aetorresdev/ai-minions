@@ -31,8 +31,20 @@ flowchart LR
     subgraph Hooks ["🪝 Hooks  •  scripts/hooks/"]
         direction TB
         H1[mem0-search\nUserPromptSubmit]:::hook
-        H2[session-state · agent-metrics\nPostToolUse]:::hook
+        H2[session-state · agent-metrics\nPostToolUse *]:::hook
+        H2B[context-efficiency\nPreToolUse Read · PostToolUse *]:::hook
+        H2C[handoff-enforcer · qa-skill-enforcer\nPreToolUse advance_mode]:::hook
+        H2D[mode-enforcer\nPreToolUse *]:::hook
         H3[flow-metrics · mem0-stop\nStop]:::hook
+        HC[gate_logger · constants\nshared modules]:::hook
+    end
+
+    subgraph ObsDisk ["📊 Observability  •  ~/.claude/metrics/"]
+        direction TB
+        OD1["sessions/<id>.json\nlive token · mode · cost"]:::store
+        OD2["sessions/loop_trace.jsonl\nrole · tool · input per call"]:::store
+        OD3["gate_events.jsonl\nblocked · allowed · reason"]:::store
+        OD4["flow-metrics.jsonl\nphases · tokens · cost per session"]:::store
     end
 
     U -.->|lifecycle| H1
@@ -90,7 +102,20 @@ flowchart LR
     ORC -.->|validate| GT_V
     GT_A -.->|current_mode| ORC
     ORC -.->|PostToolUse| H2
+    ORC -.->|PostToolUse| H2B
+    ORC -.->|PreToolUse| H2C
+    ORC -.->|PreToolUse| H2D
     ORC -.->|Stop| H3
+    H2  -->|writes| OD1
+    H2  -->|writes| OD2
+    H2B -->|writes| OD1
+    H2C -->|writes| OD3
+    H2D -->|writes| OD3
+    H3  -->|writes| OD4
+    HC  -.->|imported by| H2
+    HC  -.->|imported by| H2C
+    HC  -.->|imported by| H2D
+    HC  -.->|imported by| H3
 
     %% ── Ollama ───────────────────────────────────────────────────────────
     subgraph OLLAMA ["🦙 Ollama  (local LLM)"]

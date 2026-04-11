@@ -9,21 +9,18 @@ import json, os, sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-METRICS_FILE = Path.home() / ".claude/metrics/agent-metrics.jsonl"
+sys.path.insert(0, str(Path(__file__).parent))
+from constants import cost_from_tokens
 
-# Sonnet 4.6 pricing per million tokens
-PRICE_INPUT    = 3.00
-PRICE_OUTPUT   = 15.00
-PRICE_CACHE_W  = 3.75
-PRICE_CACHE_R  = 0.30
+METRICS_FILE = Path.home() / ".claude/metrics/agent-metrics.jsonl"
 
 
 def estimate_cost(usage: dict) -> float:
-    return (
-        usage.get("input_tokens", 0)                    / 1_000_000 * PRICE_INPUT  +
-        usage.get("output_tokens", 0)                   / 1_000_000 * PRICE_OUTPUT +
-        usage.get("cache_creation_input_tokens", 0)     / 1_000_000 * PRICE_CACHE_W +
-        usage.get("cache_read_input_tokens", 0)         / 1_000_000 * PRICE_CACHE_R
+    return cost_from_tokens(
+        usage.get("input_tokens", 0),
+        usage.get("output_tokens", 0),
+        usage.get("cache_creation_input_tokens", 0),
+        usage.get("cache_read_input_tokens", 0),
     )
 
 

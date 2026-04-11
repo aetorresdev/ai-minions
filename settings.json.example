@@ -1,4 +1,5 @@
 {
+  "_comment": "Copy to ~/.claude/settings.json and replace ~/.claude with your actual home path if needed. Hook commands run as shell commands — ~ is expanded by the shell. Replace /path/to/your/context/ in SessionStart with your actual context directory.",
   "hooks": {
     "SessionStart": [
       {
@@ -16,13 +17,79 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 ~/.claude/scripts/hooks/multi-agent-orchestrator.py",
+            "statusMessage": "Checking for multi-agent orchestration..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "python3 ~/.claude/scripts/hooks/mem0-search.py",
             "statusMessage": "Searching memories..."
           }
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/scripts/hooks/mode-enforcer.py",
+            "statusMessage": "Enforcing MODE declaration..."
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_EVENT=PreToolUse python3 ~/.claude/scripts/hooks/context-efficiency.py",
+            "statusMessage": "Checking context efficiency..."
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__orchestrator-state__advance_mode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_EVENT=PreToolUse python3 ~/.claude/scripts/hooks/handoff-enforcer.py",
+            "statusMessage": "Verifying compact_handoff before advance_mode..."
+          },
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_EVENT=PreToolUse python3 ~/.claude/scripts/hooks/qa-skill-enforcer.py",
+            "statusMessage": "Verifying QA skill before CERBERUS..."
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
+      {
+        "matcher": "mcp__compact-handoff__compact_handoff",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_EVENT=PostToolUse python3 ~/.claude/scripts/hooks/handoff-enforcer.py",
+            "statusMessage": "Recording compact_handoff..."
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_EVENT=PostToolUse python3 ~/.claude/scripts/hooks/qa-skill-enforcer.py",
+            "statusMessage": "Recording QA skill usage..."
+          }
+        ]
+      },
       {
         "matcher": "Agent",
         "hooks": [
@@ -40,6 +107,11 @@
             "type": "command",
             "command": "python3 ~/.claude/scripts/hooks/session-state.py",
             "statusMessage": "Updating session state..."
+          },
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/scripts/hooks/context-efficiency.py",
+            "statusMessage": "Computing context efficiency..."
           }
         ]
       }

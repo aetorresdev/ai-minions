@@ -139,6 +139,13 @@ Before marking any role COMPLETE, execute in order — no skipping, no reorderin
 
 Skipping step 1 will be blocked by a hook. There are no exceptions.
 
+> **Strict mode (state store active):** insert two additional steps between 1 and 2:
+> - `mcp__orchestrator-state__record_artifact` for every path in `files_modified`
+> - `mcp__orchestrator-state__validate_transition` — dry-run gate check before advancing
+>
+> Full sequence: `compact_handoff` → `record_artifact` → `validate_transition` → `validate_goal_alignment` → `advance_mode`.
+> See [docs/orchestrator/strict-mode.md](../../docs/orchestrator/strict-mode.md) and [agent-contract.md](../../docs/orchestrator/agent-contract.md) § *Required tool flow*.
+
 ### Forbidden patterns
 
 - Inline role mentions (`"as DEV I will..."`)

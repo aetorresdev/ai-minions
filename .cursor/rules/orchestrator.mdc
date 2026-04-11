@@ -69,8 +69,11 @@ alwaysApply: false
 
 | MODE | FORBID |
 |------|--------|
-| DEV | Quality sign-off; QA/CERBERUS |
-| QA | Production code |
-| CERBERUS | Implementation in same turn |
+| ORCHESTRATOR | Implement code; do deep review substituting QA/CERBERUS |
+| OWNER | Implement; review implementation in detail |
+| ARCHITECT | Write application code; complete HCL/Terraform |
+| DEV | Evaluate "overall quality"; assume QA or CERBERUS role |
+| QA | Write production code; approve without evidence; return to DEV without classifying findings |
+| CERBERUS | Implement or patch in the same turn; propose detailed solutions |
 
 Set `alwaysApply: true` for every-chat orchestration hints.

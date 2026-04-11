@@ -31,6 +31,24 @@ const _degradedAgents = new Set();
 function getDegradedAgents() { return new Set(_degradedAgents); }
 function clearDegradedAgents() { _degradedAgents.clear(); }
 
+// ── Profile-based model selection ────────────────────────────────────────────
+// Set via setModelProfile(profile, modelsConfig) at the start of each run.
+// resolveModel() reads these to determine the active model per role.
+// Priority: MODEL_OVERRIDE_<ROLE> env var > profile overrides > profile default > MODEL_ROUTING
+let _activeProfile = null;
+let _modelsConfig  = null;
+
+/**
+ * Configure the active model profile for this run.
+ * Called once by run-orchestrator.js before any agent is invoked.
+ * @param {string|null} profile - profile name from models.json (e.g. "fast", "balanced", "quality")
+ * @param {object|null} modelsConfig - parsed models.json content
+ */
+function setModelProfile(profile, modelsConfig) {
+  _activeProfile = profile || null;
+  _modelsConfig  = modelsConfig || null;
+}
+
 // ── Ollama model config ───────────────────────────────────────────────────────
 // Set OLLAMA_MODEL to use a local model for orchestrator/summarizer roles.
 // If not set or Ollama is unreachable, these roles fall back to claude-haiku.
@@ -105,14 +123,36 @@ const FALLBACK_POLICY = {
 };
 
 /**
- * Resolve the active model for a role, respecting env overrides.
- * @param {string} role - agent id
+ * Resolve the active model for a role.
+ *
+ * Priority (highest first):
+ *   1. MODEL_OVERRIDE_<ROLE> env var          — always wins, retrocompatible
+ *   2. profile overrides from models.json     — per-role within active profile
+ *   3. profile default from models.json       — catch-all for active profile
+ *   4. MODEL_ROUTING[role].primary            — hardcoded default (current behavior)
+ *
+ * @param {string} role - agent id (e.g. "dev-backend", "cerberus")
  * @returns {string} model id
  */
 function resolveModel(role) {
+  // 1. Env override — retrocompatible with existing MODEL_OVERRIDE_<ROLE> usage
   const envKey = `MODEL_OVERRIDE_${role.toUpperCase().replace(/-/g, "_")}`;
   if (process.env[envKey]) return process.env[envKey];
-  return MODEL_ROUTING[role]?.primary ?? "claude-sonnet-4-6";
+
+  // 2 + 3. Profile-based selection from models.json
+  if (_activeProfile && _modelsConfig) {
+    const prof = _modelsConfig.profiles?.[_activeProfile];
+    if (prof) {
+      const overrideKey = role.toUpperCase().replace(/-/g, "_");
+      if (prof.overrides?.[overrideKey]) return prof.overrides[overrideKey];
+      if (prof.default) return prof.default;
+    }
+  }
+
+  // 4. MODEL_ROUTING fallback — throws on unknown role to surface misconfiguration early
+  const routing = MODEL_ROUTING[role];
+  if (!routing) throw new Error(`resolveModel: unknown role "${role}" — add it to MODEL_ROUTING in agents.js`);
+  return routing.primary;
 }
 
 /**
@@ -772,4 +812,4 @@ function listAgents() {
   return Object.entries(AGENTS).map(([id, a]) => ({ id, name: a.name, title: a.title, mode: a.mode }));
 }
 
-module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama, effectiveMode, resolveCredentials, buildEnvContext, CONTRACT_VERSION, FALLBACK_POLICY, validateOutput, getDegradedAgents, clearDegradedAgents };
+module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama, effectiveMode, resolveCredentials, buildEnvContext, CONTRACT_VERSION, FALLBACK_POLICY, validateOutput, getDegradedAgents, clearDegradedAgents, setModelProfile };
