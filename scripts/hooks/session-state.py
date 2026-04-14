@@ -14,12 +14,14 @@ Updated after every tool call. Tracks:
 The state file is readable at any time — by claude-hud, scripts, or
 a future dashboard — giving real-time visibility into the session.
 """
-import json, os, sys, re
+import json
+import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from constants import KNOWN_MODES, MODE_RE, PRICE, cost_from_tokens as _cost_from_tokens
+from constants import MODE_RE, cost_from_tokens as _cost_from_tokens
 
 # ── Config ────────────────────────────────────────────────────────────────────
 SESSIONS_DIR = Path.home() / ".claude/metrics/sessions"
@@ -77,7 +79,7 @@ def read_transcript_tokens(path: Path) -> tuple[int, int, int, int, str | None, 
     total_input = total_output = total_cache_w = total_cache_r = 0
     current_mode = None
     dev_qa_cycles = 0
-    prev_mode = None
+
     modes_seen = []
 
     try:
@@ -221,8 +223,10 @@ def main():
     # ── 2. Agent invocation details (Agent tool carries its own usage) ────────
     result = hook.get("tool_response") or hook.get("tool_result") or hook.get("output") or {}
     if isinstance(result, str):
-        try: result = json.loads(result)
-        except: result = {}
+        try:
+            result = json.loads(result)
+        except Exception:
+            result = {}
 
     if tool_name == "Agent" and isinstance(result, dict) and result.get("agentType"):
         usage = result.get("usage", {})
@@ -256,7 +260,6 @@ def main():
 
         # Update MODE from transcript
         if mode_now and mode_now != state["modes"]["current"]:
-            prev = state["modes"]["current"]
             state["modes"]["current"] = mode_now
             state["modes"]["history"].append({
                 "mode": mode_now,

@@ -17,7 +17,11 @@ If detected: launches run-orchestrator.js in a new terminal window and
 exits with code 2 to block the prompt from reaching the model.
 If not detected: exits 0 silently (hook is a no-op).
 """
-import json, os, re, subprocess, sys
+import json
+import os
+import re
+import subprocess
+import sys
 from pathlib import Path
 
 ORCHESTRATOR_JS = os.path.expanduser("~/.claude/examples/orchestrator/run-orchestrator.js")

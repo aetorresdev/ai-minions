@@ -16,7 +16,8 @@ Schema:
   reason      short reason string (why blocked or allowed)
   iteration   iteration number from orchestrator state (if available)
 """
-import json, os
+import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 

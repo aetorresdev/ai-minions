@@ -5,7 +5,9 @@ Captures per-subagent token usage, duration, and tool call count.
 Appends to ~/.claude/metrics/agent-metrics.jsonl
 Prints a one-line summary as hook output (visible in claude-hud / session log).
 """
-import json, os, sys
+import json
+import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 

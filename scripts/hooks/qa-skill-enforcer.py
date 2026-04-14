@@ -17,7 +17,10 @@ Review skills are detected dynamically from ~/.claude/skills/ by reading each SK
 Flag file: ~/.claude/metrics/qa-skill-used-<task_id>.flag  (multi-agent)
            ~/.claude/metrics/qa-skill-used-<SESSION_ID>.flag (single-agent fallback)
 """
-import json, os, re, sys
+import json
+import os
+import re
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))

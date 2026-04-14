@@ -19,7 +19,7 @@ let calledModels = [];
 let responseQueue   = [];
 let defaultResponse = { output: "", error: null };
 
-function stubSpawnSync(cmd, args, opts) {
+function stubSpawnSync(cmd, args, _opts) {
   callCount++;
   const modelIdx = args.indexOf("--model");
   if (modelIdx !== -1) calledModels.push(args[modelIdx + 1]);

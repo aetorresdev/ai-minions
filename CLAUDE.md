@@ -93,3 +93,29 @@ Skipping step 1 will be blocked by a hook. There are no exceptions.
 
 - Never print, echo, log, or display credentials, tokens, API keys, or secrets — not in output, not in commands, not truncated, not partially. Reference the variable name only (e.g. `$N8N_API_TOKEN`, never its value).
 - Never read, write, delete, or manipulate orchestrator state files under `~/.claude/metrics/` or `~/.claude/.state/`. If a hook blocks an action, follow the hook's instructions — do not work around it.
+
+
+# Session State Policy
+
+## Mandatory state handling
+- Before stopping, always ensure `.claude/state/project_state.md` exists and is up to date.
+- Never assume prior conversational context is still available.
+- If `.claude/state/project_state.md` exists, read it before continuing work.
+- After any major decision, architecture change, or partial implementation, update the snapshot.
+
+## Snapshot contents
+The snapshot must contain:
+- Goal
+- Current status
+- Decisions made
+- Constraints
+- Files touched
+- Pending tasks
+- Risks / open issues
+- Exact next step
+- Resume prompt for another LLM/provider
+
+## Behavior rules
+- Do not claim a task is complete if pending tasks remain in the snapshot.
+- If context has been compacted, reload the snapshot before proceeding.
+- Prefer explicit state over inferred state.

@@ -21,7 +21,9 @@ Metrics emitted:
 State stored in:
   ~/.claude/metrics/sessions/<SESSION_ID>.json under key "ctx_efficiency"
 """
-import json, os, sys
+import json
+import os
+import sys
 from pathlib import Path
 from collections import Counter
 
@@ -163,7 +165,7 @@ def handle_post_tool(hook: dict):
         parts.append(f"bash-repeats={len(repeated_bash)}")
 
     if cache_ratio < CACHE_RATIO_WARN:
-        parts.append(f"⚠ low cache")
+        parts.append("⚠ low cache")
 
     output = {
         "hookSpecificOutput": {

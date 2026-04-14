@@ -23,7 +23,7 @@
  *   - compact-handoff MCP registered (claude mcp add compact-handoff ...)
  */
 
-const { askAgent, summarizeHandoff, effectiveMode, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
+const { askAgent, summarizeHandoff, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
 const { formatArtifactLine, envInt, truncateForContext } = require("./context-utils");
 const { spawnSync } = require("child_process");
 const { randomUUID } = require("crypto");
@@ -683,6 +683,7 @@ Assign one agent per step. Reply with JSON only.`;
         task: step.task,
         result,
         handoffYaml,
+        gateBlocked: false,
         ...(handoffSummary ? { handoffSummary } : {}),
       });
       log(agentId, `Done (${result.length} chars)`);
@@ -828,7 +829,14 @@ ${cerberusResult}
 No blockers were found. Confirm completion or list any remaining corrections.
 Reply with JSON only.`;
 
-    const { output: decideResponse } = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv, phase: "decide" });
+    let decideResponse = "";
+    try {
+      const { output } = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv, phase: "decide" });
+      decideResponse = output;
+    } catch (decideErr) {
+      log("orchestrator", `⚠ Decide contract failed (${decideErr.message}) — treating as stopped`);
+      traceEvent(taskId, { event: "decide_contract_fail", reason: decideErr.message });
+    }
     const decide = extractJson(decideResponse);
 
     if (decide && decide.done === true) {

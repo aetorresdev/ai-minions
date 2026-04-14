@@ -628,11 +628,10 @@ function buildEnvContext(agentId, sessionEnv) {
 //   summarizer          → any non-empty output
 
 const FINDING_RE    = /\b(blocker|improvement|nice-to-have)\b/i;
-const FILE_RE       = /(?:files?_modified|modified|changed|updated|created|edited)\s*[:\-]?\s*\S|[`'"]?\/[\w./-]+\.\w{1,6}[`'"]?/i;
-const VALIDATION_RE = /\b(validation_run|ran|executed|tested|passed|failed|lint|pytest|npm\s+test|terraform\s+validate|node\s+|output:)\b/i;
-const FILES_READ_RE      = /\bfiles?_read\s*[:\-]?\s*(?:[\[`'"\w]|\n\s*-)/i;
-const FILES_READ_EMPTY_RE = /\bfiles?_read\s*[:\-]?\s*(?:\[\s*\]|:\s*\[\s*\]|\s*\n(?!\s*-))/i;
-const FILES_MODIFIED_RE  = /(?:files?_modified|modified)\s*[:\-]\s*\n((?:\s*-\s*\S[^\n]*\n?)+)/i;
+const VALIDATION_RE      = /\b(validation_run|ran|executed|tested|passed|failed|lint|pytest|npm\s+test|terraform\s+validate|node\s+|output:)\b/i;
+const FILES_READ_RE      = /\bfiles?_read\s*[:-]?\s*(?:[[`'"\w]|\n\s*-)/i;
+const FILES_READ_EMPTY_RE = /\bfiles?_read\s*[:-]?\s*(?:\[\s*]|:\s*\[\s*]|\s*\n(?!\s*-))/i;
+const FILES_MODIFIED_RE  = /(?:files?_modified|modified)\s*[:-]\s*\n((?:\s*-\s*\S[^\n]*\n?)+)/i;
 
 /**
  * Validate agent output against its role contract.
@@ -691,7 +690,7 @@ function validateOutput(agentId, output, { phase } = {}) {
     // Strict mode: every file in files_modified must appear in files_read
     const modified = modifiedMatch[1].split("\n")
       .map(l => l.replace(/^\s*-\s*/, "").trim()).filter(Boolean);
-    const readBlock = output.match(/\bfiles?_read\s*[:\-][^\n]*\n?([\s\S]*?)(?=\n\S|\n\n|$)/i)?.[0] || "";
+    const readBlock = output.match(/\bfiles?_read\s*[:-][^\n]*\n?([\s\S]*?)(?=\n\S|\n\n|$)/i)?.[0] || "";
     const unread = modified.filter(f => !readBlock.includes(f));
     if (unread.length > 0)
       return { valid: false, reason: `${agentId}: files_modified contains paths not declared in files_read: ${unread.join(", ")}`, gate_id: "files_read_vs_modified" };
@@ -716,7 +715,7 @@ function validateOutput(agentId, output, { phase } = {}) {
  * @returns {{ context_stats: { files_read_count: number, files_modified_count: number } }}
  */
 function extractContextStats(agentId, output) {
-  const readMatch  = output.match(/\bfiles?_read\s*[:\-][^\n]*\n((?:\s*-\s*\S[^\n]*\n?)*)/i);
+  const readMatch  = output.match(/\bfiles?_read\s*[:-][^\n]*\n((?:\s*-\s*\S[^\n]*\n?)*)/i);
   const modMatch   = output.match(FILES_MODIFIED_RE);
   const filesRead  = readMatch  ? readMatch[1].split("\n").map(l => l.trim()).filter(l => l.startsWith("-")).length : 0;
   const filesModified = modMatch ? modMatch[1].split("\n").map(l => l.trim()).filter(l => l.startsWith("-")).length : 0;
@@ -735,10 +734,13 @@ const MAX_OUTPUT_TOKENS = {
 
 function runClaude(prompt, { cwd, model, maxTokens } = {}) {
   const timeoutMs = parseInt(process.env.CLAUDE_CLI_TIMEOUT, 10) || 180000;
-  const args = ["-p", prompt, "--dangerously-skip-permissions"];
+  // Pass prompt via stdin ("-p -") to avoid the claude CLI arg parser treating
+  // prompt content that starts with "---" or "--" as unknown CLI flags.
+  const args = ["-p", "-", "--dangerously-skip-permissions"];
   if (model) args.push("--model", model);
   if (maxTokens) args.push("--max-tokens", String(maxTokens));
   const result = spawnSync("claude", args, {
+    input: prompt,
     encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024,
     timeout: timeoutMs,
@@ -749,13 +751,21 @@ function runClaude(prompt, { cwd, model, maxTokens } = {}) {
   return result.stdout.trim();
 }
 
+// ── Backend override (test injection only) ────────────────────────────────────
+// Use setBackend("ollama") in test harness before() hooks to force local model.
+// Never set via env var in production — this variable is module-scoped only.
+let _backendOverride = null;
+function setBackend(name) { _backendOverride = (name === "ollama") ? "ollama" : null; }
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
   const agent = AGENTS[agentId];
   if (!agent) throw new Error(`Unknown agent "${agentId}". Available: ${Object.keys(AGENTS).join(", ")}`);
-  if (agent.provider === "ollama") {
-    const output = await runOllama(agent.system, [{ role: "user", content: userMessage }], { model: agent.model });
+  const forceOllama = _backendOverride === "ollama" && OLLAMA_MODEL;
+  if (agent.provider === "ollama" || forceOllama) {
+    const model = forceOllama ? OLLAMA_MODEL : agent.model;
+    const output = await runOllama(agent.system, [{ role: "user", content: userMessage }], { model });
     const check = validateOutput(agentId, output, { phase });
     if (!check.valid) { const err = new Error(`[output contract] ${check.reason}`); err.gate_id = check.gate_id; throw err; }
     return { output, context_stats: check.context_stats || null };
@@ -812,4 +822,4 @@ function listAgents() {
   return Object.entries(AGENTS).map(([id, a]) => ({ id, name: a.name, title: a.title, mode: a.mode }));
 }
 
-module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama, effectiveMode, resolveCredentials, buildEnvContext, CONTRACT_VERSION, FALLBACK_POLICY, validateOutput, getDegradedAgents, clearDegradedAgents, setModelProfile };
+module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama, effectiveMode, resolveCredentials, buildEnvContext, CONTRACT_VERSION, FALLBACK_POLICY, validateOutput, getDegradedAgents, clearDegradedAgents, setModelProfile, setBackend };
