@@ -15,6 +15,21 @@ Thanks for considering contributing to AI Minions.
 3. Update the README: add the skill to the relevant table and, if needed, to MCP/CLI requirements.
 4. Optionally add an example under `examples/` showing input and expected output.
 
+## Sync checklist: CLAUDE.md ↔ runtime (anti-drift)
+
+When changing any of the files below, update the paired counterpart before opening a PR:
+
+| If you change… | Also update… |
+|----------------|--------------|
+| `validateOutput()` contracts in `agents.js` | `docs/orchestrator/agent-contract.md` § Output contracts |
+| Role ALLOW/FORBID logic in `agents.js` | `docs/orchestrator/agent-contract.md` § ALLOW/FORBID table |
+| Hook gate logic (`scripts/hooks/`) | `docs/orchestrator/strict-mode.md` § Gate sequence |
+| `CLAUDE.md` Activation Rules or MODE protocol | `docs/orchestrator/agent-contract.md` § MODE Protocol |
+| `CONTRACT_VERSION` in `agents.js` | `docs/orchestrator/model-routing.md` (if routing changed) |
+| Pricing constants in `scripts/hooks/constants.py` | `docs/orchestrator/strict-mode.md` § Shared hook modules |
+
+**Rule:** `CLAUDE.md` is a consistency aid — not enforcement. Real gates live in `validateOutput()` and the hooks. If they diverge, the runtime wins.
+
 ## Pull requests
 
 - Keep changes focused (one skill, one fix, or one doc section).

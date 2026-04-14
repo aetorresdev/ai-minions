@@ -29,6 +29,8 @@ If MODE/FLOW is present:
 - FULL protocol enforcement is mandatory (role blocks, transitions, checklist)
 - No exceptions
 
+> **Boundary:** `CLAUDE.md` improves consistency but does NOT replace the runner — real enforcement lives in `validateOutput()` and the hooks. Without the harness active, these rules are best-effort guidance only.
+
 ## Context efficiency (always)
 
 - Before editing any file: declare what you will read (`files_read`). One targeted read per artifact — do not load the same file twice.
