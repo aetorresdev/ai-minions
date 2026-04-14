@@ -6,7 +6,10 @@ token usage per phase, and DEV→QA iteration counts.
 Appends a JSON record to ~/.claude/metrics/flow-metrics.jsonl
 and prints a human-readable summary as hook context.
 """
-import json, os, re, sys
+import json
+import os
+import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,14 +19,14 @@ PROJECT_DIR  = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
 CLAUDE_HOME  = Path.home() / ".claude"
 METRICS_FILE = CLAUDE_HOME / "metrics" / "flow-metrics.jsonl"
 
+sys.path.insert(0, str(Path(__file__).parent))
+from constants import MODE_RE, PRICE  # noqa: E402
+
 # Sonnet 4.6 pricing (per million tokens, as of 2026-04)
 PRICE_INPUT_PER_M  = PRICE["input"]
 PRICE_OUTPUT_PER_M = PRICE["output"]
 PRICE_CACHE_WRITE  = PRICE["cache_w"]
 PRICE_CACHE_READ   = PRICE["cache_r"]
-
-sys.path.insert(0, str(Path(__file__).parent))
-from constants import KNOWN_MODES, MODE_RE, PRICE
 FLOW_RE     = re.compile(r'\bFLOW\s*:\s*(single_agent|multi_agent)\b')
 GOAL_RE     = re.compile(r'\bGOAL\s*:\s*(.+)')
 # Handoff compaction: detect compact_handoff tool calls in transcript
@@ -123,8 +126,10 @@ def parse_transcript(path: Path) -> dict:
                 out = usage.get("output_tokens", 0)
                 cw  = usage.get("cache_creation_input_tokens", 0)
                 cr  = usage.get("cache_read_input_tokens", 0)
-                total_input  += inp;  total_output += out
-                total_cache_w += cw;  total_cache_r += cr
+                total_input  += inp
+                total_output += out
+                total_cache_w += cw
+                total_cache_r += cr
 
                 text = " ".join(
                     c.get("text", "") for c in content

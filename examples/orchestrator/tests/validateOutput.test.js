@@ -87,31 +87,31 @@ describe("orchestrator / decide", () => {
 
 describe("dev-backend", () => {
   it("accepts output with file path and validation run", () => ok("dev-backend",
-    "Modified `/src/api/users.py`. Tests passed: pytest — 12 passed."
+    "files_read: [src/api/users.py]\nfiles_modified:\n- src/api/users.py\nTests passed: pytest — 12 passed."
   ));
 
   it("accepts files_modified keyword", () => ok("dev-backend",
-    "files_modified: src/main.js\nvalidation_run: npm test — passed"
+    "files_read: [src/main.js]\nfiles_modified:\n- src/main.js\nvalidation_run: npm test — passed"
   ));
 
   it("accepts terraform validate pattern", () => ok("dev-devops",
-    "Updated /infra/main.tf\nterraform validate — Success"
+    "files_read: [infra/main.tf]\nfiles_modified:\n- infra/main.tf\nterraform validate — Success"
   ));
 
   it("rejects output with no file reference", () => fail("dev-backend",
-    "All tests passed.", {}, /must mention at least one file/
+    "All tests passed.", {}, /must declare files_read\[\]|must mention at least one file/
   ));
 
   it("rejects output with file but no validation", () => fail("dev-backend",
-    "Modified /src/api.py but did not run tests.", {}, /must include at least one validation/
+    "Modified /src/api.py but did not run tests.", {}, /must declare files_read\[\]|must include at least one validation/
   ));
 
   it("applies same contract to dev-frontend", () => fail("dev-frontend",
-    "Updated some components.", {}, /must mention at least one file|must include at least one validation/
+    "Updated some components.", {}, /must declare files_read\[\]|must mention at least one file|must include at least one validation/
   ));
 
   it("applies same contract to dev-devops", () => fail("dev-devops",
-    "Ran terraform plan.", {}, /must mention at least one file/
+    "Ran terraform plan.", {}, /must declare files_read\[\]|must mention at least one file/
   ));
 });
 
@@ -149,6 +149,6 @@ describe("cerberus", () => {
 
 describe("owner / architect / summarizer", () => {
   it("owner accepts any non-empty output", () => ok("owner", "Scope: deliver feature X by Friday."));
-  it("architect accepts any non-empty output", () => ok("architect", "Use event-driven pattern with SQS."));
+  it("architect accepts any non-empty output", () => ok("architect", "files_read: [src/arch.md]\nUse event-driven pattern with SQS."));
   it("summarizer accepts any non-empty output", () => ok("summarizer", "## Delivered\nAPI endpoint added."));
 });

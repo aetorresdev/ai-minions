@@ -16,7 +16,9 @@ Flag file: ~/.claude/metrics/handoff-ready-<task_id>.flag  (multi-agent)
 Roles that skip enforcement (no handoff required):
   ORCHESTRATOR, OWNER — structural roles, not DEV/QA/CERBERUS producers
 """
-import json, os, re, sys
+import json
+import os
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))

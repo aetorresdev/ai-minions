@@ -333,34 +333,34 @@ Use `--iterations 1` to force a single pass.
 
 ```bash
 cd examples/orchestrator
-npm test   # node --test tests/*.test.js — no auth, no Ollama, no MCPs required
+npm test        # lint (ESLint + ruff) + unit tests — no auth, no Ollama, no MCPs required
+npm run test:e2e        # E2E suite — requires Ollama running at localhost:11434
+npm run test:e2e:all    # E2E suite with all available Ollama models
 ```
 
 CI: runs on every push/PR via `.github/workflows/orchestrator-example.yml`.
 
 ### Coverage at a glance
 
-| Area | Covered | Notes |
-|------|---------|-------|
-| Output contracts (per role) | ✅ | Unit |
-| Fallback policy (primary → secondary, hard-fail) | ✅ | Integration (CLI mocked) |
-| Degraded-agent tracking (`getDegradedAgents`) | ✅ | Integration (CLI mocked) |
-| Trace redaction (`_sanitize`, `_hashGoal`) | ✅ | Unit |
-| Strict handoff enforcement (empty YAML) | ✅ | Unit |
-| Blocker detection (CERBERUS regex) | ✅ | Unit |
-| Handoff structure (DEV/QA/CERBERUS keys) | ✅ | Unit |
-| Full orchestrator loop (plan → gate → decide) | ❌ | Requires Claude auth + MCPs |
-| Real MCP gate sequence | ❌ | Requires registered MCPs |
+| Area | Type |
+|------|------|
+| Output contracts (per role) | Unit |
+| `files_read[]` + `files_modified` context gate (ARCHITECT + DEV) | Unit |
+| Fallback policy (primary → secondary, hard-fail) | Integration |
+| Trace redaction, blocker detection, handoff structure | Unit |
+| Full SA/MA orchestrator loop (plan → execute → decide) | E2E (Ollama) |
+| Contract violation detection, gate events, MCP hash chain | E2E (Ollama) |
+| Malformed model response (decide contract) | E2E (Ollama) |
 
-### Detail by file
+### Test files
 
-| Type | File | Covers | Mocked / real |
-|------|------|--------|---------------|
-| Unit | `tests/validateOutput.test.js` | Output contract per role: orchestrator JSON plan/decide, dev-* file+validation, qa/cerberus finding classification, free-form roles | Pure logic — nothing mocked |
-| Unit | `tests/orchestrator.test.js` | `detectBlockers()` regex (10 cases); `validateHandoffStructure()` DEV/QA/CERBERUS keys + exempt modes + strict empty YAML | Pure logic — nothing mocked |
-| Unit | `tests/internals.test.js` | `_hashGoal()` determinism; `_sanitize()` goal truncation + hash suffix + field caps + immutability | Pure logic — nothing mocked |
-| Integration | `tests/askAgent.test.js` | `askAgent()`: contract throws, fallback primary→secondary (2 CLI calls verified), hard-fail architect/cerberus, unknown agentId, `getDegradedAgents`/`clearDegradedAgents` | `child_process.spawnSync` mocked — no Claude auth, no network |
-| **Not covered** | — | Full orchestrator loop, critical-role contract fail breaks iteration, real MCP gate sequence | Requires Claude auth + registered MCPs |
+| File | Type | Requires |
+|------|------|---------|
+| `tests/validateOutput.test.js` | Unit | Nothing |
+| `tests/orchestrator.test.js` | Unit | Nothing |
+| `tests/internals.test.js` | Unit | Nothing |
+| `tests/askAgent.test.js` | Integration | Nothing (CLI mocked) |
+| `tests/e2e.test.js` | E2E | Ollama at localhost:11434 (auto-skip if unavailable) |
 
 ---
 

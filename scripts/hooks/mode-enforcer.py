@@ -16,7 +16,9 @@ Flow:
   2. modes.current set in session state? → model already declared MODE → allow
   3. Neither → block with demand to declare MODE
 """
-import json, os, sys
+import json
+import os
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
