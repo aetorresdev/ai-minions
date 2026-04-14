@@ -21,6 +21,7 @@ const http = require("http");
 // ── Contract version ──────────────────────────────────────────────────────────
 // Bump when handoff schema, role permissions, or gate sequence change.
 // Passed to register_task so the envelope records the version that produced it.
+// sync: docs/orchestrator/agent-contract.md § Output contracts + ALLOW/FORBID table
 const CONTRACT_VERSION = "1.0";
 
 // ── Degraded-agent tracking ───────────────────────────────────────────────────
@@ -618,6 +619,9 @@ function buildEnvContext(agentId, sessionEnv) {
 // Each role has a minimum output contract. If the output does not meet it,
 // validateOutput() returns { valid: false, reason } — the caller throws.
 // No silent retry. No auto-correction. Hard fail.
+//
+// sync: docs/orchestrator/agent-contract.md § Output contracts
+// sync: CLAUDE.md § MODE protocol (role close checklist)
 //
 // Contracts:
 //   orchestrator/plan   → JSON { steps: [{ agentId, task }] }

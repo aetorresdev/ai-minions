@@ -440,6 +440,29 @@ This reduces self-confirmation bias. See [mcp-task-examples.md](mcp-task-example
 
 ---
 
+## What happens outside the harness
+
+This table clarifies what the system guarantees depending on which components are active.
+
+| Component | Active | Guarantee |
+|-----------|--------|-----------|
+| `CLAUDE.md` only | Always (Cursor loads it) | Best-effort consistency — the model *tends* to follow the rules, but nothing enforces them mechanically |
+| Hooks (`scripts/hooks/`) | When Cursor hook events fire | Gate events logged; `advance_mode` blocked if `compact_handoff` not called; mode/QA/handoff violations surfaced |
+| `validateOutput()` (Node runner) | When `askAgent()` is called in code | Hard contract enforcement — throws on missing `files_read`, empty output, missing validation run |
+| `orchestrator-state` MCP | When explicitly called by the agent | Append-only event log, hash chain, artifact gating, iteration cap |
+| All of the above | Full orchestrated session | Full enforcement: gates, state store, artifact approval, alignment validation |
+
+**Key implications:**
+
+- **Without the runner** (`askAgent()`): `validateOutput()` never runs. Role output contracts are not enforced. An agent can self-QA silently.
+- **Without hooks**: `compact_handoff` can be skipped. `advance_mode` is not gated. Mode transitions are unverified.
+- **Without the MCP state store**: There is no append-only record. `approved_artifacts` gating is inactive. `max_iterations` is not enforced.
+- **`CLAUDE.md` alone** is not a security boundary — it is a consistency aid. Do not rely on it as the sole enforcement mechanism for critical flows.
+
+For production or compliance-sensitive work, run the full harness (hooks + runner + MCP state store).
+
+---
+
 ## References
 
 - [mcp-task-examples.md](mcp-task-examples.md)
