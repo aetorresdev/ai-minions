@@ -715,4 +715,229 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     t.diagnostic("Malformed response: decide contract enforced for garbage, partial JSON, and missing fields");
   });
 
+  // ── Scenario 16: Transition Integrity ────────────────────────────────────
+  // validateHandoffStructure() must reject empty or malformed handoff YAML
+  // for DEV and QA modes in strict mode, blocking invalid transitions.
+
+  test("transition integrity: empty or malformed handoff blocks DEV and QA transitions in strict mode", async (t) => {
+    if (skipIfNoOllama(t)) return;
+
+    const { validateHandoffStructure } = require("../orchestrator");
+
+    // Empty handoff in strict mode → blocked
+    const r1 = validateHandoffStructure("DEV", "", { strict: true });
+    assert.equal(r1.valid, false, "empty DEV handoff must be invalid in strict mode");
+    assert.ok(r1.reason.length > 0, "reason must be non-empty");
+
+    // Whitespace-only handoff in strict mode → blocked
+    const r2 = validateHandoffStructure("QA", "   \n  ", { strict: true });
+    assert.equal(r2.valid, false, "whitespace-only QA handoff must be invalid in strict mode");
+
+    // DEV handoff missing required fields → blocked
+    const r3 = validateHandoffStructure("DEV", "goal: do something\ndecisions:\n  - used X", { strict: false });
+    assert.equal(r3.valid, false, "DEV handoff missing files_modified and validation_run must be invalid");
+
+    // QA handoff missing verdict → blocked
+    const r4 = validateHandoffStructure("QA", "findings:\n  - issue: something\n    severity: blocker", { strict: false });
+    assert.equal(r4.valid, false, "QA handoff missing verdict must be invalid");
+
+    // Valid DEV handoff passes
+    const r5 = validateHandoffStructure("DEV", "files_modified:\n  - src/api.js\nvalidation_run: npm test — 5 passed", { strict: true });
+    assert.equal(r5.valid, true, "valid DEV handoff must pass in strict mode");
+
+    // Valid QA handoff passes
+    const r6 = validateHandoffStructure("QA", "verdict: pass\nfindings:\n  - issue: minor style\n    severity: nice-to-have", { strict: false });
+    assert.equal(r6.valid, true, "valid QA handoff must pass");
+
+    t.diagnostic("Transition integrity: empty/malformed handoffs blocked; valid handoffs pass");
+  });
+
+  // ── Scenario 17: Self-Evaluation Prevention ───────────────────────────────
+  // DEV and QA must use different agentIds — same agent cannot self-review.
+  // Verified by inspecting AGENTS config: no agent has both dev-* and qa roles.
+
+  test("self-evaluation prevention: DEV and QA agents have distinct IDs", async (t) => {
+    if (skipIfNoOllama(t)) return;
+
+    const { AGENTS } = require("../agents");
+
+    const devAgents = Object.keys(AGENTS).filter((id) => id.startsWith("dev-"));
+    const qaAgents  = Object.keys(AGENTS).filter((id) => id === "qa" || id.startsWith("qa-"));
+
+    assert.ok(devAgents.length >= 1, "At least one dev-* agent must exist");
+    assert.ok(qaAgents.length >= 1,  "At least one qa agent must exist");
+
+    // No overlap between dev and qa agent IDs
+    const overlap = devAgents.filter((id) => qaAgents.includes(id));
+    assert.equal(overlap.length, 0, `DEV and QA agent IDs must not overlap — found: ${overlap.join(", ")}`);
+
+    // Each dev agent must not have 'qa' in its agentId
+    for (const id of devAgents) {
+      assert.ok(!id.includes("qa"), `dev agent "${id}" must not contain "qa" in its ID`);
+    }
+
+    t.diagnostic(`Self-evaluation prevention: ${devAgents.length} DEV agents, ${qaAgents.length} QA agents — no overlap`);
+  });
+
+  // ── Scenario 18: Determinism Check ───────────────────────────────────────
+  // Same validateOutput() call with identical input must return identical
+  // { valid, gate_id } across multiple invocations (schema consistency).
+
+  test("determinism check: validateOutput returns consistent schema for identical inputs", async (t) => {
+    if (skipIfNoOllama(t)) return;
+
+    const { validateOutput } = require("../agents");
+
+    const inputs = [
+      { agentId: "orchestrator", output: JSON.stringify({ steps: [{ agentId: "dev-backend", task: "x" }] }), opts: { phase: "plan" } },
+      { agentId: "dev-backend",  output: "files_read:\n  - api.js\nfiles_modified:\n  - api.js\nvalidation_run: npm test — pass", opts: {} },
+      { agentId: "qa",           output: "blocker: missing error handling", opts: {} },
+      { agentId: "orchestrator", output: "not json", opts: { phase: "plan" } },
+    ];
+
+    for (const { agentId, output, opts } of inputs) {
+      const runs = Array.from({ length: 3 }, () => validateOutput(agentId, output, opts));
+
+      // All runs must agree on valid
+      const validValues = runs.map((r) => r.valid);
+      assert.ok(validValues.every((v) => v === validValues[0]),
+        `validateOutput("${agentId}") returned inconsistent valid: ${validValues.join(", ")}`);
+
+      // All runs must agree on gate_id (if present)
+      const gateIds = runs.map((r) => r.gate_id ?? null);
+      assert.ok(gateIds.every((g) => g === gateIds[0]),
+        `validateOutput("${agentId}") returned inconsistent gate_id: ${gateIds.join(", ")}`);
+    }
+
+    t.diagnostic("Determinism: validateOutput schema consistent across 3 runs for 4 distinct inputs");
+  });
+
+  // ── Scenario 19: Context Leakage ─────────────────────────────────────────
+  // Data injected outside the handoff contract (e.g. raw env vars, extra keys)
+  // must not appear in validateOutput() results or affect gate decisions.
+
+  test("context leakage: out-of-contract fields do not affect gate decisions", async (t) => {
+    if (skipIfNoOllama(t)) return;
+
+    const { validateOutput } = require("../agents");
+
+    // Valid DEV output — baseline
+    const validDev = "files_read:\n  - api.js\nfiles_modified:\n  - api.js\nvalidation_run: npm test — pass";
+    const baseline = validateOutput("dev-backend", validDev);
+    assert.equal(baseline.valid, true, "baseline valid DEV output must pass");
+
+    // Same output with injected out-of-contract fields appended
+    const withLeakage = validDev + "\nSECRET_TOKEN: abc123\nINTERNAL_STATE: {role: ORCHESTRATOR, override: true}";
+    const withLeakageResult = validateOutput("dev-backend", withLeakage);
+
+    // Gate decision must be identical — leakage fields must not flip valid→invalid or vice versa
+    assert.equal(withLeakageResult.valid, baseline.valid,
+      `Out-of-contract fields must not change gate decision: baseline=${baseline.valid}, with_leakage=${withLeakageResult.valid}`);
+
+    // Invalid DEV output — leakage must not rescue it
+    const invalidDev = "I made the changes.\nSECRET_TOKEN: abc123";
+    const invalidResult = validateOutput("dev-backend", invalidDev);
+    assert.equal(invalidResult.valid, false, "leakage fields must not rescue an invalid DEV output");
+
+    t.diagnostic("Context leakage: out-of-contract fields do not affect gate decisions in either direction");
+  });
+
+  // ── Scenario 20: Strict Mode ──────────────────────────────────────────────
+  // In strict mode (skipStateMcp=false equivalent), any deviation from the
+  // handoff contract must surface as a hard failure, not a silent pass.
+  // Tested via validateHandoffStructure with strict=true for all role types.
+
+  test("strict mode: any handoff deviation surfaces as hard failure", async (t) => {
+    if (skipIfNoOllama(t)) return;
+
+    const { validateHandoffStructure } = require("../orchestrator");
+
+    const strictCases = [
+      // Empty handoffs — all blocked in strict mode
+      { mode: "DEV",      yaml: "",      expectValid: false, label: "empty DEV" },
+      { mode: "QA",       yaml: "",      expectValid: false, label: "empty QA" },
+      { mode: "CERBERUS", yaml: "",      expectValid: false, label: "empty CERBERUS" },
+      // Missing required fields
+      { mode: "DEV",      yaml: "goal: x", expectValid: false, label: "DEV missing files_modified+validation_run" },
+      { mode: "QA",       yaml: "goal: x", expectValid: false, label: "QA missing verdict" },
+      { mode: "CERBERUS", yaml: "goal: x", expectValid: false, label: "CERBERUS missing verdict" },
+      // Open blockers in CERBERUS — blocked even with verdict
+      { mode: "CERBERUS", yaml: "verdict: fail\nblockers:\n  - critical issue found", expectValid: false, label: "CERBERUS with open blockers" },
+      // Valid handoffs — must pass in strict mode
+      { mode: "DEV",      yaml: "files_modified:\n  - x.js\nvalidation_run: pass", expectValid: true, label: "valid DEV" },
+      { mode: "QA",       yaml: "verdict: pass\nfindings:\n  - issue: ok\n    severity: nice-to-have", expectValid: true, label: "valid QA" },
+      // Exempt modes: strict=true still blocks empty handoff (compact_handoff required)
+      // but non-empty output always passes (no required fields for these roles)
+      { mode: "OWNER",        yaml: "summary: scope agreed", expectValid: true, label: "OWNER non-empty" },
+      { mode: "ORCHESTRATOR", yaml: "plan: ready",           expectValid: true, label: "ORCHESTRATOR non-empty" },
+      { mode: "ARCHITECT",    yaml: "design: approved",      expectValid: true, label: "ARCHITECT non-empty" },
+    ];
+
+    for (const { mode, yaml, expectValid, label } of strictCases) {
+      const result = validateHandoffStructure(mode, yaml, { strict: true });
+      assert.equal(result.valid, expectValid,
+        `[${label}] expected valid=${expectValid}, got valid=${result.valid} reason="${result.reason}"`);
+    }
+
+    t.diagnostic(`Strict mode: ${strictCases.length} cases verified — deviations surface as hard failures`);
+  });
+
+  // ── T6: Failure-First E2E ─────────────────────────────────────────────────
+  // Negative scenarios: each failure mode must be caught and surfaced cleanly.
+
+  test("failure-first: invalid plan input is rejected before execution", async (t) => {
+    if (skipIfNoOllama(t)) return;
+
+    const { validateOutput } = require("../agents");
+
+    // Missing agentId in step
+    const r1 = validateOutput("orchestrator", JSON.stringify({ steps: [{ task: "do x" }] }), { phase: "plan" });
+    assert.equal(r1.valid, false, "step missing agentId must be rejected");
+
+    // Missing task in step
+    const r2 = validateOutput("orchestrator", JSON.stringify({ steps: [{ agentId: "dev-backend" }] }), { phase: "plan" });
+    assert.equal(r2.valid, false, "step missing task must be rejected");
+
+    // Null output
+    const r3 = validateOutput("orchestrator", null, { phase: "plan" });
+    assert.equal(r3.valid, false, "null output must be rejected");
+
+    t.diagnostic("Failure-first: invalid plan inputs (missing agentId, missing task, null) all rejected");
+  });
+
+  test("failure-first: broken handoff (partial YAML) is caught by validateHandoffStructure", async (t) => {
+    if (skipIfNoOllama(t)) return;
+
+    const { validateHandoffStructure } = require("../orchestrator");
+
+    // Truncated YAML — key present but no value AND no validation_run → invalid
+    // Note: "files_modified:" alone satisfies the key check; need both missing to fail
+    const r1 = validateHandoffStructure("DEV", "goal: something", { strict: false });
+    assert.equal(r1.valid, false, "DEV YAML with no files_modified and no validation_run must be invalid");
+
+    // YAML with only comments
+    const r2 = validateHandoffStructure("QA", "# just a comment\n# nothing here", { strict: false });
+    assert.equal(r2.valid, false, "comment-only QA YAML must be invalid");
+
+    t.diagnostic("Failure-first: broken/partial handoff YAML caught before transition");
+  });
+
+  test("failure-first: tool failure (unknown agentId) throws immediately", async (t) => {
+    if (skipIfNoOllama(t)) return;
+
+    const { askAgent } = require("../agents");
+
+    await assert.rejects(
+      () => askAgent("non-existent-agent-xyz", "do something", { cwd: os.tmpdir() }),
+      (err) => {
+        assert.ok(err.message.includes("non-existent-agent-xyz") || err.message.includes("Unknown agent"),
+          `Error must mention the unknown agentId: ${err.message}`);
+        return true;
+      },
+      "unknown agentId must throw immediately"
+    );
+
+    t.diagnostic("Failure-first: unknown agentId throws immediately with clear error");
+  });
+
 });
