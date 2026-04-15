@@ -241,6 +241,38 @@ function callStateMcp(toolName, args, { cwd } = {}) {
 /**
  * Call compact-handoff MCP to compact agent output into handoff YAML.
  */
+/**
+ * When true, compact_handoff failure is a hard gate (gateBlocked).
+ * When false, failure uses explicit fallback metadata (run continues in degraded mode).
+ * Default: same as strict mode — derived from !skipStateMcp unless overridden.
+ */
+function resolveRequireHandoff(options) {
+  if (typeof options.requireHandoff === "boolean") return options.requireHandoff;
+  return options.skipStateMcp !== true;
+}
+
+/** Structured metadata when compact_handoff fails in degraded mode (policy B). */
+function compactHandoffDegradedMeta(err) {
+  const msg = err && err.message ? String(err.message) : "unknown error";
+  return {
+    handoff_compression: "unavailable",
+    handoff_fallback_used: true,
+    handoff_error: msg,
+  };
+}
+
+/** Artifact fields when compact_handoff fails in strict mode (policy A). */
+function compactHandoffStrictFailureFields(err) {
+  const msg = err && err.message ? String(err.message) : "unknown error";
+  return {
+    handoffYaml: "",
+    gateBlocked: true,
+    gateReason: `compact_handoff failed: ${msg}`,
+    handoff_compression: "failed",
+    handoff_error: msg,
+  };
+}
+
 function callCompactHandoff({ text, modeCompleted, nextMode, iteration, maxIterations, flowMode }, { cwd } = {}) {
   const prompt = `Call the MCP tool compact-handoff.compact_handoff with these arguments and return only the raw YAML string, no other text:
 compact_handoff(
@@ -385,6 +417,7 @@ function parseEnvironment(prompt) {
  *   maxReviewCharsPerArtifact?: number,
  *   stepSummary?: boolean,
  *   skipStateMcp?: boolean
+ *   requireHandoff?: boolean — if set, overrides default: strict (!skipStateMcp) requires compact_handoff; degraded skips hard fail
  * }} options
  */
 async function run(goal, options = {}) {
@@ -394,6 +427,7 @@ async function run(goal, options = {}) {
   const taskId        = options.taskId || `task-${randomUUID().slice(0, 8)}`;
   const approvedArtifacts = options.approvedArtifacts || [];
   const skipStateMcp  = options.skipStateMcp === true;
+  const requireHandoff = resolveRequireHandoff(options);
 
   const maxContextChars = options.maxContextCharsPerArtifact
     ?? envInt("AI_TEAM_MAX_CONTEXT_CHARS", DEFAULT_MAX_CONTEXT_CHARS);
@@ -435,7 +469,14 @@ async function run(goal, options = {}) {
     log("orchestrator", "Ollama not configured (OLLAMA_MODEL unset) — orchestrator/summarizer using claude-haiku.");
   }
   log("orchestrator", `Context: ${stepSummary ? "Ollama handoff between steps" : "no Ollama summary"}; truncation: ${maxContextChars > 0 ? `${maxContextChars} chars/step` : "off"}`);
-  traceEvent(taskId, { event: "session_start", flow_mode: flowMode, max_iterations: maxIterations, cwd, goal: goal.slice(0, 200) });
+  traceEvent(taskId, {
+    event: "session_start",
+    flow_mode: flowMode,
+    max_iterations: maxIterations,
+    cwd,
+    goal: goal.slice(0, 200),
+    require_handoff: requireHandoff,
+  });
 
   // ── Degraded mode banner ──────────────────────────────────────────────────────
   if (skipStateMcp) {
@@ -572,6 +613,8 @@ Assign one agent per step. Reply with JSON only.`;
 
       // ── Compact handoff (compact-handoff MCP) ──────────────────────────────
       let handoffYaml = "";
+      /** @type {Record<string, unknown>} */
+      let handoffCompressionMeta = {};
       const toMode = AGENT_TO_MODE[agentId];
       const nextStepIdx = steps.indexOf(step) + 1;
       const nextAgent   = steps[nextStepIdx]?.agentId;
@@ -590,13 +633,39 @@ Assign one agent per step. Reply with JSON only.`;
           }, { cwd });
           log("gate", `Handoff YAML ready (${handoffYaml.length} chars)`);
         } catch (err) {
-          log("gate", `WARNING: compact_handoff failed (${err.message}). Using empty handoff.`);
+          const msg = err.message || String(err);
+          if (requireHandoff) {
+            traceEvent(taskId, {
+              event: "compact_handoff_failed",
+              agent: agentId,
+              iteration: iterations,
+              message: msg.slice(0, 400),
+              phase: "worker_step",
+            });
+            log("gate", `🟥 compact_handoff failed (strict — hard fail): ${msg}`);
+            artifacts.push({
+              agentId,
+              task: step.task,
+              result,
+              ...compactHandoffStrictFailureFields(err),
+            });
+            continue;
+          }
+          traceEvent(taskId, {
+            event: "compact_handoff_fallback",
+            agent: agentId,
+            iteration: iterations,
+            message: msg.slice(0, 400),
+            phase: "worker_step",
+          });
+          handoffCompressionMeta = compactHandoffDegradedMeta(err);
+          log("gate", `⚠ compact_handoff unavailable (degraded — continuing without YAML compression): ${msg}`);
         }
       }
 
       // ── Structural handoff validation (per-MODE key check) ────────────────
       if (AGENTS_REQUIRING_GATE.has(agentId)) {
-        const sv = validateHandoffStructure(toMode, handoffYaml, { strict: !skipStateMcp });
+        const sv = validateHandoffStructure(toMode, handoffYaml, { strict: requireHandoff });
         if (!sv.valid) {
           log("gate", `🟥 Handoff structure invalid (${toMode}): ${sv.reason}`);
           traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "handoff_structure", passed: false, reason: sv.reason });
@@ -686,6 +755,7 @@ Assign one agent per step. Reply with JSON only.`;
         handoffYaml,
         gateBlocked: false,
         ...(handoffSummary ? { handoffSummary } : {}),
+        ...(Object.keys(handoffCompressionMeta).length ? handoffCompressionMeta : {}),
       });
       log(agentId, `Done (${result.length} chars)`);
     }
@@ -713,8 +783,9 @@ Only blockers require another DEV iteration.`;
 
     // ── Compact cerberus handoff + advance to ORCHESTRATOR ────────────────────
     if (!skipStateMcp) {
+      let cerberusHandoff = "";
       try {
-        const cerberusHandoff = callCompactHandoff({
+        cerberusHandoff = callCompactHandoff({
           text: cerberusResult,
           modeCompleted: "CERBERUS",
           nextMode: "ORCHESTRATOR",
@@ -722,27 +793,57 @@ Only blockers require another DEV iteration.`;
           maxIterations,
           flowMode,
         }, { cwd });
-
-        const vt = callStateMcp("validate_transition", {
-          task_id: taskId,
-          from_mode: "CERBERUS",
-          to_mode: "ORCHESTRATOR",
-          handoff_yaml: cerberusHandoff,
-          iteration: iterations,
-        }, { cwd });
-
-        if (vt.allowed) {
-          callStateMcp("advance_mode", {
+      } catch (err) {
+        const msg = err.message || String(err);
+        if (requireHandoff) {
+          traceEvent(taskId, {
+            event: "compact_handoff_failed",
+            agent: "cerberus",
+            iteration: iterations,
+            message: msg.slice(0, 400),
+            phase: "cerberus_advance",
+          });
+          log("gate", `🟥 compact_handoff failed (strict — CERBERUS → ORCHESTRATOR): ${msg}`);
+          artifacts.push({
+            agentId: "cerberus",
+            task: "(session review) Deliverable review before decide",
+            result: cerberusResult,
+            ...compactHandoffStrictFailureFields(err),
+          });
+        } else {
+          traceEvent(taskId, {
+            event: "compact_handoff_fallback",
+            agent: "cerberus",
+            iteration: iterations,
+            message: msg.slice(0, 400),
+            phase: "cerberus_advance",
+          });
+          log("gate", `⚠ compact_handoff unavailable (degraded — CERBERUS advance): ${msg}`);
+        }
+      }
+      if (cerberusHandoff) {
+        try {
+          const vt = callStateMcp("validate_transition", {
             task_id: taskId,
-            to_mode: "ORCHESTRATOR",
             from_mode: "CERBERUS",
+            to_mode: "ORCHESTRATOR",
             handoff_yaml: cerberusHandoff,
             iteration: iterations,
           }, { cwd });
-          currentMode = "ORCHESTRATOR";
+
+          if (vt.allowed) {
+            callStateMcp("advance_mode", {
+              task_id: taskId,
+              to_mode: "ORCHESTRATOR",
+              from_mode: "CERBERUS",
+              handoff_yaml: cerberusHandoff,
+              iteration: iterations,
+            }, { cwd });
+            currentMode = "ORCHESTRATOR";
+          }
+        } catch (err) {
+          log("gate", `WARNING: Cerberus transition gate error (${err.message})`);
         }
-      } catch (err) {
-        log("gate", `WARNING: Cerberus gate error (${err.message})`);
       }
     }
 
@@ -892,6 +993,15 @@ Reply with JSON only.`;
     log("orchestrator", summary);
   }
 
+  // ── Surface degraded compact_handoff fallback in summary (structured data is on artifacts) ──
+  const handoffFallbackArtifacts = artifacts.filter((a) => a.handoff_fallback_used === true);
+  if (handoffFallbackArtifacts.length > 0) {
+    const agents = [...new Set(handoffFallbackArtifacts.map((a) => a.agentId))].join(", ");
+    const err0 = handoffFallbackArtifacts[0].handoff_error || "unknown";
+    const note = `[handoff compression unavailable for ${agents} — continued without compact_handoff; error: ${String(err0).slice(0, 120)}]`;
+    summary = summary ? `${summary}\n${note}` : note;
+  }
+
   // ── Record session summary artifact before closing ───────────────────────
   if (!skipStateMcp) {
     try {
@@ -935,9 +1045,29 @@ Reply with JSON only.`;
     log("qa", "⚠ QA ran in degraded mode (fallback model) — coverage may be reduced. Manual review recommended.");
   }
   const manualReviewRecommended = qaDegraded || manualReview;
-  traceEvent(taskId, { event: "session_end", iterations, done, summary: summary.slice(0, 200), agents_run: [...new Set(artifacts.map(a => a.agentId))], gate_blocks: artifacts.filter(a => a.gateBlocked).length, ...(qaDegraded ? { qa_degraded: true } : {}), ...(manualReviewRecommended ? { manual_review_recommended: true } : {}) });
+  const handoffFallbackAny = artifacts.some((a) => a.handoff_fallback_used === true);
+  traceEvent(taskId, {
+    event: "session_end",
+    iterations,
+    done,
+    summary: summary.slice(0, 200),
+    agents_run: [...new Set(artifacts.map((a) => a.agentId))],
+    gate_blocks: artifacts.filter((a) => a.gateBlocked).length,
+    ...(qaDegraded ? { qa_degraded: true } : {}),
+    ...(manualReviewRecommended ? { manual_review_recommended: true } : {}),
+    ...(handoffFallbackAny ? { handoff_fallback_used: true } : {}),
+  });
 
   return { done, summary, artifacts, iterations, taskId };
 }
 
-module.exports = { run, detectBlockers, validateHandoffStructure, _sanitize, _hashGoal };
+module.exports = {
+  run,
+  detectBlockers,
+  validateHandoffStructure,
+  _sanitize,
+  _hashGoal,
+  resolveRequireHandoff,
+  compactHandoffDegradedMeta,
+  compactHandoffStrictFailureFields,
+};
