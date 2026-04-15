@@ -100,6 +100,7 @@ Use this to pick the right setup for your situation.
 | Production / compliance work | Gates enabled (no `--skip-gates`) | Hard gates, tamper-evident log, approved-artifact enforcement |
 | No Ollama / want pure API | Unset `OLLAMA_MODEL` | Orchestrator/summarizer fall back to `claude-haiku` automatically |
 | Ollama available | `OLLAMA_MODEL=qwen2.5-coder:7b` | Free planning + summarization, no API cost for orchestrator role |
+| Ollama not on `localhost:11434` | `OLLAMA_HOST`, `OLLAMA_PORT` | `runOllama()` (agent calls) uses these; defaults match local `ollama serve` |
 | Slow machine / CI | `CLAUDE_CLI_TIMEOUT=300000` | Default 180s may be too short for cold starts |
 | Sensitive goal (logs to disk) | `TRACE_REDACT_GOAL=1` | Goal text omitted from trace files; only SHA-256 hash retained |
 | Single focused task | `--iterations 1`, `--flow single_agent` | Skip multi-agent overhead; one DEV + CERBERUS pass |

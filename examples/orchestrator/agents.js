@@ -448,8 +448,8 @@ function runOllama(systemPrompt, messages, { model = "qwen2.5-coder:7b", timeout
     const ms = timeoutMs ?? (parseInt(process.env.CLAUDE_CLI_TIMEOUT, 10) || 180000);
     const req = http.request(
       {
-        hostname: "localhost",
-        port: 11434,
+        hostname: OLLAMA_HOST,
+        port: OLLAMA_PORT,
         path: "/api/chat",
         method: "POST",
         headers: {
@@ -494,9 +494,10 @@ Max ~900 words. Prioritize what the next agent needs to avoid repeating work or 
 
 async function summarizeHandoff({ agentId, task, result, cwd, priorArtifacts = [] }) {
   const maxIn = parseInt(process.env.AI_TEAM_SUMMARIZE_MAX_INPUT_CHARS, 10) || 80000;
-  let body = result.length > maxIn
-    ? result.slice(0, maxIn) + "\n\n[... truncated for summarizer; agent produced more output ...]"
-    : result;
+  const body =
+    result.length > maxIn
+      ? result.slice(0, maxIn) + "\n\n[... truncated for summarizer; agent produced more output ...]"
+      : result;
 
   const priorBlock = priorArtifacts
     .filter((a) => a.handoffSummary)
