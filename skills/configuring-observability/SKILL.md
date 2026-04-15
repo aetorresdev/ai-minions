@@ -194,7 +194,7 @@ If you want the AI to **query live observability data** (e.g. “analyze my trac
 
 - **Grafana Cloud** (and **Tempo 2.9+** open source) expose an **MCP server for tracing**: the LLM can run TraceQL queries against your trace backend. Useful for incident analysis and performance hints, not for writing collector or dashboard configs.
 - **Install:** Add the `grafana-cloud-traces` MCP in Cursor (streamable HTTP) with your Grafana Cloud stack URL and API token. It is preconfigured in `mcp.json` as disabled; enable and set credentials when you use Grafana Cloud. See [mcp_grafana_cloud_traces_setup.md](references/mcp_grafana_cloud_traces_setup.md).
-- Docs: [Grafana Cloud MCP for Traces](https://grafana.com/docs/grafana-cloud/send-data/traces/mcp-server), [MCP Observability](https://grafana.com/docs/grafana-cloud/monitor-applications/ai-observability/mcp-observability/).
+- Docs: [Grafana Cloud MCP for Traces](https://grafana.com/docs/grafana-cloud/send-data/traces/mcp-server/), [MCP Observability](https://grafana.com/docs/grafana-cloud/monitor-applications/ai-observability/mcp-observability/).
 
 You can add such an MCP to Cursor if you use Grafana Cloud or self-hosted Tempo and want the AI to reason over trace data; it’s optional and complementary to this skill.
 ## Output Format

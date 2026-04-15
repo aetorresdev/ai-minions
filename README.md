@@ -124,7 +124,7 @@ Three evidence classes. Same `GOAL`, different `FLOW` → diff the files, not th
 
 ## Core principles (Anthropic AI Fluency 4D)
 
-The four competency names come from Anthropic's **AI Fluency** framework (© 2025 Rick Dakan, Joseph Feller, and Anthropic — CC BY-NC-SA 4.0). Canonical definitions: [anthropic.com/ai-fluency](https://www.anthropic.com/ai-fluency). The table below is only how they map to **this repo**:
+The four competency names come from Anthropic's **AI Fluency** framework (© 2025 Rick Dakan, Joseph Feller, and Anthropic — CC BY-NC-SA 4.0). Canonical definitions: [anthropic.com/ai-fluency](https://anthropic.skilljar.com/ai-fluency-framework-foundations). The table below is only how they map to **this repo**:
 
 | Principle | In this repo |
 |---|---|
