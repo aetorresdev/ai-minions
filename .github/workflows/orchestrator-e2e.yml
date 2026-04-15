@@ -23,14 +23,20 @@ on:
     paths:
       - "examples/orchestrator/orchestrator.js"
       - "examples/orchestrator/agents.js"
-      - "examples/orchestrator/tests/e2e.test.js"
+      - "examples/orchestrator/tests/**"
+      - "examples/orchestrator/package.json"
+      - "mcp-servers/orchestrator-state/**"
+      - "mcp-servers/compact-handoff/**"
       - ".github/workflows/orchestrator-e2e.yml"
   pull_request:
     branches: [main, master]
     paths:
       - "examples/orchestrator/orchestrator.js"
       - "examples/orchestrator/agents.js"
-      - "examples/orchestrator/tests/e2e.test.js"
+      - "examples/orchestrator/tests/**"
+      - "examples/orchestrator/package.json"
+      - "mcp-servers/orchestrator-state/**"
+      - "mcp-servers/compact-handoff/**"
       - ".github/workflows/orchestrator-e2e.yml"
 
 jobs:
