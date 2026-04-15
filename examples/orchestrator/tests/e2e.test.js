@@ -636,7 +636,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
         "Read data.txt and append 'line two'",
         { maxIterations: 1, cwd, flowMode: "single_agent", skipStateMcp: true, stepSummary: false }
       );
-    } catch (_) {
+    } catch {
       // flow may fail contract — that is acceptable; we only check degraded state
     } finally {
       removeTempDir(cwd);
