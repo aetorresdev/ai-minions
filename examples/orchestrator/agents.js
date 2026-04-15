@@ -634,7 +634,7 @@ function buildEnvContext(agentId, sessionEnv) {
 //   orchestrator/plan   → JSON { steps: [{ agentId, task }] }
 //   orchestrator/decide → JSON { done: bool, summary } or { done: false, corrections: [] }
 //   dev-*               → mentions ≥1 file modified + ≥1 validation run
-//   qa / cerberus       → ≥1 finding classified blocker|improvement|nice-to-have
+//   qa / cerberus       → ≥1 finding classified blocker|improvement|nice-to-have (token presence only — NOT semantic quality; sync: agent-contract.md § format vs quality)
 //   owner / architect   → any non-empty output (free-form design/scope)
 //   summarizer          → any non-empty output
 

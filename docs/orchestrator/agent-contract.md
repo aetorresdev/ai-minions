@@ -227,6 +227,16 @@ Each role has a minimum output contract. If the output does not meet it, the run
 
 **Small local models (Ollama):** prompts for **CERBERUS** require a fixed three-line prefix (`blocker:` / `improvement:` / `nice-to-have:`) so weak coders still satisfy `FINDING_RE` and pass `validateOutput()` — see `AGENTS.cerberus.system` and the CERBERUS review prompt in `orchestrator.js`.
 
+#### CERBERUS / QA — format enforcement vs quality (honest scope)
+
+`validateOutput()` for `qa` and `cerberus` checks **syntax-level** contract only: presence of classified vocabulary (`blocker` \| `improvement` \| `nice-to-have`), not whether a finding is **true, substantive, or grounded in the artifacts**.
+
+**In scope today (CERBERUS-SIGNAL-1):** structure, required labels, rejection of empty praise / “LGTM-only” style replies that lack those tokens.
+
+**Explicitly out of scope until CERBERUS-SIGNAL fase 2+:** whether a blocker is real; whether text is vacuous boilerplate disguised as structure; whether the model emits plausible but content-free lines (e.g. `blocker: none` with generic “improvement: code could be improved” — still **valid** for `validateOutput()` and must not be mistaken for strong adversarial signal). **Well-formatted output ≠ high-quality review.**
+
+**Unlocked next (backlog):** minimal semantic heuristics or post-process; **E2E-STRICT** (MCP on) to exercise real gates; later — scoring of findings, correlation with cited paths / artifacts.
+
 Implemented in `examples/orchestrator/agents.js` (`validateOutput()`). Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
 
 #### `done` field semantics
