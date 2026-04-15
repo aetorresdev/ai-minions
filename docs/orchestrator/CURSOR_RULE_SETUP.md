@@ -33,4 +33,4 @@ If the `.mdc` in the other project should point to the contract, edit the first 
 
 - [agent-contract.md](agent-contract.md)
 - [PATHS.md](PATHS.md)
-- [Cursor: Rules](https://cursor.com/docs/context/rules)
+- [Cursor: Rules](https://cursor.com/docs/rules)

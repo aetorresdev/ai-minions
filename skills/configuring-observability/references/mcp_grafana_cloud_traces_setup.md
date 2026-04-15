@@ -49,7 +49,7 @@ Restart Cursor (or reload MCP servers) so it picks up the new server.
 
 ## Reference
 
-- Grafana Cloud MCP for Traces: https://grafana.com/docs/grafana-cloud/send-data/traces/mcp-server  
+- Grafana Cloud MCP for Traces: https://grafana.com/docs/grafana-cloud/send-data/traces/mcp-server/  
 - MCP Observability: https://grafana.com/docs/grafana-cloud/monitor-applications/ai-observability/mcp-observability/
 
 **Note:** This MCP is for querying and analyzing existing trace data. For creating OTEL configs and Grafana dashboards, the skill does not require any MCP; the Grafana Cloud Traces MCP is complementary when you use Grafana Cloud or Tempo and want the AI to reason over traces.
