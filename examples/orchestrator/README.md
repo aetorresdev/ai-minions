@@ -333,12 +333,19 @@ Use `--iterations 1` to force a single pass.
 
 ```bash
 cd examples/orchestrator
-npm test        # lint (ESLint + ruff) + unit tests — no auth, no Ollama, no MCPs required
-npm run test:e2e        # E2E suite — requires Ollama running at localhost:11434
-npm run test:e2e:all    # E2E suite with all available Ollama models
+npm test              # lint (ESLint + ruff) + unit tests — no auth, no Ollama, no MCPs required
+npm run test:e2e      # E2E suite — requires Ollama running at localhost:11434
+npm run test:e2e:all  # E2E suite with all available Ollama models
 ```
 
-CI: runs on every push/PR via `.github/workflows/orchestrator-example.yml`.
+### CI pipelines
+
+| Workflow | Runner | Triggers |
+|----------|--------|---------|
+| `orchestrator-example.yml` | GitHub cloud | Every push/PR touching `examples/orchestrator/**` or `scripts/hooks/**` |
+| `orchestrator-e2e.yml` | Self-hosted (`ollama` label) | Push/PR to core files or manual `workflow_dispatch` |
+
+The E2E workflow requires a self-hosted runner with Ollama at `localhost:11434`. See setup instructions in `.github/workflows/orchestrator-e2e.yml`.
 
 ### Coverage at a glance
 
@@ -351,6 +358,13 @@ CI: runs on every push/PR via `.github/workflows/orchestrator-example.yml`.
 | Full SA/MA orchestrator loop (plan → execute → decide) | E2E (Ollama) |
 | Contract violation detection, gate events, MCP hash chain | E2E (Ollama) |
 | Malformed model response (decide contract) | E2E (Ollama) |
+| Transition integrity — empty/malformed handoff blocks DEV+QA | E2E (Ollama) |
+| Self-evaluation prevention — DEV ≠ QA agentIds | E2E (Ollama) |
+| Determinism — schema consistent across runs | E2E (Ollama) |
+| Context leakage — out-of-contract fields don't affect gates | E2E (Ollama) |
+| Strict mode — any deviation surfaces as hard failure | E2E (Ollama) |
+| Gate-blocked enforcement — `done: false` when contracts fail | E2E (Ollama) |
+| Failure-first — invalid input, broken handoff, unknown agent | E2E (Ollama) |
 
 ### Test files
 

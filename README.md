@@ -168,7 +168,7 @@ Full wiring diagram: [`docs/orchestrator/system-architecture-diagram.md`](docs/o
 | [`examples/orchestrator/`](examples/orchestrator/) | Node reference runner: planning, `validateOutput`, MCP gates, traces |
 | [`mcp-servers/orchestrator-state/`](mcp-servers/orchestrator-state/) | Disk-backed task store + gate MCP (pytest included) |
 | [`mcp-servers/compact-handoff/`](mcp-servers/compact-handoff/) | Handoff compaction + alignment helpers (local Ollama) |
-| [`scripts/hooks/`](scripts/hooks/) | Lifecycle hooks: runner launch, token/cost/MODE tracking, session summaries |
+| [`scripts/hooks/`](scripts/hooks/) | Lifecycle hooks: MODE enforcement, context efficiency, handoff + QA skill enforcement, token/cost tracking, session state. Shared: `constants.py`, `gate_logger.py` |
 | [`skills/`](skills/) | Task-scoped playbooks: Terraform, Docker, CI, n8n, observability, specs |
 | [`agents/`](agents/) | Specialized subagent definitions consumed by skills |
 

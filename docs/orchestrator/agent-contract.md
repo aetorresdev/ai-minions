@@ -227,6 +227,25 @@ Each role has a minimum output contract. If the output does not meet it, the run
 
 Implemented in `examples/orchestrator/agents.js` (`validateOutput()`). Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
 
+#### `done` field semantics
+
+| Value | Meaning |
+|-------|---------|
+| `done: true` | Task completed successfully — all gates passed, no blockers |
+| `done: false` | Task did not complete — requires human review. Causes: CERBERUS blockers unresolved at `max_iterations`, or any artifact with `gateBlocked: true` (output contract failure, handoff structure failure, goal misalignment) |
+
+**`done: false` is not an error** — it is the correct signal for "gates fired, human must decide next step." Never treat `done: false` + "Manual review required" as equivalent to a clean completion.
+
+#### Gate-blocked artifact enforcement
+
+Any artifact produced with `gateBlocked: true` is treated as an implicit blocker, regardless of whether CERBERUS explicitly flags it. This covers:
+
+- Output contract failures: missing `files_read[]`, `files_modified`, or `validation_run`
+- Handoff structure failures: empty or malformed handoff YAML in strict mode
+- Goal alignment failures: `validate_goal_alignment` returned `aligned: false`
+
+**Effect:** if `gateBlocked: true` artifacts exist at completion evaluation, the run returns `done: false` with a summary listing each blocked agent and reason. CERBERUS silence does not clear a gate block.
+
 ### Goal alignment validation (ORCHESTRATOR — required before advancing MODE)
 
 After receiving the compacted handoff, ORCHESTRATOR calls:
