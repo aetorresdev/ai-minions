@@ -41,6 +41,7 @@ Scan all component directories and estimate token consumption. Root is `~/.claud
 - Flag: servers with >20 tools, servers that wrap CLI commands already available
 
 **CLAUDE.md / project context**
+
 - Count tokens in any CLAUDE.md in the project chain
 - Flag: combined total >300 lines
 
@@ -110,6 +111,7 @@ In verbose mode, additionally output per-file token counts, specific redundant l
 ## Examples
 
 **Basic audit**
+
 ```
 User: /context-budget
 Skill: Scans setup → 25 agents (~18,000 tokens), 27 skills (~12,000), 6 MCP servers (~15,000 tools tokens),
@@ -119,6 +121,7 @@ Skill: Scans setup → 25 agents (~18,000 tokens), 27 skills (~12,000), 6 MCP se
 ```
 
 **Pre-expansion check**
+
 ```
 User: I want to add 3 more MCP servers, do I have room?
 Skill: Current overhead 28% → adding 3 servers (~30 tools) would add ~15,000 tokens → pushes to 35%
@@ -126,6 +129,7 @@ Skill: Current overhead 28% → adding 3 servers (~30 tools) would add ~15,000 t
 ```
 
 **Orquestador contract bloat**
+
 ```
 User: /context-budget --verbose
 Skill: agentes-orquestador.md is 280 lines (~3,600 tokens) — approaching threshold.

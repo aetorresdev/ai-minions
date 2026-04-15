@@ -12,7 +12,8 @@ Give it a goal — it plans, runs agents, validates transitions through hard gat
 > MAX_ITERATIONS: 3
 > CWD: /path/to/project
 > ```
-> The `node` commands below are for direct use, testing, or bringing your own runner.
+
+The `node` commands below are for direct use, testing, or bringing your own runner.
 
 > **This is one way to run the protocol autonomously. Bring your own orchestrator if you prefer** — the contract and MCPs work independently of this example.
 

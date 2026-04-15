@@ -37,7 +37,7 @@ On **Linux/macOS**, `~` is your home directory. On **Windows** (PowerShell): `$H
    ```
 2. Edit the `.mdc` in that repo: replace the contract line with the **absolute path** to your clone, for example:
    - `**Canonical contract:** /your/path/to/repo/docs/orchestrator/agent-contract.md`
-   
+
    Or duplicate `docs/orchestrator/` inside the other project and use a local relative path.
 
 ## User Rules (paste in Cursor Settings)
