@@ -354,8 +354,8 @@ npm run test:e2e:all  # E2E suite with all available Ollama models
 
 | Workflow | Runner | Triggers |
 |----------|--------|---------|
-| `orchestrator-example.yml` | GitHub cloud | Every push/PR touching `examples/orchestrator/**` or `scripts/hooks/**` |
-| `orchestrator-e2e.yml` | Self-hosted (`ollama` label) | Push/PR to core files or manual `workflow_dispatch` |
+| `orchestrator-example.yml` | GitHub cloud | **All PRs** to `main`/`master` (lint + unit). **Push** to `main`/`master` only when `examples/orchestrator/**`, `scripts/hooks/**`, or this workflow file changes. `workflow_dispatch` supported |
+| `orchestrator-e2e.yml` | Self-hosted (`ollama` label) | Push/PR when `orchestrator.js`, `agents.js`, `examples/orchestrator/tests/**`, `package.json`, MCP server dirs, or this workflow change; `workflow_dispatch` |
 
 The E2E workflow requires a self-hosted runner with Ollama at `localhost:11434`. See setup instructions in `.github/workflows/orchestrator-e2e.yml`.
 
