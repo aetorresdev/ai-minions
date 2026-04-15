@@ -45,10 +45,17 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install dependencies
+      - name: Install Node dependencies
         run: |
           cd examples/orchestrator
           npm ci
+
+      - name: Install MCP server dependencies (required by mcp-direct.py)
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+          cd mcp-servers/orchestrator-state && uv sync --quiet
+          cd ../../mcp-servers/compact-handoff && uv sync --quiet
 
       - name: Verify Ollama is reachable
         run: |
