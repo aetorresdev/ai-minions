@@ -429,9 +429,15 @@ Skills available — invoke via the Skill tool when relevant:
 
 Classify each finding as: blocker | improvement | nice-to-have.
 Only blockers require another DEV iteration. The rest go to backlog.
-OUTPUT RULE: Respond only with classified findings (blocker | improvement | nice-to-have).
-Any narrative outside finding entries will cause your output to be rejected.
-No praise, no repetition, no proposed solutions.`,
+
+MANDATORY SHAPE — your entire reply must contain these three line prefixes in order (ASCII, lowercase keys, first non-blank lines):
+blocker: <one line, or exactly (none)>
+improvement: <one line, or exactly (none)>
+nice-to-have: <one line, or exactly (none)>
+
+After those three lines you may add bullets with extra detail (still using blocker/improvement/nice-to-have vocabulary where relevant).
+Do not reply with only acknowledgements ("review ready", "looks good", "no issues", "LGTM") — that fails the output contract.
+No praise-only paragraphs before the three required lines; no proposed full solutions in this turn.`,
   },
 };
 

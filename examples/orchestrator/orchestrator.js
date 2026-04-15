@@ -776,7 +776,12 @@ Deliverables from iteration ${iterations}:
 ${reviewChunks.join("\n\n---\n\n")}
 
 Review the above. Classify each finding as blocker | improvement | nice-to-have.
-Only blockers require another DEV iteration.`;
+Only blockers require another DEV iteration.
+
+Your reply must begin with these three lines in this exact order (use (none) when a category has nothing to report; no preamble before blocker:):
+blocker: ...
+improvement: ...
+nice-to-have: ...`;
 
     const { output: cerberusResult } = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
     log("cerberus", `Review ready (${cerberusResult.length} chars)`);

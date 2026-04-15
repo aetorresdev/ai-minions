@@ -44,6 +44,8 @@ node run-orchestrator.js "goal"
 
 At startup, the runner pings Ollama and logs whether it is available. No silent failures.
 
+When **E2E or `setBackend("ollama")`** routes **CERBERUS** through the same small coder, the runner adds a rigid three-line output template (`blocker:` / `improvement:` / `nice-to-have:`) in `agents.js` and `orchestrator.js` so `validateOutput("cerberus", …)` does not reject short fluff replies.
+
 ### Per-role override
 
 Set `MODEL_OVERRIDE_<ROLE>` environment variable (role uppercased, hyphens → underscores):
