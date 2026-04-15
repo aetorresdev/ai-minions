@@ -805,6 +805,31 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       continue;
     }
 
+    // ── Gate-blocked artifact enforcement ────────────────────────────────────
+    // Any artifact with gateBlocked:true in this iteration is an implicit blocker.
+    // gateBlocked means a hard contract or gate failed — CERBERUS silence does not clear it.
+    // This covers: output contract failures (missing files_read, files_modified,
+    // validation_run), handoff structure failures, and goal alignment failures.
+    const gateBlockedArtifacts = artifacts.filter(a => a.gateBlocked);
+    if (gateBlockedArtifacts.length > 0) {
+      const gateBlockReasons = gateBlockedArtifacts.map(a => `${a.agentId}: ${a.gateReason || "gate blocked"}`);
+      traceEvent(taskId, { event: "gate_blocked_completion", iteration: iterations, count: gateBlockedArtifacts.length, reasons: gateBlockReasons });
+      if (iterations < maxIterations) {
+        log("orchestrator", `🟥 ${gateBlockedArtifacts.length} gate-blocked artifact(s) — cannot mark done (forcing iteration):`);
+        gateBlockReasons.forEach(r => log("orchestrator", `  ↳ ${r}`));
+        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "gate_blocked_iterate", gate_blocks: gateBlockedArtifacts.length });
+        // Retry the blocked steps
+        plan = { steps: gateBlockedArtifacts.map(a => ({ agentId: a.agentId, task: a.task })) };
+        continue;
+      } else {
+        done = true;
+        summary = `Max iterations reached with ${gateBlockedArtifacts.length} gate-blocked artifact(s). Manual review required. Blocked: ${gateBlockReasons.join("; ")}`;
+        log("orchestrator", `⚠ ${summary}`);
+        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_gate_blocks", gate_blocks: gateBlockedArtifacts.length });
+        continue;
+      }
+    }
+
     // ── ORCHESTRATOR decides (no blockers path) ───────────────────────────────
     logRoleSwitch("cerberus", "orchestrator");
     log("orchestrator", "No blockers — evaluating completion...");
