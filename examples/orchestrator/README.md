@@ -336,6 +336,9 @@ Expected when MCPs are not registered. Run without `--skip-gates` only after `cl
 The Ollama planner (qwen2.5-coder:7b) is a small model — vague goals produce unexpected assignments.
 Be specific: mention the technology, the file, and what should happen.
 
+**`--flow multi_agent` plans with only OWNER**
+The planner prompt injects a hard requirement: at least one `dev-*` step plus a later `qa` step when `FLOW` is `multi_agent`, so coding goals are not handed to scope-only roles alone.
+
 **CERBERUS fails `[output contract]` with Ollama (`finding_classification_missing`)**
 `validateOutput` requires the words `blocker`, `improvement`, or `nice-to-have` in the reply. Prompts now force a three-line prefix (`blocker:` / `improvement:` / `nice-to-have:`) so small coders comply; use `(none)` when a category is empty. If it still flakes, try a larger model or cloud CERBERUS (`MODEL_OVERRIDE_CERBERUS`).
 

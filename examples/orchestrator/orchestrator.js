@@ -511,6 +511,12 @@ async function run(goal, options = {}) {
 
   // ── Phase 1: plan ─────────────────────────────────────────────────────────────
   log("orchestrator", "Planning...");
+  const multiAgentPlanConstraint =
+    flowMode === "multi_agent"
+      ? `
+
+Hard requirement for FLOW multi_agent: "steps" MUST include at least one implementation agent (agentId dev-backend, dev-frontend, or dev-devops) with a concrete code-edit task, and a later step with agentId qa that reviews that implementation. For goals that change source files, do NOT emit a plan with only owner or architect — those roles scope or design; implementation and QA review are mandatory in this flow.`
+      : "";
   const planPrompt = `MODE: ORCHESTRATOR
 FLOW: ${flowMode}
 GOAL: ${goal}
@@ -518,7 +524,7 @@ MAX_ITERATIONS: ${maxIterations}
 Working directory: ${cwd}
 
 Decompose this goal into ordered execution steps following the MODE protocol.
-Assign one agent per step. Reply with JSON only.`;
+Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
   const { output: planResponse } = await askAgent("orchestrator", planPrompt, { cwd, sessionEnv, phase: "plan" });
   const parsed = extractJson(planResponse);
