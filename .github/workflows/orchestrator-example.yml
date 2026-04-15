@@ -1,4 +1,4 @@
-# Tests for examples/orchestrator (unit + integration; no Claude auth or Ollama required)
+# Lint + unit tests for examples/orchestrator (no Claude auth or Ollama required)
 name: orchestrator-example
 
 on:
@@ -6,15 +6,17 @@ on:
     branches: [main, master]
     paths:
       - "examples/orchestrator/**"
+      - "scripts/hooks/**"
       - ".github/workflows/orchestrator-example.yml"
   pull_request:
     branches: [main, master]
     paths:
       - "examples/orchestrator/**"
+      - "scripts/hooks/**"
       - ".github/workflows/orchestrator-example.yml"
 
 jobs:
-  test:
+  lint-and-unit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +25,19 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Run tests
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
         run: |
           cd examples/orchestrator
-          node --test tests/*.test.js
+          npm ci
+
+      - name: Install Python linter
+        run: pip install ruff
+
+      - name: Lint + unit tests
+        run: |
+          cd examples/orchestrator
+          npm test
