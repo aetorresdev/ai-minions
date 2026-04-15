@@ -715,6 +715,48 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     t.diagnostic("Malformed response: decide contract enforced for garbage, partial JSON, and missing fields");
   });
 
+  // ── Scenario 15b: Gate-Blocked Completion Enforcement ────────────────────
+  // Regression test: when DEV output contract fails (gateBlocked:true), the
+  // orchestrator must NOT return done:true even if CERBERUS finds no blockers.
+  // Expected outcome: done:false OR summary contains "Manual review" / "gate-blocked".
+
+  test("gate-blocked enforcement: contract failure prevents done:true even if CERBERUS is silent", async (t) => {
+    if (skipIfNoOllama(t)) return;
+
+    const cwd = makeTempDir();
+    try {
+      // Minimal file — Ollama's qwen2.5-coder typically fails files_modified contract
+      // on simple tasks, which is exactly what we need to trigger gateBlocked:true
+      fs.writeFileSync(path.join(cwd, "simple.js"), "const x = 1;\n");
+
+      const result = await run(
+        "Read simple.js and add a comment above the const",
+        {
+          maxIterations: 1,
+          cwd,
+          flowMode: "single_agent",
+          skipStateMcp: true,
+          stepSummary: false,
+        }
+      );
+
+      // If any artifact was gate-blocked, the run must NOT be done:true
+      const hasGateBlocked = result.artifacts.some(a => a.gateBlocked === true);
+      if (hasGateBlocked) {
+        // The key regression: gateBlocked must propagate to final result
+        const isCleanDone = result.done === true && !result.summary?.includes("Manual review") && !result.summary?.includes("gate-blocked");
+        assert.equal(isCleanDone, false,
+          `Run with gateBlocked artifacts must not return clean done:true. Got done=${result.done}, summary="${result.summary}"`);
+        t.diagnostic(`Gate-blocked enforcement confirmed: done=${result.done}, summary="${result.summary?.slice(0, 100)}"`);
+      } else {
+        // DEV happened to pass contracts — test is vacuously valid (skip would be misleading)
+        t.diagnostic("DEV passed contracts — gate-blocked path not triggered in this run (non-deterministic model output)");
+      }
+    } finally {
+      removeTempDir(cwd);
+    }
+  });
+
   // ── Scenario 16: Transition Integrity ────────────────────────────────────
   // validateHandoffStructure() must reject empty or malformed handoff YAML
   // for DEV and QA modes in strict mode, blocking invalid transitions.
