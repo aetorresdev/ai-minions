@@ -798,7 +798,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
     }
 
     if (cerberusBlockers.count > 0 && iterations >= maxIterations) {
-      done = true;
+      done = false;
       summary = `Max iterations reached with ${cerberusBlockers.count} unresolved blocker(s). Manual review required.`;
       log("orchestrator", `⚠ ${summary}`);
       traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_blockers", blockers: cerberusBlockers.count });
@@ -822,7 +822,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         plan = { steps: gateBlockedArtifacts.map(a => ({ agentId: a.agentId, task: a.task })) };
         continue;
       } else {
-        done = true;
+        done = false;
         summary = `Max iterations reached with ${gateBlockedArtifacts.length} gate-blocked artifact(s). Manual review required. Blocked: ${gateBlockReasons.join("; ")}`;
         log("orchestrator", `⚠ ${summary}`);
         traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_gate_blocks", gate_blocks: gateBlockedArtifacts.length });
