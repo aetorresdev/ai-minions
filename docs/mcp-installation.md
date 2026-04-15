@@ -137,8 +137,8 @@ This repo’s skills use several MCP servers. Configure them in **Cursor** via `
 }
 ```
 
-4. Replace `YOUR_STACK`, `YOUR_BASE64_AUTH`. Set `"disabled": false` when you want to use it.
-5. Restart Cursor or reload MCP.
+1. Replace `YOUR_STACK`, `YOUR_BASE64_AUTH`. Set `"disabled": false` when you want to use it.
+2. Restart Cursor or reload MCP.
 
 **Requirements:** Grafana Cloud stack with Traces (Tempo) configured and receiving data. Docs: [Grafana Cloud MCP for Traces](https://grafana.com/docs/grafana-cloud/send-data/traces/mcp-server), [MCP Observability](https://grafana.com/docs/grafana-cloud/monitor-applications/ai-observability/mcp-observability/).
 
