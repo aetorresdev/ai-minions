@@ -346,6 +346,7 @@ Use `--iterations 1` to force a single pass.
 ```bash
 cd examples/orchestrator
 npm test              # lint (ESLint + ruff) + unit tests — no auth, no Ollama, no MCPs required
+npm run test:baseline:gate   # rewrite tests/fixtures/gate-determinism-baseline.json after intentional gate contract changes (C-T2)
 npm run test:e2e      # E2E suite — requires Ollama running at localhost:11434
 npm run test:e2e:all  # E2E suite with all available Ollama models
 ```
@@ -364,6 +365,7 @@ The E2E workflow requires a self-hosted runner with Ollama at `localhost:11434`.
 | Area | Type |
 |------|------|
 | Output contracts (per role) | Unit |
+| Gate logic SHA256 baselines (`validateOutput` / `validateHandoffStructure`) | Unit (C-T2) |
 | `files_read[]` + `files_modified` context gate (ARCHITECT + DEV) | Unit |
 | Fallback policy (primary → secondary, hard-fail) | Integration |
 | Trace redaction, blocker detection, handoff structure | Unit |

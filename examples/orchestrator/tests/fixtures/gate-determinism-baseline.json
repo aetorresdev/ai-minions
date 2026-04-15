@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "description": "SHA256 of canonical {valid,reason,gate_id?} gate snapshots. Regenerate: UPDATE_GATE_BASELINE=1 node --test tests/determinismBaseline.test.js",
+  "hashes": {
+    "vo_plan_valid": "b84363b702f57f05daf30d79907ffbb7fdd07e605fd5fb08fed55cc03eae3ce7",
+    "vo_plan_empty_steps": "e2d2153023d789ca2fbb2c37e0b3acf7baf779c57e85eac4eff6b34a055f0d5f",
+    "vo_decide_done_ok": "b84363b702f57f05daf30d79907ffbb7fdd07e605fd5fb08fed55cc03eae3ce7",
+    "vo_dev_valid": "b84363b702f57f05daf30d79907ffbb7fdd07e605fd5fb08fed55cc03eae3ce7",
+    "vo_dev_no_files_read": "e2481e29ece7b12d7fed9d585a5639342f8b5d06df9665789f0974ae04e1b940",
+    "vo_qa_blocker": "b84363b702f57f05daf30d79907ffbb7fdd07e605fd5fb08fed55cc03eae3ce7",
+    "vo_qa_unclassified": "48675695ce9d6df888971a14354c8ba1f8b48176b8fa553ac73d585507162b16",
+    "vhs_dev_empty_strict": "bd147b189461350b4d3ba37b2efffc8b2ed46a503ad19c43edab2c1ec90d0037",
+    "vhs_dev_empty_soft": "b84363b702f57f05daf30d79907ffbb7fdd07e605fd5fb08fed55cc03eae3ce7",
+    "vhs_dev_valid_strict": "b84363b702f57f05daf30d79907ffbb7fdd07e605fd5fb08fed55cc03eae3ce7",
+    "vhs_qa_invalid_strict": "bd3eb67e42d7c9a25953358ca6f671b2cb05798d8f62d421bdd22b2234779a91",
+    "vhs_cerberus_blockers_strict": "64b88fb52a61c1b84f8d8ad76352099b90633e496630e0cc427aa74c7d5a7e4f"
+  }
+}
