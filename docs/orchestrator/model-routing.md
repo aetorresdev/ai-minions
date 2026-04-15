@@ -44,7 +44,7 @@ node run-orchestrator.js "goal"
 
 At startup, the runner pings Ollama and logs whether it is available. No silent failures.
 
-When **E2E or `setBackend("ollama")`** routes **CERBERUS** through the same small coder, the runner adds a rigid three-line output template (`blocker:` / `improvement:` / `nice-to-have:`) in `agents.js` and `orchestrator.js` so `validateOutput("cerberus", …)` does not reject short fluff replies.
+When **E2E or `setBackend("ollama")`** routes **CERBERUS** through the same small coder, the runner adds a rigid three-line output template (`blocker:` / `improvement:` / `nice-to-have:`) in `agents.js` and `orchestrator.js` so `validateOutput("cerberus", …)` does not reject short fluff replies. That is **format enforcement** only — structured boilerplate can still pass; substantive review quality is **not** guaranteed here (see [agent-contract.md](agent-contract.md) § *Format enforcement vs quality*).
 
 ### Per-role override
 
