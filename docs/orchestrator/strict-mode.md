@@ -346,6 +346,20 @@ Use this to decide whether to abort a session that is burning context inefficien
 
 ---
 
+## Gate determinism baselines (C-T2)
+
+Unit test `examples/orchestrator/tests/determinismBaseline.test.js` hashes canonical snapshots of `validateOutput()` and `validateHandoffStructure()` for fixed inputs. The expected digests live in `examples/orchestrator/tests/fixtures/gate-determinism-baseline.json` and run on every `npm test` in that package.
+
+If you change gate messages or branching intentionally, refresh the fixture:
+
+```bash
+cd examples/orchestrator && npm run test:baseline:gate
+```
+
+This does **not** freeze Ollama or full `run()` outputs (those stay non-deterministic); it only guards the pure gate layer.
+
+---
+
 ## Shared hook modules
 
 These modules live in `scripts/hooks/` and are imported by the enforcer hooks — they are not standalone hooks.
