@@ -1,0 +1,75 @@
+# E2E tests for examples/orchestrator — requires Ollama running on the self-hosted runner.
+#
+# Prerequisites (one-time setup on your machine):
+#   1. Install GitHub Actions self-hosted runner:
+#      https://docs.github.com/en/actions/hosting-your-own-runners/adding-self-hosted-runners
+#   2. Ensure Ollama is running at localhost:11434 with at least one model available.
+#      Recommended: ollama pull qwen2.5-coder:7b
+#   3. Label the runner "self-hosted" and "ollama" in GitHub settings.
+#
+# This workflow is intentionally NOT triggered on every push — only on explicit dispatch
+# or when orchestrator core files change on main/master.
+name: orchestrator-e2e
+
+on:
+  workflow_dispatch:
+    inputs:
+      ollama_model:
+        description: "Ollama model to use (default: qwen2.5-coder:7b)"
+        required: false
+        default: "qwen2.5-coder:7b"
+  push:
+    branches: [main, master]
+    paths:
+      - "examples/orchestrator/orchestrator.js"
+      - "examples/orchestrator/agents.js"
+      - "examples/orchestrator/tests/e2e.test.js"
+      - ".github/workflows/orchestrator-e2e.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "examples/orchestrator/orchestrator.js"
+      - "examples/orchestrator/agents.js"
+      - "examples/orchestrator/tests/e2e.test.js"
+      - ".github/workflows/orchestrator-e2e.yml"
+
+jobs:
+  e2e:
+    runs-on: [self-hosted, ollama]
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          cd examples/orchestrator
+          npm ci
+
+      - name: Verify Ollama is reachable
+        run: |
+          curl -sf http://localhost:11434/api/tags | \
+            python3 -c "import sys,json; d=json.load(sys.stdin); models=[m['name'] for m in d.get('models',[])]; print('Available models:', models); sys.exit(0 if models else 1)"
+
+      - name: Run E2E suite
+        env:
+          OLLAMA_MODEL: ${{ github.event.inputs.ollama_model || 'qwen2.5-coder:7b' }}
+        run: |
+          cd examples/orchestrator
+          npm run test:e2e
+
+      - name: Upload E2E artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-logs-${{ github.run_id }}
+          path: |
+            ~/.claude/metrics/traces/
+            ~/.claude/metrics/gate_events.jsonl
+            ~/.claude/metrics/flow-metrics.jsonl
+          retention-days: 7
+          if-no-files-found: ignore
