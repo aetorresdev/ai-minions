@@ -49,6 +49,8 @@ If `orchestrator-state` or `compact-handoff` MCPs are not registered (or `--skip
 | Mode | On `compact_handoff` failure |
 |------|------------------------------|
 | Strict | Hard fail: artifact `gateBlocked: true`, `gateReason` prefixed with `compact_handoff failed:`, trace `compact_handoff_failed`, no silent empty handoff |
+
+Integration (no `run()` hooks): `tests/compactHandoffStrict.integration.test.js` stubs `child_process.spawnSync`, loads `orchestrator` with `requireHandoff: true` and `skipStateMcp: true`, and asserts `gateBlocked` + `done=false` after a simulated `compact_handoff` failure.
 | Degraded | Continue: artifact fields `handoff_compression: unavailable`, `handoff_fallback_used: true`, `handoff_error`, trace `compact_handoff_fallback`, and the run summary appends a visible note |
 
 > **Gates are opt-in — but degraded mode is not silent.** If you see the banner, you are not running with full protection.

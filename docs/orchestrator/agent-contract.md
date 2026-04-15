@@ -255,7 +255,7 @@ When the runner invokes `compact_handoff` (via Claude CLI → compact-handoff MC
 | Strict | Hard fail: artifact `gateBlocked: true`, `gateReason` prefixed with `compact_handoff failed:`, trace event `compact_handoff_failed`, completion path does not treat the step as clean |
 | Degraded | Explicit fallback: artifact fields `handoff_compression: unavailable`, `handoff_fallback_used: true`, `handoff_error`; trace `compact_handoff_fallback`; run continues; final summary appends a visible note |
 
-Same policy applies to the post-iteration CERBERUS → ORCHESTRATOR advance handoff when gates are active. See `examples/orchestrator/README.md` § `compact_handoff` failure.
+Same policy applies to the post-iteration CERBERUS → ORCHESTRATOR advance handoff when gates are active. See `examples/orchestrator/README.md` § `compact_handoff` failure. Strict worker-path behavior is exercised by `examples/orchestrator/tests/compactHandoffStrict.integration.test.js` (no hooks on `run()`).
 
 ### Goal alignment validation (ORCHESTRATOR — required before advancing MODE)
 
