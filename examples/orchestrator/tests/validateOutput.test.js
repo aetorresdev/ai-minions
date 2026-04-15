@@ -140,8 +140,16 @@ describe("cerberus", () => {
     "**blocker**: no rate limiting on the endpoint"
   ));
 
+  it("accepts three-line Ollama-style template with (none) fillers", () => ok("cerberus",
+    "blocker: (none)\nimprovement: add logging for errors\nnice-to-have: (none)\n"
+  ));
+
   it("rejects output with no classification", () => fail("cerberus",
     "The implementation is solid. Nothing to flag.", {}, /must classify at least one finding/
+  ));
+
+  it("rejects review-ready fluff without labels", () => fail("cerberus",
+    "Review ready.", {}, /must classify at least one finding/
   ));
 });
 

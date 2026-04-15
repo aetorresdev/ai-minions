@@ -225,6 +225,8 @@ Each role has a minimum output contract. If the output does not meet it, the run
 | `qa` / `cerberus` | ≥1 finding classified as `blocker` \| `improvement` \| `nice-to-have` |
 | `owner` / `architect` / `summarizer` | Any non-empty output |
 
+**Small local models (Ollama):** prompts for **CERBERUS** require a fixed three-line prefix (`blocker:` / `improvement:` / `nice-to-have:`) so weak coders still satisfy `FINDING_RE` and pass `validateOutput()` — see `AGENTS.cerberus.system` and the CERBERUS review prompt in `orchestrator.js`.
+
 Implemented in `examples/orchestrator/agents.js` (`validateOutput()`). Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
 
 #### `done` field semantics

@@ -336,6 +336,9 @@ Expected when MCPs are not registered. Run without `--skip-gates` only after `cl
 The Ollama planner (qwen2.5-coder:7b) is a small model — vague goals produce unexpected assignments.
 Be specific: mention the technology, the file, and what should happen.
 
+**CERBERUS fails `[output contract]` with Ollama (`finding_classification_missing`)**
+`validateOutput` requires the words `blocker`, `improvement`, or `nice-to-have` in the reply. Prompts now force a three-line prefix (`blocker:` / `improvement:` / `nice-to-have:`) so small coders comply; use `(none)` when a category is empty. If it still flakes, try a larger model or cloud CERBERUS (`MODEL_OVERRIDE_CERBERUS`).
+
 **Loop keeps iterating**
 Cerberus is finding blockers every round. Check Cerberus output in artifacts — it may be too strict for a simple task.
 Use `--iterations 1` to force a single pass.
