@@ -343,7 +343,7 @@ The planner prompt injects a hard requirement: at least one `dev-*` step plus a 
 `validateOutput` requires the words `blocker`, `improvement`, or `nice-to-have` in the reply. Prompts force a three-line prefix (`blocker:` / `improvement:` / `nice-to-have:`) so small coders comply; use `(none)` when a category is empty. If it still flakes, try a larger model or cloud CERBERUS (`MODEL_OVERRIDE_CERBERUS`).
 
 **CERBERUS “pasa” pero el texto es humo estructurado**
-Eso es esperable con la fase actual: el runner garantiza **formato**, no que cada finding sea real o sustantivo. Ver `docs/orchestrator/agent-contract.md` § *Format enforcement vs quality* y backlog **CERBERUS-SIGNAL** fase 2 (heurísticas / post-proceso / E2E-STRICT).
+Con la plantilla triple, `validateOutput("cerberus", …)` aplica un **piso mínimo** (denylist, todo vacío, blocker vacío sin detalle). Sigue **sin** demostrar que el hallazgo sea cierto. Ver `docs/orchestrator/agent-contract.md` y `gate_id` `cerberus_semantic_filler` / `cerberus_findings_all_vacuous` / `cerberus_vacuous_without_substance`.
 
 **Loop keeps iterating**
 Cerberus is finding blockers every round. Check Cerberus output in artifacts — it may be too strict for a simple task.
