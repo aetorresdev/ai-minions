@@ -408,8 +408,9 @@ async function run(goal, options = {}) {
   const artifacts = [];
   let plan        = { steps: [] };
   let iterations  = 0;
-  let done        = false;
-  let summary     = "";
+  let done          = false;
+  let summary       = "";
+  let manualReview  = false;  // set true in gate-blocked or CERBERUS-unresolved paths
   let currentMode = "ORCHESTRATOR";
   const degradedInRun = new Set(); // agents that ran in fallback at least once this run
   clearDegradedAgents();
@@ -799,7 +800,8 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
 
     if (cerberusBlockers.count > 0 && iterations >= maxIterations) {
       done = false;
-      summary = `Max iterations reached with ${cerberusBlockers.count} unresolved blocker(s). Manual review required.`;
+      manualReview = true;
+      summary = `Max iterations reached with ${cerberusBlockers.count} gate-blocked CERBERUS finding(s). Manual review required.`;
       log("orchestrator", `⚠ ${summary}`);
       traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_blockers", blockers: cerberusBlockers.count });
       continue;
@@ -823,6 +825,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         continue;
       } else {
         done = false;
+        manualReview = true;
         summary = `Max iterations reached with ${gateBlockedArtifacts.length} gate-blocked artifact(s). Manual review required. Blocked: ${gateBlockReasons.join("; ")}`;
         log("orchestrator", `⚠ ${summary}`);
         traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_gate_blocks", gate_blocks: gateBlockedArtifacts.length });
@@ -931,7 +934,7 @@ Reply with JSON only.`;
   if (qaDegraded) {
     log("qa", "⚠ QA ran in degraded mode (fallback model) — coverage may be reduced. Manual review recommended.");
   }
-  const manualReviewRecommended = qaDegraded || (summary.includes("Manual review") || summary.includes("unresolved blocker"));
+  const manualReviewRecommended = qaDegraded || manualReview;
   traceEvent(taskId, { event: "session_end", iterations, done, summary: summary.slice(0, 200), agents_run: [...new Set(artifacts.map(a => a.agentId))], gate_blocks: artifacts.filter(a => a.gateBlocked).length, ...(qaDegraded ? { qa_degraded: true } : {}), ...(manualReviewRecommended ? { manual_review_recommended: true } : {}) });
 
   return { done, summary, artifacts, iterations, taskId };
