@@ -884,7 +884,7 @@ Reply with JSON only.`;
     }
   }
 
-  if (!done) {
+  if (!done && !summary) {
     summary = `Stopped after ${maxIterations} iteration(s).`;
     log("orchestrator", summary);
   }
