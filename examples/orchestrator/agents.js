@@ -634,11 +634,104 @@ function buildEnvContext(agentId, sessionEnv) {
 //   orchestrator/plan   → JSON { steps: [{ agentId, task }] }
 //   orchestrator/decide → JSON { done: bool, summary } or { done: false, corrections: [] }
 //   dev-*               → mentions ≥1 file modified + ≥1 validation run
-//   qa / cerberus       → ≥1 finding classified blocker|improvement|nice-to-have (token presence only — NOT semantic quality; sync: agent-contract.md § format vs quality)
+//   qa                  → ≥1 finding classified blocker|improvement|nice-to-have (token presence only)
+//   cerberus            → same tokens + optional semantic floor when three-line template is used (sync: agent-contract.md § format vs quality)
 //   owner / architect   → any non-empty output (free-form design/scope)
 //   summarizer          → any non-empty output
 
 const FINDING_RE    = /\b(blocker|improvement|nice-to-have)\b/i;
+
+/** Boilerplate lines that look structured but carry no review signal (CERBERUS-SIGNAL fase 2). */
+const CERBERUS_FILLER_PHRASES = [
+  "code could be improved",
+  "consider optimization",
+  "could be improved",
+  "nothing to flag",
+  "nothing to report",
+  "everything looks good",
+  "looks good to me",
+  "looks good",
+  "overall good",
+  "lgtm",
+  "no issues found",
+  "no major issues",
+  "may want to consider",
+  "should be fine",
+  "works as expected",
+];
+
+function _normalizeFindingVal(s) {
+  return String(s || "").trim().toLowerCase().replace(/[()]/g, "");
+}
+
+function _isVacuousFindingVal(val) {
+  const n = _normalizeFindingVal(val);
+  if (!n) return true;
+  return ["none", "n/a", "na", "n.a.", "no", "...", "-"].includes(n);
+}
+
+function _cerberusLineHasFiller(val) {
+  const low = String(val || "").toLowerCase();
+  return CERBERUS_FILLER_PHRASES.some((p) => low.includes(p));
+}
+
+/**
+ * Parse leading `blocker:` / `improvement:` / `nice-to-have:` lines (markdown bullets ok).
+ * @returns {{ blocker: string, improvement: string, nice: string } | null} null if not all three present
+ */
+function parseCerberusTripleTemplate(output) {
+  const lines = String(output).split(/\r?\n/);
+  const out = { blocker: null, improvement: null, nice: null };
+  for (const line of lines) {
+    const kb = line.match(/^[\s>*-]*blocker\s*:\s*(.*)$/i);
+    if (kb && out.blocker === null) out.blocker = kb[1].trim();
+    const ki = line.match(/^[\s>*-]*improvement\s*:\s*(.*)$/i);
+    if (ki && out.improvement === null) out.improvement = ki[1].trim();
+    const kn = line.match(/^[\s>*-]*nice-to-have\s*:\s*(.*)$/i);
+    if (kn && out.nice === null) out.nice = kn[1].trim();
+  }
+  if (out.blocker !== null && out.improvement !== null && out.nice !== null) return out;
+  return null;
+}
+
+/** Minimal semantic floor for CERBERUS when the three-line template is used. */
+function validateCerberusSemanticFloor(output) {
+  const t = parseCerberusTripleTemplate(output);
+  if (!t) return { ok: true };
+
+  if (_isVacuousFindingVal(t.blocker) && _isVacuousFindingVal(t.improvement) && _isVacuousFindingVal(t.nice)) {
+    return {
+      ok: false,
+      reason: "all three lines are vacuous (empty, none, or n/a) — add at least one substantive finding",
+      gate_id: "cerberus_findings_all_vacuous",
+    };
+  }
+
+  for (const [label, val] of [["blocker", t.blocker], ["improvement", t.improvement], ["nice-to-have", t.nice]]) {
+    if (_cerberusLineHasFiller(val)) {
+      return {
+        ok: false,
+        reason: `${label} reads as boilerplate filler — cite a concrete risk, path, or behavior`,
+        gate_id: "cerberus_semantic_filler",
+      };
+    }
+  }
+
+  if (_isVacuousFindingVal(t.blocker)) {
+    const pathish = /\.\w{1,8}\b|`[^`]{3,}`|\/[\w.-]+\/?/i;
+    const impOk = !_isVacuousFindingVal(t.improvement) && (t.improvement.length >= 18 || pathish.test(t.improvement));
+    const niceOk = !_isVacuousFindingVal(t.nice) && (t.nice.length >= 18 || pathish.test(t.nice));
+    if (!impOk && !niceOk) {
+      return {
+        ok: false,
+        reason: "vacuous blocker requires improvement or nice-to-have with concrete detail (path, code span, or ≥18 chars)",
+        gate_id: "cerberus_vacuous_without_substance",
+      };
+    }
+  }
+
+  return { ok: true };
+}
 const VALIDATION_RE      = /\b(validation_run|ran|executed|tested|passed|failed|lint|pytest|npm\s+test|terraform\s+validate|node\s+|output:)\b/i;
 const FILES_READ_RE      = /\bfiles?_read\s*[:-]?\s*(?:[[`'"\w]|\n\s*-)/i;
 const FILES_READ_EMPTY_RE = /\bfiles?_read\s*[:-]?\s*(?:\[\s*]|:\s*\[\s*]|\s*\n(?!\s*-))/i;
@@ -708,9 +801,18 @@ function validateOutput(agentId, output, { phase } = {}) {
     return { valid: true, reason: "", ...extractContextStats(agentId, output) };
   }
 
-  if (agentId === "qa" || agentId === "cerberus") {
+  if (agentId === "qa") {
     if (!FINDING_RE.test(output))
       return { valid: false, reason: `${agentId}: output must classify at least one finding as blocker | improvement | nice-to-have`, gate_id: "finding_classification_missing" };
+    return { valid: true, reason: "" };
+  }
+
+  if (agentId === "cerberus") {
+    if (!FINDING_RE.test(output))
+      return { valid: false, reason: `${agentId}: output must classify at least one finding as blocker | improvement | nice-to-have`, gate_id: "finding_classification_missing" };
+    const sem = validateCerberusSemanticFloor(output);
+    if (!sem.ok)
+      return { valid: false, reason: sem.reason, gate_id: sem.gate_id };
     return { valid: true, reason: "" };
   }
 
@@ -833,4 +935,23 @@ function listAgents() {
   return Object.entries(AGENTS).map(([id, a]) => ({ id, name: a.name, title: a.title, mode: a.mode }));
 }
 
-module.exports = { askAgent, chatWithAgent, listAgents, AGENTS, summarizeHandoff, runOllama, effectiveMode, resolveCredentials, buildEnvContext, CONTRACT_VERSION, FALLBACK_POLICY, validateOutput, getDegradedAgents, clearDegradedAgents, setModelProfile, setBackend };
+module.exports = {
+  askAgent,
+  chatWithAgent,
+  listAgents,
+  AGENTS,
+  summarizeHandoff,
+  runOllama,
+  effectiveMode,
+  resolveCredentials,
+  buildEnvContext,
+  CONTRACT_VERSION,
+  FALLBACK_POLICY,
+  validateOutput,
+  validateCerberusSemanticFloor,
+  parseCerberusTripleTemplate,
+  getDegradedAgents,
+  clearDegradedAgents,
+  setModelProfile,
+  setBackend,
+};

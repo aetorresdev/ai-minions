@@ -151,6 +151,28 @@ describe("cerberus", () => {
   it("rejects review-ready fluff without labels", () => fail("cerberus",
     "Review ready.", {}, /must classify at least one finding/
   ));
+
+  it("rejects triple-template boilerplate (CERBERUS-SIGNAL fase 2)", () => fail("cerberus",
+    "blocker: none\nimprovement: code could be improved\nnice-to-have: consider optimization\n",
+    {},
+    /boilerplate filler/
+  ));
+
+  it("rejects triple when all lines are vacuous", () => fail("cerberus",
+    "blocker: (none)\nimprovement: none\nnice-to-have: n/a\n",
+    {},
+    /all three lines are vacuous/
+  ));
+
+  it("rejects vacuous blocker without concrete improvement or nice-to-have", () => fail("cerberus",
+    "blocker: (none)\nimprovement: ok\nnice-to-have: fine\n",
+    {},
+    /concrete detail/
+  ));
+
+  it("accepts triple with vacuous blocker and substantive improvement", () => ok("cerberus",
+    "blocker: (none)\nimprovement: add bounds check on divide() in calculator.js before return\nnice-to-have: (none)\n"
+  ));
 });
 
 // ── free-form roles ───────────────────────────────────────────────────────────

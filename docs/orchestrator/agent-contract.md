@@ -222,20 +222,19 @@ Each role has a minimum output contract. If the output does not meet it, the run
 | `orchestrator` / plan | Valid JSON `{ steps: [{ agentId, task }] }` — non-empty |
 | `orchestrator` / decide | Valid JSON `{ done: bool, summary }` or `{ done: false, corrections: [] }` |
 | `dev-*` | Mentions ≥1 file modified **and** ≥1 validation run (lint, test, terraform validate, etc.) |
-| `qa` / `cerberus` | ≥1 finding classified as `blocker` \| `improvement` \| `nice-to-have` |
+| `qa` | ≥1 finding classified as `blocker` \| `improvement` \| `nice-to-have` (token presence) |
+| `cerberus` | Same tokens as QA **plus**, when all three lines `blocker:` / `improvement:` / `nice-to-have:` are present, **minimal semantic floor** (`validateCerberusSemanticFloor` in `agents.js`): reject all-vacuous lines, known boilerplate phrases, and vacuous blocker without concrete improvement/nice-to-have detail |
 | `owner` / `architect` / `summarizer` | Any non-empty output |
 
 **Small local models (Ollama):** prompts for **CERBERUS** require a fixed three-line prefix (`blocker:` / `improvement:` / `nice-to-have:`) so weak coders still satisfy `FINDING_RE` and pass `validateOutput()` — see `AGENTS.cerberus.system` and the CERBERUS review prompt in `orchestrator.js`.
 
 #### CERBERUS / QA — format enforcement vs quality (honest scope)
 
-`validateOutput()` for `qa` and `cerberus` checks **syntax-level** contract only: presence of classified vocabulary (`blocker` \| `improvement` \| `nice-to-have`), not whether a finding is **true, substantive, or grounded in the artifacts**.
+`validateOutput()` for **`qa`**: classified vocabulary only (`blocker` \| `improvement` \| `nice-to-have`). For **`cerberus`**: same, and when the three-line template is detected, **CERBERUS-SIGNAL fase 2 (minimal)** rejects obvious structured garbage (shared denylist, all-vacuous lines, vacuous blocker without path-ish or length-anchored improvement/nice-to-have). This is still **not** full quality: it does not prove a blocker is true, aligned with the diff, or free of subtle fabrication.
 
-**In scope today (CERBERUS-SIGNAL-1):** structure, required labels, rejection of empty praise / “LGTM-only” style replies that lack those tokens.
+**Still out of scope (later backlog):** model-graded severity, cross-check against `files_modified` / trace, scoring, **E2E-STRICT** under real MCP gates.
 
-**Explicitly out of scope until CERBERUS-SIGNAL fase 2+:** whether a blocker is real; whether text is vacuous boilerplate disguised as structure; whether the model emits plausible but content-free lines (e.g. `blocker: none` with generic “improvement: code could be improved” — still **valid** for `validateOutput()` and must not be mistaken for strong adversarial signal). **Well-formatted output ≠ high-quality review.**
-
-**Unlocked next (backlog):** minimal semantic heuristics or post-process; **E2E-STRICT** (MCP on) to exercise real gates; later — scoring of findings, correlation with cited paths / artifacts.
+**Non–triple-line CERBERUS replies** (e.g. a single `**blocker**: …` paragraph) only pass the token check — same behavior as before the semantic floor.
 
 Implemented in `examples/orchestrator/agents.js` (`validateOutput()`). Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
 
