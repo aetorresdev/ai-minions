@@ -113,7 +113,7 @@ Three evidence classes. Same `GOAL`, different `FLOW` → diff the files, not th
 
 **Interpretation rule:** if you cannot explain the delta between two runs using these three signals, the comparison is invalid.
 
-**Status — SA vs MA**
+### Status — SA vs MA
 
 | `FLOW` | State |
 |---|---|

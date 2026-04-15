@@ -25,7 +25,7 @@ Analysis of what the Kiro-generated spec format does well and what can be optimi
 - **Recommendation**: Allow **optional subtasks** with IDs like TASK-002.1, TASK-002.2, each with Deliverables / Satisfies / Steps / Acceptance. Keep flat list as default for small specs; use hierarchy when the initiative is large (e.g. 10+ tasks).
 
 ### 4. **Explicit "optional" vs "required" tasks**
-- **Kiro**: Tasks marked with `*` (e.g. "3.10* Write unit tests") are **optional** (e.g. for faster MVP). Notes section states "Tasks marked with * are optional testing tasks."
+- **Kiro**: Tasks marked with `*` (e.g. "3.10\* Write unit tests") are **optional** (e.g. for faster MVP). Notes section states "Tasks marked with \* are optional testing tasks."
 - **Benefit**: Clear what can be skipped for MVP or first release; avoids "do we have to do every single task?" ambiguity.
 - **Skill today**: No optional/required distinction; every task is implicitly required.
 - **Recommendation**: Add **Optional (can skip for MVP)** to the task template. When generating, allow marking tasks (e.g. "TASK-00N (optional): property tests") and add one line in Documentation or Notes: "Tasks marked optional can be deferred for MVP."
