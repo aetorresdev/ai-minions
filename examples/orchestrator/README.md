@@ -42,6 +42,15 @@ ORCHESTRATOR (Ollama)
 
 If `orchestrator-state` or `compact-handoff` MCPs are not registered (or `--skip-gates` is passed), the runner prints a prominent **⚠ DEGRADED MODE** banner and continues without hard gates. In degraded mode: no transitions are recorded, no goal alignment is checked, no approved-artifact enforcement. Output contracts (`validateOutput`) still apply regardless.
 
+### `compact_handoff` failure (worker steps and CERBERUS advance)
+
+`require_handoff` defaults from the effective mode: **strict** (gates on, no `--skip-gates`) → `true`; **degraded** (`--skip-gates` / `skipStateMcp`) → `false`. Override from code with `requireHandoff: boolean`, or from CLI with `--require-handoff` / `--no-require-handoff`.
+
+| Mode | On `compact_handoff` failure |
+|------|------------------------------|
+| Strict | Hard fail: artifact `gateBlocked: true`, `gateReason` prefixed with `compact_handoff failed:`, trace `compact_handoff_failed`, no silent empty handoff |
+| Degraded | Continue: artifact fields `handoff_compression: unavailable`, `handoff_fallback_used: true`, `handoff_error`, trace `compact_handoff_fallback`, and the run summary appends a visible note |
+
 > **Gates are opt-in — but degraded mode is not silent.** If you see the banner, you are not running with full protection.
 
 ---

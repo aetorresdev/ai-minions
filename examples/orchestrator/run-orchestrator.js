@@ -46,6 +46,8 @@ async function main() {
   let taskId;
   let skipGates = false;
   let profile = null;
+  /** @type {boolean | null} */
+  let requireHandoffOverride = null;
   const inputArgs = [];
 
   for (let i = 0; i < args.length; i++) {
@@ -54,6 +56,8 @@ async function main() {
     else if (args[i] === "--flow" && args[i + 1])       { flowMode = args[++i]; }
     else if (args[i] === "--task-id" && args[i + 1])    { taskId = args[++i]; }
     else if (args[i] === "--skip-gates")                { skipGates = true; }
+    else if (args[i] === "--require-handoff")           { requireHandoffOverride = true; }
+    else if (args[i] === "--no-require-handoff")       { requireHandoffOverride = false; }
     else if (args[i] === "--profile" && args[i + 1])    { profile = args[++i]; }
     else                                                 { inputArgs.push(args[i]); }
   }
@@ -74,12 +78,15 @@ async function main() {
 
   const goal = inputArgs.join(" ") || await readStdin();
   if (!goal || !goal.trim()) {
-    console.error("Usage: node run-orchestrator.js [--cwd <dir>] [--iterations <n>] [--flow <mode>] [--profile fast|balanced|quality] \"<goal>\"");
+    console.error("Usage: node run-orchestrator.js [--cwd <dir>] [--iterations <n>] [--flow <mode>] [--skip-gates] [--require-handoff|--no-require-handoff] [--profile fast|balanced|quality] \"<goal>\"");
     process.exit(1);
   }
 
   console.log(`\nOrchestrator starting in: ${cwd}`);
-  console.log(`Flow: ${flowMode} | Max iterations: ${maxIterations}${profile ? ` | Profile: ${profile}` : ""}${skipGates ? " | Gates: DISABLED" : ""}\n`);
+  const handoffNote = requireHandoffOverride === true ? " | require_handoff: forced ON"
+    : requireHandoffOverride === false ? " | require_handoff: forced OFF"
+      : "";
+  console.log(`Flow: ${flowMode} | Max iterations: ${maxIterations}${profile ? ` | Profile: ${profile}` : ""}${skipGates ? " | Gates: DISABLED" : ""}${handoffNote}\n`);
 
   const result = await run(goal.trim(), {
     maxIterations,
@@ -87,6 +94,7 @@ async function main() {
     flowMode,
     taskId,
     skipStateMcp: skipGates,
+    ...(requireHandoffOverride !== null ? { requireHandoff: requireHandoffOverride } : {}),
   });
 
   // Note: each agent call uses CLAUDE_CLI_TIMEOUT (default 3 min).
