@@ -641,8 +641,11 @@ function buildEnvContext(agentId, sessionEnv) {
 
 const FINDING_RE    = /\b(blocker|improvement|nice-to-have)\b/i;
 
-/** Boilerplate lines that look structured but carry no review signal (CERBERUS-SIGNAL fase 2). */
-const CERBERUS_FILLER_PHRASES = [
+/**
+ * Multi-word boilerplate substrings (length ≥ 12) — substring match OK.
+ * Avoid short phrases like "looks good" that appear inside legitimate sentences.
+ */
+const CERBERUS_FILLER_SUBSTRINGS = [
   "code could be improved",
   "consider optimization",
   "could be improved",
@@ -650,15 +653,21 @@ const CERBERUS_FILLER_PHRASES = [
   "nothing to report",
   "everything looks good",
   "looks good to me",
-  "looks good",
   "overall good",
-  "lgtm",
   "no issues found",
   "no major issues",
   "may want to consider",
   "should be fine",
   "works as expected",
 ];
+
+/** Entire field is just noise (exact match after trim + trailing dots). */
+const CERBERUS_FILLER_EXACT = new Set([
+  "lgtm",
+  "looks good",
+  "ok",
+  "fine",
+]);
 
 function _normalizeFindingVal(s) {
   return String(s || "").trim().toLowerCase().replace(/[()]/g, "");
@@ -671,8 +680,10 @@ function _isVacuousFindingVal(val) {
 }
 
 function _cerberusLineHasFiller(val) {
-  const low = String(val || "").toLowerCase();
-  return CERBERUS_FILLER_PHRASES.some((p) => low.includes(p));
+  const t = String(val || "").trim().toLowerCase().replace(/\.+$/g, "");
+  if (!t) return false;
+  if (CERBERUS_FILLER_EXACT.has(t)) return true;
+  return CERBERUS_FILLER_SUBSTRINGS.some((p) => t.includes(p));
 }
 
 /**
@@ -699,12 +710,10 @@ function validateCerberusSemanticFloor(output) {
   const t = parseCerberusTripleTemplate(output);
   if (!t) return { ok: true };
 
+  // All three vacuous = explicit "no classified findings" — allowed so CERBERUS can finish
+  // when upstream artifacts are already gate-blocked (E2E Sc15b); still passes FINDING_RE via keywords.
   if (_isVacuousFindingVal(t.blocker) && _isVacuousFindingVal(t.improvement) && _isVacuousFindingVal(t.nice)) {
-    return {
-      ok: false,
-      reason: "all three lines are vacuous (empty, none, or n/a) — add at least one substantive finding",
-      gate_id: "cerberus_findings_all_vacuous",
-    };
+    return { ok: true };
   }
 
   for (const [label, val] of [["blocker", t.blocker], ["improvement", t.improvement], ["nice-to-have", t.nice]]) {

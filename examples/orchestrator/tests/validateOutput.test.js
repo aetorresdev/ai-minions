@@ -158,16 +158,14 @@ describe("cerberus", () => {
     /boilerplate filler/
   ));
 
-  it("rejects triple when all lines are vacuous", () => fail("cerberus",
-    "blocker: (none)\nimprovement: none\nnice-to-have: n/a\n",
-    {},
-    /all three lines are vacuous/
+  it("accepts triple when all lines are vacuous (explicit no-finding template)", () => ok("cerberus",
+    "blocker: (none)\nimprovement: none\nnice-to-have: n/a\n"
   ));
 
   it("rejects vacuous blocker without concrete improvement or nice-to-have", () => fail("cerberus",
     "blocker: (none)\nimprovement: ok\nnice-to-have: fine\n",
     {},
-    /concrete detail/
+    /reads as boilerplate filler|concrete detail/
   ));
 
   it("accepts triple with vacuous blocker and substantive improvement", () => ok("cerberus",
