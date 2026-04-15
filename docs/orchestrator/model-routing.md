@@ -190,11 +190,15 @@ All agents share the global guardrail in `CLAUDE.md`:
 
 ```
 blockers > 0 AND iterations < max  → force iterate (orchestrator asked only for corrections)
-blockers > 0 AND iterations >= max → done=true, summary flags unresolved blockers, manual review required
-blockers = 0                       → orchestrator decides freely (done or corrections)
+blockers > 0 AND iterations >= max → done=false, summary flags unresolved blockers, manual review required
+blockers = 0 AND no gateBlocked    → orchestrator decides freely (done or corrections)
+any artifact gateBlocked AND iter < max  → force retry of blocked steps
+any artifact gateBlocked AND iter >= max → done=false, summary lists each blocked agent + reason
 ```
 
 The orchestrator model **cannot** declare `done=true` when blockers exist — the code enforces iterate before the decide prompt is even sent. A `cerberus_check` trace event records blocker count and matched lines per iteration.
+
+`done=false` is the correct terminal signal when either condition fires. It is not an error — it means "gates fired, human must decide next step." The summary will contain either "Manual review required" (Cerberus unresolved blockers) or "Manual review required — N gate-blocked artifact(s)" (output contract / handoff / alignment failure).
 
 ---
 
