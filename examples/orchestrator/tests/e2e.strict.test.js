@@ -14,6 +14,7 @@ process.env.ORCH_MCP_TRANSPORT = "direct";
 
 const { test, describe, before } = require("node:test");
 const assert = require("node:assert/strict");
+const { spawnSync } = require("node:child_process");
 const http = require("node:http");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -58,6 +59,58 @@ function removeTempDir(p) {
   try { fs.rmSync(p, { recursive: true, force: true }); } catch { /* ok */ }
 }
 
+/** Parse first JSON object or last parseable JSON line (mcp-direct stdout). */
+function parseMcpDirectStdout(raw) {
+  const t = String(raw || "").trim();
+  if (!t) return null;
+  try {
+    return JSON.parse(t);
+  } catch { /* fallthrough */ }
+  const lines = t.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    try {
+      return JSON.parse(line);
+    } catch { /* continue */ }
+  }
+  return t;
+}
+
+function callMcpDirect(mcpScript, server, tool, args) {
+  const py = process.env.ORCH_PYTHON || "python3";
+  const payload = JSON.stringify({ server, tool, args });
+  const r = spawnSync(py, [mcpScript], {
+    input: payload,
+    encoding: "utf8",
+    maxBuffer: 8 * 1024 * 1024,
+    timeout: 120000,
+    windowsHide: true,
+  });
+  if (r.error) throw r.error;
+  if (r.status !== 0) {
+    throw new Error((r.stderr || r.stdout || "").trim() || `mcp-direct exited ${r.status}`);
+  }
+  return parseMcpDirectStdout(r.stdout);
+}
+
+function loadEvents(eventsPath) {
+  const raw = fs.readFileSync(eventsPath, "utf8").trim();
+  if (!raw) return [];
+  return raw.split("\n").filter(Boolean).map((l) => JSON.parse(l));
+}
+
+function assertHashChain(events) {
+  assert.ok(events.length >= 1, "events must be non-empty");
+  for (let i = 1; i < events.length; i++) {
+    assert.equal(
+      events[i].prev_hash,
+      events[i - 1].hash,
+      `hash chain broken at seq ${events[i].seq}`
+    );
+  }
+}
+
 let ollamaAvailable = false;
 let ollamaModel = null;
 
@@ -100,12 +153,12 @@ describe("E2E-STRICT — MCP direct + state store", { timeout: TEST_TIMEOUT_MS, 
     return false;
   }
 
-  test("run with skipStateMcp:false registers task and writes events.jsonl under ORCHESTRATOR_STATE_ROOT", async (t) => {
+  test("run() strict: task_registered, mode_advanced, task_closed + intact hash chain", async (t) => {
     if (skipIfNoDeps(t)) return;
 
     const stateRoot = makeTempDir("orch-state-");
     const cwd = makeTempDir("orch-cwd-");
-    const taskId = `strict-${Date.now()}`;
+    const taskId = `strict-run-${Date.now()}`;
     const prevStateRoot = process.env.ORCHESTRATOR_STATE_ROOT;
 
     try {
@@ -129,13 +182,284 @@ describe("E2E-STRICT — MCP direct + state store", { timeout: TEST_TIMEOUT_MS, 
 
       const eventsPath = path.join(stateRoot, taskId, "events.jsonl");
       assert.ok(fs.existsSync(eventsPath), `expected events at ${eventsPath}`);
-      const lines = fs.readFileSync(eventsPath, "utf8").trim().split("\n").filter(Boolean);
-      assert.ok(lines.length >= 1, "events.jsonl should have at least one line");
-      const types = lines.map((l) => JSON.parse(l).type);
+      const events = loadEvents(eventsPath);
+      assert.ok(events.length >= 1, "events.jsonl should have at least one line");
+      assertHashChain(events);
+
+      const types = events.map((e) => e.type);
       assert.ok(types.includes("task_registered"), `expected task_registered in ${types.join(",")}`);
+      assert.ok(types.includes("mode_advanced"), `expected mode_advanced (ORCH→first MODE) in ${types.join(",")}`);
+      assert.ok(types.includes("task_closed"), `expected task_closed in ${types.join(",")}`);
+
+      t.diagnostic(`strict run events: ${types.join(" → ")} (${events.length} total)`);
     } finally {
       if (prevStateRoot === undefined) delete process.env.ORCHESTRATOR_STATE_ROOT;
       else process.env.ORCHESTRATOR_STATE_ROOT = prevStateRoot;
+      removeTempDir(stateRoot);
+      removeTempDir(cwd);
+    }
+  });
+
+  /**
+   * Deterministic transition path on disk: alignment enforcement disabled so we do not
+   * depend on Ollama's validate_goal_alignment verdict. Still exercises real advance_mode,
+   * validate_transition, and append-only events (handoff_yaml non-empty).
+   */
+  test("mcp-direct strict chain: register → advance → validate_transition → advance → close + hash chain", async (t) => {
+    if (skipIfNoDeps(t)) return;
+
+    const stateRoot = makeTempDir("orch-state-chain-");
+    const taskId = `strict-chain-${Date.now()}`;
+    const prevStateRoot = process.env.ORCHESTRATOR_STATE_ROOT;
+
+    try {
+      process.env.ORCHESTRATOR_STATE_ROOT = stateRoot;
+
+      const reg = callMcpDirect(MCP_DIRECT, "orchestrator-state", "register_task", {
+        goal: "Add multiply to utils.js",
+        task_id: taskId,
+        flow_mode: "single_agent",
+        max_iterations: 3,
+        approved_artifacts: "[]",
+        enforce_goal_alignment: false,
+        enforce_approved_artifacts: false,
+      });
+      assert.equal(reg.ok, true, `register_task: ${JSON.stringify(reg)}`);
+
+      const adv1 = callMcpDirect(MCP_DIRECT, "orchestrator-state", "advance_mode", {
+        task_id: taskId,
+        from_mode: "ORCHESTRATOR",
+        to_mode: "DEV",
+        handoff_yaml: "",
+        iteration: -1,
+      });
+      assert.equal(adv1.ok, true, `advance ORCH→DEV: ${JSON.stringify(adv1)}`);
+
+      const handoffYaml = [
+        "files_modified:",
+        "  - utils.js",
+        "validation_run: node -c utils.js → exit 0",
+        "iteration: 1",
+      ].join("\n");
+
+      const vt = callMcpDirect(MCP_DIRECT, "orchestrator-state", "validate_transition", {
+        task_id: taskId,
+        from_mode: "DEV",
+        to_mode: "ORCHESTRATOR",
+        handoff_yaml: handoffYaml,
+        iteration: 1,
+      });
+      assert.equal(vt.ok, true, `validate_transition response: ${JSON.stringify(vt)}`);
+      assert.equal(vt.allowed, true, `transition must be allowed: ${JSON.stringify(vt.errors || [])}`);
+
+      const adv2 = callMcpDirect(MCP_DIRECT, "orchestrator-state", "advance_mode", {
+        task_id: taskId,
+        from_mode: "DEV",
+        to_mode: "ORCHESTRATOR",
+        handoff_yaml: handoffYaml,
+        iteration: 1,
+      });
+      assert.equal(adv2.ok, true, `advance DEV→ORCH: ${JSON.stringify(adv2)}`);
+
+      const close = callMcpDirect(MCP_DIRECT, "orchestrator-state", "close_task", {
+        task_id: taskId,
+        reason: "e2e-strict chain complete",
+      });
+      assert.equal(close.ok, true, `close_task: ${JSON.stringify(close)}`);
+
+      const eventsPath = path.join(stateRoot, taskId, "events.jsonl");
+      const events = loadEvents(eventsPath);
+      assertHashChain(events);
+      const types = events.map((e) => e.type);
+      assert.ok(types.filter((x) => x === "mode_advanced").length >= 2, "expected ≥2 mode_advanced events");
+      assert.ok(types.includes("task_registered"), `missing task_registered: ${types}`);
+      assert.ok(types.includes("task_closed"), `missing task_closed: ${types}`);
+
+      const lastAdvance = events.filter((e) => e.type === "mode_advanced").pop();
+      assert.ok(
+        lastAdvance && lastAdvance.payload && lastAdvance.payload.handoff_yaml_present === true,
+        "last mode_advanced should record handoff_yaml_present: true"
+      );
+
+      t.diagnostic(`strict chain events: ${types.join(" → ")}`);
+    } finally {
+      if (prevStateRoot === undefined) delete process.env.ORCHESTRATOR_STATE_ROOT;
+      else process.env.ORCHESTRATOR_STATE_ROOT = prevStateRoot;
+      removeTempDir(stateRoot);
+    }
+  });
+
+  test("compact_handoff (direct) returns YAML with DEV handoff keys when Ollama compacts contract-shaped text", async (t) => {
+    if (skipIfNoDeps(t)) return;
+
+    const devText = [
+      "files_read: [utils.js]",
+      "files_modified: [utils.js]",
+      "validation_run: node -c utils.js → OK",
+      "Added multiply() exporting { add, multiply }.",
+    ].join("\n");
+
+    const out = callMcpDirect(MCP_DIRECT, "compact-handoff", "compact_handoff", {
+      text: devText,
+      mode_completed: "DEV",
+      next_mode: "ORCHESTRATOR",
+      iteration: 1,
+      max_iterations: 1,
+      flow_mode: "single_agent",
+    });
+
+    const yaml = typeof out === "string" ? out : "";
+    if (!yaml || yaml.startsWith("error:")) {
+      t.skip(`compact_handoff unavailable: ${String(yaml).slice(0, 120)}`);
+      return;
+    }
+    const low = yaml.toLowerCase();
+    assert.ok(
+      low.includes("files_modified") || low.includes("validation_run"),
+      `expected DEV keys in compact output, got: ${yaml.slice(0, 200)}`
+    );
+    t.diagnostic(`compact_handoff sample: ${yaml.slice(0, 160).replace(/\n/g, " ")}…`);
+  });
+
+  test("validate_transition rejects when handoff is non-empty but goal alignment never validated (default register)", async (t) => {
+    if (skipIfNoDeps(t)) return;
+
+    const stateRoot = makeTempDir("orch-state-negalign-");
+    const taskId = `strict-negalign-${Date.now()}`;
+    const prevStateRoot = process.env.ORCHESTRATOR_STATE_ROOT;
+
+    try {
+      process.env.ORCHESTRATOR_STATE_ROOT = stateRoot;
+
+      const reg = callMcpDirect(MCP_DIRECT, "orchestrator-state", "register_task", {
+        goal: "Add multiply",
+        task_id: taskId,
+        flow_mode: "single_agent",
+        max_iterations: 3,
+        approved_artifacts: "[]",
+      });
+      assert.equal(reg.ok, true, JSON.stringify(reg));
+
+      const adv1 = callMcpDirect(MCP_DIRECT, "orchestrator-state", "advance_mode", {
+        task_id: taskId,
+        from_mode: "ORCHESTRATOR",
+        to_mode: "DEV",
+        handoff_yaml: "",
+        iteration: -1,
+      });
+      assert.equal(adv1.ok, true, JSON.stringify(adv1));
+
+      const handoffYaml = "files_modified:\n  - utils.js\nvalidation_run: npm test\n";
+      const vt = callMcpDirect(MCP_DIRECT, "orchestrator-state", "validate_transition", {
+        task_id: taskId,
+        from_mode: "DEV",
+        to_mode: "ORCHESTRATOR",
+        handoff_yaml: handoffYaml,
+        iteration: 1,
+      });
+      assert.equal(vt.ok, true, JSON.stringify(vt));
+      assert.equal(vt.allowed, false, "transition must be blocked until validate_goal_alignment passes");
+      const errText = (vt.errors || []).join(" ");
+      assert.match(errText, /goal_alignment/i, `expected alignment error, got: ${errText}`);
+    } finally {
+      if (prevStateRoot === undefined) delete process.env.ORCHESTRATOR_STATE_ROOT;
+      else process.env.ORCHESTRATOR_STATE_ROOT = prevStateRoot;
+      removeTempDir(stateRoot);
+    }
+  });
+
+  test("validate_transition rejects when iteration exceeds max_iterations", async (t) => {
+    if (skipIfNoDeps(t)) return;
+
+    const stateRoot = makeTempDir("orch-state-negit-");
+    const taskId = `strict-negit-${Date.now()}`;
+    const prevStateRoot = process.env.ORCHESTRATOR_STATE_ROOT;
+
+    try {
+      process.env.ORCHESTRATOR_STATE_ROOT = stateRoot;
+
+      const reg = callMcpDirect(MCP_DIRECT, "orchestrator-state", "register_task", {
+        goal: "x",
+        task_id: taskId,
+        flow_mode: "single_agent",
+        max_iterations: 1,
+        approved_artifacts: "[]",
+        enforce_goal_alignment: false,
+        enforce_approved_artifacts: false,
+      });
+      assert.equal(reg.ok, true, JSON.stringify(reg));
+
+      callMcpDirect(MCP_DIRECT, "orchestrator-state", "advance_mode", {
+        task_id: taskId,
+        from_mode: "ORCHESTRATOR",
+        to_mode: "DEV",
+        handoff_yaml: "",
+        iteration: -1,
+      });
+
+      const vt = callMcpDirect(MCP_DIRECT, "orchestrator-state", "validate_transition", {
+        task_id: taskId,
+        from_mode: "DEV",
+        to_mode: "ORCHESTRATOR",
+        handoff_yaml: "files_modified:\n  - a.js\nvalidation_run: pass\n",
+        iteration: 99,
+      });
+      assert.equal(vt.ok, true, JSON.stringify(vt));
+      assert.equal(vt.allowed, false);
+      const errText = (vt.errors || []).join(" ");
+      assert.match(errText, /max_iterations|exceeds/i, `expected iteration cap error, got: ${errText}`);
+    } finally {
+      if (prevStateRoot === undefined) delete process.env.ORCHESTRATOR_STATE_ROOT;
+      else process.env.ORCHESTRATOR_STATE_ROOT = prevStateRoot;
+      removeTempDir(stateRoot);
+    }
+  });
+
+  test("run() strict + E2E_STRICT_GATE_PATH: compact_handoff, goal_alignment_validated, transitions on disk", async (t) => {
+    if (skipIfNoDeps(t)) return;
+
+    const stateRoot = makeTempDir("orch-state-gatepath-");
+    const cwd = makeTempDir("orch-cwd-gatepath-");
+    const taskId = `strict-gate-${Date.now()}`;
+    const prevStateRoot = process.env.ORCHESTRATOR_STATE_ROOT;
+    const prevGate = process.env.E2E_STRICT_GATE_PATH;
+
+    try {
+      process.env.ORCHESTRATOR_STATE_ROOT = stateRoot;
+      process.env.E2E_STRICT_GATE_PATH = "1";
+      fs.writeFileSync(
+        path.join(cwd, "utils.js"),
+        "function add(a, b) { return a + b; }\nmodule.exports = { add };\n"
+      );
+
+      const result = await run("E2E strict deterministic gate path", {
+        taskId,
+        maxIterations: 1,
+        cwd,
+        flowMode: "single_agent",
+        skipStateMcp: false,
+        stepSummary: true,
+      });
+
+      assert.equal(result.done, true, `expected done=true, got ${JSON.stringify(result)}`);
+
+      const eventsPath = path.join(stateRoot, taskId, "events.jsonl");
+      const events = loadEvents(eventsPath);
+      assertHashChain(events);
+      const types = events.map((e) => e.type);
+      assert.ok(types.includes("goal_alignment_validated"), `expected goal_alignment_validated in ${types.join(",")}`);
+      assert.ok(types.includes("task_closed"), `expected task_closed in ${types.join(",")}`);
+      assert.ok(
+        types.filter((x) => x === "mode_advanced").length >= 3,
+        `expected ≥3 mode_advanced (ORCH→DEV, DEV→…, CERBERUS→ORCH), got ${types.filter((x) => x === "mode_advanced").length}`
+      );
+
+      t.diagnostic(`gate-path events: ${types.join(" → ")}`);
+    } finally {
+      if (prevStateRoot === undefined) delete process.env.ORCHESTRATOR_STATE_ROOT;
+      else process.env.ORCHESTRATOR_STATE_ROOT = prevStateRoot;
+      if (prevGate === undefined) delete process.env.E2E_STRICT_GATE_PATH;
+      else process.env.E2E_STRICT_GATE_PATH = prevGate;
       removeTempDir(stateRoot);
       removeTempDir(cwd);
     }

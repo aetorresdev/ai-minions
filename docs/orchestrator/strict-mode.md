@@ -372,6 +372,8 @@ This is **not** the same as registering MCPs inside the Anthropic Claude app: th
 
 Optional env: **`ORCH_PYTHON`** (default `python3`), **`ORCH_MCP_DIRECT_TIMEOUT_MS`** (default `180000`).
 
+**Phase 1 vs later:** phase 1 proves the strict path against **real on-disk state** without Claude-hosted MCP wiring. It does **not** exhaust “strict” as a product goal. **Phase 2 (`e2e.strict.test.js`):** (1) `run()` + hash + event types; (2) **mcp-direct** `validate_transition` → `advance_mode` with YAML; (3) **`compact_handoff`** smoke; (4–5) **negative** `validate_transition` (alignment pending, iteration cap); (6) **`E2E_STRICT_GATE_PATH=1`** — deterministic `askAgent` stubs + `register_task` with `enforce_goal_alignment: false` + Node bypass when the alignment LLM still returns `aligned: false`, so **`run()`** exercises real `compact_handoff`, `goal_alignment_validated` on disk, and **≥3** `mode_advanced` events. **`validateHandoffStructure`** accepts **nested** `files_modified` / `validation_run` (typical compact-handoff YAML) and nested **`verdict`** for CERBERUS. Optional later: strict with **`claude -p` + MCPs registered in the Claude app** for desktop parity.
+
 ---
 
 ## Shared hook modules

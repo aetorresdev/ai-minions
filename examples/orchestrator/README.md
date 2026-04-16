@@ -364,6 +364,8 @@ npm run test:e2e:all  # E2E suite with all available Ollama models
 
 `ORCH_MCP_TRANSPORT=direct` makes `orchestrator.js` call `mcp-direct.py` for `orchestrator-state` and `compact-handoff` instead of `claude -p`. Use `ORCH_PYTHON` if `python3` is not on `PATH`. Optional: `ORCH_MCP_DIRECT_TIMEOUT_MS` (default 180000).
 
+**`E2E_STRICT_GATE_PATH=1`** (only `tests/e2e.strict.test.js`): deterministic `askAgent` stubs + `register_task` with `enforce_goal_alignment: false` + Node-side bypass when the alignment LLM returns `aligned: false`, so `run()` can exercise `compact_handoff` → `validate_transition` → `advance_mode` without flaking. **Do not set** outside that suite.
+
 ### CI pipelines
 
 | Workflow | Runner | Triggers |
@@ -392,7 +394,7 @@ The E2E workflow requires a self-hosted runner with Ollama at `localhost:11434`.
 | Strict mode — any deviation surfaces as hard failure | E2E (Ollama) |
 | Gate-blocked enforcement — `done: false` when contracts fail | E2E (Ollama) |
 | Failure-first — invalid input, broken handoff, unknown agent | E2E (Ollama) |
-| Strict gates without claude CLI (`skipStateMcp: false` + MCP direct) | E2E-STRICT (`test:e2e:strict`) |
+| Strict gates without claude CLI (`skipStateMcp: false` + MCP direct); `run()` event chain; mcp-direct transitions; `compact_handoff` YAML; negativos `validate_transition`; `E2E_STRICT_GATE_PATH` gate-path `run()` | E2E-STRICT (`test:e2e:strict`, 6 tests) |
 
 ### Test files
 

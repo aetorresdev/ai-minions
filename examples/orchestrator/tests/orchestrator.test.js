@@ -110,6 +110,12 @@ describe("validateHandoffStructure / DEV", () => {
     assert.equal(r.valid, false);
     assert.match(r.reason, /empty/i);
   });
+
+  it("passes DEV strict when files_modified is nested under handoff (compact-handoff shape)", () => {
+    const yaml = "handoff:\n  goal: x\n  files_modified:\n    - utils.js\n  validation_run: node -c utils.js\n";
+    const r = validateHandoffStructure("DEV", yaml, { strict: true });
+    assert.equal(r.valid, true);
+  });
 });
 
 describe("validateHandoffStructure / QA", () => {
