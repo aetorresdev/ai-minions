@@ -138,6 +138,10 @@ When the primary model fails, the runner attempts the fallback model per role. I
 
 **Hard fail** means the step throws, `gateBlocked: true` is recorded in the artifact, and the iteration stops for that step. `architect` and `cerberus` never degrade silently.
 
+### Architect with Ollama (`setBackend("ollama")`)
+
+E2E and local harnesses may route **all** roles through Ollama. `architect` still runs `validateOutput()`: the message must declare a **non-empty** `files_read` list before any design prose (same gate as for DEV `files_read`, without `files_modified` / `validation_run`). The ARCHITECT system prompt in `examples/orchestrator/agents.js` includes an **OUTPUT CONTRACT** block and a minimal YAML example. If real runs still flake, track follow-ups under backlog **ARCH-OLLAMA-1** (prompt tuning, optional few-shot, metrics).
+
 > **QA degraded — operationally tolerable, not quality-equivalent.**
 > When QA falls back to Haiku, it can still produce classified findings and a verdict. However, Haiku may miss edge cases or accept weaker evidence than Sonnet would. CERBERUS runs after QA regardless and will catch gaps — but only gaps it can observe from the final artifact. Evidence that was never collected by a degraded QA cannot be retroactively surfaced. This tradeoff is accepted; the assumption should be explicit: **QA degraded = reduced coverage, not zero coverage.**
 

@@ -1,5 +1,5 @@
 /**
- * C-T2: committed SHA256 baselines for deterministic gate logic (validateOutput,
+ * Committed SHA256 baselines for deterministic gate logic (validateOutput,
  * validateHandoffStructure). Catches accidental contract drift across CI runs.
  *
  * Refresh baselines after intentional contract changes:
@@ -109,7 +109,7 @@ function collectCases() {
   ];
 }
 
-describe("C-T2 gate determinism baseline", () => {
+describe("gate determinism baseline", () => {
   test("hashes match committed fixture (UPDATE_GATE_BASELINE=1 to refresh)", () => {
     const cases = collectCases();
     const actual = {};

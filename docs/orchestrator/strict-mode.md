@@ -346,7 +346,7 @@ Use this to decide whether to abort a session that is burning context inefficien
 
 ---
 
-## Gate determinism baselines (C-T2)
+## Gate determinism baselines
 
 Unit test `examples/orchestrator/tests/determinismBaseline.test.js` hashes canonical snapshots of `validateOutput()` and `validateHandoffStructure()` for fixed inputs. The expected digests live in `examples/orchestrator/tests/fixtures/gate-determinism-baseline.json` and run on every `npm test` in that package.
 
@@ -360,19 +360,19 @@ This does **not** freeze Ollama or full `run()` outputs (those stay non-determin
 
 ---
 
-## MCP usage audit (C-T3)
+## MCP usage audit
 
 For each `run()` of `examples/orchestrator/orchestrator.js`, every **`orchestrator-state`** tool call (via **`mcp-direct.py`** when `ORCH_MCP_TRANSPORT=direct`, or via **`claude -p`** when not) and every **`compact-handoff.compact_handoff`** call emits one **`mcp_call`** line in the per-task JSONL trace (`~/.claude/metrics/traces/<task_id>.jsonl`). Fields: `server`, `tool`, `transport` (`direct` or `claude_cli`), `duration_ms`, `ok`.
 
 The **`session_end`** event on the same stream adds **`mcp_total_calls`**, **`mcp_by_tool`** (counts keyed as `server.tool`), **`mcp_by_transport`**, and **`mcp_failed_calls`**. Use this to spot duplicate transitions, unexpected `claude_cli` bridging, or retry storms. **`skipStateMcp: true`** runs typically log **`mcp_total_calls: 0`** (state MCPs are not invoked from the runner).
 
-**Not in scope for C-T3:** LLM token counts per call — that is **C-T4** (token cost per scenario).
+**Not in this scope:** per-call LLM token counts — those belong with token/cost metrics and scenario-level reporting (see backlog).
 
-### Ollama token counts (C-T4 — fase 1)
+### Ollama token counts
 
 When agents use **Ollama** (`/api/chat`), the example `agents.js` parses `prompt_eval_count` and `eval_count` from the JSON response and attaches them to **`context_stats`** as `ollama_prompt_tokens` and `ollama_completion_tokens` on each `askAgent` Ollama call. The summarizer step records the same fields when `summarizeHandoff` runs via Ollama.
 
-`session_end` includes **`ollama_prompt_tokens_total`** and **`ollama_completion_tokens_total`** when at least one of those counters is non-zero. **Claude CLI** paths do not populate these fields (no token API in this example runner). **Cost in USD / per-scenario export** remains future C-T4 work.
+`session_end` includes **`ollama_prompt_tokens_total`** and **`ollama_completion_tokens_total`** when at least one of those counters is non-zero. **Claude CLI** paths do not populate these fields (no token API in this example runner). **Cost in USD / per-scenario export** is not implemented in this example runner yet.
 
 ---
 

@@ -191,7 +191,7 @@ describe("validateOutput — files_read vs files_modified (strict mode)", () => 
   });
 });
 
-describe("aggregateMcpUsage (C-T3)", () => {
+describe("aggregateMcpUsage", () => {
   it("returns zeros for empty call list", () => {
     const s = aggregateMcpUsage([]);
     assert.equal(s.mcp_total_calls, 0);

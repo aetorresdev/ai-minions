@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CERBERUS-OPS-2: fail if ORCH_TEST_SYSTEM_PATH_HARNESS or legacy E2E_STRICT_GATE_PATH
+# Fail if ORCH_TEST_SYSTEM_PATH_HARNESS or legacy E2E_STRICT_GATE_PATH
 # appears outside allowlisted design/test/runtime files.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
@@ -37,4 +37,4 @@ if git grep -q "E2E_STRICT_GATE_PATH" -- . "${legacy_excludes[@]}" 2>/dev/null; 
   exit 1
 fi
 
-echo "Harness scope OK (CERBERUS-OPS-2)."
+echo "Harness scope OK."
