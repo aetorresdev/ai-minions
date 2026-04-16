@@ -59,6 +59,8 @@ Under `ORCHESTRATOR_STATE_ROOT` (default `~/.claude/.state/orchestrator/`):
 
 See `mcp-servers/orchestrator-state/README.md` for env vars and setup.
 
+**MCP usage audit (C-T3):** The example `orchestrator.js` logs each **`orchestrator-state`** / **`compact-handoff`** invocation to `~/.claude/metrics/traces/<task_id>.jsonl` as `mcp_call` (fields: `server`, `tool`, `transport` (`direct` or `claude_cli`), `duration_ms`, `ok`). The closing `session_end` event includes rollups: `mcp_total_calls`, `mcp_by_tool`, `mcp_by_transport`, `mcp_failed_calls`. **Token counts per MCP call are not in C-T3** — backlog **C-T4** covers token/cost metrics.
+
 ### Required tool flow (strict orchestration)
 
 1. **`register_task`** — obtain `task_id`; set `goal`, `flow_mode`, `max_iterations`, optional `approved_artifacts` / `allowed_inputs` / `session_id`.
