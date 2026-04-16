@@ -916,8 +916,32 @@ blocker: ...
 improvement: ...
 nice-to-have: ...`;
 
-    const { output: cerberusResult } = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
-    log("cerberus", `Review ready (${cerberusResult.length} chars)`);
+    let cerberusResult = "";
+    try {
+      const { output } = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
+      cerberusResult = output;
+      log("cerberus", `Review ready (${cerberusResult.length} chars)`);
+    } catch (err) {
+      const gateId = err.gate_id || null;
+      const reason = (err.message || String(err)).slice(0, 300);
+      traceEvent(taskId, {
+        event: "contract_fail",
+        agent: "cerberus",
+        iteration: iterations,
+        duration_ms: 0,
+        reason,
+        critical: true,
+        ...(gateId ? { gate_id: gateId } : {}),
+      });
+      log("cerberus", `🟥 Output contract failed: ${err.message}`);
+      artifacts.push({
+        agentId: "cerberus",
+        task: "(session review) Deliverable review before decide",
+        result: "",
+        gateBlocked: true,
+        gateReason: err.message,
+      });
+    }
 
     // ── Compact cerberus handoff + advance to ORCHESTRATOR ────────────────────
     if (!skipStateMcp) {
