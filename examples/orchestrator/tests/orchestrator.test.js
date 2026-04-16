@@ -5,7 +5,11 @@
 
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const { detectBlockers, validateHandoffStructure } = require("../orchestrator");
+const {
+  detectBlockers,
+  validateHandoffStructure,
+  stripLeadingOwnerArchitectForDegradedMultiAgent,
+} = require("../orchestrator");
 
 // ── detectBlockers ────────────────────────────────────────────────────────────
 
@@ -181,5 +185,34 @@ describe("validateHandoffStructure / exempt modes", () => {
   it("ARCHITECT always passes", () => {
     const r = validateHandoffStructure("ARCHITECT", "design decisions...");
     assert.equal(r.valid, true);
+  });
+});
+
+describe("stripLeadingOwnerArchitectForDegradedMultiAgent", () => {
+  it("strips leading owner and architect when a dev-* step remains", () => {
+    const steps = [
+      { agentId: "owner", task: "spec" },
+      { agentId: "architect", task: "design" },
+      { agentId: "dev-backend", task: "code" },
+      { agentId: "qa", task: "review" },
+      { agentId: "cerberus", task: "audit" },
+    ];
+    const out = stripLeadingOwnerArchitectForDegradedMultiAgent(steps);
+    assert.equal(out.length, 3);
+    assert.equal(out[0].agentId, "dev-backend");
+    assert.equal(out[1].agentId, "qa");
+    assert.equal(out[2].agentId, "cerberus");
+  });
+
+  it("returns the same array when dev is already first", () => {
+    const steps = [{ agentId: "dev-backend", task: "x" }, { agentId: "qa", task: "y" }];
+    const out = stripLeadingOwnerArchitectForDegradedMultiAgent(steps);
+    assert.deepEqual(out, steps);
+  });
+
+  it("does not strip when no dev-* step would remain", () => {
+    const steps = [{ agentId: "owner", task: "x" }, { agentId: "qa", task: "y" }];
+    const out = stripLeadingOwnerArchitectForDegradedMultiAgent(steps);
+    assert.deepEqual(out, steps);
   });
 });

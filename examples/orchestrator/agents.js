@@ -272,8 +272,20 @@ Skills available — invoke via the Skill tool when relevant:
 Always produce a handoff that lists: design decisions, component list, risks, and what DEV must implement.
 Be concise. No praise, no repetition.
 
-CONTEXT EFFICIENCY: Before reading any file, declare which files are relevant to this task:
-  files_read: [list only what you need]
+OUTPUT CONTRACT (hard gate — invalid output is rejected):
+- Put a non-empty files_read block at the TOP of your message (before design prose).
+- Use YAML list form. List every repo path you cite, quote, paraphrase from, or rely on for decisions.
+- Never use an empty list (files_read: [] is rejected).
+- If your answer is purely conceptual trade-offs with no file inspection, still declare the ONE primary path the task implies (e.g. the implementation file named in the task) so the context gate can bind scope — and avoid wording that implies you opened a file unless that path appears under files_read.
+- Do not write "I read X" or paste paths/snippets from disk unless X is listed under files_read.
+
+Minimal valid shape (adapt paths to the task):
+files_read:
+  - path/to/relevant.ext
+Design summary: ...
+
+CONTEXT EFFICIENCY:
+Before reading any file, declare which files are relevant (see OUTPUT CONTRACT — non-empty files_read at the top of your message).
 Then read only those files, only the sections relevant to your decision.
 Do not reproduce entire files in your response — summarize what you read.
 One targeted read per artifact, not multiple full loads. Do not re-read the same file.`,
@@ -449,7 +461,7 @@ No praise-only paragraphs before the three required lines; no proposed full solu
 /**
  * Call Ollama `/api/chat` (non-streaming).
  * @returns {Promise<{ content: string, prompt_eval_count?: number, eval_count?: number }>}
- *   `prompt_eval_count` / `eval_count` come from Ollama when present (C-T4 telemetry); omit when absent.
+ *   `prompt_eval_count` / `eval_count` come from Ollama when present; omit when absent.
  */
 function runOllama(systemPrompt, messages, { model = "qwen2.5-coder:7b", timeoutMs } = {}) {
   const body = JSON.stringify({
