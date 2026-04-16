@@ -360,6 +360,16 @@ This does **not** freeze Ollama or full `run()` outputs (those stay non-determin
 
 ---
 
+## MCP usage audit (C-T3)
+
+For each `run()` of `examples/orchestrator/orchestrator.js`, every **`orchestrator-state`** tool call (via **`mcp-direct.py`** when `ORCH_MCP_TRANSPORT=direct`, or via **`claude -p`** when not) and every **`compact-handoff.compact_handoff`** call emits one **`mcp_call`** line in the per-task JSONL trace (`~/.claude/metrics/traces/<task_id>.jsonl`). Fields: `server`, `tool`, `transport` (`direct` or `claude_cli`), `duration_ms`, `ok`.
+
+The **`session_end`** event on the same stream adds **`mcp_total_calls`**, **`mcp_by_tool`** (counts keyed as `server.tool`), **`mcp_by_transport`**, and **`mcp_failed_calls`**. Use this to spot duplicate transitions, unexpected `claude_cli` bridging, or retry storms. **`skipStateMcp: true`** runs typically log **`mcp_total_calls: 0`** (state MCPs are not invoked from the runner).
+
+**Not in scope for C-T3:** LLM token counts per call — that is **C-T4** (token cost per scenario).
+
+---
+
 ## System-path E2E suite (examples/orchestrator)
 
 Automated checks for **`skipStateMcp: false`** (hard gates on) without requiring the **claude CLI** to invoke MCP tools:

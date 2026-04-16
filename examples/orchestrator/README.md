@@ -130,6 +130,9 @@ Use this to pick the right setup for your situation.
 | Critical role contract fail stops iteration | ✅ | ✅ | ✅ |
 | QA degraded flagged in trace + warning | ✅ | ✅ | ✅ |
 | Goal redacted in traces + active-agent.json | `TRACE_REDACT_GOAL=1` | `TRACE_REDACT_GOAL=1` | `TRACE_REDACT_GOAL=1` |
+| MCP calls logged per run (`mcp_call` + `session_end` rollups) | ❌ (no state MCP traffic) | ✅ | ✅ |
+
+Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../../docs/orchestrator/strict-mode.md) § *MCP usage audit (C-T3)*. Token/cost per scenario is **C-T4**, not C-T3.
 
 ---
 
@@ -384,6 +387,7 @@ The E2E workflow requires a self-hosted runner with labels **`self-hosted`** and
 |------|------|
 | Output contracts (per role) | Unit |
 | Gate logic SHA256 baselines (`validateOutput` / `validateHandoffStructure`) | Unit (C-T2) |
+| MCP invocation audit (`mcp_call` events + `session_end` rollups) | Unit (`aggregateMcpUsage`) + runtime trace (C-T3) |
 | `files_read[]` + `files_modified` context gate (ARCHITECT + DEV) | Unit |
 | Fallback policy (primary → secondary, hard-fail) | Integration |
 | Trace redaction, blocker detection, handoff structure | Unit |
