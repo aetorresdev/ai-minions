@@ -165,8 +165,10 @@ function extractJson(text) {
 // ── Handoff structural validation ────────────────────────────────────────────
 
 /**
- * Shallow key-presence check on a handoff YAML string per MODE.
- * No semantic parsing — validates structural completeness only.
+ * Shallow key-presence / line-shape check on a handoff YAML string per MODE.
+ * No semantic parsing — does **not** prove YAML content is true (e.g. a invented
+ * `validation_run` can still pass shape checks). Heuristic only; not a substitute
+ * for artifact-grounded review.
  *
  * @param {string} mode - ORCHESTRATOR mode (DEV, QA, CERBERUS, ...)
  * @param {string} yaml - handoff YAML produced by compact-handoff MCP
@@ -914,8 +916,32 @@ blocker: ...
 improvement: ...
 nice-to-have: ...`;
 
-    const { output: cerberusResult } = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
-    log("cerberus", `Review ready (${cerberusResult.length} chars)`);
+    let cerberusResult = "";
+    try {
+      const { output } = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
+      cerberusResult = output;
+      log("cerberus", `Review ready (${cerberusResult.length} chars)`);
+    } catch (err) {
+      const gateId = err.gate_id || null;
+      const reason = (err.message || String(err)).slice(0, 300);
+      traceEvent(taskId, {
+        event: "contract_fail",
+        agent: "cerberus",
+        iteration: iterations,
+        duration_ms: 0,
+        reason,
+        critical: true,
+        ...(gateId ? { gate_id: gateId } : {}),
+      });
+      log("cerberus", `🟥 Output contract failed: ${err.message}`);
+      artifacts.push({
+        agentId: "cerberus",
+        task: "(session review) Deliverable review before decide",
+        result: "",
+        gateBlocked: true,
+        gateReason: err.message,
+      });
+    }
 
     // ── Compact cerberus handoff + advance to ORCHESTRATOR ────────────────────
     if (!skipStateMcp) {
