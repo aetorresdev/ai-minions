@@ -13,6 +13,9 @@
  *
  * orchestrator and summarizer run on Ollama (local, no API key).
  * All other agents run via the claude CLI (active Claude Code session).
+ *
+ * E2E-STRICT harness: when `E2E_STRICT_GATE_PATH=1`, `askAgent` returns deterministic
+ * plan/decide/DEV/CERBERUS outputs (see `tests/e2e.strict.test.js`). Do not set outside tests.
  */
 
 const { spawnSync } = require("child_process");
@@ -884,6 +887,69 @@ function setBackend(name) { _backendOverride = (name === "ollama") ? "ollama" : 
 async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
   const agent = AGENTS[agentId];
   if (!agent) throw new Error(`Unknown agent "${agentId}". Available: ${Object.keys(AGENTS).join(", ")}`);
+
+  // Deterministic E2E-STRICT gate path (tests/e2e.strict.test.js). Never set outside that suite.
+  if (process.env.E2E_STRICT_GATE_PATH === "1") {
+    if (agentId === "orchestrator" && phase === "plan") {
+      const stub = JSON.stringify({
+        steps: [{ agentId: "dev-backend", task: "Add multiply to utils.js" }],
+      });
+      const check = validateOutput(agentId, stub, { phase: "plan" });
+      if (!check.valid) {
+        const err = new Error(`[output contract] ${check.reason}`);
+        err.gate_id = check.gate_id;
+        throw err;
+      }
+      return { output: stub, context_stats: null };
+    }
+    if (agentId === "orchestrator" && phase === "decide") {
+      const stub = JSON.stringify({
+        done: true,
+        summary: "Strict gate path: DEV and CERBERUS handoffs exercised; state store gates passed.",
+      });
+      const check = validateOutput(agentId, stub, { phase: "decide" });
+      if (!check.valid) {
+        const err = new Error(`[output contract] ${check.reason}`);
+        err.gate_id = check.gate_id;
+        throw err;
+      }
+      return { output: stub, context_stats: null };
+    }
+    if (agentId === "dev-backend") {
+      const stub = [
+        "files_read:",
+        "  - utils.js",
+        "files_modified:",
+        "  - utils.js",
+        "validation_run: node -c utils.js → exit 0",
+        "",
+        "Added multiply(a, b) returning a * b in utils.js.",
+      ].join("\n");
+      const check = validateOutput(agentId, stub, { phase });
+      if (!check.valid) {
+        const err = new Error(`[output contract] ${check.reason}`);
+        err.gate_id = check.gate_id;
+        throw err;
+      }
+      return { output: stub, ...extractContextStats(agentId, stub) };
+    }
+    if (agentId === "cerberus") {
+      // No line containing the word "blocker" — avoids detectBlockers() false positives on "(none)" lines.
+      const stub = [
+        "verdict: pass",
+        "improvement: Reviewed utils.js multiply(); validation_run node -c referenced; no further issues.",
+        "nice-to-have: (none)",
+      ].join("\n");
+      const check = validateOutput(agentId, stub, { phase });
+      if (!check.valid) {
+        const err = new Error(`[output contract] ${check.reason}`);
+        err.gate_id = check.gate_id;
+        throw err;
+      }
+      return { output: stub, context_stats: null };
+    }
+  }
+
   const forceOllama = _backendOverride === "ollama" && OLLAMA_MODEL;
   if (agent.provider === "ollama" || forceOllama) {
     const model = forceOllama ? OLLAMA_MODEL : agent.model;

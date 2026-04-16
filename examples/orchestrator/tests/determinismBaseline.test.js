@@ -90,6 +90,15 @@ function collectCases() {
         snapHandoff("DEV", "files_modified:\n  - a.js\nvalidation_run: pass", { strict: true }),
     },
     {
+      id: "vhs_dev_nested_handoff_strict",
+      snap: () =>
+        snapHandoff(
+          "DEV",
+          "handoff:\n  goal: ship multiply\n  files_modified:\n    - src/x.js\n  validation_run: npm test\n",
+          { strict: true }
+        ),
+    },
+    {
       id: "vhs_qa_invalid_strict",
       snap: () => snapHandoff("QA", "goal: only", { strict: true }),
     },

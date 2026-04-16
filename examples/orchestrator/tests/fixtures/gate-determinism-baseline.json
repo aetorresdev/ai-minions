@@ -12,6 +12,7 @@
     "vhs_dev_empty_strict": "bd147b189461350b4d3ba37b2efffc8b2ed46a503ad19c43edab2c1ec90d0037",
     "vhs_dev_empty_soft": "b84363b702f57f05daf30d79907ffbb7fdd07e605fd5fb08fed55cc03eae3ce7",
     "vhs_dev_valid_strict": "b84363b702f57f05daf30d79907ffbb7fdd07e605fd5fb08fed55cc03eae3ce7",
+    "vhs_dev_nested_handoff_strict": "b84363b702f57f05daf30d79907ffbb7fdd07e605fd5fb08fed55cc03eae3ce7",
     "vhs_qa_invalid_strict": "bd3eb67e42d7c9a25953358ca6f671b2cb05798d8f62d421bdd22b2234779a91",
     "vhs_cerberus_blockers_strict": "64b88fb52a61c1b84f8d8ad76352099b90633e496630e0cc427aa74c7d5a7e4f"
   }
