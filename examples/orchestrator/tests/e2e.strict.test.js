@@ -1,11 +1,14 @@
 /**
- * E2E-STRICT: `skipStateMcp: false` with `ORCH_MCP_TRANSPORT=direct` so gates use
- * `mcp-direct.py` (Python + mcp-servers venvs) instead of the claude CLI.
+ * System-path E2E suite (`npm run test:e2e:strict` or `test:e2e:system-path`):
+ * `skipStateMcp: false` + `ORCH_MCP_TRANSPORT=direct` so gates use `mcp-direct.py`
+ * instead of the claude CLI.
  *
- * Prerequisites: Ollama; `uv sync` in mcp-servers/orchestrator-state and compact-handoff
- * (same as main E2E). Isolated disk state via ORCHESTRATOR_STATE_ROOT per test.
+ * **Naming:** this is *not* full "strict" in the product sense — one test sets
+ * `ORCH_TEST_SYSTEM_PATH_HARNESS=1` (deterministic stubs + controlled alignment bypass) to
+ * prove store/transitions/compact_handoff only. See README.
  *
- * Run: npm run test:e2e:strict
+ * Prerequisites: Ollama; `uv sync` in mcp-servers/orchestrator-state and compact-handoff.
+ * Isolated disk state via ORCHESTRATOR_STATE_ROOT per test.
  */
 
 "use strict";
@@ -114,7 +117,7 @@ function assertHashChain(events) {
 let ollamaAvailable = false;
 let ollamaModel = null;
 
-describe("E2E-STRICT — MCP direct + state store", { timeout: TEST_TIMEOUT_MS, concurrency: 1 }, () => {
+describe("System-path E2E — MCP direct + state store", { timeout: TEST_TIMEOUT_MS, concurrency: 1 }, () => {
   const MCP_DIRECT = path.join(__dirname, "..", "mcp-direct.py");
 
   before(async () => {
@@ -415,24 +418,24 @@ describe("E2E-STRICT — MCP direct + state store", { timeout: TEST_TIMEOUT_MS, 
     }
   });
 
-  test("run() strict + E2E_STRICT_GATE_PATH: compact_handoff, goal_alignment_validated, transitions on disk", async (t) => {
+  test("run() + ORCH_TEST_SYSTEM_PATH_HARNESS: compact_handoff, goal_alignment_validated, transitions on disk", async (t) => {
     if (skipIfNoDeps(t)) return;
 
     const stateRoot = makeTempDir("orch-state-gatepath-");
     const cwd = makeTempDir("orch-cwd-gatepath-");
     const taskId = `strict-gate-${Date.now()}`;
     const prevStateRoot = process.env.ORCHESTRATOR_STATE_ROOT;
-    const prevGate = process.env.E2E_STRICT_GATE_PATH;
+    const prevHarness = process.env.ORCH_TEST_SYSTEM_PATH_HARNESS;
 
     try {
       process.env.ORCHESTRATOR_STATE_ROOT = stateRoot;
-      process.env.E2E_STRICT_GATE_PATH = "1";
+      process.env.ORCH_TEST_SYSTEM_PATH_HARNESS = "1";
       fs.writeFileSync(
         path.join(cwd, "utils.js"),
         "function add(a, b) { return a + b; }\nmodule.exports = { add };\n"
       );
 
-      const result = await run("E2E strict deterministic gate path", {
+      const result = await run("E2E system-path harness (deterministic stubs)", {
         taskId,
         maxIterations: 1,
         cwd,
@@ -458,8 +461,8 @@ describe("E2E-STRICT — MCP direct + state store", { timeout: TEST_TIMEOUT_MS, 
     } finally {
       if (prevStateRoot === undefined) delete process.env.ORCHESTRATOR_STATE_ROOT;
       else process.env.ORCHESTRATOR_STATE_ROOT = prevStateRoot;
-      if (prevGate === undefined) delete process.env.E2E_STRICT_GATE_PATH;
-      else process.env.E2E_STRICT_GATE_PATH = prevGate;
+      if (prevHarness === undefined) delete process.env.ORCH_TEST_SYSTEM_PATH_HARNESS;
+      else process.env.ORCH_TEST_SYSTEM_PATH_HARNESS = prevHarness;
       removeTempDir(stateRoot);
       removeTempDir(cwd);
     }

@@ -343,7 +343,7 @@ The planner prompt injects a hard requirement: at least one `dev-*` step plus a 
 `validateOutput` requires the words `blocker`, `improvement`, or `nice-to-have` in the reply. Prompts force a three-line prefix (`blocker:` / `improvement:` / `nice-to-have:`) so small coders comply; use `(none)` when a category is empty. If it still flakes, try a larger model or cloud CERBERUS (`MODEL_OVERRIDE_CERBERUS`).
 
 **CERBERUS “pasa” pero el texto es humo estructurado**
-Con la plantilla triple, `validateOutput("cerberus", …)` aplica un **piso mínimo** (denylist; blocker vacío exige detalle en improvement/nice-to-have; triple **todo** `(none)`/vacío se acepta para poder cerrar CERBERUS cuando upstream ya está gate-blocked). Sigue **sin** demostrar verdad del hallazgo. Ver `docs/orchestrator/agent-contract.md` y `gate_id` `cerberus_semantic_filler` / `cerberus_vacuous_without_substance`.
+Con la plantilla triple, `validateOutput("cerberus", …)` aplica un **piso mínimo** (denylist; blocker vacío exige **anclaje explícito** en improvement o nice-to-have — ruta, test/tool, código entre backticks, `line N`, etc.; `cerberus_anchor_required` si solo hay prosa genérica; triple **todo** `(none)`/vacío se acepta para poder cerrar CERBERUS cuando upstream ya está gate-blocked). Sigue **sin** demostrar verdad del hallazgo. Ver `docs/orchestrator/agent-contract.md` y `gate_id` `cerberus_semantic_filler` / `cerberus_vacuous_without_substance` / `cerberus_anchor_required`.
 
 **Loop keeps iterating**
 Cerberus is finding blockers every round. Check Cerberus output in artifacts — it may be too strict for a simple task.
@@ -358,22 +358,25 @@ cd examples/orchestrator
 npm test              # lint (ESLint + ruff) + unit tests — no auth, no Ollama, no MCPs required
 npm run test:baseline:gate   # rewrite tests/fixtures/gate-determinism-baseline.json after intentional gate contract changes (C-T2)
 npm run test:e2e      # E2E suite — requires Ollama running at localhost:11434
-npm run test:e2e:strict  # E2E-STRICT: `skipStateMcp: false` + `ORCH_MCP_TRANSPORT=direct` (no claude CLI for MCP gates; isolated `ORCHESTRATOR_STATE_ROOT` per test)
+npm run test:e2e:strict       # same as `test:e2e:system-path` — MCP direct + real disk gates (`tests/e2e.strict.test.js`)
+npm run test:e2e:system-path  # alias; name reflects intent better than “strict” alone
 npm run test:e2e:all  # E2E suite with all available Ollama models
 ```
 
 `ORCH_MCP_TRANSPORT=direct` makes `orchestrator.js` call `mcp-direct.py` for `orchestrator-state` and `compact-handoff` instead of `claude -p`. Use `ORCH_PYTHON` if `python3` is not on `PATH`. Optional: `ORCH_MCP_DIRECT_TIMEOUT_MS` (default 180000).
 
-**`E2E_STRICT_GATE_PATH=1`** (only `tests/e2e.strict.test.js`): deterministic `askAgent` stubs + `register_task` with `enforce_goal_alignment: false` + Node-side bypass when the alignment LLM returns `aligned: false`, so `run()` can exercise `compact_handoff` → `validate_transition` → `advance_mode` without flaking. **Do not set** outside that suite.
+### Test-only: `ORCH_TEST_SYSTEM_PATH_HARNESS` (not a product feature)
+
+**Forbidden in production.** Only one test in `tests/e2e.strict.test.js` sets `ORCH_TEST_SYSTEM_PATH_HARNESS=1`. That path is **not** “strict E2E” in the alignment sense: it uses deterministic `askAgent` stubs, `register_task` with `enforce_goal_alignment: false`, and a **Node-only** bypass when `validate_goal_alignment` returns `aligned: false`, so CI can prove **state store + transitions + `compact_handoff`** without flaking on the alignment model. It deliberately **does not** prove trustworthy goal alignment, real CERBERUS semantics, or unattended success with production models. Do not document this as an operator toggle; do not set the variable outside that test subprocess.
 
 ### CI pipelines
 
 | Workflow | Runner | Triggers |
 |----------|--------|---------|
 | `orchestrator-example.yml` | GitHub cloud | **All PRs** to `main`/`master` (lint + unit). **Push** to `main`/`master` only when `examples/orchestrator/**`, `scripts/hooks/**`, or this workflow file changes. `workflow_dispatch` supported |
-| `orchestrator-e2e.yml` | Self-hosted (`ollama` label) | Push/PR when `orchestrator.js`, `agents.js`, `examples/orchestrator/tests/**`, `package.json`, MCP server dirs, or this workflow change; `workflow_dispatch` |
+| `orchestrator-e2e.yml` | Self-hosted (`ollama` label) | Push/PR when orchestrator core, `mcp-direct.py`, `tests/**`, `package.json` / lockfile, MCP server dirs, or this workflow change; **`workflow_dispatch`** (input `ollama_model`) |
 
-The E2E workflow requires a self-hosted runner with Ollama at `localhost:11434`. See setup instructions in `.github/workflows/orchestrator-e2e.yml`.
+The E2E workflow requires a self-hosted runner with labels **`self-hosted`** and **`ollama`**, Ollama at `localhost:11434`, and network for `astral-sh/setup-uv` + `npm ci`. It runs **`npm run test:e2e`** then **`npm run test:e2e:strict`** (dual suite). **Fork PRs:** the E2E job is skipped when the PR comes from a fork (so the run does not wait forever for a runner the fork cannot use); adjust branch protection if that blocks merges you care about. See `.github/workflows/orchestrator-e2e.yml` and `docs/orchestrator/strict-mode.md` § *GitHub Actions — orchestrator-e2e.yml*.
 
 ### Coverage at a glance
 
@@ -394,7 +397,7 @@ The E2E workflow requires a self-hosted runner with Ollama at `localhost:11434`.
 | Strict mode — any deviation surfaces as hard failure | E2E (Ollama) |
 | Gate-blocked enforcement — `done: false` when contracts fail | E2E (Ollama) |
 | Failure-first — invalid input, broken handoff, unknown agent | E2E (Ollama) |
-| Strict gates without claude CLI (`skipStateMcp: false` + MCP direct); `run()` event chain; mcp-direct transitions; `compact_handoff` YAML; negativos `validate_transition`; `E2E_STRICT_GATE_PATH` gate-path `run()` | E2E-STRICT (`test:e2e:strict`, 6 tests) |
+| Strict gates without claude CLI (`skipStateMcp: false` + MCP direct); `run()` event chain; mcp-direct transitions; `compact_handoff` YAML; negativos `validate_transition`; harnessed `run()` with `ORCH_TEST_SYSTEM_PATH_HARNESS` (system path only, not alignment-strict) | System-path E2E (`test:e2e:strict` / `test:e2e:system-path`, 6 tests) |
 
 ### Test files
 
@@ -405,7 +408,7 @@ The E2E workflow requires a self-hosted runner with Ollama at `localhost:11434`.
 | `tests/internals.test.js` | Unit | Nothing |
 | `tests/askAgent.test.js` | Integration | Nothing (CLI mocked) |
 | `tests/e2e.test.js` | E2E | Ollama at localhost:11434 (auto-skip if unavailable) |
-| `tests/e2e.strict.test.js` | E2E-STRICT | Ollama + `mcp-direct.py` + MCP venvs (`uv sync`); auto-skip if Ollama or `mcp-direct.py` missing |
+| `tests/e2e.strict.test.js` | System-path E2E | Ollama + `mcp-direct.py` + MCP venvs (`uv sync`); auto-skip if Ollama or `mcp-direct.py` missing |
 
 ---
 

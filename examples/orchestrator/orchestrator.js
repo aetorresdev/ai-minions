@@ -19,7 +19,7 @@
  * Requires:
  *   - Default: claude CLI in PATH — MCP tools invoked via `claude -p` (MCPs registered in Claude)
  *   - Ollama at localhost:11434 with qwen2.5-coder:7b (agents + compact-handoff server)
- *   - Optional **E2E-STRICT / CI without Claude MCP:** set `ORCH_MCP_TRANSPORT=direct` to call
+ *   - Optional **system-path E2E / CI without Claude MCP:** set `ORCH_MCP_TRANSPORT=direct` to call
  *     `mcp-direct.py` (Python + `mcp-servers` venvs) instead of the claude CLI for state store + compact_handoff.
  */
 
@@ -43,6 +43,15 @@ const path = require("path");
 
 const TRACES_DIR = path.join(require("os").homedir(), ".claude", "metrics", "traces");
 const TRACE_REDACT_GOAL = process.env.TRACE_REDACT_GOAL === "1";
+
+/**
+ * Test-only harness: exercise real MCP + disk transitions without trusting the alignment LLM
+ * (stubs + `enforce_goal_alignment: false` + Node bypass when `aligned === false`).
+ * **Not** production-safe; **not** "strict E2E" in the product sense. Set only from `tests/e2e.strict.test.js`.
+ */
+function orchTestSystemPathHarnessOn() {
+  return process.env.ORCH_TEST_SYSTEM_PATH_HARNESS === "1";
+}
 let _traceWarnEmitted = false;
 
 function _hashGoal(text) {
@@ -596,8 +605,8 @@ async function run(goal, options = {}) {
         approved_artifacts: JSON.stringify(approvedArtifacts),
         contract_version: CONTRACT_VERSION,
       };
-      // E2E-STRICT gate-path tests only — skip Ollama alignment coupling (see tests/e2e.strict.test.js)
-      if (process.env.E2E_STRICT_GATE_PATH === "1") {
+      // Test harness only — never enable in real runs (see README § system-path harness)
+      if (orchTestSystemPathHarnessOn()) {
         registerPayload.enforce_goal_alignment = false;
       }
       const reg = callStateMcp("register_task", registerPayload, { cwd });
@@ -794,10 +803,10 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
           if (!alignment.ok) {
             log("gate", `WARNING: validate_goal_alignment failed: ${alignment.error}`);
           } else if (alignment.aligned === false) {
-            // E2E_STRICT_GATE_PATH: register_task sets enforce_goal_alignment=false on the envelope;
-            // validate_transition still runs, but the LLM may spuriously return aligned=false — do not hard-stop in Node.
-            if (process.env.E2E_STRICT_GATE_PATH === "1") {
-              log("gate", `⚠ E2E_STRICT_GATE_PATH: goal alignment returned false — continuing (envelope uses enforce_goal_alignment=false)`);
+            // ORCH_TEST_SYSTEM_PATH_HARNESS: envelope has enforce_goal_alignment=false;
+            // validate_transition still runs; LLM may return aligned=false — Node must not treat that as prod truth.
+            if (orchTestSystemPathHarnessOn()) {
+              log("gate", `⚠ ORCH_TEST_SYSTEM_PATH_HARNESS: goal alignment returned false — continuing (test harness only; not prod semantics)`);
               traceEvent(taskId, {
                 event: "gate_result",
                 agent: agentId,
@@ -805,7 +814,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
                 gate: "goal_alignment",
                 passed: true,
                 confidence: alignment.confidence,
-                e2e_strict_gate_path: true,
+                test_system_path_harness: true,
                 notes: alignment.notes,
               });
             } else {
