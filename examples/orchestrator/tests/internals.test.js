@@ -16,7 +16,7 @@ const assert = require("node:assert/strict");
 const cp = require("child_process");
 cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 
-const { _sanitize, _hashGoal } = require("../orchestrator");
+const { _sanitize, _hashGoal, aggregateMcpUsage } = require("../orchestrator");
 const { validateOutput } = require("../agents");
 
 describe("_hashGoal", () => {
@@ -188,6 +188,33 @@ describe("validateOutput — files_read vs files_modified (strict mode)", () => 
     ].join("\n");
     const r = validateOutput("dev-devops", output);
     assert.equal(r.valid, true);
+  });
+});
+
+describe("aggregateMcpUsage (C-T3)", () => {
+  it("returns zeros for empty call list", () => {
+    const s = aggregateMcpUsage([]);
+    assert.equal(s.mcp_total_calls, 0);
+    assert.deepEqual(s.mcp_by_tool, {});
+    assert.deepEqual(s.mcp_by_transport, {});
+    assert.equal(s.mcp_failed_calls, 0);
+  });
+
+  it("aggregates by tool and transport and counts failures", () => {
+    const calls = [
+      { server: "orchestrator-state", tool: "register_task", transport: "direct", duration_ms: 10, ok: true },
+      { server: "orchestrator-state", tool: "advance_mode", transport: "direct", duration_ms: 5, ok: true },
+      { server: "orchestrator-state", tool: "advance_mode", transport: "direct", duration_ms: 2, ok: false },
+      { server: "compact-handoff", tool: "compact_handoff", transport: "claude_cli", duration_ms: 100, ok: true },
+    ];
+    const s = aggregateMcpUsage(calls);
+    assert.equal(s.mcp_total_calls, 4);
+    assert.equal(s.mcp_by_tool["orchestrator-state.register_task"], 1);
+    assert.equal(s.mcp_by_tool["orchestrator-state.advance_mode"], 2);
+    assert.equal(s.mcp_by_tool["compact-handoff.compact_handoff"], 1);
+    assert.equal(s.mcp_by_transport.direct, 3);
+    assert.equal(s.mcp_by_transport.claude_cli, 1);
+    assert.equal(s.mcp_failed_calls, 1);
   });
 });
 
