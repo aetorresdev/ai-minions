@@ -269,7 +269,7 @@ The `phase` parameter (`"plan"` / `"decide"`) is passed from `orchestrator.js` f
 
 ## Handoff structure rules
 
-After each agent completes, `compact-handoff` MCP produces a YAML handoff. `validateHandoffStructure()` (in `orchestrator.js`) performs a shallow key-presence check before the MCP gates run.
+After each agent completes, `compact-handoff` MCP produces a YAML handoff. `validateHandoffStructure()` (in `orchestrator.js`) performs a **shallow, heuristic** key-/line-shape check before the MCP gates run — it is **not** a semantic YAML validator and does not attest that listed runs or paths are factual.
 
 **Empty YAML behavior depends on mode:**
 - **Soft mode** (default, `--skip-gates`): empty YAML passes — compact-handoff may not be registered.
