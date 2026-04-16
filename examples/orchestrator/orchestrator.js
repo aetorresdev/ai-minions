@@ -17,10 +17,10 @@
  *   - close_task at session end
  *
  * Requires:
- *   - claude CLI in PATH with active session
- *   - Ollama at localhost:11434 with qwen2.5-coder:7b
- *   - orchestrator-state MCP registered (claude mcp add orchestrator-state ...)
- *   - compact-handoff MCP registered (claude mcp add compact-handoff ...)
+ *   - Default: claude CLI in PATH — MCP tools invoked via `claude -p` (MCPs registered in Claude)
+ *   - Ollama at localhost:11434 with qwen2.5-coder:7b (agents + compact-handoff server)
+ *   - Optional **E2E-STRICT / CI without Claude MCP:** set `ORCH_MCP_TRANSPORT=direct` to call
+ *     `mcp-direct.py` (Python + `mcp-servers` venvs) instead of the claude CLI for state store + compact_handoff.
  */
 
 const { askAgent, summarizeHandoff, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
@@ -215,11 +215,84 @@ function validateHandoffStructure(mode, yaml, { strict = false } = {}) {
 
 // ── MCP gate helpers ──────────────────────────────────────────────────────────
 
+function useMcpDirectTransport() {
+  return process.env.ORCH_MCP_TRANSPORT === "direct";
+}
+
+/** Parse stdout from mcp-direct.py — JSON object, or last JSON line, or raw string (YAML). */
+function parseMcpDirectStdout(raw) {
+  const t = String(raw || "").trim();
+  if (!t) return null;
+  try {
+    return JSON.parse(t);
+  } catch { /* fallthrough */ }
+  const lines = t.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    try {
+      return JSON.parse(line);
+    } catch { /* continue */ }
+  }
+  return t;
+}
+
+/** Drop / rename fields so Python tool signatures match (claude CLI tolerated extras). */
+function sanitizeOrchestratorStateArgs(toolName, args) {
+  if (toolName === "register_task") {
+    const { contract_version, ...rest } = args;
+    void contract_version;
+    return rest;
+  }
+  if (toolName === "record_artifact") {
+    return {
+      task_id: args.task_id,
+      path: args.path ?? args.artifact_id ?? "session-summary",
+      note: String(args.note ?? args.content ?? "").slice(0, 12000),
+    };
+  }
+  return { ...args };
+}
+
 /**
- * Call an orchestrator-state MCP tool via the claude CLI.
+ * Call compact-handoff or orchestrator-state via mcp-direct.py (no claude CLI).
+ */
+function invokeMcpDirect(server, toolName, args) {
+  const script = path.join(__dirname, "mcp-direct.py");
+  if (!fs.existsSync(script)) {
+    throw new Error(`mcp-direct.py not found at ${script}`);
+  }
+  const py = process.env.ORCH_PYTHON || "python3";
+  const payload = JSON.stringify({ server, tool: toolName, args });
+  const timeoutMs = parseInt(process.env.ORCH_MCP_DIRECT_TIMEOUT_MS, 10) || 180000;
+  const result = spawnSync(py, [script], {
+    input: payload,
+    encoding: "utf8",
+    maxBuffer: 8 * 1024 * 1024,
+    timeout: timeoutMs,
+    windowsHide: true,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    const msg = (result.stderr || result.stdout || "").trim() || `mcp-direct exited ${result.status}`;
+    throw new Error(msg);
+  }
+  return parseMcpDirectStdout(result.stdout);
+}
+
+/**
+ * Call an orchestrator-state MCP tool via the claude CLI or mcp-direct (ORCH_MCP_TRANSPORT=direct).
  * Returns parsed JSON response or throws on failure.
  */
 function callStateMcp(toolName, args, { cwd } = {}) {
+  void cwd;
+  if (useMcpDirectTransport()) {
+    const parsed = invokeMcpDirect("orchestrator-state", toolName, sanitizeOrchestratorStateArgs(toolName, args));
+    if (parsed === null || typeof parsed !== "object") {
+      throw new Error(`orchestrator-state.${toolName} returned non-JSON`);
+    }
+    return parsed;
+  }
   const argsStr = Object.entries(args)
     .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
     .join(", ");
@@ -274,6 +347,21 @@ function compactHandoffStrictFailureFields(err) {
 }
 
 function callCompactHandoff({ text, modeCompleted, nextMode, iteration, maxIterations, flowMode }, { cwd } = {}) {
+  void cwd;
+  if (useMcpDirectTransport()) {
+    const out = invokeMcpDirect("compact-handoff", "compact_handoff", {
+      text,
+      mode_completed: modeCompleted,
+      next_mode: nextMode,
+      iteration,
+      max_iterations: maxIterations,
+      flow_mode: flowMode,
+    });
+    const yaml = typeof out === "string" ? out : "";
+    if (!yaml.trim()) throw new Error("compact_handoff returned empty output");
+    if (yaml.startsWith("error:")) throw new Error(yaml.slice(0, 400));
+    return yaml.trim();
+  }
   const prompt = `Call the MCP tool compact-handoff.compact_handoff with these arguments and return only the raw YAML string, no other text:
 compact_handoff(
   text=${JSON.stringify(text)},

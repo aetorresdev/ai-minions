@@ -232,7 +232,7 @@ Each role has a minimum output contract. If the output does not meet it, the run
 
 `validateOutput()` for **`qa`**: classified vocabulary only (`blocker` \| `improvement` \| `nice-to-have`). For **`cerberus`**: same, and when the three-line template is detected, **CERBERUS-SIGNAL fase 2 (minimal)** rejects obvious structured garbage (shared denylist, all-vacuous lines, vacuous blocker without path-ish or length-anchored improvement/nice-to-have). This is still **not** full quality: it does not prove a blocker is true, aligned with the diff, or free of subtle fabrication.
 
-**Still out of scope (later backlog):** model-graded severity, cross-check against `files_modified` / trace, scoring, **E2E-STRICT** under real MCP gates.
+**Still out of scope (later backlog):** model-graded severity, cross-check against `files_modified` / trace, scoring, **full** artifact-grounded CERBERUS review. **Harness note:** the example runner already has **E2E-STRICT fase 1** (`skipStateMcp: false` + `ORCH_MCP_TRANSPORT=direct` → `mcp-direct.py`); that validates gates without the Claude CLI. **Claude-app MCP path** (strict + `claude -p` to invoke tools) remains a separate integration surface if you need parity with desktop MCP registration — see [strict-mode.md](strict-mode.md) § *E2E-STRICT*.
 
 **Non–triple-line CERBERUS replies** (e.g. a single `**blocker**: …` paragraph) only pass the token check — same behavior as before the semantic floor.
 
@@ -259,7 +259,7 @@ Any artifact produced with `gateBlocked: true` is treated as an implicit blocker
 
 #### `compact_handoff` failure (Node reference runner)
 
-When the runner invokes `compact_handoff` (via Claude CLI → compact-handoff MCP), failure handling depends on **effective strictness** (`require_handoff`, defaulting from gates: strict when state MCPs are active, degraded when `skipStateMcp` / `--skip-gates`):
+When the runner invokes `compact_handoff` (via **Claude CLI** → compact-handoff MCP, or via **`mcp-direct.py`** when `ORCH_MCP_TRANSPORT=direct`), failure handling depends on **effective strictness** (`require_handoff`, defaulting from gates: strict when state MCPs are active, degraded when `skipStateMcp` / `--skip-gates`):
 
 | Mode | Behavior |
 |------|----------|
