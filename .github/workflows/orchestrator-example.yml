@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify harness env name scope (CERBERUS-OPS-2)
+        run: bash examples/orchestrator/scripts/ci-check-harness-scope.sh
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"

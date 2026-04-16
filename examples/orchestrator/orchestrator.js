@@ -165,8 +165,10 @@ function extractJson(text) {
 // ── Handoff structural validation ────────────────────────────────────────────
 
 /**
- * Shallow key-presence check on a handoff YAML string per MODE.
- * No semantic parsing — validates structural completeness only.
+ * Shallow key-presence / line-shape check on a handoff YAML string per MODE.
+ * No semantic parsing — does **not** prove YAML content is true (e.g. a invented
+ * `validation_run` can still pass shape checks). Heuristic only; not a substitute
+ * for artifact-grounded review.
  *
  * @param {string} mode - ORCHESTRATOR mode (DEV, QA, CERBERUS, ...)
  * @param {string} yaml - handoff YAML produced by compact-handoff MCP
