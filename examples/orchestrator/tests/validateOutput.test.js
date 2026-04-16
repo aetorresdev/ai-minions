@@ -140,8 +140,8 @@ describe("cerberus", () => {
     "**blocker**: no rate limiting on the endpoint"
   ));
 
-  it("accepts three-line Ollama-style template with (none) fillers", () => ok("cerberus",
-    "blocker: (none)\nimprovement: add logging for errors\nnice-to-have: (none)\n"
+  it("accepts three-line Ollama-style template with (none) fillers + anchored improvement", () => ok("cerberus",
+    "blocker: (none)\nimprovement: add logging for errors in src/server.ts\nnice-to-have: (none)\n"
   ));
 
   it("rejects output with no classification", () => fail("cerberus",
@@ -170,6 +170,16 @@ describe("cerberus", () => {
 
   it("accepts triple with vacuous blocker and substantive improvement", () => ok("cerberus",
     "blocker: (none)\nimprovement: add bounds check on divide() in calculator.js before return\nnice-to-have: (none)\n"
+  ));
+
+  it("rejects vacuous blocker when improvement is long but unanchored (CERBERUS-SIGNAL-3anchor)", () => fail("cerberus",
+    "blocker: (none)\nimprovement: consider improving overall code quality and maintainability across the service\nnice-to-have: (none)\n",
+    {},
+    /explicit anchor|cerberus_anchor_required/i
+  ));
+
+  it("accepts vacuous blocker when improvement cites npm test only", () => ok("cerberus",
+    "blocker: none\nimprovement: ran npm test and fixed assertion in handler\nnice-to-have: none\n"
   ));
 });
 

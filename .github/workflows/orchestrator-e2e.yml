@@ -1,15 +1,26 @@
-# E2E tests for examples/orchestrator — requires Ollama running on the self-hosted runner.
+# E2E tests for examples/orchestrator — requires Ollama on the runner (self-hosted by default).
 #
-# Prerequisites (one-time setup on your machine):
-#   1. Install GitHub Actions self-hosted runner:
+# Prerequisites (one-time on the self-hosted machine):
+#   1. Register a GitHub Actions self-hosted runner with labels: self-hosted, ollama
 #      https://docs.github.com/en/actions/hosting-your-own-runners/adding-self-hosted-runners
-#   2. Ensure Ollama is running at localhost:11434 with at least one model available.
-#      Recommended: ollama pull qwen2.5-coder:7b
-#   3. Label the runner "self-hosted" and "ollama" in GitHub settings.
+#   2. Ollama listening at localhost:11434 (or set OLLAMA_HOST / OLLAMA_PORT on the runner env)
+#   3. Recommended: ollama pull qwen2.5-coder:7b (workflow default; override via dispatch input)
 #
-# This workflow is intentionally NOT triggered on every push — only on explicit dispatch
-# or when orchestrator core files change on main/master.
+# Suites executed (dual path — backlog “dos corridas”):
+#   - npm run test:e2e        → Sc1–Sc20 + T6 (skipStateMcp=true; Ollama end-to-end)
+#   - npm run test:e2e:strict → system-path MCP-on-disk (ORCH_MCP_TRANSPORT=direct + mcp-direct.py)
+#
+# Fork PRs: this job is skipped when head repo ≠ base repo so the workflow does not wait forever
+# for a runner that forks never receive. Same-repo PRs and pushes still run E2E when paths match.
+#
 name: orchestrator-e2e
+
+permissions:
+  contents: read
+
+concurrency:
+  group: orchestrator-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 on:
   workflow_dispatch:
@@ -23,8 +34,12 @@ on:
     paths:
       - "examples/orchestrator/orchestrator.js"
       - "examples/orchestrator/agents.js"
+      - "examples/orchestrator/cli.js"
+      - "examples/orchestrator/run-orchestrator.js"
+      - "examples/orchestrator/mcp-direct.py"
       - "examples/orchestrator/tests/**"
       - "examples/orchestrator/package.json"
+      - "examples/orchestrator/package-lock.json"
       - "mcp-servers/orchestrator-state/**"
       - "mcp-servers/compact-handoff/**"
       - ".github/workflows/orchestrator-e2e.yml"
@@ -33,16 +48,22 @@ on:
     paths:
       - "examples/orchestrator/orchestrator.js"
       - "examples/orchestrator/agents.js"
+      - "examples/orchestrator/cli.js"
+      - "examples/orchestrator/run-orchestrator.js"
+      - "examples/orchestrator/mcp-direct.py"
       - "examples/orchestrator/tests/**"
       - "examples/orchestrator/package.json"
+      - "examples/orchestrator/package-lock.json"
       - "mcp-servers/orchestrator-state/**"
       - "mcp-servers/compact-handoff/**"
       - ".github/workflows/orchestrator-e2e.yml"
 
 jobs:
   e2e:
+    name: E2E + system-path (Ollama + MCP direct)
     runs-on: [self-hosted, ollama]
-    timeout-minutes: 30
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -51,45 +72,75 @@ jobs:
         with:
           node-version: "20"
 
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.6.14"
+
       - name: Install Node dependencies
         run: |
           cd examples/orchestrator
           npm ci
 
-      - name: Install MCP server dependencies (required by mcp-direct.py)
+      - name: Install MCP server dependencies (mcp-direct.py)
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
-          cd mcp-servers/orchestrator-state && uv sync --quiet
-          cd ../../mcp-servers/compact-handoff && uv sync --quiet
+          cd "${{ github.workspace }}/mcp-servers/orchestrator-state" && uv sync --quiet
+          cd "${{ github.workspace }}/mcp-servers/compact-handoff" && uv sync --quiet
 
       - name: Verify Ollama is reachable
         run: |
           curl -sf http://localhost:11434/api/tags | \
             python3 -c "import sys,json; d=json.load(sys.stdin); models=[m['name'] for m in d.get('models',[])]; print('Available models:', models); sys.exit(0 if models else 1)"
 
-      - name: Run E2E suite
+      - name: Ensure workflow model is pulled (best-effort)
+        env:
+          OLLAMA_MODEL: ${{ github.event.inputs.ollama_model || 'qwen2.5-coder:7b' }}
+        run: |
+          set -e
+          if command -v ollama >/dev/null 2>&1; then
+            if ! ollama list 2>/dev/null | grep -qF "$OLLAMA_MODEL"; then
+              echo "Pulling $OLLAMA_MODEL …"
+              ollama pull "$OLLAMA_MODEL" || echo "::warning::ollama pull failed — tests may skip if model unavailable"
+            fi
+          else
+            echo "::notice::ollama CLI not on PATH — assuming model already present in daemon"
+          fi
+
+      - name: Run E2E suite (Sc1–Sc20 + T6)
         env:
           OLLAMA_MODEL: ${{ github.event.inputs.ollama_model || 'qwen2.5-coder:7b' }}
         run: |
           cd examples/orchestrator
           npm run test:e2e
 
-      - name: Run E2E-STRICT suite (MCP direct, no claude CLI for gates)
+      - name: Run system-path E2E suite (MCP direct, no claude CLI for gates)
         env:
           OLLAMA_MODEL: ${{ github.event.inputs.ollama_model || 'qwen2.5-coder:7b' }}
         run: |
           cd examples/orchestrator
           npm run test:e2e:strict
 
+      - name: Job summary
+        if: always()
+        env:
+          OLLAMA_MODEL: ${{ github.event.inputs.ollama_model || 'qwen2.5-coder:7b' }}
+        run: |
+          {
+            echo "## orchestrator-e2e"
+            echo "- **Model:** \`$OLLAMA_MODEL\`"
+            echo "- **Suites:** \`npm run test:e2e\` (Sc1–Sc20 + T6) then \`npm run test:e2e:strict\` (system-path MCP)"
+            echo "- **Runner:** self-hosted, labels \`self-hosted\` + \`ollama\`"
+            echo "- **On failure:** artifact \`e2e-failure-*\` uploads traces + npm-debug.log (if present)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-failure-logs-${{ github.run_id }}
+          name: e2e-failure-${{ github.run_id }}
           path: |
             ~/.claude/metrics/traces/
             ~/.claude/metrics/gate_events.jsonl
             ~/.claude/metrics/flow-metrics.jsonl
+            examples/orchestrator/npm-debug.log
           retention-days: 7
           if-no-files-found: ignore

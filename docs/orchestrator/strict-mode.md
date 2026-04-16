@@ -360,19 +360,28 @@ This does **not** freeze Ollama or full `run()` outputs (those stay non-determin
 
 ---
 
-## E2E-STRICT (examples/orchestrator)
+## System-path E2E suite (examples/orchestrator)
 
 Automated checks for **`skipStateMcp: false`** (hard gates on) without requiring the **claude CLI** to invoke MCP tools:
 
 1. Set **`ORCH_MCP_TRANSPORT=direct`** — `orchestrator.js` routes `orchestrator-state` and `compact-handoff` calls through **`examples/orchestrator/mcp-direct.py`**, which loads the Python MCP server code from `mcp-servers/*` (after `uv sync` in each server directory).
 2. **`ORCHESTRATOR_STATE_ROOT`** — tests may point this at a temp directory so the authoritative store is isolated from `~/.claude/.state/orchestrator`.
-3. **`npm run test:e2e:strict`** — runs `tests/e2e.strict.test.js` (Ollama required; skips if Ollama or `mcp-direct.py` is missing).
+3. **`npm run test:e2e:strict`** (alias **`npm run test:e2e:system-path`**) — runs `tests/e2e.strict.test.js` (Ollama required; skips if Ollama or `mcp-direct.py` is missing).
 
 This is **not** the same as registering MCPs inside the Anthropic Claude app: that path still uses `claude -p` when `ORCH_MCP_TRANSPORT` is unset. CI (`.github/workflows/orchestrator-e2e.yml`) runs both `test:e2e` (degraded) and `test:e2e:strict` on the self-hosted Ollama runner.
 
+### GitHub Actions — `orchestrator-e2e.yml` (GHA-E2E)
+
+- **Runner:** `runs-on: [self-hosted, ollama]` — the machine must run Ollama on `localhost:11434` and have `uv sync` done for `mcp-servers/orchestrator-state` and `compact-handoff` (the workflow runs `uv sync` each job).
+- **Dual suite:** `npm run test:e2e` then `npm run test:e2e:strict` — same contract as local “full E2E + system-path”.
+- **Dispatch:** `workflow_dispatch` input `ollama_model` overrides the default `qwen2.5-coder:7b`. A best-effort `ollama pull` runs if the CLI is on `PATH`.
+- **Fork PRs:** the job is **skipped** when `pull_request.head.repo` is a fork (avoids a stuck “Waiting for a runner” queue). If branch protection **requires** this check name, fork PRs will show a skipped required check — adjust branch rules or run `workflow_dispatch` from the base repo.
+- **Artifacts:** on failure, uploads `~/.claude/metrics/traces/`, `gate_events.jsonl`, `flow-metrics.jsonl`, and `examples/orchestrator/npm-debug.log` (7-day retention).
+- **Concurrency:** one in-flight run per ref (`cancel-in-progress: true`).
+
 Optional env: **`ORCH_PYTHON`** (default `python3`), **`ORCH_MCP_DIRECT_TIMEOUT_MS`** (default `180000`).
 
-**Phase 1 vs later:** phase 1 proves the strict path against **real on-disk state** without Claude-hosted MCP wiring. It does **not** exhaust “strict” as a product goal. **Phase 2 (`e2e.strict.test.js`):** (1) `run()` + hash + event types; (2) **mcp-direct** `validate_transition` → `advance_mode` with YAML; (3) **`compact_handoff`** smoke; (4–5) **negative** `validate_transition` (alignment pending, iteration cap); (6) **`E2E_STRICT_GATE_PATH=1`** — deterministic `askAgent` stubs + `register_task` with `enforce_goal_alignment: false` + Node bypass when the alignment LLM still returns `aligned: false`, so **`run()`** exercises real `compact_handoff`, `goal_alignment_validated` on disk, and **≥3** `mode_advanced` events. **`validateHandoffStructure`** accepts **nested** `files_modified` / `validation_run` (typical compact-handoff YAML) and nested **`verdict`** for CERBERUS. Optional later: strict with **`claude -p` + MCPs registered in the Claude app** for desktop parity.
+**Phase 1 vs later:** phase 1 proves the strict path against **real on-disk state** without Claude-hosted MCP wiring. It does **not** exhaust “strict” as a product goal. **Phase 2 (`e2e.strict.test.js`):** (1) `run()` + hash + event types; (2) **mcp-direct** `validate_transition` → `advance_mode` with YAML; (3) **`compact_handoff`** smoke; (4–5) **negative** `validate_transition` (alignment pending, iteration cap); (6) **`ORCH_TEST_SYSTEM_PATH_HARNESS=1`** (one test only; **test harness, not production**) — deterministic `askAgent` stubs + `register_task` with `enforce_goal_alignment: false` + Node bypass when the alignment LLM still returns `aligned: false`, so **`run()`** exercises real `compact_handoff`, `goal_alignment_validated` on disk, and **≥3** `mode_advanced` events. This is **system-path** coverage (MCP + disk + transitions), **not** proof of reliable goal alignment or real-model unattended runs. **`validateHandoffStructure`** accepts **nested** `files_modified` / `validation_run` (typical compact-handoff YAML) and nested **`verdict`** for CERBERUS. Optional later: strict with **`claude -p` + MCPs registered in the Claude app** for desktop parity.
 
 ---
 

@@ -14,8 +14,8 @@
  * orchestrator and summarizer run on Ollama (local, no API key).
  * All other agents run via the claude CLI (active Claude Code session).
  *
- * E2E-STRICT harness: when `E2E_STRICT_GATE_PATH=1`, `askAgent` returns deterministic
- * plan/decide/DEV/CERBERUS outputs (see `tests/e2e.strict.test.js`). Do not set outside tests.
+ * Test-only system-path harness: when `ORCH_TEST_SYSTEM_PATH_HARNESS=1`, `askAgent` returns deterministic
+ * plan/decide/DEV/CERBERUS outputs (see `tests/e2e.strict.test.js`). **Forbidden** outside that test subprocess.
  */
 
 const { spawnSync } = require("child_process");
@@ -638,7 +638,7 @@ function buildEnvContext(agentId, sessionEnv) {
 //   orchestrator/decide → JSON { done: bool, summary } or { done: false, corrections: [] }
 //   dev-*               → mentions ≥1 file modified + ≥1 validation run
 //   qa                  → ≥1 finding classified blocker|improvement|nice-to-have (token presence only)
-//   cerberus            → same tokens + optional semantic floor when three-line template is used (sync: agent-contract.md § format vs quality)
+//   cerberus            → same tokens + semantic floor + vacuous-blocker anchor when three-line template is used (sync: agent-contract.md § format vs quality)
 //   owner / architect   → any non-empty output (free-form design/scope)
 //   summarizer          → any non-empty output
 
@@ -690,6 +690,33 @@ function _cerberusLineHasFiller(val) {
 }
 
 /**
+ * CERBERUS-SIGNAL-3anchor: when blocker is vacuous, improvement/nice-to-have need a weak textual anchor
+ * (path, test ref, code span, HTTP/error-ish signal) — not proof the claim is true.
+ * @param {string} s
+ * @returns {boolean}
+ */
+function _cerberusFindingHasAnchor(s) {
+  const t = String(s || "");
+  if (!t.trim()) return false;
+  const patterns = [
+    /\b[\w./-]+\.(?:js|mjs|cjs|ts|tsx|jsx|py|go|rs|tf|yaml|yml|json|md|html|css|java|kt|cs)\b/i,
+    /\/[\w.-]+(?:\/[\w.-]+)+/,
+    /`[^`\n]{2,}`/,
+    /\b(?:unit|integration|e2e)\s+tests?\b/i,
+    /\b(?:jest|mocha|pytest|vitest|cypress|playwright)\b/i,
+    /\bnpm\s+test\b|\bterraform\s+validate\b|\bgo\s+test\b/i,
+    /\btest\s*[(:]/i,
+    /\bHTTP\s*\d{3}\b|\bstatus\s*(?:code)?\s*\d{3}\b/i,
+    /\b(?:exception|stack\s*trace|throw|thrown|panic|segfault|oom)\b/i,
+    /\b(?:race\s+condition|deadlock|data\s+race)\b/i,
+    /\b(?:endpoint|route)\s+[`"']?\/[\w./-]+/i,
+    /\bline\s+\d+\b/i,
+    /\b[\w$]{3,}\([^)\n]{0,80}\)/,
+  ];
+  return patterns.some((re) => re.test(t));
+}
+
+/**
  * Parse leading `blocker:` / `improvement:` / `nice-to-have:` lines (markdown bullets ok).
  * @returns {{ blocker: string, improvement: string, nice: string } | null} null if not all three present
  */
@@ -730,14 +757,23 @@ function validateCerberusSemanticFloor(output) {
   }
 
   if (_isVacuousFindingVal(t.blocker)) {
-    const pathish = /\.\w{1,8}\b|`[^`]{3,}`|\/[\w.-]+\/?/i;
-    const impOk = !_isVacuousFindingVal(t.improvement) && (t.improvement.length >= 18 || pathish.test(t.improvement));
-    const niceOk = !_isVacuousFindingVal(t.nice) && (t.nice.length >= 18 || pathish.test(t.nice));
-    if (!impOk && !niceOk) {
+    const hasImp = !_isVacuousFindingVal(t.improvement);
+    const hasNice = !_isVacuousFindingVal(t.nice);
+    if (!hasImp && !hasNice) {
       return {
         ok: false,
-        reason: "vacuous blocker requires improvement or nice-to-have with concrete detail (path, code span, or ≥18 chars)",
+        reason: "vacuous blocker requires a non-empty improvement or nice-to-have line",
         gate_id: "cerberus_vacuous_without_substance",
+      };
+    }
+    const impAnch = hasImp && _cerberusFindingHasAnchor(t.improvement);
+    const niceAnch = hasNice && _cerberusFindingHasAnchor(t.nice);
+    if (!impAnch && !niceAnch) {
+      return {
+        ok: false,
+        reason:
+          "vacuous blocker requires improvement or nice-to-have with an explicit anchor (file path, test/tool ref, `code`, line N, HTTP/status, error/race, or callable)",
+        gate_id: "cerberus_anchor_required",
       };
     }
   }
@@ -888,8 +924,8 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
   const agent = AGENTS[agentId];
   if (!agent) throw new Error(`Unknown agent "${agentId}". Available: ${Object.keys(AGENTS).join(", ")}`);
 
-  // Deterministic E2E-STRICT gate path (tests/e2e.strict.test.js). Never set outside that suite.
-  if (process.env.E2E_STRICT_GATE_PATH === "1") {
+  // Deterministic test harness (tests/e2e.strict.test.js). Never set outside that suite.
+  if (process.env.ORCH_TEST_SYSTEM_PATH_HARNESS === "1") {
     if (agentId === "orchestrator" && phase === "plan") {
       const stub = JSON.stringify({
         steps: [{ agentId: "dev-backend", task: "Add multiply to utils.js" }],
@@ -1025,6 +1061,7 @@ module.exports = {
   validateOutput,
   validateCerberusSemanticFloor,
   parseCerberusTripleTemplate,
+  cerberusFindingHasAnchor: _cerberusFindingHasAnchor,
   getDegradedAgents,
   clearDegradedAgents,
   setModelProfile,
