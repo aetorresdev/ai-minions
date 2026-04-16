@@ -131,8 +131,9 @@ Use this to pick the right setup for your situation.
 | QA degraded flagged in trace + warning | ✅ | ✅ | ✅ |
 | Goal redacted in traces + active-agent.json | `TRACE_REDACT_GOAL=1` | `TRACE_REDACT_GOAL=1` | `TRACE_REDACT_GOAL=1` |
 | MCP calls logged per run (`mcp_call` + `session_end` rollups) | ❌ (no state MCP traffic) | ✅ | ✅ |
+| Ollama prompt/completion token counts (`context_stats` + `session_end` totals) | Only when `OLLAMA_MODEL` + Ollama routes are used | ✅ | ✅ |
 
-Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../../docs/orchestrator/strict-mode.md) § *MCP usage audit (C-T3)*. Token/cost per scenario is **C-T4**, not C-T3.
+Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../../docs/orchestrator/strict-mode.md) § *MCP usage audit (C-T3)* and § *Ollama token counts (C-T4 — fase 1)*. USD cost and per-scenario export are **C-T4** follow-ups; **TOKENS-RPT-1** is the on-demand report skill/CLI.
 
 ---
 

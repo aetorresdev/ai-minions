@@ -368,6 +368,12 @@ The **`session_end`** event on the same stream adds **`mcp_total_calls`**, **`mc
 
 **Not in scope for C-T3:** LLM token counts per call — that is **C-T4** (token cost per scenario).
 
+### Ollama token counts (C-T4 — fase 1)
+
+When agents use **Ollama** (`/api/chat`), the example `agents.js` parses `prompt_eval_count` and `eval_count` from the JSON response and attaches them to **`context_stats`** as `ollama_prompt_tokens` and `ollama_completion_tokens` on each `askAgent` Ollama call. The summarizer step records the same fields when `summarizeHandoff` runs via Ollama.
+
+`session_end` includes **`ollama_prompt_tokens_total`** and **`ollama_completion_tokens_total`** when at least one of those counters is non-zero. **Claude CLI** paths do not populate these fields (no token API in this example runner). **Cost in USD / per-scenario export** remains future C-T4 work.
+
 ---
 
 ## System-path E2E suite (examples/orchestrator)
