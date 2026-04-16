@@ -131,8 +131,9 @@ Use this to pick the right setup for your situation.
 | QA degraded flagged in trace + warning | ✅ | ✅ | ✅ |
 | Goal redacted in traces + active-agent.json | `TRACE_REDACT_GOAL=1` | `TRACE_REDACT_GOAL=1` | `TRACE_REDACT_GOAL=1` |
 | MCP calls logged per run (`mcp_call` + `session_end` rollups) | ❌ (no state MCP traffic) | ✅ | ✅ |
+| Ollama prompt/completion token counts (`context_stats` + `session_end` totals) | Only when `OLLAMA_MODEL` + Ollama routes are used | ✅ | ✅ |
 
-Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../../docs/orchestrator/strict-mode.md) § *MCP usage audit (C-T3)*. Token/cost per scenario is **C-T4**, not C-T3.
+Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../../docs/orchestrator/strict-mode.md) § *MCP usage audit* and § *Ollama token counts*. USD cost, per-scenario export, and an on-demand token report (skill or CLI) are backlog items — not implemented here yet.
 
 ---
 
@@ -359,7 +360,7 @@ Use `--iterations 1` to force a single pass.
 ```bash
 cd examples/orchestrator
 npm test              # lint (ESLint + ruff) + unit tests — no auth, no Ollama, no MCPs required
-npm run test:baseline:gate   # rewrite tests/fixtures/gate-determinism-baseline.json after intentional gate contract changes (C-T2)
+npm run test:baseline:gate   # rewrite tests/fixtures/gate-determinism-baseline.json after intentional gate contract changes
 npm run test:e2e      # E2E suite — requires Ollama running at localhost:11434
 npm run test:e2e:strict       # same as `test:e2e:system-path` — MCP direct + real disk gates (`tests/e2e.strict.test.js`)
 npm run test:e2e:system-path  # alias; name reflects intent better than “strict” alone
@@ -376,7 +377,7 @@ npm run test:e2e:all  # E2E suite with all available Ollama models
 
 | Workflow | Runner | Triggers |
 |----------|--------|---------|
-| `orchestrator-example.yml` | GitHub cloud | **All PRs** to `main`/`master` (lint + unit). **Push** to `main`/`master` only when `examples/orchestrator/**`, `scripts/hooks/**`, or this workflow file changes. `workflow_dispatch` supported. First step runs `scripts/ci-check-harness-scope.sh` (**CERBERUS-OPS-2**): fails if `ORCH_TEST_SYSTEM_PATH_HARNESS` appears outside the allowlist or if the pre-rename strict-gate env var name appears in tracked code (see script) |
+| `orchestrator-example.yml` | GitHub cloud | **All PRs** to `main`/`master` (lint + unit). **Push** to `main`/`master` only when `examples/orchestrator/**`, `scripts/hooks/**`, or this workflow file changes. `workflow_dispatch` supported. First step runs `scripts/ci-check-harness-scope.sh`: fails if `ORCH_TEST_SYSTEM_PATH_HARNESS` appears outside the allowlist or if the pre-rename strict-gate env var name appears in tracked code (see script) |
 | `orchestrator-e2e.yml` | Self-hosted (`ollama` label) | Push/PR when orchestrator core, `mcp-direct.py`, `tests/**`, `package.json` / lockfile, MCP server dirs, or this workflow change; **`workflow_dispatch`** (input `ollama_model`) |
 
 The E2E workflow requires a self-hosted runner with labels **`self-hosted`** and **`ollama`**, Ollama at `localhost:11434`, and network for `astral-sh/setup-uv` + `npm ci`. It runs **`npm run test:e2e`** then **`npm run test:e2e:strict`** (dual suite). **Fork PRs:** the E2E job is skipped when the PR comes from a fork (so the run does not wait forever for a runner the fork cannot use). GitHub’s rules for **required checks** allow successful / skipped / neutral in many setups when the workflow completed; a skipped **job** is usually safer than a workflow that never starts (which can leave checks **Pending**). Still: validate once with a **real fork PR** and your branch protection, because only the GitHub UI confirms your org’s rule set. See `.github/workflows/orchestrator-e2e.yml` and `docs/orchestrator/strict-mode.md` § *GitHub Actions — orchestrator-e2e.yml*.
@@ -386,8 +387,8 @@ The E2E workflow requires a self-hosted runner with labels **`self-hosted`** and
 | Area | Type |
 |------|------|
 | Output contracts (per role) | Unit |
-| Gate logic SHA256 baselines (`validateOutput` / `validateHandoffStructure`) | Unit (C-T2) |
-| MCP invocation audit (`mcp_call` events + `session_end` rollups) | Unit (`aggregateMcpUsage`) + runtime trace (C-T3) |
+| Gate logic SHA256 baselines (`validateOutput` / `validateHandoffStructure`) | Unit |
+| MCP invocation audit (`mcp_call` events + `session_end` rollups) | Unit (`aggregateMcpUsage`) + runtime trace |
 | `files_read[]` + `files_modified` context gate (ARCHITECT + DEV) | Unit |
 | Fallback policy (primary → secondary, hard-fail) | Integration |
 | Trace redaction, blocker detection, handoff structure | Unit |

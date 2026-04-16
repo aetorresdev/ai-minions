@@ -166,7 +166,8 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
       );
 
       const result = await run(
-        "Add input validation to the divide function: throw an Error if b is zero",
+        "Add input validation to the divide function in calculator.js: throw an Error if b is zero. " +
+          "Use a minimal multi-agent plan only: dev-backend implements (with files_read, files_modified, validation_run), then qa reviews, then cerberus — no owner or architect steps.",
         {
           maxIterations: 1,
           cwd,
@@ -180,10 +181,13 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
       assert.ok(Array.isArray(result.artifacts), "result.artifacts must be an array");
       assert.ok(result.artifacts.length >= 1, `multi_agent expected >= 1 artifacts, got ${result.artifacts.length}`);
 
-      // In multi_agent there should be at least a DEV step
       const agentIds = result.artifacts.map((a) => a.agentId.toLowerCase());
-      const hasDevStep = agentIds.some((id) => id.startsWith("dev") || id === "orchestrator");
-      assert.ok(hasDevStep, `Expected a DEV step in artifacts — got: ${agentIds.join(", ")}`);
+      const hasDev = agentIds.some((id) => id.startsWith("dev"));
+      const hasQa = agentIds.includes("qa");
+      assert.ok(
+        hasDev && hasQa,
+        `Expected dev-backend (or dev-*) and qa artifacts — got: ${agentIds.join(", ")}`
+      );
     } finally {
       removeTempDir(cwd);
     }
