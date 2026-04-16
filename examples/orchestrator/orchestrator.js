@@ -33,7 +33,7 @@ const path = require("path");
 // ── Execution trace ───────────────────────────────────────────────────────────
 // Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
 // Event types: session_start, agent_start, agent_done, gate_result,
-//              contract_fail, iteration_done, session_end
+//              contract_fail, iteration_done, session_end, mcp_call (C-T3)
 //
 // Sensitive field handling:
 //   goal  → truncated to 80 chars + SHA-256 hash (TRACE_REDACT_GOAL=1 omits text entirely)
@@ -43,6 +43,52 @@ const path = require("path");
 
 const TRACES_DIR = path.join(require("os").homedir(), ".claude", "metrics", "traces");
 const TRACE_REDACT_GOAL = process.env.TRACE_REDACT_GOAL === "1";
+
+// ── C-T3: MCP usage audit (per run) ─────────────────────────────────────────
+let _mcpAuditTaskId = null;
+/** @type {{ server: string, tool: string, transport: string, duration_ms: number, ok: boolean }[]} */
+let _mcpAuditCalls = [];
+
+function beginMcpAudit(taskId) {
+  _mcpAuditTaskId = taskId;
+  _mcpAuditCalls = [];
+}
+
+function clearMcpAudit() {
+  _mcpAuditTaskId = null;
+  _mcpAuditCalls = [];
+}
+
+/**
+ * Roll up MCP invocation rows for session_end / tests.
+ * @param {{ server: string, tool: string, transport: string, duration_ms: number, ok: boolean }[]} calls
+ */
+function aggregateMcpUsage(calls) {
+  if (!calls.length) {
+    return { mcp_total_calls: 0, mcp_by_tool: {}, mcp_by_transport: {}, mcp_failed_calls: 0 };
+  }
+  const mcp_by_tool = {};
+  const mcp_by_transport = {};
+  let mcp_failed_calls = 0;
+  for (const c of calls) {
+    const key = `${c.server}.${c.tool}`;
+    mcp_by_tool[key] = (mcp_by_tool[key] || 0) + 1;
+    mcp_by_transport[c.transport] = (mcp_by_transport[c.transport] || 0) + 1;
+    if (!c.ok) mcp_failed_calls += 1;
+  }
+  return {
+    mcp_total_calls: calls.length,
+    mcp_by_tool,
+    mcp_by_transport,
+    mcp_failed_calls,
+  };
+}
+
+function recordMcpInvocation(entry) {
+  if (!_mcpAuditTaskId) return;
+  _mcpAuditCalls.push(entry);
+  traceEvent(_mcpAuditTaskId, { event: "mcp_call", ...entry });
+}
 
 /**
  * Test-only harness: exercise real MCP + disk transitions without trusting the alignment LLM
@@ -282,19 +328,38 @@ function invokeMcpDirect(server, toolName, args) {
   const py = process.env.ORCH_PYTHON || "python3";
   const payload = JSON.stringify({ server, tool: toolName, args });
   const timeoutMs = parseInt(process.env.ORCH_MCP_DIRECT_TIMEOUT_MS, 10) || 180000;
-  const result = spawnSync(py, [script], {
-    input: payload,
-    encoding: "utf8",
-    maxBuffer: 8 * 1024 * 1024,
-    timeout: timeoutMs,
-    windowsHide: true,
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    const msg = (result.stderr || result.stdout || "").trim() || `mcp-direct exited ${result.status}`;
-    throw new Error(msg);
+  const t0 = Date.now();
+  try {
+    const result = spawnSync(py, [script], {
+      input: payload,
+      encoding: "utf8",
+      maxBuffer: 8 * 1024 * 1024,
+      timeout: timeoutMs,
+      windowsHide: true,
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      const msg = (result.stderr || result.stdout || "").trim() || `mcp-direct exited ${result.status}`;
+      throw new Error(msg);
+    }
+    recordMcpInvocation({
+      server,
+      tool: toolName,
+      transport: "direct",
+      duration_ms: Date.now() - t0,
+      ok: true,
+    });
+    return parseMcpDirectStdout(result.stdout);
+  } catch (err) {
+    recordMcpInvocation({
+      server,
+      tool: toolName,
+      transport: "direct",
+      duration_ms: Date.now() - t0,
+      ok: false,
+    });
+    throw err;
   }
-  return parseMcpDirectStdout(result.stdout);
 }
 
 /**
@@ -315,17 +380,36 @@ function callStateMcp(toolName, args, { cwd } = {}) {
     .join(", ");
   const prompt = `Call the MCP tool orchestrator-state.${toolName} with these arguments and return only the raw JSON response, no other text:\n${toolName}(${argsStr})`;
   const timeoutMs = parseInt(process.env.CLAUDE_CLI_TIMEOUT, 10) || 60000;
-  const result = spawnSync("claude", ["-p", prompt, "--dangerously-skip-permissions"], {
-    encoding: "utf8",
-    maxBuffer: 2 * 1024 * 1024,
-    timeout: timeoutMs,
-    cwd: cwd || process.cwd(),
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(result.stderr || "claude CLI error calling MCP");
-  const parsed = extractJson(result.stdout.trim());
-  if (!parsed) throw new Error(`orchestrator-state.${toolName} returned non-JSON: ${result.stdout.slice(0, 300)}`);
-  return parsed;
+  const t0 = Date.now();
+  try {
+    const result = spawnSync("claude", ["-p", prompt, "--dangerously-skip-permissions"], {
+      encoding: "utf8",
+      maxBuffer: 2 * 1024 * 1024,
+      timeout: timeoutMs,
+      cwd: cwd || process.cwd(),
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error(result.stderr || "claude CLI error calling MCP");
+    const parsed = extractJson(result.stdout.trim());
+    if (!parsed) throw new Error(`orchestrator-state.${toolName} returned non-JSON: ${result.stdout.slice(0, 300)}`);
+    recordMcpInvocation({
+      server: "orchestrator-state",
+      tool: toolName,
+      transport: "claude_cli",
+      duration_ms: Date.now() - t0,
+      ok: true,
+    });
+    return parsed;
+  } catch (err) {
+    recordMcpInvocation({
+      server: "orchestrator-state",
+      tool: toolName,
+      transport: "claude_cli",
+      duration_ms: Date.now() - t0,
+      ok: false,
+    });
+    throw err;
+  }
 }
 
 /**
@@ -389,15 +473,34 @@ compact_handoff(
   flow_mode=${JSON.stringify(flowMode)}
 )`;
   const timeoutMs = parseInt(process.env.CLAUDE_CLI_TIMEOUT, 10) || 120000;
-  const result = spawnSync("claude", ["-p", prompt, "--dangerously-skip-permissions"], {
-    encoding: "utf8",
-    maxBuffer: 2 * 1024 * 1024,
-    timeout: timeoutMs,
-    cwd: cwd || process.cwd(),
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(result.stderr || "claude CLI error calling compact-handoff");
-  return result.stdout.trim();
+  const t0 = Date.now();
+  try {
+    const result = spawnSync("claude", ["-p", prompt, "--dangerously-skip-permissions"], {
+      encoding: "utf8",
+      maxBuffer: 2 * 1024 * 1024,
+      timeout: timeoutMs,
+      cwd: cwd || process.cwd(),
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error(result.stderr || "claude CLI error calling compact-handoff");
+    recordMcpInvocation({
+      server: "compact-handoff",
+      tool: "compact_handoff",
+      transport: "claude_cli",
+      duration_ms: Date.now() - t0,
+      ok: true,
+    });
+    return result.stdout.trim();
+  } catch (err) {
+    recordMcpInvocation({
+      server: "compact-handoff",
+      tool: "compact_handoff",
+      transport: "claude_cli",
+      duration_ms: Date.now() - t0,
+      ok: false,
+    });
+    throw err;
+  }
 }
 
 // ── Blocker detection (deterministic) ────────────────────────────────────────
@@ -530,6 +633,7 @@ async function run(goal, options = {}) {
   const cwd           = options.cwd || process.cwd();
   const flowMode      = options.flowMode || "single_agent";
   const taskId        = options.taskId || `task-${randomUUID().slice(0, 8)}`;
+  beginMcpAudit(taskId);
   const approvedArtifacts = options.approvedArtifacts || [];
   const skipStateMcp  = options.skipStateMcp === true;
   const requireHandoff = resolveRequireHandoff(options);
@@ -1208,6 +1312,7 @@ Reply with JSON only.`;
   }
   const manualReviewRecommended = qaDegraded || manualReview;
   const handoffFallbackAny = artifacts.some((a) => a.handoff_fallback_used === true);
+  const mcpSummary = aggregateMcpUsage(_mcpAuditCalls);
   traceEvent(taskId, {
     event: "session_end",
     iterations,
@@ -1215,11 +1320,13 @@ Reply with JSON only.`;
     summary: summary.slice(0, 200),
     agents_run: [...new Set(artifacts.map((a) => a.agentId))],
     gate_blocks: artifacts.filter((a) => a.gateBlocked).length,
+    ...mcpSummary,
     ...(qaDegraded ? { qa_degraded: true } : {}),
     ...(manualReviewRecommended ? { manual_review_recommended: true } : {}),
     ...(handoffFallbackAny ? { handoff_fallback_used: true } : {}),
   });
 
+  clearMcpAudit();
   return { done, summary, artifacts, iterations, taskId };
 }
 
@@ -1232,4 +1339,5 @@ module.exports = {
   resolveRequireHandoff,
   compactHandoffDegradedMeta,
   compactHandoffStrictFailureFields,
+  aggregateMcpUsage,
 };
