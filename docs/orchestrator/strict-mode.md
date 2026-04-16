@@ -360,6 +360,20 @@ This does **not** freeze Ollama or full `run()` outputs (those stay non-determin
 
 ---
 
+## E2E-STRICT (examples/orchestrator)
+
+Automated checks for **`skipStateMcp: false`** (hard gates on) without requiring the **claude CLI** to invoke MCP tools:
+
+1. Set **`ORCH_MCP_TRANSPORT=direct`** — `orchestrator.js` routes `orchestrator-state` and `compact-handoff` calls through **`examples/orchestrator/mcp-direct.py`**, which loads the Python MCP server code from `mcp-servers/*` (after `uv sync` in each server directory).
+2. **`ORCHESTRATOR_STATE_ROOT`** — tests may point this at a temp directory so the authoritative store is isolated from `~/.claude/.state/orchestrator`.
+3. **`npm run test:e2e:strict`** — runs `tests/e2e.strict.test.js` (Ollama required; skips if Ollama or `mcp-direct.py` is missing).
+
+This is **not** the same as registering MCPs inside the Anthropic Claude app: that path still uses `claude -p` when `ORCH_MCP_TRANSPORT` is unset. CI (`.github/workflows/orchestrator-e2e.yml`) runs both `test:e2e` (degraded) and `test:e2e:strict` on the self-hosted Ollama runner.
+
+Optional env: **`ORCH_PYTHON`** (default `python3`), **`ORCH_MCP_DIRECT_TIMEOUT_MS`** (default `180000`).
+
+---
+
 ## Shared hook modules
 
 These modules live in `scripts/hooks/` and are imported by the enforcer hooks — they are not standalone hooks.

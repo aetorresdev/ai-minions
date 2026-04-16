@@ -358,8 +358,11 @@ cd examples/orchestrator
 npm test              # lint (ESLint + ruff) + unit tests — no auth, no Ollama, no MCPs required
 npm run test:baseline:gate   # rewrite tests/fixtures/gate-determinism-baseline.json after intentional gate contract changes (C-T2)
 npm run test:e2e      # E2E suite — requires Ollama running at localhost:11434
+npm run test:e2e:strict  # E2E-STRICT: `skipStateMcp: false` + `ORCH_MCP_TRANSPORT=direct` (no claude CLI for MCP gates; isolated `ORCHESTRATOR_STATE_ROOT` per test)
 npm run test:e2e:all  # E2E suite with all available Ollama models
 ```
+
+`ORCH_MCP_TRANSPORT=direct` makes `orchestrator.js` call `mcp-direct.py` for `orchestrator-state` and `compact-handoff` instead of `claude -p`. Use `ORCH_PYTHON` if `python3` is not on `PATH`. Optional: `ORCH_MCP_DIRECT_TIMEOUT_MS` (default 180000).
 
 ### CI pipelines
 
@@ -389,6 +392,7 @@ The E2E workflow requires a self-hosted runner with Ollama at `localhost:11434`.
 | Strict mode — any deviation surfaces as hard failure | E2E (Ollama) |
 | Gate-blocked enforcement — `done: false` when contracts fail | E2E (Ollama) |
 | Failure-first — invalid input, broken handoff, unknown agent | E2E (Ollama) |
+| Strict gates without claude CLI (`skipStateMcp: false` + MCP direct) | E2E-STRICT (`test:e2e:strict`) |
 
 ### Test files
 
@@ -399,6 +403,7 @@ The E2E workflow requires a self-hosted runner with Ollama at `localhost:11434`.
 | `tests/internals.test.js` | Unit | Nothing |
 | `tests/askAgent.test.js` | Integration | Nothing (CLI mocked) |
 | `tests/e2e.test.js` | E2E | Ollama at localhost:11434 (auto-skip if unavailable) |
+| `tests/e2e.strict.test.js` | E2E-STRICT | Ollama + `mcp-direct.py` + MCP venvs (`uv sync`); auto-skip if Ollama or `mcp-direct.py` missing |
 
 ---
 
