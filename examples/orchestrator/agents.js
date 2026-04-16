@@ -446,6 +446,11 @@ No praise-only paragraphs before the three required lines; no proposed full solu
 
 // ── Ollama ────────────────────────────────────────────────────────────────────
 
+/**
+ * Call Ollama `/api/chat` (non-streaming).
+ * @returns {Promise<{ content: string, prompt_eval_count?: number, eval_count?: number }>}
+ *   `prompt_eval_count` / `eval_count` come from Ollama when present (C-T4 telemetry); omit when absent.
+ */
 function runOllama(systemPrompt, messages, { model = "qwen2.5-coder:7b", timeoutMs } = {}) {
   const body = JSON.stringify({
     model,
@@ -472,7 +477,16 @@ function runOllama(systemPrompt, messages, { model = "qwen2.5-coder:7b", timeout
         res.on("end", () => {
           try {
             const parsed = JSON.parse(data);
-            resolve(parsed.message?.content?.trim() || "");
+            const content = parsed.message?.content?.trim() || "";
+            /** @type {{ content: string, prompt_eval_count?: number, eval_count?: number }} */
+            const out = { content };
+            if (typeof parsed.prompt_eval_count === "number" && !Number.isNaN(parsed.prompt_eval_count)) {
+              out.prompt_eval_count = parsed.prompt_eval_count;
+            }
+            if (typeof parsed.eval_count === "number" && !Number.isNaN(parsed.eval_count)) {
+              out.eval_count = parsed.eval_count;
+            }
+            resolve(out);
           } catch (e) {
             reject(new Error(`Error parsing Ollama response: ${e.message}\nRaw: ${data}`));
           }
@@ -501,6 +515,9 @@ Respond in English, in brief markdown, with these sections (use ## headings):
 Be faithful to the source text — do not invent. If something is not stated, say "not indicated".
 Max ~900 words. Prioritize what the next agent needs to avoid repeating work or breaking coherence.`;
 
+/**
+ * @returns {Promise<{ summary: string, ollama_prompt_tokens?: number, ollama_completion_tokens?: number }>}
+ */
 async function summarizeHandoff({ agentId, task, result, cwd, priorArtifacts = [] }) {
   const maxIn = parseInt(process.env.AI_TEAM_SUMMARIZE_MAX_INPUT_CHARS, 10) || 80000;
   const body =
@@ -530,7 +547,12 @@ ${body}`;
 
   const model = process.env.AI_TEAM_SUMMARY_MODEL || "qwen2.5-coder:7b";
   const timeoutMs = parseInt(process.env.AI_TEAM_SUMMARY_TIMEOUT_MS, 10) || 240000;
-  return runOllama(SUMMARY_SYSTEM, [{ role: "user", content: user }], { model, timeoutMs });
+  const raw = await runOllama(SUMMARY_SYSTEM, [{ role: "user", content: user }], { model, timeoutMs });
+  return {
+    summary: raw.content,
+    ...(raw.prompt_eval_count != null ? { ollama_prompt_tokens: raw.prompt_eval_count } : {}),
+    ...(raw.eval_count != null ? { ollama_completion_tokens: raw.eval_count } : {}),
+  };
 }
 
 // ── Environment access — role permission matrix ───────────────────────────────
@@ -989,10 +1011,16 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
   const forceOllama = _backendOverride === "ollama" && OLLAMA_MODEL;
   if (agent.provider === "ollama" || forceOllama) {
     const model = forceOllama ? OLLAMA_MODEL : agent.model;
-    const output = await runOllama(agent.system, [{ role: "user", content: userMessage }], { model });
+    const raw = await runOllama(agent.system, [{ role: "user", content: userMessage }], { model });
+    const output = raw.content;
     const check = validateOutput(agentId, output, { phase });
     if (!check.valid) { const err = new Error(`[output contract] ${check.reason}`); err.gate_id = check.gate_id; throw err; }
-    return { output, context_stats: check.context_stats || null };
+    const extracted = extractContextStats(agentId, output).context_stats;
+    /** @type {Record<string, number>} */
+    const context_stats = { ...extracted, ...(check.context_stats || {}) };
+    if (raw.prompt_eval_count != null) context_stats.ollama_prompt_tokens = raw.prompt_eval_count;
+    if (raw.eval_count != null) context_stats.ollama_completion_tokens = raw.eval_count;
+    return { output, context_stats };
   }
   const maxTokens = MAX_OUTPUT_TOKENS[agentId] ?? undefined;
   const envContext = sessionEnv ? buildEnvContext(agentId, sessionEnv) : "";
@@ -1027,7 +1055,8 @@ async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
   if (!agent) throw new Error(`Unknown agent "${agentId}". Available: ${Object.keys(AGENTS).join(", ")}`);
   if (agent.provider === "ollama") {
     const messages = [...history, { role: "user", content: userMessage }];
-    const reply = await runOllama(agent.system, messages, { model: agent.model });
+    const raw = await runOllama(agent.system, messages, { model: agent.model });
+    const reply = raw.content;
     return { reply, history: [...messages, { role: "assistant", content: reply }] };
   }
   let conversationText = "";
