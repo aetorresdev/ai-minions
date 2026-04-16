@@ -33,7 +33,8 @@ const path = require("path");
 // ── Execution trace ───────────────────────────────────────────────────────────
 // Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
 // Event types: session_start, agent_start, agent_done, gate_result,
-//              contract_fail, iteration_done, session_end, mcp_call (C-T3)
+//              contract_fail, iteration_done, session_end, mcp_call,
+//              context_stats may include ollama_prompt_tokens / ollama_completion_tokens (Ollama routes)
 //
 // Sensitive field handling:
 //   goal  → truncated to 80 chars + SHA-256 hash (TRACE_REDACT_GOAL=1 omits text entirely)
@@ -44,7 +45,7 @@ const path = require("path");
 const TRACES_DIR = path.join(require("os").homedir(), ".claude", "metrics", "traces");
 const TRACE_REDACT_GOAL = process.env.TRACE_REDACT_GOAL === "1";
 
-// ── C-T3: MCP usage audit (per run) ─────────────────────────────────────────
+// ── MCP usage audit (per run) ───────────────────────────────────────────────
 let _mcpAuditTaskId = null;
 /** @type {{ server: string, tool: string, transport: string, duration_ms: number, ok: boolean }[]} */
 let _mcpAuditCalls = [];
@@ -82,6 +83,27 @@ function aggregateMcpUsage(calls) {
     mcp_by_transport,
     mcp_failed_calls,
   };
+}
+
+/**
+ * In degraded multi_agent (`skipStateMcp`), planners often prepend owner/architect before DEV;
+ * those roles often fail output contracts on local Ollama before any dev-* step runs.
+ * Remove only leading owner/architect steps when a dev-* step still exists later.
+ * @param {{ agentId?: string, task?: string }[]} steps
+ */
+function stripLeadingOwnerArchitectForDegradedMultiAgent(steps) {
+  if (!Array.isArray(steps) || steps.length === 0) return steps;
+  const scope = new Set(["owner", "architect"]);
+  let i = 0;
+  while (i < steps.length) {
+    const id = String(steps[i].agentId || "").toLowerCase();
+    if (!scope.has(id)) break;
+    i += 1;
+  }
+  if (i === 0) return steps;
+  const rest = steps.slice(i);
+  const hasDev = rest.some((s) => String(s.agentId || "").toLowerCase().startsWith("dev"));
+  return hasDev ? rest : steps;
 }
 
 function recordMcpInvocation(entry) {
@@ -654,6 +676,16 @@ async function run(goal, options = {}) {
   let done          = false;
   let summary       = "";
   let manualReview  = false;  // set true in gate-blocked or CERBERUS-unresolved paths
+  const ollamaTokenTotals = { prompt: 0, completion: 0 };
+  function bumpOllamaFromStats(stats) {
+    if (!stats || typeof stats !== "object") return;
+    if (typeof stats.ollama_prompt_tokens === "number" && !Number.isNaN(stats.ollama_prompt_tokens)) {
+      ollamaTokenTotals.prompt += stats.ollama_prompt_tokens;
+    }
+    if (typeof stats.ollama_completion_tokens === "number" && !Number.isNaN(stats.ollama_completion_tokens)) {
+      ollamaTokenTotals.completion += stats.ollama_completion_tokens;
+    }
+  }
   let currentMode = "ORCHESTRATOR";
   const degradedInRun = new Set(); // agents that ran in fallback at least once this run
   clearDegradedAgents();
@@ -730,7 +762,9 @@ async function run(goal, options = {}) {
     flowMode === "multi_agent"
       ? `
 
-Hard requirement for FLOW multi_agent: "steps" MUST include at least one implementation agent (agentId dev-backend, dev-frontend, or dev-devops) with a concrete code-edit task, and a later step with agentId qa that reviews that implementation. For goals that change source files, do NOT emit a plan with only owner or architect — those roles scope or design; implementation and QA review are mandatory in this flow.`
+Hard requirement for FLOW multi_agent: "steps" MUST include at least one implementation agent (agentId dev-backend, dev-frontend, or dev-devops) with a concrete code-edit task, and a later step with agentId qa that reviews that implementation. For goals that change source files, do NOT emit a plan with only owner or architect — those roles scope or design; implementation and QA review are mandatory in this flow.
+
+When the goal is a localized change to existing application code (bugfix, validation, small feature) in the working directory, prefer the MINIMAL pipeline only: dev-backend → qa → cerberus (in that order). The dev-backend task must name the file(s) to edit and require files_read[], files_modified:, and validation_run in the output. Omit owner and architect unless the goal explicitly asks for product scope, a written spec, architecture trade-offs, or diagrams before coding.`
       : "";
   const planPrompt = `MODE: ORCHESTRATOR
 FLOW: ${flowMode}
@@ -741,10 +775,22 @@ Working directory: ${cwd}
 Decompose this goal into ordered execution steps following the MODE protocol.
 Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
-  const { output: planResponse } = await askAgent("orchestrator", planPrompt, { cwd, sessionEnv, phase: "plan" });
+  const { output: planResponse, context_stats: planCtxStats } = await askAgent("orchestrator", planPrompt, { cwd, sessionEnv, phase: "plan" });
+  bumpOllamaFromStats(planCtxStats);
+  if (planCtxStats) traceEvent(taskId, { event: "context_stats", agent: "orchestrator", iteration: 0, phase: "plan", ...planCtxStats });
   const parsed = extractJson(planResponse);
   if (parsed && Array.isArray(parsed.steps)) {
     plan = parsed;
+    if (flowMode === "multi_agent" && skipStateMcp) {
+      const before = plan.steps.length;
+      plan.steps = stripLeadingOwnerArchitectForDegradedMultiAgent(plan.steps);
+      if (plan.steps.length !== before) {
+        traceEvent(taskId, {
+          event: "plan_normalized",
+          removed_leading_steps: before - plan.steps.length,
+        });
+      }
+    }
     log("orchestrator", `Plan ready — ${plan.steps.length} step(s):`);
     plan.steps.forEach((s, i) => log(s.agentId || "?", `Step ${i + 1}: ${s.task}`));
   }
@@ -830,7 +876,10 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       clearDegradedAgents();
       const stepDegraded = degradedInRun.has(agentId);
       traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, duration_ms: Date.now() - stepStart, output_chars: result.length, ...(stepDegraded ? { degraded: true } : {}) });
-      if (contextStats) traceEvent(taskId, { event: "context_stats", agent: agentId, iteration: iterations, ...contextStats });
+      if (contextStats) {
+        bumpOllamaFromStats(contextStats);
+        traceEvent(taskId, { event: "context_stats", agent: agentId, iteration: iterations, ...contextStats });
+      }
 
       // ── Compact handoff (compact-handoff MCP) ──────────────────────────────
       let handoffYaml = "";
@@ -978,7 +1027,19 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       if (stepSummary) {
         log("summarizer", `Summarizing ${agentId} output (Ollama)...`);
         try {
-          handoffSummary = await summarizeHandoff({ agentId, task: step.task, result, cwd, priorArtifacts: artifacts });
+          const summaryResult = await summarizeHandoff({ agentId, task: step.task, result, cwd, priorArtifacts: artifacts });
+          handoffSummary = summaryResult.summary;
+          bumpOllamaFromStats(summaryResult);
+          if (summaryResult.ollama_prompt_tokens != null || summaryResult.ollama_completion_tokens != null) {
+            traceEvent(taskId, {
+              event: "context_stats",
+              agent: "summarizer",
+              target_agent: agentId,
+              iteration: iterations,
+              ...(typeof summaryResult.ollama_prompt_tokens === "number" ? { ollama_prompt_tokens: summaryResult.ollama_prompt_tokens } : {}),
+              ...(typeof summaryResult.ollama_completion_tokens === "number" ? { ollama_completion_tokens: summaryResult.ollama_completion_tokens } : {}),
+            });
+          }
           log("summarizer", `Summary ready (${handoffSummary.length} chars)`);
         } catch (err) {
           log("summarizer", `Ollama failed (${err.message}); next step uses truncation.`);
@@ -1022,8 +1083,10 @@ nice-to-have: ...`;
 
     let cerberusResult = "";
     try {
-      const { output } = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
+      const { output, context_stats: cerbCtx } = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
       cerberusResult = output;
+      bumpOllamaFromStats(cerbCtx);
+      if (cerbCtx) traceEvent(taskId, { event: "context_stats", agent: "cerberus", iteration: iterations, phase: "review", ...cerbCtx });
       log("cerberus", `Review ready (${cerberusResult.length} chars)`);
     } catch (err) {
       const gateId = err.gate_id || null;
@@ -1147,7 +1210,9 @@ ${cerberusBlockers.items.join("\n")}
 List the correction steps required. Reply with JSON: { "done": false, "corrections": [{ "agentId": "...", "task": "..." }] }`;
 
       logRoleSwitch("cerberus", "orchestrator");
-      const { output: correctResponse } = await askAgent("orchestrator", correctPrompt, { cwd, sessionEnv, phase: "decide" });
+      const { output: correctResponse, context_stats: correctCtx } = await askAgent("orchestrator", correctPrompt, { cwd, sessionEnv, phase: "decide" });
+      bumpOllamaFromStats(correctCtx);
+      if (correctCtx) traceEvent(taskId, { event: "context_stats", agent: "orchestrator", iteration: iterations, phase: "correct", ...correctCtx });
       const corrections = extractJson(correctResponse);
       if (corrections && Array.isArray(corrections.corrections) && corrections.corrections.length > 0) {
         log("orchestrator", `↻ Correcting — ${corrections.corrections.length} step(s):`);
@@ -1226,8 +1291,10 @@ Reply with JSON only.`;
 
     let decideResponse = "";
     try {
-      const { output } = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv, phase: "decide" });
+      const { output, context_stats: decideCtx } = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv, phase: "decide" });
       decideResponse = output;
+      bumpOllamaFromStats(decideCtx);
+      if (decideCtx) traceEvent(taskId, { event: "context_stats", agent: "orchestrator", iteration: iterations, phase: "decide", ...decideCtx });
     } catch (decideErr) {
       log("orchestrator", `⚠ Decide contract failed (${decideErr.message}) — treating as stopped`);
       traceEvent(taskId, { event: "decide_contract_fail", reason: decideErr.message });
@@ -1321,6 +1388,12 @@ Reply with JSON only.`;
     agents_run: [...new Set(artifacts.map((a) => a.agentId))],
     gate_blocks: artifacts.filter((a) => a.gateBlocked).length,
     ...mcpSummary,
+    ...(ollamaTokenTotals.prompt > 0 || ollamaTokenTotals.completion > 0
+      ? {
+        ollama_prompt_tokens_total: ollamaTokenTotals.prompt,
+        ollama_completion_tokens_total: ollamaTokenTotals.completion,
+      }
+      : {}),
     ...(qaDegraded ? { qa_degraded: true } : {}),
     ...(manualReviewRecommended ? { manual_review_recommended: true } : {}),
     ...(handoffFallbackAny ? { handoff_fallback_used: true } : {}),
@@ -1340,4 +1413,5 @@ module.exports = {
   compactHandoffDegradedMeta,
   compactHandoffStrictFailureFields,
   aggregateMcpUsage,
+  stripLeadingOwnerArchitectForDegradedMultiAgent,
 };

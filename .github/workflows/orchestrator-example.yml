@@ -1,6 +1,6 @@
 # Lint + unit tests for examples/orchestrator (no Claude auth or Ollama required).
 # push: path-filtered to save CI on unrelated commits.
-# pull_request: no path filter — every PR gets lint + unit (GHA-UNIT).
+# pull_request: no path filter — every PR gets lint + unit.
 name: orchestrator-example
 
 on:
@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify harness env name scope (CERBERUS-OPS-2)
+      - name: Verify harness env name scope
         run: bash examples/orchestrator/scripts/ci-check-harness-scope.sh
 
       - uses: actions/setup-node@v4

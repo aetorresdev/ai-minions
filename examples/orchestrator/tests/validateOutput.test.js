@@ -183,10 +183,33 @@ describe("cerberus", () => {
   ));
 });
 
+// ── architect (files_read contract) ─────────────────────────────────────────
+
+describe("architect", () => {
+  it("accepts output with non-empty files_read YAML list first", () => ok("architect",
+    "files_read:\n  - src/api.js\nDesign: prefer idempotent handlers and bounded retries."
+  ));
+
+  it("accepts inline files_read array form", () => ok("architect",
+    "files_read: [docs/design.md]\nTrade-off: sync vs async boundary at the service edge."
+  ));
+
+  it("rejects output without files_read", () => fail("architect",
+    "Use an event-driven pattern with a queue at the boundary.",
+    {},
+    /files_read/
+  ));
+
+  it("rejects output with empty files_read", () => fail("architect",
+    "files_read: []\nAbstract design only.",
+    {},
+    /files_read|empty|must not be empty/i
+  ));
+});
+
 // ── free-form roles ───────────────────────────────────────────────────────────
 
-describe("owner / architect / summarizer", () => {
+describe("owner / summarizer", () => {
   it("owner accepts any non-empty output", () => ok("owner", "Scope: deliver feature X by Friday."));
-  it("architect accepts any non-empty output", () => ok("architect", "files_read: [src/arch.md]\nUse event-driven pattern with SQS."));
   it("summarizer accepts any non-empty output", () => ok("summarizer", "## Delivered\nAPI endpoint added."));
 });
