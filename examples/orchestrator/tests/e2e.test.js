@@ -113,6 +113,12 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     return false;
   }
 
+  /** Tags trace `session_start` / `session_end` with `scenario_id` for C-T4 export (test name). */
+  function e2eRun(t, goal, opts = {}) {
+    const sid = typeof t?.name === "string" ? t.name.slice(0, 240) : "";
+    return run(goal, sid ? { ...opts, traceScenarioId: sid } : opts);
+  }
+
   // ── Scenario 1: Single-Agent flow ─────────────────────────────────────────
 
   test("single_agent flow completes with done=true and at least one artifact", async (t) => {
@@ -123,7 +129,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
       // Write a minimal JS file so DEV has something to work with
       fs.writeFileSync(path.join(cwd, "utils.js"), "function add(a, b) { return a + b; }\nmodule.exports = { add };\n");
 
-      const result = await run(
+      const result = await e2eRun(t,
         "Add a multiply function to utils.js that multiplies two numbers",
         {
           maxIterations: 1,
@@ -165,7 +171,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
         "function divide(a, b) { return a / b; }\nmodule.exports = { divide };\n"
       );
 
-      const result = await run(
+      const result = await e2eRun(t,
         "Add input validation to the divide function in calculator.js: throw an Error if b is zero. " +
           "Use a minimal multi-agent plan only: dev-backend implements (with files_read, files_modified, validation_run), then qa reviews, then cerberus — no owner or architect steps.",
         {
@@ -201,7 +207,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     const cwd = makeTempDir();
     try {
       fs.writeFileSync(path.join(cwd, "hello.txt"), "hello world\n");
-      const result = await run(
+      const result = await e2eRun(t,
         "Read hello.txt and append a second line with the text 'goodbye world'",
         {
           maxIterations: 1,
@@ -237,7 +243,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     const cwd = makeTempDir();
     try {
       fs.writeFileSync(path.join(cwd, "config.js"), "module.exports = { port: 3000 };\n");
-      await run(
+      await e2eRun(t,
         "Read config.js and add a 'host' field with value 'localhost'",
         {
           maxIterations: 1,
@@ -273,7 +279,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
 
     try {
       fs.writeFileSync(path.join(cwd, "notes.txt"), "initial line\n");
-      await run(
+      await e2eRun(t,
         "Read notes.txt and append a second line: '# reviewed'",
         {
           maxIterations: 1,
@@ -313,7 +319,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     const cwd = makeTempDir();
     try {
       fs.writeFileSync(path.join(cwd, "README.md"), "# Project\n");
-      const result = await run(
+      const result = await e2eRun(t,
         "Read README.md and add a one-sentence project description below the title",
         {
           maxIterations: 1,
@@ -355,7 +361,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
       const cwd = makeTempDir();
       try {
         fs.writeFileSync(path.join(cwd, "scratch.js"), "const x = 1;\n");
-        const result = await run(
+        const result = await e2eRun(t,
           "Read scratch.js and add a comment above the const explaining what x is used for",
           {
             maxIterations: 1,
@@ -391,7 +397,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     const cwd = makeTempDir();
     try {
       fs.writeFileSync(path.join(cwd, "utils.js"), "function add(a, b) { return a + b; }\nmodule.exports = { add };\n");
-      await run("Read utils.js and add a subtract function", {
+      await e2eRun(t, "Read utils.js and add a subtract function", {
         maxIterations: 1, cwd, flowMode: "single_agent", skipStateMcp: true, stepSummary: false,
       });
     } finally {
@@ -438,7 +444,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     const cwd = makeTempDir();
     try {
       fs.writeFileSync(path.join(cwd, "index.js"), "module.exports = {};\n");
-      await run("Read index.js and add a version field set to '1.0.0'", {
+      await e2eRun(t, "Read index.js and add a version field set to '1.0.0'", {
         maxIterations: 1, cwd, flowMode: "single_agent", skipStateMcp: true, stepSummary: false,
       });
     } finally {
@@ -636,7 +642,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     const cwd = makeTempDir();
     try {
       fs.writeFileSync(path.join(cwd, "data.txt"), "line one\n");
-      await run(
+      await e2eRun(t,
         "Read data.txt and append 'line two'",
         { maxIterations: 1, cwd, flowMode: "single_agent", skipStateMcp: true, stepSummary: false }
       );
@@ -673,7 +679,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     const cwd = makeTempDir();
     try {
       fs.writeFileSync(path.join(cwd, "readme.txt"), "hello\n");
-      await run(
+      await e2eRun(t,
         "Read readme.txt and append 'world'",
         { maxIterations: 1, cwd, flowMode: "single_agent", skipStateMcp: true, stepSummary: false }
       );
@@ -733,7 +739,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
       // on simple tasks, which is exactly what we need to trigger gateBlocked:true
       fs.writeFileSync(path.join(cwd, "simple.js"), "const x = 1;\n");
 
-      const result = await run(
+      const result = await e2eRun(t,
         "Read simple.js and add a comment above the const",
         {
           maxIterations: 1,

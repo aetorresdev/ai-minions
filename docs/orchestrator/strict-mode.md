@@ -374,6 +374,10 @@ When agents use **Ollama** (`/api/chat`), the example `agents.js` parses `prompt
 
 `session_end` includes **`ollama_prompt_tokens_total`** and **`ollama_completion_tokens_total`** when at least one of those counters is non-zero. **Claude CLI** paths do not populate these fields (no token API in this example runner). **Cost in USD / per-scenario export** is not implemented in this example runner yet.
 
+**On-demand readout:** `examples/orchestrator/token-trace-report.js` (npm script `tokens:report`) reads a completed `*.jsonl` and prints Ollama totals (from `context_stats` vs `session_end`) plus MCP rollups — see `examples/orchestrator/README.md` (TOKENS-RPT-1 v1).
+
+**Batch export (C-T4):** optional `scenario_id` on `session_start` / `session_end` when `run({ traceScenarioId })` or `ORCH_TRACE_SCENARIO_ID` is set; `scenario-metrics-export.js` (`npm run metrics:export-scenarios`) aggregates tagged traces into JSON (`runs`, `by_scenario`).
+
 ---
 
 ## System-path E2E suite (examples/orchestrator)
