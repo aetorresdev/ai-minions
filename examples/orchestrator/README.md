@@ -133,7 +133,28 @@ Use this to pick the right setup for your situation.
 | MCP calls logged per run (`mcp_call` + `session_end` rollups) | ❌ (no state MCP traffic) | ✅ | ✅ |
 | Ollama prompt/completion token counts (`context_stats` + `session_end` totals) | Only when `OLLAMA_MODEL` + Ollama routes are used | ✅ | ✅ |
 
-Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../../docs/orchestrator/strict-mode.md) § *MCP usage audit* and § *Ollama token counts*. USD cost, per-scenario export, and an on-demand token report (skill or CLI) are backlog items — not implemented here yet.
+Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../../docs/orchestrator/strict-mode.md) § *MCP usage audit* and § *Ollama token counts*.
+
+**On-demand token / MCP summary (TOKENS-RPT-1 v1):** after a run, use the `task_id` printed by `run-orchestrator.js` (or pass any trace basename):
+
+```bash
+npm run tokens:report -- <task_id>
+# or: node token-trace-report.js <task_id> --json
+# custom file: node token-trace-report.js --file /path/to/trace.jsonl
+```
+
+Optional env: `ORCH_TRACES_DIR` — defaults to `~/.claude/metrics/traces`.
+
+**Batch export by scenario (C-T4):** traces can carry `scenario_id` on `session_start` / `session_end` when you pass `traceScenarioId` to `run()` or set env **`ORCH_TRACE_SCENARIO_ID`**. E2E tests tag automatically via `e2eRun` / `strictE2eRun`. Aggregate:
+
+```bash
+npm run metrics:export-scenarios -- --since-m 60 --out /tmp/orch-metrics.json
+# flags: --dir, --include-untagged, --out (stdout if omitted)
+```
+
+**Not** in scope here: USD cost, unified Anthropic token API for Claude routes.
+
+**Skill:** `skills/orchestrator-token-report/SKILL.md` — when to use CLIs vs reading JSONL manually.
 
 ---
 
