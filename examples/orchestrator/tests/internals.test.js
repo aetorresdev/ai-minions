@@ -16,7 +16,17 @@ const assert = require("node:assert/strict");
 const cp = require("child_process");
 cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 
-const { _sanitize, _hashGoal, aggregateMcpUsage, edgeMeta, EDGE_TYPE_CATEGORY, validateStepGraph, assertParentStepExists } = require("../orchestrator");
+const {
+  _sanitize,
+  _hashGoal,
+  aggregateMcpUsage,
+  edgeMeta,
+  EDGE_TYPE_CATEGORY,
+  validateStepGraph,
+  assertParentStepExists,
+  transitionReason,
+  TRANSITION_REASON_TYPES,
+} = require("../orchestrator");
 const { validateOutput } = require("../agents");
 
 describe("_hashGoal", () => {
@@ -219,7 +229,7 @@ describe("aggregateMcpUsage", () => {
 });
 
 
-describe("TEL-GRAPH-1: graph metadata in trace events", () => {
+describe("graph metadata in trace events", () => {
   // Simulate the step_id / step_index / retry_number logic extracted from orchestrator.js
   function makeStepId(taskId, iteration, agentId, retryNumber) {
     return `${taskId}-i${iteration}-${agentId}${retryNumber > 0 ? `-r${retryNumber}` : ""}`;
@@ -256,28 +266,37 @@ describe("TEL-GRAPH-1: graph metadata in trace events", () => {
     assert.deepEqual(indices, [0, 1, 2]);
   });
 
-  it("transition_reason mirrors outcome in iteration_done events", () => {
-    const outcomes = ["done", "iterate", "iterate_fallback", "gate_blocked_iterate",
-      "max_iterations_with_blockers", "max_iterations_with_gate_blocks"];
-    // Each outcome maps 1:1 to transition_reason — no translation needed
-    for (const o of outcomes) {
-      const event = { event: "iteration_done", outcome: o, transition_reason: o };
-      assert.equal(event.transition_reason, event.outcome);
-    }
+  it("iteration_done uses structured transition_reason", () => {
+    const r1 = transitionReason("DONE");
+    assert.deepEqual(r1.transition_reason, { type: "DONE" });
+    const r2 = transitionReason("GATE_BLOCK", "cerberus_blockers");
+    assert.equal(r2.transition_reason.type, "GATE_BLOCK");
+    assert.equal(r2.transition_reason.details, "cerberus_blockers");
+    const r3 = transitionReason("ITERATE", "orchestrator_decide_corrections");
+    assert.equal(r3.transition_reason.type, "ITERATE");
+    assert.throws(() => transitionReason("NOT_A_TYPE"), /invalid transition_reason/);
+    assert.ok(TRANSITION_REASON_TYPES.has("MAX_ITERATIONS"));
+  });
+
+  it("_sanitize truncates transition_reason.details", () => {
+    const long = "x".repeat(400);
+    const out = _sanitize({
+      event: "iteration_done",
+      transition_reason: { type: "CONTRACT_FAIL", details: long },
+    });
+    assert.equal(out.transition_reason.details.length, 300);
   });
 });
 
-describe("TEL-GRAPH-2: graph edges — parent_step_id and edge_type", () => {
+describe("graph edges — parent_step_id and edge_type", () => {
   it("parent_step_id is null for the first step", () => {
-    let previousStepId = null;
-    const stepId = "task-abc-i1-dev-backend";
+    const previousStepId = null;
     const graphMeta = { parent_step_id: previousStepId };
     assert.equal(graphMeta.parent_step_id, null);
-    previousStepId = stepId; // eslint-disable-line no-unused-vars
   });
 
   it("parent_step_id carries previous step_id after first step", () => {
-    let previousStepId = "task-abc-i1-dev-backend";
+    const previousStepId = "task-abc-i1-dev-backend";
     const graphMeta = { parent_step_id: previousStepId };
     assert.equal(graphMeta.parent_step_id, "task-abc-i1-dev-backend");
   });
