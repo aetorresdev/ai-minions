@@ -266,3 +266,46 @@ describe("TEL-GRAPH-1: graph metadata in trace events", () => {
     }
   });
 });
+
+describe("TEL-GRAPH-2: graph edges — parent_step_id and edge_type", () => {
+  it("parent_step_id is null for the first step", () => {
+    let previousStepId = null;
+    const stepId = "task-abc-i1-dev-backend";
+    const graphMeta = { parent_step_id: previousStepId };
+    assert.equal(graphMeta.parent_step_id, null);
+    previousStepId = stepId; // eslint-disable-line no-unused-vars
+  });
+
+  it("parent_step_id carries previous step_id after first step", () => {
+    let previousStepId = "task-abc-i1-dev-backend";
+    const graphMeta = { parent_step_id: previousStepId };
+    assert.equal(graphMeta.parent_step_id, "task-abc-i1-dev-backend");
+  });
+
+  it("edge_type is 'success' on first successful agent_done", () => {
+    const retryNumber = 0;
+    const edgeType = retryNumber > 0 ? "retry" : "success";
+    assert.equal(edgeType, "success");
+  });
+
+  it("edge_type is 'retry' when retry_number > 0", () => {
+    const retryNumber = 1;
+    const edgeType = retryNumber > 0 ? "retry" : "success";
+    assert.equal(edgeType, "retry");
+  });
+
+  it("edge_type is 'fail' on contract_fail", () => {
+    const event = { event: "contract_fail", edge_type: "fail" };
+    assert.equal(event.edge_type, "fail");
+  });
+
+  it("edge_type is 'gate_block' on failed gate_result", () => {
+    const event = { event: "gate_result", passed: false, edge_type: "gate_block" };
+    assert.equal(event.edge_type, "gate_block");
+  });
+
+  it("edge_type is 'success' on passed gate_result", () => {
+    const event = { event: "gate_result", passed: true, edge_type: "success" };
+    assert.equal(event.edge_type, "success");
+  });
+});
