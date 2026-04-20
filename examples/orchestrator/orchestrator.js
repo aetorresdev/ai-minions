@@ -33,7 +33,7 @@ const path = require("path");
 // ── Execution trace ───────────────────────────────────────────────────────────
 // Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
 // Every line: ts (ISO), ts_ms (epoch ms), trace_schema_version, task_id, …payload.
-// trace_schema_version "2" = structured transition_reason + ts_ms (v1 = implicit, no field).
+// trace_schema_version = TRACE_LINE_WRITER_VERSION from trace-schema.js (today "2").
 // Event types: session_start, agent_start, agent_done, gate_result,
 //              contract_fail, iteration_done, session_end, mcp_call,
 //              context_stats may include ollama_prompt_tokens / ollama_completion_tokens (Ollama routes)
@@ -49,8 +49,13 @@ const path = require("path");
 const TRACES_DIR = path.join(require("os").homedir(), ".claude", "metrics", "traces");
 const TRACE_REDACT_GOAL = process.env.TRACE_REDACT_GOAL === "1";
 
-/** Bumped when JSONL field shapes change; see strict-mode.md § Trace schema versions. */
-const TRACE_SCHEMA_VERSION = "2";
+const {
+  TRACE_LINE_WRITER_VERSION,
+  validateTraceLine: validateTraceLineForWrite,
+} = require("./trace-schema");
+
+/** Same as `TRACE_LINE_WRITER_VERSION` in trace-schema.js — single source for writer + schema. */
+const TRACE_SCHEMA_VERSION = TRACE_LINE_WRITER_VERSION;
 
 // ── MCP usage audit (per run) ───────────────────────────────────────────────
 let _mcpAuditTaskId = null;
@@ -302,15 +307,15 @@ function transitionReason(type, details, meta = {}) {
 
 function traceEvent(taskId, event) {
   const tsMs = Date.now();
+  const sanitized = _sanitize(event);
   const record = {
+    ...sanitized,
+    task_id: taskId,
+    trace_schema_version: TRACE_SCHEMA_VERSION,
     ts: new Date(tsMs).toISOString(),
     ts_ms: tsMs,
-    trace_schema_version: TRACE_SCHEMA_VERSION,
-    task_id: taskId,
-    ..._sanitize(event),
   };
-  const { validateTraceLine } = require("./trace-schema");
-  const v = validateTraceLine(record);
+  const v = validateTraceLineForWrite(record);
   if (!v.ok) {
     throw new Error(`trace line failed JSON Schema: ${v.errors.join("; ")}`);
   }

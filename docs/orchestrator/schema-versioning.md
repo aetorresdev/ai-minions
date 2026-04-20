@@ -12,7 +12,7 @@ JSON Lines traces do **not** have a built-in semver mechanism. This document def
 
 | Change | Classification | Action |
 |--------|----------------|--------|
-| Remove or rename a **required** field; change a field **type**; **tighten** validation (e.g. new required subfield) | **Breaking** | New **major** label (e.g. `"2"` → `"3"`), new JSON Schema file, bump `TRACE_SCHEMA_VERSION` in `orchestrator.js`, update this doc and `strict-mode.md` in the **same** change. |
+| Remove or rename a **required** field; change a field **type**; **tighten** validation (e.g. new required subfield) | **Breaking** | New **major** label (e.g. `"2"` → `"3"`), new JSON Schema file, bump **`TRACE_LINE_WRITER_VERSION`** in `examples/orchestrator/trace-schema.js` (and bundled schema enum), update this doc and `strict-mode.md` in the **same** change. |
 | Add **optional** fields; add enum values that old consumers **ignore** safely (forward-compatible parsing) | **Non-breaking** | Either keep the same label and extend one schema, or introduce **`2.1`**-style minor if we split files per minor (policy TBD when the first minor ships). |
 | Documentation-only | Neither | No version bump. |
 
@@ -22,17 +22,22 @@ JSON Lines traces do **not** have a built-in semver mechanism. This document def
 
 | Layer | Behavior |
 |-------|----------|
-| **Writer** (`traceEvent` in `orchestrator.js`) | Lines are validated with Ajv against the schema for `TRACE_SCHEMA_VERSION`. Invalid lines **fail the run** (no silent downgrade). |
-| **Reader — strict** | `parseTraceLine(line, { strict: true })`, **`ORCH_TRACE_VALIDATE=1`**, or CLI **`--strict-traces`**: invalid or unknown **`trace_schema_version`** for the bundled schema → **throw / fail** (same as any other schema error). |
+| **Writer** (`traceEvent` in `orchestrator.js`) | Envelope fields (`task_id`, `trace_schema_version`, `ts`, `ts_ms`) are applied **after** the sanitized payload so callers cannot override the writer version. Each line is validated with **`validateTraceLine`** in `trace-schema.js`: a **policy** step (accepted versions for this binary) then **Ajv** against the bundled schema. Invalid lines **fail the run** (no silent downgrade). |
+| **Reader — strict** | `parseTraceLine(line, { strict: true })`, **`ORCH_TRACE_VALIDATE=1`**, or CLI **`--strict-traces`**: policy rejects unknown/missing **`trace_schema_version`** with an explicit error (`this binary only accepts …`); then Ajv. |
 | **Reader — non-strict** | `JSON.parse` only: you get objects without schema checks. **Unknown or wrong `trace_schema_version`** may parse as JSON but is **out of contract**; pipelines must not treat that as validated telemetry. |
 
 There is **no** automatic cross-version rewrite at read time in this ticket; see backlog **TEL-COMPAT-1** / **TEL-MIGRATE-1** for planned compatibility and migration tooling.
+
+## Runtime version gate (code)
+
+- **Constants:** `TRACE_LINE_WRITER_VERSION` and `SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ` in `examples/orchestrator/trace-schema.js` — extend the `Set` when this binary ships multiple readers (**TEL-COMPAT-1**).
+- **API:** `traceSchemaVersionPolicyErrors(record)` returns policy-only errors; `validateTraceLine` runs policy first, then JSON Schema.
 
 ## Bump checklist (maintainers)
 
 1. Decide **breaking vs non-breaking** (table above).
 2. Update or add JSON Schema under `examples/orchestrator/schemas/`.
-3. Set **`TRACE_SCHEMA_VERSION`** in `orchestrator.js` to the new label (must match schema `enum` for that line contract).
+3. Set **`TRACE_LINE_WRITER_VERSION`** in `trace-schema.js` and the schema file `enum` for `trace_schema_version` to the new label (`orchestrator.js` re-exports the same value as `TRACE_SCHEMA_VERSION`).
 4. Update **`strict-mode.md`** (version table + governance) and **this file**.
 5. Update **`examples/orchestrator/README.md`** if the user-facing contract string changes.
 6. Add/adjust tests in `tests/traceSchema.test.js` (and any ingest CLIs).
@@ -84,6 +89,6 @@ Strict validation surfaces these as Ajv errors; see tests in `examples/orchestra
 | Artifact | Path |
 |----------|------|
 | JSON Schema (v2 line) | `examples/orchestrator/schemas/trace-v2-line.schema.json` |
-| Validator | `examples/orchestrator/trace-schema.js` |
-| Write-time version constant | `TRACE_SCHEMA_VERSION` in `examples/orchestrator/orchestrator.js` |
+| Validator + policy | `examples/orchestrator/trace-schema.js` (`TRACE_LINE_WRITER_VERSION`, `validateTraceLine`) |
+| Write-time alias | `TRACE_SCHEMA_VERSION` in `examples/orchestrator/orchestrator.js` (= `TRACE_LINE_WRITER_VERSION`) |
 | Operational strict-mode notes | `docs/orchestrator/strict-mode.md` § *Trace schema versions* |
