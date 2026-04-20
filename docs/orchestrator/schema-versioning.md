@@ -26,11 +26,11 @@ JSON Lines traces do **not** have a built-in semver mechanism. This document def
 | **Reader — strict** | `parseTraceLine(line, { strict: true })`, **`ORCH_TRACE_VALIDATE=1`**, or CLI **`--strict-traces`**: policy rejects unknown/missing **`trace_schema_version`** with an explicit error (`this binary only accepts …`); then Ajv. |
 | **Reader — non-strict** | `JSON.parse` only: you get objects without schema checks. **Unknown or wrong `trace_schema_version`** may parse as JSON but is **out of contract**; pipelines must not treat that as validated telemetry. |
 
-There is **no** automatic cross-version rewrite at read time in this ticket; see backlog **TEL-COMPAT-1** / **TEL-MIGRATE-1** for planned compatibility and migration tooling.
+There is **no** automatic cross-version rewrite at read time today; multi-version read compatibility and trace migration tooling are separate, planned efforts (outside the scope of this document).
 
 ## Runtime version gate (code)
 
-- **Constants:** `TRACE_LINE_WRITER_VERSION` and `SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ` in `examples/orchestrator/trace-schema.js` — extend the `Set` when this binary ships multiple readers (**TEL-COMPAT-1**).
+- **Constants:** `TRACE_LINE_WRITER_VERSION` and `SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ` in `examples/orchestrator/trace-schema.js` — extend the `Set` when this binary ships multiple readers.
 - **API:** `traceSchemaVersionPolicyErrors(record)` returns policy-only errors; `validateTraceLine` runs policy first, then JSON Schema.
 
 ## Bump checklist (maintainers)

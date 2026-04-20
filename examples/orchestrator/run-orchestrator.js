@@ -14,7 +14,7 @@
  *   --task-id <id>       Task ID for state store (default: auto-generated)
  *   --skip-gates         Skip orchestrator-state MCP gates (useful for testing)
  *
- * Traces: optional env ORCH_TRACE_SCENARIO_ID labels session_start/session_end (scenario_id) for C-T4 batch export.
+ * Traces: optional env ORCH_TRACE_SCENARIO_ID labels session_start/session_end (scenario_id) for batch metrics export.
  */
 
 const path = require("path");
