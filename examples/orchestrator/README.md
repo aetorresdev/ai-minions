@@ -135,9 +135,9 @@ Use this to pick the right setup for your situation.
 
 Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../../docs/orchestrator/strict-mode.md) § *Flow-aware trace metadata*, § *MCP usage audit*, and § *Ollama token counts*.
 
-**Graph fields (TEL-GRAPH-1):** every step-level event carries `step_id` (primary join key, e.g. `<task_id>-i1-dev-backend`), `step_index` (0-based plan position), and `retry_number` (0 = first attempt). `iteration_done` adds `transition_reason` (`done`, `iterate`, `gate_blocked_iterate`, …). Use these to reconstruct execution flow without parsing `(agent, iteration)` tuples.
+**Graph fields:** every step-level event carries `step_id` (primary join key, e.g. `<task_id>-i1-dev-backend`), `step_index` (0-based plan position), and `retry_number` (0 = first attempt). **Every trace line** adds `ts_ms` (epoch ms) next to `ts`. `iteration_done` adds structured `transition_reason: { type, details? }` (enum types in `strict-mode.md`). Use these to reconstruct execution flow without parsing `(agent, iteration)` tuples.
 
-**On-demand token / MCP summary (TOKENS-RPT-1 v1):** after a run, use the `task_id` printed by `run-orchestrator.js` (or pass any trace basename):
+**On-demand token / MCP summary (v1):** after a run, use the `task_id` printed by `run-orchestrator.js` (or pass any trace basename):
 
 ```bash
 npm run tokens:report -- <task_id>
@@ -147,7 +147,7 @@ npm run tokens:report -- <task_id>
 
 Optional env: `ORCH_TRACES_DIR` — defaults to `~/.claude/metrics/traces`.
 
-**Batch export by scenario (C-T4):** traces can carry `scenario_id` on `session_start` / `session_end` when you pass `traceScenarioId` to `run()` or set env **`ORCH_TRACE_SCENARIO_ID`**. E2E tests tag automatically via `e2eRun` / `strictE2eRun`. Aggregate:
+**Batch export by scenario:** traces can carry `scenario_id` on `session_start` / `session_end` when you pass `traceScenarioId` to `run()` or set env **`ORCH_TRACE_SCENARIO_ID`**. E2E tests tag automatically via `e2eRun` / `strictE2eRun`. Aggregate:
 
 ```bash
 npm run metrics:export-scenarios -- --since-m 60 --out /tmp/orch-metrics.json

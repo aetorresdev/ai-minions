@@ -1,6 +1,6 @@
 ---
 name: orchestrator-token-report
-description: "Read orchestrator execution traces (~/.claude/metrics/traces) and produce on-demand Ollama token + MCP summaries (TOKENS-RPT-1) or batch JSON export by scenario_id (C-T4). Use after examples/orchestrator runs, when comparing E2E costs, or when debugging token-heavy loops."
+description: "Read orchestrator execution traces (~/.claude/metrics/traces) and produce on-demand Ollama token + MCP summaries or batch JSON export by scenario_id. Use after examples/orchestrator runs, when comparing E2E costs, or when debugging token-heavy loops."
 ---
 
 # Orchestrator token report (traces)
@@ -11,12 +11,12 @@ Use this skill when the user asks for **token usage**, **trace metrics**, **MCP 
 
 | Artifact | Path | Contents |
 |----------|------|----------|
-| Per-run JSONL trace | `~/.claude/metrics/traces/<task_id>.jsonl` | `session_start`, `context_stats` (Ollama tokens when `OLLAMA_MODEL` + Ollama path), `mcp_call`, `session_end` rollups |
+| Per-run JSONL trace | `~/.claude/metrics/traces/<task_id>.jsonl` | Every line: `ts`, `ts_ms` (epoch ms). Events: `session_start`, step-level graph fields, `context_stats` (Ollama tokens when applicable), `mcp_call`, `iteration_done` with `transition_reason: { type, details? }`, `session_end` rollups |
 | Override trace dir | Env `ORCH_TRACES_DIR` | Same layout as above |
 
 After `node run-orchestrator.js …`, the CLI prints **`Task ID:`** — that string is the `<task_id>` basename for the trace file.
 
-## CLI — single run (TOKENS-RPT-1)
+## CLI — single run (on-demand report)
 
 From `examples/orchestrator`:
 
@@ -28,7 +28,7 @@ node token-trace-report.js --file /path/to/trace.jsonl
 
 Human table: prompt/completion totals (from `context_stats` vs `session_end`), breakdown by `agent` + `phase`, MCP rollups from `session_end`.
 
-## CLI — batch export by scenario (C-T4)
+## CLI — batch export by scenario
 
 Runs that set **`scenario_id`** on `session_start` / `session_end` (via `run({ traceScenarioId: "…" })` or env **`ORCH_TRACE_SCENARIO_ID`**, or E2E helpers `e2eRun` / `strictE2eRun` in `tests/e2e*.js`) can be aggregated:
 
@@ -43,7 +43,7 @@ node scenario-metrics-export.js --dir ~/.claude/metrics/traces --since-m 120 --o
 ## Interpreting gaps
 
 - **Claude CLI / Haiku** routes in the example runner do **not** populate `ollama_*` — only Ollama HTTP paths do.
-- **USD cost** is not computed in v1; see backlog **C-T4** / pricing in `scripts/hooks/constants.py` for hooks, not orchestrator traces.
+- **USD cost** is not computed in v1; see backlog / pricing in `scripts/hooks/constants.py` for hooks, not orchestrator traces.
 - **`scenario_id`** is a **label** for batching (usually the E2E test name), not a security boundary.
 
 ## Docs
