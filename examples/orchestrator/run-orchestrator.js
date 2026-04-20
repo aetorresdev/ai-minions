@@ -13,6 +13,8 @@
  *   --flow <mode>        Flow mode for metrics: single_agent | multi_agent (default: single_agent)
  *   --task-id <id>       Task ID for state store (default: auto-generated)
  *   --skip-gates         Skip orchestrator-state MCP gates (useful for testing)
+ *
+ * Traces: optional env ORCH_TRACE_SCENARIO_ID labels session_start/session_end (scenario_id) for C-T4 batch export.
  */
 
 const path = require("path");

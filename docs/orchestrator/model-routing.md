@@ -216,14 +216,14 @@ Every multi-agent run writes a structured JSONL trace to `~/.claude/metrics/trac
 
 | Event | Fields | When |
 |-------|--------|------|
-| `session_start` | `flow_mode`, `max_iterations`, `cwd`, `goal` (truncated) | Before plan |
+| `session_start` | `flow_mode`, `max_iterations`, `cwd`, `goal` (truncated), `scenario_id?` | Before plan — `scenario_id` optional (`traceScenarioId` / `ORCH_TRACE_SCENARIO_ID`) for C-T4 batch export |
 | `agent_start` | `agent`, `iteration`, `task` (truncated) | Before `askAgent()` |
 | `agent_done` | `agent`, `iteration`, `duration_ms`, `output_chars`, `degraded?` | After successful `askAgent()` — `degraded: true` when fallback model was used |
 | `contract_fail` | `agent`, `iteration`, `duration_ms`, `reason`, `critical`, `gate_id?` | When `validateOutput()` throws — `critical: true` for architect/qa/cerberus; `gate_id` identifies which specific gate failed |
 | `context_stats` | `agent`, `iteration`, `files_read_count`, `files_modified_count` | After successful ARCHITECT or DEV step — counts declared files for efficiency tracking |
 | `gate_result` | `agent`, `iteration`, `gate`, `passed`, `reason?`, `confidence?`, `from_mode?`, `to_mode?` | After each gate check |
 | `iteration_done` | `iteration`, `outcome` (`done`\|`iterate`\|`stopped`), `summary?`, `corrections?` | After orchestrator decide |
-| `session_end` | `iterations`, `done`, `summary`, `agents_run[]`, `gate_blocks`, `qa_degraded?`, `manual_review_recommended?` | Before return |
+| `session_end` | `iterations`, `done`, `summary`, `agents_run[]`, `gate_blocks`, `qa_degraded?`, `manual_review_recommended?`, `scenario_id?` (if tagged), MCP rollups, `ollama_*_total` when Ollama used | Before return |
 
 All events include `ts` (ISO timestamp) and `task_id`.
 
@@ -249,7 +249,7 @@ Gate IDs (`contract_fail.gate_id`): `empty_output`, `orchestrator_json`, `orches
 {"ts":"2026-04-09T10:31:46.000Z","task_id":"task-b4013eec","event":"session_end","iterations":2,"done":true,"agents_run":["dev-backend","qa","cerberus"],"gate_blocks":1}
 ```
 
-Read it with: `cat ~/.claude/metrics/traces/<task_id>.jsonl | jq .`
+Read it with: `cat ~/.claude/metrics/traces/<task_id>.jsonl | jq .` For Ollama token totals and MCP rollups without manual `jq`, use `examples/orchestrator/token-trace-report.js` (`npm run tokens:report -- <task_id>`).
 
 ---
 
