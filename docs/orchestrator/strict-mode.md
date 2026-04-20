@@ -360,6 +360,26 @@ This does **not** freeze Ollama or full `run()` outputs (those stay non-determin
 
 ---
 
+## Flow-aware trace metadata (TEL-GRAPH-1)
+
+Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_result`, `context_stats`) carries three graph fields that allow reconstructing the execution DAG from the JSONL alone:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `step_id` | string | Unique per agent × iteration: `<task_id>-i<N>-<agentId>` — suffixed `-r<N>` on retry (e.g. `abc-i2-dev-backend-r1`) |
+| `step_index` | number | 0-based position of the step in the plan array for this iteration |
+| `retry_number` | number | How many times this `agentId` has already run in the current iteration (0 = first attempt) |
+
+`iteration_done` events add:
+
+| Field | Type | Values |
+|-------|------|--------|
+| `transition_reason` | string | `done` · `iterate` · `iterate_fallback` · `gate_blocked_iterate` · `max_iterations_with_blockers` · `max_iterations_with_gate_blocks` |
+
+`step_id` is the primary join key across events within a run. Consumers (token reports, EIL visualisation) use it to correlate `agent_start` → `agent_done` → `gate_result` → `context_stats` for the same step without scanning by `(agent, iteration)` tuples.
+
+---
+
 ## MCP usage audit
 
 For each `run()` of `examples/orchestrator/orchestrator.js`, every **`orchestrator-state`** tool call (via **`mcp-direct.py`** when `ORCH_MCP_TRANSPORT=direct`, or via **`claude -p`** when not) and every **`compact-handoff.compact_handoff`** call emits one **`mcp_call`** line in the per-task JSONL trace (`~/.claude/metrics/traces/<task_id>.jsonl`). Fields: `server`, `tool`, `transport` (`direct` or `claude_cli`), `duration_ms`, `ok`.
