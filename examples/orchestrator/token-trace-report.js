@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * On-demand token / MCP summary from orchestrator trace JSONL (TOKENS-RPT-1 v1).
+ * On-demand token / MCP summary from orchestrator trace JSONL.
  *
  * Usage:
  *   node token-trace-report.js <task_id>
@@ -114,6 +114,47 @@ function buildReport(rows) {
   };
 }
 
+/**
+ * Optional USD estimate for Ollama totals. Off unless both env vars are set.
+ * Rates are **USD per 1_000_000 tokens** (million-token units).
+ * @param {ReturnType<typeof buildReport>} report
+ * @returns {object | null}
+ */
+function optionalOllamaUsdEstimate(report) {
+  const pRate = parseEnvPositiveFloat("ORCH_USD_PER_MTOK_PROMPT");
+  const cRate = parseEnvPositiveFloat("ORCH_USD_PER_MTOK_COMPLETION");
+  if (pRate == null || cRate == null) return null;
+
+  const se = report.session_end;
+  let prompt = se && typeof se.ollama_prompt_tokens_total === "number" ? se.ollama_prompt_tokens_total : null;
+  let completion = se && typeof se.ollama_completion_tokens_total === "number" ? se.ollama_completion_tokens_total : null;
+  if (prompt == null) prompt = report.ollama_from_context_stats.prompt;
+  if (completion == null) completion = report.ollama_from_context_stats.completion;
+  if (typeof prompt !== "number" || typeof completion !== "number") return null;
+
+  const usdP = (prompt / 1e6) * pRate;
+  const usdC = (completion / 1e6) * cRate;
+  return {
+    basis: "prefer_session_end_ollama_totals_else_context_stats_sum",
+    usd_prompt_estimate: roundUsd(usdP),
+    usd_completion_estimate: roundUsd(usdC),
+    usd_total_estimate: roundUsd(usdP + usdC),
+    rates_per_million_tokens_usd: { prompt: pRate, completion: cRate },
+  };
+}
+
+function parseEnvPositiveFloat(name) {
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === "") return null;
+  const n = Number.parseFloat(String(raw));
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
+function roundUsd(x) {
+  return Math.round(x * 1e6) / 1e6;
+}
+
 function printTextReport(taskId, tracePath, report, parseErrors) {
   console.log(`task_id:     ${taskId}`);
   console.log(`trace_file:  ${tracePath}`);
@@ -151,6 +192,14 @@ function printTextReport(taskId, tracePath, report, parseErrors) {
     console.log("\n(no ollama_*_total on session_end — non-Ollama route or zero tokens)");
   }
 
+  const usd = optionalOllamaUsdEstimate(report);
+  if (usd) {
+    console.log("\n── USD estimate (optional — set ORCH_USD_PER_MTOK_PROMPT + ORCH_USD_PER_MTOK_COMPLETION) ──");
+    console.log(`rates USD/Mtok: prompt=${usd.rates_per_million_tokens_usd.prompt} completion=${usd.rates_per_million_tokens_usd.completion}`);
+    console.log(`estimate: prompt=$${usd.usd_prompt_estimate} completion=$${usd.usd_completion_estimate} total=$${usd.usd_total_estimate}`);
+    console.log(`basis: ${usd.basis}`);
+  }
+
   const keys = Object.keys(report.by_agent_phase).sort();
   if (keys.length) {
     console.log("\n── By agent | phase (Ollama only) ──");
@@ -181,7 +230,8 @@ function usage() {
   console.error(`Usage: node token-trace-report.js <task_id> [--json] [--strict-traces]
        node token-trace-report.js --file <path.jsonl> [--json] [--strict-traces]
 Env: ORCH_TRACES_DIR (default: ~/.claude/metrics/traces)
-     ORCH_TRACE_VALIDATE=1 — same as --strict-traces (JSON Schema v2 per line)`);
+     ORCH_TRACE_VALIDATE=1 — same as --strict-traces (JSON Schema v2 per line)
+     ORCH_USD_PER_MTOK_PROMPT / ORCH_USD_PER_MTOK_COMPLETION — optional USD per 1e6 Ollama tokens (both required for estimate)`);
 }
 
 function main() {
@@ -219,18 +269,25 @@ function main() {
   const report = buildReport(rows);
 
   if (jsonOut) {
+    const usd = optionalOllamaUsdEstimate(report);
     console.log(JSON.stringify({
       task_id: tid,
       trace_file: tracePath,
       parse_errors: errors,
       report,
+      ...(usd ? { ollama_usd_estimate: usd } : {}),
     }, null, 2));
   } else {
     printTextReport(tid, tracePath, report, errors);
   }
 }
 
-module.exports = { parseJsonl, buildReport, parseTraceLine: require("./trace-schema").parseTraceLine };
+module.exports = {
+  parseJsonl,
+  buildReport,
+  optionalOllamaUsdEstimate,
+  parseTraceLine: require("./trace-schema").parseTraceLine,
+};
 
 if (require.main === module) {
   main();

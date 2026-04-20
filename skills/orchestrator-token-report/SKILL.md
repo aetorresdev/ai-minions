@@ -38,12 +38,12 @@ node scenario-metrics-export.js --dir ~/.claude/metrics/traces --since-m 120 --o
 
 - **`--since-m`**: only files modified in the last N minutes (optional).
 - **Default:** files **without** `scenario_id` are **skipped** (avoids mixing manual runs). Use **`--include-untagged`** to include them under `scenario_id: null`.
-- Output JSON: `runs[]`, `by_scenario{}`, `run_count`, `generated_at`.
+- Output JSON: `runs[]`, `by_scenario{}`, `by_flow_mode{}`, `run_count`, `generated_at`.
 
 ## Interpreting gaps
 
 - **Claude CLI / Haiku** routes in the example runner do **not** populate `ollama_*` — only Ollama HTTP paths do.
-- **USD cost** is not computed in v1; see backlog / pricing in `scripts/hooks/constants.py` for hooks, not orchestrator traces.
+- **USD (optional):** set **`ORCH_USD_PER_MTOK_PROMPT`** and **`ORCH_USD_PER_MTOK_COMPLETION`** (both required; USD per 1e6 Ollama tokens) so `token-trace-report` prints an estimate from Ollama totals — you supply rates; nothing is fetched from a vendor API.
 - **`scenario_id`** is a **label** for batching (usually the E2E test name), not a security boundary.
 
 ## Docs

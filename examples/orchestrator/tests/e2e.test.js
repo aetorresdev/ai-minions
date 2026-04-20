@@ -113,7 +113,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     return false;
   }
 
-  /** Tags trace `session_start` / `session_end` with `scenario_id` for C-T4 export (test name). */
+  /** Tags trace `session_start` / `session_end` with `scenario_id` using the test name (for scenario export). */
   function e2eRun(t, goal, opts = {}) {
     const sid = typeof t?.name === "string" ? t.name.slice(0, 240) : "";
     return run(goal, sid ? { ...opts, traceScenarioId: sid } : opts);
