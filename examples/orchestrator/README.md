@@ -147,7 +147,7 @@ npm run tokens:report -- <task_id>
 
 Optional env: `ORCH_TRACES_DIR` — defaults to `~/.claude/metrics/traces`. **`ORCH_TRACE_VALIDATE=1`** — when parsing JSONL in `token-trace-report` / `scenario-metrics-export`, validate each line against JSON Schema v2 (same as CLI `--strict-traces`).
 
-**Trace contract:** every JSONL line includes `trace_schema_version` (`"2"` — first published baseline). `iteration_done.transition_reason` is always an **object** `{ type, details? }`. Governance (bump rules, consumer guidelines): `docs/orchestrator/strict-mode.md` § *Trace schema versions* and § *Trace contract governance*.
+**Trace contract:** every JSONL line includes `trace_schema_version` (`"2"` — first published baseline). `iteration_done.transition_reason` is always an **object** `{ type, details? }`. Versioning policy (semver-like semantics, breaking vs non-breaking, mismatch): `docs/orchestrator/schema-versioning.md`. Short governance: `docs/orchestrator/strict-mode.md` § *Trace schema versions* and § *Trace contract governance*.
 
 **Batch export by scenario:** traces can carry `scenario_id` on `session_start` / `session_end` when you pass `traceScenarioId` to `run()` or set env **`ORCH_TRACE_SCENARIO_ID`**. E2E tests tag automatically via `e2eRun` / `strictE2eRun`. Aggregate:
 
