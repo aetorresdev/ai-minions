@@ -208,6 +208,6 @@ All content (requirements, design, tasks, "before executing") in **English** in 
 
 ## References / further reading
 
-- **Fujitsu AI-Driven Software Development Platform** (2026): AI-Ready Engineering (preparing assets so agents understand systems), compliance/regulatory tracing, multi-layer quality. [Electronics Media](https://www.electronicsmedia.info/2026/02/17/fujitsu-ai-driven-software-development-platform/).
+- **Fujitsu AI-Driven Software Development Platform** (2026): AI-Ready Engineering (preparing assets so agents understand systems), compliance/regulatory tracing, multi-layer quality..
 - **InfoQ – Does AI Make the Agile Manifesto Obsolete?** (2026): In agentic SDLCs the bottleneck shifts to "what to build and validate it works"; documentation and intent design become more critical. Verification (did it do what I said?) vs validation (did it do what I wanted?). [InfoQ](https://www.infoq.com/news/2026/02/ai-agile-manifesto-debate/).
 - **Agent Factory – Preface (agent-native)**: Spec as living contract; intent before implementation; specs as executable. [Agent Factory](https://agentfactory.panaversity.org/docs/preface-agent-native).
