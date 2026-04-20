@@ -372,12 +372,22 @@ Every JSONL line includes:
 
 ### Trace schema versions
 
-| Version | Meaning | `transition_reason` on `iteration_done` | `ts_ms` | `transition_reason_legacy` |
-|---------|---------|-------------------------------------------|---------|---------------------------|
-| *(absent)* | Legacy files before explicit versioning | string (historical) | absent | — |
-| `2` | Current runner | object `{ type, details? }` | present | optional string (see below); omit when `ORCH_TRACE_TRANSITION_REASON_LEGACY=0` |
+| Version | Meaning | `transition_reason` on `iteration_done` | `ts_ms` |
+|---------|---------|-------------------------------------------|---------|
+| *(absent)* | Ad-hoc JSONL before this contract | unspecified | may be absent |
+| `2` | **Published baseline** for this repo | object `{ type, details? }` | present |
 
-**`transition_reason_legacy` (schema 2):** tab-separated `type` + `details` when `details` is non-empty; otherwise just `type`. Lets old parsers that expected a string keep working. **Prefer** the object field for new code. Deltas and latency: use **`ts_ms`** only (`ts` is for human-readable ISO in the same instant).
+There was **no** prior public “v1” trace contract in this project: **`2` is the first stable schema** we ship. Older lines without `trace_schema_version` may exist from experiments; treat them as out-of-contract unless you add a one-off migrator.
+
+### Trace contract governance (minimal)
+
+1. **Bump** `TRACE_SCHEMA_VERSION` in `orchestrator.js` together with any **breaking** field rename/shape change, and update this table + `model-routing.md` in the **same** change.
+2. **Compatibility:** same major string (`"2"`) means additive fields are OK; removing or retyping fields → new version (`"3"`, …).
+3. **Consumers:** read `trace_schema_version`; **ignore unknown keys**; branch parsing only when the version changes. Do not assume every line matches the newest code without checking the field.
+4. **Validation / tests per version:** not enforced in the runner yet — backlog **TEL-SCHEMA-1** fase 2 (CI + fixtures per version).
+5. **Size / cost:** more fields per line increase storage and parse time; if traces grow large, measure bytes per run and prune or sample (operational concern, not enforced here).
+
+Deltas and latency: use **`ts_ms`** only (`ts` is human-readable ISO for the same instant).
 
 ## Flow-aware trace metadata
 
@@ -394,7 +404,6 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 | Field | Type | Description |
 |-------|------|-------------|
 | `transition_reason` | object | `{ "type": "<ENUM>", "details"?: string }` — `details` truncated to 300 chars in traces |
-| `transition_reason_legacy` | string \| absent | Deprecated mirror for string-only parsers; encoding: `type` or `type` + tab + `details`. Omitted when env `ORCH_TRACE_TRANSITION_REASON_LEGACY=0`. |
 | `transition_reason.type` | string | `DONE` · `VALIDATION_FAIL` · `GATE_BLOCK` · `MAX_ITERATIONS` · `CONTRACT_FAIL` · `ITERATE_FALLBACK` · `ITERATE` |
 
 Rough mapping from `outcome` (legacy UI) to `transition_reason.type`: `done` → `DONE`; `iterate` after CERBERUS blockers + corrections → `GATE_BLOCK`; `iterate_fallback` → `ITERATE_FALLBACK`; `gate_blocked_iterate` → `GATE_BLOCK`; `max_iterations_*` → `MAX_ITERATIONS`; `iterate` after orchestrator decide JSON corrections → `ITERATE`; `stopped` (invalid decide) → `CONTRACT_FAIL`. See `transitionReason()` in `orchestrator.js`.
