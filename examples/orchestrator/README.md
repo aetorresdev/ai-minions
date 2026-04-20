@@ -145,7 +145,7 @@ npm run tokens:report -- <task_id>
 # custom file: node token-trace-report.js --file /path/to/trace.jsonl
 ```
 
-Optional env: `ORCH_TRACES_DIR` — defaults to `~/.claude/metrics/traces`.
+Optional env: `ORCH_TRACES_DIR` — defaults to `~/.claude/metrics/traces`. **`ORCH_TRACE_VALIDATE=1`** — when parsing JSONL in `token-trace-report` / `scenario-metrics-export`, validate each line against JSON Schema v2 (same as CLI `--strict-traces`).
 
 **Trace contract:** every JSONL line includes `trace_schema_version` (`"2"` — first published baseline). `iteration_done.transition_reason` is always an **object** `{ type, details? }`. Governance (bump rules, consumer guidelines): `docs/orchestrator/strict-mode.md` § *Trace schema versions* and § *Trace contract governance*.
 

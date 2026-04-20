@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://local.example/schemas/trace-v2-line.json",
+  "title": "Orchestrator trace JSONL line (schema version 2)",
+  "type": "object",
+  "required": ["ts", "ts_ms", "trace_schema_version", "task_id", "event"],
+  "properties": {
+    "ts": { "type": "string", "format": "date-time" },
+    "ts_ms": { "type": "integer" },
+    "trace_schema_version": { "type": "string", "enum": ["2"] },
+    "task_id": { "type": "string", "minLength": 1 },
+    "event": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "event": { "const": "iteration_done" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": ["iteration", "outcome", "transition_reason"],
+        "properties": {
+          "iteration": { "type": "integer", "minimum": 0 },
+          "outcome": { "type": "string" },
+          "transition_reason": {
+            "type": "object",
+            "required": ["type", "reason_code"],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "DONE",
+                  "VALIDATION_FAIL",
+                  "GATE_BLOCK",
+                  "MAX_ITERATIONS",
+                  "CONTRACT_FAIL",
+                  "ITERATE_FALLBACK",
+                  "ITERATE"
+                ]
+              },
+              "reason_code": {
+                "type": "string",
+                "enum": [
+                  "RUN_COMPLETED",
+                  "CERBERUS_BLOCKERS_ITERATE",
+                  "ORCHESTRATOR_NO_CORRECTIONS_JSON",
+                  "MAX_ITERATIONS_CERBERUS_BLOCKERS",
+                  "GATE_ARTIFACT_OR_HANDOFF",
+                  "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS",
+                  "ORCHESTRATOR_DECIDE_CORRECTIONS",
+                  "CONTRACT_OR_DECIDE_FAILURE",
+                  "VALIDATION_FAILURE_GENERIC"
+                ]
+              },
+              "details": { "type": "string", "maxLength": 300 },
+              "gate_id": { "type": "string", "maxLength": 120 },
+              "step_id": { "type": "string", "maxLength": 240 }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
