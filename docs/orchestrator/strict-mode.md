@@ -368,6 +368,26 @@ Every JSONL line includes:
 |-------|------|-------------|
 | `ts` | string | ISO 8601 timestamp |
 | `ts_ms` | number | Unix epoch milliseconds (same instant as `ts`) — use for deltas and latency |
+| `trace_schema_version` | string | Contract version for the whole line (see § *Trace schema versions* below) |
+
+### Trace schema versions
+
+| Version | Meaning | `transition_reason` on `iteration_done` | `ts_ms` |
+|---------|---------|-------------------------------------------|---------|
+| *(absent)* | Ad-hoc JSONL before this contract | unspecified | may be absent |
+| `2` | **Published baseline** for this repo | object `{ type, details? }` | present |
+
+There was **no** prior public “v1” trace contract in this project: **`2` is the first stable schema** we ship. Older lines without `trace_schema_version` may exist from experiments; treat them as out-of-contract unless you add a one-off migrator.
+
+### Trace contract governance (minimal)
+
+1. **Bump** `TRACE_SCHEMA_VERSION` in `orchestrator.js` together with any **breaking** field rename/shape change, and update this table + `model-routing.md` in the **same** change.
+2. **Compatibility:** same major string (`"2"`) means additive fields are OK; removing or retyping fields → new version (`"3"`, …).
+3. **Consumers:** read `trace_schema_version`; **ignore unknown keys**; branch parsing only when the version changes. Do not assume every line matches the newest code without checking the field.
+4. **Validation / tests per version:** not enforced in the runner yet — backlog **TEL-SCHEMA-1** fase 2 (CI + fixtures per version).
+5. **Size / cost:** more fields per line increase storage and parse time; if traces grow large, measure bytes per run and prune or sample (operational concern, not enforced here).
+
+Deltas and latency: use **`ts_ms`** only (`ts` is human-readable ISO for the same instant).
 
 ## Flow-aware trace metadata
 

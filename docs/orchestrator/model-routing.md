@@ -225,7 +225,7 @@ Every multi-agent run writes a structured JSONL trace to `~/.claude/metrics/trac
 | `iteration_done` | `iteration`, `outcome`, `transition_reason` `{ type, details? }`, `summary?`, `corrections?`, … | After orchestrator decide / blocker paths |
 | `session_end` | `iterations`, `done`, `summary`, `agents_run[]`, `gate_blocks`, `qa_degraded?`, `manual_review_recommended?`, `scenario_id?` (if tagged), MCP rollups, `ollama_*_total` when Ollama used | Before return |
 
-All events include `ts` (ISO timestamp), `ts_ms` (epoch ms), and `task_id`.
+All events include `ts` (ISO timestamp), `ts_ms` (epoch ms), `trace_schema_version` (current `"2"`), and `task_id`.
 
 Gate names (`gate_result`): `handoff_structure`, `goal_alignment`, `transition`.
 
