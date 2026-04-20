@@ -71,7 +71,7 @@ test("parseTraceLine strict throws on invalid iteration_done", () => {
   assert.throws(() => parseTraceLine(line, { strict: true }), /reason_code|schema/i);
 });
 
-test("validateTraceLine rejects unsupported trace_schema_version string", () => {
+test("validateTraceLine rejects unsupported trace_schema_version string (policy before Ajv)", () => {
   const base = {
     ts: "2026-04-15T12:00:00.000Z",
     ts_ms: 1713182400000,
@@ -86,10 +86,26 @@ test("validateTraceLine rejects unsupported trace_schema_version string", () => 
     const v = validateTraceLine({ ...base, trace_schema_version });
     assert.equal(v.ok, false, `expected invalid version: ${JSON.stringify(trace_schema_version)}`);
     assert.ok(
-      v.errors.some((e) => /trace_schema_version|must be equal to one of the allowed values/i.test(e)),
-      `errors should mention trace_schema_version: ${v.errors.join(" | ")}`,
+      v.errors.some((e) => /this binary only accepts|trace_schema_version/i.test(e)),
+      `errors should include policy or field: ${v.errors.join(" | ")}`,
     );
   }
+});
+
+test("validateTraceLine rejects missing trace_schema_version (policy)", () => {
+  const row = {
+    ts: "2026-04-15T12:00:00.000Z",
+    ts_ms: 1713182400000,
+    task_id: "task-abc",
+    event: "session_start",
+    flow_mode: "single_agent",
+    max_iterations: 1,
+    cwd: "/tmp",
+    goal: "x",
+  };
+  const v = validateTraceLine(row);
+  assert.equal(v.ok, false);
+  assert.ok(v.errors.some((e) => /missing|this binary only accepts/i.test(e)), v.errors.join(" | "));
 });
 
 test("validateTraceLine rejects trace_schema_version wrong JSON type", () => {
@@ -121,5 +137,5 @@ test("parseTraceLine strict throws on unsupported trace_schema_version", () => {
     cwd: "/tmp",
     goal: "x",
   });
-  assert.throws(() => parseTraceLine(line, { strict: true }), /trace_schema_version|allowed|schema/i);
+  assert.throws(() => parseTraceLine(line, { strict: true }), /this binary only accepts|trace_schema_version|schema/i);
 });
