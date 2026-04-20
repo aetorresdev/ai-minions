@@ -466,11 +466,11 @@ The **`session_end`** event on the same stream adds **`mcp_total_calls`**, **`mc
 
 When agents use **Ollama** (`/api/chat`), the example `agents.js` parses `prompt_eval_count` and `eval_count` from the JSON response and attaches them to **`context_stats`** as `ollama_prompt_tokens` and `ollama_completion_tokens` on each `askAgent` Ollama call. The summarizer step records the same fields when `summarizeHandoff` runs via Ollama.
 
-`session_end` includes **`ollama_prompt_tokens_total`** and **`ollama_completion_tokens_total`** when at least one of those counters is non-zero. **Claude CLI** paths do not populate these fields (no token API in this example runner). **Cost in USD / per-scenario export** is not implemented in this example runner yet.
+`session_end` includes **`ollama_prompt_tokens_total`** and **`ollama_completion_tokens_total`** when at least one of those counters is non-zero. **Claude CLI** paths do not populate these fields (no token API in this example runner). **USD cost** is not inferred automatically: you can set **`ORCH_USD_PER_MTOK_PROMPT`** and **`ORCH_USD_PER_MTOK_COMPLETION`** (USD per 1e6 Ollama tokens; both required) so `token-trace-report.js` prints an optional estimate from those totals.
 
 **On-demand readout:** `examples/orchestrator/token-trace-report.js` (npm script `tokens:report`) reads a completed `*.jsonl` and prints Ollama totals (from `context_stats` vs `session_end`) plus MCP rollups — see `examples/orchestrator/README.md`.
 
-**Batch export:** optional `scenario_id` on `session_start` / `session_end` when `run({ traceScenarioId })` or `ORCH_TRACE_SCENARIO_ID` is set; `scenario-metrics-export.js` (`npm run metrics:export-scenarios`) aggregates tagged traces into JSON (`runs`, `by_scenario`).
+**Batch export:** optional `scenario_id` on `session_start` / `session_end` when `run({ traceScenarioId })` or `ORCH_TRACE_SCENARIO_ID` is set; `scenario-metrics-export.js` (`npm run metrics:export-scenarios`) aggregates tagged traces into JSON with **`runs`**, **`by_scenario`**, and **`by_flow_mode`** (grouping by `flow_mode` from each run).
 
 ---
 

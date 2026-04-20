@@ -724,7 +724,7 @@ function _cerberusLineHasFiller(val) {
 }
 
 /**
- * CERBERUS-SIGNAL-3anchor: when blocker is vacuous, improvement/nice-to-have need a weak textual anchor
+ * When blocker is vacuous, improvement/nice-to-have need a weak textual anchor (see _cerberusFindingHasAnchor).
  * (path, test ref, code span, HTTP/error-ish signal) — not proof the claim is true.
  * @param {string} s
  * @returns {boolean}
