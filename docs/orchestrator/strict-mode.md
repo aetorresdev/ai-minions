@@ -384,7 +384,7 @@ There was **no** prior public “v1” trace contract in this project: **`2` is 
 1. **Bump** `TRACE_SCHEMA_VERSION` in `orchestrator.js` together with any **breaking** field rename/shape change, and update this table + `model-routing.md` in the **same** change.
 2. **Compatibility:** same major string (`"2"`) means additive fields are OK; removing or retyping fields → new version (`"3"`, …).
 3. **Consumers:** read `trace_schema_version`; **ignore unknown keys**; branch parsing only when the version changes. Do not assume every line matches the newest code without checking the field.
-4. **Validation / tests per version:** not enforced in the runner yet — backlog **TEL-SCHEMA-1** fase 2 (CI + fixtures per version).
+4. **Validation / tests per version:** JSON Schema `examples/orchestrator/schemas/trace-v2-line.schema.json` — **Ajv** validates every line at **write** time (`traceEvent`). At **read** time use `parseJsonl(text, { validateLines: true })`, CLI **`--strict-traces`**, or env **`ORCH_TRACE_VALIDATE=1`** (`token-trace-report.js`, `scenario-metrics-export.js`). Tests: `tests/traceSchema.test.js`.
 5. **Size / cost:** more fields per line increase storage and parse time; if traces grow large, measure bytes per run and prune or sample (operational concern, not enforced here).
 
 Deltas and latency: use **`ts_ms`** only (`ts` is human-readable ISO for the same instant).
@@ -403,8 +403,11 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `transition_reason` | object | `{ "type": "<ENUM>", "details"?: string }` — `details` truncated to 300 chars in traces |
+| `transition_reason` | object | `{ "type", "reason_code", "details?", "gate_id?", "step_id?" }` — `details` truncated to 300 chars; **`reason_code`** is the stable join key for analytics (see table below) |
 | `transition_reason.type` | string | `DONE` · `VALIDATION_FAIL` · `GATE_BLOCK` · `MAX_ITERATIONS` · `CONTRACT_FAIL` · `ITERATE_FALLBACK` · `ITERATE` |
+| `transition_reason.reason_code` | string | Closed catalog (same enum as JSON Schema): `RUN_COMPLETED` · `CERBERUS_BLOCKERS_ITERATE` · `ORCHESTRATOR_NO_CORRECTIONS_JSON` · `MAX_ITERATIONS_CERBERUS_BLOCKERS` · `GATE_ARTIFACT_OR_HANDOFF` · `MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS` · `ORCHESTRATOR_DECIDE_CORRECTIONS` · `CONTRACT_OR_DECIDE_FAILURE` · `VALIDATION_FAILURE_GENERIC` |
+| `transition_reason.gate_id` | string (optional) | When iteration ends from a gate-blocked path: which gate (e.g. `handoff_structure`, `goal_alignment`, `transition`, `output_contract`, `compact_handoff`, …) |
+| `transition_reason.step_id` | string (optional) | When known: last blocked step’s `step_id` for correlation with `agent_done` / `gate_result` |
 
 Rough mapping from `outcome` (legacy UI) to `transition_reason.type`: `done` → `DONE`; `iterate` after CERBERUS blockers + corrections → `GATE_BLOCK`; `iterate_fallback` → `ITERATE_FALLBACK`; `gate_blocked_iterate` → `GATE_BLOCK`; `max_iterations_*` → `MAX_ITERATIONS`; `iterate` after orchestrator decide JSON corrections → `ITERATE`; `stopped` (invalid decide) → `CONTRACT_FAIL`. See `transitionReason()` in `orchestrator.js`.
 
