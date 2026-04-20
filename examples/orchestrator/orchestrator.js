@@ -37,7 +37,7 @@ const path = require("path");
 // Event types: session_start, agent_start, agent_done, gate_result,
 //              contract_fail, iteration_done, session_end, mcp_call,
 //              context_stats may include ollama_prompt_tokens / ollama_completion_tokens (Ollama routes)
-// iteration_done.transition_reason: { type, details? }; transition_reason_legacy string unless ORCH_TRACE_TRANSITION_REASON_LEGACY=0.
+// iteration_done.transition_reason: { type, details? }.
 //
 // Sensitive field handling:
 //   goal  → truncated to 80 chars + SHA-256 hash (TRACE_REDACT_GOAL=1 omits text entirely)
@@ -51,21 +51,6 @@ const TRACE_REDACT_GOAL = process.env.TRACE_REDACT_GOAL === "1";
 
 /** Bumped when JSONL field shapes change; see strict-mode.md § Trace schema versions. */
 const TRACE_SCHEMA_VERSION = "2";
-
-function transitionReasonLegacyEnabled() {
-  return process.env.ORCH_TRACE_TRANSITION_REASON_LEGACY !== "0";
-}
-
-/**
- * Stable string for parsers that expected transition_reason as a string (deprecated).
- * No details → type only; with details → type + tab + details (tab avoids colon ambiguity).
- * @param {{ type: string, details?: string }} tr
- */
-function formatTransitionReasonLegacy(tr) {
-  const t = String(tr.type);
-  const d = tr.details != null && String(tr.details).length ? String(tr.details) : "";
-  return d ? `${t}\t${d}` : t;
-}
 
 // ── MCP usage audit (per run) ───────────────────────────────────────────────
 let _mcpAuditTaskId = null;
@@ -233,9 +218,6 @@ function _sanitize(event) {
     const tr = { ...out.transition_reason };
     if ("details" in tr && tr.details != null) tr.details = String(tr.details).slice(0, 300);
     out.transition_reason = tr;
-    if (out.event === "iteration_done" && transitionReasonLegacyEnabled() && typeof tr.type === "string") {
-      out.transition_reason_legacy = formatTransitionReasonLegacy(tr);
-    }
   }
   return out;
 }
@@ -1589,6 +1571,4 @@ module.exports = {
   transitionReason,
   TRANSITION_REASON_TYPES,
   TRACE_SCHEMA_VERSION,
-  formatTransitionReasonLegacy,
-  transitionReasonLegacyEnabled,
 };

@@ -222,7 +222,7 @@ Every multi-agent run writes a structured JSONL trace to `~/.claude/metrics/trac
 | `contract_fail` | `agent`, `iteration`, `duration_ms`, `reason`, `critical`, `gate_id?` | When `validateOutput()` throws — `critical: true` for architect/qa/cerberus; `gate_id` identifies which specific gate failed |
 | `context_stats` | `agent`, `iteration`, `files_read_count`, `files_modified_count` | After successful ARCHITECT or DEV step — counts declared files for efficiency tracking |
 | `gate_result` | `agent`, `iteration`, `gate`, `passed`, `reason?`, `confidence?`, `from_mode?`, `to_mode?` | After each gate check |
-| `iteration_done` | `iteration`, `outcome`, `transition_reason` `{ type, details? }`, `transition_reason_legacy?` (string, deprecated), `summary?`, `corrections?`, … | After orchestrator decide / blocker paths |
+| `iteration_done` | `iteration`, `outcome`, `transition_reason` `{ type, details? }`, `summary?`, `corrections?`, … | After orchestrator decide / blocker paths |
 | `session_end` | `iterations`, `done`, `summary`, `agents_run[]`, `gate_blocks`, `qa_degraded?`, `manual_review_recommended?`, `scenario_id?` (if tagged), MCP rollups, `ollama_*_total` when Ollama used | Before return |
 
 All events include `ts` (ISO timestamp), `ts_ms` (epoch ms), `trace_schema_version` (current `"2"`), and `task_id`.
