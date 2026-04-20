@@ -1,6 +1,6 @@
 # AWS Labs Terraform MCP Server
 
-The [awslabs.terraform-mcp-server](https://github.com/awslabs/mcp/tree/main/src/terraform-mcp-server) provides AWS provider documentation, best practices, and Checkov security scans. Used by `creating-terraform`, `reviewing-terraform`, `designing-terraform`, and `compliance-checker` agents.
+The [awslabs.terraform-mcp-server](https://github.com/awslabs/mcp) provides AWS provider documentation, best practices, and Checkov security scans. Used by `creating-terraform`, `reviewing-terraform`, `designing-terraform`, and `compliance-checker` agents.
 
 - **Package**: `awslabs.terraform-mcp-server` (run via uvx)
 - **Mode**: stdio — Cursor starts the process when the MCP is used.
