@@ -106,6 +106,78 @@ function stripLeadingOwnerArchitectForDegradedMultiAgent(steps) {
   return hasDev ? rest : steps;
 }
 
+// ── edge_type taxonomy ────────────────────────────────────────────────────────
+// Categorises each edge_type value into a semantic layer so consumers can
+// filter by category without parsing individual type strings.
+//   control_flow — normal execution progression (success, retry)
+//   failure      — hard stops (fail, timeout)
+//   policy       — gate decisions (gate_block)
+const EDGE_TYPE_CATEGORY = Object.freeze({
+  success:    "control_flow",
+  retry:      "control_flow",
+  fail:       "failure",
+  timeout:    "failure",
+  gate_block: "policy",
+});
+
+/**
+ * Returns { edge_type, edge_category } for a given edge type string.
+ * edge_category defaults to "unknown" for forward-compat with future types.
+ * @param {string} edgeType
+ * @returns {{ edge_type: string, edge_category: string }}
+ */
+function edgeMeta(edgeType) {
+  return { edge_type: edgeType, edge_category: EDGE_TYPE_CATEGORY[edgeType] ?? "unknown" };
+}
+
+// ── graph validation ──────────────────────────────────────────────────────────
+/**
+ * Validates the step graph before execution begins.
+ * Checks structural issues detectable before run:
+ *   - steps must be an array
+ *   - each step must have agentId or agent field
+ *
+ * parent_step_id references are validated at emit time via assertParentStepExists
+ * since stepIds are computed dynamically during the loop.
+ *
+ * @param {{ agentId?: string, agent?: string, task?: string }[]} steps
+ * @param {Set<string>} validAgents
+ * @returns {{ valid: boolean, errors: string[] }}
+ */
+function validateStepGraph(steps, validAgents) {
+  const errors = [];
+  if (!Array.isArray(steps)) {
+    return { valid: false, errors: ["steps must be an array"] };
+  }
+  const seen = new Map(); // agentId → count (for stepId collision detection)
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    const agentId = step.agentId || step.agent;
+    if (!agentId) {
+      errors.push(`step[${i}] missing agentId/agent field`);
+      continue;
+    }
+    if (!validAgents.has(agentId)) continue; // skipped by loop — not an error
+    seen.set(agentId, (seen.get(agentId) || 0) + 1);
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Validates a parent_step_id reference at emit time.
+ * Called before emitting any trace event that carries parent_step_id.
+ * Logs a one-time warning per invalid reference — does NOT throw.
+ * @param {string|null} parentStepId
+ * @param {Set<string>} emittedStepIds
+ */
+function assertParentStepExists(parentStepId, emittedStepIds) {
+  if (parentStepId !== null && !emittedStepIds.has(parentStepId)) {
+    process.stderr.write(
+      `[orchestrator] warning: parent_step_id "${parentStepId}" not found in emitted steps\n`
+    );
+  }
+}
+
 function recordMcpInvocation(entry) {
   if (!_mcpAuditTaskId) return;
   _mcpAuditCalls.push(entry);
@@ -843,6 +915,16 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
     const retryCountThisIteration = {};
     let previousAgentId = null;
     let previousStepId = null;  // for parent_step_id graph edges
+    const emittedStepIds = new Set(); 
+
+
+    const graphCheck = validateStepGraph(steps, VALID_WORKER_AGENTS);
+    if (!graphCheck.valid) {
+      const msg = `Step graph validation failed: ${graphCheck.errors.join("; ")}`;
+      traceEvent(taskId, { event: "graph_validation_fail", iteration: iterations, errors: graphCheck.errors });
+      throw new Error(msg);
+    }
+
     for (let stepIndex = 0; stepIndex < steps.length; stepIndex++) {
       const step = steps[stepIndex];
       const agentId = step.agentId || step.agent;
@@ -855,6 +937,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       retryCountThisIteration[agentId] = retryNumber + 1;
       const stepId = `${taskId}-i${iterations}-${agentId}${retryNumber > 0 ? `-r${retryNumber}` : ""}`;
       const graphMeta = { parent_step_id: previousStepId };
+      assertParentStepExists(previousStepId, emittedStepIds);
 
       const contextBlock = contextHeader + [goal, ...artifacts.map(contextChunk)].join("\n\n---\n\n");
       writeAgentState(agentId, goal);
@@ -875,9 +958,10 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         const duration_ms = Date.now() - stepStart;
         const isCritical = ["architect", "qa", "cerberus"].includes(agentId);
         const gateId = err.gate_id || null;
-        traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, edge_type: "fail", duration_ms, reason: err.message.slice(0, 300), critical: isCritical, ...(gateId ? { gate_id: gateId } : {}) });
+        traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...edgeMeta("fail"), duration_ms, reason: err.message.slice(0, 300), critical: isCritical, ...(gateId ? { gate_id: gateId } : {}) });
         log(agentId, `🟥 Output contract failed: ${err.message}`);
         artifacts.push({ agentId, task: step.task, result: "", gateBlocked: true, gateReason: err.message });
+        emittedStepIds.add(stepId);
         previousStepId = stepId;
         if (isCritical) {
           log(agentId, `🟥 Critical role contract fail — stopping iteration (no QA/CERBERUS/ARCHITECT degradation allowed)`);
@@ -890,11 +974,12 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       clearDegradedAgents();
       const stepDegraded = degradedInRun.has(agentId);
       const edgeType = retryNumber > 0 ? "retry" : "success";
-      traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, edge_type: edgeType, duration_ms: Date.now() - stepStart, output_chars: result.length, ...(stepDegraded ? { degraded: true } : {}) });
+      traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...edgeMeta(edgeType), duration_ms: Date.now() - stepStart, output_chars: result.length, ...(stepDegraded ? { degraded: true } : {}) });
       if (contextStats) {
         bumpOllamaFromStats(contextStats);
         traceEvent(taskId, { event: "context_stats", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, ...graphMeta, ...contextStats });
       }
+      emittedStepIds.add(stepId);
       previousStepId = stepId;
 
       // ── Compact handoff (compact-handoff MCP) ──────────────────────────────
@@ -954,12 +1039,12 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         const sv = validateHandoffStructure(toMode, handoffYaml, { strict: requireHandoff });
         if (!sv.valid) {
           log("gate", `🟥 Handoff structure invalid (${toMode}): ${sv.reason}`);
-          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, edge_type: "gate_block", gate: "handoff_structure", passed: false, reason: sv.reason });
+          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("gate_block"), gate: "handoff_structure", passed: false, reason: sv.reason });
           artifacts.push({ agentId, task: step.task, result, handoffYaml,
             gateBlocked: true, gateReason: `handoff_structure: ${sv.reason}` });
           continue;
         }
-        traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, edge_type: "success", gate: "handoff_structure", passed: true });
+        traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("success"), gate: "handoff_structure", passed: true });
       }
 
       // ── validate_goal_alignment + advance_mode ─────────────────────────────
@@ -991,14 +1076,14 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
               });
             } else {
               log("gate", `🟥 Goal not aligned: ${alignment.notes}. Skipping advance_mode for this step.`);
-              traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, edge_type: "gate_block", gate: "goal_alignment", passed: false, confidence: alignment.confidence, reason: alignment.notes });
+              traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("gate_block"), gate: "goal_alignment", passed: false, confidence: alignment.confidence, reason: alignment.notes });
               artifacts.push({ agentId, task: step.task, result, handoffYaml,
                 gateBlocked: true, gateReason: `goal_alignment: ${alignment.notes}` });
               continue;
             }
           } else {
             log("gate", `🟩 Goal aligned (confidence: ${alignment.confidence ?? "n/a"})`);
-            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, edge_type: "success", gate: "goal_alignment", passed: true, confidence: alignment.confidence });
+            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("success"), gate: "goal_alignment", passed: true, confidence: alignment.confidence });
           }
 
           log("gate", `validate_transition: ${currentMode} → ${nextMode} (iteration ${iterations})`);
@@ -1012,14 +1097,14 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
           if (!vt.allowed) {
             log("gate", `🟥 Transition blocked: ${(vt.errors || []).join("; ")}`);
-            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, edge_type: "gate_block", gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: false, reason: (vt.errors || []).join("; ") });
+            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("gate_block"), gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: false, reason: (vt.errors || []).join("; ") });
             artifacts.push({ agentId, task: step.task, result, handoffYaml,
               gateBlocked: true, gateReason: (vt.errors || []).join("; ") });
             continue;
           }
 
           log("gate", `🟩 Transition allowed — advancing to ${nextMode}`);
-          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, edge_type: "success", gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: true });
+          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("success"), gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: true });
           const adv = callStateMcp("advance_mode", {
             task_id: taskId,
             to_mode: nextMode,
@@ -1432,4 +1517,8 @@ module.exports = {
   compactHandoffStrictFailureFields,
   aggregateMcpUsage,
   stripLeadingOwnerArchitectForDegradedMultiAgent,
+  edgeMeta,
+  EDGE_TYPE_CATEGORY,
+  validateStepGraph,
+  assertParentStepExists,
 };
