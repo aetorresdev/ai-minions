@@ -381,8 +381,10 @@ There was **no** prior public “v1” trace contract in this project: **`2` is 
 
 ### Trace contract governance (minimal)
 
-1. **Bump** `TRACE_SCHEMA_VERSION` in `orchestrator.js` together with any **breaking** field rename/shape change, and update this table + `model-routing.md` in the **same** change.
-2. **Compatibility:** same major string (`"2"`) means additive fields are OK; removing or retyping fields → new version (`"3"`, …).
+**Full policy (breaking vs non-breaking, mismatch, examples):** [`schema-versioning.md`](./schema-versioning.md).
+
+1. **Bump** `TRACE_SCHEMA_VERSION` in `orchestrator.js` together with any **breaking** field rename/shape change, and update this table + `model-routing.md` + **`schema-versioning.md`** in the **same** change.
+2. **Compatibility:** same major string (`"2"`) means additive fields are OK; removing or retyping fields → new version (`"3"`, …). Finer rules live in **`schema-versioning.md`**.
 3. **Consumers:** read `trace_schema_version`; **ignore unknown keys**; branch parsing only when the version changes. Do not assume every line matches the newest code without checking the field.
 4. **Validation / tests per version:** JSON Schema `examples/orchestrator/schemas/trace-v2-line.schema.json` — **Ajv** validates every line at **write** time (`traceEvent`). At **read** time use `parseJsonl(text, { validateLines: true })`, CLI **`--strict-traces`**, or env **`ORCH_TRACE_VALIDATE=1`** (`token-trace-report.js`, `scenario-metrics-export.js`). Tests: `tests/traceSchema.test.js`.
 5. **Size / cost:** more fields per line increase storage and parse time; if traces grow large, measure bytes per run and prune or sample (operational concern, not enforced here).
