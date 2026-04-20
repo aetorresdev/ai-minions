@@ -152,7 +152,7 @@ describe("cerberus", () => {
     "Review ready.", {}, /must classify at least one finding/
   ));
 
-  it("rejects triple-template boilerplate (CERBERUS-SIGNAL fase 2)", () => fail("cerberus",
+  it("rejects triple-template boilerplate (semantic floor)", () => fail("cerberus",
     "blocker: none\nimprovement: code could be improved\nnice-to-have: consider optimization\n",
     {},
     /boilerplate filler/
@@ -172,7 +172,7 @@ describe("cerberus", () => {
     "blocker: (none)\nimprovement: add bounds check on divide() in calculator.js before return\nnice-to-have: (none)\n"
   ));
 
-  it("rejects vacuous blocker when improvement is long but unanchored (CERBERUS-SIGNAL-3anchor)", () => fail("cerberus",
+  it("rejects vacuous blocker when improvement is long but unanchored", () => fail("cerberus",
     "blocker: (none)\nimprovement: consider improving overall code quality and maintainability across the service\nnice-to-have: (none)\n",
     {},
     /explicit anchor|cerberus_anchor_required/i

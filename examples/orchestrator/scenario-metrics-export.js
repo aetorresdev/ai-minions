@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * C-T4 — Export per-run metrics from trace JSONL files that include `scenario_id`
+ * Export per-run metrics from trace JSONL files that include `scenario_id`
  * (set via run({ traceScenarioId }) or ORCH_TRACE_SCENARIO_ID).
  *
  * Usage:
  *   node scenario-metrics-export.js [--dir ~/.claude/metrics/traces] [--since-m 180] [--include-untagged] [--out out.json]
  *
- * Default: only traces whose first session_start includes scenario_id (E2E-tagged runs).
+ * Default: only traces whose first session_start includes scenario_id (tagged runs, e.g. tests).
  * Writes JSON to stdout if --out is omitted.
  */
 
@@ -79,6 +79,52 @@ function collectRunsFromDir(tracesDir, opts = {}) {
   return runs;
 }
 
+/**
+ * Aggregate tagged runs by `flow_mode` (single_agent vs multi_agent) for batch comparison.
+ * @param {object[]} runs — entries from collectRunsFromDir
+ * @returns {Record<string, { run_count: number, done_true: number, iterations_sum: number, avg_iterations: number | null, ollama_prompt_total: number, ollama_completion_total: number }>}
+ */
+function buildByFlowMode(runs) {
+  /** @type {Record<string, ReturnType<typeof emptyBucket>>} */
+  const out = {
+    single_agent: emptyBucket(),
+    multi_agent: emptyBucket(),
+    unknown: emptyBucket(),
+  };
+  for (const r of runs) {
+    const key = r.flow_mode === "multi_agent" ? "multi_agent"
+      : r.flow_mode === "single_agent" ? "single_agent" : "unknown";
+    const b = out[key];
+    b.run_count += 1;
+    if (r.done === true) b.done_true += 1;
+    if (typeof r.iterations === "number" && !Number.isNaN(r.iterations)) b.iterations_sum += r.iterations;
+    const t = r.ollama_session_end_totals;
+    if (t && typeof t.prompt === "number") b.ollama_prompt_total += t.prompt;
+    if (t && typeof t.completion === "number") b.ollama_completion_total += t.completion;
+    if (!t && r.ollama_from_context_stats) {
+      const cs = r.ollama_from_context_stats;
+      if (typeof cs.prompt === "number") b.ollama_prompt_total += cs.prompt;
+      if (typeof cs.completion === "number") b.ollama_completion_total += cs.completion;
+    }
+  }
+  for (const k of Object.keys(out)) {
+    const b = out[k];
+    b.avg_iterations = b.run_count > 0 ? b.iterations_sum / b.run_count : null;
+  }
+  return out;
+}
+
+function emptyBucket() {
+  return {
+    run_count: 0,
+    done_true: 0,
+    iterations_sum: 0,
+    avg_iterations: null,
+    ollama_prompt_total: 0,
+    ollama_completion_total: 0,
+  };
+}
+
 function usage() {
   console.error(`Usage: node scenario-metrics-export.js [--dir DIR] [--since-m MINUTES] [--include-untagged] [--out FILE.json] [--strict-traces]
 Env: ORCH_TRACES_DIR — default trace directory (~/.claude/metrics/traces)
@@ -123,6 +169,7 @@ function main() {
     run_count: runs.length,
     runs,
     by_scenario: byScenario,
+    by_flow_mode: buildByFlowMode(runs),
   };
 
   const json = JSON.stringify(payload, null, 2);
@@ -134,7 +181,7 @@ function main() {
   }
 }
 
-module.exports = { collectRunsFromDir };
+module.exports = { collectRunsFromDir, buildByFlowMode };
 
 if (require.main === module) {
   main();
