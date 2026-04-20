@@ -26,6 +26,8 @@ const {
   assertParentStepExists,
   transitionReason,
   TRANSITION_REASON_TYPES,
+  TRACE_SCHEMA_VERSION,
+  formatTransitionReasonLegacy,
 } = require("../orchestrator");
 const { validateOutput } = require("../agents");
 
@@ -285,6 +287,49 @@ describe("graph metadata in trace events", () => {
       transition_reason: { type: "CONTRACT_FAIL", details: long },
     });
     assert.equal(out.transition_reason.details.length, 300);
+    assert.equal(out.transition_reason_legacy, `CONTRACT_FAIL\t${"x".repeat(300)}`);
+  });
+});
+
+describe("trace schema version and transition_reason_legacy", () => {
+  it("exports TRACE_SCHEMA_VERSION 2", () => {
+    assert.equal(TRACE_SCHEMA_VERSION, "2");
+  });
+
+  it("formatTransitionReasonLegacy uses type only or type+tab+details", () => {
+    assert.equal(formatTransitionReasonLegacy({ type: "DONE" }), "DONE");
+    assert.equal(formatTransitionReasonLegacy({ type: "ITERATE", details: "orchestrator_decide_corrections" }), "ITERATE\torchestrator_decide_corrections");
+  });
+
+  it("_sanitize adds transition_reason_legacy for iteration_done", () => {
+    const out = _sanitize({
+      event: "iteration_done",
+      iteration: 1,
+      outcome: "done",
+      ...transitionReason("DONE"),
+    });
+    assert.equal(out.transition_reason_legacy, "DONE");
+  });
+
+  it("omits transition_reason_legacy when ORCH_TRACE_TRANSITION_REASON_LEGACY=0", () => {
+    const prev = process.env.ORCH_TRACE_TRANSITION_REASON_LEGACY;
+    process.env.ORCH_TRACE_TRANSITION_REASON_LEGACY = "0";
+    try {
+      const out = _sanitize({
+        event: "iteration_done",
+        iteration: 1,
+        ...transitionReason("GATE_BLOCK", "x"),
+      });
+      assert.equal(out.transition_reason_legacy, undefined);
+    } finally {
+      if (prev === undefined) delete process.env.ORCH_TRACE_TRANSITION_REASON_LEGACY;
+      else process.env.ORCH_TRACE_TRANSITION_REASON_LEGACY = prev;
+    }
+  });
+
+  it("does not add transition_reason_legacy for non-iteration_done events", () => {
+    const out = _sanitize({ event: "agent_done", transition_reason: { type: "DONE" } });
+    assert.equal(out.transition_reason_legacy, undefined);
   });
 });
 
