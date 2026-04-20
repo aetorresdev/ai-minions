@@ -378,14 +378,15 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 
 `step_id` is the primary join key across events within a run. Consumers (token reports, EIL visualisation) use it to correlate `agent_start` → `agent_done` → `gate_result` → `context_stats` for the same step without scanning by `(agent, iteration)` tuples.
 
-### Graph edges (TEL-GRAPH-2)
+### Graph edges
 
-Every step-level event also carries two edge fields that make the causal chain explicit:
+Every step-level event also carries edge fields that make the causal chain explicit:
 
 | Field | Type | Values | Set on |
 |-------|------|--------|--------|
 | `parent_step_id` | string \| null | `step_id` of the preceding step, or `null` for the first step in an iteration | all step-level events |
-| `edge_type` | string | `success` · `retry` · `fail` · `gate_block` | `agent_done`, `contract_fail`, `gate_result` |
+| `edge_type` | string | `success` · `retry` · `fail` · `gate_block` · `timeout` | `agent_done`, `contract_fail`, `gate_result` |
+| `edge_category` | string | `control_flow` · `failure` · `policy` · `unknown` | same as `edge_type` |
 
 `edge_type` rules:
 - `agent_done`: `retry` if `retry_number > 0`, otherwise `success`
@@ -393,7 +394,26 @@ Every step-level event also carries two edge fields that make the causal chain e
 - `gate_result` passed=false: `gate_block`
 - `gate_result` passed=true: `success`
 
-Together `parent_step_id` + `edge_type` allow building a directed graph of the execution: each node is a `step_id`, each edge carries a typed reason for the transition.
+`edge_category` groups edge types into semantic layers for filtering:
+
+| `edge_type` | `edge_category` |
+|-------------|----------------|
+| `success`, `retry` | `control_flow` |
+| `fail`, `timeout` | `failure` |
+| `gate_block` | `policy` |
+| _(future types)_ | `unknown` |
+
+Together `parent_step_id` + `edge_type` + `edge_category` allow building a directed graph of the execution: each node is a `step_id`, each edge carries a typed and categorised reason for the transition.
+
+### Graph validation
+
+Before the step loop runs, the plan is validated via `validateStepGraph()`:
+- `steps` must be an array
+- each step must have an `agentId` or `agent` field
+
+A `graph_validation_fail` trace event is emitted and execution halts if validation fails.
+
+At emit time, `assertParentStepExists()` warns (stderr) if a `parent_step_id` references a `step_id` not yet emitted — guards against orphan edges ahead of fan-out and multi-parent support.
 
 ---
 
