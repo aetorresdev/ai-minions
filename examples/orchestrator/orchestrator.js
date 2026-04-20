@@ -648,6 +648,7 @@ function parseEnvironment(prompt) {
  *   stepSummary?: boolean,
  *   skipStateMcp?: boolean
  *   requireHandoff?: boolean — if set, overrides default: strict (!skipStateMcp) requires compact_handoff; degraded skips hard fail
+ *   traceScenarioId?: string — optional label written to trace `session_start` / `session_end` as `scenario_id` (C-T4 batch export). Env: ORCH_TRACE_SCENARIO_ID.
  * }} options
  */
 async function run(goal, options = {}) {
@@ -655,6 +656,8 @@ async function run(goal, options = {}) {
   const cwd           = options.cwd || process.cwd();
   const flowMode      = options.flowMode || "single_agent";
   const taskId        = options.taskId || `task-${randomUUID().slice(0, 8)}`;
+  const rawScenario = options.traceScenarioId ?? process.env.ORCH_TRACE_SCENARIO_ID ?? "";
+  const scenarioId = String(rawScenario).trim() ? String(rawScenario).trim().slice(0, 240) : null;
   beginMcpAudit(taskId);
   const approvedArtifacts = options.approvedArtifacts || [];
   const skipStateMcp  = options.skipStateMcp === true;
@@ -717,6 +720,7 @@ async function run(goal, options = {}) {
     cwd,
     goal: goal.slice(0, 200),
     require_handoff: requireHandoff,
+    ...(scenarioId ? { scenario_id: scenarioId } : {}),
   });
 
   // ── Degraded mode banner ──────────────────────────────────────────────────────
@@ -1387,6 +1391,7 @@ Reply with JSON only.`;
     summary: summary.slice(0, 200),
     agents_run: [...new Set(artifacts.map((a) => a.agentId))],
     gate_blocks: artifacts.filter((a) => a.gateBlocked).length,
+    ...(scenarioId ? { scenario_id: scenarioId } : {}),
     ...mcpSummary,
     ...(ollamaTokenTotals.prompt > 0 || ollamaTokenTotals.completion > 0
       ? {

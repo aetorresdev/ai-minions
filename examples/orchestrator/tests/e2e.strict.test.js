@@ -156,6 +156,11 @@ describe("System-path E2E — MCP direct + state store", { timeout: TEST_TIMEOUT
     return false;
   }
 
+  function strictE2eRun(t, goal, opts = {}) {
+    const sid = typeof t?.name === "string" ? t.name.slice(0, 240) : "";
+    return run(goal, sid ? { ...opts, traceScenarioId: sid } : opts);
+  }
+
   test("run() strict: task_registered, mode_advanced, task_closed + intact hash chain", async (t) => {
     if (skipIfNoDeps(t)) return;
 
@@ -171,7 +176,7 @@ describe("System-path E2E — MCP direct + state store", { timeout: TEST_TIMEOUT
         "function add(a, b) { return a + b; }\nmodule.exports = { add };\n"
       );
 
-      await run(
+      await strictE2eRun(t,
         "Add a multiply function to utils.js that multiplies two numbers",
         {
           taskId,
@@ -435,7 +440,7 @@ describe("System-path E2E — MCP direct + state store", { timeout: TEST_TIMEOUT
         "function add(a, b) { return a + b; }\nmodule.exports = { add };\n"
       );
 
-      const result = await run("E2E system-path harness (deterministic stubs)", {
+      const result = await strictE2eRun(t, "E2E system-path harness (deterministic stubs)", {
         taskId,
         maxIterations: 1,
         cwd,
