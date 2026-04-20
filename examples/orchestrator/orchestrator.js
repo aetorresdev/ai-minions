@@ -32,7 +32,8 @@ const path = require("path");
 
 // ── Execution trace ───────────────────────────────────────────────────────────
 // Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
-// Every line: ts (ISO), ts_ms (epoch ms), task_id, …payload.
+// Every line: ts (ISO), ts_ms (epoch ms), trace_schema_version, task_id, …payload.
+// trace_schema_version "2" = structured transition_reason + ts_ms (v1 = implicit, no field).
 // Event types: session_start, agent_start, agent_done, gate_result,
 //              contract_fail, iteration_done, session_end, mcp_call,
 //              context_stats may include ollama_prompt_tokens / ollama_completion_tokens (Ollama routes)
@@ -47,6 +48,9 @@ const path = require("path");
 
 const TRACES_DIR = path.join(require("os").homedir(), ".claude", "metrics", "traces");
 const TRACE_REDACT_GOAL = process.env.TRACE_REDACT_GOAL === "1";
+
+/** Bumped when JSONL field shapes change; see strict-mode.md § Trace schema versions. */
+const TRACE_SCHEMA_VERSION = "2";
 
 // ── MCP usage audit (per run) ───────────────────────────────────────────────
 let _mcpAuditTaskId = null;
@@ -253,6 +257,7 @@ function traceEvent(taskId, event) {
     const line = JSON.stringify({
       ts: new Date(tsMs).toISOString(),
       ts_ms: tsMs,
+      trace_schema_version: TRACE_SCHEMA_VERSION,
       task_id: taskId,
       ..._sanitize(event),
     });
@@ -1565,4 +1570,5 @@ module.exports = {
   assertParentStepExists,
   transitionReason,
   TRANSITION_REASON_TYPES,
+  TRACE_SCHEMA_VERSION,
 };

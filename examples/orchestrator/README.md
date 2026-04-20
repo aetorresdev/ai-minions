@@ -147,6 +147,8 @@ npm run tokens:report -- <task_id>
 
 Optional env: `ORCH_TRACES_DIR` — defaults to `~/.claude/metrics/traces`.
 
+**Trace contract:** every JSONL line includes `trace_schema_version` (`"2"` — first published baseline). `iteration_done.transition_reason` is always an **object** `{ type, details? }`. Governance (bump rules, consumer guidelines): `docs/orchestrator/strict-mode.md` § *Trace schema versions* and § *Trace contract governance*.
+
 **Batch export by scenario:** traces can carry `scenario_id` on `session_start` / `session_end` when you pass `traceScenarioId` to `run()` or set env **`ORCH_TRACE_SCENARIO_ID`**. E2E tests tag automatically via `e2eRun` / `strictE2eRun`. Aggregate:
 
 ```bash

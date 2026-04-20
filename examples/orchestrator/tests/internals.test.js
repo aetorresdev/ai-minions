@@ -26,6 +26,7 @@ const {
   assertParentStepExists,
   transitionReason,
   TRANSITION_REASON_TYPES,
+  TRACE_SCHEMA_VERSION,
 } = require("../orchestrator");
 const { validateOutput } = require("../agents");
 
@@ -285,6 +286,23 @@ describe("graph metadata in trace events", () => {
       transition_reason: { type: "CONTRACT_FAIL", details: long },
     });
     assert.equal(out.transition_reason.details.length, 300);
+    assert.equal(out.transition_reason_legacy, undefined);
+  });
+});
+
+describe("trace schema version", () => {
+  it("exports TRACE_SCHEMA_VERSION 2", () => {
+    assert.equal(TRACE_SCHEMA_VERSION, "2");
+  });
+
+  it("_sanitize does not emit transition_reason_legacy on iteration_done", () => {
+    const out = _sanitize({
+      event: "iteration_done",
+      iteration: 1,
+      outcome: "done",
+      ...transitionReason("DONE"),
+    });
+    assert.equal(out.transition_reason_legacy, undefined);
   });
 });
 
