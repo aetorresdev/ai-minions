@@ -267,14 +267,16 @@ describe("graph metadata in trace events", () => {
     assert.deepEqual(indices, [0, 1, 2]);
   });
 
-  it("iteration_done uses structured transition_reason", () => {
+  it("iteration_done uses structured transition_reason with reason_code", () => {
     const r1 = transitionReason("DONE");
-    assert.deepEqual(r1.transition_reason, { type: "DONE" });
+    assert.deepEqual(r1.transition_reason, { type: "DONE", reason_code: "RUN_COMPLETED" });
     const r2 = transitionReason("GATE_BLOCK", "cerberus_blockers");
     assert.equal(r2.transition_reason.type, "GATE_BLOCK");
+    assert.equal(r2.transition_reason.reason_code, "CERBERUS_BLOCKERS_ITERATE");
     assert.equal(r2.transition_reason.details, "cerberus_blockers");
     const r3 = transitionReason("ITERATE", "orchestrator_decide_corrections");
     assert.equal(r3.transition_reason.type, "ITERATE");
+    assert.equal(r3.transition_reason.reason_code, "ORCHESTRATOR_DECIDE_CORRECTIONS");
     assert.throws(() => transitionReason("NOT_A_TYPE"), /invalid transition_reason/);
     assert.ok(TRANSITION_REASON_TYPES.has("MAX_ITERATIONS"));
   });
