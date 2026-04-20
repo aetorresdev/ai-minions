@@ -16,7 +16,7 @@ const assert = require("node:assert/strict");
 const cp = require("child_process");
 cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 
-const { _sanitize, _hashGoal, aggregateMcpUsage } = require("../orchestrator");
+const { _sanitize, _hashGoal, aggregateMcpUsage, edgeMeta, EDGE_TYPE_CATEGORY, validateStepGraph, assertParentStepExists } = require("../orchestrator");
 const { validateOutput } = require("../agents");
 
 describe("_hashGoal", () => {
@@ -307,5 +307,127 @@ describe("TEL-GRAPH-2: graph edges — parent_step_id and edge_type", () => {
   it("edge_type is 'success' on passed gate_result", () => {
     const event = { event: "gate_result", passed: true, edge_type: "success" };
     assert.equal(event.edge_type, "success");
+  });
+});
+
+describe("edgeMeta — edge_type taxonomy", () => {
+  it("success maps to control_flow category", () => {
+    const m = edgeMeta("success");
+    assert.equal(m.edge_type, "success");
+    assert.equal(m.edge_category, "control_flow");
+  });
+
+  it("retry maps to control_flow category", () => {
+    const m = edgeMeta("retry");
+    assert.equal(m.edge_type, "retry");
+    assert.equal(m.edge_category, "control_flow");
+  });
+
+  it("fail maps to failure category", () => {
+    const m = edgeMeta("fail");
+    assert.equal(m.edge_type, "fail");
+    assert.equal(m.edge_category, "failure");
+  });
+
+  it("timeout maps to failure category", () => {
+    const m = edgeMeta("timeout");
+    assert.equal(m.edge_type, "timeout");
+    assert.equal(m.edge_category, "failure");
+  });
+
+  it("gate_block maps to policy category", () => {
+    const m = edgeMeta("gate_block");
+    assert.equal(m.edge_type, "gate_block");
+    assert.equal(m.edge_category, "policy");
+  });
+
+  it("unknown type returns edge_category 'unknown'", () => {
+    const m = edgeMeta("future_type");
+    assert.equal(m.edge_type, "future_type");
+    assert.equal(m.edge_category, "unknown");
+  });
+
+  it("EDGE_TYPE_CATEGORY covers all defined types", () => {
+    const keys = Object.keys(EDGE_TYPE_CATEGORY);
+    assert.ok(keys.includes("success"));
+    assert.ok(keys.includes("retry"));
+    assert.ok(keys.includes("fail"));
+    assert.ok(keys.includes("timeout"));
+    assert.ok(keys.includes("gate_block"));
+  });
+});
+
+describe("validateStepGraph — plan structure validation", () => {
+  const validAgents = new Set(["dev-backend", "qa", "architect"]);
+
+  it("returns valid for a well-formed steps array", () => {
+    const steps = [
+      { agentId: "dev-backend", task: "implement feature" },
+      { agentId: "qa", task: "verify output" },
+    ];
+    const result = validateStepGraph(steps, validAgents);
+    assert.equal(result.valid, true);
+    assert.deepEqual(result.errors, []);
+  });
+
+  it("returns invalid when steps is not an array", () => {
+    const result = validateStepGraph(null, validAgents);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors[0].includes("array"));
+  });
+
+  it("returns invalid when a step has no agentId or agent field", () => {
+    const steps = [{ task: "do something" }];
+    const result = validateStepGraph(steps, validAgents);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors[0].includes("missing agentId/agent"));
+  });
+
+  it("skips steps with unknown agentId without error", () => {
+    const steps = [
+      { agentId: "unknown-agent", task: "something" },
+      { agentId: "dev-backend", task: "real work" },
+    ];
+    const result = validateStepGraph(steps, validAgents);
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts agent field as alias for agentId", () => {
+    const steps = [{ agent: "dev-backend", task: "work" }];
+    const result = validateStepGraph(steps, validAgents);
+    assert.equal(result.valid, true);
+  });
+});
+
+describe("assertParentStepExists — emit-time parent validation", () => {
+  it("does not write to stderr when parentStepId is null", () => {
+    const emitted = new Set(["step-1"]);
+    const writes = [];
+    const orig = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (s) => { writes.push(s); return true; };
+    assertParentStepExists(null, emitted);
+    process.stderr.write = orig;
+    assert.equal(writes.length, 0);
+  });
+
+  it("does not write to stderr when parentStepId exists in emitted set", () => {
+    const emitted = new Set(["task-i1-dev-backend"]);
+    const writes = [];
+    const orig = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (s) => { writes.push(s); return true; };
+    assertParentStepExists("task-i1-dev-backend", emitted);
+    process.stderr.write = orig;
+    assert.equal(writes.length, 0);
+  });
+
+  it("writes warning to stderr when parentStepId is unknown", () => {
+    const emitted = new Set(["task-i1-dev-backend"]);
+    const writes = [];
+    const orig = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (s) => { writes.push(s); return true; };
+    assertParentStepExists("nonexistent-step", emitted);
+    process.stderr.write = orig;
+    assert.equal(writes.length, 1);
+    assert.ok(writes[0].includes("nonexistent-step"));
   });
 });
