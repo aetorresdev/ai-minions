@@ -2,7 +2,7 @@
 
 > **Deprecated upstream.** AWSlabs marks this server as no longer maintained. Migration path: diagram agent skill in `deploy-on-aws` plugin. The server still works; these setup instructions remain valid until a replacement is in place.
 
-The [awslabs.aws-diagram-mcp-server](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server) generates architecture diagrams (PNG) using the Python `diagrams` package with real AWS, Kubernetes, and on-prem icons. Used by `designing-terraform`, `infra-documenter`, and `creating-diagrams` skills.
+The [awslabs.aws-diagram-mcp-server](https://github.com/awslabs/mcp) generates architecture diagrams (PNG) using the Python `diagrams` package with real AWS, Kubernetes, and on-prem icons. Used by `designing-terraform`, `infra-documenter`, and `creating-diagrams` skills.
 
 - **Package**: `awslabs.aws-diagram-mcp-server` (run via uvx)
 - **Mode**: stdio — Cursor starts the process when the MCP is used.
@@ -45,5 +45,5 @@ Restart Cursor (or reload MCP servers) so it picks up the new server. When you a
 ## Reference
 
 - Package: https://pypi.org/project/awslabs.aws-diagram-mcp-server/
-- Docs: https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server
+- Docs: https://github.com/awslabs/mcp
 - Repo (monorepo): https://github.com/awslabs/mcp

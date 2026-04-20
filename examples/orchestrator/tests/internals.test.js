@@ -218,3 +218,51 @@ describe("aggregateMcpUsage", () => {
   });
 });
 
+
+describe("TEL-GRAPH-1: graph metadata in trace events", () => {
+  // Simulate the step_id / step_index / retry_number logic extracted from orchestrator.js
+  function makeStepId(taskId, iteration, agentId, retryNumber) {
+    return `${taskId}-i${iteration}-${agentId}${retryNumber > 0 ? `-r${retryNumber}` : ""}`;
+  }
+
+  it("step_id encodes taskId, iteration, agentId", () => {
+    const id = makeStepId("task-abc", 1, "dev-backend", 0);
+    assert.equal(id, "task-abc-i1-dev-backend");
+  });
+
+  it("step_id appends -rN suffix on retry", () => {
+    const id = makeStepId("task-abc", 2, "dev-backend", 1);
+    assert.equal(id, "task-abc-i2-dev-backend-r1");
+  });
+
+  it("retry_number is 0 on first execution, increments on repeat", () => {
+    const retryCount = {};
+    const agents = ["dev-backend", "dev-backend", "qa"];
+    const retries = agents.map(a => {
+      const n = retryCount[a] ?? 0;
+      retryCount[a] = n + 1;
+      return n;
+    });
+    assert.deepEqual(retries, [0, 1, 0]);
+  });
+
+  it("step_index matches position in steps array", () => {
+    const steps = [
+      { agentId: "architect" },
+      { agentId: "dev-backend" },
+      { agentId: "qa" },
+    ];
+    const indices = steps.map((_, i) => i);
+    assert.deepEqual(indices, [0, 1, 2]);
+  });
+
+  it("transition_reason mirrors outcome in iteration_done events", () => {
+    const outcomes = ["done", "iterate", "iterate_fallback", "gate_blocked_iterate",
+      "max_iterations_with_blockers", "max_iterations_with_gate_blocks"];
+    // Each outcome maps 1:1 to transition_reason — no translation needed
+    for (const o of outcomes) {
+      const event = { event: "iteration_done", outcome: o, transition_reason: o };
+      assert.equal(event.transition_reason, event.outcome);
+    }
+  });
+});

@@ -133,7 +133,9 @@ Use this to pick the right setup for your situation.
 | MCP calls logged per run (`mcp_call` + `session_end` rollups) | ❌ (no state MCP traffic) | ✅ | ✅ |
 | Ollama prompt/completion token counts (`context_stats` + `session_end` totals) | Only when `OLLAMA_MODEL` + Ollama routes are used | ✅ | ✅ |
 
-Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../../docs/orchestrator/strict-mode.md) § *MCP usage audit* and § *Ollama token counts*.
+Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../../docs/orchestrator/strict-mode.md) § *Flow-aware trace metadata*, § *MCP usage audit*, and § *Ollama token counts*.
+
+**Graph fields (TEL-GRAPH-1):** every step-level event carries `step_id` (primary join key, e.g. `<task_id>-i1-dev-backend`), `step_index` (0-based plan position), and `retry_number` (0 = first attempt). `iteration_done` adds `transition_reason` (`done`, `iterate`, `gate_blocked_iterate`, …). Use these to reconstruct execution flow without parsing `(agent, iteration)` tuples.
 
 **On-demand token / MCP summary (TOKENS-RPT-1 v1):** after a run, use the `task_id` printed by `run-orchestrator.js` (or pass any trace basename):
 

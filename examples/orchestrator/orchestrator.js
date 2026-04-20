@@ -839,19 +839,26 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
     }
 
     // ── Execute each step ───────────────────────────────────────────────────────
+    // retry_number tracks how many times each agentId has run in this iteration
+    const retryCountThisIteration = {};
     let previousAgentId = null;
-    for (const step of steps) {
+    for (let stepIndex = 0; stepIndex < steps.length; stepIndex++) {
+      const step = steps[stepIndex];
       const agentId = step.agentId || step.agent;
       if (!agentId || !VALID_WORKER_AGENTS.has(agentId)) continue;
 
       if (previousAgentId && previousAgentId !== agentId) logRoleSwitch(previousAgentId, agentId);
       previousAgentId = agentId;
 
+      const retryNumber = retryCountThisIteration[agentId] ?? 0;
+      retryCountThisIteration[agentId] = retryNumber + 1;
+      const stepId = `${taskId}-i${iterations}-${agentId}${retryNumber > 0 ? `-r${retryNumber}` : ""}`;
+
       const contextBlock = contextHeader + [goal, ...artifacts.map(contextChunk)].join("\n\n---\n\n");
       writeAgentState(agentId, goal);
       log(agentId, `Executing: ${step.task.slice(0, 80)}${step.task.length > 80 ? "..." : ""}`);
       const stepStart = Date.now();
-      traceEvent(taskId, { event: "agent_start", agent: agentId, iteration: iterations, task: step.task.slice(0, 200) });
+      traceEvent(taskId, { event: "agent_start", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, task: step.task.slice(0, 200) });
 
       let result, contextStats;
       try {
@@ -866,7 +873,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         const duration_ms = Date.now() - stepStart;
         const isCritical = ["architect", "qa", "cerberus"].includes(agentId);
         const gateId = err.gate_id || null;
-        traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, duration_ms, reason: err.message.slice(0, 300), critical: isCritical, ...(gateId ? { gate_id: gateId } : {}) });
+        traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, duration_ms, reason: err.message.slice(0, 300), critical: isCritical, ...(gateId ? { gate_id: gateId } : {}) });
         log(agentId, `🟥 Output contract failed: ${err.message}`);
         artifacts.push({ agentId, task: step.task, result: "", gateBlocked: true, gateReason: err.message });
         if (isCritical) {
@@ -879,10 +886,10 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       for (const id of getDegradedAgents()) degradedInRun.add(id);
       clearDegradedAgents();
       const stepDegraded = degradedInRun.has(agentId);
-      traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, duration_ms: Date.now() - stepStart, output_chars: result.length, ...(stepDegraded ? { degraded: true } : {}) });
+      traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, duration_ms: Date.now() - stepStart, output_chars: result.length, ...(stepDegraded ? { degraded: true } : {}) });
       if (contextStats) {
         bumpOllamaFromStats(contextStats);
-        traceEvent(taskId, { event: "context_stats", agent: agentId, iteration: iterations, ...contextStats });
+        traceEvent(taskId, { event: "context_stats", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, ...contextStats });
       }
 
       // ── Compact handoff (compact-handoff MCP) ──────────────────────────────
@@ -942,12 +949,12 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         const sv = validateHandoffStructure(toMode, handoffYaml, { strict: requireHandoff });
         if (!sv.valid) {
           log("gate", `🟥 Handoff structure invalid (${toMode}): ${sv.reason}`);
-          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "handoff_structure", passed: false, reason: sv.reason });
+          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, gate: "handoff_structure", passed: false, reason: sv.reason });
           artifacts.push({ agentId, task: step.task, result, handoffYaml,
             gateBlocked: true, gateReason: `handoff_structure: ${sv.reason}` });
           continue;
         }
-        traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "handoff_structure", passed: true });
+        traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, gate: "handoff_structure", passed: true });
       }
 
       // ── validate_goal_alignment + advance_mode ─────────────────────────────
@@ -970,6 +977,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
                 event: "gate_result",
                 agent: agentId,
                 iteration: iterations,
+                step_id: stepId,
                 gate: "goal_alignment",
                 passed: true,
                 confidence: alignment.confidence,
@@ -978,14 +986,14 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
               });
             } else {
               log("gate", `🟥 Goal not aligned: ${alignment.notes}. Skipping advance_mode for this step.`);
-              traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "goal_alignment", passed: false, confidence: alignment.confidence, reason: alignment.notes });
+              traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, gate: "goal_alignment", passed: false, confidence: alignment.confidence, reason: alignment.notes });
               artifacts.push({ agentId, task: step.task, result, handoffYaml,
                 gateBlocked: true, gateReason: `goal_alignment: ${alignment.notes}` });
               continue;
             }
           } else {
             log("gate", `🟩 Goal aligned (confidence: ${alignment.confidence ?? "n/a"})`);
-            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "goal_alignment", passed: true, confidence: alignment.confidence });
+            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, gate: "goal_alignment", passed: true, confidence: alignment.confidence });
           }
 
           log("gate", `validate_transition: ${currentMode} → ${nextMode} (iteration ${iterations})`);
@@ -999,14 +1007,14 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
           if (!vt.allowed) {
             log("gate", `🟥 Transition blocked: ${(vt.errors || []).join("; ")}`);
-            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: false, reason: (vt.errors || []).join("; ") });
+            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: false, reason: (vt.errors || []).join("; ") });
             artifacts.push({ agentId, task: step.task, result, handoffYaml,
               gateBlocked: true, gateReason: (vt.errors || []).join("; ") });
             continue;
           }
 
           log("gate", `🟩 Transition allowed — advancing to ${nextMode}`);
-          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: true });
+          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: true });
           const adv = callStateMcp("advance_mode", {
             task_id: taskId,
             to_mode: nextMode,
@@ -1223,12 +1231,12 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         corrections.corrections.forEach((c) =>
           log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
         );
-        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate", blockers: cerberusBlockers.count, corrections: corrections.corrections.length });
+        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate", transition_reason: "iterate", blockers: cerberusBlockers.count, corrections: corrections.corrections.length });
         plan = { steps: corrections.corrections };
       } else {
         // Orchestrator failed to produce corrections — generate generic DEV retry
         log("orchestrator", "WARNING: orchestrator returned no corrections — retrying last DEV steps");
-        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate_fallback", blockers: cerberusBlockers.count });
+        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate_fallback", transition_reason: "iterate_fallback", blockers: cerberusBlockers.count });
         plan = { steps: artifacts.filter(a => a.agentId?.startsWith("dev-")).map(a => ({ agentId: a.agentId, task: `Fix blockers: ${cerberusBlockers.items.slice(0, 2).join("; ")}` })) };
       }
       continue;
@@ -1239,7 +1247,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       manualReview = true;
       summary = `Max iterations reached with ${cerberusBlockers.count} gate-blocked CERBERUS finding(s). Manual review required.`;
       log("orchestrator", `⚠ ${summary}`);
-      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_blockers", blockers: cerberusBlockers.count });
+      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_blockers", transition_reason: "max_iterations_with_blockers", blockers: cerberusBlockers.count });
       continue;
     }
 
@@ -1255,7 +1263,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       if (iterations < maxIterations) {
         log("orchestrator", `🟥 ${gateBlockedArtifacts.length} gate-blocked artifact(s) — cannot mark done (forcing iteration):`);
         gateBlockReasons.forEach(r => log("orchestrator", `  ↳ ${r}`));
-        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "gate_blocked_iterate", gate_blocks: gateBlockedArtifacts.length });
+        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "gate_blocked_iterate", transition_reason: "gate_blocked_iterate", gate_blocks: gateBlockedArtifacts.length });
         // Retry the blocked steps
         plan = { steps: gateBlockedArtifacts.map(a => ({ agentId: a.agentId, task: a.task })) };
         continue;
@@ -1264,7 +1272,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         manualReview = true;
         summary = `Max iterations reached with ${gateBlockedArtifacts.length} gate-blocked artifact(s). Manual review required. Blocked: ${gateBlockReasons.join("; ")}`;
         log("orchestrator", `⚠ ${summary}`);
-        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_gate_blocks", gate_blocks: gateBlockedArtifacts.length });
+        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_gate_blocks", transition_reason: "max_iterations_with_gate_blocks", gate_blocks: gateBlockedArtifacts.length });
         continue;
       }
     }
@@ -1309,7 +1317,7 @@ Reply with JSON only.`;
       done = true;
       summary = decide.summary || "Completed.";
       log("orchestrator", `✓ Done: ${summary}`);
-      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "done", summary: summary.slice(0, 200) });
+      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "done", transition_reason: "done", summary: summary.slice(0, 200) });
     } else if (decide && Array.isArray(decide.corrections) && decide.corrections.length > 0) {
       log("orchestrator", `↻ Iterating — ${decide.corrections.length} correction(s):`);
       decide.corrections.forEach((c) =>
