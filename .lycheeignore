@@ -1,0 +1,3 @@
+# Regex (lychee): skip vendored trees when scanning repo-wide globs.
+.*/node_modules/.*
+.*/plugins/.*

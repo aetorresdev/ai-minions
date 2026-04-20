@@ -2,5 +2,14 @@
   // Exclude agent definitions and generated/cache content from doc lint.
   // CLAUDE.md is an LLM instruction file, not conventional documentation —
   // its structure (multiple H1s) is intentional and must not be linted.
-  "ignores": ["**/agents/**", "**/cache/**", "CLAUDE.md"]
+  // Session / handoff snapshots are LLM-oriented; linters flag MD025 etc.
+  // Dependencies and vendored plugin trees are not repo-owned prose (local checkout noise).
+  "ignores": [
+    "**/agents/**",
+    "**/cache/**",
+    "**/node_modules/**",
+    "**/plugins/**",
+    "CLAUDE.md",
+    ".claude/snapshots/**"
+  ]
 }
