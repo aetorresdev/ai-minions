@@ -11,7 +11,7 @@ Use this skill when the user asks for **token usage**, **trace metrics**, **MCP 
 
 | Artifact | Path | Contents |
 |----------|------|----------|
-| Per-run JSONL trace | `~/.claude/metrics/traces/<task_id>.jsonl` | Every line: `ts`, `ts_ms`, `trace_schema_version` (`"2"`). Events: `session_start`, step-level graph fields, `context_stats` (Ollama tokens when applicable), `mcp_call`, `iteration_done` with `transition_reason: { type, details? }`, `session_end` rollups |
+| Per-run JSONL trace | `~/.claude/metrics/traces/<task_id>.jsonl` | Every line: `ts`, `ts_ms`, `trace_schema_version` (`"2"`). `iteration_done.transition_reason`: `{ type, reason_code, details?, gate_id?, step_id? }`. Schema: `examples/orchestrator/schemas/trace-v2-line.schema.json`. Optional strict parse: `ORCH_TRACE_VALIDATE=1` or `--strict-traces` on CLIs. |
 | Override trace dir | Env `ORCH_TRACES_DIR` | Same layout as above |
 
 After `node run-orchestrator.js …`, the CLI prints **`Task ID:`** — that string is the `<task_id>` basename for the trace file.

@@ -17,11 +17,11 @@ const { parseJsonl, buildReport } = require("./token-trace-report");
 
 /**
  * @param {string} tracesDir
- * @param {{ sinceMs?: number, includeUntagged?: boolean }} opts
+ * @param {{ sinceMs?: number, includeUntagged?: boolean, validateTrace?: boolean }} opts
  * @returns {object[]}
  */
 function collectRunsFromDir(tracesDir, opts = {}) {
-  const { sinceMs = null, includeUntagged = false } = opts;
+  const { sinceMs = null, includeUntagged = false, validateTrace = false } = opts;
   if (!fs.existsSync(tracesDir)) return [];
 
   const names = fs.readdirSync(tracesDir).filter((n) => n.endsWith(".jsonl"));
@@ -43,7 +43,7 @@ function collectRunsFromDir(tracesDir, opts = {}) {
     } catch {
       continue;
     }
-    const { rows, errors } = parseJsonl(text);
+    const { rows, errors } = parseJsonl(text, { validateLines: validateTrace });
     if (!rows.length) continue;
 
     const sessionStart = rows.find((r) => r.event === "session_start");
@@ -80,8 +80,9 @@ function collectRunsFromDir(tracesDir, opts = {}) {
 }
 
 function usage() {
-  console.error(`Usage: node scenario-metrics-export.js [--dir DIR] [--since-m MINUTES] [--include-untagged] [--out FILE.json]
-Env: ORCH_TRACES_DIR — default trace directory (~/.claude/metrics/traces)`);
+  console.error(`Usage: node scenario-metrics-export.js [--dir DIR] [--since-m MINUTES] [--include-untagged] [--out FILE.json] [--strict-traces]
+Env: ORCH_TRACES_DIR — default trace directory (~/.claude/metrics/traces)
+     ORCH_TRACE_VALIDATE=1 — validate each JSONL line against schema v2 (drops invalid lines; see parse_errors on runs)`);
 }
 
 function main() {
@@ -91,6 +92,7 @@ function main() {
   let sinceM = null;
   let includeUntagged = false;
   let outPath = null;
+  const strictTraces = argv.includes("--strict-traces") || process.env.ORCH_TRACE_VALIDATE === "1";
 
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--dir" && argv[i + 1]) tracesDir = argv[++i];
@@ -104,7 +106,7 @@ function main() {
   }
 
   const sinceMs = sinceM != null && !Number.isNaN(sinceM) ? sinceM * 60 * 1000 : null;
-  const runs = collectRunsFromDir(tracesDir, { sinceMs, includeUntagged });
+  const runs = collectRunsFromDir(tracesDir, { sinceMs, includeUntagged, validateTrace: strictTraces });
 
   const byScenario = {};
   for (const r of runs) {

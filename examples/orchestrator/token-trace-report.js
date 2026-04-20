@@ -18,9 +18,12 @@ const os = require("os");
 
 /**
  * @param {string} text - full JSONL
+ * @param {{ validateLines?: boolean }} [options] — if true or env ORCH_TRACE_VALIDATE=1, validate each object against trace JSON Schema v2
  * @returns {{ rows: TraceRow[], errors: string[] }}
  */
-function parseJsonl(text) {
+function parseJsonl(text, options = {}) {
+  const validateLines = options.validateLines === true || process.env.ORCH_TRACE_VALIDATE === "1";
+  const { validateTraceLine } = validateLines ? require("./trace-schema") : { validateTraceLine: null };
   const rows = [];
   const errors = [];
   const lines = text.split("\n");
@@ -28,7 +31,15 @@ function parseJsonl(text) {
     const line = lines[i].trim();
     if (!line) continue;
     try {
-      rows.push(JSON.parse(line));
+      const row = JSON.parse(line);
+      if (validateTraceLine) {
+        const v = validateTraceLine(row);
+        if (!v.ok) {
+          errors.push(`line ${i + 1} schema: ${v.errors.join("; ")}`);
+          continue;
+        }
+      }
+      rows.push(row);
     } catch (e) {
       errors.push(`line ${i + 1}: ${(e && e.message) || String(e)}`);
     }
@@ -167,15 +178,17 @@ function printTextReport(taskId, tracePath, report, parseErrors) {
 }
 
 function usage() {
-  console.error(`Usage: node token-trace-report.js <task_id> [--json]
-       node token-trace-report.js --file <path.jsonl> [--json]
-Env: ORCH_TRACES_DIR (default: ~/.claude/metrics/traces)`);
+  console.error(`Usage: node token-trace-report.js <task_id> [--json] [--strict-traces]
+       node token-trace-report.js --file <path.jsonl> [--json] [--strict-traces]
+Env: ORCH_TRACES_DIR (default: ~/.claude/metrics/traces)
+     ORCH_TRACE_VALIDATE=1 — same as --strict-traces (JSON Schema v2 per line)`);
 }
 
 function main() {
   const argv = process.argv.slice(2);
   const jsonOut = argv.includes("--json");
-  const args = argv.filter((a) => a !== "--json");
+  const strictTraces = argv.includes("--strict-traces");
+  const args = argv.filter((a) => a !== "--json" && a !== "--strict-traces");
   let filePath = null;
   let taskId = null;
   for (let i = 0; i < args.length; i++) {
@@ -201,7 +214,7 @@ function main() {
   }
 
   const text = fs.readFileSync(tracePath, "utf8");
-  const { rows, errors } = parseJsonl(text);
+  const { rows, errors } = parseJsonl(text, { validateLines: strictTraces });
   const tid = taskId || (rows.find((r) => r.task_id) && rows.find((r) => r.task_id).task_id) || path.basename(tracePath, ".jsonl");
   const report = buildReport(rows);
 
@@ -217,7 +230,7 @@ function main() {
   }
 }
 
-module.exports = { parseJsonl, buildReport };
+module.exports = { parseJsonl, buildReport, parseTraceLine: require("./trace-schema").parseTraceLine };
 
 if (require.main === module) {
   main();

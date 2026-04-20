@@ -217,6 +217,11 @@ function _sanitize(event) {
   if (out.transition_reason && typeof out.transition_reason === "object" && out.transition_reason !== null) {
     const tr = { ...out.transition_reason };
     if ("details" in tr && tr.details != null) tr.details = String(tr.details).slice(0, 300);
+    if ("gate_id" in tr && tr.gate_id != null) tr.gate_id = String(tr.gate_id).slice(0, 120);
+    if ("step_id" in tr && tr.step_id != null) tr.step_id = String(tr.step_id).slice(0, 240);
+    if (out.event === "iteration_done" && tr.type && !tr.reason_code) {
+      tr.reason_code = inferReasonCode(String(tr.type), tr.details);
+    }
     out.transition_reason = tr;
   }
   return out;
@@ -233,34 +238,85 @@ const TRANSITION_REASON_TYPES = new Set([
   "ITERATE",
 ]);
 
+/** Closed catalog for analytics / aggregation (JSON Schema enum in schemas/trace-v2-line.schema.json). */
+const TRANSITION_REASON_CODES = new Set([
+  "RUN_COMPLETED",
+  "CERBERUS_BLOCKERS_ITERATE",
+  "ORCHESTRATOR_NO_CORRECTIONS_JSON",
+  "MAX_ITERATIONS_CERBERUS_BLOCKERS",
+  "GATE_ARTIFACT_OR_HANDOFF",
+  "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS",
+  "ORCHESTRATOR_DECIDE_CORRECTIONS",
+  "CONTRACT_OR_DECIDE_FAILURE",
+  "VALIDATION_FAILURE_GENERIC",
+]);
+
+/**
+ * Map (type, details) → stable reason_code. Extend when adding new iteration_done paths.
+ * @param {string} type
+ * @param {string|undefined} details
+ */
+function inferReasonCode(type, details) {
+  const d = details == null ? "" : String(details);
+  if (type === "DONE") return "RUN_COMPLETED";
+  if (type === "VALIDATION_FAIL") return "VALIDATION_FAILURE_GENERIC";
+  if (type === "GATE_BLOCK" && d === "cerberus_blockers") return "CERBERUS_BLOCKERS_ITERATE";
+  if (type === "ITERATE_FALLBACK" && d === "orchestrator_no_corrections_json") return "ORCHESTRATOR_NO_CORRECTIONS_JSON";
+  if (type === "MAX_ITERATIONS" && d === "cerberus_blockers_cap") return "MAX_ITERATIONS_CERBERUS_BLOCKERS";
+  if (type === "GATE_BLOCK" && d === "artifact_contract_or_handoff") return "GATE_ARTIFACT_OR_HANDOFF";
+  if (type === "MAX_ITERATIONS" && d === "gate_blocked_artifacts_cap") return "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS";
+  if (type === "ITERATE" && d === "orchestrator_decide_corrections") return "ORCHESTRATOR_DECIDE_CORRECTIONS";
+  if (type === "CONTRACT_FAIL") return "CONTRACT_OR_DECIDE_FAILURE";
+  throw new Error(`cannot infer reason_code for transition_reason type=${type} details=${d.slice(0, 80)}`);
+}
+
 /**
  * Structured transition reason for iteration_done.
  * @param {string} type — must be in TRANSITION_REASON_TYPES
  * @param {string} [details]
- * @returns {{ transition_reason: { type: string, details?: string } }}
+ * @param {{ reason_code?: string, gate_id?: string, step_id?: string }} [meta] — optional overrides / correlation fields
+ * @returns {{ transition_reason: { type: string, reason_code: string, details?: string, gate_id?: string, step_id?: string } }}
  */
-function transitionReason(type, details) {
+function transitionReason(type, details, meta = {}) {
   if (!TRANSITION_REASON_TYPES.has(type)) {
     throw new Error(`invalid transition_reason.type: ${type}`);
   }
-  const transition_reason = { type };
+  const reason_code = meta.reason_code != null && String(meta.reason_code).length
+    ? String(meta.reason_code)
+    : inferReasonCode(type, details);
+  if (!TRANSITION_REASON_CODES.has(reason_code)) {
+    throw new Error(`invalid transition_reason.reason_code: ${reason_code}`);
+  }
+  const transition_reason = { type, reason_code };
   if (details != null && String(details).length > 0) {
     transition_reason.details = String(details).slice(0, 300);
+  }
+  if (meta.gate_id != null && String(meta.gate_id).length > 0) {
+    transition_reason.gate_id = String(meta.gate_id).slice(0, 120);
+  }
+  if (meta.step_id != null && String(meta.step_id).length > 0) {
+    transition_reason.step_id = String(meta.step_id).slice(0, 240);
   }
   return { transition_reason };
 }
 
 function traceEvent(taskId, event) {
+  const tsMs = Date.now();
+  const record = {
+    ts: new Date(tsMs).toISOString(),
+    ts_ms: tsMs,
+    trace_schema_version: TRACE_SCHEMA_VERSION,
+    task_id: taskId,
+    ..._sanitize(event),
+  };
+  const { validateTraceLine } = require("./trace-schema");
+  const v = validateTraceLine(record);
+  if (!v.ok) {
+    throw new Error(`trace line failed JSON Schema: ${v.errors.join("; ")}`);
+  }
   try {
     fs.mkdirSync(TRACES_DIR, { recursive: true });
-    const tsMs = Date.now();
-    const line = JSON.stringify({
-      ts: new Date(tsMs).toISOString(),
-      ts_ms: tsMs,
-      trace_schema_version: TRACE_SCHEMA_VERSION,
-      task_id: taskId,
-      ..._sanitize(event),
-    });
+    const line = JSON.stringify(record);
     fs.appendFileSync(path.join(TRACES_DIR, `${taskId}.jsonl`), line + "\n");
   } catch (err) {
     if (!_traceWarnEmitted) {
@@ -1007,7 +1063,15 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         const gateId = err.gate_id || null;
         traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...edgeMeta("fail"), duration_ms, reason: err.message.slice(0, 300), critical: isCritical, ...(gateId ? { gate_id: gateId } : {}) });
         log(agentId, `🟥 Output contract failed: ${err.message}`);
-        artifacts.push({ agentId, task: step.task, result: "", gateBlocked: true, gateReason: err.message });
+        artifacts.push({
+          agentId,
+          task: step.task,
+          result: "",
+          gateBlocked: true,
+          gateReason: err.message,
+          step_id: stepId,
+          gate_kind: gateId || "output_contract",
+        });
         emittedStepIds.add(stepId);
         previousStepId = stepId;
         if (isCritical) {
@@ -1065,6 +1129,8 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
               agentId,
               task: step.task,
               result,
+              step_id: stepId,
+              gate_kind: "compact_handoff",
               ...compactHandoffStrictFailureFields(err),
             });
             continue;
@@ -1087,8 +1153,16 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         if (!sv.valid) {
           log("gate", `🟥 Handoff structure invalid (${toMode}): ${sv.reason}`);
           traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("gate_block"), gate: "handoff_structure", passed: false, reason: sv.reason });
-          artifacts.push({ agentId, task: step.task, result, handoffYaml,
-            gateBlocked: true, gateReason: `handoff_structure: ${sv.reason}` });
+          artifacts.push({
+            agentId,
+            task: step.task,
+            result,
+            handoffYaml,
+            gateBlocked: true,
+            gateReason: `handoff_structure: ${sv.reason}`,
+            step_id: stepId,
+            gate_kind: "handoff_structure",
+          });
           continue;
         }
         traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("success"), gate: "handoff_structure", passed: true });
@@ -1124,8 +1198,16 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
             } else {
               log("gate", `🟥 Goal not aligned: ${alignment.notes}. Skipping advance_mode for this step.`);
               traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("gate_block"), gate: "goal_alignment", passed: false, confidence: alignment.confidence, reason: alignment.notes });
-              artifacts.push({ agentId, task: step.task, result, handoffYaml,
-                gateBlocked: true, gateReason: `goal_alignment: ${alignment.notes}` });
+              artifacts.push({
+                agentId,
+                task: step.task,
+                result,
+                handoffYaml,
+                gateBlocked: true,
+                gateReason: `goal_alignment: ${alignment.notes}`,
+                step_id: stepId,
+                gate_kind: "goal_alignment",
+              });
               continue;
             }
           } else {
@@ -1145,8 +1227,16 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
           if (!vt.allowed) {
             log("gate", `🟥 Transition blocked: ${(vt.errors || []).join("; ")}`);
             traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("gate_block"), gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: false, reason: (vt.errors || []).join("; ") });
-            artifacts.push({ agentId, task: step.task, result, handoffYaml,
-              gateBlocked: true, gateReason: (vt.errors || []).join("; ") });
+            artifacts.push({
+              agentId,
+              task: step.task,
+              result,
+              handoffYaml,
+              gateBlocked: true,
+              gateReason: (vt.errors || []).join("; "),
+              step_id: stepId,
+              gate_kind: "transition",
+            });
             continue;
           }
 
@@ -1256,6 +1346,7 @@ nice-to-have: ...`;
         result: "",
         gateBlocked: true,
         gateReason: err.message,
+        gate_kind: gateId || "cerberus_output_contract",
       });
     }
 
@@ -1286,6 +1377,7 @@ nice-to-have: ...`;
             agentId: "cerberus",
             task: "(session review) Deliverable review before decide",
             result: cerberusResult,
+            gate_kind: "compact_handoff",
             ...compactHandoffStrictFailureFields(err),
           });
         } else {
@@ -1400,7 +1492,17 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       if (iterations < maxIterations) {
         log("orchestrator", `🟥 ${gateBlockedArtifacts.length} gate-blocked artifact(s) — cannot mark done (forcing iteration):`);
         gateBlockReasons.forEach(r => log("orchestrator", `  ↳ ${r}`));
-        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "gate_blocked_iterate", ...transitionReason("GATE_BLOCK", "artifact_contract_or_handoff"), gate_blocks: gateBlockedArtifacts.length });
+        const _gb0 = gateBlockedArtifacts[0];
+        traceEvent(taskId, {
+          event: "iteration_done",
+          iteration: iterations,
+          outcome: "gate_blocked_iterate",
+          ...transitionReason("GATE_BLOCK", "artifact_contract_or_handoff", {
+            ...( _gb0 && _gb0.step_id ? { step_id: _gb0.step_id } : {}),
+            ...( _gb0 && _gb0.gate_kind ? { gate_id: _gb0.gate_kind } : {}),
+          }),
+          gate_blocks: gateBlockedArtifacts.length,
+        });
         // Retry the blocked steps
         plan = { steps: gateBlockedArtifacts.map(a => ({ agentId: a.agentId, task: a.task })) };
         continue;
@@ -1570,5 +1672,7 @@ module.exports = {
   assertParentStepExists,
   transitionReason,
   TRANSITION_REASON_TYPES,
+  TRANSITION_REASON_CODES,
+  inferReasonCode,
   TRACE_SCHEMA_VERSION,
 };
