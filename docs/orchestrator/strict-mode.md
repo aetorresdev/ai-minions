@@ -360,7 +360,16 @@ This does **not** freeze Ollama or full `run()` outputs (those stay non-determin
 
 ---
 
-## Flow-aware trace metadata (TEL-GRAPH-1)
+## Trace line envelope
+
+Every JSONL line includes:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ts` | string | ISO 8601 timestamp |
+| `ts_ms` | number | Unix epoch milliseconds (same instant as `ts`) — use for deltas and latency |
+
+## Flow-aware trace metadata
 
 Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_result`, `context_stats`) carries three graph fields that allow reconstructing the execution DAG from the JSONL alone:
 
@@ -372,9 +381,12 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 
 `iteration_done` events add:
 
-| Field | Type | Values |
-|-------|------|--------|
-| `transition_reason` | string | `done` · `iterate` · `iterate_fallback` · `gate_blocked_iterate` · `max_iterations_with_blockers` · `max_iterations_with_gate_blocks` |
+| Field | Type | Description |
+|-------|------|-------------|
+| `transition_reason` | object | `{ "type": "<ENUM>", "details"?: string }` — `details` truncated to 300 chars in traces |
+| `transition_reason.type` | string | `DONE` · `VALIDATION_FAIL` · `GATE_BLOCK` · `MAX_ITERATIONS` · `CONTRACT_FAIL` · `ITERATE_FALLBACK` · `ITERATE` |
+
+Rough mapping from `outcome` (legacy UI) to `transition_reason.type`: `done` → `DONE`; `iterate` after CERBERUS blockers + corrections → `GATE_BLOCK`; `iterate_fallback` → `ITERATE_FALLBACK`; `gate_blocked_iterate` → `GATE_BLOCK`; `max_iterations_*` → `MAX_ITERATIONS`; `iterate` after orchestrator decide JSON corrections → `ITERATE`; `stopped` (invalid decide) → `CONTRACT_FAIL`. See `transitionReason()` in `orchestrator.js`.
 
 `step_id` is the primary join key across events within a run. Consumers (token reports, EIL visualisation) use it to correlate `agent_start` → `agent_done` → `gate_result` → `context_stats` for the same step without scanning by `(agent, iteration)` tuples.
 
@@ -431,9 +443,9 @@ When agents use **Ollama** (`/api/chat`), the example `agents.js` parses `prompt
 
 `session_end` includes **`ollama_prompt_tokens_total`** and **`ollama_completion_tokens_total`** when at least one of those counters is non-zero. **Claude CLI** paths do not populate these fields (no token API in this example runner). **Cost in USD / per-scenario export** is not implemented in this example runner yet.
 
-**On-demand readout:** `examples/orchestrator/token-trace-report.js` (npm script `tokens:report`) reads a completed `*.jsonl` and prints Ollama totals (from `context_stats` vs `session_end`) plus MCP rollups — see `examples/orchestrator/README.md` (TOKENS-RPT-1 v1).
+**On-demand readout:** `examples/orchestrator/token-trace-report.js` (npm script `tokens:report`) reads a completed `*.jsonl` and prints Ollama totals (from `context_stats` vs `session_end`) plus MCP rollups — see `examples/orchestrator/README.md`.
 
-**Batch export (C-T4):** optional `scenario_id` on `session_start` / `session_end` when `run({ traceScenarioId })` or `ORCH_TRACE_SCENARIO_ID` is set; `scenario-metrics-export.js` (`npm run metrics:export-scenarios`) aggregates tagged traces into JSON (`runs`, `by_scenario`).
+**Batch export:** optional `scenario_id` on `session_start` / `session_end` when `run({ traceScenarioId })` or `ORCH_TRACE_SCENARIO_ID` is set; `scenario-metrics-export.js` (`npm run metrics:export-scenarios`) aggregates tagged traces into JSON (`runs`, `by_scenario`).
 
 ---
 
@@ -447,7 +459,7 @@ Automated checks for **`skipStateMcp: false`** (hard gates on) without requiring
 
 This is **not** the same as registering MCPs inside the Anthropic Claude app: that path still uses `claude -p` when `ORCH_MCP_TRANSPORT` is unset. CI (`.github/workflows/orchestrator-e2e.yml`) runs both `test:e2e` (degraded) and `test:e2e:strict` on the self-hosted Ollama runner.
 
-### GitHub Actions — `orchestrator-e2e.yml` (GHA-E2E)
+### GitHub Actions — `orchestrator-e2e.yml`
 
 - **Runner:** `runs-on: [self-hosted, ollama]` — the machine must run Ollama on `localhost:11434` and have `uv sync` done for `mcp-servers/orchestrator-state` and `compact-handoff` (the workflow runs `uv sync` each job).
 - **Dual suite:** `npm run test:e2e` then `npm run test:e2e:strict` — same contract as local “full E2E + system-path”.

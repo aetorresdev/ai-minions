@@ -32,14 +32,17 @@ const path = require("path");
 
 // ── Execution trace ───────────────────────────────────────────────────────────
 // Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
+// Every line: ts (ISO), ts_ms (epoch ms), task_id, …payload.
 // Event types: session_start, agent_start, agent_done, gate_result,
 //              contract_fail, iteration_done, session_end, mcp_call,
 //              context_stats may include ollama_prompt_tokens / ollama_completion_tokens (Ollama routes)
+// iteration_done.transition_reason: { type, details? }.
 //
 // Sensitive field handling:
 //   goal  → truncated to 80 chars + SHA-256 hash (TRACE_REDACT_GOAL=1 omits text entirely)
 //   task  → truncated to 120 chars
 //   reason/summary → truncated to 300 chars
+//   transition_reason.details → truncated to 300 chars
 // Trace write failures emit a one-time stderr warning (not silenced).
 
 const TRACES_DIR = path.join(require("os").homedir(), ".claude", "metrics", "traces");
@@ -204,16 +207,55 @@ function _sanitize(event) {
     const h = _hashGoal(out.goal);
     out.goal = TRACE_REDACT_GOAL ? `[redacted:${h}]` : `${String(out.goal).slice(0, 80)}… [sha256:${h}]`;
   }
-  if ("task"    in out) out.task    = String(out.task).slice(0, 120);
-  if ("reason"  in out) out.reason  = String(out.reason).slice(0, 300);
+  if ("task" in out) out.task = String(out.task).slice(0, 120);
+  if ("reason" in out) out.reason = String(out.reason).slice(0, 300);
   if ("summary" in out) out.summary = String(out.summary).slice(0, 300);
+  if (out.transition_reason && typeof out.transition_reason === "object" && out.transition_reason !== null) {
+    const tr = { ...out.transition_reason };
+    if ("details" in tr && tr.details != null) tr.details = String(tr.details).slice(0, 300);
+    out.transition_reason = tr;
+  }
   return out;
+}
+
+/** Allowed values for iteration_done.transition_reason.type. */
+const TRANSITION_REASON_TYPES = new Set([
+  "DONE",
+  "VALIDATION_FAIL",
+  "GATE_BLOCK",
+  "MAX_ITERATIONS",
+  "CONTRACT_FAIL",
+  "ITERATE_FALLBACK",
+  "ITERATE",
+]);
+
+/**
+ * Structured transition reason for iteration_done.
+ * @param {string} type — must be in TRANSITION_REASON_TYPES
+ * @param {string} [details]
+ * @returns {{ transition_reason: { type: string, details?: string } }}
+ */
+function transitionReason(type, details) {
+  if (!TRANSITION_REASON_TYPES.has(type)) {
+    throw new Error(`invalid transition_reason.type: ${type}`);
+  }
+  const transition_reason = { type };
+  if (details != null && String(details).length > 0) {
+    transition_reason.details = String(details).slice(0, 300);
+  }
+  return { transition_reason };
 }
 
 function traceEvent(taskId, event) {
   try {
     fs.mkdirSync(TRACES_DIR, { recursive: true });
-    const line = JSON.stringify({ ts: new Date().toISOString(), task_id: taskId, ..._sanitize(event) });
+    const tsMs = Date.now();
+    const line = JSON.stringify({
+      ts: new Date(tsMs).toISOString(),
+      ts_ms: tsMs,
+      task_id: taskId,
+      ..._sanitize(event),
+    });
     fs.appendFileSync(path.join(TRACES_DIR, `${taskId}.jsonl`), line + "\n");
   } catch (err) {
     if (!_traceWarnEmitted) {
@@ -720,7 +762,7 @@ function parseEnvironment(prompt) {
  *   stepSummary?: boolean,
  *   skipStateMcp?: boolean
  *   requireHandoff?: boolean — if set, overrides default: strict (!skipStateMcp) requires compact_handoff; degraded skips hard fail
- *   traceScenarioId?: string — optional label written to trace `session_start` / `session_end` as `scenario_id` (C-T4 batch export). Env: ORCH_TRACE_SCENARIO_ID.
+ *   traceScenarioId?: string — optional label written to trace `session_start` / `session_end` as `scenario_id` (batch metrics export). Env: ORCH_TRACE_SCENARIO_ID.
  * }} options
  */
 async function run(goal, options = {}) {
@@ -1321,12 +1363,12 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         corrections.corrections.forEach((c) =>
           log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
         );
-        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate", transition_reason: "iterate", blockers: cerberusBlockers.count, corrections: corrections.corrections.length });
+        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate", ...transitionReason("GATE_BLOCK", "cerberus_blockers"), blockers: cerberusBlockers.count, corrections: corrections.corrections.length });
         plan = { steps: corrections.corrections };
       } else {
         // Orchestrator failed to produce corrections — generate generic DEV retry
         log("orchestrator", "WARNING: orchestrator returned no corrections — retrying last DEV steps");
-        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate_fallback", transition_reason: "iterate_fallback", blockers: cerberusBlockers.count });
+        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate_fallback", ...transitionReason("ITERATE_FALLBACK", "orchestrator_no_corrections_json"), blockers: cerberusBlockers.count });
         plan = { steps: artifacts.filter(a => a.agentId?.startsWith("dev-")).map(a => ({ agentId: a.agentId, task: `Fix blockers: ${cerberusBlockers.items.slice(0, 2).join("; ")}` })) };
       }
       continue;
@@ -1337,7 +1379,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       manualReview = true;
       summary = `Max iterations reached with ${cerberusBlockers.count} gate-blocked CERBERUS finding(s). Manual review required.`;
       log("orchestrator", `⚠ ${summary}`);
-      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_blockers", transition_reason: "max_iterations_with_blockers", blockers: cerberusBlockers.count });
+      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_blockers", ...transitionReason("MAX_ITERATIONS", "cerberus_blockers_cap"), blockers: cerberusBlockers.count });
       continue;
     }
 
@@ -1353,7 +1395,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       if (iterations < maxIterations) {
         log("orchestrator", `🟥 ${gateBlockedArtifacts.length} gate-blocked artifact(s) — cannot mark done (forcing iteration):`);
         gateBlockReasons.forEach(r => log("orchestrator", `  ↳ ${r}`));
-        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "gate_blocked_iterate", transition_reason: "gate_blocked_iterate", gate_blocks: gateBlockedArtifacts.length });
+        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "gate_blocked_iterate", ...transitionReason("GATE_BLOCK", "artifact_contract_or_handoff"), gate_blocks: gateBlockedArtifacts.length });
         // Retry the blocked steps
         plan = { steps: gateBlockedArtifacts.map(a => ({ agentId: a.agentId, task: a.task })) };
         continue;
@@ -1362,7 +1404,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         manualReview = true;
         summary = `Max iterations reached with ${gateBlockedArtifacts.length} gate-blocked artifact(s). Manual review required. Blocked: ${gateBlockReasons.join("; ")}`;
         log("orchestrator", `⚠ ${summary}`);
-        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_gate_blocks", transition_reason: "max_iterations_with_gate_blocks", gate_blocks: gateBlockedArtifacts.length });
+        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_gate_blocks", ...transitionReason("MAX_ITERATIONS", "gate_blocked_artifacts_cap"), gate_blocks: gateBlockedArtifacts.length });
         continue;
       }
     }
@@ -1407,19 +1449,19 @@ Reply with JSON only.`;
       done = true;
       summary = decide.summary || "Completed.";
       log("orchestrator", `✓ Done: ${summary}`);
-      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "done", transition_reason: "done", summary: summary.slice(0, 200) });
+      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "done", ...transitionReason("DONE"), summary: summary.slice(0, 200) });
     } else if (decide && Array.isArray(decide.corrections) && decide.corrections.length > 0) {
       log("orchestrator", `↻ Iterating — ${decide.corrections.length} correction(s):`);
       decide.corrections.forEach((c) =>
         log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
       );
-      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate", corrections: decide.corrections.length });
+      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate", ...transitionReason("ITERATE", "orchestrator_decide_corrections"), corrections: decide.corrections.length });
       plan = { steps: decide.corrections };
     } else {
       done = true;
       summary = "Stopped (no corrections or invalid orchestrator response).";
       log("orchestrator", summary);
-      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "stopped", summary });
+      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "stopped", ...transitionReason("CONTRACT_FAIL", summary), summary });
     }
   }
 
@@ -1521,4 +1563,6 @@ module.exports = {
   EDGE_TYPE_CATEGORY,
   validateStepGraph,
   assertParentStepExists,
+  transitionReason,
+  TRANSITION_REASON_TYPES,
 };
