@@ -378,6 +378,23 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 
 `step_id` is the primary join key across events within a run. Consumers (token reports, EIL visualisation) use it to correlate `agent_start` → `agent_done` → `gate_result` → `context_stats` for the same step without scanning by `(agent, iteration)` tuples.
 
+### Graph edges (TEL-GRAPH-2)
+
+Every step-level event also carries two edge fields that make the causal chain explicit:
+
+| Field | Type | Values | Set on |
+|-------|------|--------|--------|
+| `parent_step_id` | string \| null | `step_id` of the preceding step, or `null` for the first step in an iteration | all step-level events |
+| `edge_type` | string | `success` · `retry` · `fail` · `gate_block` | `agent_done`, `contract_fail`, `gate_result` |
+
+`edge_type` rules:
+- `agent_done`: `retry` if `retry_number > 0`, otherwise `success`
+- `contract_fail`: always `fail`
+- `gate_result` passed=false: `gate_block`
+- `gate_result` passed=true: `success`
+
+Together `parent_step_id` + `edge_type` allow building a directed graph of the execution: each node is a `step_id`, each edge carries a typed reason for the transition.
+
 ---
 
 ## MCP usage audit
