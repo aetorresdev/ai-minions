@@ -279,6 +279,10 @@ describe("graph metadata in trace events", () => {
     assert.equal(r3.transition_reason.reason_code, "ORCHESTRATOR_DECIDE_CORRECTIONS");
     assert.throws(() => transitionReason("NOT_A_TYPE"), /invalid transition_reason/);
     assert.ok(TRANSITION_REASON_TYPES.has("MAX_ITERATIONS"));
+    const g = transitionReason("GUARD", "step_retry_limit", { reason_code: "GUARD_STEP_RETRY_LIMIT", gate_id: "dev-backend" });
+    assert.equal(g.transition_reason.type, "GUARD");
+    assert.equal(g.transition_reason.reason_code, "GUARD_STEP_RETRY_LIMIT");
+    assert.equal(g.transition_reason.gate_id, "dev-backend");
   });
 
   it("_sanitize truncates transition_reason.details", () => {
