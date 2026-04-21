@@ -36,7 +36,8 @@
                   "MAX_ITERATIONS",
                   "CONTRACT_FAIL",
                   "ITERATE_FALLBACK",
-                  "ITERATE"
+                  "ITERATE",
+                  "GUARD"
                 ]
               },
               "reason_code": {
@@ -50,7 +51,10 @@
                   "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS",
                   "ORCHESTRATOR_DECIDE_CORRECTIONS",
                   "CONTRACT_OR_DECIDE_FAILURE",
-                  "VALIDATION_FAILURE_GENERIC"
+                  "VALIDATION_FAILURE_GENERIC",
+                  "GUARD_COST_LIMIT",
+                  "GUARD_STEP_RETRY_LIMIT",
+                  "MAX_ITERATIONS_LOOP_EXHAUSTED"
                 ]
               },
               "details": { "type": "string", "maxLength": 300 },
