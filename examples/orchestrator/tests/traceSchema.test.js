@@ -275,6 +275,59 @@ test("getValidationMetrics returns a snapshot copy, not a live reference", () =>
   assert.equal(snap.policy_unsupported_version, 0, "snapshot must not reflect later increments");
 });
 
+test("rejections includes event and step_id context when available", () => {
+  resetValidationMetrics();
+  validateTraceLine({ ...BASE, trace_schema_version: "99", step_id: "s1" });
+  const m = getValidationMetrics();
+  assert.equal(m.rejections.length, 1);
+  assert.equal(m.rejections[0].reason, "policy_unsupported_version");
+  assert.equal(m.rejections[0].event, "session_start");
+  assert.equal(m.rejections[0].step_id, "s1");
+});
+
+test("rejections includes reason_code from transition_reason when present", () => {
+  resetValidationMetrics();
+  validateTraceLine({
+    ...BASE,
+    trace_schema_version: "99",
+    event: "iteration_done",
+    transition_reason: { type: "DONE", reason_code: "RUN_COMPLETED" },
+  });
+  const m = getValidationMetrics();
+  assert.equal(m.rejections.length, 1);
+  assert.equal(m.rejections[0].reason_code, "RUN_COMPLETED");
+});
+
+test("rejections omits missing context fields", () => {
+  resetValidationMetrics();
+  validateTraceLine({ trace_schema_version: "99" });
+  const m = getValidationMetrics();
+  assert.equal(m.rejections.length, 1);
+  assert.ok(!("event" in m.rejections[0]));
+  assert.ok(!("step_id" in m.rejections[0]));
+  assert.ok(!("reason_code" in m.rejections[0]));
+});
+
+test("rejections caps at 50 entries (FIFO)", () => {
+  resetValidationMetrics();
+  for (let i = 0; i < 55; i++) {
+    validateTraceLine({ ...BASE, trace_schema_version: "99", step_id: `s${i}` });
+  }
+  const m = getValidationMetrics();
+  assert.equal(m.rejections.length, 50);
+  assert.equal(m.rejections[0].step_id, "s5");
+  assert.equal(m.rejections[49].step_id, "s54");
+});
+
+test("rejections snapshot is independent of subsequent resets", () => {
+  resetValidationMetrics();
+  validateTraceLine({ ...BASE, trace_schema_version: "99" });
+  const snap = getValidationMetrics();
+  resetValidationMetrics();
+  assert.equal(snap.rejections.length, 1);
+  assert.equal(getValidationMetrics().rejections.length, 0);
+});
+
 // validateTraceRunGraph — run-level graph consistency
 const { validateTraceRunGraph } = require("../trace-schema");
 

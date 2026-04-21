@@ -23,20 +23,41 @@ const SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ = new Set([TRACE_LINE_WRITER_VERS
 const SCHEMA_PATH = path.join(__dirname, "schemas", "trace-v2-line.schema.json");
 let _validate = null;
 
+const REJECTION_CAP = 50;
+
 const _metrics = {
   policy_missing_version: 0,
   policy_unsupported_version: 0,
   ajv_schema_error: 0,
+  rejections: [],
 };
 
+function _addRejection(reason, record) {
+  const entry = { reason };
+  if (record && typeof record === "object") {
+    if (record.event != null) entry.event = record.event;
+    if (record.step_id != null) entry.step_id = record.step_id;
+    if (record.transition_reason && record.transition_reason.reason_code != null)
+      entry.reason_code = record.transition_reason.reason_code;
+  }
+  if (_metrics.rejections.length >= REJECTION_CAP) _metrics.rejections.shift();
+  _metrics.rejections.push(entry);
+}
+
 function getValidationMetrics() {
-  return { ..._metrics };
+  return {
+    policy_missing_version: _metrics.policy_missing_version,
+    policy_unsupported_version: _metrics.policy_unsupported_version,
+    ajv_schema_error: _metrics.ajv_schema_error,
+    rejections: [..._metrics.rejections],
+  };
 }
 
 function resetValidationMetrics() {
   _metrics.policy_missing_version = 0;
   _metrics.policy_unsupported_version = 0;
   _metrics.ajv_schema_error = 0;
+  _metrics.rejections = [];
 }
 
 function getValidator() {
@@ -74,13 +95,19 @@ function traceSchemaVersionPolicyErrors(record) {
 function validateTraceLine(record) {
   const policy = traceSchemaVersionPolicyErrors(record);
   if (policy) {
-    if (policy.reason === "missing_version") _metrics.policy_missing_version++;
-    else _metrics.policy_unsupported_version++;
+    if (policy.reason === "missing_version") {
+      _metrics.policy_missing_version++;
+      _addRejection("policy_missing_version", record);
+    } else {
+      _metrics.policy_unsupported_version++;
+      _addRejection("policy_unsupported_version", record);
+    }
     return { ok: false, errors: policy.errors };
   }
   const validate = getValidator();
   if (!validate(record)) {
     _metrics.ajv_schema_error++;
+    _addRejection("ajv_schema_error", record);
     const errs = (validate.errors || []).map((e) => {
       const rootPath = e.instancePath ? `/${e.instancePath.split("/")[1]}` : "/";
       return `${rootPath} ${e.message || "invalid"}`.trim();
