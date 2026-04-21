@@ -32,7 +32,7 @@ There is **no** automatic cross-version rewrite at read time today; multi-versio
 
 - **Constants:** `TRACE_LINE_WRITER_VERSION` and `SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ` in `examples/orchestrator/trace-schema.js` — extend the `Set` when this binary ships multiple readers.
 - **API:** `traceSchemaVersionPolicyErrors(record)` returns policy-only errors; `validateTraceLine` runs policy first, then JSON Schema.
-- **Metrics:** `getValidationMetrics()` returns a snapshot `{ policy_missing_version, policy_unsupported_version, ajv_schema_error }` — counters increment on every rejection. `resetValidationMetrics()` resets all counters (useful in tests).
+- **Metrics:** `getValidationMetrics()` returns a snapshot `{ policy_missing_version, policy_unsupported_version, ajv_schema_error, rejections[] }` — counters increment on every rejection; `rejections` holds the last 50 entries (FIFO cap). Each entry has the shape `{ reason, event?, step_id?, reason_code? }` where `reason` is always a member of the exported `REJECTION_REASONS` enum (`"policy_missing_version" | "policy_unsupported_version" | "ajv_schema_error"`); optional fields are omitted (never null) when not present in the record as strings. `resetValidationMetrics()` resets all counters and clears `rejections` (useful in tests).
 
 ## Bump checklist (maintainers)
 
@@ -84,6 +84,23 @@ There is **no** automatic cross-version rewrite at read time today; multi-versio
 ```
 
 Strict validation surfaces these as Ajv errors; see tests in `examples/orchestrator/tests/traceSchema.test.js`.
+
+## explain-run consumers
+
+`examples/orchestrator/explain-run.js` reads trace JSONL and derives a human or JSON summary. It is a **read-only consumer** — it does not validate against the JSON Schema at read time (best-effort parse: invalid lines are skipped). It reads these fields:
+
+| Field | Events | Notes |
+|-------|--------|-------|
+| `run_id` / `task_id` | any | Used to identify the run in output |
+| `ts_ms` | any | Required for sort order; missing treated as 0 |
+| `event` | any | Drives all derivations |
+| `outcome` | `iteration_done`, `session_end` | `final_status` and retry count |
+| `goal`, `flow_mode` | `session_start` | First occurrence only; omitted if absent |
+| `failure_type` | any | Taken verbatim; `UNKNOWN` if run failed and field absent |
+| `cost_usd` | any | Summed only when numeric; field omitted from output if no data |
+| `sequence_id` | any | Tie-breaker for run_id resolution |
+
+Adding optional fields to `trace-v2-line.schema.json` does **not** break `explain-run` — it reads only what it knows. Removing or renaming any field in the table above is a **breaking change** that requires updating `explain-run.js` in the same changeset.
 
 ## Related paths
 
