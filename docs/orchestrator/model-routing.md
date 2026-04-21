@@ -6,7 +6,7 @@ Defines which model each role uses, when local fallback is safe, and what struct
 
 ## Model routing
 
-Configured in `examples/orchestrator/agents.js` (`MODEL_ROUTING`).
+Configured in `orchestrator/agents.js` (`MODEL_ROUTING`).
 
 | Role | Primary | Fallback | Local safe? |
 |------|---------|----------|-------------|
@@ -81,7 +81,7 @@ Override keys in `models.json` and `MODEL_OVERRIDE_*` env vars use the normalize
 | `qa` | `QA` |
 | `cerberus` | `CERBERUS` |
 
-**`examples/orchestrator/models.json`** schema:
+**`orchestrator/models.json`** schema:
 
 ```json
 {
@@ -120,7 +120,7 @@ Override keys in `models.json` and `MODEL_OVERRIDE_*` env vars use the normalize
 
 ## Fallback policy
 
-Configured in `examples/orchestrator/agents.js` (`FALLBACK_POLICY`).
+Configured in `orchestrator/agents.js` (`FALLBACK_POLICY`).
 
 When the primary model fails, the runner attempts the fallback model per role. If both fail, behavior depends on the role's `degraded` flag:
 
@@ -140,7 +140,7 @@ When the primary model fails, the runner attempts the fallback model per role. I
 
 ### Architect with Ollama (`setBackend("ollama")`)
 
-E2E and local harnesses may route **all** roles through Ollama. `architect` still runs `validateOutput()`: the message must declare a **non-empty** `files_read` list before any design prose (same gate as for DEV `files_read`, without `files_modified` / `validation_run`). The ARCHITECT system prompt in `examples/orchestrator/agents.js` includes an **OUTPUT CONTRACT** block and a minimal YAML example. If real runs still flake, track follow-ups in your project backlog (prompt tuning, optional few-shot, metrics).
+E2E and local harnesses may route **all** roles through Ollama. `architect` still runs `validateOutput()`: the message must declare a **non-empty** `files_read` list before any design prose (same gate as for DEV `files_read`, without `files_modified` / `validation_run`). The ARCHITECT system prompt in `orchestrator/agents.js` includes an **OUTPUT CONTRACT** block and a minimal YAML example. If real runs still flake, track follow-ups in your project backlog (prompt tuning, optional few-shot, metrics).
 
 > **QA degraded — operationally tolerable, not quality-equivalent.**
 > When QA falls back to Haiku, it can still produce classified findings and a verdict. However, Haiku may miss edge cases or accept weaker evidence than Sonnet would. CERBERUS runs after QA regardless and will catch gaps — but only gaps it can observe from the final artifact. Evidence that was never collected by a degraded QA cannot be retroactively surfaced. This tradeoff is accepted; the assumption should be explicit: **QA degraded = reduced coverage, not zero coverage.**
@@ -162,7 +162,7 @@ Current version: **1.0**
 
 ## Output token controls
 
-Configured in `examples/orchestrator/agents.js` (`MAX_OUTPUT_TOKENS` + `OUTPUT RULE` in system prompts).
+Configured in `orchestrator/agents.js` (`MAX_OUTPUT_TOKENS` + `OUTPUT RULE` in system prompts).
 
 ### Hard token caps (`--max-tokens` flag via claude CLI)
 
@@ -249,7 +249,7 @@ Gate IDs (`contract_fail.gate_id`): `empty_output`, `orchestrator_json`, `orches
 {"ts":"2026-04-09T10:31:46.000Z","task_id":"task-b4013eec","event":"session_end","iterations":2,"done":true,"agents_run":["dev-backend","qa","cerberus"],"gate_blocks":1}
 ```
 
-Read it with: `cat ~/.claude/metrics/traces/<task_id>.jsonl | jq .` For Ollama token totals and MCP rollups without manual `jq`, use `examples/orchestrator/token-trace-report.js` (`npm run tokens:report -- <task_id>`).
+Read it with: `cat ~/.claude/metrics/traces/<task_id>.jsonl | jq .` For Ollama token totals and MCP rollups without manual `jq`, use `orchestrator/token-trace-report.js` (`npm run tokens:report -- <task_id>`).
 
 ---
 
