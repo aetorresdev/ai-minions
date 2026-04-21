@@ -30,6 +30,22 @@ Operator-set **env-only** aborts (see [orchestrator README](../../orchestrator/R
 
 ---
 
+## Golden path (baseline trace)
+
+**Definition:** a **clean** single-iteration run with no gate failures, no guard aborts, and a terminal **`iteration_done`** with `outcome: done` before **`session_end`**.
+
+**Reference fixture (schema-valid JSONL):** `orchestrator/tests/fixtures/golden-path-clean-v1.jsonl` — event spine:
+
+`session_start` → `agent_start` → `agent_done` → `iteration_done` (`outcome: done`, `transition_reason.type: DONE`) → `session_end`.
+
+CI validates each line against `trace-v2-line.schema.json` (`orchestrator/tests/goldenPath.test.js`). It does **not** run `validateTraceRunGraph` on this file: the writer reuses the same `step_id` on `agent_start` and `agent_done`, which the current graph check treats as a duplicate id (lifecycle vs index semantics — to be reconciled when graph validation evolves).
+
+Use this as a **regression anchor** for per-line schema and event ordering — not as proof of product success on real Ollama traffic.
+
+**Timing / cost baselines** (expected phase duration and tokens per `flow_mode`) stay deferred until metrics are stable enough to freeze in fixtures.
+
+---
+
 ## Session start
 
 Declare the session header using the role block format, then immediately register the task:
