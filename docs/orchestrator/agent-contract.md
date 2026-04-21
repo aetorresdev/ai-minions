@@ -79,6 +79,18 @@ See `mcp-servers/orchestrator-state/README.md` for env vars and setup.
 
 **QA** and **CERBERUS** must run from **exported** context: `open_envelope` + handoff YAML + **only** `approved_artifacts` (and `allowed_inputs`), not from unconstrained long implementation history when avoidable. Prefer a **separate thread or subagent** with that package pasted in; state store gates constrain what is **valid to record** — a dedicated runner is needed to **strip** host history automatically.
 
+### Runtime control plane: in-memory run state + decision layer
+
+Separate from the **disk-backed** state store above, the Node `run()` path maintains a small **in-memory snapshot** (`runState` in `orchestrator/run-state.js`) so tooling can read coarse lifecycle without replaying JSONL:
+
+- **`run.status`:** `running` → `done` \| `failed` \| `aborted` (terminal classification from final `done` / `manualReview` flags).
+- **`run.current_iteration`:** outer loop counter (synced each iteration).
+- **`step` / intent:** reserved for per-step lifecycle (`step.status`, `intent.status`) as that logic moves out of `orchestrator.js`.
+
+**Decision layer:** `orchestrator/decision-engine.js` centralizes **Node** branching from structured inputs (e.g. normalizing the orchestrator **decide** JSON into `finish` \| `iterate` \| `stop`). Retry, guard, and escalate rules still migrate incrementally from `orchestrator.js` into this module — the contract here is **separation of concerns**, not that every branch lives there on day one.
+
+`run()` returns **`runState`** (public view via `getRunStatePublicView`) alongside `done`, `summary`, `artifacts`, … for wrappers and future **explain-run** enrichment.
+
 ---
 
 ## MODE Protocol (required in orchestrated flow)
