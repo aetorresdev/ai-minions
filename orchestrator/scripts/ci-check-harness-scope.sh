@@ -13,6 +13,7 @@ H="ORCH_TEST_SYSTEM""_PATH_HARNESS"
 excludes=(
   ":(exclude).github"
   ":(exclude)orchestrator/tests/e2e.strict.test.js"
+  ":(exclude)orchestrator/tests/e2e.strict.harness.test.js"
   ":(exclude)orchestrator/agents.js"
   ":(exclude)orchestrator/orchestrator.js"
   ":(exclude)orchestrator/README.md"

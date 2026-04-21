@@ -443,7 +443,9 @@ cd orchestrator
 npm test              # lint (ESLint + ruff) + unit tests — no auth, no Ollama, no MCPs required
 npm run test:baseline:gate   # rewrite tests/fixtures/gate-determinism-baseline.json after intentional gate contract changes
 npm run test:e2e      # E2E suite — requires Ollama running at localhost:11434
-npm run test:e2e:strict       # same as `test:e2e:system-path` — MCP direct + real disk gates (`tests/e2e.strict.test.js`)
+npm run test:e2e:strict       # same as `test:e2e:system-path` — MCP direct + real disk gates, **no** harness (`tests/e2e.strict.test.js`); prints `alignment_failure_rate` to stdout after suite
+npm run test:e2e:strict:harness  # optional: `ORCH_TEST_SYSTEM_PATH_HARNESS` deterministic `run()` path (`tests/e2e.strict.harness.test.js`) — not run in default CI strict job
+npm run test:e2e:strict:all   # strict then harness (local / extended CI only)
 npm run test:e2e:system-path  # alias; name reflects intent better than “strict” alone
 npm run test:e2e:all  # E2E suite with all available Ollama models
 ```
@@ -452,7 +454,7 @@ npm run test:e2e:all  # E2E suite with all available Ollama models
 
 ### Test-only: `ORCH_TEST_SYSTEM_PATH_HARNESS` (not a product feature)
 
-**Forbidden in production.** Only one test in `tests/e2e.strict.test.js` sets `ORCH_TEST_SYSTEM_PATH_HARNESS=1`. It is **not** referenced from `cli.js`, `run-orchestrator.js`, or any operator runbook — only tests + this design note. That path is **not** “strict E2E” in the alignment sense: it uses deterministic `askAgent` stubs, `register_task` with `enforce_goal_alignment: false`, and a **Node-only** bypass when `validate_goal_alignment` returns `aligned: false`, so CI can prove **state store + transitions + `compact_handoff`** without flaking on the alignment model. It deliberately **does not** prove trustworthy goal alignment, real CERBERUS semantics, or unattended success with production models. Do not document this as an operator toggle; do not set the variable outside that test subprocess.
+**Forbidden in production.** Only **`tests/e2e.strict.harness.test.js`** (`npm run test:e2e:strict:harness`) sets `ORCH_TEST_SYSTEM_PATH_HARNESS=1`. It is **not** referenced from `cli.js`, `run-orchestrator.js`, or any operator runbook — only that harness file + core orchestrator/README/docs (allowlisted in `scripts/ci-check-harness-scope.sh`). **`npm run test:e2e:strict`** (default CI) **does not** load the harness file. That path is **not** “strict E2E” in the alignment sense: deterministic `askAgent` stubs, `register_task` with `enforce_goal_alignment: false`, and a **Node-only** bypass when `validate_goal_alignment` returns `aligned: false`, so you can prove **state store + transitions + `compact_handoff`** without flaking on the alignment model. It deliberately **does not** prove trustworthy goal alignment or unattended success with production models. Do not set the variable outside that harness test subprocess.
 
 ### CI pipelines
 
@@ -461,7 +463,7 @@ npm run test:e2e:all  # E2E suite with all available Ollama models
 | `orchestrator-unit-tests.yml` (`name: orchestrator-unit-tests`) | GitHub cloud | **All PRs** to `main`/`master` (lint + unit). **Push** to `main`/`master` when `orchestrator/**`, `scripts/hooks/**`, or this workflow file changes. **No** `examples/orchestrator/**` path filter (legacy path removed). `workflow_dispatch` supported. First step runs `orchestrator/scripts/ci-check-harness-scope.sh`: fails if `ORCH_TEST_SYSTEM_PATH_HARNESS` appears outside the allowlist or if the pre-rename strict-gate env var name appears in tracked code (see script) |
 | `orchestrator-e2e.yml` | Self-hosted (`ollama` label) | Push/PR when orchestrator core, `mcp-direct.py`, `tests/**`, `package.json` / lockfile, MCP server dirs, or this workflow change; **`workflow_dispatch`** (input `ollama_model`) |
 
-The E2E workflow requires a self-hosted runner with labels **`self-hosted`** and **`ollama`**, Ollama at `localhost:11434`, and network for `astral-sh/setup-uv` + `npm ci`. It runs **`npm run test:e2e`** then **`npm run test:e2e:strict`** (dual suite). **Fork PRs:** the E2E job is skipped when the PR comes from a fork (so the run does not wait forever for a runner the fork cannot use). GitHub’s rules for **required checks** allow successful / skipped / neutral in many setups when the workflow completed; a skipped **job** is usually safer than a workflow that never starts (which can leave checks **Pending**). Still: validate once with a **real fork PR** and your branch protection, because only the GitHub UI confirms your org’s rule set. See `.github/workflows/orchestrator-e2e.yml` and `docs/orchestrator/strict-mode.md` § *GitHub Actions — orchestrator-e2e.yml*.
+The E2E workflow requires a self-hosted runner with labels **`self-hosted`** and **`ollama`**, Ollama at `localhost:11434`, and network for `astral-sh/setup-uv` + `npm ci`. It runs **`npm run test:e2e`** then **`npm run test:e2e:strict`** (strict suite **without** `ORCH_TEST_SYSTEM_PATH_HARNESS`; optional harness: `npm run test:e2e:strict:harness` locally). **Fork PRs:** the E2E job is skipped when the PR comes from a fork (so the run does not wait forever for a runner the fork cannot use). GitHub’s rules for **required checks** allow successful / skipped / neutral in many setups when the workflow completed; a skipped **job** is usually safer than a workflow that never starts (which can leave checks **Pending**). Still: validate once with a **real fork PR** and your branch protection, because only the GitHub UI confirms your org’s rule set. See `.github/workflows/orchestrator-e2e.yml` and `docs/orchestrator/strict-mode.md` § *GitHub Actions — orchestrator-e2e.yml*.
 
 ### Coverage at a glance
 
@@ -483,7 +485,7 @@ The E2E workflow requires a self-hosted runner with labels **`self-hosted`** and
 | Strict mode — any deviation surfaces as hard failure | E2E (Ollama) |
 | Gate-blocked enforcement — `done: false` when contracts fail | E2E (Ollama) |
 | Failure-first — invalid input, broken handoff, unknown agent | E2E (Ollama) |
-| Strict gates without claude CLI (`skipStateMcp: false` + MCP direct); `run()` event chain; mcp-direct transitions; `compact_handoff` YAML; negativos `validate_transition`; harnessed `run()` with `ORCH_TEST_SYSTEM_PATH_HARNESS` (system path only, not alignment-strict) | System-path E2E (`test:e2e:strict` / `test:e2e:system-path`, 6 tests) |
+| Strict gates without claude CLI (`skipStateMcp: false` + MCP direct); `run()` event chain; mcp-direct transitions; `compact_handoff` YAML; negativos `validate_transition`; **`alignment_failure_rate`** línea stdout; harness opcional (`test:e2e:strict:harness`) | System-path E2E (`test:e2e:strict` / `test:e2e:system-path`, 5 tests + informe alignment) |
 
 ### Test files
 
