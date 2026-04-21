@@ -209,6 +209,48 @@ Flow: single_agent | Max iterations: 1 | Gates: DISABLED
 
 ---
 
+## Explain a run
+
+The fastest way to understand what happened after a run completes — or after a failure.
+
+```bash
+# Latest run (auto-resolved by ts_ms)
+npm run explain-run
+
+# Specific file
+npm run explain-run -- --file ~/.claude/metrics/traces/my-run.jsonl
+
+# Specific run_id
+npm run explain-run -- --run-id task-abc123
+
+# Structured JSON output
+npm run explain-run -- --file /path/to/trace.jsonl --json
+```
+
+**Natural language trigger:** you can also ask the agent in plain language:
+
+> "explain what happened in the last run"
+> "why did the last run fail?"
+
+The agent resolves the latest run automatically and runs `explain-run` without explicit flags.
+
+**What it shows:**
+
+| Field | Source |
+|-------|--------|
+| `final_status` | Last `iteration_done` or `session_end` outcome |
+| `goal` | First `session_start` — omitted if absent |
+| `flow_mode` | First `session_start` — omitted if absent |
+| `retries` | Count of `iteration_done` with `outcome == "iterate"` |
+| `failure_type` | Trace field; `UNKNOWN` if run failed and field absent |
+| `cost_usd` | Sum of `cost_usd` fields — omitted if no token data |
+
+**Corruption handling:** invalid JSONL lines are skipped silently. A warning at the end reports how many were omitted — one bad line never cancels the whole run.
+
+**Limits:** files over 50 MB or 10,000 lines are truncated to the last segment containing a `session_end`. A warning is shown when truncation occurs.
+
+---
+
 ## With hard gates (recommended)
 
 Hard gates record every transition on disk and block advances if goal alignment fails or unapproved files are detected.
