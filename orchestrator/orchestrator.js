@@ -46,7 +46,9 @@ const path = require("path");
 //   transition_reason.details → truncated to 300 chars
 // Trace write failures emit a one-time stderr warning (not silenced).
 
-const TRACES_DIR = path.join(require("os").homedir(), ".claude", "metrics", "traces");
+const TRACES_DIR = process.env.ORCH_TRACES_DIR && String(process.env.ORCH_TRACES_DIR).trim()
+  ? path.resolve(String(process.env.ORCH_TRACES_DIR).trim())
+  : path.join(require("os").homedir(), ".claude", "metrics", "traces");
 const TRACE_REDACT_GOAL = process.env.TRACE_REDACT_GOAL === "1";
 
 const {
@@ -273,10 +275,13 @@ function failureTypeForIterationDone(outcome, reasonCode, ctx = {}) {
   }
   if (
     reasonCode === "MAX_ITERATIONS_CERBERUS_BLOCKERS" ||
-    reasonCode === "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS"
+    reasonCode === "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS" ||
+    reasonCode === "MAX_ITERATIONS_LOOP_EXHAUSTED" ||
+    reasonCode === "GUARD_STEP_RETRY_LIMIT"
   ) {
     return "retry_exceeded";
   }
+  if (reasonCode === "GUARD_COST_LIMIT") return "cost_abort";
   return "contract_mismatch";
 }
 
@@ -316,6 +321,7 @@ const TRANSITION_REASON_TYPES = new Set([
   "CONTRACT_FAIL",
   "ITERATE_FALLBACK",
   "ITERATE",
+  "GUARD",
 ]);
 
 /** Closed catalog for analytics / aggregation (JSON Schema enum in schemas/trace-v2-line.schema.json). */
@@ -329,6 +335,9 @@ const TRANSITION_REASON_CODES = new Set([
   "ORCHESTRATOR_DECIDE_CORRECTIONS",
   "CONTRACT_OR_DECIDE_FAILURE",
   "VALIDATION_FAILURE_GENERIC",
+  "GUARD_COST_LIMIT",
+  "GUARD_STEP_RETRY_LIMIT",
+  "MAX_ITERATIONS_LOOP_EXHAUSTED",
 ]);
 
 /**
@@ -347,6 +356,7 @@ function inferReasonCode(type, details) {
   if (type === "MAX_ITERATIONS" && d === "gate_blocked_artifacts_cap") return "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS";
   if (type === "ITERATE" && d === "orchestrator_decide_corrections") return "ORCHESTRATOR_DECIDE_CORRECTIONS";
   if (type === "CONTRACT_FAIL") return "CONTRACT_OR_DECIDE_FAILURE";
+  if (type === "MAX_ITERATIONS" && d === "loop_exhausted_without_done") return "MAX_ITERATIONS_LOOP_EXHAUSTED";
   throw new Error(`cannot infer reason_code for transition_reason type=${type} details=${d.slice(0, 80)}`);
 }
 
@@ -409,6 +419,62 @@ function traceEvent(taskId, event) {
 const DEFAULT_MAX_ITERATIONS = 3;
 const DEFAULT_MAX_CONTEXT_CHARS = 12000;
 const DEFAULT_MAX_REVIEW_CHARS = 0;
+
+/** @param {string} name @param {number} maxVal */
+function parseOptionalNonNegativeInt(name, maxVal) {
+  const raw = process.env[name];
+  if (raw === undefined || String(raw).trim() === "") return null;
+  const n = parseInt(String(raw).trim(), 10);
+  if (!Number.isFinite(n) || n < 0 || n > maxVal) return null;
+  return n;
+}
+
+/** @param {string} name */
+function parseOptionalPositiveFloat(name) {
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === "") return null;
+  const n = Number.parseFloat(String(raw));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+/** @param {string} name */
+function parseEnvPositiveFloatOrNull(name) {
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === "") return null;
+  const n = Number.parseFloat(String(raw));
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
+/** USD per 1e6 tokens — same basis as `token-trace-report.js`. */
+function loadOllamaUsdRatesMtok() {
+  const p = parseEnvPositiveFloatOrNull("ORCH_USD_PER_MTOK_PROMPT");
+  const c = parseEnvPositiveFloatOrNull("ORCH_USD_PER_MTOK_COMPLETION");
+  if (p == null || c == null) return null;
+  return { prompt: p, completion: c };
+}
+
+/**
+ * @param {{ maxIterations?: number }} options
+ * @returns {number}
+ */
+function resolveMaxIterations(options) {
+  if (options.maxIterations != null) {
+    const n = Math.floor(Number(options.maxIterations));
+    if (Number.isFinite(n) && n >= 1) return Math.min(500, n);
+  }
+  const raw = process.env.ORCH_MAX_ITERATIONS;
+  if (raw !== undefined && String(raw).trim() !== "") {
+    const n = parseInt(String(raw).trim(), 10);
+    if (Number.isFinite(n) && n >= 1) return Math.min(500, n);
+  }
+  return DEFAULT_MAX_ITERATIONS;
+}
+
+function roundUsd6(x) {
+  return Math.round(x * 1e6) / 1e6;
+}
 
 const AGENT_COLORS = {
   orchestrator:  "\x1b[90m",  // gray
@@ -893,7 +959,7 @@ function parseEnvironment(prompt) {
  * Runs the orchestrator loop.
  * @param {string} goal - Goal / epic / task description
  * @param {{
- *   maxIterations?: number,
+ *   maxIterations?: number — outer loop cap; explicit option beats **ORCH_MAX_ITERATIONS** (1–500), then default 3,
  *   cwd?: string,
  *   flowMode?: string,
  *   taskId?: string,
@@ -907,7 +973,16 @@ function parseEnvironment(prompt) {
  * }} options
  */
 async function run(goal, options = {}) {
-  const maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+  const maxIterations = resolveMaxIterations(options);
+  const maxCostUsd = parseOptionalPositiveFloat("ORCH_MAX_COST_USD");
+  const usdRatesMtok = loadOllamaUsdRatesMtok();
+  if (maxCostUsd != null && !usdRatesMtok) {
+    throw new Error(
+      "ORCH_MAX_COST_USD requires both ORCH_USD_PER_MTOK_PROMPT and ORCH_USD_PER_MTOK_COMPLETION (non-negative floats, USD per 1e6 tokens; same basis as token-trace-report).",
+    );
+  }
+  const maxStepRetries = parseOptionalNonNegativeInt("ORCH_MAX_RETRIES", 500);
+
   const cwd           = options.cwd || process.cwd();
   const flowMode      = options.flowMode || "single_agent";
   const taskId        = options.taskId || `task-${randomUUID().slice(0, 8)}`;
@@ -934,6 +1009,8 @@ async function run(goal, options = {}) {
   let done          = false;
   let summary       = "";
   let manualReview  = false;  // set true in gate-blocked or CERBERUS-unresolved paths
+  /** When true, skip advance_mode + main iteration loop (e.g. plan-phase cost guard). */
+  let skipMainOrchestrationLoop = false;
   const ollamaTokenTotals = { prompt: 0, completion: 0 };
   function bumpOllamaFromStats(stats) {
     if (!stats || typeof stats !== "object") return;
@@ -943,6 +1020,19 @@ async function run(goal, options = {}) {
     if (typeof stats.ollama_completion_tokens === "number" && !Number.isNaN(stats.ollama_completion_tokens)) {
       ollamaTokenTotals.completion += stats.ollama_completion_tokens;
     }
+  }
+  function estimateRunUsd() {
+    if (!usdRatesMtok) return null;
+    return (ollamaTokenTotals.prompt / 1e6) * usdRatesMtok.prompt
+      + (ollamaTokenTotals.completion / 1e6) * usdRatesMtok.completion;
+  }
+  /** @returns {{ ok: true } | { ok: false, estimate: number }} */
+  function checkCostGuard() {
+    if (maxCostUsd == null || !usdRatesMtok) return { ok: true };
+    const estimate = estimateRunUsd();
+    if (estimate == null || !Number.isFinite(estimate)) return { ok: true };
+    if (estimate > maxCostUsd) return { ok: false, estimate };
+    return { ok: true };
   }
   let currentMode = "ORCHESTRATOR";
   const degradedInRun = new Set(); // agents that ran in fallback at least once this run
@@ -968,6 +1058,12 @@ async function run(goal, options = {}) {
     log("orchestrator", "Ollama not configured (OLLAMA_MODEL unset) — orchestrator/summarizer using claude-haiku.");
   }
   log("orchestrator", `Context: ${stepSummary ? "Ollama handoff between steps" : "no Ollama summary"}; truncation: ${maxContextChars > 0 ? `${maxContextChars} chars/step` : "off"}`);
+  if (maxCostUsd != null) {
+    log("orchestrator", `Guardrail: ORCH_MAX_COST_USD=${maxCostUsd} (Ollama USD estimate from ORCH_USD_PER_MTOK_*)`);
+  }
+  if (maxStepRetries != null) {
+    log("orchestrator", `Guardrail: ORCH_MAX_RETRIES=${maxStepRetries} (per agentId retry_number cap within one iteration)`);
+  }
   traceEvent(taskId, {
     event: "session_start",
     flow_mode: flowMode,
@@ -1037,6 +1133,17 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
   const { output: planResponse, context_stats: planCtxStats } = await askAgent("orchestrator", planPrompt, { cwd, sessionEnv, phase: "plan" });
   bumpOllamaFromStats(planCtxStats);
   if (planCtxStats) traceEvent(taskId, { event: "context_stats", agent: "orchestrator", iteration: 0, phase: "plan", ...planCtxStats });
+  const planCost = checkCostGuard();
+  if (!planCost.ok) {
+    summary = `Guardrail ORCH_MAX_COST_USD=${maxCostUsd}: estimated spend ${roundUsd6(planCost.estimate)} USD exceeds limit after plan phase.`;
+    manualReview = true;
+    traceIterationDone(taskId, 0, "guard_abort", transitionReason("GUARD", "cost_limit", { reason_code: "GUARD_COST_LIMIT" }), {
+      estimate_usd: roundUsd6(planCost.estimate),
+      limit_usd: maxCostUsd,
+      guard_phase: "plan",
+    });
+    skipMainOrchestrationLoop = true;
+  }
   const parsed = extractJson(planResponse);
   if (parsed && Array.isArray(parsed.steps)) {
     plan = parsed;
@@ -1055,25 +1162,44 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
   }
 
   // ── Advance ORCHESTRATOR → first MODE ────────────────────────────────────────
-  const firstAgent = plan.steps[0]?.agentId;
-  if (!skipStateMcp && firstAgent && AGENT_TO_MODE[firstAgent]) {
-    try {
-      callStateMcp("advance_mode", {
-        task_id: taskId,
-        to_mode: AGENT_TO_MODE[firstAgent],
-        from_mode: "ORCHESTRATOR",
-        handoff_yaml: "",
-        iteration: -1,
-      }, { cwd });
-      currentMode = AGENT_TO_MODE[firstAgent];
-    } catch (err) {
-      log("gate", `WARNING: advance_mode failed (${err.message})`);
+  if (!skipMainOrchestrationLoop) {
+    const firstAgent = plan.steps[0]?.agentId;
+    if (!skipStateMcp && firstAgent && AGENT_TO_MODE[firstAgent]) {
+      try {
+        callStateMcp("advance_mode", {
+          task_id: taskId,
+          to_mode: AGENT_TO_MODE[firstAgent],
+          from_mode: "ORCHESTRATOR",
+          handoff_yaml: "",
+          iteration: -1,
+        }, { cwd });
+        currentMode = AGENT_TO_MODE[firstAgent];
+      } catch (err) {
+        log("gate", `WARNING: advance_mode failed (${err.message})`);
+      }
     }
   }
 
   // ── Main loop ─────────────────────────────────────────────────────────────────
   const RED = "\x1b[31m", BOLD_C = "\x1b[1m", RESET_C = "\x1b[0m";
-  while (!done && iterations < maxIterations) {
+  /**
+   * @param {string} phase
+   * @returns {boolean} true if run must stop (caller should `break orchestration`)
+   */
+  function costGuardAbort(phase) {
+    const c = checkCostGuard();
+    if (c.ok) return false;
+    summary = `Guardrail ORCH_MAX_COST_USD=${maxCostUsd}: estimated spend ${roundUsd6(c.estimate)} USD exceeds limit (${phase}).`;
+    manualReview = true;
+    traceIterationDone(taskId, iterations, "guard_abort", transitionReason("GUARD", "cost_limit", { reason_code: "GUARD_COST_LIMIT" }), {
+      estimate_usd: roundUsd6(c.estimate),
+      limit_usd: maxCostUsd,
+      guard_phase: phase,
+    });
+    return true;
+  }
+
+  orchestration: while (!skipMainOrchestrationLoop && !done && iterations < maxIterations) {
     if (skipStateMcp) {
       console.log(`${RED}${BOLD_C}  ⚠ NO HARD GATES ACTIVE — iteration unprotected${RESET_C}`);
     }
@@ -1116,8 +1242,24 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       if (previousAgentId && previousAgentId !== agentId) logRoleSwitch(previousAgentId, agentId);
       previousAgentId = agentId;
 
-      const retryNumber = retryCountThisIteration[agentId] ?? 0;
-      retryCountThisIteration[agentId] = retryNumber + 1;
+      const prevRetries = retryCountThisIteration[agentId] ?? 0;
+      if (maxStepRetries != null && prevRetries > maxStepRetries) {
+        summary = `Guardrail ORCH_MAX_RETRIES=${maxStepRetries}: agent ${agentId} exceeded max step retries (retry_number=${prevRetries}).`;
+        manualReview = true;
+        traceIterationDone(
+          taskId,
+          iterations,
+          "guard_abort",
+          transitionReason("GUARD", "step_retry_limit", {
+            reason_code: "GUARD_STEP_RETRY_LIMIT",
+            gate_id: agentId,
+          }),
+          { max_step_retries: maxStepRetries, agent_id: agentId, retry_number: prevRetries },
+        );
+        break orchestration;
+      }
+      const retryNumber = prevRetries;
+      retryCountThisIteration[agentId] = prevRetries + 1;
       const stepId = `${taskId}-i${iterations}-${agentId}${retryNumber > 0 ? `-r${retryNumber}` : ""}`;
       const graphMeta = { parent_step_id: previousStepId };
       assertParentStepExists(previousStepId, emittedStepIds);
@@ -1170,6 +1312,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         bumpOllamaFromStats(contextStats);
         traceEvent(taskId, { event: "context_stats", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, ...graphMeta, ...contextStats });
       }
+      if (costGuardAbort("worker")) break orchestration;
       emittedStepIds.add(stepId);
       previousStepId = stepId;
 
@@ -1359,6 +1502,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
               ...(typeof summaryResult.ollama_completion_tokens === "number" ? { ollama_completion_tokens: summaryResult.ollama_completion_tokens } : {}),
             });
           }
+          if (costGuardAbort("summarizer")) break orchestration;
           log("summarizer", `Summary ready (${handoffSummary.length} chars)`);
         } catch (err) {
           log("summarizer", `Ollama failed (${err.message}); next step uses truncation.`);
@@ -1406,6 +1550,7 @@ nice-to-have: ...`;
       cerberusResult = output;
       bumpOllamaFromStats(cerbCtx);
       if (cerbCtx) traceEvent(taskId, { event: "context_stats", agent: "cerberus", iteration: iterations, phase: "review", ...cerbCtx });
+      if (costGuardAbort("cerberus")) break orchestration;
       log("cerberus", `Review ready (${cerberusResult.length} chars)`);
     } catch (err) {
       const gateId = err.gate_id || null;
@@ -1534,6 +1679,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       const { output: correctResponse, context_stats: correctCtx } = await askAgent("orchestrator", correctPrompt, { cwd, sessionEnv, phase: "decide" });
       bumpOllamaFromStats(correctCtx);
       if (correctCtx) traceEvent(taskId, { event: "context_stats", agent: "orchestrator", iteration: iterations, phase: "correct", ...correctCtx });
+      if (costGuardAbort("correct")) break orchestration;
       const corrections = extractJson(correctResponse);
       if (corrections && Array.isArray(corrections.corrections) && corrections.corrections.length > 0) {
         log("orchestrator", `↻ Correcting — ${corrections.corrections.length} step(s):`);
@@ -1627,6 +1773,7 @@ Reply with JSON only.`;
       decideResponse = output;
       bumpOllamaFromStats(decideCtx);
       if (decideCtx) traceEvent(taskId, { event: "context_stats", agent: "orchestrator", iteration: iterations, phase: "decide", ...decideCtx });
+      if (costGuardAbort("decide")) break orchestration;
     } catch (decideErr) {
       log("orchestrator", `⚠ Decide contract failed (${decideErr.message}) — treating as stopped`);
       traceEvent(taskId, { event: "decide_contract_fail", reason: decideErr.message });
@@ -1656,6 +1803,13 @@ Reply with JSON only.`;
   if (!done && !summary) {
     summary = `Stopped after ${maxIterations} iteration(s).`;
     log("orchestrator", summary);
+    traceIterationDone(
+      taskId,
+      iterations,
+      "loop_limit_stopped",
+      transitionReason("MAX_ITERATIONS", "loop_exhausted_without_done"),
+      { iterations, max_iterations: maxIterations },
+    );
   }
 
   // ── Surface degraded compact_handoff fallback in summary (structured data is on artifacts) ──
@@ -1738,6 +1892,7 @@ Reply with JSON only.`;
 
 module.exports = {
   run,
+  resolveMaxIterations,
   detectBlockers,
   validateHandoffStructure,
   _sanitize,

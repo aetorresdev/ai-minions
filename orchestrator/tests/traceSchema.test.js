@@ -105,10 +105,29 @@ test("validateTraceLine rejects iteration_done with invalid failure_type enum", 
   assert.equal(v.ok, false);
 });
 
+test("validateTraceLine accepts iteration_done GUARD cost limit", () => {
+  const row = {
+    ts: "2026-04-15T12:00:00.000Z",
+    ts_ms: 1713182400000,
+    trace_schema_version: "2",
+    task_id: "task-abc",
+    event: "iteration_done",
+    iteration: 1,
+    outcome: "guard_abort",
+    failure_type: "cost_abort",
+    ...transitionReason("GUARD", "cost_limit", { reason_code: "GUARD_COST_LIMIT" }),
+  };
+  const v = validateTraceLine(row);
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
 test("failureTypeForIterationDone maps reason codes and gate kinds", () => {
   assert.equal(failureTypeForIterationDone("done", "RUN_COMPLETED"), null);
   assert.equal(failureTypeForIterationDone("iterate", "CERBERUS_BLOCKERS_ITERATE"), "contract_mismatch");
   assert.equal(failureTypeForIterationDone("max_iterations_with_blockers", "MAX_ITERATIONS_CERBERUS_BLOCKERS"), "retry_exceeded");
+  assert.equal(failureTypeForIterationDone("guard_abort", "GUARD_COST_LIMIT"), "cost_abort");
+  assert.equal(failureTypeForIterationDone("guard_abort", "GUARD_STEP_RETRY_LIMIT"), "retry_exceeded");
+  assert.equal(failureTypeForIterationDone("loop_limit_stopped", "MAX_ITERATIONS_LOOP_EXHAUSTED"), "retry_exceeded");
   assert.equal(
     failureTypeForIterationDone("gate_blocked_iterate", "GATE_ARTIFACT_OR_HANDOFF", { gateKinds: ["compact_handoff"] }),
     "tool_error",
