@@ -29,8 +29,20 @@ const { spawnSync } = require("child_process");
 const { randomUUID } = require("crypto");
 const fs = require("fs");
 const path = require("path");
-const { createRunState, syncRunIteration, finalizeRunState, getRunStatePublicView } = require("./run-state");
-const { decideFromOrchestratorDecide } = require("./decision-engine");
+const {
+  createRunState,
+  syncRunIteration,
+  setStepRunning,
+  setStepCompleted,
+  setStepFailedAndClear,
+  finalizeRunState,
+  getRunStatePublicView,
+} = require("./run-state");
+const {
+  decideFromOrchestratorDecide,
+  decideCerberusBlockersBranch,
+  decideGateBlockedArtifactsBranch,
+} = require("./decision-engine");
 
 // ── Execution trace ───────────────────────────────────────────────────────────
 // Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
@@ -1278,6 +1290,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       log(agentId, `Executing: ${step.task.slice(0, 80)}${step.task.length > 80 ? "..." : ""}`);
       const stepStart = Date.now();
       traceEvent(taskId, { event: "agent_start", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, task: step.task.slice(0, 200) });
+      setStepRunning(runState, stepId, agentId);
 
       let result, contextStats;
       try {
@@ -1293,6 +1306,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         const isCritical = ["architect", "qa", "cerberus"].includes(agentId);
         const gateId = err.gate_id || null;
         traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...edgeMeta("fail"), duration_ms, reason: err.message.slice(0, 300), critical: isCritical, ...(gateId ? { gate_id: gateId } : {}) });
+        setStepFailedAndClear(runState);
         log(agentId, `🟥 Output contract failed: ${err.message}`);
         artifacts.push({
           agentId,
@@ -1317,6 +1331,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       const stepDegraded = degradedInRun.has(agentId);
       const edgeType = retryNumber > 0 ? "retry" : "success";
       traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...edgeMeta(edgeType), duration_ms: Date.now() - stepStart, output_chars: result.length, ...(stepDegraded ? { degraded: true } : {}) });
+      setStepCompleted(runState);
       if (contextStats) {
         bumpOllamaFromStats(contextStats);
         traceEvent(taskId, { event: "context_stats", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, ...graphMeta, ...contextStats });
@@ -1659,7 +1674,12 @@ nice-to-have: ...`;
     const cerberusBlockers = detectBlockers(cerberusResult);
     traceEvent(taskId, { event: "cerberus_check", iteration: iterations, blockers: cerberusBlockers.count, items: cerberusBlockers.items.slice(0, 5) });
 
-    if (cerberusBlockers.count > 0 && iterations < maxIterations) {
+    const cerbDecision = decideCerberusBlockersBranch({
+      blockerCount: cerberusBlockers.count,
+      iterations,
+      maxIterations,
+    });
+    if (cerbDecision === "iterate") {
       log("cerberus", `🟥 ${cerberusBlockers.count} blocker(s) detected — forcing iteration (deterministic)`);
       cerberusBlockers.items.forEach(b => log("cerberus", `  ↳ ${b.slice(0, 120)}`));
 
@@ -1706,7 +1726,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       continue;
     }
 
-    if (cerberusBlockers.count > 0 && iterations >= maxIterations) {
+    if (cerbDecision === "manual_cap") {
       done = false;
       manualReview = true;
       summary = `Max iterations reached with ${cerberusBlockers.count} gate-blocked CERBERUS finding(s). Manual review required.`;
@@ -1721,35 +1741,39 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
     // This covers: output contract failures (missing files_read, files_modified,
     // validation_run), handoff structure failures, and goal alignment failures.
     const gateBlockedArtifacts = artifacts.filter(a => a.gateBlocked);
-    if (gateBlockedArtifacts.length > 0) {
+    const gateBlockedDecision = decideGateBlockedArtifactsBranch({
+      artifactCount: gateBlockedArtifacts.length,
+      iterations,
+      maxIterations,
+    });
+    if (gateBlockedDecision === "iterate") {
       const gateBlockReasons = gateBlockedArtifacts.map(a => `${a.agentId}: ${a.gateReason || "gate blocked"}`);
       traceEvent(taskId, { event: "gate_blocked_completion", iteration: iterations, count: gateBlockedArtifacts.length, reasons: gateBlockReasons });
-      if (iterations < maxIterations) {
-        log("orchestrator", `🟥 ${gateBlockedArtifacts.length} gate-blocked artifact(s) — cannot mark done (forcing iteration):`);
-        gateBlockReasons.forEach(r => log("orchestrator", `  ↳ ${r}`));
-        const _gb0 = gateBlockedArtifacts[0];
-        traceIterationDone(
-          taskId,
-          iterations,
-          "gate_blocked_iterate",
-          transitionReason("GATE_BLOCK", "artifact_contract_or_handoff", {
-            ...( _gb0 && _gb0.step_id ? { step_id: _gb0.step_id } : {}),
-            ...( _gb0 && _gb0.gate_kind ? { gate_id: _gb0.gate_kind } : {}),
-          }),
-          { gate_blocks: gateBlockedArtifacts.length },
-          { gateKinds: gateBlockedArtifacts.map((a) => a.gate_kind).filter(Boolean) },
-        );
-        // Retry the blocked steps
-        plan = { steps: gateBlockedArtifacts.map(a => ({ agentId: a.agentId, task: a.task })) };
-        continue;
-      } else {
-        done = false;
-        manualReview = true;
-        summary = `Max iterations reached with ${gateBlockedArtifacts.length} gate-blocked artifact(s). Manual review required. Blocked: ${gateBlockReasons.join("; ")}`;
-        log("orchestrator", `⚠ ${summary}`);
-        traceIterationDone(taskId, iterations, "max_iterations_with_gate_blocks", transitionReason("MAX_ITERATIONS", "gate_blocked_artifacts_cap"), { gate_blocks: gateBlockedArtifacts.length });
-        continue;
-      }
+      log("orchestrator", `🟥 ${gateBlockedArtifacts.length} gate-blocked artifact(s) — cannot mark done (forcing iteration):`);
+      gateBlockReasons.forEach(r => log("orchestrator", `  ↳ ${r}`));
+      const _gb0 = gateBlockedArtifacts[0];
+      traceIterationDone(
+        taskId,
+        iterations,
+        "gate_blocked_iterate",
+        transitionReason("GATE_BLOCK", "artifact_contract_or_handoff", {
+          ...( _gb0 && _gb0.step_id ? { step_id: _gb0.step_id } : {}),
+          ...( _gb0 && _gb0.gate_kind ? { gate_id: _gb0.gate_kind } : {}),
+        }),
+        { gate_blocks: gateBlockedArtifacts.length },
+        { gateKinds: gateBlockedArtifacts.map((a) => a.gate_kind).filter(Boolean) },
+      );
+      plan = { steps: gateBlockedArtifacts.map(a => ({ agentId: a.agentId, task: a.task })) };
+      continue;
+    }
+    if (gateBlockedDecision === "manual_cap") {
+      const gateBlockReasons = gateBlockedArtifacts.map(a => `${a.agentId}: ${a.gateReason || "gate blocked"}`);
+      done = false;
+      manualReview = true;
+      summary = `Max iterations reached with ${gateBlockedArtifacts.length} gate-blocked artifact(s). Manual review required. Blocked: ${gateBlockReasons.join("; ")}`;
+      log("orchestrator", `⚠ ${summary}`);
+      traceIterationDone(taskId, iterations, "max_iterations_with_gate_blocks", transitionReason("MAX_ITERATIONS", "gate_blocked_artifacts_cap"), { gate_blocks: gateBlockedArtifacts.length });
+      continue;
     }
 
     // ── ORCHESTRATOR decides (no blockers path) ───────────────────────────────
