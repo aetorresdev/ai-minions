@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const cp = require("child_process");
+const _realSpawnSync = cp.spawnSync.bind(cp);
 cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 
 const { validateTraceLine, parseTraceLine, getValidationMetrics, resetValidationMetrics } = require("../trace-schema");
@@ -273,4 +274,58 @@ test("getValidationMetrics returns a snapshot copy, not a live reference", () =>
   const snap = getValidationMetrics();
   validateTraceLine({ ...BASE, trace_schema_version: "99" });
   assert.equal(snap.policy_unsupported_version, 0, "snapshot must not reflect later increments");
+});
+
+// ORCH_TRACE_SUPPORTED_VERSIONS env override
+test("ORCH_TRACE_SUPPORTED_VERSIONS overrides supported versions at module load", () => {
+  // Re-require with env set — use a subprocess to avoid module cache pollution
+  const result = _realSpawnSync(process.execPath, ["-e", `
+    process.env.ORCH_TRACE_SUPPORTED_VERSIONS = '2,3';
+    const { SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ } = require('./trace-schema');
+    const assert = require('node:assert/strict');
+    assert.ok(SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ.has('2'));
+    assert.ok(SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ.has('3'));
+    assert.equal(SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ.size, 2);
+    console.log('ok');
+  `], { cwd: __dirname + "/..", encoding: "utf8" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(result.stderr);
+  assert.equal(result.stdout.trim(), "ok");
+});
+
+test("ORCH_TRACE_SUPPORTED_VERSIONS with whitespace is trimmed", () => {
+  const result = _realSpawnSync(process.execPath, ["-e", `
+    process.env.ORCH_TRACE_SUPPORTED_VERSIONS = ' 2 , 3 ';
+    const { SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ } = require('./trace-schema');
+    const assert = require('node:assert/strict');
+    assert.ok(SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ.has('2'));
+    assert.ok(SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ.has('3'));
+    console.log('ok');
+  `], { cwd: __dirname + "/..", encoding: "utf8" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(result.stderr);
+  assert.equal(result.stdout.trim(), "ok");
+});
+
+test("ORCH_TRACE_SUPPORTED_VERSIONS with only commas throws at startup", () => {
+  const result = _realSpawnSync(process.execPath, ["-e", `
+    process.env.ORCH_TRACE_SUPPORTED_VERSIONS = ',,,';
+    require('./trace-schema');
+  `], { cwd: __dirname + "/..", encoding: "utf8" });
+  assert.notEqual(result.status, 0, "should exit non-zero on invalid config");
+  assert.ok(result.stderr.includes("no valid version tokens"), result.stderr);
+});
+
+test("without ORCH_TRACE_SUPPORTED_VERSIONS defaults to writer version", () => {
+  const result = _realSpawnSync(process.execPath, ["-e", `
+    delete process.env.ORCH_TRACE_SUPPORTED_VERSIONS;
+    const { SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ, TRACE_LINE_WRITER_VERSION } = require('./trace-schema');
+    const assert = require('node:assert/strict');
+    assert.ok(SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ.has(TRACE_LINE_WRITER_VERSION));
+    assert.equal(SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ.size, 1);
+    console.log('ok');
+  `], { cwd: __dirname + "/..", encoding: "utf8" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(result.stderr);
+  assert.equal(result.stdout.trim(), "ok");
 });

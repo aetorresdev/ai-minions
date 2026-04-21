@@ -18,7 +18,17 @@ const addFormats = require("ajv-formats");
 const TRACE_LINE_WRITER_VERSION = "2";
 
 /** Versions this binary can validate with the bundled schema (multi-version readers: extend here + loaders). */
-const SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ = new Set([TRACE_LINE_WRITER_VERSION]);
+const SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ = _buildSupportedVersions();
+
+function _buildSupportedVersions() {
+  const raw = process.env.ORCH_TRACE_SUPPORTED_VERSIONS;
+  if (!raw) return new Set([TRACE_LINE_WRITER_VERSION]);
+  const versions = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  if (versions.length === 0) {
+    throw new Error('ORCH_TRACE_SUPPORTED_VERSIONS is set but contains no valid version tokens');
+  }
+  return new Set(versions);
+}
 
 const SCHEMA_PATH = path.join(__dirname, "schemas", "trace-v2-line.schema.json");
 let _validate = null;
