@@ -30,7 +30,7 @@ There is **no** automatic cross-version rewrite at read time today; multi-versio
 
 ## Runtime version gate (code)
 
-- **Constants:** `TRACE_LINE_WRITER_VERSION` and `SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ` in `examples/orchestrator/trace-schema.js` — defaults to the writer version; override at runtime with `ORCH_TRACE_SUPPORTED_VERSIONS=2,3` (comma-separated). Startup fails with an explicit error if the env value is set but contains no valid tokens.
+- **Constants:** `TRACE_LINE_WRITER_VERSION` and `SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ` in `examples/orchestrator/trace-schema.js` — extend the `Set` when this binary ships multiple readers.
 - **API:** `traceSchemaVersionPolicyErrors(record)` returns policy-only errors; `validateTraceLine` runs policy first, then JSON Schema.
 - **Metrics:** `getValidationMetrics()` returns a snapshot `{ policy_missing_version, policy_unsupported_version, ajv_schema_error }` — counters increment on every rejection. `resetValidationMetrics()` resets all counters (useful in tests).
 
