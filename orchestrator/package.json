@@ -18,6 +18,8 @@
     "test:baseline:gate": "UPDATE_GATE_BASELINE=1 node --test tests/determinismBaseline.test.js",
     "test:e2e": "OLLAMA_MODEL=qwen2.5-coder:7b node --test --test-concurrency=1 tests/e2e.test.js",
     "test:e2e:strict": "OLLAMA_MODEL=qwen2.5-coder:7b ORCH_MCP_TRANSPORT=direct node --test --test-concurrency=1 tests/e2e.strict.test.js",
+    "test:e2e:strict:harness": "OLLAMA_MODEL=qwen2.5-coder:7b ORCH_MCP_TRANSPORT=direct node --test --test-concurrency=1 tests/e2e.strict.harness.test.js",
+    "test:e2e:strict:all": "npm run test:e2e:strict && npm run test:e2e:strict:harness",
     "test:e2e:system-path": "npm run test:e2e:strict",
     "test:e2e:all": "node --test --test-concurrency=1 tests/e2e.test.js"
   },

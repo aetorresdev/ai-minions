@@ -1,11 +1,10 @@
 /**
- * System-path E2E suite (`npm run test:e2e:strict` or `test:e2e:system-path`):
- * `skipStateMcp: false` + `ORCH_MCP_TRANSPORT=direct` so gates use `mcp-direct.py`
- * instead of the claude CLI.
+ * System-path E2E (`npm run test:e2e:strict` / `test:e2e:system-path`):
+ * `skipStateMcp: false` + `ORCH_MCP_TRANSPORT=direct` — real Ollama + `validate_goal_alignment` where applicable.
  *
- * **Naming:** this is *not* full "strict" in the product sense — one test sets
- * `ORCH_TEST_SYSTEM_PATH_HARNESS=1` (deterministic stubs + controlled alignment bypass) to
- * prove store/transitions/compact_handoff only. See README.
+ * **Harness-only** `run()` test lives in `e2e.strict.harness.test.js` (`npm run test:e2e:strict:harness`) — not run in default CI strict job (E2E-STRICT-1).
+ *
+ * After suite: prints **`alignment_failure_rate`** from trace `gate_result` / `goal_alignment` (excludes harness rows).
  *
  * Prerequisites: Ollama; `uv sync` in mcp-servers/orchestrator-state and compact-handoff.
  * Isolated disk state via ORCHESTRATOR_STATE_ROOT per test.
@@ -15,133 +14,33 @@
 
 process.env.ORCH_MCP_TRANSPORT = "direct";
 
-const { test, describe, before } = require("node:test");
+const { test, describe, before, after } = require("node:test");
 const assert = require("node:assert/strict");
-const { spawnSync } = require("node:child_process");
-const http = require("node:http");
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
+const fs = require("fs");
+const path = require("path");
 
 const { run } = require("../orchestrator");
-const { setBackend } = require("../agents");
+const {
+  TEST_TIMEOUT_MS,
+  getMcpDirectPath,
+  makeTempDir,
+  removeTempDir,
+  callMcpDirect,
+  loadEvents,
+  assertHashChain,
+  countGoalAlignmentInTrace,
+  initE2eStrictSuite,
+} = require("./e2e-strict-shared");
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST || "localhost";
-const OLLAMA_PORT = parseInt(process.env.OLLAMA_PORT || "11434", 10);
-const PREFERRED_MODEL = "qwen2.5-coder:7b";
-const TEST_TIMEOUT_MS = 5 * 60 * 1000;
-
-function listOllamaModels() {
-  return new Promise((resolve) => {
-    const req = http.get(
-      { host: OLLAMA_HOST, port: OLLAMA_PORT, path: "/api/tags", timeout: 5000 },
-      (res) => {
-        let body = "";
-        res.on("data", (c) => (body += c));
-        res.on("end", () => {
-          try {
-            const data = JSON.parse(body);
-            const names = (data.models || []).map((m) => m.name);
-            resolve(names);
-          } catch {
-            resolve(null);
-          }
-        });
-      }
-    );
-    req.on("error", () => resolve(null));
-    req.on("timeout", () => { req.destroy(); resolve(null); });
-  });
-}
-
-function makeTempDir(prefix) {
-  return fs.mkdtempSync(path.join(os.tmpdir(), prefix || "ai-minions-e2e-strict-"));
-}
-
-function removeTempDir(p) {
-  try { fs.rmSync(p, { recursive: true, force: true }); } catch { /* ok */ }
-}
-
-/** Parse first JSON object or last parseable JSON line (mcp-direct stdout). */
-function parseMcpDirectStdout(raw) {
-  const t = String(raw || "").trim();
-  if (!t) return null;
-  try {
-    return JSON.parse(t);
-  } catch { /* fallthrough */ }
-  const lines = t.split("\n");
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    try {
-      return JSON.parse(line);
-    } catch { /* continue */ }
-  }
-  return t;
-}
-
-function callMcpDirect(mcpScript, server, tool, args) {
-  const py = process.env.ORCH_PYTHON || "python3";
-  const payload = JSON.stringify({ server, tool, args });
-  const r = spawnSync(py, [mcpScript], {
-    input: payload,
-    encoding: "utf8",
-    maxBuffer: 8 * 1024 * 1024,
-    timeout: 120000,
-    windowsHide: true,
-  });
-  if (r.error) throw r.error;
-  if (r.status !== 0) {
-    throw new Error((r.stderr || r.stdout || "").trim() || `mcp-direct exited ${r.status}`);
-  }
-  return parseMcpDirectStdout(r.stdout);
-}
-
-function loadEvents(eventsPath) {
-  const raw = fs.readFileSync(eventsPath, "utf8").trim();
-  if (!raw) return [];
-  return raw.split("\n").filter(Boolean).map((l) => JSON.parse(l));
-}
-
-function assertHashChain(events) {
-  assert.ok(events.length >= 1, "events must be non-empty");
-  for (let i = 1; i < events.length; i++) {
-    assert.equal(
-      events[i].prev_hash,
-      events[i - 1].hash,
-      `hash chain broken at seq ${events[i].seq}`
-    );
-  }
-}
-
-let ollamaAvailable = false;
-let ollamaModel = null;
+const alignmentSamples = [];
 
 describe("System-path E2E — MCP direct + state store", { timeout: TEST_TIMEOUT_MS, concurrency: 1 }, () => {
-  const MCP_DIRECT = path.join(__dirname, "..", "mcp-direct.py");
+  const MCP_DIRECT = getMcpDirectPath();
+  let ollamaAvailable = false;
 
   before(async () => {
-    if (!fs.existsSync(MCP_DIRECT)) {
-      console.log("[e2e-strict] mcp-direct.py missing — skipping");
-      return;
-    }
-    const models = await listOllamaModels();
-    if (!models || models.length === 0) {
-      console.log(`[e2e-strict] Ollama not reachable at ${OLLAMA_HOST}:${OLLAMA_PORT} — skipping`);
-      return;
-    }
-    ollamaAvailable = true;
-    const envModel = process.env.OLLAMA_MODEL;
-    if (envModel && models.includes(envModel)) {
-      ollamaModel = envModel;
-    } else if (models.includes(PREFERRED_MODEL)) {
-      ollamaModel = PREFERRED_MODEL;
-    } else {
-      ollamaModel = models[0];
-    }
-    process.env.OLLAMA_MODEL = ollamaModel;
-    setBackend("ollama");
-    console.log(`[e2e-strict] Ollama model: ${ollamaModel} | ORCH_MCP_TRANSPORT=direct`);
+    const st = await initE2eStrictSuite();
+    ollamaAvailable = st.ollamaAvailable;
   });
 
   function skipIfNoDeps(t) {
@@ -161,6 +60,28 @@ describe("System-path E2E — MCP direct + state store", { timeout: TEST_TIMEOUT
     return run(goal, sid ? { ...opts, traceScenarioId: sid } : opts);
   }
 
+  function recordAlignment(taskId) {
+    alignmentSamples.push(countGoalAlignmentInTrace(taskId));
+  }
+
+  after(() => {
+    if (!ollamaAvailable) return;
+    const total = alignmentSamples.reduce(
+      (a, s) => ({ checks: a.checks + s.checks, failures: a.failures + s.failures }),
+      { checks: 0, failures: 0 },
+    );
+    if (total.checks === 0) {
+      console.log(
+        "[e2e-strict] alignment_failure_rate: n/a (0 goal_alignment gate_result rows in trace for this suite — model may not have reached alignment gates)",
+      );
+      return;
+    }
+    const rate = total.failures / total.checks;
+    console.log(
+      `[e2e-strict] alignment_failure_rate: ${rate.toFixed(6)} (${total.failures}/${total.checks} failed checks)`,
+    );
+  });
+
   test("run() strict: task_registered, mode_advanced, task_closed + intact hash chain", async (t) => {
     if (skipIfNoDeps(t)) return;
 
@@ -173,20 +94,19 @@ describe("System-path E2E — MCP direct + state store", { timeout: TEST_TIMEOUT
       process.env.ORCHESTRATOR_STATE_ROOT = stateRoot;
       fs.writeFileSync(
         path.join(cwd, "utils.js"),
-        "function add(a, b) { return a + b; }\nmodule.exports = { add };\n"
+        "function add(a, b) { return a + b; }\nmodule.exports = { add };\n",
       );
 
-      await strictE2eRun(t,
-        "Add a multiply function to utils.js that multiplies two numbers",
-        {
-          taskId,
-          maxIterations: 1,
-          cwd,
-          flowMode: "single_agent",
-          skipStateMcp: false,
-          stepSummary: true,
-        }
-      );
+      await strictE2eRun(t, "Add a multiply function to utils.js that multiplies two numbers", {
+        taskId,
+        maxIterations: 1,
+        cwd,
+        flowMode: "single_agent",
+        skipStateMcp: false,
+        stepSummary: true,
+      });
+
+      recordAlignment(taskId);
 
       const eventsPath = path.join(stateRoot, taskId, "events.jsonl");
       assert.ok(fs.existsSync(eventsPath), `expected events at ${eventsPath}`);
@@ -286,7 +206,7 @@ describe("System-path E2E — MCP direct + state store", { timeout: TEST_TIMEOUT
       const lastAdvance = events.filter((e) => e.type === "mode_advanced").pop();
       assert.ok(
         lastAdvance && lastAdvance.payload && lastAdvance.payload.handoff_yaml_present === true,
-        "last mode_advanced should record handoff_yaml_present: true"
+        "last mode_advanced should record handoff_yaml_present: true",
       );
 
       t.diagnostic(`strict chain events: ${types.join(" → ")}`);
@@ -324,7 +244,7 @@ describe("System-path E2E — MCP direct + state store", { timeout: TEST_TIMEOUT
     const low = yaml.toLowerCase();
     assert.ok(
       low.includes("files_modified") || low.includes("validation_run"),
-      `expected DEV keys in compact output, got: ${yaml.slice(0, 200)}`
+      `expected DEV keys in compact output, got: ${yaml.slice(0, 200)}`,
     );
     t.diagnostic(`compact_handoff sample: ${yaml.slice(0, 160).replace(/\n/g, " ")}…`);
   });
@@ -420,56 +340,6 @@ describe("System-path E2E — MCP direct + state store", { timeout: TEST_TIMEOUT
       if (prevStateRoot === undefined) delete process.env.ORCHESTRATOR_STATE_ROOT;
       else process.env.ORCHESTRATOR_STATE_ROOT = prevStateRoot;
       removeTempDir(stateRoot);
-    }
-  });
-
-  test("run() + ORCH_TEST_SYSTEM_PATH_HARNESS: compact_handoff, goal_alignment_validated, transitions on disk", async (t) => {
-    if (skipIfNoDeps(t)) return;
-
-    const stateRoot = makeTempDir("orch-state-gatepath-");
-    const cwd = makeTempDir("orch-cwd-gatepath-");
-    const taskId = `strict-gate-${Date.now()}`;
-    const prevStateRoot = process.env.ORCHESTRATOR_STATE_ROOT;
-    const prevHarness = process.env.ORCH_TEST_SYSTEM_PATH_HARNESS;
-
-    try {
-      process.env.ORCHESTRATOR_STATE_ROOT = stateRoot;
-      process.env.ORCH_TEST_SYSTEM_PATH_HARNESS = "1";
-      fs.writeFileSync(
-        path.join(cwd, "utils.js"),
-        "function add(a, b) { return a + b; }\nmodule.exports = { add };\n"
-      );
-
-      const result = await strictE2eRun(t, "E2E system-path harness (deterministic stubs)", {
-        taskId,
-        maxIterations: 1,
-        cwd,
-        flowMode: "single_agent",
-        skipStateMcp: false,
-        stepSummary: true,
-      });
-
-      assert.equal(result.done, true, `expected done=true, got ${JSON.stringify(result)}`);
-
-      const eventsPath = path.join(stateRoot, taskId, "events.jsonl");
-      const events = loadEvents(eventsPath);
-      assertHashChain(events);
-      const types = events.map((e) => e.type);
-      assert.ok(types.includes("goal_alignment_validated"), `expected goal_alignment_validated in ${types.join(",")}`);
-      assert.ok(types.includes("task_closed"), `expected task_closed in ${types.join(",")}`);
-      assert.ok(
-        types.filter((x) => x === "mode_advanced").length >= 3,
-        `expected ≥3 mode_advanced (ORCH→DEV, DEV→…, CERBERUS→ORCH), got ${types.filter((x) => x === "mode_advanced").length}`
-      );
-
-      t.diagnostic(`gate-path events: ${types.join(" → ")}`);
-    } finally {
-      if (prevStateRoot === undefined) delete process.env.ORCHESTRATOR_STATE_ROOT;
-      else process.env.ORCHESTRATOR_STATE_ROOT = prevStateRoot;
-      if (prevHarness === undefined) delete process.env.ORCH_TEST_SYSTEM_PATH_HARNESS;
-      else process.env.ORCH_TEST_SYSTEM_PATH_HARNESS = prevHarness;
-      removeTempDir(stateRoot);
-      removeTempDir(cwd);
     }
   });
 });

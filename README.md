@@ -1,5 +1,7 @@
 # AI Minions
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE) [![GitHub release](https://img.shields.io/github/v/release/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/releases) [![GitHub issues](https://img.shields.io/github/issues/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/pulls) [![GitHub last commit](https://img.shields.io/github/last-commit/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/commits/main) [![Orchestrator CI](https://img.shields.io/github/actions/workflow/status/aetorresdev/ai-minions/orchestrator-unit-tests.yml?branch=main&label=orchestrator%20CI)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-unit-tests.yml) [![Orchestrator E2E](https://img.shields.io/github/actions/workflow/status/aetorresdev/ai-minions/orchestrator-e2e.yml?branch=main&label=orchestrator%20E2E)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-e2e.yml)
+
 AI coding workflows fail because they optimize output, not process.
 
 This repo treats AI as a **structured engineering system**: contracts, gates, and measurable signals—so its behavior is **observable, reproducible, and debuggable**.
