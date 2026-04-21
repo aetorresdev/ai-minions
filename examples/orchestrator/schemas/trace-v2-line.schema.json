@@ -60,6 +60,31 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "allOf": [
+          { "properties": { "event": { "const": "iteration_done" } }, "required": ["event"] },
+          { "not": { "properties": { "outcome": { "const": "done" } }, "required": ["outcome"] } }
+        ]
+      },
+      "then": {
+        "required": ["failure_type"],
+        "properties": {
+          "failure_type": {
+            "type": "string",
+            "enum": [
+              "spec_missing",
+              "contract_mismatch",
+              "hallucination",
+              "tool_error",
+              "timeout",
+              "cost_abort",
+              "retry_exceeded"
+            ]
+          }
+        }
+      }
     }
   ]
 }

@@ -410,6 +410,7 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 | `transition_reason.reason_code` | string | Closed catalog (same enum as JSON Schema): `RUN_COMPLETED` · `CERBERUS_BLOCKERS_ITERATE` · `ORCHESTRATOR_NO_CORRECTIONS_JSON` · `MAX_ITERATIONS_CERBERUS_BLOCKERS` · `GATE_ARTIFACT_OR_HANDOFF` · `MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS` · `ORCHESTRATOR_DECIDE_CORRECTIONS` · `CONTRACT_OR_DECIDE_FAILURE` · `VALIDATION_FAILURE_GENERIC` |
 | `transition_reason.gate_id` | string (optional) | When iteration ends from a gate-blocked path: which gate (e.g. `handoff_structure`, `goal_alignment`, `transition`, `output_contract`, `compact_handoff`, …) |
 | `transition_reason.step_id` | string (optional) | When known: last blocked step’s `step_id` for correlation with `agent_done` / `gate_result` |
+| `failure_type` | string (optional) | **Required when `outcome` ≠ `done`:** closed enum `spec_missing` · `contract_mismatch` · `hallucination` · `tool_error` · `timeout` · `cost_abort` · `retry_exceeded` — standard failure taxonomy for analytics (`failureTypeForIterationDone` in `orchestrator.js`) |
 
 Rough mapping from `outcome` (legacy UI) to `transition_reason.type`: `done` → `DONE`; `iterate` after CERBERUS blockers + corrections → `GATE_BLOCK`; `iterate_fallback` → `ITERATE_FALLBACK`; `gate_blocked_iterate` → `GATE_BLOCK`; `max_iterations_*` → `MAX_ITERATIONS`; `iterate` after orchestrator decide JSON corrections → `ITERATE`; `stopped` (invalid decide) → `CONTRACT_FAIL`. See `transitionReason()` in `orchestrator.js`.
 

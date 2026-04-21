@@ -96,7 +96,7 @@ Strict validation surfaces these as Ajv errors; see tests in `examples/orchestra
 | `event` | any | Drives all derivations |
 | `outcome` | `iteration_done`, `session_end` | `final_status` and retry count |
 | `goal`, `flow_mode` | `session_start` | First occurrence only; omitted if absent |
-| `failure_type` | any | Taken verbatim; `UNKNOWN` if run failed and field absent |
+| `failure_type` | `iteration_done` (when present) | Closed enum at write time for `outcome` ≠ `done`; `explain-run` copies verbatim or uses `UNKNOWN` when a failed run omits the field |
 | `cost_usd` | any | Summed only when numeric; field omitted from output if no data |
 | `sequence_id` | any | Tie-breaker for run_id resolution |
 

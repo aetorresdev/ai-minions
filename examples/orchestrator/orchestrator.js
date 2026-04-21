@@ -37,7 +37,7 @@ const path = require("path");
 // Event types: session_start, agent_start, agent_done, gate_result,
 //              contract_fail, iteration_done, session_end, mcp_call,
 //              context_stats may include ollama_prompt_tokens / ollama_completion_tokens (Ollama routes)
-// iteration_done.transition_reason: { type, details? }.
+// iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".
 //
 // Sensitive field handling:
 //   goal  → truncated to 80 chars + SHA-256 hash (TRACE_REDACT_GOAL=1 omits text entirely)
@@ -229,7 +229,71 @@ function _sanitize(event) {
     }
     out.transition_reason = tr;
   }
+  if ("failure_type" in out && out.failure_type != null) {
+    out.failure_type = String(out.failure_type).slice(0, 64);
+  }
   return out;
+}
+
+/** Closed catalog for `iteration_done.failure_type` (JSON Schema + FAIL-TAX-1). */
+const FAILURE_TYPES = /** @type {const} */ ([
+  "spec_missing",
+  "contract_mismatch",
+  "hallucination",
+  "tool_error",
+  "timeout",
+  "cost_abort",
+  "retry_exceeded",
+]);
+const FAILURE_TYPE_SET = new Set(FAILURE_TYPES);
+
+/**
+ * Map orchestrator semantics → standard failure taxonomy on iteration_done.
+ * @param {string} outcome
+ * @param {string} reasonCode — transition_reason.reason_code
+ * @param {{ gateKinds?: string[] }} [ctx]
+ * @returns {string | null} null when outcome is terminal success (`done`)
+ */
+function failureTypeForIterationDone(outcome, reasonCode, ctx = {}) {
+  if (outcome === "done") return null;
+  const kinds = ctx.gateKinds || [];
+  if (outcome === "gate_blocked_iterate" && kinds.some((k) => k === "compact_handoff")) {
+    return "tool_error";
+  }
+  if (
+    reasonCode === "MAX_ITERATIONS_CERBERUS_BLOCKERS" ||
+    reasonCode === "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS"
+  ) {
+    return "retry_exceeded";
+  }
+  return "contract_mismatch";
+}
+
+/**
+ * @param {string} taskId
+ * @param {number} iteration
+ * @param {string} outcome
+ * @param {ReturnType<typeof transitionReason>} trSpread
+ * @param {Record<string, unknown>} [extra]
+ * @param {{ gateKinds?: string[] }} [ctx]
+ */
+function traceIterationDone(taskId, iteration, outcome, trSpread, extra = {}, ctx = {}) {
+  const reasonCode = trSpread.transition_reason && trSpread.transition_reason.reason_code;
+  const payload = {
+    event: "iteration_done",
+    iteration,
+    outcome,
+    ...trSpread,
+    ...extra,
+  };
+  const ft = failureTypeForIterationDone(outcome, String(reasonCode || ""), ctx);
+  if (ft != null) {
+    if (!FAILURE_TYPE_SET.has(ft)) {
+      throw new Error(`internal: invalid failure_type ${ft}`);
+    }
+    payload.failure_type = ft;
+  }
+  traceEvent(taskId, payload);
 }
 
 /** Allowed values for iteration_done.transition_reason.type. */
@@ -1465,12 +1529,12 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         corrections.corrections.forEach((c) =>
           log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
         );
-        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate", ...transitionReason("GATE_BLOCK", "cerberus_blockers"), blockers: cerberusBlockers.count, corrections: corrections.corrections.length });
+        traceIterationDone(taskId, iterations, "iterate", transitionReason("GATE_BLOCK", "cerberus_blockers"), { blockers: cerberusBlockers.count, corrections: corrections.corrections.length });
         plan = { steps: corrections.corrections };
       } else {
         // Orchestrator failed to produce corrections — generate generic DEV retry
         log("orchestrator", "WARNING: orchestrator returned no corrections — retrying last DEV steps");
-        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate_fallback", ...transitionReason("ITERATE_FALLBACK", "orchestrator_no_corrections_json"), blockers: cerberusBlockers.count });
+        traceIterationDone(taskId, iterations, "iterate_fallback", transitionReason("ITERATE_FALLBACK", "orchestrator_no_corrections_json"), { blockers: cerberusBlockers.count });
         plan = { steps: artifacts.filter(a => a.agentId?.startsWith("dev-")).map(a => ({ agentId: a.agentId, task: `Fix blockers: ${cerberusBlockers.items.slice(0, 2).join("; ")}` })) };
       }
       continue;
@@ -1481,7 +1545,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       manualReview = true;
       summary = `Max iterations reached with ${cerberusBlockers.count} gate-blocked CERBERUS finding(s). Manual review required.`;
       log("orchestrator", `⚠ ${summary}`);
-      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_blockers", ...transitionReason("MAX_ITERATIONS", "cerberus_blockers_cap"), blockers: cerberusBlockers.count });
+      traceIterationDone(taskId, iterations, "max_iterations_with_blockers", transitionReason("MAX_ITERATIONS", "cerberus_blockers_cap"), { blockers: cerberusBlockers.count });
       continue;
     }
 
@@ -1498,16 +1562,17 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         log("orchestrator", `🟥 ${gateBlockedArtifacts.length} gate-blocked artifact(s) — cannot mark done (forcing iteration):`);
         gateBlockReasons.forEach(r => log("orchestrator", `  ↳ ${r}`));
         const _gb0 = gateBlockedArtifacts[0];
-        traceEvent(taskId, {
-          event: "iteration_done",
-          iteration: iterations,
-          outcome: "gate_blocked_iterate",
-          ...transitionReason("GATE_BLOCK", "artifact_contract_or_handoff", {
+        traceIterationDone(
+          taskId,
+          iterations,
+          "gate_blocked_iterate",
+          transitionReason("GATE_BLOCK", "artifact_contract_or_handoff", {
             ...( _gb0 && _gb0.step_id ? { step_id: _gb0.step_id } : {}),
             ...( _gb0 && _gb0.gate_kind ? { gate_id: _gb0.gate_kind } : {}),
           }),
-          gate_blocks: gateBlockedArtifacts.length,
-        });
+          { gate_blocks: gateBlockedArtifacts.length },
+          { gateKinds: gateBlockedArtifacts.map((a) => a.gate_kind).filter(Boolean) },
+        );
         // Retry the blocked steps
         plan = { steps: gateBlockedArtifacts.map(a => ({ agentId: a.agentId, task: a.task })) };
         continue;
@@ -1516,7 +1581,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         manualReview = true;
         summary = `Max iterations reached with ${gateBlockedArtifacts.length} gate-blocked artifact(s). Manual review required. Blocked: ${gateBlockReasons.join("; ")}`;
         log("orchestrator", `⚠ ${summary}`);
-        traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "max_iterations_with_gate_blocks", ...transitionReason("MAX_ITERATIONS", "gate_blocked_artifacts_cap"), gate_blocks: gateBlockedArtifacts.length });
+        traceIterationDone(taskId, iterations, "max_iterations_with_gate_blocks", transitionReason("MAX_ITERATIONS", "gate_blocked_artifacts_cap"), { gate_blocks: gateBlockedArtifacts.length });
         continue;
       }
     }
@@ -1561,19 +1626,19 @@ Reply with JSON only.`;
       done = true;
       summary = decide.summary || "Completed.";
       log("orchestrator", `✓ Done: ${summary}`);
-      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "done", ...transitionReason("DONE"), summary: summary.slice(0, 200) });
+      traceIterationDone(taskId, iterations, "done", transitionReason("DONE"), { summary: summary.slice(0, 200) });
     } else if (decide && Array.isArray(decide.corrections) && decide.corrections.length > 0) {
       log("orchestrator", `↻ Iterating — ${decide.corrections.length} correction(s):`);
       decide.corrections.forEach((c) =>
         log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
       );
-      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "iterate", ...transitionReason("ITERATE", "orchestrator_decide_corrections"), corrections: decide.corrections.length });
+      traceIterationDone(taskId, iterations, "iterate", transitionReason("ITERATE", "orchestrator_decide_corrections"), { corrections: decide.corrections.length });
       plan = { steps: decide.corrections };
     } else {
       done = true;
       summary = "Stopped (no corrections or invalid orchestrator response).";
       log("orchestrator", summary);
-      traceEvent(taskId, { event: "iteration_done", iteration: iterations, outcome: "stopped", ...transitionReason("CONTRACT_FAIL", summary), summary });
+      traceIterationDone(taskId, iterations, "stopped", transitionReason("CONTRACT_FAIL", summary), { summary });
     }
   }
 
@@ -1680,4 +1745,7 @@ module.exports = {
   TRANSITION_REASON_CODES,
   inferReasonCode,
   TRACE_SCHEMA_VERSION,
+  FAILURE_TYPES,
+  failureTypeForIterationDone,
+  traceIterationDone,
 };
