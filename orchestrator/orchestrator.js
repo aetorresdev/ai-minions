@@ -29,6 +29,8 @@ const { spawnSync } = require("child_process");
 const { randomUUID } = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const { createRunState, syncRunIteration, finalizeRunState, getRunStatePublicView } = require("./run-state");
+const { decideFromOrchestratorDecide } = require("./decision-engine");
 
 // ── Execution trace ───────────────────────────────────────────────────────────
 // Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
@@ -1011,6 +1013,12 @@ async function run(goal, options = {}) {
   let manualReview  = false;  // set true in gate-blocked or CERBERUS-unresolved paths
   /** When true, skip advance_mode + main iteration loop (e.g. plan-phase cost guard). */
   let skipMainOrchestrationLoop = false;
+  const runState = createRunState({
+    taskId,
+    flowMode,
+    goal,
+    maxIterations,
+  });
   const ollamaTokenTotals = { prompt: 0, completion: 0 };
   function bumpOllamaFromStats(stats) {
     if (!stats || typeof stats !== "object") return;
@@ -1204,6 +1212,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       console.log(`${RED}${BOLD_C}  ⚠ NO HARD GATES ACTIVE — iteration unprotected${RESET_C}`);
     }
     iterations += 1;
+    syncRunIteration(runState, iterations);
     log("orchestrator", `── Iteration ${iterations}/${maxIterations} ──`);
 
     const steps = plan.steps && plan.steps.length ? plan.steps : [];
@@ -1779,19 +1788,21 @@ Reply with JSON only.`;
       traceEvent(taskId, { event: "decide_contract_fail", reason: decideErr.message });
     }
     const decide = extractJson(decideResponse);
+    const loopDecision = decideFromOrchestratorDecide(decide);
 
-    if (decide && decide.done === true) {
+    if (loopDecision.action === "finish") {
       done = true;
-      summary = decide.summary || "Completed.";
+      summary = /** @type {string} */ (loopDecision.params.summary) || "Completed.";
       log("orchestrator", `✓ Done: ${summary}`);
       traceIterationDone(taskId, iterations, "done", transitionReason("DONE"), { summary: summary.slice(0, 200) });
-    } else if (decide && Array.isArray(decide.corrections) && decide.corrections.length > 0) {
-      log("orchestrator", `↻ Iterating — ${decide.corrections.length} correction(s):`);
-      decide.corrections.forEach((c) =>
+    } else if (loopDecision.action === "iterate") {
+      const corrections = /** @type {Array<{ agentId?: string, task: string }>} */ (loopDecision.params.corrections);
+      log("orchestrator", `↻ Iterating — ${corrections.length} correction(s):`);
+      corrections.forEach((c) =>
         log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
       );
-      traceIterationDone(taskId, iterations, "iterate", transitionReason("ITERATE", "orchestrator_decide_corrections"), { corrections: decide.corrections.length });
-      plan = { steps: decide.corrections };
+      traceIterationDone(taskId, iterations, "iterate", transitionReason("ITERATE", "orchestrator_decide_corrections"), { corrections: corrections.length });
+      plan = { steps: corrections };
     } else {
       done = true;
       summary = "Stopped (no corrections or invalid orchestrator response).";
@@ -1811,6 +1822,8 @@ Reply with JSON only.`;
       { iterations, max_iterations: maxIterations },
     );
   }
+
+  finalizeRunState(runState, { done, manualReview });
 
   // ── Surface degraded compact_handoff fallback in summary (structured data is on artifacts) ──
   const handoffFallbackArtifacts = artifacts.filter((a) => a.handoff_fallback_used === true);
@@ -1887,7 +1900,7 @@ Reply with JSON only.`;
   });
 
   clearMcpAudit();
-  return { done, summary, artifacts, iterations, taskId };
+  return { done, summary, artifacts, iterations, taskId, runState: getRunStatePublicView(runState) };
 }
 
 module.exports = {
