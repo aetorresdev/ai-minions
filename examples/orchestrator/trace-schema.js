@@ -41,7 +41,7 @@ function traceSchemaVersionPolicyErrors(record) {
   const v = record && record.trace_schema_version;
   if (typeof v !== "string" || !SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ.has(v)) {
     const allowed = [...SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ].join(", ");
-    const got = v === undefined || v === null ? "missing" : JSON.stringify(v);
+    const got = v === undefined || v === null ? "missing" : `<${typeof v}>`;
     return [`trace_schema_version: this binary only accepts ${allowed}; got ${got}`];
   }
   return null;
@@ -58,7 +58,10 @@ function validateTraceLine(record) {
   }
   const validate = getValidator();
   if (!validate(record)) {
-    const errs = (validate.errors || []).map((e) => `${e.instancePath || "/"} ${e.message}`.trim());
+    const errs = (validate.errors || []).map((e) => {
+      const rootPath = e.instancePath ? `/${e.instancePath.split("/")[1]}` : "/";
+      return `${rootPath} ${e.message || "invalid"}`.trim();
+    });
     return { ok: false, errors: errs.length ? errs : ["unknown schema error"] };
   }
   return { ok: true };

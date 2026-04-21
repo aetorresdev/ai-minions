@@ -23,7 +23,7 @@ JSON Lines traces do **not** have a built-in semver mechanism. This document def
 | Layer | Behavior |
 |-------|----------|
 | **Writer** (`traceEvent` in `orchestrator.js`) | Envelope fields (`task_id`, `trace_schema_version`, `ts`, `ts_ms`) are applied **after** the sanitized payload so callers cannot override the writer version. Each line is validated with **`validateTraceLine`** in `trace-schema.js`: a **policy** step (accepted versions for this binary) then **Ajv** against the bundled schema. Invalid lines **fail the run** (no silent downgrade). |
-| **Reader — strict** | `parseTraceLine(line, { strict: true })`, **`ORCH_TRACE_VALIDATE=1`**, or CLI **`--strict-traces`**: policy rejects unknown/missing **`trace_schema_version`** with an explicit error (`this binary only accepts …`); then Ajv. |
+| **Reader — strict** | `parseTraceLine(line, { strict: true })`, **`ORCH_TRACE_VALIDATE=1`**, or CLI **`--strict-traces`**: policy rejects unknown/missing **`trace_schema_version`** with an explicit error (`this binary only accepts …; got <type>`); then Ajv. Error messages expose only the **root field name** and the **type** of the invalid value — never raw field content or nested subpaths — to prevent payload leakage in logs. |
 | **Reader — non-strict** | `JSON.parse` only: you get objects without schema checks. **Unknown or wrong `trace_schema_version`** may parse as JSON but is **out of contract**; pipelines must not treat that as validated telemetry. |
 
 There is **no** automatic cross-version rewrite at read time today; multi-version read compatibility and trace migration tooling are separate, planned efforts (outside the scope of this document).
