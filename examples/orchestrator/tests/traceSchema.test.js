@@ -5,7 +5,7 @@ const test = require("node:test");
 const cp = require("child_process");
 cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 
-const { validateTraceLine, parseTraceLine } = require("../trace-schema");
+const { validateTraceLine, parseTraceLine, getValidationMetrics, resetValidationMetrics } = require("../trace-schema");
 const { transitionReason } = require("../orchestrator");
 
 test("validateTraceLine accepts session_start v2 envelope", () => {
@@ -215,4 +215,62 @@ test("Ajv validation error does not expose raw field value", () => {
     v.errors.every((e) => !e.includes(sensitiveGoal)),
     `Ajv error must not contain raw goal value; got: ${v.errors.join(" | ")}`,
   );
+});
+
+// validation metrics
+const BASE = {
+  ts: "2026-04-15T12:00:00.000Z",
+  ts_ms: 1713182400000,
+  task_id: "task-abc",
+  event: "session_start",
+  flow_mode: "single_agent",
+  max_iterations: 1,
+  cwd: "/tmp",
+  goal: "x",
+};
+
+test("getValidationMetrics increments policy_missing_version on missing/non-string version", () => {
+  resetValidationMetrics();
+  validateTraceLine({ ...BASE });
+  validateTraceLine({ ...BASE, trace_schema_version: 2 });
+  validateTraceLine({ ...BASE, trace_schema_version: null });
+  const m = getValidationMetrics();
+  assert.equal(m.policy_missing_version, 3);
+  assert.equal(m.policy_unsupported_version, 0);
+  assert.equal(m.ajv_schema_error, 0);
+});
+
+test("getValidationMetrics increments policy_unsupported_version on unknown string version", () => {
+  resetValidationMetrics();
+  validateTraceLine({ ...BASE, trace_schema_version: "99" });
+  validateTraceLine({ ...BASE, trace_schema_version: "1" });
+  const m = getValidationMetrics();
+  assert.equal(m.policy_unsupported_version, 2);
+  assert.equal(m.policy_missing_version, 0);
+  assert.equal(m.ajv_schema_error, 0);
+});
+
+test("getValidationMetrics increments ajv_schema_error on schema violation", () => {
+  resetValidationMetrics();
+  validateTraceLine({ ...BASE, trace_schema_version: "2", ts: "not-a-date" });
+  const m = getValidationMetrics();
+  assert.equal(m.ajv_schema_error, 1);
+  assert.equal(m.policy_missing_version, 0);
+  assert.equal(m.policy_unsupported_version, 0);
+});
+
+test("getValidationMetrics does not increment on valid record", () => {
+  resetValidationMetrics();
+  validateTraceLine({ ...BASE, trace_schema_version: "2" });
+  const m = getValidationMetrics();
+  assert.equal(m.policy_missing_version, 0);
+  assert.equal(m.policy_unsupported_version, 0);
+  assert.equal(m.ajv_schema_error, 0);
+});
+
+test("getValidationMetrics returns a snapshot copy, not a live reference", () => {
+  resetValidationMetrics();
+  const snap = getValidationMetrics();
+  validateTraceLine({ ...BASE, trace_schema_version: "99" });
+  assert.equal(snap.policy_unsupported_version, 0, "snapshot must not reflect later increments");
 });
