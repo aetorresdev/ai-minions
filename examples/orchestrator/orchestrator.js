@@ -248,7 +248,18 @@ const FAILURE_TYPES = /** @type {const} */ ([
 const FAILURE_TYPE_SET = new Set(FAILURE_TYPES);
 
 /**
- * Map orchestrator semantics → standard failure taxonomy on iteration_done.
+ * Map orchestrator semantics → coarse `failure_type` on iteration_done (FAIL-TAX-1).
+ *
+ * **Design:** `failure_type` is intentionally a small rollup (GUARD-1, high-level SLOs).
+ * For dashboards and drill-down, pair with **`transition_reason.reason_code`** (stable enum:
+ * CERBERUS_BLOCKERS_ITERATE, ORCHESTRATOR_DECIDE_CORRECTIONS, GATE_ARTIFACT_OR_HANDOFF, …) —
+ * that is the dimension that distinguishes “cerberus vs decide vs gate” today; do not infer
+ * sub-categories from free text alone.
+ *
+ * **`tool_error` (v1):** emitted when gate-blocked iteration is driven by **`compact_handoff`**
+ * MCP failure (`gate_kind`). Other MCP/tool surfaces should get explicit branches here (or
+ * new `reason_code` values) before reusing `tool_error`, to avoid silent semantic drift.
+ *
  * @param {string} outcome
  * @param {string} reasonCode — transition_reason.reason_code
  * @param {{ gateKinds?: string[] }} [ctx]
