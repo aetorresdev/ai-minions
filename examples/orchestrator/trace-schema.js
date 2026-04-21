@@ -20,6 +20,25 @@ const TRACE_LINE_WRITER_VERSION = "2";
 /** Versions this binary can validate with the bundled schema (multi-version readers: extend here + loaders). */
 const SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ = new Set([TRACE_LINE_WRITER_VERSION]);
 
+/**
+ * Versions accepted for reading when ORCH_TRACE_ACCEPT_OLD=1.
+ * Allows ingesting v1 traces produced by older builds without failing the version policy check.
+ * Forward-compat (unknown future versions) is handled separately.
+ */
+const LEGACY_TRACE_SCHEMA_VERSIONS = Object.freeze(new Set(["1"]));
+
+/**
+ * Returns the effective set of accepted read versions, merging legacy versions
+ * when ORCH_TRACE_ACCEPT_OLD=1. Evaluated per-call so env changes in tests take effect.
+ * @returns {Set<string>}
+ */
+function effectiveSupportedVersions() {
+  if (process.env.ORCH_TRACE_ACCEPT_OLD !== "1") return SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ;
+  const merged = new Set(SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ);
+  for (const v of LEGACY_TRACE_SCHEMA_VERSIONS) merged.add(v);
+  return merged;
+}
+
 const SCHEMA_PATH = path.join(__dirname, "schemas", "trace-v2-line.schema.json");
 let _validate = null;
 
@@ -39,8 +58,9 @@ function getValidator() {
  */
 function traceSchemaVersionPolicyErrors(record) {
   const v = record && record.trace_schema_version;
-  if (typeof v !== "string" || !SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ.has(v)) {
-    const allowed = [...SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ].join(", ");
+  const supported = effectiveSupportedVersions();
+  if (typeof v !== "string" || !supported.has(v)) {
+    const allowed = [...supported].join(", ");
     const got = v === undefined || v === null ? "missing" : JSON.stringify(v);
     return [`trace_schema_version: this binary only accepts ${allowed}; got ${got}`];
   }
@@ -83,6 +103,8 @@ function parseTraceLine(line, opts = {}) {
 module.exports = {
   TRACE_LINE_WRITER_VERSION,
   SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ,
+  LEGACY_TRACE_SCHEMA_VERSIONS,
+  effectiveSupportedVersions,
   traceSchemaVersionPolicyErrors,
   validateTraceLine,
   parseTraceLine,
