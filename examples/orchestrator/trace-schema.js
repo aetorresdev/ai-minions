@@ -25,6 +25,28 @@ let _validate = null;
 
 const REJECTION_CAP = 50;
 
+/**
+ * Valid reasons for a rejection entry. Enum closed — no free-form strings.
+ * @readonly
+ */
+const REJECTION_REASONS = /** @type {const} */ ([
+  "policy_missing_version",
+  "policy_unsupported_version",
+  "ajv_schema_error",
+]);
+
+/**
+ * rejection_entry schema:
+ *   reason:      string (enum REJECTION_REASONS) — always present
+ *   event:       string | undefined — from record.event when available
+ *   step_id:     string | undefined — from record.step_id when available
+ *   reason_code: string | undefined — from record.transition_reason.reason_code when available
+ *
+ * Invariants enforced at insert time:
+ *   - reason must be in REJECTION_REASONS
+ *   - at least one of event, step_id, reason_code must be present (or record is bare)
+ *   - no null values — fields are omitted rather than nulled
+ */
 const _metrics = {
   policy_missing_version: 0,
   policy_unsupported_version: 0,
@@ -33,12 +55,18 @@ const _metrics = {
 };
 
 function _addRejection(reason, record) {
+  if (!REJECTION_REASONS.includes(reason)) return; // unknown reason = silent discard
+
   const entry = { reason };
   if (record && typeof record === "object") {
-    if (record.event != null) entry.event = record.event;
-    if (record.step_id != null) entry.step_id = record.step_id;
-    if (record.transition_reason && record.transition_reason.reason_code != null)
+    if (typeof record.event === "string") entry.event = record.event;
+    if (typeof record.step_id === "string") entry.step_id = record.step_id;
+    if (
+      record.transition_reason &&
+      typeof record.transition_reason.reason_code === "string"
+    ) {
       entry.reason_code = record.transition_reason.reason_code;
+    }
   }
   if (_metrics.rejections.length >= REJECTION_CAP) _metrics.rejections.shift();
   _metrics.rejections.push(entry);
@@ -168,6 +196,7 @@ function validateTraceRunGraph(lines) {
 module.exports = {
   TRACE_LINE_WRITER_VERSION,
   SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ,
+  REJECTION_REASONS,
   traceSchemaVersionPolicyErrors,
   validateTraceLine,
   parseTraceLine,

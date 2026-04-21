@@ -5,7 +5,7 @@ const test = require("node:test");
 const cp = require("child_process");
 cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 
-const { validateTraceLine, parseTraceLine, getValidationMetrics, resetValidationMetrics } = require("../trace-schema");
+const { validateTraceLine, parseTraceLine, getValidationMetrics, resetValidationMetrics, REJECTION_REASONS } = require("../trace-schema");
 const { transitionReason } = require("../orchestrator");
 
 test("validateTraceLine accepts session_start v2 envelope", () => {
@@ -326,6 +326,56 @@ test("rejections snapshot is independent of subsequent resets", () => {
   resetValidationMetrics();
   assert.equal(snap.rejections.length, 1);
   assert.equal(getValidationMetrics().rejections.length, 0);
+});
+
+test("REJECTION_REASONS covers all three counter types", () => {
+  assert.ok(REJECTION_REASONS.includes("policy_missing_version"));
+  assert.ok(REJECTION_REASONS.includes("policy_unsupported_version"));
+  assert.ok(REJECTION_REASONS.includes("ajv_schema_error"));
+  assert.equal(REJECTION_REASONS.length, 3);
+});
+
+test("rejection entry reason is always a member of REJECTION_REASONS", () => {
+  resetValidationMetrics();
+  validateTraceLine({ ...BASE });                                      // policy_missing_version
+  validateTraceLine({ ...BASE, trace_schema_version: "99" });         // policy_unsupported_version
+  validateTraceLine({ ...BASE, trace_schema_version: "2", ts: "x" }); // ajv_schema_error
+  const m = getValidationMetrics();
+  assert.equal(m.rejections.length, 3);
+  for (const r of m.rejections) {
+    assert.ok(REJECTION_REASONS.includes(r.reason), `unexpected reason: ${r.reason}`);
+  }
+});
+
+test("rejection entry fields are strings, never null", () => {
+  resetValidationMetrics();
+  validateTraceLine({ ...BASE, trace_schema_version: "99", step_id: "s1" });
+  const m = getValidationMetrics();
+  const entry = m.rejections[0];
+  for (const [k, v] of Object.entries(entry)) {
+    assert.notEqual(v, null, `field ${k} must not be null`);
+    assert.equal(typeof v, "string", `field ${k} must be string`);
+  }
+});
+
+test("rejection entry with non-string event/step_id is omitted, not coerced", () => {
+  resetValidationMetrics();
+  validateTraceLine({ trace_schema_version: "99", event: 42, step_id: { bad: true } });
+  const m = getValidationMetrics();
+  assert.equal(m.rejections.length, 1);
+  assert.ok(!("event" in m.rejections[0]));
+  assert.ok(!("step_id" in m.rejections[0]));
+});
+
+test("FIFO overflow at exactly 50: entry 51 drops entry 1", () => {
+  resetValidationMetrics();
+  for (let i = 1; i <= 51; i++) {
+    validateTraceLine({ ...BASE, trace_schema_version: "99", step_id: `s${i}` });
+  }
+  const m = getValidationMetrics();
+  assert.equal(m.rejections.length, 50);
+  assert.equal(m.rejections[0].step_id, "s2");   // s1 was dropped
+  assert.equal(m.rejections[49].step_id, "s51");
 });
 
 // validateTraceRunGraph — run-level graph consistency
