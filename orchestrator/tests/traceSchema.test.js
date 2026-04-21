@@ -502,6 +502,39 @@ test("validateTraceRunGraph detects duplicate step_id", () => {
   assert.ok(r.violations.some((v) => v.type === "duplicate_step_id" && v.step_id === "s1"));
 });
 
+test("validateTraceRunGraph allows agent_done to reuse step_id from agent_start", () => {
+  const lines = [
+    { event: "agent_start", step_id: "s1", parent_step_id: null },
+    { event: "agent_done", step_id: "s1" },
+  ];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, true, JSON.stringify(r.violations));
+});
+
+test("validateTraceRunGraph detects agent_done without prior agent_start", () => {
+  const lines = [{ event: "agent_done", step_id: "orphan-done" }];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, false);
+  assert.ok(r.violations.some((v) => v.type === "agent_done_without_start"));
+});
+
+test("validateTraceRunGraph gate_result reuses registered step_id", () => {
+  const lines = [
+    { event: "agent_start", step_id: "s1" },
+    { event: "gate_result", step_id: "s1", gate: "handoff_structure", passed: true },
+    { event: "agent_done", step_id: "s1" },
+  ];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, true, JSON.stringify(r.violations));
+});
+
+test("validateTraceRunGraph step_id_unknown when event references unregistered step_id", () => {
+  const lines = [{ event: "gate_result", step_id: "ghost", passed: false }];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, false);
+  assert.ok(r.violations.some((v) => v.type === "step_id_unknown"));
+});
+
 test("validateTraceRunGraph ignores lines without step_id or parent_step_id", () => {
   const lines = [
     { event: "session_start" },

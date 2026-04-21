@@ -36,6 +36,31 @@ function syncRunIteration(runState, iteration) {
   runState.run.current_iteration = iteration;
 }
 
+/** @param {{ step: object | null }} runState */
+function setStepRunning(runState, stepId, agentId) {
+  runState.step = {
+    step_id: stepId,
+    agent_id: agentId,
+    status: "running",
+    intent: { status: "active" },
+  };
+}
+
+/** Marks the in-flight worker step succeeded (after `agent_done` is emitted). */
+function setStepCompleted(runState) {
+  if (!runState.step) return;
+  runState.step.status = "done";
+  runState.step.intent.status = "resolved";
+}
+
+/** Contract or hard fail before `agent_done` — clears in-flight step. */
+function setStepFailedAndClear(runState) {
+  if (!runState.step) return;
+  runState.step.status = "failed";
+  runState.step.intent.status = "abandoned";
+  runState.step = null;
+}
+
 /**
  * Set terminal run.status once, from final `done` / `manualReview` flags (end of `run()`).
  * Does not overwrite if something already set a terminal status (future: mid-run abort hooks).
@@ -72,6 +97,9 @@ function getRunStatePublicView(runState) {
 module.exports = {
   createRunState,
   syncRunIteration,
+  setStepRunning,
+  setStepCompleted,
+  setStepFailedAndClear,
   finalizeRunState,
   getRunStatePublicView,
 };

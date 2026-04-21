@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { validateTraceLine } = require("../trace-schema");
+const { validateTraceLine, validateTraceRunGraph } = require("../trace-schema");
 
 /** Expected event spine for golden-path baseline (single iteration, clean path). */
 const GOLDEN_PATH_EVENT_SPINE = [
@@ -15,7 +15,7 @@ const GOLDEN_PATH_EVENT_SPINE = [
   "session_end",
 ];
 
-test("golden path fixture — schema-valid lines + event spine", () => {
+test("golden path fixture — schema-valid lines + event spine + graph", () => {
   const fixturePath = path.join(__dirname, "fixtures", "golden-path-clean-v1.jsonl");
   const raw = fs.readFileSync(fixturePath, "utf8");
   const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -28,6 +28,7 @@ test("golden path fixture — schema-valid lines + event spine", () => {
     const v = validateTraceLine(row);
     assert.equal(v.ok, true, (v.errors || []).join(" | "));
   }
-  // Note: validateTraceRunGraph flags duplicate step_id across agent_start + agent_done
-  // (same id is intentional in the writer). Graph hardening is tracked separately.
+  const graphRows = rows.filter((r) => r.step_id != null || r.parent_step_id != null);
+  const g = validateTraceRunGraph(graphRows);
+  assert.equal(g.ok, true, JSON.stringify(g.violations));
 });
