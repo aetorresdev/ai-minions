@@ -32,7 +32,7 @@ There is **no** automatic cross-version rewrite at read time today; multi-versio
 
 - **Constants:** `TRACE_LINE_WRITER_VERSION` and `SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ` in `examples/orchestrator/trace-schema.js` — extend the `Set` when this binary ships multiple readers.
 - **API:** `traceSchemaVersionPolicyErrors(record)` returns policy-only errors; `validateTraceLine` runs policy first, then JSON Schema.
-- **Metrics:** `getValidationMetrics()` returns a snapshot `{ policy_missing_version, policy_unsupported_version, ajv_schema_error }` — counters increment on every rejection. `resetValidationMetrics()` resets all counters (useful in tests).
+- **Metrics:** `getValidationMetrics()` returns a snapshot `{ policy_missing_version, policy_unsupported_version, ajv_schema_error, rejections[] }` — counters increment on every rejection; `rejections` holds the last 50 rejection entries (FIFO cap) each with `{ reason, event?, step_id?, reason_code? }` when available from the record. `resetValidationMetrics()` resets all counters and clears `rejections` (useful in tests).
 
 ## Bump checklist (maintainers)
 
