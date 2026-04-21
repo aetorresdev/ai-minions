@@ -15,7 +15,37 @@ import json
 import sys
 import os
 
-MCP_ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "mcp-servers")
+
+def _is_repo_root(d: str) -> bool:
+    return os.path.isdir(os.path.join(d, "mcp-servers", "orchestrator-state")) and os.path.isdir(
+        os.path.join(d, "scripts", "hooks")
+    )
+
+
+def _find_repo_root(start: str) -> str:
+    """Walk up from start until markers match (same contract as orchestrator/repo-root.js)."""
+    env = (os.environ.get("REPO_ROOT") or os.environ.get("ORCH_REPO_ROOT") or "").strip()
+    if env:
+        resolved = os.path.abspath(env)
+        if _is_repo_root(resolved):
+            return resolved
+        raise RuntimeError(
+            f"REPO_ROOT / ORCH_REPO_ROOT invalid (expected mcp-servers/orchestrator-state + scripts/hooks): {resolved}"
+        )
+    cur = os.path.abspath(start)
+    while True:
+        if _is_repo_root(cur):
+            return cur
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            raise RuntimeError(
+                "Could not find repository root (markers: mcp-servers/orchestrator-state + scripts/hooks)"
+            )
+        cur = parent
+
+
+REPO_ROOT = _find_repo_root(os.path.dirname(__file__))
+MCP_ROOT = os.path.join(REPO_ROOT, "mcp-servers")
 
 def _add_venv(name: str) -> None:
     venv = os.path.join(MCP_ROOT, name, ".venv", "lib")

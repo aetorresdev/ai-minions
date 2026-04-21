@@ -1,4 +1,4 @@
-# E2E tests for examples/orchestrator — requires Ollama on the runner (self-hosted by default).
+# E2E tests for orchestrator/ — requires Ollama on the runner (self-hosted by default).
 #
 # Prerequisites (one-time on the self-hosted machine):
 #   1. Register a GitHub Actions self-hosted runner with labels: self-hosted, ollama
@@ -32,28 +32,28 @@ on:
   push:
     branches: [main, master]
     paths:
-      - "examples/orchestrator/orchestrator.js"
-      - "examples/orchestrator/agents.js"
-      - "examples/orchestrator/cli.js"
-      - "examples/orchestrator/run-orchestrator.js"
-      - "examples/orchestrator/mcp-direct.py"
-      - "examples/orchestrator/tests/**"
-      - "examples/orchestrator/package.json"
-      - "examples/orchestrator/package-lock.json"
+      - "orchestrator/orchestrator.js"
+      - "orchestrator/agents.js"
+      - "orchestrator/cli.js"
+      - "orchestrator/run-orchestrator.js"
+      - "orchestrator/mcp-direct.py"
+      - "orchestrator/tests/**"
+      - "orchestrator/package.json"
+      - "orchestrator/package-lock.json"
       - "mcp-servers/orchestrator-state/**"
       - "mcp-servers/compact-handoff/**"
       - ".github/workflows/orchestrator-e2e.yml"
   pull_request:
     branches: [main, master]
     paths:
-      - "examples/orchestrator/orchestrator.js"
-      - "examples/orchestrator/agents.js"
-      - "examples/orchestrator/cli.js"
-      - "examples/orchestrator/run-orchestrator.js"
-      - "examples/orchestrator/mcp-direct.py"
-      - "examples/orchestrator/tests/**"
-      - "examples/orchestrator/package.json"
-      - "examples/orchestrator/package-lock.json"
+      - "orchestrator/orchestrator.js"
+      - "orchestrator/agents.js"
+      - "orchestrator/cli.js"
+      - "orchestrator/run-orchestrator.js"
+      - "orchestrator/mcp-direct.py"
+      - "orchestrator/tests/**"
+      - "orchestrator/package.json"
+      - "orchestrator/package-lock.json"
       - "mcp-servers/orchestrator-state/**"
       - "mcp-servers/compact-handoff/**"
       - ".github/workflows/orchestrator-e2e.yml"
@@ -78,7 +78,7 @@ jobs:
 
       - name: Install Node dependencies
         run: |
-          cd examples/orchestrator
+          cd orchestrator
           npm ci
 
       - name: Install MCP server dependencies (mcp-direct.py)
@@ -109,14 +109,14 @@ jobs:
         env:
           OLLAMA_MODEL: ${{ github.event.inputs.ollama_model || 'qwen2.5-coder:7b' }}
         run: |
-          cd examples/orchestrator
+          cd orchestrator
           npm run test:e2e
 
       - name: Run system-path E2E suite (MCP direct, no claude CLI for gates)
         env:
           OLLAMA_MODEL: ${{ github.event.inputs.ollama_model || 'qwen2.5-coder:7b' }}
         run: |
-          cd examples/orchestrator
+          cd orchestrator
           npm run test:e2e:strict
 
       - name: Job summary
@@ -141,6 +141,6 @@ jobs:
             ~/.claude/metrics/traces/
             ~/.claude/metrics/gate_events.jsonl
             ~/.claude/metrics/flow-metrics.jsonl
-            examples/orchestrator/npm-debug.log
+            orchestrator/npm-debug.log
           retention-days: 7
           if-no-files-found: ignore

@@ -1,6 +1,6 @@
-# Orchestrator Example
+# Orchestrator
 
-An autonomous orchestrator that follows the [MODE protocol](../../docs/orchestrator/agent-contract.md) and uses the [orchestrator-state MCP](../../mcp-servers/orchestrator-state/README.md) as the authoritative state store.
+An autonomous orchestrator that follows the [MODE protocol](../docs/orchestrator/agent-contract.md) and uses the [orchestrator-state MCP](../mcp-servers/orchestrator-state/README.md) as the authoritative state store.
 
 Give it a goal — it plans, runs agents, validates transitions through hard gates, runs Cerberus review, and iterates until done or max iterations.
 
@@ -14,6 +14,8 @@ Give it a goal — it plans, runs agents, validates transitions through hard gat
 > ```
 
 The `node` commands below are for direct use, testing, or bringing your own runner.
+
+**Shared clone assets** (`mcp-servers/`, `scripts/hooks/`, `skills/`, top-level `agents/`): what is required when, and how failures surface — see [`docs/orchestrator/shared-dependencies.md`](../docs/orchestrator/shared-dependencies.md).
 
 > **This is one way to run the protocol autonomously. Bring your own orchestrator if you prefer** — the contract and MCPs work independently of this example.
 
@@ -133,7 +135,7 @@ Use this to pick the right setup for your situation.
 | MCP calls logged per run (`mcp_call` + `session_end` rollups) | ❌ (no state MCP traffic) | ✅ | ✅ |
 | Ollama prompt/completion token counts (`context_stats` + `session_end` totals) | Only when `OLLAMA_MODEL` + Ollama routes are used | ✅ | ✅ |
 
-Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../../docs/orchestrator/strict-mode.md) § *Flow-aware trace metadata*, § *MCP usage audit*, and § *Ollama token counts*.
+Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../docs/orchestrator/strict-mode.md) § *Flow-aware trace metadata*, § *MCP usage audit*, and § *Ollama token counts*.
 
 **Graph fields:** every step-level event carries `step_id` (primary join key, e.g. `<task_id>-i1-dev-backend`), `step_index` (0-based plan position), and `retry_number` (0 = first attempt). **Every trace line** adds `ts_ms` (epoch ms) next to `ts`. `iteration_done` adds structured `transition_reason: { type, details? }` (enum types in `strict-mode.md`). Use these to reconstruct execution flow without parsing `(agent, iteration)` tuples.
 
@@ -165,8 +167,8 @@ npm run metrics:export-scenarios -- --since-m 60 --out /tmp/orch-metrics.json
 ## Quickstart (no MCPs — 2 minutes)
 
 ```bash
-# From repo root
-cd ~/.claude/examples/orchestrator
+# From repo root (replace ~/.claude with your REPO_ROOT)
+cd ~/.claude/orchestrator
 
 # Run on a real project
 node run-orchestrator.js \
@@ -185,7 +187,7 @@ node run-orchestrator.js \
   "Create a Node.js script that reads a JSON file and prints each key-value pair"
 ```
 
-For examples with environment access and credentials (n8n, write mode), see [Running the orchestrator](../../README.md#running-the-orchestrator) in the root README.
+For examples with environment access and credentials (n8n, write mode), see [Running the orchestrator](../README.md#running-the-orchestrator) in the root README.
 
 Expected output:
 
@@ -425,7 +427,7 @@ Use `--iterations 1` to force a single pass.
 ## Tests
 
 ```bash
-cd examples/orchestrator
+cd orchestrator
 npm test              # lint (ESLint + ruff) + unit tests — no auth, no Ollama, no MCPs required
 npm run test:baseline:gate   # rewrite tests/fixtures/gate-determinism-baseline.json after intentional gate contract changes
 npm run test:e2e      # E2E suite — requires Ollama running at localhost:11434
@@ -444,7 +446,7 @@ npm run test:e2e:all  # E2E suite with all available Ollama models
 
 | Workflow | Runner | Triggers |
 |----------|--------|---------|
-| `orchestrator-example.yml` | GitHub cloud | **All PRs** to `main`/`master` (lint + unit). **Push** to `main`/`master` only when `examples/orchestrator/**`, `scripts/hooks/**`, or this workflow file changes. `workflow_dispatch` supported. First step runs `scripts/ci-check-harness-scope.sh`: fails if `ORCH_TEST_SYSTEM_PATH_HARNESS` appears outside the allowlist or if the pre-rename strict-gate env var name appears in tracked code (see script) |
+| `orchestrator-unit-tests.yml` (`name: orchestrator-unit-tests`) | GitHub cloud | **All PRs** to `main`/`master` (lint + unit). **Push** to `main`/`master` when `orchestrator/**`, `scripts/hooks/**`, or this workflow file changes. **No** `examples/orchestrator/**` path filter (legacy path removed). `workflow_dispatch` supported. First step runs `orchestrator/scripts/ci-check-harness-scope.sh`: fails if `ORCH_TEST_SYSTEM_PATH_HARNESS` appears outside the allowlist or if the pre-rename strict-gate env var name appears in tracked code (see script) |
 | `orchestrator-e2e.yml` | Self-hosted (`ollama` label) | Push/PR when orchestrator core, `mcp-direct.py`, `tests/**`, `package.json` / lockfile, MCP server dirs, or this workflow change; **`workflow_dispatch`** (input `ollama_model`) |
 
 The E2E workflow requires a self-hosted runner with labels **`self-hosted`** and **`ollama`**, Ollama at `localhost:11434`, and network for `astral-sh/setup-uv` + `npm ci`. It runs **`npm run test:e2e`** then **`npm run test:e2e:strict`** (dual suite). **Fork PRs:** the E2E job is skipped when the PR comes from a fork (so the run does not wait forever for a runner the fork cannot use). GitHub’s rules for **required checks** allow successful / skipped / neutral in many setups when the workflow completed; a skipped **job** is usually safer than a workflow that never starts (which can leave checks **Pending**). Still: validate once with a **real fork PR** and your branch protection, because only the GitHub UI confirms your org’s rule set. See `.github/workflows/orchestrator-e2e.yml` and `docs/orchestrator/strict-mode.md` § *GitHub Actions — orchestrator-e2e.yml*.
@@ -506,7 +508,7 @@ For **critical roles** (architect, qa, cerberus): the step loop `break`s — no 
 10:27:33 AM [dev-backend] 🟥 Output contract failed: dev-backend: files_modified contains paths not declared in files_read: src/config.js
 ```
 
-The gate enforces **consistency** — every path modified must have been declared in `files_read`, and `files_modified` is mandatory (absence would bypass the cross-check). It does not enforce completeness (whether all relevant files were declared). See [agent-contract.md](../../docs/orchestrator/agent-contract.md) for the known limitation.
+The gate enforces **consistency** — every path modified must have been declared in `files_read`, and `files_modified` is mandatory (absence would bypass the cross-check). It does not enforce completeness (whether all relevant files were declared). See [agent-contract.md](../docs/orchestrator/agent-contract.md) for the known limitation.
 
 ```
 10:27:33 AM [qa] 🟥 Output contract failed: qa: output must classify at least one finding as blocker | improvement | nice-to-have
@@ -579,16 +581,16 @@ This example shows one implementation. You can replace it with any runner that:
 3. Follows the MODE protocol: one role per response, no DEV self-review
 
 References:
-- [Agent contract](../../docs/orchestrator/agent-contract.md)
-- [Strict mode operational guide](../../docs/orchestrator/strict-mode.md)
-- [State store MCP](../../mcp-servers/orchestrator-state/README.md)
+- [Agent contract](../docs/orchestrator/agent-contract.md)
+- [Strict mode operational guide](../docs/orchestrator/strict-mode.md)
+- [State store MCP](../mcp-servers/orchestrator-state/README.md)
 
 ---
 
 ## Structure
 
 ```
-examples/orchestrator/
+orchestrator/
 ├── agents.js           # Agent definitions: MODE, model, system prompt, validateOutput()
 ├── orchestrator.js     # Autonomous loop: plan → execute → gate → cerberus → decide
 ├── context-utils.js    # Context truncation helpers
