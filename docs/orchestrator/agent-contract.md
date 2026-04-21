@@ -61,7 +61,7 @@ See `mcp-servers/orchestrator-state/README.md` for env vars and setup.
 
 **MCP usage audit:** The example `orchestrator.js` logs each **`orchestrator-state`** / **`compact-handoff`** invocation to `~/.claude/metrics/traces/<task_id>.jsonl` as `mcp_call` (fields: `server`, `tool`, `transport` (`direct` or `claude_cli`), `duration_ms`, `ok`). The closing `session_end` event includes rollups: `mcp_total_calls`, `mcp_by_tool`, `mcp_by_transport`, `mcp_failed_calls`. **Token counts per MCP call** are separate from this audit; token/cost metrics are tracked on the backlog.
 
-**`iteration_done.failure_type`:** On `iteration_done` lines, when **`outcome` ≠ `done`**, the example runner sets **`failure_type`** to a closed enum (`spec_missing` \| `contract_mismatch` \| `hallucination` \| `tool_error` \| `timeout` \| `cost_abort` \| `retry_exceeded`) for coarse rollups (SLOs, GUARD-1); write-time validation is in `examples/orchestrator/schemas/trace-v2-line.schema.json`. **Drill-down** for “which contract path failed” is **`transition_reason.reason_code`** (and optional `gate_id` / `step_id`) — see [strict-mode.md](strict-mode.md) § *Trace line envelope* → `failure_type` vs `reason_code`. Semantics evolve with the runner — not proof of root cause.
+**`iteration_done.failure_type`:** On `iteration_done` lines, when **`outcome` ≠ `done`**, the example runner sets **`failure_type`** to a closed enum (`spec_missing` \| `contract_mismatch` \| `hallucination` \| `tool_error` \| `timeout` \| `cost_abort` \| `retry_exceeded`) for coarse rollups (SLOs, GUARD-1); write-time validation is in `orchestrator/schemas/trace-v2-line.schema.json`. **Drill-down** for “which contract path failed” is **`transition_reason.reason_code`** (and optional `gate_id` / `step_id`) — see [strict-mode.md](strict-mode.md) § *Trace line envelope* → `failure_type` vs `reason_code`. Semantics evolve with the runner — not proof of root cause.
 
 ### Required tool flow (strict orchestration)
 
@@ -240,7 +240,7 @@ Each role has a minimum output contract. If the output does not meet it, the run
 
 **Non–triple-line CERBERUS replies** (e.g. a single `**blocker**: …` paragraph) only pass the token check — same behavior as before the semantic floor.
 
-Implemented in `examples/orchestrator/agents.js` (`validateOutput()`). Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
+Implemented in `orchestrator/agents.js` (`validateOutput()`). Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
 
 #### `done` field semantics
 
@@ -270,7 +270,7 @@ When the runner invokes `compact_handoff` (via **Claude CLI** → compact-handof
 | Strict | Hard fail: artifact `gateBlocked: true`, `gateReason` prefixed with `compact_handoff failed:`, trace event `compact_handoff_failed`, completion path does not treat the step as clean |
 | Degraded | Explicit fallback: artifact fields `handoff_compression: unavailable`, `handoff_fallback_used: true`, `handoff_error`; trace `compact_handoff_fallback`; run continues; final summary appends a visible note |
 
-Same policy applies to the post-iteration CERBERUS → ORCHESTRATOR advance handoff when gates are active. See `examples/orchestrator/README.md` § `compact_handoff` failure. Strict worker-path behavior is exercised by `examples/orchestrator/tests/compactHandoffStrict.integration.test.js` (no hooks on `run()`).
+Same policy applies to the post-iteration CERBERUS → ORCHESTRATOR advance handoff when gates are active. See `orchestrator/README.md` § `compact_handoff` failure. Strict worker-path behavior is exercised by `orchestrator/tests/compactHandoffStrict.integration.test.js` (no hooks on `run()`).
 
 ### Goal alignment validation (ORCHESTRATOR — required before advancing MODE)
 

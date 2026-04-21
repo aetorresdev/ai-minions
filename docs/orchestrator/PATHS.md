@@ -20,6 +20,20 @@ On **Linux/macOS**, `~` is your home directory. On **Windows** (PowerShell): `$H
 | Cursor rule | `.cursor/rules/orchestrator.mdc` |
 | Script to install rule in another repo | `scripts/install-orchestrator-rule.sh` |
 | State store MCP (`orchestrator-state`) | `mcp-servers/orchestrator-state/server.py` + `README.md` |
+| Orchestrator **runtime** (product) | `orchestrator/` at repo root. The former `examples/orchestrator/` path was **removed** from this repository. |
+
+## Repository root detection (`REPO_ROOT` / `ORCH_REPO_ROOT`)
+
+Tools under `orchestrator/` must not assume a fixed depth (e.g. `../../mcp-servers`). They resolve the clone root by walking **upward** from the orchestrator package until **both** paths exist:
+
+- `mcp-servers/orchestrator-state/`
+- `scripts/hooks/`
+
+**Implementation:** `orchestrator/repo-root.js` (Node), `orchestrator/mcp-direct.py` (same markers at import time), and `orchestrator/scripts/ci-check-harness-scope.sh` (invokes Node to print the root). **`npm run lint:py`** runs `node scripts/lint-py.js`, which calls `ruff check` on `scripts/hooks` and `mcp-servers` under that root.
+
+**Optional override:** set **`REPO_ROOT`** or **`ORCH_REPO_ROOT`** to an absolute path; it is accepted only if the same markers exist there (otherwise the tool fails fast).
+
+**Shared assets vs runtime:** see **[`shared-dependencies.md`](./shared-dependencies.md)** (which trees the orchestrator uses, when they are mandatory, and how failures surface).
 
 ## Cursor: workspace = this repo
 

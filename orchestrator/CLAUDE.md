@@ -144,7 +144,7 @@ Skipping step 1 will be blocked by a hook. There are no exceptions.
 > - `mcp__orchestrator-state__validate_transition` — dry-run gate check before advancing
 >
 > Full sequence: `compact_handoff` → `record_artifact` → `validate_transition` → `validate_goal_alignment` → `advance_mode`.
-> See [docs/orchestrator/strict-mode.md](../../docs/orchestrator/strict-mode.md) and [agent-contract.md](../../docs/orchestrator/agent-contract.md) § *Required tool flow*.
+> See [docs/orchestrator/strict-mode.md](../docs/orchestrator/strict-mode.md) and [agent-contract.md](../docs/orchestrator/agent-contract.md) § *Required tool flow*.
 
 ### Forbidden patterns
 

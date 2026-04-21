@@ -206,7 +206,7 @@ Each role has a fixed permission level. The session `mode` is the **ceiling** â€
 
 ## Implementation status
 
-**Current status: implemented** (`examples/orchestrator/agents.js` + `orchestrator.js`)
+**Current status: implemented** (`orchestrator/agents.js` + `orchestrator/orchestrator.js`)
 
 | Component | Status | Location |
 |---|---|---|
