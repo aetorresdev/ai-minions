@@ -6,7 +6,7 @@ const cp = require("child_process");
 cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 
 const { validateTraceLine, parseTraceLine, getValidationMetrics, resetValidationMetrics, REJECTION_REASONS } = require("../trace-schema");
-const { transitionReason } = require("../orchestrator");
+const { transitionReason, failureTypeForIterationDone } = require("../orchestrator");
 
 test("validateTraceLine accepts session_start v2 envelope", () => {
   const row = {
@@ -55,6 +55,68 @@ test("validateTraceLine accepts iteration_done from transitionReason()", () => {
   const v = validateTraceLine(row);
   assert.equal(v.ok, true);
   assert.equal(row.transition_reason.reason_code, "RUN_COMPLETED");
+});
+
+test("validateTraceLine rejects iteration_done non-done outcome without failure_type", () => {
+  const row = {
+    ts: "2026-04-15T12:00:00.000Z",
+    ts_ms: 1713182400000,
+    trace_schema_version: "2",
+    task_id: "task-abc",
+    event: "iteration_done",
+    iteration: 1,
+    outcome: "iterate",
+    ...transitionReason("GATE_BLOCK", "cerberus_blockers"),
+  };
+  const v = validateTraceLine(row);
+  assert.equal(v.ok, false);
+  assert.ok(v.errors.some((e) => /failure_type/i.test(e)), v.errors.join(" | "));
+});
+
+test("validateTraceLine accepts iteration_done iterate with failure_type", () => {
+  const row = {
+    ts: "2026-04-15T12:00:00.000Z",
+    ts_ms: 1713182400000,
+    trace_schema_version: "2",
+    task_id: "task-abc",
+    event: "iteration_done",
+    iteration: 1,
+    outcome: "iterate",
+    failure_type: "contract_mismatch",
+    ...transitionReason("GATE_BLOCK", "cerberus_blockers"),
+  };
+  const v = validateTraceLine(row);
+  assert.equal(v.ok, true);
+});
+
+test("validateTraceLine rejects iteration_done with invalid failure_type enum", () => {
+  const row = {
+    ts: "2026-04-15T12:00:00.000Z",
+    ts_ms: 1713182400000,
+    trace_schema_version: "2",
+    task_id: "task-abc",
+    event: "iteration_done",
+    iteration: 1,
+    outcome: "stopped",
+    failure_type: "not_a_taxonomy_value",
+    ...transitionReason("CONTRACT_FAIL", "x"),
+  };
+  const v = validateTraceLine(row);
+  assert.equal(v.ok, false);
+});
+
+test("failureTypeForIterationDone maps reason codes and gate kinds", () => {
+  assert.equal(failureTypeForIterationDone("done", "RUN_COMPLETED"), null);
+  assert.equal(failureTypeForIterationDone("iterate", "CERBERUS_BLOCKERS_ITERATE"), "contract_mismatch");
+  assert.equal(failureTypeForIterationDone("max_iterations_with_blockers", "MAX_ITERATIONS_CERBERUS_BLOCKERS"), "retry_exceeded");
+  assert.equal(
+    failureTypeForIterationDone("gate_blocked_iterate", "GATE_ARTIFACT_OR_HANDOFF", { gateKinds: ["compact_handoff"] }),
+    "tool_error",
+  );
+  assert.equal(
+    failureTypeForIterationDone("gate_blocked_iterate", "GATE_ARTIFACT_OR_HANDOFF", { gateKinds: ["output_contract"] }),
+    "contract_mismatch",
+  );
 });
 
 test("parseTraceLine strict throws on invalid iteration_done", () => {
@@ -291,6 +353,8 @@ test("rejections includes reason_code from transition_reason when present", () =
     ...BASE,
     trace_schema_version: "99",
     event: "iteration_done",
+    iteration: 1,
+    outcome: "done",
     transition_reason: { type: "DONE", reason_code: "RUN_COMPLETED" },
   });
   const m = getValidationMetrics();

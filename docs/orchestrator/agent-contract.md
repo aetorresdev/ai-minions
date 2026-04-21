@@ -61,6 +61,8 @@ See `mcp-servers/orchestrator-state/README.md` for env vars and setup.
 
 **MCP usage audit:** The example `orchestrator.js` logs each **`orchestrator-state`** / **`compact-handoff`** invocation to `~/.claude/metrics/traces/<task_id>.jsonl` as `mcp_call` (fields: `server`, `tool`, `transport` (`direct` or `claude_cli`), `duration_ms`, `ok`). The closing `session_end` event includes rollups: `mcp_total_calls`, `mcp_by_tool`, `mcp_by_transport`, `mcp_failed_calls`. **Token counts per MCP call** are separate from this audit; token/cost metrics are tracked on the backlog.
 
+**`iteration_done.failure_type`:** On `iteration_done` lines, when **`outcome` ≠ `done`**, the example runner sets **`failure_type`** to a closed enum (`spec_missing` \| `contract_mismatch` \| `hallucination` \| `tool_error` \| `timeout` \| `cost_abort` \| `retry_exceeded`) for aggregation and downstream guardrails; write-time validation is in `examples/orchestrator/schemas/trace-v2-line.schema.json`. Semantics evolve with the runner — not proof of root cause.
+
 ### Required tool flow (strict orchestration)
 
 1. **`register_task`** — obtain `task_id`; set `goal`, `flow_mode`, `max_iterations`, optional `approved_artifacts` / `allowed_inputs` / `session_id`.
