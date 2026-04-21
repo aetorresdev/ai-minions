@@ -18,6 +18,18 @@ In strict mode, the **disk store is the authority** — not the chat transcript.
 
 ---
 
+## Kill-switch guardrails (`ORCH_MAX_*`)
+
+Operator-set **env-only** aborts (see [orchestrator README](../../orchestrator/README.md) § *Kill-switch guardrails*):
+
+- **`ORCH_MAX_ITERATIONS`** (1–500) — caps outer iterations when `maxIterations` is not passed programmatically; `run-orchestrator.js` uses it when `--iterations` is omitted.
+- **`ORCH_MAX_RETRIES`** (0–500) — max **`retry_number`** per agent within one outer iteration; abort emits `iteration_done` with `transition_reason.type: GUARD`, `reason_code: GUARD_STEP_RETRY_LIMIT`, `failure_type: retry_exceeded`.
+- **`ORCH_MAX_COST_USD`** — requires **`ORCH_USD_PER_MTOK_PROMPT`** and **`ORCH_USD_PER_MTOK_COMPLETION`**; abort emits `GUARD` / `GUARD_COST_LIMIT` / `failure_type: cost_abort`.
+
+`iteration_done` may also carry **`MAX_ITERATIONS_LOOP_EXHAUSTED`** when the loop stops without `done` and no other terminal `iteration_done` was written.
+
+---
+
 ## Session start
 
 Declare the session header using the role block format, then immediately register the task:

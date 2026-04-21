@@ -9,7 +9,7 @@
  *
  * Options:
  *   --cwd <dir>          Working directory for all agents (default: current dir)
- *   --iterations <n>     Max iterations (default: 3)
+ *   --iterations <n>     Max iterations (default: 3). If omitted, **ORCH_MAX_ITERATIONS** (1–500) applies when set.
  *   --flow <mode>        Flow mode for metrics: single_agent | multi_agent (default: single_agent)
  *   --task-id <id>       Task ID for state store (default: auto-generated)
  *   --skip-gates         Skip orchestrator-state MCP gates (useful for testing)
@@ -43,7 +43,8 @@ async function readStdin() {
 async function main() {
   const args = process.argv.slice(2);
   let cwd = process.cwd();
-  let maxIterations = 3;
+  /** @type {number | null} null = let run() use ORCH_MAX_ITERATIONS or default */
+  let maxIterationsFromCli = null;
   let flowMode = "single_agent";
   let taskId;
   let skipGates = false;
@@ -54,7 +55,7 @@ async function main() {
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--cwd" && args[i + 1])            { cwd = args[++i]; }
-    else if (args[i] === "--iterations" && args[i + 1]) { maxIterations = parseInt(args[++i], 10) || 3; }
+    else if (args[i] === "--iterations" && args[i + 1]) { maxIterationsFromCli = parseInt(args[++i], 10) || 3; }
     else if (args[i] === "--flow" && args[i + 1])       { flowMode = args[++i]; }
     else if (args[i] === "--task-id" && args[i + 1])    { taskId = args[++i]; }
     else if (args[i] === "--skip-gates")                { skipGates = true; }
@@ -88,10 +89,11 @@ async function main() {
   const handoffNote = requireHandoffOverride === true ? " | require_handoff: forced ON"
     : requireHandoffOverride === false ? " | require_handoff: forced OFF"
       : "";
-  console.log(`Flow: ${flowMode} | Max iterations: ${maxIterations}${profile ? ` | Profile: ${profile}` : ""}${skipGates ? " | Gates: DISABLED" : ""}${handoffNote}\n`);
+  const maxIterDisplay = maxIterationsFromCli != null ? maxIterationsFromCli : "(env ORCH_MAX_ITERATIONS or 3)";
+  console.log(`Flow: ${flowMode} | Max iterations: ${maxIterDisplay}${profile ? ` | Profile: ${profile}` : ""}${skipGates ? " | Gates: DISABLED" : ""}${handoffNote}\n`);
 
   const result = await run(goal.trim(), {
-    maxIterations,
+    ...(maxIterationsFromCli != null ? { maxIterations: maxIterationsFromCli } : {}),
     cwd,
     flowMode,
     taskId,
