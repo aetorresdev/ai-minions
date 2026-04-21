@@ -2,7 +2,9 @@
 # Fail if ORCH_TEST_SYSTEM_PATH_HARNESS or legacy E2E_STRICT_GATE_PATH
 # appears outside allowlisted design/test/runtime files.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ORCH_PKG="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT="$(cd "$ORCH_PKG" && node -p "require('./repo-root.js').getRepoRoot()")"
 cd "$ROOT"
 
 # Build token without a single literal line (optional obfuscation); still grep-able in repo for docs.
@@ -10,11 +12,11 @@ H="ORCH_TEST_SYSTEM""_PATH_HARNESS"
 
 excludes=(
   ":(exclude).github"
-  ":(exclude)examples/orchestrator/tests/e2e.strict.test.js"
-  ":(exclude)examples/orchestrator/agents.js"
-  ":(exclude)examples/orchestrator/orchestrator.js"
-  ":(exclude)examples/orchestrator/README.md"
-  ":(exclude)examples/orchestrator/scripts/ci-check-harness-scope.sh"
+  ":(exclude)orchestrator/tests/e2e.strict.test.js"
+  ":(exclude)orchestrator/agents.js"
+  ":(exclude)orchestrator/orchestrator.js"
+  ":(exclude)orchestrator/README.md"
+  ":(exclude)orchestrator/scripts/ci-check-harness-scope.sh"
   ":(exclude)docs/orchestrator/strict-mode.md"
   ":(exclude).claude/state/project_state.md"
   ":(exclude)AI-Minions — Backlog Priorizado.md"
@@ -28,7 +30,7 @@ if ((${#hits[@]} > 0)); then
 fi
 
 legacy_excludes=(
-  ":(exclude)examples/orchestrator/scripts/ci-check-harness-scope.sh"
+  ":(exclude)orchestrator/scripts/ci-check-harness-scope.sh"
   ":(exclude)AI-Minions — Backlog Priorizado.md"
 )
 if git grep -q "E2E_STRICT_GATE_PATH" -- . "${legacy_excludes[@]}" 2>/dev/null; then

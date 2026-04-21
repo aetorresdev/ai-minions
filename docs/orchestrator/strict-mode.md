@@ -348,12 +348,12 @@ Use this to decide whether to abort a session that is burning context inefficien
 
 ## Gate determinism baselines
 
-Unit test `examples/orchestrator/tests/determinismBaseline.test.js` hashes canonical snapshots of `validateOutput()` and `validateHandoffStructure()` for fixed inputs. The expected digests live in `examples/orchestrator/tests/fixtures/gate-determinism-baseline.json` and run on every `npm test` in that package.
+Unit test `orchestrator/tests/determinismBaseline.test.js` hashes canonical snapshots of `validateOutput()` and `validateHandoffStructure()` for fixed inputs. The expected digests live in `orchestrator/tests/fixtures/gate-determinism-baseline.json` and run on every `npm test` in that package.
 
 If you change gate messages or branching intentionally, refresh the fixture:
 
 ```bash
-cd examples/orchestrator && npm run test:baseline:gate
+cd orchestrator && npm run test:baseline:gate
 ```
 
 This does **not** freeze Ollama or full `run()` outputs (those stay non-deterministic); it only guards the pure gate layer.
@@ -386,7 +386,7 @@ There was **no** prior public “v1” trace contract in this project: **`2` is 
 1. **Bump** `TRACE_SCHEMA_VERSION` in `orchestrator.js` together with any **breaking** field rename/shape change, and update this table + `model-routing.md` + **`schema-versioning.md`** in the **same** change.
 2. **Compatibility:** same major string (`"2"`) means additive fields are OK; removing or retyping fields → new version (`"3"`, …). Finer rules live in **`schema-versioning.md`**.
 3. **Consumers:** read `trace_schema_version`; **ignore unknown keys**; branch parsing only when the version changes. Do not assume every line matches the newest code without checking the field.
-4. **Validation / tests per version:** JSON Schema `examples/orchestrator/schemas/trace-v2-line.schema.json` — **Ajv** validates every line at **write** time (`traceEvent`). At **read** time use `parseJsonl(text, { validateLines: true })`, CLI **`--strict-traces`**, or env **`ORCH_TRACE_VALIDATE=1`** (`token-trace-report.js`, `scenario-metrics-export.js`). Tests: `tests/traceSchema.test.js`.
+4. **Validation / tests per version:** JSON Schema `orchestrator/schemas/trace-v2-line.schema.json` — **Ajv** validates every line at **write** time (`traceEvent`). At **read** time use `parseJsonl(text, { validateLines: true })`, CLI **`--strict-traces`**, or env **`ORCH_TRACE_VALIDATE=1`** (`token-trace-report.js`, `scenario-metrics-export.js`). Tests: `tests/traceSchema.test.js`.
 5. **Size / cost:** more fields per line increase storage and parse time; if traces grow large, measure bytes per run and prune or sample (operational concern, not enforced here).
 
 Deltas and latency: use **`ts_ms`** only (`ts` is human-readable ISO for the same instant).
@@ -461,7 +461,7 @@ At emit time, `assertParentStepExists()` warns (stderr) if a `parent_step_id` re
 
 ## MCP usage audit
 
-For each `run()` of `examples/orchestrator/orchestrator.js`, every **`orchestrator-state`** tool call (via **`mcp-direct.py`** when `ORCH_MCP_TRANSPORT=direct`, or via **`claude -p`** when not) and every **`compact-handoff.compact_handoff`** call emits one **`mcp_call`** line in the per-task JSONL trace (`~/.claude/metrics/traces/<task_id>.jsonl`). Fields: `server`, `tool`, `transport` (`direct` or `claude_cli`), `duration_ms`, `ok`.
+For each `run()` of `orchestrator/orchestrator.js`, every **`orchestrator-state`** tool call (via **`mcp-direct.py`** when `ORCH_MCP_TRANSPORT=direct`, or via **`claude -p`** when not) and every **`compact-handoff.compact_handoff`** call emits one **`mcp_call`** line in the per-task JSONL trace (`~/.claude/metrics/traces/<task_id>.jsonl`). Fields: `server`, `tool`, `transport` (`direct` or `claude_cli`), `duration_ms`, `ok`.
 
 The **`session_end`** event on the same stream adds **`mcp_total_calls`**, **`mcp_by_tool`** (counts keyed as `server.tool`), **`mcp_by_transport`**, and **`mcp_failed_calls`**. Use this to spot duplicate transitions, unexpected `claude_cli` bridging, or retry storms. **`skipStateMcp: true`** runs typically log **`mcp_total_calls: 0`** (state MCPs are not invoked from the runner).
 
@@ -473,17 +473,17 @@ When agents use **Ollama** (`/api/chat`), the example `agents.js` parses `prompt
 
 `session_end` includes **`ollama_prompt_tokens_total`** and **`ollama_completion_tokens_total`** when at least one of those counters is non-zero. **Claude CLI** paths do not populate these fields (no token API in this example runner). **USD cost** is not inferred automatically: you can set **`ORCH_USD_PER_MTOK_PROMPT`** and **`ORCH_USD_PER_MTOK_COMPLETION`** (USD per 1e6 Ollama tokens; both required) so `token-trace-report.js` prints an optional estimate from those totals.
 
-**On-demand readout:** `examples/orchestrator/token-trace-report.js` (npm script `tokens:report`) reads a completed `*.jsonl` and prints Ollama totals (from `context_stats` vs `session_end`) plus MCP rollups — see `examples/orchestrator/README.md`.
+**On-demand readout:** `orchestrator/token-trace-report.js` (npm script `tokens:report`) reads a completed `*.jsonl` and prints Ollama totals (from `context_stats` vs `session_end`) plus MCP rollups — see `orchestrator/README.md`.
 
 **Batch export:** optional `scenario_id` on `session_start` / `session_end` when `run({ traceScenarioId })` or `ORCH_TRACE_SCENARIO_ID` is set; `scenario-metrics-export.js` (`npm run metrics:export-scenarios`) aggregates tagged traces into JSON with **`runs`**, **`by_scenario`**, and **`by_flow_mode`** (grouping by `flow_mode` from each run).
 
 ---
 
-## System-path E2E suite (examples/orchestrator)
+## System-path E2E suite (`orchestrator/`)
 
 Automated checks for **`skipStateMcp: false`** (hard gates on) without requiring the **claude CLI** to invoke MCP tools:
 
-1. Set **`ORCH_MCP_TRANSPORT=direct`** — `orchestrator.js` routes `orchestrator-state` and `compact-handoff` calls through **`examples/orchestrator/mcp-direct.py`**, which loads the Python MCP server code from `mcp-servers/*` (after `uv sync` in each server directory).
+1. Set **`ORCH_MCP_TRANSPORT=direct`** — `orchestrator.js` routes `orchestrator-state` and `compact-handoff` calls through **`orchestrator/mcp-direct.py`**, which loads the Python MCP server code from `mcp-servers/*` (after `uv sync` in each server directory).
 2. **`ORCHESTRATOR_STATE_ROOT`** — tests may point this at a temp directory so the authoritative store is isolated from `~/.claude/.state/orchestrator`.
 3. **`npm run test:e2e:strict`** (alias **`npm run test:e2e:system-path`**) — runs `tests/e2e.strict.test.js` (Ollama required; skips if Ollama or `mcp-direct.py` is missing).
 
@@ -495,7 +495,7 @@ This is **not** the same as registering MCPs inside the Anthropic Claude app: th
 - **Dual suite:** `npm run test:e2e` then `npm run test:e2e:strict` — same contract as local “full E2E + system-path”.
 - **Dispatch:** `workflow_dispatch` input `ollama_model` overrides the default `qwen2.5-coder:7b`. A best-effort `ollama pull` runs if the CLI is on `PATH`.
 - **Fork PRs:** the job is **skipped** when `pull_request.head.repo` is a fork (avoids a stuck “Waiting for a runner” queue). GitHub generally treats **skipped** jobs on a completed workflow as non-blocking for merge when rules expect success/skipped/neutral — but **path/branch filters** that prevent the workflow from running at all can leave checks **Pending**. Here the workflow file still matches on fork PRs, so the run exists and the job reports skipped — usually the safe case. **Operational validation:** run at least one real fork PR with your branch protection enabled and confirm the UI before calling this risk closed.
-- **Artifacts:** on failure, uploads `~/.claude/metrics/traces/`, `gate_events.jsonl`, `flow-metrics.jsonl`, and `examples/orchestrator/npm-debug.log` (7-day retention).
+- **Artifacts:** on failure, uploads `~/.claude/metrics/traces/`, `gate_events.jsonl`, `flow-metrics.jsonl`, and `orchestrator/npm-debug.log` (7-day retention).
 - **Concurrency:** one in-flight run per ref (`cancel-in-progress: true`).
 
 Optional env: **`ORCH_PYTHON`** (default `python3`), **`ORCH_MCP_DIRECT_TIMEOUT_MS`** (default `180000`).

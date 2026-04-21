@@ -1,24 +1,24 @@
 ---
 name: orchestrator-token-report
-description: "Read orchestrator execution traces (~/.claude/metrics/traces) and produce on-demand Ollama token + MCP summaries or batch JSON export by scenario_id. Use after examples/orchestrator runs, when comparing E2E costs, or when debugging token-heavy loops."
+description: "Read orchestrator execution traces (~/.claude/metrics/traces) and produce on-demand Ollama token + MCP summaries or batch JSON export by scenario_id. Use after orchestrator/ runs, when comparing E2E costs, or when debugging token-heavy loops."
 ---
 
 # Orchestrator token report (traces)
 
-Use this skill when the user asks for **token usage**, **trace metrics**, **MCP call counts** from the **ai-minions orchestrator example** (`examples/orchestrator`), or **export metrics per E2E scenario**.
+Use this skill when the user asks for **token usage**, **trace metrics**, **MCP call counts** from the **ai-minions orchestrator** (`orchestrator/` at repo root), or **export metrics per E2E scenario**.
 
 ## Sources of truth
 
 | Artifact | Path | Contents |
 |----------|------|----------|
-| Per-run JSONL trace | `~/.claude/metrics/traces/<task_id>.jsonl` | Every line: `ts`, `ts_ms`, `trace_schema_version` (`"2"`). `iteration_done.transition_reason`: `{ type, reason_code, details?, gate_id?, step_id? }`. Schema: `examples/orchestrator/schemas/trace-v2-line.schema.json`. Optional strict parse: `ORCH_TRACE_VALIDATE=1` or `--strict-traces` on CLIs. |
+| Per-run JSONL trace | `~/.claude/metrics/traces/<task_id>.jsonl` | Every line: `ts`, `ts_ms`, `trace_schema_version` (`"2"`). `iteration_done.transition_reason`: `{ type, reason_code, details?, gate_id?, step_id? }`. Schema: `orchestrator/schemas/trace-v2-line.schema.json`. Optional strict parse: `ORCH_TRACE_VALIDATE=1` or `--strict-traces` on CLIs. |
 | Override trace dir | Env `ORCH_TRACES_DIR` | Same layout as above |
 
 After `node run-orchestrator.js …`, the CLI prints **`Task ID:`** — that string is the `<task_id>` basename for the trace file.
 
 ## CLI — single run (on-demand report)
 
-From `examples/orchestrator`:
+From `orchestrator/` (repo root):
 
 ```bash
 npm run tokens:report -- <task_id>
@@ -48,12 +48,12 @@ node scenario-metrics-export.js --dir ~/.claude/metrics/traces --since-m 120 --o
 
 ## Docs
 
-- `examples/orchestrator/README.md` — Quickstart + metrics commands
+- `orchestrator/README.md` — Quickstart + metrics commands
 - `docs/orchestrator/strict-mode.md` — trace events, MCP audit, Ollama token fields
 - `docs/orchestrator/model-routing.md` — execution trace event types
 
 ## Code references
 
-- `examples/orchestrator/token-trace-report.js` — parse + `buildReport`
-- `examples/orchestrator/scenario-metrics-export.js` — `collectRunsFromDir`
-- `examples/orchestrator/orchestrator.js` — `traceScenarioId` / `scenario_id` on `session_start` / `session_end`
+- `orchestrator/token-trace-report.js` — parse + `buildReport`
+- `orchestrator/scenario-metrics-export.js` — `collectRunsFromDir`
+- `orchestrator/orchestrator.js` — `traceScenarioId` / `scenario_id` on `session_start` / `session_end`
