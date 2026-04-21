@@ -139,3 +139,80 @@ test("parseTraceLine strict throws on unsupported trace_schema_version", () => {
   });
   assert.throws(() => parseTraceLine(line, { strict: true }), /this binary only accepts|trace_schema_version|schema/i);
 });
+
+test("policy error does not expose raw value of trace_schema_version", () => {
+  const sensitiveValue = '{"injected":"payload","secret":"abc123"}';
+  const record = { trace_schema_version: sensitiveValue };
+  const v = validateTraceLine(record);
+  assert.equal(v.ok, false);
+  assert.ok(
+    v.errors.every((e) => !e.includes(sensitiveValue)),
+    `error must not contain raw value; got: ${v.errors.join(" | ")}`,
+  );
+  assert.ok(
+    v.errors.some((e) => e.includes("<string>")),
+    `error should include type hint; got: ${v.errors.join(" | ")}`,
+  );
+});
+
+test("policy error for non-string trace_schema_version does not expose raw value", () => {
+  const record = { trace_schema_version: { nested: "object", secret: "leak" } };
+  const v = validateTraceLine(record);
+  assert.equal(v.ok, false);
+  assert.ok(
+    v.errors.every((e) => !e.includes("leak") && !e.includes("nested")),
+    `error must not contain raw object fields; got: ${v.errors.join(" | ")}`,
+  );
+  assert.ok(
+    v.errors.some((e) => e.includes("<object>")),
+    `error should include type hint; got: ${v.errors.join(" | ")}`,
+  );
+});
+
+test("Ajv validation error exposes only root field path, not nested subpath", () => {
+  const record = {
+    trace_schema_version: "2",
+    ts: "2026-04-15T12:00:00.000Z",
+    ts_ms: 1713182400000,
+    task_id: "task-abc",
+    event: "iteration_done",
+    flow_mode: "single_agent",
+    max_iterations: 1,
+    iteration: 1,
+    outcome: "done",
+    cwd: "/tmp",
+    goal: "x",
+    transition_reason: { type: "done", details: { secret_key: "/home/user/.aws/credentials" } },
+  };
+  const v = validateTraceLine(record);
+  assert.equal(v.ok, false);
+  assert.ok(
+    v.errors.every((e) => !e.includes("secret_key") && !e.includes("credentials")),
+    `error must not expose nested path or values; got: ${v.errors.join(" | ")}`,
+  );
+  assert.ok(
+    v.errors.some((e) => e.startsWith("/transition_reason")),
+    `error should reference root field only; got: ${v.errors.join(" | ")}`,
+  );
+});
+
+test("Ajv validation error does not expose raw field value", () => {
+  const sensitiveGoal = "sensitive payload: token=abc123&secret=xyz";
+  const record = {
+    trace_schema_version: "2",
+    ts: "not-a-date",
+    ts_ms: "not-a-number",
+    task_id: "task-abc",
+    event: "session_start",
+    flow_mode: "single_agent",
+    max_iterations: 1,
+    cwd: "/tmp",
+    goal: sensitiveGoal,
+  };
+  const v = validateTraceLine(record);
+  assert.equal(v.ok, false);
+  assert.ok(
+    v.errors.every((e) => !e.includes(sensitiveGoal)),
+    `Ajv error must not contain raw goal value; got: ${v.errors.join(" | ")}`,
+  );
+});
