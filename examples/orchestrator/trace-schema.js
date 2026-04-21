@@ -23,6 +23,22 @@ const SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ = new Set([TRACE_LINE_WRITER_VERS
 const SCHEMA_PATH = path.join(__dirname, "schemas", "trace-v2-line.schema.json");
 let _validate = null;
 
+const _metrics = {
+  policy_missing_version: 0,
+  policy_unsupported_version: 0,
+  ajv_schema_error: 0,
+};
+
+function getValidationMetrics() {
+  return { ..._metrics };
+}
+
+function resetValidationMetrics() {
+  _metrics.policy_missing_version = 0;
+  _metrics.policy_unsupported_version = 0;
+  _metrics.ajv_schema_error = 0;
+}
+
 function getValidator() {
   if (_validate) return _validate;
   const raw = fs.readFileSync(SCHEMA_PATH, "utf8");
@@ -39,10 +55,14 @@ function getValidator() {
  */
 function traceSchemaVersionPolicyErrors(record) {
   const v = record && record.trace_schema_version;
-  if (typeof v !== "string" || !SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ.has(v)) {
+  if (typeof v !== "string") {
     const allowed = [...SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ].join(", ");
     const got = v === undefined || v === null ? "missing" : `<${typeof v}>`;
-    return [`trace_schema_version: this binary only accepts ${allowed}; got ${got}`];
+    return { errors: [`trace_schema_version: this binary only accepts ${allowed}; got ${got}`], reason: "missing_version" };
+  }
+  if (!SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ.has(v)) {
+    const allowed = [...SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ].join(", ");
+    return { errors: [`trace_schema_version: this binary only accepts ${allowed}; got <string>`], reason: "unsupported_version" };
   }
   return null;
 }
@@ -54,10 +74,13 @@ function traceSchemaVersionPolicyErrors(record) {
 function validateTraceLine(record) {
   const policy = traceSchemaVersionPolicyErrors(record);
   if (policy) {
-    return { ok: false, errors: policy };
+    if (policy.reason === "missing_version") _metrics.policy_missing_version++;
+    else _metrics.policy_unsupported_version++;
+    return { ok: false, errors: policy.errors };
   }
   const validate = getValidator();
   if (!validate(record)) {
+    _metrics.ajv_schema_error++;
     const errs = (validate.errors || []).map((e) => {
       const rootPath = e.instancePath ? `/${e.instancePath.split("/")[1]}` : "/";
       return `${rootPath} ${e.message || "invalid"}`.trim();
@@ -83,11 +106,46 @@ function parseTraceLine(line, opts = {}) {
   return o;
 }
 
+
+/**
+ * @param {object[]} lines - parsed trace line objects from a single run
+ * @returns {{ ok: boolean, violations: Array<{type: string, step_id?: string, parent_step_id?: string}> }}
+ */
+function validateTraceRunGraph(lines) {
+  const violations = [];
+
+  // Pass 1: build full step_id index and detect duplicates globally
+  const stepIndex = new Set();
+  for (let i = 0; i < lines.length; i++) {
+    const { step_id } = lines[i];
+    if (step_id != null) {
+      if (stepIndex.has(step_id)) {
+        violations.push({ type: 'duplicate_step_id', step_id, line_index: i });
+      } else {
+        stepIndex.add(step_id);
+      }
+    }
+  }
+
+  // Pass 2: validate parent references against full index
+  for (let i = 0; i < lines.length; i++) {
+    const { step_id, parent_step_id } = lines[i];
+    if (parent_step_id != null && !stepIndex.has(parent_step_id)) {
+      violations.push({ type: 'orphan_parent', step_id: step_id ?? null, parent_step_id, line_index: i });
+    }
+  }
+
+  return { ok: violations.length === 0, violations };
+}
+
 module.exports = {
   TRACE_LINE_WRITER_VERSION,
   SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ,
   traceSchemaVersionPolicyErrors,
   validateTraceLine,
   parseTraceLine,
+  getValidationMetrics,
+  resetValidationMetrics,
+  validateTraceRunGraph,
   SCHEMA_PATH,
 };
