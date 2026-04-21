@@ -106,6 +106,38 @@ function parseTraceLine(line, opts = {}) {
   return o;
 }
 
+
+/**
+ * @param {object[]} lines - parsed trace line objects from a single run
+ * @returns {{ ok: boolean, violations: Array<{type: string, step_id?: string, parent_step_id?: string}> }}
+ */
+function validateTraceRunGraph(lines) {
+  const violations = [];
+
+  // Pass 1: build full step_id index and detect duplicates globally
+  const stepIndex = new Set();
+  for (let i = 0; i < lines.length; i++) {
+    const { step_id } = lines[i];
+    if (step_id != null) {
+      if (stepIndex.has(step_id)) {
+        violations.push({ type: 'duplicate_step_id', step_id, line_index: i });
+      } else {
+        stepIndex.add(step_id);
+      }
+    }
+  }
+
+  // Pass 2: validate parent references against full index
+  for (let i = 0; i < lines.length; i++) {
+    const { step_id, parent_step_id } = lines[i];
+    if (parent_step_id != null && !stepIndex.has(parent_step_id)) {
+      violations.push({ type: 'orphan_parent', step_id: step_id ?? null, parent_step_id, line_index: i });
+    }
+  }
+
+  return { ok: violations.length === 0, violations };
+}
+
 module.exports = {
   TRACE_LINE_WRITER_VERSION,
   SUPPORTED_TRACE_SCHEMA_VERSIONS_FOR_READ,
@@ -114,5 +146,6 @@ module.exports = {
   parseTraceLine,
   getValidationMetrics,
   resetValidationMetrics,
+  validateTraceRunGraph,
   SCHEMA_PATH,
 };

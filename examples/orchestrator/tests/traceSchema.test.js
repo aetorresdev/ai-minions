@@ -274,3 +274,64 @@ test("getValidationMetrics returns a snapshot copy, not a live reference", () =>
   validateTraceLine({ ...BASE, trace_schema_version: "99" });
   assert.equal(snap.policy_unsupported_version, 0, "snapshot must not reflect later increments");
 });
+
+// validateTraceRunGraph — run-level graph consistency
+const { validateTraceRunGraph } = require("../trace-schema");
+
+test("validateTraceRunGraph passes on empty line array", () => {
+  const r = validateTraceRunGraph([]);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.violations, []);
+});
+
+test("validateTraceRunGraph passes when all parent_step_ids reference earlier step_ids", () => {
+  const lines = [
+    { event: "agent_start", step_id: "s1", parent_step_id: null },
+    { event: "agent_start", step_id: "s2", parent_step_id: "s1" },
+  ];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.violations, []);
+});
+
+test("validateTraceRunGraph detects orphan parent_step_id", () => {
+  const lines = [
+    { event: "agent_start", step_id: "s2", parent_step_id: "s_missing" },
+  ];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, false);
+  assert.equal(r.violations.length, 1);
+  assert.equal(r.violations[0].type, "orphan_parent");
+  assert.equal(r.violations[0].parent_step_id, "s_missing");
+});
+
+test("validateTraceRunGraph detects duplicate step_id", () => {
+  const lines = [
+    { event: "agent_start", step_id: "s1" },
+    { event: "agent_done",  step_id: "s1" },
+    { event: "agent_start", step_id: "s1" },
+  ];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, false);
+  assert.ok(r.violations.some((v) => v.type === "duplicate_step_id" && v.step_id === "s1"));
+});
+
+test("validateTraceRunGraph ignores lines without step_id or parent_step_id", () => {
+  const lines = [
+    { event: "session_start" },
+    { event: "context_stats", ts_ms: 1 },
+  ];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, true);
+});
+
+test("validateTraceRunGraph reports multiple violations independently", () => {
+  const lines = [
+    { event: "agent_start", step_id: "s1", parent_step_id: "ghost" },
+    { event: "agent_start", step_id: "s1" },
+  ];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, false);
+  assert.ok(r.violations.some((v) => v.type === "orphan_parent"));
+  assert.ok(r.violations.some((v) => v.type === "duplicate_step_id"));
+});
