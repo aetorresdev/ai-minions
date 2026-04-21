@@ -1,7 +1,7 @@
 # Lint + unit tests for orchestrator/ (no Claude auth or Ollama required).
 # push: path-filtered to save CI on unrelated commits.
 # pull_request: no path filter — every PR gets lint + unit.
-name: orchestrator-example
+name: orchestrator-unit-tests
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
     paths:
       - "orchestrator/**"
       - "scripts/hooks/**"
-      - ".github/workflows/orchestrator-example.yml"
+      - ".github/workflows/orchestrator-unit-tests.yml"
   pull_request:
     branches: [main, master]
   workflow_dispatch:

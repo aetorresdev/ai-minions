@@ -1,4 +1,4 @@
-# Orchestrator Example
+# Orchestrator
 
 An autonomous orchestrator that follows the [MODE protocol](../docs/orchestrator/agent-contract.md) and uses the [orchestrator-state MCP](../mcp-servers/orchestrator-state/README.md) as the authoritative state store.
 
@@ -446,7 +446,7 @@ npm run test:e2e:all  # E2E suite with all available Ollama models
 
 | Workflow | Runner | Triggers |
 |----------|--------|---------|
-| `orchestrator-example.yml` | GitHub cloud | **All PRs** to `main`/`master` (lint + unit). **Push** to `main`/`master` when `orchestrator/**`, `scripts/hooks/**`, or this workflow file changes. `workflow_dispatch` supported. First step runs `orchestrator/scripts/ci-check-harness-scope.sh`: fails if `ORCH_TEST_SYSTEM_PATH_HARNESS` appears outside the allowlist or if the pre-rename strict-gate env var name appears in tracked code (see script) |
+| `orchestrator-unit-tests.yml` (`name: orchestrator-unit-tests`) | GitHub cloud | **All PRs** to `main`/`master` (lint + unit). **Push** to `main`/`master` when `orchestrator/**`, `scripts/hooks/**`, or this workflow file changes. **No** `examples/orchestrator/**` path filter (legacy path removed). `workflow_dispatch` supported. First step runs `orchestrator/scripts/ci-check-harness-scope.sh`: fails if `ORCH_TEST_SYSTEM_PATH_HARNESS` appears outside the allowlist or if the pre-rename strict-gate env var name appears in tracked code (see script) |
 | `orchestrator-e2e.yml` | Self-hosted (`ollama` label) | Push/PR when orchestrator core, `mcp-direct.py`, `tests/**`, `package.json` / lockfile, MCP server dirs, or this workflow change; **`workflow_dispatch`** (input `ollama_model`) |
 
 The E2E workflow requires a self-hosted runner with labels **`self-hosted`** and **`ollama`**, Ollama at `localhost:11434`, and network for `astral-sh/setup-uv` + `npm ci`. It runs **`npm run test:e2e`** then **`npm run test:e2e:strict`** (dual suite). **Fork PRs:** the E2E job is skipped when the PR comes from a fork (so the run does not wait forever for a runner the fork cannot use). GitHub’s rules for **required checks** allow successful / skipped / neutral in many setups when the workflow completed; a skipped **job** is usually safer than a workflow that never starts (which can leave checks **Pending**). Still: validate once with a **real fork PR** and your branch protection, because only the GitHub UI confirms your org’s rule set. See `.github/workflows/orchestrator-e2e.yml` and `docs/orchestrator/strict-mode.md` § *GitHub Actions — orchestrator-e2e.yml*.
