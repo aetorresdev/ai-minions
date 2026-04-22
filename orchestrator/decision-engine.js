@@ -135,6 +135,55 @@ function decideStepRetryGuard({ prevRetries, maxStepRetries, agentId }) {
   };
 }
 
+/**
+ * One line per gate-blocked artifact for logs and manual-review summaries.
+ * Mirrors prior inline: `${a.agentId}: ${a.gateReason || "gate blocked"}`.
+ * @param {ReadonlyArray<{ agentId?: string, gateReason?: string }>} artifacts
+ * @returns {string[]}
+ */
+function formatGateBlockedReasonLines(artifacts) {
+  if (!Array.isArray(artifacts)) return [];
+  return artifacts.map((a) => `${a?.agentId}: ${a?.gateReason || "gate blocked"}`);
+}
+
+/**
+ * Replay plan: same worker steps as the gate-blocked artifacts (deterministic iteration).
+ * @param {ReadonlyArray<{ agentId?: string, task?: string }>} artifacts
+ * @returns {Array<{ agentId?: string, task?: string }>}
+ */
+function planStepsReplayFromGateBlockedArtifacts(artifacts) {
+  if (!Array.isArray(artifacts)) return [];
+  return artifacts.map((a) => ({ agentId: a.agentId, task: a.task }));
+}
+
+/**
+ * When orchestrator/correct JSON is empty — retry last DEV steps with a fixed task prefix.
+ * @param {{ artifacts: ReadonlyArray<{ agentId?: string, task?: string }>, blockerItems: ReadonlyArray<string>, maxBlockersInTask?: number }} p
+ * @returns {Array<{ agentId: string, task: string }>}
+ */
+function planStepsDevFallbackFromBlockers({ artifacts, blockerItems, maxBlockersInTask = 2 }) {
+  const items = Array.isArray(blockerItems) ? blockerItems : [];
+  const n = typeof maxBlockersInTask === "number" && maxBlockersInTask > 0 ? Math.floor(maxBlockersInTask) : 2;
+  const snippet = items.slice(0, n).join("; ");
+  const taskSuffix = `Fix blockers: ${snippet}`;
+  if (!Array.isArray(artifacts)) return [];
+  return artifacts
+    .filter((a) => typeof a?.agentId === "string" && a.agentId.startsWith("dev-"))
+    .map((a) => ({ agentId: a.agentId, task: taskSuffix }));
+}
+
+/**
+ * Summary line when max iterations hit with gate-blocked artifacts (manual review).
+ * @param {{ count: number, reasonLines: ReadonlyArray<string> }} p
+ * @returns {string}
+ */
+function summaryMaxIterationsGateBlocked({ count, reasonLines }) {
+  const c = typeof count === "number" && count >= 0 ? count : 0;
+  const lines = Array.isArray(reasonLines) ? reasonLines.filter((s) => typeof s === "string") : [];
+  const blocked = lines.length > 0 ? lines.join("; ") : "(no detail)";
+  return `Max iterations reached with ${c} gate-blocked artifact(s). Manual review required. Blocked: ${blocked}`;
+}
+
 module.exports = {
   decideFromOrchestratorDecide,
   decideCerberusBlockersBranch,
@@ -143,4 +192,8 @@ module.exports = {
   loopExhaustedDefaultSummary,
   decideCostGuard,
   decideStepRetryGuard,
+  formatGateBlockedReasonLines,
+  planStepsReplayFromGateBlockedArtifacts,
+  planStepsDevFallbackFromBlockers,
+  summaryMaxIterationsGateBlocked,
 };
