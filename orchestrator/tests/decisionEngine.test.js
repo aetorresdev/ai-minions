@@ -8,6 +8,8 @@ const {
   decideGateBlockedArtifactsBranch,
   decideCorrectionsPlan,
   loopExhaustedDefaultSummary,
+  decideCostGuard,
+  decideStepRetryGuard,
 } = require("../decision-engine");
 
 test("decideFromOrchestratorDecide — finish when done true", () => {
@@ -51,4 +53,49 @@ test("decideCorrectionsPlan — use_json vs fallback_dev", () => {
 
 test("loopExhaustedDefaultSummary", () => {
   assert.equal(loopExhaustedDefaultSummary(3), "Stopped after 3 iteration(s).");
+});
+
+test("decideCostGuard — no abort when under limit", () => {
+  assert.deepEqual(decideCostGuard({ estimate: 0.5, maxCostUsd: 1.0, phase: "worker" }), { abort: false });
+});
+
+test("decideCostGuard — no abort when maxCostUsd null", () => {
+  assert.deepEqual(decideCostGuard({ estimate: 99, maxCostUsd: null, phase: "worker" }), { abort: false });
+});
+
+test("decideCostGuard — no abort when estimate null", () => {
+  assert.deepEqual(decideCostGuard({ estimate: null, maxCostUsd: 1.0, phase: "worker" }), { abort: false });
+});
+
+test("decideCostGuard — abort when over limit", () => {
+  const d = decideCostGuard({ estimate: 1.5, maxCostUsd: 1.0, phase: "cerberus" });
+  assert.equal(d.abort, true);
+  assert.equal(d.limitUsd, 1.0);
+  assert.equal(d.guardPhase, "cerberus");
+  assert.ok(typeof d.summary === "string" && d.summary.includes("ORCH_MAX_COST_USD=1"));
+  assert.ok(typeof d.estimateUsd === "number" && d.estimateUsd > 1.0);
+});
+
+test("decideCostGuard — no abort when estimate equals limit exactly", () => {
+  assert.deepEqual(decideCostGuard({ estimate: 1.0, maxCostUsd: 1.0, phase: "plan" }), { abort: false });
+});
+
+test("decideStepRetryGuard — no abort when under limit", () => {
+  assert.deepEqual(decideStepRetryGuard({ prevRetries: 1, maxStepRetries: 2, agentId: "dev-backend" }), { abort: false });
+});
+
+test("decideStepRetryGuard — no abort when maxStepRetries null", () => {
+  assert.deepEqual(decideStepRetryGuard({ prevRetries: 99, maxStepRetries: null, agentId: "dev-backend" }), { abort: false });
+});
+
+test("decideStepRetryGuard — abort when exceeds limit", () => {
+  const d = decideStepRetryGuard({ prevRetries: 3, maxStepRetries: 2, agentId: "dev-backend" });
+  assert.equal(d.abort, true);
+  assert.equal(d.agentId, "dev-backend");
+  assert.equal(d.retryNumber, 3);
+  assert.ok(typeof d.summary === "string" && d.summary.includes("ORCH_MAX_RETRIES=2"));
+});
+
+test("decideStepRetryGuard — no abort when prevRetries equals limit exactly", () => {
+  assert.deepEqual(decideStepRetryGuard({ prevRetries: 2, maxStepRetries: 2, agentId: "dev-backend" }), { abort: false });
 });
