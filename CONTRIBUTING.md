@@ -35,6 +35,7 @@ When changing any of the files below, update the paired counterpart before openi
 - Keep changes focused (one skill, one fix, or one doc section).
 - Ensure markdown and links pass CI (see [README — CI](README.md#ci)).
 - No secrets or credentials in commits.
+- **No ticket IDs in committed implementation artifacts:** do not put backlog/issue keys (`P0-01`, `FOO-123`, etc.) in `orchestrator/`, `agents/`, `tests/`, `scripts/`, or technical `docs/` meant as product/runtime documentation. Ticket registries (backlog / resolved archive) are exempt where IDs are the intended schema.
 
 ## Questions
 

@@ -15,6 +15,9 @@
  * Run:
  *   OLLAMA_MODEL=qwen2.5-coder:7b node --test tests/e2e.test.js
  *   node --test tests/e2e.test.js   # auto-detects available model
+ *
+ * Includes Ollama **DEV output-contract smoke**: `single_agent Ollama: dev-backend passes output contract…`
+ * (requires Ollama; asserts `validateOutput` passes on at least one DEV artifact — not in default `npm test`).
  */
 
 "use strict";
@@ -154,6 +157,50 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
         assert.ok(typeof art.result === "string", `artifact.result must be a string (got ${typeof art.result})`);
         assert.ok(typeof art.task === "string", `artifact.task must be a string (got ${typeof art.task})`);
       }
+    } finally {
+      removeTempDir(cwd);
+    }
+  });
+
+  // Ollama DEV: at least one artifact must pass validateOutput without format gate-block
+  test("single_agent Ollama: dev-backend passes output contract at least once (format smoke)", async (t) => {
+    if (skipIfNoOllama(t)) return;
+
+    const { validateOutput } = require("../agents");
+    const cwd = makeTempDir();
+    try {
+      fs.writeFileSync(path.join(cwd, "marker.txt"), "seed\n");
+      const goal =
+        "Append exactly one new line containing only: E2E_CONTRACT_OK\n" +
+        "to marker.txt in the cwd. Keep the file valid UTF-8.\n\n" +
+        "STRICT: Your reply MUST START with YAML (no markdown code fence before it) with keys:\n" +
+        "files_read:, files_modified:, validation_run:\n" +
+        "Use the path marker.txt for files_read and files_modified.\n" +
+        "validation_run must cite a real shell command you ran (e.g. grep E2E_CONTRACT_OK marker.txt or wc -l marker.txt).\n" +
+        "After the YAML, at most 2 lines of prose.";
+
+      const result = await e2eRun(t, goal, {
+        maxIterations: 1,
+        cwd,
+        flowMode: "single_agent",
+        skipStateMcp: true,
+        stepSummary: false,
+      });
+
+      const devArts = result.artifacts.filter((a) => a.agentId && a.agentId.startsWith("dev-"));
+      assert.ok(devArts.length >= 1, `expected >=1 dev artifact, got: ${result.artifacts.map((a) => a.agentId).join(", ") || "(none)"}`);
+
+      const passed = devArts.some((a) => {
+        if (a.gateBlocked) return false;
+        const v = validateOutput(a.agentId, a.result, {});
+        return v.valid;
+      });
+      assert.ok(
+        passed,
+        `expected one DEV artifact with validateOutput.valid and gateBlocked not true; snapshot=${JSON.stringify(
+          devArts.map((x) => ({ agentId: x.agentId, gateBlocked: x.gateBlocked, head: (x.result || "").slice(0, 280) })),
+        )}`,
+      );
     } finally {
       removeTempDir(cwd);
     }

@@ -832,6 +832,57 @@ files_read:
 Design summary:
 (architecture / trade-offs / risks here — after the block above.)
 `;
+
+/** Appended to DEV-* system when `setBackend("ollama")` routes those roles through Ollama (E2E / local). */
+const OLLAMA_DEV_SYSTEM_APPEND = `
+
+---
+## OLLAMA — DEV HANDOFF FIRST (hard gate)
+
+Your **entire** reply MUST start with this YAML block **before** code fences or long prose. Use **real paths** from the user task / cwd:
+
+files_read:
+  - path/you/read.ext
+files_modified:
+  - path/you/changed.ext
+validation_run: <one line: command you ran and outcome, e.g. npm test → exit 0 or grep foo path/file.txt>
+
+Rules:
+- List every changed file under files_modified; each must appear under files_read.
+- validation_run must mention a real check (tests, lint, node -c, terraform validate, etc.).
+- Never emit files_read: [].
+`;
+
+/** Appended to ORCHESTRATOR system when that role is served by Ollama (local models often ignore “JSON only” in the base prompt). */
+const OLLAMA_ORCHESTRATOR_PLAN_APPEND = `
+
+---
+## OLLAMA — PLAN JSON ONLY (hard gate)
+
+Reply with **one** JSON object only. No markdown fences, no prose before or after.
+
+Shape:
+{"steps":[{"agentId":"dev-backend","task":"concrete task string"}]}
+
+agentId must be one of: owner, architect, dev-backend, dev-frontend, dev-devops, qa, cerberus.
+steps must be a non-empty array. The first character of your reply must be \`{\`.
+`;
+
+const OLLAMA_ORCHESTRATOR_DECIDE_APPEND = `
+
+---
+## OLLAMA — DECIDE JSON ONLY (hard gate)
+
+Reply with **one** JSON object only. No markdown fences, no prose before or after.
+
+If work is complete:
+{"done":true,"summary":"one brief sentence"}
+
+If another iteration is needed:
+{"done":false,"corrections":[{"agentId":"dev-backend","task":"what to fix"}]}
+
+The first character of your reply must be \`{\`.
+`;
 const FILES_MODIFIED_RE  = /(?:files?_modified|modified)\s*[:-]\s*\n((?:\s*-\s*\S[^\n]*\n?)+)/i;
 
 /**
@@ -1038,10 +1089,19 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
   const forceOllama = _backendOverride === "ollama" && OLLAMA_MODEL;
   if (agent.provider === "ollama" || forceOllama) {
     const model = forceOllama ? OLLAMA_MODEL : agent.model;
-    const systemForOllama =
-      agentId === "architect" && forceOllama
-        ? `${agent.system}${OLLAMA_ARCHITECT_SYSTEM_APPEND}`
-        : agent.system;
+    let systemForOllama = agent.system;
+    if (agentId === "orchestrator") {
+      systemForOllama =
+        phase === "decide"
+          ? `${agent.system}${OLLAMA_ORCHESTRATOR_DECIDE_APPEND}`
+          : `${agent.system}${OLLAMA_ORCHESTRATOR_PLAN_APPEND}`;
+    } else if (forceOllama) {
+      if (agentId === "architect") {
+        systemForOllama = `${agent.system}${OLLAMA_ARCHITECT_SYSTEM_APPEND}`;
+      } else if (agentId.startsWith("dev-")) {
+        systemForOllama = `${agent.system}${OLLAMA_DEV_SYSTEM_APPEND}`;
+      }
+    }
     const raw = await runOllama(systemForOllama, [{ role: "user", content: userMessage }], { model });
     const output = raw.content;
     const check = validateOutput(agentId, output, { phase });

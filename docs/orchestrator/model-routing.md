@@ -144,6 +144,12 @@ E2E and local harnesses may route **all** roles through Ollama when **`OLLAMA_MO
 
 **Implementation (2026-04-15):** `askAgent()` appends **`OLLAMA_ARCHITECT_SYSTEM_APPEND`** to the ARCHITECT system prompt only when **`forceOllama`** is true (`setBackend("ollama")` + `OLLAMA_MODEL`). It is an explicit **few-shot prefix**: `files_read:` block first, then `Design summary:` — reduces empty/missing `files_read` from small coders. Contract tests: `validateOutput.test.js` § architect.
 
+### DEV roles with Ollama (`setBackend("ollama")`)
+
+**`dev-backend`**, **`dev-frontend`**, **`dev-devops`** still run the same **`validateOutput()`** as in cloud: non-empty **`files_read`**, **`files_modified`** list, and a **`validation_run`** line matching the keyword heuristic.
+
+**Implementation (2026-04-15):** `askAgent()` appends **`OLLAMA_DEV_SYSTEM_APPEND`** to the DEV system prompt when **`forceOllama`** is true — YAML-first few-shot for `files_read` / `files_modified` / `validation_run` before prose, mirroring the ARCHITECT Ollama path. **E2E smoke:** `tests/e2e.test.js` (*single_agent Ollama: dev-backend passes output contract…*) — run with **`npm run test:e2e`** (requires live Ollama); not part of default **`npm test`**.
+
 > **QA degraded — operationally tolerable, not quality-equivalent.**
 > When QA falls back to Haiku, it can still produce classified findings and a verdict. However, Haiku may miss edge cases or accept weaker evidence than Sonnet would. CERBERUS runs after QA regardless and will catch gaps — but only gaps it can observe from the final artifact. Evidence that was never collected by a degraded QA cannot be retroactively surfaced. This tradeoff is accepted; the assumption should be explicit: **QA degraded = reduced coverage, not zero coverage.**
 
