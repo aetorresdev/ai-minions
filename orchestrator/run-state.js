@@ -31,9 +31,14 @@ function createRunState(init) {
   };
 }
 
-/** @param {{ run: { current_iteration: number } }} runState */
+/**
+ * Advance outer-loop counter and **reset** `step` for the new iteration.
+ * Avoids carrying the previous iteration’s terminal `step` (e.g. `done`) into
+ * `session_end.run_state_snapshot` / tooling while `current_iteration` already moved.
+ */
 function syncRunIteration(runState, iteration) {
   runState.run.current_iteration = iteration;
+  runState.step = null;
 }
 
 /** @param {{ step: object | null }} runState */

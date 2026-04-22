@@ -84,12 +84,12 @@ See `mcp-servers/orchestrator-state/README.md` for env vars and setup.
 Separate from the **disk-backed** state store above, the Node `run()` path maintains a small **in-memory snapshot** (`runState` in `orchestrator/run-state.js`) so tooling can read coarse lifecycle without replaying JSONL:
 
 - **`run.status`:** `running` → `done` \| `failed` \| `aborted` (terminal classification from final `done` / `manualReview` flags).
-- **`run.current_iteration`:** outer loop counter (synced each iteration).
-- **`step` / intent:** reserved for per-step lifecycle (`step.status`, `intent.status`) as that logic moves out of `orchestrator.js`.
+- **`run.current_iteration`:** outer loop counter (updated in **`syncRunIteration`**, which also clears **`step`**).
+- **`step` / `intent`:** at most one in-flight worker row; **`step.status`** is `running` \| `done` \| `failed` \| `retrying`; **`intent.status`** is `active` \| `resolved` \| `abandoned` (see `run-state.js`).
 
 **Decision layer:** `orchestrator/decision-engine.js` centralizes **Node** branching from structured inputs (e.g. normalizing the orchestrator **decide** JSON into `finish` \| `iterate` \| `stop`). Retry, guard, and escalate rules still migrate incrementally from `orchestrator.js` into this module — the contract here is **separation of concerns**, not that every branch lives there on day one.
 
-`run()` returns **`runState`** (public view via `getRunStatePublicView`) alongside `done`, `summary`, `artifacts`, … for wrappers and future **explain-run** enrichment. During the worker loop, **`runState.step`** is set to **running** on `agent_start`, **completed** after a successful **`agent_done`**, or cleared after **contract_fail** (output contract) on that step.
+`run()` returns **`runState`** (public view via `getRunStatePublicView`) alongside `done`, `summary`, `artifacts`, … for wrappers and **explain-run** (`run_state_snapshot` on **`session_end`** uses the same public view). During the worker loop, **`runState.step`** is set to **running** on `agent_start`, **done** after a successful **`agent_done`** (`setStepCompleted`), cleared on **contract_fail** before **`agent_done`** (`setStepFailedAndClear`), and set to **retrying** when a **post-`agent_done` gate** fails with an inner-loop `continue` (`markStepRetryingAfterGate` — compact_handoff strict, handoff_structure, goal_alignment, transition). Each outer **`iterations += 1`** calls **`syncRunIteration`**, which clears **`step`** so a new iteration does not inherit the prior worker’s terminal row until the next **`setStepRunning`**.
 
 **Trace graph (`validateTraceRunGraph`):** `step_id` is owned by **`agent_start`**; **`agent_done`** reuses the same id without registering again (see `trace-schema.js` § inline doc on `validateTraceRunGraph`).
 
