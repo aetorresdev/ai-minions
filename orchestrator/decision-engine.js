@@ -58,8 +58,32 @@ function decideGateBlockedArtifactsBranch({ artifactCount, iterations, maxIterat
   return "manual_cap";
 }
 
+/**
+ * After CERBERUS blockers, orchestrator JSON with correction steps vs generic DEV fallback.
+ * @param {unknown} correctionsOut — result of `extractJson` on orchestrator/correct output
+ * @returns {{ action: 'use_json' | 'fallback_dev', corrections?: Array<{ agentId?: string, task: string }> }}
+ */
+function decideCorrectionsPlan(correctionsOut) {
+  if (
+    correctionsOut &&
+    typeof correctionsOut === "object" &&
+    Array.isArray(correctionsOut.corrections) &&
+    correctionsOut.corrections.length > 0
+  ) {
+    return { action: "use_json", corrections: correctionsOut.corrections };
+  }
+  return { action: "fallback_dev" };
+}
+
+/** Default summary when the outer loop exits without `done` and no summary yet. */
+function loopExhaustedDefaultSummary(maxIterations) {
+  return `Stopped after ${maxIterations} iteration(s).`;
+}
+
 module.exports = {
   decideFromOrchestratorDecide,
   decideCerberusBlockersBranch,
   decideGateBlockedArtifactsBranch,
+  decideCorrectionsPlan,
+  loopExhaustedDefaultSummary,
 };

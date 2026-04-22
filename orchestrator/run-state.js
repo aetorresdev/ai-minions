@@ -62,6 +62,16 @@ function setStepFailedAndClear(runState) {
 }
 
 /**
+ * After `agent_done` we may have marked the step **done**; gate/handoff `continue` means another attempt
+ * on the same worker step — treat as **retrying** (STATE-1) until the next terminal path.
+ */
+function markStepRetryingAfterGate(runState) {
+  if (!runState.step) return;
+  runState.step.status = "retrying";
+  runState.step.intent.status = "active";
+}
+
+/**
  * Set terminal run.status once, from final `done` / `manualReview` flags (end of `run()`).
  * Does not overwrite if something already set a terminal status (future: mid-run abort hooks).
  * @param {{ run: { status: RunStatus } }} runState
@@ -81,8 +91,10 @@ function finalizeRunState(runState, { done, manualReview }) {
 
 /** Immutable-ish snapshot for `run()` return value and tooling (e.g. explain-run wrappers). */
 function getRunStatePublicView(runState) {
+  const g = runState.run.goal;
+  const goalPublic = typeof g === "string" && g.length > 200 ? `${g.slice(0, 200)}…` : g;
   return {
-    run: { ...runState.run },
+    run: { ...runState.run, goal: goalPublic },
     step: runState.step
       ? {
         step_id: runState.step.step_id,
@@ -100,6 +112,7 @@ module.exports = {
   setStepRunning,
   setStepCompleted,
   setStepFailedAndClear,
+  markStepRetryingAfterGate,
   finalizeRunState,
   getRunStatePublicView,
 };

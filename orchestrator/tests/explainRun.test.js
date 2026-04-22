@@ -128,6 +128,48 @@ describe("deriveExplain — clean trace", () => {
   });
 });
 
+// ── deriveExplain — run_state_snapshot on session_end ────────────────────────
+
+describe("deriveExplain — run_state_snapshot", () => {
+  it("takes last session_end snapshot and builds run_snapshot", () => {
+    const snap1 = {
+      run: { task_id: "t1", iteration: 0, flow_mode: "single_agent", goal: "g1" },
+      step: { step_id: "s0", agent_id: "dev", status: "completed", intent: { kind: "x" } },
+    };
+    const snap2 = {
+      run: { task_id: "t1", iteration: 1, flow_mode: "single_agent", goal: "g2" },
+      step: null,
+    };
+    const rows = [
+      baseSession({ ts_ms: 1000 }),
+      { event: "session_end", outcome: "iterate", ts_ms: 2000, run_state_snapshot: snap1 },
+      { event: "session_end", outcome: "done", ts_ms: 3000, run_state_snapshot: snap2 },
+    ];
+    const r = deriveExplain(rows);
+    assert.deepEqual(r.run_state_snapshot, snap2);
+    assert.deepEqual(r.run_snapshot, {
+      task_id: "t1",
+      iteration: 1,
+      flow_mode: "single_agent",
+      goal: "g2",
+      step: null,
+    });
+  });
+
+  it("fills goal / flow_mode from snapshot when session_start absent", () => {
+    const snap = {
+      run: { task_id: "orphan", iteration: 0, flow_mode: "multi_agent", goal: "from snap" },
+      step: null,
+    };
+    const rows = [
+      { event: "session_end", outcome: "done", ts_ms: 1000, run_state_snapshot: snap },
+    ];
+    const r = deriveExplain(rows);
+    assert.equal(r.goal, "from snap");
+    assert.equal(r.flow_mode, "multi_agent");
+  });
+});
+
 // ── deriveExplain — no session_start ────────────────────────────────────────
 
 describe("deriveExplain — no session_start", () => {
