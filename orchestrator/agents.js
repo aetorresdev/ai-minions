@@ -817,6 +817,21 @@ function validateCerberusSemanticFloor(output) {
 const VALIDATION_RE      = /\b(validation_run|ran|executed|tested|passed|failed|lint|pytest|npm\s+test|terraform\s+validate|node\s+|output:)\b/i;
 const FILES_READ_RE      = /\bfiles?_read\s*[:-]?\s*(?:[[`'"\w]|\n\s*-)/i;
 const FILES_READ_EMPTY_RE = /\bfiles?_read\s*[:-]?\s*(?:\[\s*]|:\s*\[\s*]|\s*\n(?!\s*-))/i;
+
+/** Appended to ARCHITECT system when `setBackend("ollama")` routes that role through Ollama (E2E / local). */
+const OLLAMA_ARCHITECT_SYSTEM_APPEND = `
+
+---
+## OLLAMA — OUTPUT SHAPE (hard gate; print before any design prose)
+
+Local models often skip structure unless it comes first. **Start your reply** with this YAML block (use real repo paths from the user task or cwd — never \`files_read: []\`):
+
+files_read:
+  - path/from/task/or/cwd.ext
+
+Design summary:
+(architecture / trade-offs / risks here — after the block above.)
+`;
 const FILES_MODIFIED_RE  = /(?:files?_modified|modified)\s*[:-]\s*\n((?:\s*-\s*\S[^\n]*\n?)+)/i;
 
 /**
@@ -1023,7 +1038,11 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
   const forceOllama = _backendOverride === "ollama" && OLLAMA_MODEL;
   if (agent.provider === "ollama" || forceOllama) {
     const model = forceOllama ? OLLAMA_MODEL : agent.model;
-    const raw = await runOllama(agent.system, [{ role: "user", content: userMessage }], { model });
+    const systemForOllama =
+      agentId === "architect" && forceOllama
+        ? `${agent.system}${OLLAMA_ARCHITECT_SYSTEM_APPEND}`
+        : agent.system;
+    const raw = await runOllama(systemForOllama, [{ role: "user", content: userMessage }], { model });
     const output = raw.content;
     const check = validateOutput(agentId, output, { phase });
     if (!check.valid) { const err = new Error(`[output contract] ${check.reason}`); err.gate_id = check.gate_id; throw err; }
