@@ -180,7 +180,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
         "After the YAML, at most 2 lines of prose.";
 
       const result = await e2eRun(t, goal, {
-        maxIterations: 1,
+        maxIterations: 2,
         cwd,
         flowMode: "single_agent",
         skipStateMcp: true,

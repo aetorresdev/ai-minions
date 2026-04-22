@@ -45,6 +45,8 @@ const {
   decideGateBlockedArtifactsBranch,
   decideCorrectionsPlan,
   loopExhaustedDefaultSummary,
+  decideCostGuard,
+  decideStepRetryGuard,
 } = require("./decision-engine");
 
 // ── Execution trace ───────────────────────────────────────────────────────────
@@ -1210,12 +1212,13 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
    * @returns {boolean} true if run must stop (caller should `break orchestration`)
    */
   function costGuardAbort(phase) {
-    const c = checkCostGuard();
-    if (c.ok) return false;
-    summary = `Guardrail ORCH_MAX_COST_USD=${maxCostUsd}: estimated spend ${roundUsd6(c.estimate)} USD exceeds limit (${phase}).`;
+    const raw = checkCostGuard();
+    const d = decideCostGuard({ estimate: raw.ok ? null : (raw.estimate ?? null), maxCostUsd, phase });
+    if (!d.abort) return false;
+    summary = d.summary;
     manualReview = true;
     traceIterationDone(taskId, iterations, "guard_abort", transitionReason("GUARD", "cost_limit", { reason_code: "GUARD_COST_LIMIT" }), {
-      estimate_usd: roundUsd6(c.estimate),
+      estimate_usd: d.estimateUsd,
       limit_usd: maxCostUsd,
       guard_phase: phase,
     });
@@ -1267,8 +1270,9 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       previousAgentId = agentId;
 
       const prevRetries = retryCountThisIteration[agentId] ?? 0;
-      if (maxStepRetries != null && prevRetries > maxStepRetries) {
-        summary = `Guardrail ORCH_MAX_RETRIES=${maxStepRetries}: agent ${agentId} exceeded max step retries (retry_number=${prevRetries}).`;
+      const retryGuard = decideStepRetryGuard({ prevRetries, maxStepRetries, agentId });
+      if (retryGuard.abort) {
+        summary = retryGuard.summary;
         manualReview = true;
         traceIterationDone(
           taskId,
@@ -1278,7 +1282,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
             reason_code: "GUARD_STEP_RETRY_LIMIT",
             gate_id: agentId,
           }),
-          { max_step_retries: maxStepRetries, agent_id: agentId, retry_number: prevRetries },
+          { max_step_retries: maxStepRetries, agent_id: agentId, retry_number: retryGuard.retryNumber },
         );
         break orchestration;
       }

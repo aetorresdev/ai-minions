@@ -80,10 +80,50 @@ function loopExhaustedDefaultSummary(maxIterations) {
   return `Stopped after ${maxIterations} iteration(s).`;
 }
 
+/**
+ * Cost guard decision — pure, no side-effects.
+ * Contract: abort is the sole discriminant; summary is always present when abort === true.
+ * @param {{ estimate: number | null, maxCostUsd: number | null, phase: string }} p
+ * @returns {{ abort: false } | { abort: true, reason_code: 'cost_guard', summary: string, estimateUsd: number, limitUsd: number, guardPhase: string }}
+ */
+function decideCostGuard({ estimate, maxCostUsd, phase }) {
+  if (maxCostUsd == null || maxCostUsd < 0 || !Number.isFinite(maxCostUsd)) return { abort: false };
+  if (estimate == null || !Number.isFinite(estimate)) return { abort: false };
+  if (estimate <= maxCostUsd) return { abort: false };
+  return {
+    abort: true,
+    reason_code: "cost_guard",
+    summary: `Guardrail ORCH_MAX_COST_USD=${maxCostUsd}: estimated spend ${Math.round(estimate * 1e6) / 1e6} USD exceeds limit (${phase}).`,
+    estimateUsd: Math.round(estimate * 1e6) / 1e6,
+    limitUsd: maxCostUsd,
+    guardPhase: phase,
+  };
+}
+
+/**
+ * Step retry guard decision — pure, no side-effects.
+ * Contract: abort is the sole discriminant; summary is always present when abort === true.
+ * @param {{ prevRetries: number, maxStepRetries: number | null, agentId: string }} p
+ * @returns {{ abort: false } | { abort: true, reason_code: 'step_retry_guard', summary: string, agentId: string, retryNumber: number }}
+ */
+function decideStepRetryGuard({ prevRetries, maxStepRetries, agentId }) {
+  if (maxStepRetries == null || maxStepRetries < 0 || !Number.isFinite(maxStepRetries)) return { abort: false };
+  if (prevRetries == null || !Number.isFinite(prevRetries) || prevRetries <= maxStepRetries) return { abort: false };
+  return {
+    abort: true,
+    reason_code: "step_retry_guard",
+    summary: `Guardrail ORCH_MAX_RETRIES=${maxStepRetries}: agent ${agentId} exceeded max step retries (retry_number=${prevRetries}).`,
+    agentId: agentId || "",
+    retryNumber: prevRetries,
+  };
+}
+
 module.exports = {
   decideFromOrchestratorDecide,
   decideCerberusBlockersBranch,
   decideGateBlockedArtifactsBranch,
   decideCorrectionsPlan,
   loopExhaustedDefaultSummary,
+  decideCostGuard,
+  decideStepRetryGuard,
 };
