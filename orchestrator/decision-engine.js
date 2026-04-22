@@ -80,10 +80,44 @@ function loopExhaustedDefaultSummary(maxIterations) {
   return `Stopped after ${maxIterations} iteration(s).`;
 }
 
+/**
+ * Cost guard decision — pure, no side-effects.
+ * @param {{ estimate: number | null, maxCostUsd: number | null, phase: string }} p
+ * @returns {{ abort: false } | { abort: true, summary: string, estimateUsd: number, limitUsd: number, guardPhase: string }}
+ */
+function decideCostGuard({ estimate, maxCostUsd, phase }) {
+  if (maxCostUsd == null || estimate == null || !Number.isFinite(estimate)) return { abort: false };
+  if (estimate <= maxCostUsd) return { abort: false };
+  return {
+    abort: true,
+    summary: `Guardrail ORCH_MAX_COST_USD=${maxCostUsd}: estimated spend ${Math.round(estimate * 1e6) / 1e6} USD exceeds limit (${phase}).`,
+    estimateUsd: Math.round(estimate * 1e6) / 1e6,
+    limitUsd: maxCostUsd,
+    guardPhase: phase,
+  };
+}
+
+/**
+ * Step retry guard decision — pure, no side-effects.
+ * @param {{ prevRetries: number, maxStepRetries: number | null, agentId: string }} p
+ * @returns {{ abort: false } | { abort: true, summary: string, agentId: string, retryNumber: number }}
+ */
+function decideStepRetryGuard({ prevRetries, maxStepRetries, agentId }) {
+  if (maxStepRetries == null || prevRetries <= maxStepRetries) return { abort: false };
+  return {
+    abort: true,
+    summary: `Guardrail ORCH_MAX_RETRIES=${maxStepRetries}: agent ${agentId} exceeded max step retries (retry_number=${prevRetries}).`,
+    agentId,
+    retryNumber: prevRetries,
+  };
+}
+
 module.exports = {
   decideFromOrchestratorDecide,
   decideCerberusBlockersBranch,
   decideGateBlockedArtifactsBranch,
   decideCorrectionsPlan,
   loopExhaustedDefaultSummary,
+  decideCostGuard,
+  decideStepRetryGuard,
 };
