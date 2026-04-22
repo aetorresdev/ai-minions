@@ -131,7 +131,7 @@ function resolveLatestRunFile(tracesDir) {
 /**
  * All derivations are deterministic — no inference.
  * @param {object[]} rows  already sorted by ts_ms (ascending)
- * @returns {object}
+ * @returns {object} May include `run_state_snapshot` / `run_snapshot` from the last `session_end` that carries them.
  */
 function deriveExplain(rows) {
   let goal       = undefined;
@@ -141,6 +141,8 @@ function deriveExplain(rows) {
   let cost_usd   = null;
   let hasCost    = false;
   let failure_type = undefined;
+  /** @type {object | undefined} */
+  let lastRunStateSnapshot = undefined;
 
   for (const r of rows) {
     const ev = r.event;
@@ -171,6 +173,18 @@ function deriveExplain(rows) {
       cost_usd = (cost_usd ?? 0) + r.cost_usd;
       hasCost = true;
     }
+
+    if (ev === "session_end" && r.run_state_snapshot != null && typeof r.run_state_snapshot === "object") {
+      lastRunStateSnapshot = r.run_state_snapshot;
+    }
+  }
+
+  if (lastRunStateSnapshot != null) {
+    const run = lastRunStateSnapshot.run;
+    if (run && typeof run === "object") {
+      if (goal === undefined && typeof run.goal === "string") goal = run.goal;
+      if (flow_mode === undefined && typeof run.flow_mode === "string") flow_mode = run.flow_mode;
+    }
   }
 
   const result = { retries, final_status };
@@ -178,6 +192,28 @@ function deriveExplain(rows) {
   if (goal      !== undefined) result.goal      = goal;
   if (flow_mode !== undefined) result.flow_mode = flow_mode;
   if (hasCost)                 result.cost_usd  = Math.round(cost_usd * 1e8) / 1e8;
+
+  if (lastRunStateSnapshot != null) {
+    result.run_state_snapshot = lastRunStateSnapshot;
+    const run = lastRunStateSnapshot.run;
+    const step = lastRunStateSnapshot.step;
+    if (run && typeof run === "object") {
+      result.run_snapshot = {
+        task_id: run.task_id,
+        iteration: run.iteration,
+        flow_mode: run.flow_mode,
+        goal: typeof run.goal === "string" ? run.goal : undefined,
+        step:
+          step && typeof step === "object"
+            ? {
+              step_id: step.step_id,
+              agent_id: step.agent_id,
+              status: step.status,
+            }
+            : null,
+      };
+    }
+  }
 
   // failure_type: from trace field if present; UNKNOWN if session ended with non-done outcome and no field
   if (failure_type !== undefined) {
@@ -200,6 +236,13 @@ function printHuman(runId, filePath, explain, skipped, truncated) {
   console.log(`final_status: ${explain.final_status ?? "(no outcome recorded)"}`);
   if (explain.goal      !== undefined) console.log(`goal:         ${explain.goal}`);
   if (explain.flow_mode !== undefined) console.log(`flow_mode:    ${explain.flow_mode}`);
+  if (explain.run_snapshot) {
+    const s = explain.run_snapshot;
+    const stepStr = s.step
+      ? `${s.step.step_id} / ${s.step.agent_id} / ${s.step.status}`
+      : "(no active step)";
+    console.log(`run_snapshot: task=${s.task_id} iteration=${s.iteration} step=${stepStr}`);
+  }
   console.log(`retries:      ${explain.retries}`);
   if (explain.failure_type !== undefined) console.log(`failure_type: ${explain.failure_type}`);
   if (explain.cost_usd !== undefined)     console.log(`cost_usd:     ${explain.cost_usd}`);

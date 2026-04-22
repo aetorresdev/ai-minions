@@ -6,6 +6,8 @@ const {
   decideFromOrchestratorDecide,
   decideCerberusBlockersBranch,
   decideGateBlockedArtifactsBranch,
+  decideCorrectionsPlan,
+  loopExhaustedDefaultSummary,
 } = require("../decision-engine");
 
 test("decideFromOrchestratorDecide — finish when done true", () => {
@@ -38,4 +40,15 @@ test("decideGateBlockedArtifactsBranch — iterate, cap, skip", () => {
   assert.equal(decideGateBlockedArtifactsBranch({ artifactCount: 0, iterations: 1, maxIterations: 3 }), "skip");
   assert.equal(decideGateBlockedArtifactsBranch({ artifactCount: 1, iterations: 1, maxIterations: 3 }), "iterate");
   assert.equal(decideGateBlockedArtifactsBranch({ artifactCount: 2, iterations: 5, maxIterations: 5 }), "manual_cap");
+});
+
+test("decideCorrectionsPlan — use_json vs fallback_dev", () => {
+  const corrections = [{ agentId: "dev", task: "fix" }];
+  assert.deepEqual(decideCorrectionsPlan({ corrections }), { action: "use_json", corrections });
+  assert.deepEqual(decideCorrectionsPlan({ corrections: [] }), { action: "fallback_dev" });
+  assert.deepEqual(decideCorrectionsPlan(null), { action: "fallback_dev" });
+});
+
+test("loopExhaustedDefaultSummary", () => {
+  assert.equal(loopExhaustedDefaultSummary(3), "Stopped after 3 iteration(s).");
 });
