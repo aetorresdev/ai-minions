@@ -35,6 +35,7 @@ const {
   setStepRunning,
   setStepCompleted,
   setStepFailedAndClear,
+  markStepRetryingAfterGate,
   finalizeRunState,
   getRunStatePublicView,
 } = require("./run-state");
@@ -42,6 +43,8 @@ const {
   decideFromOrchestratorDecide,
   decideCerberusBlockersBranch,
   decideGateBlockedArtifactsBranch,
+  decideCorrectionsPlan,
+  loopExhaustedDefaultSummary,
 } = require("./decision-engine");
 
 // ── Execution trace ───────────────────────────────────────────────────────────
@@ -1380,6 +1383,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
               gate_kind: "compact_handoff",
               ...compactHandoffStrictFailureFields(err),
             });
+            markStepRetryingAfterGate(runState);
             continue;
           }
           traceEvent(taskId, {
@@ -1410,6 +1414,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
             step_id: stepId,
             gate_kind: "handoff_structure",
           });
+          markStepRetryingAfterGate(runState);
           continue;
         }
         traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("success"), gate: "handoff_structure", passed: true });
@@ -1455,6 +1460,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
                 step_id: stepId,
                 gate_kind: "goal_alignment",
               });
+              markStepRetryingAfterGate(runState);
               continue;
             }
           } else {
@@ -1484,6 +1490,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
               step_id: stepId,
               gate_kind: "transition",
             });
+            markStepRetryingAfterGate(runState);
             continue;
           }
 
@@ -1710,13 +1717,15 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       if (correctCtx) traceEvent(taskId, { event: "context_stats", agent: "orchestrator", iteration: iterations, phase: "correct", ...correctCtx });
       if (costGuardAbort("correct")) break orchestration;
       const corrections = extractJson(correctResponse);
-      if (corrections && Array.isArray(corrections.corrections) && corrections.corrections.length > 0) {
-        log("orchestrator", `↻ Correcting — ${corrections.corrections.length} step(s):`);
-        corrections.corrections.forEach((c) =>
+      const corrPlan = decideCorrectionsPlan(corrections);
+      if (corrPlan.action === "use_json") {
+        const steps = /** @type {Array<{ agentId?: string, task: string }>} */ (corrPlan.corrections);
+        log("orchestrator", `↻ Correcting — ${steps.length} step(s):`);
+        steps.forEach((c) =>
           log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
         );
-        traceIterationDone(taskId, iterations, "iterate", transitionReason("GATE_BLOCK", "cerberus_blockers"), { blockers: cerberusBlockers.count, corrections: corrections.corrections.length });
-        plan = { steps: corrections.corrections };
+        traceIterationDone(taskId, iterations, "iterate", transitionReason("GATE_BLOCK", "cerberus_blockers"), { blockers: cerberusBlockers.count, corrections: steps.length });
+        plan = { steps };
       } else {
         // Orchestrator failed to produce corrections — generate generic DEV retry
         log("orchestrator", "WARNING: orchestrator returned no corrections — retrying last DEV steps");
@@ -1836,7 +1845,7 @@ Reply with JSON only.`;
   }
 
   if (!done && !summary) {
-    summary = `Stopped after ${maxIterations} iteration(s).`;
+    summary = loopExhaustedDefaultSummary(maxIterations);
     log("orchestrator", summary);
     traceIterationDone(
       taskId,
@@ -1910,6 +1919,7 @@ Reply with JSON only.`;
     summary: summary.slice(0, 200),
     agents_run: [...new Set(artifacts.map((a) => a.agentId))],
     gate_blocks: artifacts.filter((a) => a.gateBlocked).length,
+    run_state_snapshot: getRunStatePublicView(runState),
     ...(scenarioId ? { scenario_id: scenarioId } : {}),
     ...mcpSummary,
     ...(ollamaTokenTotals.prompt > 0 || ollamaTokenTotals.completion > 0
