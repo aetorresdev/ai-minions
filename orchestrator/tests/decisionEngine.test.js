@@ -10,6 +10,10 @@ const {
   loopExhaustedDefaultSummary,
   decideCostGuard,
   decideStepRetryGuard,
+  formatGateBlockedReasonLines,
+  planStepsReplayFromGateBlockedArtifacts,
+  planStepsDevFallbackFromBlockers,
+  summaryMaxIterationsGateBlocked,
 } = require("../decision-engine");
 
 test("decideFromOrchestratorDecide — finish when done true", () => {
@@ -153,4 +157,57 @@ test("decideStepRetryGuard — abort includes reason_code", () => {
   const d = decideStepRetryGuard({ prevRetries: 3, maxStepRetries: 2, agentId: "dev-backend" });
   assert.equal(d.abort, true);
   assert.equal(d.reason_code, "step_retry_guard");
+});
+
+test("formatGateBlockedReasonLines — empty and shaped rows", () => {
+  assert.deepEqual(formatGateBlockedReasonLines([]), []);
+  assert.deepEqual(formatGateBlockedReasonLines(null), []);
+  assert.deepEqual(formatGateBlockedReasonLines([{ agentId: "dev-backend", gateReason: "missing yaml" }]), [
+    "dev-backend: missing yaml",
+  ]);
+  assert.deepEqual(formatGateBlockedReasonLines([{ agentId: "", gateReason: "" }]), [": gate blocked"]);
+});
+
+test("planStepsReplayFromGateBlockedArtifacts — maps agentId and task", () => {
+  const steps = planStepsReplayFromGateBlockedArtifacts([
+    { agentId: "dev-backend", task: "do X" },
+    { agentId: "qa", task: "check" },
+  ]);
+  assert.deepEqual(steps, [
+    { agentId: "dev-backend", task: "do X" },
+    { agentId: "qa", task: "check" },
+  ]);
+});
+
+test("planStepsDevFallbackFromBlockers — only dev-* and joins blockers", () => {
+  const steps = planStepsDevFallbackFromBlockers({
+    artifacts: [
+      { agentId: "dev-backend", task: "old" },
+      { agentId: "qa", task: "ignore" },
+      { agentId: "dev-frontend", task: "old2" },
+    ],
+    blockerItems: ["a", "b", "c"],
+    maxBlockersInTask: 2,
+  });
+  assert.deepEqual(steps, [
+    { agentId: "dev-backend", task: "Fix blockers: a; b" },
+    { agentId: "dev-frontend", task: "Fix blockers: a; b" },
+  ]);
+});
+
+test("planStepsDevFallbackFromBlockers — empty blockers matches prior inline suffix", () => {
+  const steps = planStepsDevFallbackFromBlockers({
+    artifacts: [{ agentId: "dev-backend", task: "x" }],
+    blockerItems: [],
+  });
+  assert.deepEqual(steps, [{ agentId: "dev-backend", task: "Fix blockers: " }]);
+});
+
+test("summaryMaxIterationsGateBlocked — joins reason lines", () => {
+  const s = summaryMaxIterationsGateBlocked({
+    count: 2,
+    reasonLines: ["dev-backend: bad", "qa: also bad"],
+  });
+  assert.ok(s.includes("2 gate-blocked"));
+  assert.ok(s.endsWith("Blocked: dev-backend: bad; qa: also bad"));
 });

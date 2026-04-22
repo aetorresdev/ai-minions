@@ -47,6 +47,10 @@ const {
   loopExhaustedDefaultSummary,
   decideCostGuard,
   decideStepRetryGuard,
+  formatGateBlockedReasonLines,
+  planStepsReplayFromGateBlockedArtifacts,
+  planStepsDevFallbackFromBlockers,
+  summaryMaxIterationsGateBlocked,
 } = require("./decision-engine");
 
 // ── Execution trace ───────────────────────────────────────────────────────────
@@ -1734,7 +1738,13 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         // Orchestrator failed to produce corrections — generate generic DEV retry
         log("orchestrator", "WARNING: orchestrator returned no corrections — retrying last DEV steps");
         traceIterationDone(taskId, iterations, "iterate_fallback", transitionReason("ITERATE_FALLBACK", "orchestrator_no_corrections_json"), { blockers: cerberusBlockers.count });
-        plan = { steps: artifacts.filter(a => a.agentId?.startsWith("dev-")).map(a => ({ agentId: a.agentId, task: `Fix blockers: ${cerberusBlockers.items.slice(0, 2).join("; ")}` })) };
+        plan = {
+          steps: planStepsDevFallbackFromBlockers({
+            artifacts,
+            blockerItems: cerberusBlockers.items,
+            maxBlockersInTask: 2,
+          }),
+        };
       }
       continue;
     }
@@ -1760,7 +1770,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       maxIterations,
     });
     if (gateBlockedDecision === "iterate") {
-      const gateBlockReasons = gateBlockedArtifacts.map(a => `${a.agentId}: ${a.gateReason || "gate blocked"}`);
+      const gateBlockReasons = formatGateBlockedReasonLines(gateBlockedArtifacts);
       traceEvent(taskId, { event: "gate_blocked_completion", iteration: iterations, count: gateBlockedArtifacts.length, reasons: gateBlockReasons });
       log("orchestrator", `🟥 ${gateBlockedArtifacts.length} gate-blocked artifact(s) — cannot mark done (forcing iteration):`);
       gateBlockReasons.forEach(r => log("orchestrator", `  ↳ ${r}`));
@@ -1776,14 +1786,17 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         { gate_blocks: gateBlockedArtifacts.length },
         { gateKinds: gateBlockedArtifacts.map((a) => a.gate_kind).filter(Boolean) },
       );
-      plan = { steps: gateBlockedArtifacts.map(a => ({ agentId: a.agentId, task: a.task })) };
+      plan = { steps: planStepsReplayFromGateBlockedArtifacts(gateBlockedArtifacts) };
       continue;
     }
     if (gateBlockedDecision === "manual_cap") {
-      const gateBlockReasons = gateBlockedArtifacts.map(a => `${a.agentId}: ${a.gateReason || "gate blocked"}`);
+      const gateBlockReasons = formatGateBlockedReasonLines(gateBlockedArtifacts);
       done = false;
       manualReview = true;
-      summary = `Max iterations reached with ${gateBlockedArtifacts.length} gate-blocked artifact(s). Manual review required. Blocked: ${gateBlockReasons.join("; ")}`;
+      summary = summaryMaxIterationsGateBlocked({
+        count: gateBlockedArtifacts.length,
+        reasonLines: gateBlockReasons,
+      });
       log("orchestrator", `⚠ ${summary}`);
       traceIterationDone(taskId, iterations, "max_iterations_with_gate_blocks", transitionReason("MAX_ITERATIONS", "gate_blocked_artifacts_cap"), { gate_blocks: gateBlockedArtifacts.length });
       continue;
