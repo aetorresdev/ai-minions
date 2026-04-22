@@ -837,20 +837,23 @@ Design summary:
 const OLLAMA_DEV_SYSTEM_APPEND = `
 
 ---
-## OLLAMA — DEV HANDOFF FIRST (hard gate)
+## OLLAMA — DEV OUTPUT FORMAT (hard gate — output rejected if missing)
 
-Your **entire** reply MUST start with this YAML block **before** code fences or long prose. Use **real paths** from the user task / cwd:
+The VERY FIRST characters of your reply MUST be this YAML block. No prose, no markdown fence, no blank line before it.
+Replace the example paths with real paths from the task. Do NOT copy the example values literally.
 
 files_read:
-  - path/you/read.ext
+  - src/utils.js
 files_modified:
-  - path/you/changed.ext
-validation_run: <one line: command you ran and outcome, e.g. npm test → exit 0 or grep foo path/file.txt>
+  - src/utils.js
+validation_run: node -e "require('./src/utils.js')" → exit 0
 
-Rules:
-- List every changed file under files_modified; each must appear under files_read.
-- validation_run must mention a real check (tests, lint, node -c, terraform validate, etc.).
-- Never emit files_read: [].
+Rules (violations cause immediate rejection):
+- files_read and files_modified must list real file paths from the task, never placeholder text.
+- Every file under files_modified must also appear under files_read.
+- validation_run must be a real command you executed and its outcome (exit code or grep result).
+- Never emit files_read: [] or files_modified: [].
+- If you only read a file without modifying it, omit files_modified entirely — but files_read is always required.
 `;
 
 /** Appended to ORCHESTRATOR system when that role is served by Ollama (local models often ignore “JSON only” in the base prompt). */
