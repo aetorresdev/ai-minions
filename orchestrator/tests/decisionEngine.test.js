@@ -99,3 +99,58 @@ test("decideStepRetryGuard — abort when exceeds limit", () => {
 test("decideStepRetryGuard — no abort when prevRetries equals limit exactly", () => {
   assert.deepEqual(decideStepRetryGuard({ prevRetries: 2, maxStepRetries: 2, agentId: "dev-backend" }), { abort: false });
 });
+
+// decideCostGuard — edge cases
+test("decideCostGuard — no abort when estimate undefined", () => {
+  assert.deepEqual(decideCostGuard({ estimate: undefined, maxCostUsd: 1.0, phase: "worker" }), { abort: false });
+});
+
+test("decideCostGuard — no abort when maxCostUsd negative", () => {
+  assert.deepEqual(decideCostGuard({ estimate: 5, maxCostUsd: -1, phase: "worker" }), { abort: false });
+});
+
+test("decideCostGuard — no abort when estimate NaN", () => {
+  assert.deepEqual(decideCostGuard({ estimate: NaN, maxCostUsd: 1.0, phase: "worker" }), { abort: false });
+});
+
+test("decideCostGuard — no abort when estimate Infinity", () => {
+  // Infinity is not finite — treated as unresolvable, no abort
+  assert.deepEqual(decideCostGuard({ estimate: Infinity, maxCostUsd: 1.0, phase: "worker" }), { abort: false });
+});
+
+test("decideCostGuard — abort includes reason_code", () => {
+  const d = decideCostGuard({ estimate: 2.0, maxCostUsd: 1.0, phase: "plan" });
+  assert.equal(d.abort, true);
+  assert.equal(d.reason_code, "cost_guard");
+});
+
+// decideStepRetryGuard — edge cases
+test("decideStepRetryGuard — no abort when prevRetries undefined", () => {
+  assert.deepEqual(decideStepRetryGuard({ prevRetries: undefined, maxStepRetries: 2, agentId: "dev-backend" }), { abort: false });
+});
+
+test("decideStepRetryGuard — no abort when maxStepRetries negative", () => {
+  assert.deepEqual(decideStepRetryGuard({ prevRetries: 5, maxStepRetries: -1, agentId: "dev-backend" }), { abort: false });
+});
+
+test("decideStepRetryGuard — no abort when prevRetries NaN", () => {
+  assert.deepEqual(decideStepRetryGuard({ prevRetries: NaN, maxStepRetries: 2, agentId: "dev-backend" }), { abort: false });
+});
+
+test("decideStepRetryGuard — abort with empty agentId uses empty string", () => {
+  const d = decideStepRetryGuard({ prevRetries: 3, maxStepRetries: 2, agentId: "" });
+  assert.equal(d.abort, true);
+  assert.equal(d.agentId, "");
+});
+
+test("decideStepRetryGuard — abort with null agentId coerces to empty string", () => {
+  const d = decideStepRetryGuard({ prevRetries: 3, maxStepRetries: 2, agentId: null });
+  assert.equal(d.abort, true);
+  assert.equal(d.agentId, "");
+});
+
+test("decideStepRetryGuard — abort includes reason_code", () => {
+  const d = decideStepRetryGuard({ prevRetries: 3, maxStepRetries: 2, agentId: "dev-backend" });
+  assert.equal(d.abort, true);
+  assert.equal(d.reason_code, "step_retry_guard");
+});

@@ -1213,7 +1213,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
    */
   function costGuardAbort(phase) {
     const raw = checkCostGuard();
-    const d = decideCostGuard({ estimate: raw.ok ? null : raw.estimate, maxCostUsd, phase });
+    const d = decideCostGuard({ estimate: raw.ok ? null : (raw.estimate ?? null), maxCostUsd, phase });
     if (!d.abort) return false;
     summary = d.summary;
     manualReview = true;
