@@ -205,6 +205,10 @@ describe("architect", () => {
     {},
     /files_read|empty|must not be empty/i
   ));
+
+  it("accepts architect with Design summary line after files_read (Ollama-style shape)", () => ok("architect",
+    "files_read:\n  - src/service.ts\nDesign summary:\nPrefer bounded queues; idempotent consumers."
+  ));
 });
 
 // ── free-form roles ───────────────────────────────────────────────────────────
