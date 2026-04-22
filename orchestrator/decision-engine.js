@@ -82,7 +82,14 @@ function loopExhaustedDefaultSummary(maxIterations) {
 
 /**
  * Cost guard decision — pure, no side-effects.
- * Contract: abort is the sole discriminant; summary is always present when abort === true.
+ *
+ * Contract (stable):
+ *   - `abort` is the sole branching discriminant — callers MUST NOT branch on any other field.
+ *   - When `abort === false`: no other fields are present; callers must not read them.
+ *   - When `abort === true`: `reason_code` and `summary` are always present.
+ *   - Remaining fields (estimateUsd, limitUsd, guardPhase) are informational — safe to log/trace,
+ *     but must not drive control flow unless explicitly promoted to contract.
+ *
  * @param {{ estimate: number | null, maxCostUsd: number | null, phase: string }} p
  * @returns {{ abort: false } | { abort: true, reason_code: 'cost_guard', summary: string, estimateUsd: number, limitUsd: number, guardPhase: string }}
  */
@@ -102,18 +109,28 @@ function decideCostGuard({ estimate, maxCostUsd, phase }) {
 
 /**
  * Step retry guard decision — pure, no side-effects.
- * Contract: abort is the sole discriminant; summary is always present when abort === true.
+ *
+ * Contract (stable):
+ *   - `abort` is the sole branching discriminant — callers MUST NOT branch on any other field.
+ *   - When `abort === false`: no other fields are present; callers must not read them.
+ *   - When `abort === true`: `reason_code` and `summary` are always present.
+ *   - `agentId` in the abort result is decorative (used only for the summary message);
+ *     the retry decision does not depend on agentId being valid.
+ *   - Remaining fields (agentId, retryNumber) are informational — safe to log/trace,
+ *     but must not drive control flow unless explicitly promoted to contract.
+ *
  * @param {{ prevRetries: number, maxStepRetries: number | null, agentId: string }} p
  * @returns {{ abort: false } | { abort: true, reason_code: 'step_retry_guard', summary: string, agentId: string, retryNumber: number }}
  */
 function decideStepRetryGuard({ prevRetries, maxStepRetries, agentId }) {
   if (maxStepRetries == null || maxStepRetries < 0 || !Number.isFinite(maxStepRetries)) return { abort: false };
   if (prevRetries == null || !Number.isFinite(prevRetries) || prevRetries <= maxStepRetries) return { abort: false };
+  const safeAgentId = typeof agentId === "string" ? agentId : "";
   return {
     abort: true,
     reason_code: "step_retry_guard",
-    summary: `Guardrail ORCH_MAX_RETRIES=${maxStepRetries}: agent ${agentId} exceeded max step retries (retry_number=${prevRetries}).`,
-    agentId: agentId || "",
+    summary: `Guardrail ORCH_MAX_RETRIES=${maxStepRetries}: agent ${safeAgentId} exceeded max step retries (retry_number=${prevRetries}).`,
+    agentId: safeAgentId,
     retryNumber: prevRetries,
   };
 }
