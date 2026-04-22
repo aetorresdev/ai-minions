@@ -38,9 +38,9 @@ Operator-set **env-only** aborts (see [orchestrator README](../../orchestrator/R
 
 `session_start` → `agent_start` → `agent_done` → `iteration_done` (`outcome: done`, `transition_reason.type: DONE`) → `session_end`.
 
-CI validates each line against `trace-v2-line.schema.json` (`orchestrator/tests/goldenPath.test.js`). It does **not** run `validateTraceRunGraph` on this file: the writer reuses the same `step_id` on `agent_start` and `agent_done`, which the current graph check treats as a duplicate id (lifecycle vs index semantics — to be reconciled when graph validation evolves).
+CI validates each line against `trace-v2-line.schema.json` and the step graph slice with `validateTraceRunGraph` (`orchestrator/tests/goldenPath.test.js`). **`step_id` semantics:** only **`agent_start`** registers an id; **`agent_done`** and other events (e.g. `gate_result`) may reuse that id — duplicate **`agent_start`** with the same `step_id` remains a violation (see `trace-schema.js`).
 
-Use this as a **regression anchor** for per-line schema and event ordering — not as proof of product success on real Ollama traffic.
+Use this as a **regression anchor** for per-line schema, event ordering, and graph invariants — not as proof of product success on real Ollama traffic.
 
 **Timing / cost baselines** (expected phase duration and tokens per `flow_mode`) stay deferred until metrics are stable enough to freeze in fixtures.
 

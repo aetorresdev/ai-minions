@@ -89,7 +89,9 @@ Separate from the **disk-backed** state store above, the Node `run()` path maint
 
 **Decision layer:** `orchestrator/decision-engine.js` centralizes **Node** branching from structured inputs (e.g. normalizing the orchestrator **decide** JSON into `finish` \| `iterate` \| `stop`). Retry, guard, and escalate rules still migrate incrementally from `orchestrator.js` into this module — the contract here is **separation of concerns**, not that every branch lives there on day one.
 
-`run()` returns **`runState`** (public view via `getRunStatePublicView`) alongside `done`, `summary`, `artifacts`, … for wrappers and future **explain-run** enrichment.
+`run()` returns **`runState`** (public view via `getRunStatePublicView`) alongside `done`, `summary`, `artifacts`, … for wrappers and future **explain-run** enrichment. During the worker loop, **`runState.step`** is set to **running** on `agent_start`, **completed** after a successful **`agent_done`**, or cleared after **contract_fail** (output contract) on that step.
+
+**Trace graph (`validateTraceRunGraph`):** `step_id` is owned by **`agent_start`**; **`agent_done`** reuses the same id without registering again (see `trace-schema.js` § inline doc on `validateTraceRunGraph`).
 
 ---
 
