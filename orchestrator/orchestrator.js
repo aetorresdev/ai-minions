@@ -254,7 +254,7 @@ function _sanitize(event) {
   return out;
 }
 
-/** Closed catalog for `iteration_done.failure_type` (JSON Schema + FAIL-TAX-1). */
+/** Closed catalog for `iteration_done.failure_type` (JSON Schema + trace taxonomy). */
 const FAILURE_TYPES = /** @type {const} */ ([
   "spec_missing",
   "contract_mismatch",
@@ -267,9 +267,9 @@ const FAILURE_TYPES = /** @type {const} */ ([
 const FAILURE_TYPE_SET = new Set(FAILURE_TYPES);
 
 /**
- * Map orchestrator semantics → coarse `failure_type` on iteration_done (FAIL-TAX-1).
+ * Map orchestrator semantics → coarse `failure_type` on iteration_done.
  *
- * **Design:** `failure_type` is intentionally a small rollup (GUARD-1, high-level SLOs).
+ * **Design:** `failure_type` is intentionally a small rollup (env guardrails, high-level SLOs).
  * For dashboards and drill-down, pair with **`transition_reason.reason_code`** (stable enum:
  * CERBERUS_BLOCKERS_ITERATE, ORCHESTRATOR_DECIDE_CORRECTIONS, GATE_ARTIFACT_OR_HANDOFF, …) —
  * that is the dimension that distinguishes “cerberus vs decide vs gate” today; do not infer

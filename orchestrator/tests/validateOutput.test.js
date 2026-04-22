@@ -113,6 +113,10 @@ describe("dev-backend", () => {
   it("applies same contract to dev-devops", () => fail("dev-devops",
     "Ran terraform plan.", {}, /must declare files_read\[\]|must mention at least one file/
   ));
+
+  it("accepts dev-backend YAML-first Ollama-style handoff (three blocks)", () => ok("dev-backend",
+    "files_read:\n  - src/api.ts\nfiles_modified:\n  - src/api.ts\nvalidation_run: npm test → exit 0\n\nAdded null check on request body."
+  ));
 });
 
 // ── qa / cerberus ─────────────────────────────────────────────────────────────

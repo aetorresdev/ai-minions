@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Control-plane decisions (DECISION-1). Node rules — not LLM role output.
+ * Control-plane decisions (orchestrator decision layer). Node rules — not LLM role output.
  * LLM JSON from orchestrator/decide is normalized here before the loop mutates `plan` / `done`.
  */
 
