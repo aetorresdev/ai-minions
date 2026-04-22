@@ -42,7 +42,11 @@ CI validates each line against `trace-v2-line.schema.json` and the step graph sl
 
 Use this as a **regression anchor** for per-line schema, event ordering, and graph invariants — not as proof of product success on real Ollama traffic.
 
-**Timing / cost baselines** (expected phase duration and tokens per `flow_mode`) stay deferred until metrics are stable enough to freeze in fixtures.
+**Timing / cost baselines:** `golden-path-clean-v1.meta.json` (next to the JSONL) holds **bounded** expectations: wall span (`session_end.ts_ms` − `session_start.ts_ms`), sum of `agent_done.duration_ms`, and explain-style cost (`deriveExplain` — `expect_absent` until the fixture carries `cost_usd`). CI asserts via `goldenPath.test.js`; refresh meta with `UPDATE_GOLDEN_META=1` after intentional fixture edits.
+
+### In-memory snapshot on `session_end` (`run_state_snapshot`)
+
+The runner attaches **`run_state_snapshot`** to the trace **`session_end`** line (same shape as `run()`’s returned `runState`): coarse **`run.status`** / **`run.current_iteration`**, optional **`step`** (`step_id`, `agent_id`, `status`, `intent`). **`step.status`** can read **`retrying`** when a worker reached **`agent_done`** but a **hard gate** forced another attempt in the same outer iteration (`markStepRetryingAfterGate`). A new outer iteration clears **`step`** at **`syncRunIteration`** until the next **`agent_start`**. This is **operational telemetry**, not a substitute for the disk store or JSONL replay — see [agent-contract.md](agent-contract.md) § *Runtime control plane*.
 
 ---
 
