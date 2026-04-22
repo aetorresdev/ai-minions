@@ -164,29 +164,41 @@ function parseTraceLine(line, opts = {}) {
 
 /**
  * @param {object[]} lines - parsed trace line objects from a single run
- * @returns {{ ok: boolean, violations: Array<{type: string, step_id?: string, parent_step_id?: string}> }}
+ * @returns {{ ok: boolean, violations: Array<{type: string, step_id?: string, parent_step_id?: string, line_index?: number}> }}
+ *
+ * **step_id lifecycle:** `agent_start` **registers** a step id (duplicate `agent_start` with same id → violation).
+ * `agent_done` (and other events) may reuse that id without registering again. `agent_done` without a prior
+ * `agent_start` for the same `step_id` → `agent_done_without_start`.
  */
 function validateTraceRunGraph(lines) {
   const violations = [];
 
-  // Pass 1: build full step_id index and detect duplicates globally
   const stepIndex = new Set();
   for (let i = 0; i < lines.length; i++) {
-    const { step_id } = lines[i];
-    if (step_id != null) {
+    const row = lines[i];
+    const step_id = row.step_id;
+    if (step_id == null) continue;
+    const event = row.event;
+
+    if (event === "agent_start") {
       if (stepIndex.has(step_id)) {
-        violations.push({ type: 'duplicate_step_id', step_id, line_index: i });
+        violations.push({ type: "duplicate_step_id", step_id, line_index: i });
       } else {
         stepIndex.add(step_id);
       }
+    } else if (event === "agent_done") {
+      if (!stepIndex.has(step_id)) {
+        violations.push({ type: "agent_done_without_start", step_id, line_index: i });
+      }
+    } else if (!stepIndex.has(step_id)) {
+      violations.push({ type: "step_id_unknown", step_id, line_index: i, event: String(event ?? "") });
     }
   }
 
-  // Pass 2: validate parent references against full index
   for (let i = 0; i < lines.length; i++) {
     const { step_id, parent_step_id } = lines[i];
     if (parent_step_id != null && !stepIndex.has(parent_step_id)) {
-      violations.push({ type: 'orphan_parent', step_id: step_id ?? null, parent_step_id, line_index: i });
+      violations.push({ type: "orphan_parent", step_id: step_id ?? null, parent_step_id, line_index: i });
     }
   }
 

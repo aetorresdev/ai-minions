@@ -38,6 +38,28 @@ function decideFromOrchestratorDecide(decideOut) {
   };
 }
 
+/**
+ * CERBERUS blocker count is > 0 — choose iterate vs manual-review cap (deterministic branch).
+ * @returns {'iterate' | 'manual_cap' | 'skip'} skip when blockers === 0 (caller should not use)
+ */
+function decideCerberusBlockersBranch({ blockerCount, iterations, maxIterations }) {
+  if (blockerCount <= 0) return "skip";
+  if (iterations < maxIterations) return "iterate";
+  return "manual_cap";
+}
+
+/**
+ * Gate-blocked artifacts present — iterate with same worker tasks vs manual-review at cap.
+ * @returns {'iterate' | 'manual_cap' | 'skip'}
+ */
+function decideGateBlockedArtifactsBranch({ artifactCount, iterations, maxIterations }) {
+  if (artifactCount <= 0) return "skip";
+  if (iterations < maxIterations) return "iterate";
+  return "manual_cap";
+}
+
 module.exports = {
   decideFromOrchestratorDecide,
+  decideCerberusBlockersBranch,
+  decideGateBlockedArtifactsBranch,
 };
