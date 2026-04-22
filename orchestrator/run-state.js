@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * In-memory run snapshot (STATE-1). Complements the on-disk state store — not a substitute
+ * In-memory run snapshot. Complements the on-disk state store — not a substitute
  * for `events.jsonl` / envelope authority (see agent-contract § Authoritative state).
  *
  * @typedef {'running' | 'done' | 'failed' | 'aborted'} RunStatus
@@ -68,7 +68,7 @@ function setStepFailedAndClear(runState) {
 
 /**
  * After `agent_done` we may have marked the step **done**; gate/handoff `continue` means another attempt
- * on the same worker step — treat as **retrying** (STATE-1) until the next terminal path.
+ * on the same worker step — treat as **retrying** until the next terminal path.
  */
 function markStepRetryingAfterGate(runState) {
   if (!runState.step) return;

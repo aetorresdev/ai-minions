@@ -16,7 +16,7 @@
  *   OLLAMA_MODEL=qwen2.5-coder:7b node --test tests/e2e.test.js
  *   node --test tests/e2e.test.js   # auto-detects available model
  *
- * Includes **DEV-OLLAMA-CONTRACT-1** smoke: `single_agent Ollama: dev-backend passes output contract…`
+ * Includes Ollama **DEV output-contract smoke**: `single_agent Ollama: dev-backend passes output contract…`
  * (requires Ollama; asserts `validateOutput` passes on at least one DEV artifact — not in default `npm test`).
  */
 
@@ -162,7 +162,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     }
   });
 
-  // DEV-OLLAMA-CONTRACT-1: at least one DEV artifact must pass validateOutput without format gate-block
+  // Ollama DEV: at least one artifact must pass validateOutput without format gate-block
   test("single_agent Ollama: dev-backend passes output contract at least once (format smoke)", async (t) => {
     if (skipIfNoOllama(t)) return;
 
