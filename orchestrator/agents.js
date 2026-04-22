@@ -852,6 +852,37 @@ Rules:
 - validation_run must mention a real check (tests, lint, node -c, terraform validate, etc.).
 - Never emit files_read: [].
 `;
+
+/** Appended to ORCHESTRATOR system when that role is served by Ollama (local models often ignore “JSON only” in the base prompt). */
+const OLLAMA_ORCHESTRATOR_PLAN_APPEND = `
+
+---
+## OLLAMA — PLAN JSON ONLY (hard gate)
+
+Reply with **one** JSON object only. No markdown fences, no prose before or after.
+
+Shape:
+{"steps":[{"agentId":"dev-backend","task":"concrete task string"}]}
+
+agentId must be one of: owner, architect, dev-backend, dev-frontend, dev-devops, qa, cerberus.
+steps must be a non-empty array. The first character of your reply must be \`{\`.
+`;
+
+const OLLAMA_ORCHESTRATOR_DECIDE_APPEND = `
+
+---
+## OLLAMA — DECIDE JSON ONLY (hard gate)
+
+Reply with **one** JSON object only. No markdown fences, no prose before or after.
+
+If work is complete:
+{"done":true,"summary":"one brief sentence"}
+
+If another iteration is needed:
+{"done":false,"corrections":[{"agentId":"dev-backend","task":"what to fix"}]}
+
+The first character of your reply must be \`{\`.
+`;
 const FILES_MODIFIED_RE  = /(?:files?_modified|modified)\s*[:-]\s*\n((?:\s*-\s*\S[^\n]*\n?)+)/i;
 
 /**
@@ -1059,7 +1090,12 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
   if (agent.provider === "ollama" || forceOllama) {
     const model = forceOllama ? OLLAMA_MODEL : agent.model;
     let systemForOllama = agent.system;
-    if (forceOllama) {
+    if (agentId === "orchestrator") {
+      systemForOllama =
+        phase === "decide"
+          ? `${agent.system}${OLLAMA_ORCHESTRATOR_DECIDE_APPEND}`
+          : `${agent.system}${OLLAMA_ORCHESTRATOR_PLAN_APPEND}`;
+    } else if (forceOllama) {
       if (agentId === "architect") {
         systemForOllama = `${agent.system}${OLLAMA_ARCHITECT_SYSTEM_APPEND}`;
       } else if (agentId.startsWith("dev-")) {

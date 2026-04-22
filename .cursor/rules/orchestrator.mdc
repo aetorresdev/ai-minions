@@ -13,6 +13,7 @@ alwaysApply: false
 
 ## Non-negotiables
 
+0. **Commits — no ticket IDs in shipped source:** Do not add backlog/issue/ticket identifiers to `orchestrator/`, `agents/`, `tests/`, `scripts/`, or versioned technical `docs/` that will be committed (comments, strings, headers). Dedicated backlog/resolved files where IDs are the schema are exempt.
 1. **Role block format (mandatory):** Every response opens with a role block — no exceptions:
    ```
    ---
@@ -32,18 +33,18 @@ alwaysApply: false
    Inline transition text (`"Advancing to MODE: QA"`) is **forbidden**.
 3. **Session header (ORCHESTRATOR first response):** declare `FLOW: single_agent | multi_agent`, `GOAL: <one line>`, `MAX_ITERATIONS: 3`. All handoffs inherit `flow_mode` from this.
 4. **One MODE per response** (ORCHESTRATOR may output plan + single next MODE only).
-4. **FORBID:** DEV self-QA/self-CERBERUS; CERBERUS must not implement in same turn.
-5. **Role close checklist (mandatory before STATE: COMPLETE) — execute in order, no exceptions:**
+5. **FORBID:** DEV self-QA/self-CERBERUS; CERBERUS must not implement in same turn.
+6. **Role close checklist (mandatory before STATE: COMPLETE) — execute in order, no exceptions:**
    1. `mcp__compact-handoff__compact_handoff(text=<full output>, mode_completed=<MODE>, next_mode=<next>, flow_mode=<FLOW>)` — never write handoff YAML by hand
    2. `mcp__orchestrator-state__validate_goal_alignment(...)` — if `aligned: false`, do NOT advance
    3. `mcp__orchestrator-state__advance_mode(...)` — only if step 2 passed
    Skipping step 1 will be blocked by a hook.
-6. **ORCHESTRATOR validates before advancing:** call `mcp__compact-handoff__validate_goal_alignment(handoff_yaml=<yaml>, goal=<GOAL>, flow_mode=<FLOW>)`. If `aligned: false` → do not advance MODE.
-7. **Transitions:** ORCHESTRATOR or user advances MODE. Chain: `brief → ARCHITECT? → DEV → QA → CERBERUS → …`
-8. **Skills per task:** ORCHESTRATOR names skills explicitly — e.g. `creating-diagrams`, `designing-terraform`, `managing-n8n`, `creating-terraform`.
-9. **CERBERUS:** separate chat or mcp_task when possible — reduces auto-confirmation bias.
-10. **Validation before DEV handoff:** Not lint-only. Run what the stack needs: **Terraform** → fmt + **`terraform init`** + **`terraform validate`** + project linters (tflint/checkov if present) + **module tests** if the repo has them. **Other code** → project linter + deps/install if needed + **module/unit tests** per README/CI. If commands cannot run here, state that in handoff `risks` and list exact commands for QA/human.
-11. **Authoritative state store (strict orchestration):** Disk store + MCP are authority; chat is not. See contract § *Authoritative state (state store)* and `docs/orchestrator/mcp-task-examples.md § State store flow`.
+7. **ORCHESTRATOR validates before advancing:** call `mcp__compact-handoff__validate_goal_alignment(handoff_yaml=<yaml>, goal=<GOAL>, flow_mode=<FLOW>)`. If `aligned: false` → do not advance MODE.
+8. **Transitions:** ORCHESTRATOR or user advances MODE. Chain: `brief → ARCHITECT? → DEV → QA → CERBERUS → …`
+9. **Skills per task:** ORCHESTRATOR names skills explicitly — e.g. `creating-diagrams`, `designing-terraform`, `managing-n8n`, `creating-terraform`.
+10. **CERBERUS:** separate chat or mcp_task when possible — reduces auto-confirmation bias.
+11. **Validation before DEV handoff:** Not lint-only. Run what the stack needs: **Terraform** → fmt + **`terraform init`** + **`terraform validate`** + project linters (tflint/checkov if present) + **module tests** if the repo has them. **Other code** → project linter + deps/install if needed + **module/unit tests** per README/CI. If commands cannot run here, state that in handoff `risks` and list exact commands for QA/human.
+12. **Authoritative state store (strict orchestration):** Disk store + MCP are authority; chat is not. See contract § *Authoritative state (state store)* and `docs/orchestrator/mcp-task-examples.md § State store flow`.
 
     ```
     # 1. Session start
@@ -62,8 +63,8 @@ alwaysApply: false
     # 3. Session end
     mcp__orchestrator-state__close_task(task_id="<slug>", reason="done")
     ```
-12. **`session_id`** on the envelope is optional audit metadata only until a **dedicated runner** enforces real session isolation — do not treat it as proof of isolation by itself.
-13. **Context efficiency (all roles):** Before reading any file, declare `files_read: [list]` — must not be empty. Read only those files, only relevant sections. **Gate (ARCHITECT + DEV):** `validateOutput()` rejects if `files_read[]` is missing or empty, or if `files_modified` contains a path not in `files_read`. Enforces consistency, not completeness.
+13. **`session_id`** on the envelope is optional audit metadata only until a **dedicated runner** enforces real session isolation — do not treat it as proof of isolation by itself.
+14. **Context efficiency (all roles):** Before reading any file, declare `files_read: [list]` — must not be empty. Read only those files, only relevant sections. **Gate (ARCHITECT + DEV):** `validateOutput()` rejects if `files_read[]` is missing or empty, or if `files_modified` contains a path not in `files_read`. Enforces consistency, not completeness.
 
 ## Quick ALLOW/FORBID
 

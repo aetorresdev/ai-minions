@@ -96,6 +96,11 @@ Skipping step 1 will be blocked by a hook. There are no exceptions.
 - Never print, echo, log, or display credentials, tokens, API keys, or secrets — not in output, not in commands, not truncated, not partially. Reference the variable name only (e.g. `$N8N_API_TOKEN`, never its value).
 - Never read, write, delete, or manipulate orchestrator state files under `~/.claude/metrics/` or `~/.claude/.state/`. If a hook blocks an action, follow the hook's instructions — do not work around it.
 
+## Commits — no ticket IDs in shipped source
+
+- Do **not** embed backlog / issue / ticket identifiers (e.g. `P0-01`, `DEV-OLLAMA-CONTRACT-1`, `JIRA-123`) in files that ship as **implementation or technical docs** in commits: `orchestrator/`, `agents/`, `scripts/`, `tests/`, versioned `docs/` under the repo, or similar — including comments, log/trace strings, and decorative headers. Prefer neutral descriptions or module names.
+- **Exception:** files whose **primary purpose** is ticket tracking (e.g. backlog index, resolved archive, GitHub issue templates) may use IDs where that is the schema. Local-only state (e.g. under `.claude/state/`) is out of scope for this rule unless you choose to commit it.
+
 # Session State Policy
 
 ## Mandatory state handling

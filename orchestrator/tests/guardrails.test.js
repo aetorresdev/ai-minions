@@ -1,5 +1,5 @@
 /**
- * GUARD-1: env kill-switches (ORCH_MAX_ITERATIONS, ORCH_MAX_RETRIES, ORCH_MAX_COST_USD).
+ * Env kill-switches: ORCH_MAX_ITERATIONS, ORCH_MAX_RETRIES, ORCH_MAX_COST_USD.
  */
 
 "use strict";
