@@ -5,7 +5,7 @@ AI Minions is available for non-commercial community use under the repository li
 A separate commercial license is required for any business or revenue-related use, including but not limited to:
 
 - internal business use by companies or organizations
-- production or pre-production deployment in a business environment
+- deployment in production, staging, pre-production, or other business environments
 - client delivery, consulting, implementation, or managed services
 - hosted, cloud, SaaS, or platform-based offerings
 - embedding AI Minions into a commercial product or service
