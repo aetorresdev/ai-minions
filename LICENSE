@@ -20,7 +20,7 @@ or monetary compensation.
 (a) by or for a company, business, government entity, or other organization in connection
     with internal operations or business activities;
 (b) to provide services to clients or third parties;
-(c) in production or pre-production business environments;
+(c) in production, staging, pre-production, or other business environments;
 (d) as part of a paid service, managed service, hosted service, SaaS, platform, or offering;
 (e) embedded in or integrated into a product or service;
 (f) for consulting, implementation, advisory, or other revenue-generating activity.
@@ -28,7 +28,7 @@ or monetary compensation.
 2. Grant of Rights for Non-Commercial Use
 
 Subject to the terms of this License, Licensor grants you a limited, non-exclusive,
-non-transferable, revocable license to:
+non-transferable license to:
 
 - use, copy, modify, and run the Software for Non-Commercial Use only;
 - create and submit contributions or proposed changes to the upstream repository;
@@ -40,7 +40,7 @@ non-transferable, revocable license to:
 You may not, without prior written permission from Licensor:
 
 - use the Software for any Commercial Use;
-- deploy the Software in production for any business purpose;
+- deploy the Software in production, staging, pre-production, or other business environments for any business purpose;
 - provide the Software or derived works as a service to third parties;
 - use the Software to support client-facing or internal commercial operations;
 - sublicense, sell, rent, lease, or otherwise monetize the Software;
