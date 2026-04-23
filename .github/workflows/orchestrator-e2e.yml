@@ -6,8 +6,9 @@
 #   2. Ollama listening at localhost:11434 (or set OLLAMA_HOST / OLLAMA_PORT on the runner env)
 #   3. Recommended: ollama pull qwen2.5-coder:7b (workflow default; override via dispatch input)
 #
-# Suites executed (dual path — two npm scripts):
-#   - npm run test:e2e        → standard Ollama E2E (skipStateMcp=true)
+# Suites executed:
+#   - npm run test:e2e        → standard Ollama E2E (skipStateMcp=true); DEV contract smoke defaults to maxIterations=2
+#   - npm run test:e2e:dev-first-shot-report → informational N runs with maxIterations=1 only (non-blocking step)
 #   - npm run test:e2e:strict → system-path MCP-on-disk (ORCH_MCP_TRANSPORT=direct + mcp-direct.py)
 #
 # Fork PRs: this job is skipped when head repo ≠ base repo so the workflow does not wait forever
@@ -38,6 +39,7 @@ on:
       - "orchestrator/run-orchestrator.js"
       - "orchestrator/mcp-direct.py"
       - "orchestrator/tests/**"
+      - "orchestrator/scripts/**"
       - "orchestrator/package.json"
       - "orchestrator/package-lock.json"
       - "mcp-servers/orchestrator-state/**"
@@ -52,6 +54,7 @@ on:
       - "orchestrator/run-orchestrator.js"
       - "orchestrator/mcp-direct.py"
       - "orchestrator/tests/**"
+      - "orchestrator/scripts/**"
       - "orchestrator/package.json"
       - "orchestrator/package-lock.json"
       - "mcp-servers/orchestrator-state/**"
@@ -112,6 +115,15 @@ jobs:
           cd orchestrator
           npm run test:e2e
 
+      - name: DEV contract first-shot rate (informational, non-blocking)
+        continue-on-error: true
+        env:
+          OLLAMA_MODEL: ${{ github.event.inputs.ollama_model || 'qwen2.5-coder:7b' }}
+          E2E_FIRST_SHOT_RUNS: "5"
+        run: |
+          cd orchestrator
+          npm run test:e2e:dev-first-shot-report
+
       - name: Run system-path E2E suite (MCP direct, no claude CLI for gates)
         env:
           OLLAMA_MODEL: ${{ github.event.inputs.ollama_model || 'qwen2.5-coder:7b' }}
@@ -127,7 +139,7 @@ jobs:
           {
             echo "## orchestrator-e2e"
             echo "- **Model:** \`$OLLAMA_MODEL\`"
-            echo "- **Suites:** \`npm run test:e2e\` then \`npm run test:e2e:strict\` (system-path MCP)"
+            echo "- **Suites:** \`npm run test:e2e\` → optional \`npm run test:e2e:dev-first-shot-report\` (metric) → \`npm run test:e2e:strict\`"
             echo "- **Runner:** self-hosted, labels \`self-hosted\` + \`ollama\`"
             echo "- **On failure:** artifact \`e2e-failure-*\` uploads traces + npm-debug.log (if present)"
           } >> "$GITHUB_STEP_SUMMARY"

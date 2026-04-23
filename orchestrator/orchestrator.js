@@ -1322,7 +1322,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         artifacts.push({
           agentId,
           task: step.task,
-          result: "",
+          result: typeof err.rawModelOutput === "string" ? err.rawModelOutput : "",
           gateBlocked: true,
           gateReason: err.message,
           step_id: stepId,

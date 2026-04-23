@@ -464,10 +464,20 @@ No praise-only paragraphs before the three required lines; no proposed full solu
  *   `prompt_eval_count` / `eval_count` come from Ollama when present; omit when absent.
  */
 function runOllama(systemPrompt, messages, { model = "qwen2.5-coder:7b", timeoutMs } = {}) {
+  const numPredict = parseInt(process.env.OLLAMA_NUM_PREDICT, 10);
+  const temperature = parseFloat(process.env.OLLAMA_TEMPERATURE || "");
+  /** @type {Record<string, unknown>} */
+  const options = {};
+  if (Number.isFinite(numPredict) && numPredict > 0) options.num_predict = numPredict;
+  else options.num_predict = 2048;
+  if (Number.isFinite(temperature)) options.temperature = temperature;
+  else options.temperature = 0.2;
+
   const body = JSON.stringify({
     model,
     messages: [{ role: "system", content: systemPrompt }, ...messages],
     stream: false,
+    options,
   });
 
   return new Promise((resolve, reject) => {
@@ -489,6 +499,10 @@ function runOllama(systemPrompt, messages, { model = "qwen2.5-coder:7b", timeout
         res.on("end", () => {
           try {
             const parsed = JSON.parse(data);
+            if (parsed && parsed.error) {
+              reject(new Error(`Ollama: ${typeof parsed.error === "string" ? parsed.error : JSON.stringify(parsed.error)}`));
+              return;
+            }
             const content = parsed.message?.content?.trim() || "";
             /** @type {{ content: string, prompt_eval_count?: number, eval_count?: number }} */
             const out = { content };
@@ -818,6 +832,24 @@ const VALIDATION_RE      = /\b(validation_run|ran|executed|tested|passed|failed|
 const FILES_READ_RE      = /\bfiles?_read\s*[:-]?\s*(?:[[`'"\w]|\n\s*-)/i;
 const FILES_READ_EMPTY_RE = /\bfiles?_read\s*[:-]?\s*(?:\[\s*]|:\s*\[\s*]|\s*\n(?!\s*-))/i;
 
+/**
+ * Small local models often wrap YAML in markdown fences or add a short preamble.
+ * Normalize before validateOutput(dev-*) so the gate matches the same shape as cloud DEV.
+ * @param {string} s
+ */
+function normalizeDevContractText(s) {
+  let o = String(s || "").replace(/^\uFEFF/, "").trim();
+  if (!o) return o;
+  const fenced = /^```(?:yaml|yml)?\s*\r?\n([\s\S]*?)\r?\n```\s*/i.exec(o);
+  if (fenced) o = fenced[1].trim();
+  const lead = o.slice(0, 400);
+  if (!/^\s*files_read\s*:/i.test(lead)) {
+    const idx = o.search(/\bfiles_read\s*:/i);
+    if (idx > 0) o = o.slice(idx).trimStart();
+  }
+  return o;
+}
+
 /** Appended to ARCHITECT system when `setBackend("ollama")` routes that role through Ollama (E2E / local). */
 const OLLAMA_ARCHITECT_SYSTEM_APPEND = `
 
@@ -837,23 +869,18 @@ Design summary:
 const OLLAMA_DEV_SYSTEM_APPEND = `
 
 ---
-## OLLAMA — DEV OUTPUT FORMAT (hard gate — output rejected if missing)
+## OLLAMA — DEV OUTPUT FORMAT (hard gate)
 
-The VERY FIRST characters of your reply MUST be this YAML block. No prose, no markdown fence, no blank line before it.
-Replace the example paths with real paths from the task. Do NOT copy the example values literally.
+Start with YAML (no markdown fence before it if possible). Use real paths from the task/cwd — not placeholders.
 
 files_read:
-  - src/utils.js
+  - <path>
 files_modified:
-  - src/utils.js
-validation_run: node -e "require('./src/utils.js')" → exit 0
+  - <path>
+validation_run: <shell command + outcome (grep/node/npm test/wc)>
 
-Rules (violations cause immediate rejection):
-- files_read and files_modified must list real file paths from the task, never placeholder text.
-- Every file under files_modified must also appear under files_read.
-- validation_run must be a real command you executed and its outcome (exit code or grep result).
-- Never emit files_read: [] or files_modified: [].
-- If you only read a file without modifying it, omit files_modified entirely — but files_read is always required.
+Rules: non-empty files_read and files_modified lists; every modified path must appear under files_read; validation_run required; never files_read: [].
+After the YAML, at most 2 short lines of prose.
 `;
 
 /** Appended to ORCHESTRATOR system when that role is served by Ollama (local models often ignore “JSON only” in the base prompt). */
@@ -1106,9 +1133,15 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
       }
     }
     const raw = await runOllama(systemForOllama, [{ role: "user", content: userMessage }], { model });
-    const output = raw.content;
+    const rawOut = raw.content == null ? "" : String(raw.content);
+    const output = agentId.startsWith("dev-") ? normalizeDevContractText(rawOut) : rawOut;
     const check = validateOutput(agentId, output, { phase });
-    if (!check.valid) { const err = new Error(`[output contract] ${check.reason}`); err.gate_id = check.gate_id; throw err; }
+    if (!check.valid) {
+      const err = new Error(`[output contract] ${check.reason}`);
+      err.gate_id = check.gate_id;
+      err.rawModelOutput = rawOut.slice(0, 8000);
+      throw err;
+    }
     const extracted = extractContextStats(agentId, output).context_stats;
     /** @type {Record<string, number>} */
     const context_stats = { ...extracted, ...(check.context_stats || {}) };
@@ -1176,6 +1209,7 @@ module.exports = {
   AGENTS,
   summarizeHandoff,
   runOllama,
+  normalizeDevContractText,
   effectiveMode,
   resolveCredentials,
   buildEnvContext,
