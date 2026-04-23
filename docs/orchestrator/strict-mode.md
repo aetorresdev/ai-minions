@@ -523,6 +523,15 @@ Automated checks for **`skipStateMcp: false`** (hard gates on) without requiring
 
 This is **not** the same as registering MCPs inside the Anthropic Claude app: that path still uses `claude -p` when `ORCH_MCP_TRANSPORT` is unset. CI (`.github/workflows/orchestrator-e2e.yml`) runs both `test:e2e` (degraded) and **`test:e2e:strict`** (harness **excluded**) on the self-hosted Ollama runner.
 
+### DEV first-shot metric vs strict path
+
+**Do not conflate these signals.**
+
+- **`npm run test:e2e:dev-first-shot-report`** (see **`model-routing.md`** § *DEV roles with Ollama*) runs the **degraded** E2E smoke (`skipStateMcp: true`) with **`maxIterations: 1`** only and reports **`first_shot_pass_rate`** for DEV **output contract** (`files_read` / `files_modified` / `validation_run`). A good trend there means: small local models are more often producing gate-acceptable DEV text on the first try.
+- **`npm run test:e2e:strict`** exercises **hard gates on disk** (`skipStateMcp: false`, MCP direct). The suite can **pass overall** while a **specific** scenario (e.g. the same “multiply function in `utils.js`” goal used in a `run()` test) **never** produced a **`gate_result` / `goal_alignment`** row in the traces that the alignment rate helper samples — so **`alignment_failure_rate: n/a`** or **`0/n`** is **not** a certificate that “goal alignment was validated for that scenario.” It only reflects what appeared in those traces for that suite run.
+
+**Operational split (review guidance):** (1) watch **`first_shot_pass_rate`** over CI history for the DEV contract lane; (2) **separately** watch strict traces (or add targeted tests) for **`validate_goal_alignment`** coverage on the goals you care about — especially when logs show alignment skipped, not run, or not persisted for a path you expected to exercise.
+
 ### GitHub Actions — `orchestrator-e2e.yml`
 
 - **Runner:** `runs-on: [self-hosted, ollama]` — the machine must run Ollama on `localhost:11434` and have `uv sync` done for `mcp-servers/orchestrator-state` and `compact-handoff` (the workflow runs `uv sync` each job).
