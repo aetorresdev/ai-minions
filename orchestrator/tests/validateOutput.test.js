@@ -5,7 +5,7 @@
 
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const { validateOutput } = require("../agents");
+const { validateOutput, normalizeDevContractText } = require("../agents");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -213,6 +213,20 @@ describe("architect", () => {
   it("accepts architect with Design summary line after files_read (Ollama-style shape)", () => ok("architect",
     "files_read:\n  - src/service.ts\nDesign summary:\nPrefer bounded queues; idempotent consumers."
   ));
+});
+
+describe("normalizeDevContractText", () => {
+  it("strips leading ```yaml fence before validateOutput", () => {
+    const raw = "```yaml\nfiles_read:\n  - marker.txt\nfiles_modified:\n  - marker.txt\nvalidation_run: grep E2E marker.txt → ok\n```";
+    const n = normalizeDevContractText(raw);
+    ok("dev-backend", n);
+  });
+
+  it("trims short preamble before files_read", () => {
+    const raw = "Sure.\n\nfiles_read:\n  - marker.txt\nfiles_modified:\n  - marker.txt\nvalidation_run: wc -l marker.txt\n";
+    const n = normalizeDevContractText(raw);
+    ok("dev-backend", n);
+  });
 });
 
 // ── free-form roles ───────────────────────────────────────────────────────────

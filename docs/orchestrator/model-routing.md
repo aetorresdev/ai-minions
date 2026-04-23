@@ -148,7 +148,14 @@ E2E and local harnesses may route **all** roles through Ollama when **`OLLAMA_MO
 
 **`dev-backend`**, **`dev-frontend`**, **`dev-devops`** still run the same **`validateOutput()`** as in cloud: non-empty **`files_read`**, **`files_modified`** list, and a **`validation_run`** line matching the keyword heuristic.
 
-**Implementation (2026-04-15):** `askAgent()` appends **`OLLAMA_DEV_SYSTEM_APPEND`** to the DEV system prompt when **`forceOllama`** is true — YAML-first few-shot for `files_read` / `files_modified` / `validation_run` before prose, mirroring the ARCHITECT Ollama path. **E2E smoke:** `tests/e2e.test.js` (*single_agent Ollama: dev-backend passes output contract…*) — run with **`npm run test:e2e`** (requires live Ollama); not part of default **`npm test`**.
+**Implementation (2026-04-15 onward):** `askAgent()` appends **`OLLAMA_DEV_SYSTEM_APPEND`** when **`forceOllama`** is true — YAML-first few-shot for `files_read` / `files_modified` / `validation_run`. Before **`validateOutput()`**, **`normalizeDevContractText()`** in `agents.js` strips a leading markdown YAML fence and a short preamble before `files_read:` so small models that wrap YAML still pass the same gate. **`runOllama()`** sends **`options.num_predict`** (default **2048**, override with **`OLLAMA_NUM_PREDICT`**) and **`temperature`** (default **0.2**, override **`OLLAMA_TEMPERATURE`**) to reduce empty or ultra-short replies on `/api/chat`.
+
+**Two lanes (review standard — do not conflate them):**
+
+1. **Default / blocking CI lane:** the DEV output-contract smoke in `tests/e2e.test.js` uses **`maxIterations: 2`**. That proves the **orchestrator loop can recover** after a bad first DEV reply (e.g. CERBERUS-driven iterate). It is **not** proof that the first DEV attempt always satisfies **`validateOutput()`**.
+2. **First-shot lane (metric):** set **`E2E_DEV_CONTRACT_FIRST_SHOT=1`** to run the **same** smoke with **`maxIterations: 1`**. Use **`npm run test:e2e:dev-first-shot-report`** (runs several attempts; prints **`first_shot_pass_rate`**; optional in GitHub Actions after **`npm run test:e2e`**). **Promotion idea:** when that rate is stable over time, consider making single-iteration smoke mandatory in CI — not before.
+
+**Implementation detail:** prompts and **`normalizeDevContractText()`** improve first-shot odds but do not, by themselves, guarantee first-shot compliance under local models.
 
 ### Orchestrator with Ollama (plan / decide JSON)
 
