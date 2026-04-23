@@ -7,6 +7,7 @@
 
 ## Output discipline (always)
 
+- Remove filler. If a sentence does not change a decision, constraint, evidence trail, or next action, omit it.
 - After any file edit or tool call: one-line summary max. No narration of what the tool does.
 - Do NOT reproduce file contents in output — cite path + line range only.
 - Do NOT explain what a tool does before calling it — call it directly.
