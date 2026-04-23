@@ -148,7 +148,9 @@ E2E and local harnesses may route **all** roles through Ollama when **`OLLAMA_MO
 
 **`dev-backend`**, **`dev-frontend`**, **`dev-devops`** still run the same **`validateOutput()`** as in cloud: non-empty **`files_read`**, **`files_modified`** list, and a **`validation_run`** line matching the keyword heuristic.
 
-**Implementation (2026-04-15):** `askAgent()` appends **`OLLAMA_DEV_SYSTEM_APPEND`** to the DEV system prompt when **`forceOllama`** is true — YAML-first few-shot for `files_read` / `files_modified` / `validation_run` before prose, mirroring the ARCHITECT Ollama path. **E2E smoke:** `tests/e2e.test.js` (*single_agent Ollama: dev-backend passes output contract…*) — run with **`npm run test:e2e`** (requires live Ollama); not part of default **`npm test`**.
+**Implementation (2026-04-15 onward):** `askAgent()` appends **`OLLAMA_DEV_SYSTEM_APPEND`** when **`forceOllama`** is true — YAML-first few-shot for `files_read` / `files_modified` / `validation_run`. Before **`validateOutput()`**, **`normalizeDevContractText()`** in `agents.js` strips a leading markdown YAML fence and a short preamble before `files_read:` so small models that wrap YAML still pass the same gate. **`runOllama()`** sends **`options.num_predict`** (default **2048**, override with **`OLLAMA_NUM_PREDICT`**) and **`temperature`** (default **0.2**, override **`OLLAMA_TEMPERATURE`**) to reduce empty or ultra-short replies on `/api/chat`.
+
+**Open work — DEV output under small local models:** aim for **first-intent** compliance (e.g. `qwen2.5-coder:7b`); prompts push YAML-first, but small models still miss format often on the first reply. **E2E smoke:** `tests/e2e.test.js` (*single_agent Ollama: dev-backend passes output contract…*) defaults to **`maxIterations: 2`** so CI can pass when iteration 2 repairs the contract. For a strict single-iteration check locally: **`E2E_DEV_CONTRACT_FIRST_SHOT=1`** (same test, **`maxIterations: 1`**). Run with **`npm run test:e2e`** (requires live Ollama); not part of default **`npm test`**.
 
 ### Orchestrator with Ollama (plan / decide JSON)
 

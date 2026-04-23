@@ -17,6 +17,7 @@
  *   node --test tests/e2e.test.js   # auto-detects available model
  *
  * Includes Ollama **DEV output-contract smoke**: `single_agent Ollama: dev-backend passes output contract…`
+ * Uses **maxIterations: 2** so a second loop can recover when the local model misses YAML-first on the first try (CI stability). For a strict first-shot check, run with env **E2E_DEV_CONTRACT_FIRST_SHOT=1** (uses maxIterations: 1).
  * (requires Ollama; asserts `validateOutput` passes on at least one DEV artifact — not in default `npm test`).
  */
 
@@ -179,8 +180,9 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
         "validation_run must cite a real shell command you ran (e.g. grep E2E_CONTRACT_OK marker.txt or wc -l marker.txt).\n" +
         "After the YAML, at most 2 lines of prose.";
 
+      const firstShotOnly = process.env.E2E_DEV_CONTRACT_FIRST_SHOT === "1";
       const result = await e2eRun(t, goal, {
-        maxIterations: 2,
+        maxIterations: firstShotOnly ? 1 : 2,
         cwd,
         flowMode: "single_agent",
         skipStateMcp: true,
@@ -198,7 +200,12 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
       assert.ok(
         passed,
         `expected one DEV artifact with validateOutput.valid and gateBlocked not true; snapshot=${JSON.stringify(
-          devArts.map((x) => ({ agentId: x.agentId, gateBlocked: x.gateBlocked, head: (x.result || "").slice(0, 280) })),
+          devArts.map((x) => ({
+            agentId: x.agentId,
+            gateBlocked: x.gateBlocked,
+            gateReason: x.gateReason,
+            head: (x.result || "").slice(0, 400),
+          })),
         )}`,
       );
     } finally {
