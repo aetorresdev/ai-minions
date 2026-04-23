@@ -1,6 +1,6 @@
 # AI Minions
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE) [![GitHub release](https://img.shields.io/github/v/release/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/releases) [![GitHub issues](https://img.shields.io/github/issues/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/pulls) [![GitHub last commit](https://img.shields.io/github/last-commit/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/commits/main) [![Orchestrator CI](https://img.shields.io/github/actions/workflow/status/aetorresdev/ai-minions/orchestrator-unit-tests.yml?branch=main&label=orchestrator%20CI)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-unit-tests.yml) [![Orchestrator E2E](https://img.shields.io/github/actions/workflow/status/aetorresdev/ai-minions/orchestrator-e2e.yml?branch=main&label=orchestrator%20E2E)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-e2e.yml)
+[![License: AI Minions Community](https://img.shields.io/badge/license-AI%20Minions%20Community-blue.svg)](./LICENSE) [![GitHub release](https://img.shields.io/github/v/release/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/releases) [![GitHub issues](https://img.shields.io/github/issues/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/issues) [![GitHub pull requests](https://img.shields.io/github/issues-pr/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/pulls) [![GitHub last commit](https://img.shields.io/github/last-commit/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/commits/main) [![Orchestrator CI](https://img.shields.io/github/actions/workflow/status/aetorresdev/ai-minions/orchestrator-unit-tests.yml?branch=main&label=orchestrator%20CI)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-unit-tests.yml) [![Orchestrator E2E](https://img.shields.io/github/actions/workflow/status/aetorresdev/ai-minions/orchestrator-e2e.yml?branch=main&label=orchestrator%20E2E)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-e2e.yml)
 
 AI coding workflows fail because they optimize output, not process.
 
@@ -180,7 +180,25 @@ Hook wiring: copy `settings.json.example` → `settings.json` and adapt paths. D
 
 ## License
 
-[MIT](LICENSE) · [CONTRIBUTING.md](CONTRIBUTING.md)
+AI Minions is **source-available** software.
+
+You may use this repository for personal use, learning, research, evaluation, and community contribution under the terms of the [LICENSE](LICENSE). See also [NOTICE](NOTICE).
+
+A **separate commercial license** is required for:
+
+- internal business use
+- production deployment for business purposes
+- consulting or client delivery
+- hosted / managed service use
+- embedding AI Minions into a commercial product or service
+
+Details: [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md). Branding rules: [TRADEMARKS.md](TRADEMARKS.md).
+
+This project is **not** licensed under an OSI-approved open source license.
+
+For commercial licensing inquiries: **andres.torresduran@gmail.com**
+
+[CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 

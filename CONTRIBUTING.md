@@ -2,6 +2,10 @@
 
 Thanks for considering contributing to AI Minions.
 
+## Licensing
+
+By opening a pull request or otherwise contributing material intended for inclusion in this repository, you agree that your contribution is submitted under the same terms as the [LICENSE](LICENSE), unless you explicitly state otherwise in writing.
+
 ## Scope
 
 - **Skills**: New skills should follow the existing structure: a directory under `skills/<name>/` with a `SKILL.md` (and optional `references/` or templates). The skill description in the frontmatter defines when it activates.
