@@ -64,6 +64,16 @@ test("mapDecideLoopToPlanOutcome — mirrors decide branches", () => {
   });
 });
 
+test("mapDecideLoopToPlanOutcome — invalid iterate inputs coerce to stop (contract)", () => {
+  const stopMsg = "Stopped (no corrections or invalid orchestrator response).";
+  const stop = { variant: "stop", summary: stopMsg, planSteps: [] };
+  assert.deepEqual(mapDecideLoopToPlanOutcome({ action: "iterate", params: { corrections: [] } }), stop);
+  assert.deepEqual(mapDecideLoopToPlanOutcome({ action: "iterate", params: {} }), stop);
+  assert.deepEqual(mapDecideLoopToPlanOutcome({ action: "iterate", params: { corrections: "nope" } }), stop);
+  assert.deepEqual(mapDecideLoopToPlanOutcome({ action: "iterate" }), stop);
+  assert.deepEqual(mapDecideLoopToPlanOutcome({ action: "typo" }), stop);
+});
+
 test("planStepsAfterCorrectionsResponse — json vs fallback", () => {
   const artifacts = [{ agentId: "dev-backend", task: "t" }];
   const blockers = ["x"];
