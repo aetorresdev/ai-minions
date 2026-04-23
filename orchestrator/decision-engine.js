@@ -42,6 +42,11 @@ function decideFromOrchestratorDecide(decideOut) {
  * Map **`decideFromOrchestratorDecide`** output to orchestrator loop fields (pure).
  * Caller still runs **`askAgent`**, **`traceIterationDone`**, and logging.
  *
+ * **Contract:** pass only objects emitted by **`decideFromOrchestratorDecide`** (or equivalent
+ * `finish` / `iterate`+non-empty corrections / `stop`). If `action === "iterate"` but
+ * **`corrections` is missing, non-array, or empty**, treat as invalid input → same **`stop`**
+ * variant as unknown action (defensive; the decider never emits iterate with zero steps).
+ *
  * @param {{ action: string, params?: Record<string, unknown> } | null | undefined} loopDecision
  * @returns {{
  *   variant: 'finish' | 'iterate' | 'stop',
@@ -65,6 +70,9 @@ function mapDecideLoopToPlanOutcome(loopDecision) {
   if (loopDecision.action === "iterate") {
     const raw = loopDecision.params && loopDecision.params.corrections;
     const planSteps = Array.isArray(raw) ? raw : [];
+    if (planSteps.length === 0) {
+      return { variant: "stop", summary: stopSummary, planSteps: [] };
+    }
     return { variant: "iterate", summary: null, planSteps };
   }
   return { variant: "stop", summary: stopSummary, planSteps: [] };
