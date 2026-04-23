@@ -157,6 +157,8 @@ E2E and local harnesses may route **all** roles through Ollama when **`OLLAMA_MO
 
 **Implementation detail:** prompts and **`normalizeDevContractText()`** improve first-shot odds but do not, by themselves, guarantee first-shot compliance under local models.
 
+**Scope boundary:** the two lanes above measure only DEV **output-shape** compliance under **`skipStateMcp: true`** (degraded E2E). They do **not** prove **`validate_goal_alignment`**, **`advance_mode`**, or other **strict** gates for any particular goal. A green **`first_shot_pass_rate`** run is **orthogonal** to “strict path healthy end-to-end” — see **`strict-mode.md`** § *DEV first-shot metric vs strict path*.
+
 ### Orchestrator with Ollama (plan / decide JSON)
 
 When **`OLLAMA_MODEL`** is set, the orchestrator role uses **`runOllama`** like other Ollama-backed roles. Small coders often reply with markdown or prose instead of a single JSON object, which makes **`validateOutput("orchestrator", …)`** fail with **`orchestrator: output is not valid JSON`** before any DEV step runs.

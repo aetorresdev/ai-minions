@@ -4,6 +4,8 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
   decideFromOrchestratorDecide,
+  mapDecideLoopToPlanOutcome,
+  planStepsAfterCorrectionsResponse,
   decideCerberusBlockersBranch,
   decideGateBlockedArtifactsBranch,
   decideCorrectionsPlan,
@@ -34,6 +36,52 @@ test("decideFromOrchestratorDecide — stop on empty / invalid", () => {
   assert.equal(decideFromOrchestratorDecide({}).action, "stop");
   assert.equal(decideFromOrchestratorDecide({ done: false }).action, "stop");
   assert.equal(decideFromOrchestratorDecide({ corrections: [] }).action, "stop");
+});
+
+test("mapDecideLoopToPlanOutcome — mirrors decide branches", () => {
+  const stopMsg = "Stopped (no corrections or invalid orchestrator response).";
+  assert.deepEqual(mapDecideLoopToPlanOutcome(null), { variant: "stop", summary: stopMsg, planSteps: [] });
+  assert.deepEqual(mapDecideLoopToPlanOutcome(decideFromOrchestratorDecide(null)), {
+    variant: "stop",
+    summary: stopMsg,
+    planSteps: [],
+  });
+  assert.deepEqual(mapDecideLoopToPlanOutcome(decideFromOrchestratorDecide({ done: true, summary: "OK" })), {
+    variant: "finish",
+    summary: "OK",
+    planSteps: [],
+  });
+  assert.deepEqual(mapDecideLoopToPlanOutcome(decideFromOrchestratorDecide({ done: true, summary: "" })), {
+    variant: "finish",
+    summary: "Completed.",
+    planSteps: [],
+  });
+  const corr = [{ agentId: "dev-backend", task: "fix" }];
+  assert.deepEqual(mapDecideLoopToPlanOutcome(decideFromOrchestratorDecide({ done: false, corrections: corr })), {
+    variant: "iterate",
+    summary: null,
+    planSteps: corr,
+  });
+});
+
+test("planStepsAfterCorrectionsResponse — json vs fallback", () => {
+  const artifacts = [{ agentId: "dev-backend", task: "t" }];
+  const blockers = ["x"];
+  const json = planStepsAfterCorrectionsResponse({
+    corrPlan: decideCorrectionsPlan({ corrections: [{ agentId: "dev-backend", task: "new" }] }),
+    artifacts,
+    blockerItems: blockers,
+  });
+  assert.equal(json.traceBranch, "iterate_corrections_json");
+  assert.deepEqual(json.steps, [{ agentId: "dev-backend", task: "new" }]);
+
+  const fb = planStepsAfterCorrectionsResponse({
+    corrPlan: decideCorrectionsPlan({}),
+    artifacts,
+    blockerItems: blockers,
+  });
+  assert.equal(fb.traceBranch, "iterate_fallback_dev");
+  assert.deepEqual(fb.steps, [{ agentId: "dev-backend", task: "Fix blockers: x" }]);
 });
 
 test("decideCerberusBlockersBranch — iterate, cap, skip", () => {

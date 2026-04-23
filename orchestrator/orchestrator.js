@@ -41,6 +41,8 @@ const {
 } = require("./run-state");
 const {
   decideFromOrchestratorDecide,
+  mapDecideLoopToPlanOutcome,
+  planStepsAfterCorrectionsResponse,
   decideCerberusBlockersBranch,
   decideGateBlockedArtifactsBranch,
   decideCorrectionsPlan,
@@ -49,7 +51,6 @@ const {
   decideStepRetryGuard,
   formatGateBlockedReasonLines,
   planStepsReplayFromGateBlockedArtifacts,
-  planStepsDevFallbackFromBlockers,
   summaryMaxIterationsGateBlocked,
 } = require("./decision-engine");
 
@@ -1726,8 +1727,14 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       if (costGuardAbort("correct")) break orchestration;
       const corrections = extractJson(correctResponse);
       const corrPlan = decideCorrectionsPlan(corrections);
-      if (corrPlan.action === "use_json") {
-        const steps = /** @type {Array<{ agentId?: string, task: string }>} */ (corrPlan.corrections);
+      const planOut = planStepsAfterCorrectionsResponse({
+        corrPlan,
+        artifacts,
+        blockerItems: cerberusBlockers.items,
+        maxBlockersInTask: 2,
+      });
+      const steps = /** @type {Array<{ agentId?: string, task: string }>} */ (planOut.steps);
+      if (planOut.traceBranch === "iterate_corrections_json") {
         log("orchestrator", `↻ Correcting — ${steps.length} step(s):`);
         steps.forEach((c) =>
           log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
@@ -1735,16 +1742,9 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         traceIterationDone(taskId, iterations, "iterate", transitionReason("GATE_BLOCK", "cerberus_blockers"), { blockers: cerberusBlockers.count, corrections: steps.length });
         plan = { steps };
       } else {
-        // Orchestrator failed to produce corrections — generate generic DEV retry
         log("orchestrator", "WARNING: orchestrator returned no corrections — retrying last DEV steps");
         traceIterationDone(taskId, iterations, "iterate_fallback", transitionReason("ITERATE_FALLBACK", "orchestrator_no_corrections_json"), { blockers: cerberusBlockers.count });
-        plan = {
-          steps: planStepsDevFallbackFromBlockers({
-            artifacts,
-            blockerItems: cerberusBlockers.items,
-            maxBlockersInTask: 2,
-          }),
-        };
+        plan = { steps };
       }
       continue;
     }
@@ -1839,14 +1839,15 @@ Reply with JSON only.`;
     }
     const decide = extractJson(decideResponse);
     const loopDecision = decideFromOrchestratorDecide(decide);
+    const mapped = mapDecideLoopToPlanOutcome(loopDecision);
 
-    if (loopDecision.action === "finish") {
+    if (mapped.variant === "finish") {
       done = true;
-      summary = /** @type {string} */ (loopDecision.params.summary) || "Completed.";
+      summary = /** @type {string} */ (mapped.summary);
       log("orchestrator", `✓ Done: ${summary}`);
       traceIterationDone(taskId, iterations, "done", transitionReason("DONE"), { summary: summary.slice(0, 200) });
-    } else if (loopDecision.action === "iterate") {
-      const corrections = /** @type {Array<{ agentId?: string, task: string }>} */ (loopDecision.params.corrections);
+    } else if (mapped.variant === "iterate") {
+      const corrections = /** @type {Array<{ agentId?: string, task: string }>} */ (mapped.planSteps);
       log("orchestrator", `↻ Iterating — ${corrections.length} correction(s):`);
       corrections.forEach((c) =>
         log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
@@ -1855,7 +1856,7 @@ Reply with JSON only.`;
       plan = { steps: corrections };
     } else {
       done = true;
-      summary = "Stopped (no corrections or invalid orchestrator response).";
+      summary = /** @type {string} */ (mapped.summary);
       log("orchestrator", summary);
       traceIterationDone(taskId, iterations, "stopped", transitionReason("CONTRACT_FAIL", summary), { summary });
     }
