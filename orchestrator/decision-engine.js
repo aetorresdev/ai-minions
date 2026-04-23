@@ -39,6 +39,66 @@ function decideFromOrchestratorDecide(decideOut) {
 }
 
 /**
+ * Map **`decideFromOrchestratorDecide`** output to orchestrator loop fields (pure).
+ * Caller still runs **`askAgent`**, **`traceIterationDone`**, and logging.
+ *
+ * @param {{ action: string, params?: Record<string, unknown> } | null | undefined} loopDecision
+ * @returns {{
+ *   variant: 'finish' | 'iterate' | 'stop',
+ *   summary: string | null,
+ *   planSteps: Array<{ agentId?: string, task?: string }>,
+ * }}
+ */
+function mapDecideLoopToPlanOutcome(loopDecision) {
+  const stopSummary = "Stopped (no corrections or invalid orchestrator response).";
+  if (!loopDecision || typeof loopDecision !== "object") {
+    return { variant: "stop", summary: stopSummary, planSteps: [] };
+  }
+  if (loopDecision.action === "finish") {
+    const raw =
+      loopDecision.params && typeof loopDecision.params.summary === "string"
+        ? loopDecision.params.summary
+        : "Completed.";
+    const summary = raw.trim() ? raw : "Completed.";
+    return { variant: "finish", summary, planSteps: [] };
+  }
+  if (loopDecision.action === "iterate") {
+    const raw = loopDecision.params && loopDecision.params.corrections;
+    const planSteps = Array.isArray(raw) ? raw : [];
+    return { variant: "iterate", summary: null, planSteps };
+  }
+  return { variant: "stop", summary: stopSummary, planSteps: [] };
+}
+
+/**
+ * After CERBERUS blockers: next **`plan.steps`** from orchestrator/correct JSON or DEV fallback (pure).
+ *
+ * @param {{
+ *   corrPlan: { action: string, corrections?: Array<{ agentId?: string, task?: string }> },
+ *   artifacts: ReadonlyArray<{ agentId?: string, task?: string }>,
+ *   blockerItems: ReadonlyArray<string>,
+ *   maxBlockersInTask?: number,
+ * }} p
+ * @returns {{ traceBranch: 'iterate_corrections_json' | 'iterate_fallback_dev', steps: Array<{ agentId?: string, task?: string }> }}
+ */
+function planStepsAfterCorrectionsResponse({ corrPlan, artifacts, blockerItems, maxBlockersInTask = 2 }) {
+  if (
+    corrPlan &&
+    corrPlan.action === "use_json" &&
+    Array.isArray(corrPlan.corrections) &&
+    corrPlan.corrections.length > 0
+  ) {
+    return { traceBranch: "iterate_corrections_json", steps: corrPlan.corrections };
+  }
+  const steps = planStepsDevFallbackFromBlockers({
+    artifacts,
+    blockerItems,
+    maxBlockersInTask,
+  });
+  return { traceBranch: "iterate_fallback_dev", steps };
+}
+
+/**
  * CERBERUS blocker count is > 0 — choose iterate vs manual-review cap (deterministic branch).
  * @returns {'iterate' | 'manual_cap' | 'skip'} skip when blockers === 0 (caller should not use)
  */
@@ -186,6 +246,8 @@ function summaryMaxIterationsGateBlocked({ count, reasonLines }) {
 
 module.exports = {
   decideFromOrchestratorDecide,
+  mapDecideLoopToPlanOutcome,
+  planStepsAfterCorrectionsResponse,
   decideCerberusBlockersBranch,
   decideGateBlockedArtifactsBranch,
   decideCorrectionsPlan,
