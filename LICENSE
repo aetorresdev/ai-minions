@@ -1,21 +1,95 @@
-MIT License
+AI MINIONS COMMUNITY LICENSE
+Version 1.0
+Copyright (c) 2026 Andres Torres. All rights reserved.
 
-Copyright (c) 2025
+This license governs use of the Software made available in this repository.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. Definitions
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+"Software" means the source code, configuration, documentation, examples, prompts,
+contracts, schemas, templates, workflows, and other materials made available in this repository.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+"Licensor" means Andres Torres.
+
+"Non-Commercial Use" means personal use, education, research, evaluation, testing,
+experimentation, community contribution, and other use that is not primarily intended
+for or directed toward commercial advantage, internal business operations, client delivery,
+or monetary compensation.
+
+"Commercial Use" means any use of the Software, directly or indirectly:
+(a) by or for a company, business, government entity, or other organization in connection
+    with internal operations or business activities;
+(b) to provide services to clients or third parties;
+(c) in production or pre-production business environments;
+(d) as part of a paid service, managed service, hosted service, SaaS, platform, or offering;
+(e) embedded in or integrated into a product or service;
+(f) for consulting, implementation, advisory, or other revenue-generating activity.
+
+2. Grant of Rights for Non-Commercial Use
+
+Subject to the terms of this License, Licensor grants you a limited, non-exclusive,
+non-transferable, revocable license to:
+
+- use, copy, modify, and run the Software for Non-Commercial Use only;
+- create and submit contributions or proposed changes to the upstream repository;
+- redistribute unmodified or modified copies of the Software for Non-Commercial Use only,
+  provided that you include this License and preserve all copyright, attribution, and notice files.
+
+3. Restrictions
+
+You may not, without prior written permission from Licensor:
+
+- use the Software for any Commercial Use;
+- deploy the Software in production for any business purpose;
+- provide the Software or derived works as a service to third parties;
+- use the Software to support client-facing or internal commercial operations;
+- sublicense, sell, rent, lease, or otherwise monetize the Software;
+- represent that your use of the Software grants ownership, authorship, sponsorship,
+  endorsement, or affiliation with Licensor.
+
+4. Commercial Licensing
+
+Any Commercial Use requires a separate written commercial license from Licensor.
+Contact: andres.torresduran@gmail.com
+
+5. Contributions
+
+Unless explicitly agreed otherwise in writing, any contribution intentionally submitted
+for inclusion in this repository is provided under the same terms as this License, and
+you represent that you have the right to submit it.
+
+6. Intellectual Property
+
+The Software is licensed, not sold. Licensor retains all right, title, and interest in and
+to the Software, including all copyrights, trade names, branding, documentation,
+architectural concepts, and other intellectual property rights, except for the limited rights
+expressly granted by this License.
+
+7. No Trademark Rights
+
+This License does not grant any right to use the name "AI Minions", the project name,
+logos, trade dress, or branding, except as necessary for accurate attribution.
+Any other use requires prior written permission from Licensor.
+
+8. Termination
+
+This License terminates automatically if you violate any term of this License.
+Upon termination, you must cease all use and distribution of the Software.
+
+9. Disclaimer of Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE, TITLE, AND NON-INFRINGEMENT.
+
+10. Limitation of Liability
+
+IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+11. Governing Law
+
+This License shall be governed by the laws of the jurisdiction chosen by Licensor in any
+applicable commercial agreement or, absent such agreement, the laws applicable in Licensor's
+principal place of residence, without regard to conflict of laws principles.
