@@ -443,7 +443,9 @@ cd orchestrator
 npm test              # lint (ESLint + ruff) + unit tests — no auth, no Ollama, no MCPs required
 npm run test:baseline:gate   # rewrite tests/fixtures/gate-determinism-baseline.json after intentional gate contract changes
 npm run test:e2e      # E2E suite — requires Ollama running at localhost:11434
-# Optional strict first shot for DEV format smoke: E2E_DEV_CONTRACT_FIRST_SHOT=1 npm run test:e2e
+# Informational: N runs of DEV contract smoke with maxIterations=1 only (prints pass rate):
+#   E2E_FIRST_SHOT_RUNS=5 npm run test:e2e:dev-first-shot-report
+# Single full suite with first-shot flag: E2E_DEV_CONTRACT_FIRST_SHOT=1 npm run test:e2e
 npm run test:e2e:strict       # same as `test:e2e:system-path` — MCP direct + real disk gates, **no** harness (`tests/e2e.strict.test.js`); prints `alignment_failure_rate` to stdout after suite
 npm run test:e2e:strict:harness  # optional: `ORCH_TEST_SYSTEM_PATH_HARNESS` deterministic `run()` path (`tests/e2e.strict.harness.test.js`) — not run in default CI strict job
 npm run test:e2e:strict:all   # strict then harness (local / extended CI only)
