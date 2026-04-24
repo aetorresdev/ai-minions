@@ -458,9 +458,33 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 
 **Granularity (known trade-off):** several distinct flows share **`contract_mismatch`** (e.g. CERBERUS-driven iterate, orchestrator decide corrections, generic gate contract, invalid decide → `stopped`). Use **`transition_reason.reason_code`** for drill-down, **`failure_type`** for coarse SLOs, and **`failure_axis`** for product-facing buckets without overloading `failure_type`. Dashboards should prefer **`(failure_type, failure_axis, reason_code)`** when building charts.
 
-**`tool_error` scope (v1):** currently assigned when a **`gate_blocked_iterate`** path is tied to **`gate_kind: "compact_handoff"`** (MCP/handoff integration). Other tools or MCPs that need the same coarse bucket should get an **explicit** branch in the mapper (and tests), not an implicit “anything unknown = tool_error”, so semantics stay auditable when the runner grows.
+**`tool_error` scope (v1):** currently assigned when a **`gate_blocked_iterate`** path is tied to **`gate_kind: "compact_handoff"`** (MCP/handoff integration). Other tools or MCPs that need the same coarse bucket should get an **explicit** branch in the mapper (and tests), not an implicit blanket assignment to **`tool_error`**, so semantics stay auditable when the runner grows.
 
 Rough mapping from `outcome` (legacy UI) to `transition_reason.type`: `done` → `DONE`; `iterate` after CERBERUS blockers + corrections → `GATE_BLOCK`; `iterate_fallback` → `ITERATE_FALLBACK`; `gate_blocked_iterate` → `GATE_BLOCK`; `max_iterations_*` → `MAX_ITERATIONS`; `iterate` after orchestrator decide JSON corrections → `ITERATE`; `stopped` (invalid decide) → `CONTRACT_FAIL`. See `transitionReason()` in `orchestrator.js`.
+
+### Canonical dashboard mapping (`reason_code` → `failure_type` + `failure_axis`)
+
+**Policy (FAIL-TAX refinement):** charts and exports should **join on** **`transition_reason.reason_code`** first, then bucket with **`failure_axis`**, and only then aggregate **`failure_type`** for coarse SLOs. Do **not** infer “what went wrong” from **`failure_type: contract_mismatch`** alone.
+
+The writer computes **`failure_type`** / **`failure_axis`** with **`failureTypeForIterationDone`** / **`failureAxisForIterationDone`** in **`orchestrator/orchestrator.js`**. For **`gate_blocked_iterate`**, the writer passes **`iterationDoneCtx({ gateKinds: [...] })`** so **`compact_handoff`** can select **`gate_tool`** + **`tool_error`** vs **`gate_artifact`** + **`contract_mismatch`**.
+
+| `reason_code` | Typical `outcome` | Notes / `ctx` | `failure_type` | `failure_axis` |
+|---------------|-----------------|----------------|----------------|----------------|
+| `RUN_COMPLETED` | `done` | Terminal success | *(field omitted)* | *(field omitted)* |
+| `CERBERUS_BLOCKERS_ITERATE` | `iterate` | CERBERUS blockers + corrections path | `contract_mismatch` | `cerberus` |
+| `ORCHESTRATOR_NO_CORRECTIONS_JSON` | `iterate_fallback` | Decide JSON missing / empty corrections | `contract_mismatch` | `orchestrate` |
+| `ORCHESTRATOR_DECIDE_CORRECTIONS` | `iterate` | Decide returned corrections | `contract_mismatch` | `orchestrate` |
+| `CONTRACT_OR_DECIDE_FAILURE` | `stopped` | Invalid decide / contract stop | `contract_mismatch` | `contract` |
+| `VALIDATION_FAILURE_GENERIC` | _(no primary path in example runner)_ | Reserved for `type: VALIDATION_FAIL` | `contract_mismatch` | `unknown` |
+| `GATE_ARTIFACT_OR_HANDOFF` | `gate_blocked_iterate` | `ctx.gateKinds` includes **`compact_handoff`** | `tool_error` | `gate_tool` |
+| `GATE_ARTIFACT_OR_HANDOFF` | `gate_blocked_iterate` | Other / empty `gateKinds` (e.g. `handoff_structure`, `goal_alignment`) | `contract_mismatch` | `gate_artifact` |
+| `MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS` | `max_iterations_with_gate_blocks` | Gate-blocked cap | `retry_exceeded` | `gate_artifact` |
+| `MAX_ITERATIONS_CERBERUS_BLOCKERS` | `max_iterations_with_blockers` | CERBERUS blocker cap | `retry_exceeded` | `cerberus` |
+| `MAX_ITERATIONS_LOOP_EXHAUSTED` | `loop_limit_stopped` | While-loop exhausted without `done` | `retry_exceeded` | `loop_cap` |
+| `GUARD_COST_LIMIT` | `guard_abort` | `ORCH_MAX_COST_USD` | `cost_abort` | `guard` |
+| `GUARD_STEP_RETRY_LIMIT` | `guard_abort` | `ORCH_MAX_RETRIES` per agent | `retry_exceeded` | `guard` |
+
+**Maintenance:** when adding a **`reason_code`** to the JSON Schema enum, extend **`TRANSITION_REASON_CODES`** / **`inferReasonCode()`** in **`orchestrator.js`**, add a row here, and add a row to the **`failure taxonomy matrix`** test in **`tests/traceSchema.test.js`**.
 
 `step_id` is the primary join key across events within a run. Consumers (token reports, EIL visualisation) use it to correlate `agent_start` → `agent_done` → `gate_result` → `context_stats` for the same step without scanning by `(agent, iteration)` tuples.
 

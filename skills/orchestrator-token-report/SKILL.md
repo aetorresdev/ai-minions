@@ -50,7 +50,7 @@ node scenario-metrics-export.js --dir ~/.claude/metrics/traces --since-m 120 --o
 ## Docs
 
 - `orchestrator/README.md` — Quickstart + metrics commands
-- `docs/orchestrator/strict-mode.md` — trace events, MCP audit, Ollama token fields
+- `docs/orchestrator/strict-mode.md` — trace events, MCP audit, Ollama token fields; **`iteration_done`:** § *Canonical dashboard mapping* (`reason_code` → `failure_type` + `failure_axis`)
 - `docs/orchestrator/model-routing.md` — execution trace event types
 
 ## Code references
