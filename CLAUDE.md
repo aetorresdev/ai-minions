@@ -102,6 +102,34 @@ Skipping step 1 will be blocked by a hook. There are no exceptions.
 - Do **not** embed backlog / issue / ticket identifiers (e.g. `P0-01`, `DEV-OLLAMA-CONTRACT-1`, `JIRA-123`) in files that ship as **implementation or technical docs** in commits: `orchestrator/`, `agents/`, `scripts/`, `tests/`, versioned `docs/` under the repo, or similar — including comments, log/trace strings, and decorative headers. Prefer neutral descriptions or module names.
 - **Exception:** files whose **primary purpose** is ticket tracking (e.g. backlog index, resolved archive, GitHub issue templates) may use IDs where that is the schema. Local-only state (e.g. under `.claude/state/`) is out of scope for this rule unless you choose to commit it.
 
+## CERBERUS review gate (pre-merge, each implementation iteration)
+
+**Policy:** CERBERUS validates code **before** merge. After each iteration that changes **implementation** (`orchestrator/`, `agents/`, `scripts/`, `tests/`, or behavior-changing versioned `docs/`), the assistant **must** end the turn with a **paste-ready message for CERBERUS** (operator pastes it into the CERBERUS review thread). **Do not treat the iteration as merge-approved** until CERBERUS returns a verdict.
+
+**Out of scope for mandatory brief:** backlog-only / archive-only / state-only markdown, or pure doc typo fixes with **no** contract or runtime implication — unless the user asks for CERBERUS anyway.
+
+**Operator workflow:** paste brief → CERBERUS verdict → merge only on **Approve** (or fix **Request changes**).
+
+### Paste-ready template (fill in angle brackets)
+
+```
+**Subject:** Pre-merge review — <short title>
+
+**Scope:** <1–2 sentences; what is explicitly out of scope>
+
+**Files / areas:** <paths or subsystem bullets>
+
+**Behavior / contract:** <API, invariants, backward compatibility if any>
+
+**Evidence:** cd orchestrator && npm test → <N>/<N>. <other commands if any>
+
+**Risks / edge cases:** <brief list or "none material">
+
+**Ask CERBERUS to verify:** [ ] Code ↔ docs alignment [ ] No contract / trace / gate regression [ ] DOC-NO-TICKET-SRC-1 in versioned orchestrator source if touched [ ] <change-specific checks>
+
+**Verdict requested:** Approve | Approve with non-blocking notes | Request changes (file + concrete fix per item)
+```
+
 # Session State Policy
 
 ## Mandatory state handling

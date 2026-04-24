@@ -468,6 +468,7 @@ test("validateTraceRunGraph passes on empty line array", () => {
   const r = validateTraceRunGraph([]);
   assert.equal(r.ok, true);
   assert.deepEqual(r.violations, []);
+  assert.deepEqual(r.warnings, []);
 });
 
 test("validateTraceRunGraph passes when all parent_step_ids reference earlier step_ids", () => {
@@ -478,6 +479,7 @@ test("validateTraceRunGraph passes when all parent_step_ids reference earlier st
   const r = validateTraceRunGraph(lines);
   assert.equal(r.ok, true);
   assert.deepEqual(r.violations, []);
+  assert.deepEqual(r.warnings, []);
 });
 
 test("validateTraceRunGraph detects orphan parent_step_id", () => {
@@ -542,6 +544,57 @@ test("validateTraceRunGraph ignores lines without step_id or parent_step_id", ()
   ];
   const r = validateTraceRunGraph(lines);
   assert.equal(r.ok, true);
+  assert.deepEqual(r.violations, []);
+  assert.equal(r.warnings.length, 1);
+  assert.deepEqual(r.warnings[0], { type: "no_steps_emitted", ok: true });
+});
+
+test("validateTraceRunGraph missing_event_with_step_id when step_id set but event empty", () => {
+  const lines = [{ step_id: "s1", event: "" }];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, false);
+  assert.ok(r.warnings.every((w) => w.type !== "no_steps_emitted"));
+  assert.ok(r.violations.some((v) => v.type === "missing_event_with_step_id" && v.step_id === "s1"));
+});
+
+test("validateTraceRunGraph missing_event_with_step_id when event null", () => {
+  const lines = [{ step_id: "s1", event: null }];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, false);
+  assert.ok(r.violations.some((v) => v.type === "missing_event_with_step_id"));
+});
+
+test("validateTraceRunGraph detects parent_step_id cycle A to B to A", () => {
+  const lines = [
+    { event: "agent_start", step_id: "a", parent_step_id: null },
+    { event: "agent_start", step_id: "b", parent_step_id: "a" },
+    { event: "agent_done", step_id: "a", parent_step_id: "b" },
+  ];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, false);
+  assert.ok(r.violations.some((v) => v.type === "cycle"));
+});
+
+test("validateTraceRunGraph detects self-loop parent_step_id equals step_id", () => {
+  const lines = [
+    { event: "agent_start", step_id: "s1", parent_step_id: null },
+    { event: "gate_result", step_id: "s1", parent_step_id: "s1", passed: true },
+  ];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, false);
+  assert.ok(r.violations.some((v) => v.type === "cycle"));
+});
+
+test("validateTraceRunGraph no cycle on tree parent chain", () => {
+  const lines = [
+    { event: "agent_start", step_id: "r", parent_step_id: null },
+    { event: "agent_start", step_id: "s1", parent_step_id: "r" },
+    { event: "agent_start", step_id: "s2", parent_step_id: "s1" },
+    { event: "agent_done", step_id: "s2", parent_step_id: "s1" },
+  ];
+  const r = validateTraceRunGraph(lines);
+  assert.equal(r.ok, true, JSON.stringify(r.violations));
+  assert.ok(!r.violations.some((v) => v.type === "cycle"));
 });
 
 test("validateTraceRunGraph reports multiple violations independently", () => {
