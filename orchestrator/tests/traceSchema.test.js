@@ -173,6 +173,72 @@ test("failureTypeForIterationDone maps reason codes and gate kinds", () => {
   );
 });
 
+/** Keep in sync with `TRANSITION_REASON_CODES` + strict-mode.md § *Canonical dashboard mapping*. */
+test("failure taxonomy matrix covers catalog reason_code × outcome paths", () => {
+  /** @type {{ outcome: string, reasonCode: string, ctx?: object, ft: string | null, axis: string }[]} */
+  const matrix = [
+    { outcome: "done", reasonCode: "RUN_COMPLETED", ft: null, axis: "unknown" },
+    { outcome: "iterate", reasonCode: "CERBERUS_BLOCKERS_ITERATE", ft: "contract_mismatch", axis: "cerberus" },
+    { outcome: "iterate_fallback", reasonCode: "ORCHESTRATOR_NO_CORRECTIONS_JSON", ft: "contract_mismatch", axis: "orchestrate" },
+    { outcome: "iterate", reasonCode: "ORCHESTRATOR_DECIDE_CORRECTIONS", ft: "contract_mismatch", axis: "orchestrate" },
+    { outcome: "stopped", reasonCode: "CONTRACT_OR_DECIDE_FAILURE", ft: "contract_mismatch", axis: "contract" },
+    { outcome: "iterate", reasonCode: "VALIDATION_FAILURE_GENERIC", ft: "contract_mismatch", axis: "unknown" },
+    {
+      outcome: "gate_blocked_iterate",
+      reasonCode: "GATE_ARTIFACT_OR_HANDOFF",
+      ctx: { gateKinds: ["compact_handoff"] },
+      ft: "tool_error",
+      axis: "gate_tool",
+    },
+    {
+      outcome: "gate_blocked_iterate",
+      reasonCode: "GATE_ARTIFACT_OR_HANDOFF",
+      ctx: { gateKinds: ["handoff_structure"] },
+      ft: "contract_mismatch",
+      axis: "gate_artifact",
+    },
+    {
+      outcome: "gate_blocked_iterate",
+      reasonCode: "GATE_ARTIFACT_OR_HANDOFF",
+      ctx: { gateKinds: [] },
+      ft: "contract_mismatch",
+      axis: "gate_artifact",
+    },
+    {
+      outcome: "max_iterations_with_gate_blocks",
+      reasonCode: "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS",
+      ft: "retry_exceeded",
+      axis: "gate_artifact",
+    },
+    {
+      outcome: "max_iterations_with_blockers",
+      reasonCode: "MAX_ITERATIONS_CERBERUS_BLOCKERS",
+      ft: "retry_exceeded",
+      axis: "cerberus",
+    },
+    {
+      outcome: "loop_limit_stopped",
+      reasonCode: "MAX_ITERATIONS_LOOP_EXHAUSTED",
+      ft: "retry_exceeded",
+      axis: "loop_cap",
+    },
+    { outcome: "guard_abort", reasonCode: "GUARD_COST_LIMIT", ft: "cost_abort", axis: "guard" },
+    { outcome: "guard_abort", reasonCode: "GUARD_STEP_RETRY_LIMIT", ft: "retry_exceeded", axis: "guard" },
+  ];
+  for (const row of matrix) {
+    assert.equal(
+      failureTypeForIterationDone(row.outcome, row.reasonCode, row.ctx || {}),
+      row.ft,
+      `${row.outcome} / ${row.reasonCode}`,
+    );
+    assert.equal(
+      failureAxisForIterationDone(row.outcome, row.reasonCode, row.ctx || {}),
+      row.axis,
+      `${row.outcome} / ${row.reasonCode}`,
+    );
+  }
+});
+
 test("parseTraceLine strict throws on invalid iteration_done", () => {
   const line = JSON.stringify({
     ts: "2026-04-15T12:00:00.000Z",

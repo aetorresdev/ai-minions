@@ -45,7 +45,7 @@ There is **no** automatic cross-version rewrite at read time today; multi-versio
 
 ## Examples
 
-**Recent additive fields (still `trace_schema_version: "2"`):** optional `intent_id` on step-level rows; optional `intent_ids` and `failure_axis` on `iteration_done`; see `strict-mode.md` § *Trace line envelope* / iteration table.
+**Recent additive fields (still `trace_schema_version: "2"`):** optional `intent_id` on step-level rows; optional `intent_ids` and `failure_axis` on `iteration_done`; optional **`qa_triple_template`** and **`qa_blocker_non_vacuous`** on **`agent_done`** when **`agent`** is **`qa`** (same v2 writer — not yet listed exhaustively in the bundled JSON Schema’s `properties`; write path still validates the envelope). See `strict-mode.md` § *Flow-aware trace metadata* → **`agent_done` when `agent` is `qa`**.
 
 **Valid v2 line (shape abbreviated):**
 

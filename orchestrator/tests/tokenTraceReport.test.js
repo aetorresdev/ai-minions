@@ -66,6 +66,39 @@ test("rollupStepsCostOutcome joins tokens and failure signals by step_id", () =>
   assert.equal(s2.gate_fail, true);
 });
 
+test("rollupStepsCostOutcome records qa_blocker_non_vacuous from qa agent_done", () => {
+  const rows = [
+    { event: "agent_start", step_id: "sq", agent: "qa", iteration: 0 },
+    {
+      event: "agent_done",
+      step_id: "sq",
+      agent: "qa",
+      iteration: 0,
+      edge_type: "success",
+      qa_triple_template: true,
+      qa_blocker_non_vacuous: true,
+    },
+    { event: "context_stats", step_id: "sq", agent: "qa", iteration: 0, ollama_prompt_tokens: 5, ollama_completion_tokens: 2 },
+  ];
+  const roll = rollupStepsCostOutcome(rows);
+  assert.equal(roll.length, 1);
+  assert.equal(roll[0].step_failed, false);
+  assert.equal(roll[0].qa_triple_template, true);
+  assert.equal(roll[0].qa_blocker_non_vacuous, true);
+});
+
+test("rollupStepsCostOutcome omits qa fields when agent_done has no qa template flags", () => {
+  const rows = [
+    { event: "agent_start", step_id: "sd", agent: "dev-backend", iteration: 0 },
+    { event: "agent_done", step_id: "sd", agent: "dev-backend", iteration: 0, edge_type: "success" },
+    { event: "context_stats", step_id: "sd", agent: "dev-backend", iteration: 0, ollama_prompt_tokens: 1, ollama_completion_tokens: 1 },
+  ];
+  const roll = rollupStepsCostOutcome(rows);
+  assert.equal(roll.length, 1);
+  assert.equal(roll[0].qa_triple_template, undefined);
+  assert.equal(roll[0].qa_blocker_non_vacuous, undefined);
+});
+
 test("optionalOllamaUsdEstimate marks USD as estimated when env rates set", () => {
   const jsonl = [
     { ts: "t0", task_id: "tid", event: "session_start", flow_mode: "single_agent" },

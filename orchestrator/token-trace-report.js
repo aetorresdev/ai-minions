@@ -161,11 +161,13 @@ function roundUsd(x) {
 /**
  * Per-step Ollama token totals + failure signals for cost-vs-outcome views.
  * Joins `context_stats` / `agent_done` / `contract_fail` / `gate_result` by `step_id`.
+ * QA steps: when `agent_done` includes `qa_triple_template`, rollup adds `qa_blocker_non_vacuous`
+ * (substantive `blocker:` line) — orthogonal to `step_failed` (gates may still pass).
  * @param {TraceRow[]} rows
  * @returns {object[]}
  */
 function rollupStepsCostOutcome(rows) {
-  /** @type {Map<string, { step_id: string, intent_id: string | null, agent?: string, iteration?: number, ollama_prompt_tokens: number, ollama_completion_tokens: number, last_edge_type?: string, contract_fail: boolean, gate_fail: boolean }>} */
+  /** @type {Map<string, { step_id: string, intent_id: string | null, agent?: string, iteration?: number, ollama_prompt_tokens: number, ollama_completion_tokens: number, last_edge_type?: string, contract_fail: boolean, gate_fail: boolean, qa_triple_template: boolean, qa_blocker_non_vacuous: boolean }>} */
   const m = new Map();
   for (const r of rows) {
     const sid = typeof r.step_id === "string" && r.step_id.length ? r.step_id : null;
@@ -181,6 +183,8 @@ function rollupStepsCostOutcome(rows) {
         last_edge_type: undefined,
         contract_fail: false,
         gate_fail: false,
+        qa_triple_template: false,
+        qa_blocker_non_vacuous: false,
       });
     }
     const rec = m.get(sid);
@@ -200,6 +204,10 @@ function rollupStepsCostOutcome(rows) {
     if (ev === "agent_done" && typeof r.edge_type === "string") {
       rec.last_edge_type = r.edge_type;
       if (typeof r.intent_id === "string") rec.intent_id = r.intent_id;
+    }
+    if (ev === "agent_done" && r.agent === "qa" && r.qa_triple_template === true) {
+      rec.qa_triple_template = true;
+      if (r.qa_blocker_non_vacuous === true) rec.qa_blocker_non_vacuous = true;
     }
     if (ev === "contract_fail") rec.contract_fail = true;
     if (ev === "gate_result" && r.passed === false) rec.gate_fail = true;
@@ -226,6 +234,10 @@ function rollupStepsCostOutcome(rows) {
       gate_fail: rec.gate_fail,
       last_edge_type: rec.last_edge_type ?? null,
     };
+    if (rec.qa_triple_template) {
+      out.qa_triple_template = true;
+      out.qa_blocker_non_vacuous = rec.qa_blocker_non_vacuous;
+    }
     if (ratesOk) {
       const usd = (rec.ollama_prompt_tokens / 1e6) * pRate + (rec.ollama_completion_tokens / 1e6) * cRate;
       out.usd_estimate = roundUsd(usd);
