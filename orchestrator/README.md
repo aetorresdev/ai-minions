@@ -277,10 +277,14 @@ The agent resolves the latest run automatically and runs `explain-run` without e
 | `retries` | Count of `iteration_done` with `outcome == "iterate"` |
 | `failure_type` | Trace field; `UNKNOWN` if run failed and field absent |
 | `cost_usd` | Sum of `cost_usd` fields — omitted if no token data |
+| `intent_ids` | Unique `intent_id` values in first-seen order (from step-level rows) |
+| `iteration_done_summary` | Per-`iteration_done`: `iteration`, `outcome`, optional `failure_axis` / `failure_type` / `intent_ids` |
+| `last_failure_axis` | Last `failure_axis` seen on an `iteration_done` line |
+| `rollup_steps` | Per-step rollup (tokens, `step_failed`, `contract_fail`, `gate_fail`, optional QA flags) — same builder as `token-trace-report` / scenario export |
 
-**Corruption handling:** invalid JSONL lines are skipped silently. A warning at the end reports how many were omitted — one bad line never cancels the whole run.
+**Readable run summary (one example):** run `npm run explain-run -- --file tests/fixtures/golden-path-clean-v1.jsonl --json`. The payload merges the fields above so a reviewer can see final outcome, step-level cost/outcome rollup, and iteration summaries without reading raw JSONL line-by-line. For failure taxonomy and console tables, see `docs/orchestrator/dashboard-failure-taxonomy.md` and `npm run dashboard:console`.
 
-**Limits:** files over 50 MB or 10,000 lines are truncated to the last segment containing a `session_end`. A warning is shown when truncation occurs.
+**Parse errors and size limits:** invalid JSON lines are skipped; derivation still runs on the rest. Human CLI output ends with `WARNING: <n> invalid JSON line(s) skipped` when lines were dropped. If the file exceeds 50 MB or 10,000 lines, input is truncated to the last span that includes a `session_end`, and human output starts with `WARNING: file exceeded limits (50 MB / 10000 lines) - truncated to last session_end segment`.
 
 ---
 
