@@ -15,6 +15,10 @@ Post-compact / FLOW loss (HOOKS-METRICS-1):
 Env:
   FLOW_HOOK_STATE_DIR — optional directory for per-session JSON state
     (defaults to ``$CLAUDE_PROJECT_DIR/.claude/flow-hook-state``).
+
+  If ``CLAUDE_SESSION_ID`` is unset or empty, persisted flow state is **disabled**
+  (no disk read/write; ``flow_source`` will not be ``persisted_state``;
+  warning ``missing_session_id`` when tokens exist).
 """
 import json
 import os
@@ -24,10 +28,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # ── Config ────────────────────────────────────────────────────────────────────
-SESSION_ID   = os.environ.get("CLAUDE_SESSION_ID", "")
+VALID_FLOWS = frozenset({"single_agent", "multi_agent"})
 PROJECT_DIR  = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
 CLAUDE_HOME  = Path.home() / ".claude"
 METRICS_FILE = CLAUDE_HOME / "metrics" / "flow-metrics.jsonl"
+
+
+def session_id() -> str:
+    """Non-empty only when the host provides a session identity (read each call for tests/CI)."""
+    return (os.environ.get("CLAUDE_SESSION_ID") or "").strip()
 
 sys.path.insert(0, str(Path(__file__).parent))
 from constants import MODE_RE, PRICE  # noqa: E402
@@ -57,16 +66,17 @@ def find_transcript() -> Path | None:
     # Try exact slug match
     project_slug = PROJECT_DIR.replace("/", "-")
     project_path = projects_root / project_slug
-    if SESSION_ID:
-        candidate = project_path / f"{SESSION_ID}.jsonl"
+    sid = session_id()
+    if sid:
+        candidate = project_path / f"{sid}.jsonl"
         if candidate.exists():
             return candidate
 
     # Fallback: scan all project dirs for the session file
-    if SESSION_ID and projects_root.exists():
+    if sid and projects_root.exists():
         for proj_dir in projects_root.iterdir():
             if proj_dir.is_dir():
-                candidate = proj_dir / f"{SESSION_ID}.jsonl"
+                candidate = proj_dir / f"{sid}.jsonl"
                 if candidate.exists():
                     return candidate
 
@@ -86,31 +96,106 @@ def transcript_line_count(path: Path) -> int:
         return 0
 
 
-def hook_state_path() -> Path:
+def safe_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def safe_flow(value) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str) and value in VALID_FLOWS:
+        return value
+    return None
+
+
+def default_hook_state() -> dict:
+    return {"dev_qa_ever": 0, "flow_mode": None, "last_transcript_lines": 0}
+
+
+def sanitize_hook_state(raw: dict) -> tuple[dict, bool]:
+    """
+    Normalize persisted JSON. Never raises.
+    Returns (clean_state, state_invalid).
+    """
+    if not isinstance(raw, dict):
+        return default_hook_state(), True
+
+    invalid = False
+    out = default_hook_state()
+
+    raw_d = raw.get("dev_qa_ever", 0)
+    try:
+        out["dev_qa_ever"] = max(0, int(raw_d))
+    except (TypeError, ValueError):
+        out["dev_qa_ever"] = 0
+        invalid = True
+
+    raw_lines = raw.get("last_transcript_lines", 0)
+    try:
+        out["last_transcript_lines"] = max(0, int(raw_lines))
+    except (TypeError, ValueError):
+        out["last_transcript_lines"] = 0
+        invalid = True
+
+    fm = safe_flow(raw.get("flow_mode"))
+    if raw.get("flow_mode") is not None and fm is None:
+        invalid = True
+    out["flow_mode"] = fm
+
+    return out, invalid
+
+
+def hook_state_root() -> Path:
     override = os.environ.get("FLOW_HOOK_STATE_DIR", "").strip()
     if override:
-        root = Path(override).expanduser().resolve()
-    else:
-        root = Path(PROJECT_DIR).resolve() / ".claude" / "flow-hook-state"
+        return Path(override).expanduser().resolve()
+    return Path(PROJECT_DIR).resolve() / ".claude" / "flow-hook-state"
+
+
+def hook_state_path() -> Path:
+    """Requires non-empty session_id(); callers must guard."""
+    sid = session_id()
+    if not sid:
+        raise RuntimeError("hook_state_path requires CLAUDE_SESSION_ID")
+    root = hook_state_root()
     root.mkdir(parents=True, exist_ok=True)
-    sid = SESSION_ID.strip() if SESSION_ID else "no_session_id"
     safe = re.sub(r"[^\w\-.]+", "_", sid)[:120]
     return root / f"{safe}.json"
 
 
-def load_hook_state() -> dict:
+def load_hook_state() -> tuple[dict, list[str]]:
+    """
+    Load and sanitize persisted state. Without CLAUDE_SESSION_ID, returns defaults
+    and does not touch disk (CERBERUS: avoid shared no_session_id contamination).
+    """
+    warnings: list[str] = []
+    if not session_id():
+        return default_hook_state(), warnings
+
     p = hook_state_path()
-    if p.exists():
-        try:
-            d = json.loads(p.read_text(encoding="utf-8"))
-            if isinstance(d, dict):
-                return d
-        except Exception:
-            pass
-    return {"dev_qa_ever": 0, "flow_mode": None, "last_transcript_lines": 0}
+    if not p.exists():
+        return default_hook_state(), warnings
+
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return default_hook_state(), warnings + ["state_invalid"]
+
+    if not isinstance(raw, dict):
+        return default_hook_state(), warnings + ["state_invalid"]
+
+    clean, bad = sanitize_hook_state(raw)
+    if bad:
+        warnings.append("state_invalid")
+    return clean, warnings
 
 
 def save_hook_state(state: dict) -> None:
+    if not session_id():
+        return
     try:
         hook_state_path().write_text(
             json.dumps(state, ensure_ascii=False, indent=2),
@@ -120,13 +205,27 @@ def save_hook_state(state: dict) -> None:
         pass
 
 
-def merge_flow_report(parsed: dict, persisted: dict, line_count: int) -> tuple[dict, dict]:
+def merge_flow_report(
+    parsed: dict,
+    persisted: dict,
+    line_count: int,
+    load_warnings: list[str] | None = None,
+) -> tuple[dict, dict]:
     """
     Merge transcript parse with per-session persisted flow / dev_qa peaks.
     See module docstring for semantics (post-compact FLOW, TEST-NEG-2 / TEST-NEG-3).
+
+    ``dev_qa_cycles`` in the merged output is the **session monotonic peak**;
+    ``dev_qa_cycles_transcript`` is the count from the current transcript parse only.
     """
-    st = dict(persisted)
+    load_warnings = list(load_warnings or [])
+    # Without CLAUDE_SESSION_ID, never trust caller-supplied persisted state (CERBERUS).
+    if not session_id():
+        st = default_hook_state()
+    else:
+        st = dict(persisted)
     flow_tx = parsed.get("flow_from_transcript")
+    dev_qa_transcript = int(parsed["dev_qa_cycles"])
 
     if flow_tx:
         st["flow_mode"] = flow_tx
@@ -139,20 +238,21 @@ def merge_flow_report(parsed: dict, persisted: dict, line_count: int) -> tuple[d
     elif st.get("flow_mode"):
         transcript_scope = "post_compact"
         flow_source = "persisted_state"
-        effective_flow = str(st["flow_mode"])
+        effective_flow = st["flow_mode"]
     else:
         transcript_scope = "unknown"
         flow_source = "none"
         effective_flow = "unknown"
 
-    warnings: list[str] = []
+    warnings: list[str] = list(load_warnings)
     if effective_flow == "unknown" and (parsed["total_input"] or parsed["total_output"]):
         warnings.append("flow_ambiguous")
 
-    dev_qa_report = max(int(st.get("dev_qa_ever", 0)), int(parsed["dev_qa_cycles"]))
+    dev_qa_ever = safe_int(st.get("dev_qa_ever"), 0)
+    dev_qa_report = max(dev_qa_ever, dev_qa_transcript)
     st["dev_qa_ever"] = dev_qa_report
 
-    prev_lines = int(st.get("last_transcript_lines", 0))
+    prev_lines = safe_int(st.get("last_transcript_lines"), 0)
     compact_boundary = (
         prev_lines > 50
         and line_count > 0
@@ -166,6 +266,7 @@ def merge_flow_report(parsed: dict, persisted: dict, line_count: int) -> tuple[d
         "transcript_scope": transcript_scope,
         "flow_source": flow_source,
         "dev_qa_cycles": dev_qa_report,
+        "dev_qa_cycles_transcript": dev_qa_transcript,
         "compact_boundary_crossed": compact_boundary,
         "warnings": warnings,
     }
@@ -338,7 +439,7 @@ def save_record(data: dict, transcript: Path, cost: float):
     METRICS_FILE.parent.mkdir(parents=True, exist_ok=True)
     record = {
         "ts":                 datetime.now(timezone.utc).isoformat(),
-        "session_id":         SESSION_ID,
+        "session_id":         session_id(),
         "transcript":         str(transcript),
         "project":            PROJECT_DIR,
         "flow_mode":          data["flow_mode"],
@@ -348,6 +449,7 @@ def save_record(data: dict, transcript: Path, cost: float):
         "session_goal":       data["session_goal"],
         "phases":             data["phases"],
         "dev_qa_cycles":      data["dev_qa_cycles"],
+        "dev_qa_cycles_transcript": data.get("dev_qa_cycles_transcript", data["dev_qa_cycles"]),
         "compact_boundary_crossed": data.get("compact_boundary_crossed", False),
         "warnings":           data.get("warnings", []),
         "cerberus_turns":     data["cerberus_turns"],
@@ -390,7 +492,12 @@ def format_summary(data: dict, cost: float) -> str:
             tok = p["input_tokens"] + p["output_tokens"]
             lines.append(f"  {p['mode']}: {p['turns']} turns, {tok:,} tokens")
 
-    lines.append(f"  DEV→QA cycles: {data['dev_qa_cycles']}")
+    dqa = data["dev_qa_cycles"]
+    dqa_tx = data.get("dev_qa_cycles_transcript", dqa)
+    if dqa_tx != dqa:
+        lines.append(f"  DEV→QA cycles (session peak): {dqa} | this transcript: {dqa_tx}")
+    else:
+        lines.append(f"  DEV→QA cycles (session peak / transcript): {dqa}")
 
     if data["cerberus_turns"] and data["qa_turns"]:
         ratio = data["cerberus_turns"] / data["qa_turns"]
@@ -418,14 +525,20 @@ def main():
         sys.exit(0)  # silent — no transcript found
 
     n_lines = transcript_line_count(transcript)
-    persisted = load_hook_state()
+    persisted, load_warnings = load_hook_state()
     parsed = parse_transcript(transcript)
-    data, new_state = merge_flow_report(parsed, persisted, n_lines)
+    data, new_state = merge_flow_report(parsed, persisted, n_lines, load_warnings=load_warnings)
     save_hook_state(new_state)
     cost = estimate_cost(data)
 
     # Always save if there are tokens to report
     total_tok = data["total_input"] + data["total_output"]
+    if not session_id() and total_tok > 0:
+        tw = list(data.get("warnings", []))
+        if "missing_session_id" not in tw:
+            tw.append("missing_session_id")
+        data["warnings"] = tw
+
     if total_tok == 0:
         sys.exit(0)
 
@@ -434,7 +547,7 @@ def main():
 
     # Clean up orchestrator session flag
     try:
-        flag = Path(os.path.expanduser("~/.claude/metrics")) / f"orch-session-{SESSION_ID}.flag"
+        flag = Path(os.path.expanduser("~/.claude/metrics")) / f"orch-session-{session_id()}.flag"
         flag.unlink(missing_ok=True)
     except Exception:
         pass
