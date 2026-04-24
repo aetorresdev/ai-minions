@@ -73,6 +73,94 @@ function buildUsdExportMeta() {
 }
 
 /**
+ * Count `iteration_done` rows for batch dashboards (order: reason_code → failure_axis → failure_type).
+ * See `docs/orchestrator/strict-mode.md` § *Canonical dashboard mapping*.
+ * @param {object[]} rows
+ * @returns {{
+ *   iteration_done_count: number,
+ *   by_reason_code: Record<string, number>,
+ *   by_failure_axis: Record<string, number>,
+ *   by_failure_type: Record<string, number>,
+ *   by_outcome: Record<string, number>,
+ *   by_reason_axis_type: Record<string, number>
+ * }}
+ */
+function summarizeFailureTaxonomyFromRows(rows) {
+  /** @type {Record<string, number>} */
+  const byReason = {};
+  /** @type {Record<string, number>} */
+  const byAxis = {};
+  /** @type {Record<string, number>} */
+  const byFt = {};
+  /** @type {Record<string, number>} */
+  const byOutcome = {};
+  /** @type {Record<string, number>} */
+  const byComposite = {};
+  let n = 0;
+  for (const r of rows) {
+    if (r.event !== "iteration_done") continue;
+    n += 1;
+    const tr = r.transition_reason && typeof r.transition_reason === "object" ? r.transition_reason : {};
+    const rc = typeof tr.reason_code === "string" && tr.reason_code ? tr.reason_code : "(missing_reason_code)";
+    byReason[rc] = (byReason[rc] || 0) + 1;
+    const oc = typeof r.outcome === "string" ? r.outcome : "(missing_outcome)";
+    byOutcome[oc] = (byOutcome[oc] || 0) + 1;
+    const axis = typeof r.failure_axis === "string" && r.failure_axis ? r.failure_axis : null;
+    if (axis) byAxis[axis] = (byAxis[axis] || 0) + 1;
+    const ft = typeof r.failure_type === "string" && r.failure_type ? r.failure_type : null;
+    if (ft) byFt[ft] = (byFt[ft] || 0) + 1;
+    const fk = `${rc}|${axis || "-"}|${ft || "-"}`;
+    byComposite[fk] = (byComposite[fk] || 0) + 1;
+  }
+  return {
+    iteration_done_count: n,
+    by_reason_code: byReason,
+    by_failure_axis: byAxis,
+    by_failure_type: byFt,
+    by_outcome: byOutcome,
+    by_reason_axis_type: byComposite,
+  };
+}
+
+/**
+ * @param {Record<string, number>} into
+ * @param {Record<string, number> | undefined} from
+ */
+function mergeCountMaps(into, from) {
+  if (!from) return;
+  for (const [k, v] of Object.entries(from)) {
+    if (typeof v !== "number" || Number.isNaN(v)) continue;
+    into[k] = (into[k] || 0) + v;
+  }
+}
+
+/**
+ * @param {{ failure_taxonomy?: ReturnType<typeof summarizeFailureTaxonomyFromRows> }[]} runs
+ * @returns {ReturnType<typeof summarizeFailureTaxonomyFromRows>}
+ */
+function aggregateFailureTaxonomyAcrossRuns(runs) {
+  const out = {
+    iteration_done_count: 0,
+    by_reason_code: /** @type {Record<string, number>} */ ({}),
+    by_failure_axis: /** @type {Record<string, number>} */ ({}),
+    by_failure_type: /** @type {Record<string, number>} */ ({}),
+    by_outcome: /** @type {Record<string, number>} */ ({}),
+    by_reason_axis_type: /** @type {Record<string, number>} */ ({}),
+  };
+  for (const r of runs) {
+    const t = r.failure_taxonomy;
+    if (!t) continue;
+    out.iteration_done_count += t.iteration_done_count || 0;
+    mergeCountMaps(out.by_reason_code, t.by_reason_code);
+    mergeCountMaps(out.by_failure_axis, t.by_failure_axis);
+    mergeCountMaps(out.by_failure_type, t.by_failure_type);
+    mergeCountMaps(out.by_outcome, t.by_outcome);
+    mergeCountMaps(out.by_reason_axis_type, t.by_reason_axis_type);
+  }
+  return out;
+}
+
+/**
  * @param {string} tracesDir
  * @param {{ sinceMs?: number, includeUntagged?: boolean, validateTrace?: boolean }} opts
  * @returns {object[]}
@@ -131,6 +219,7 @@ function collectRunsFromDir(tracesDir, opts = {}) {
       mcp_from_session_end: report.mcp_from_session_end,
       mcp_events_count: report.mcp_events_count,
       rollup_steps: rollupStepsCostOutcome(rows),
+      failure_taxonomy: summarizeFailureTaxonomyFromRows(rows),
       ...(ollamaUsdEstimate ? { ollama_usd_estimate: ollamaUsdEstimate } : {}),
     });
   }
@@ -231,6 +320,7 @@ function main() {
     by_scenario: byScenario,
     by_flow_mode: buildByFlowMode(runs),
     by_stage: buildByStage(runs),
+    failure_taxonomy_aggregate: aggregateFailureTaxonomyAcrossRuns(runs),
     usd_export_meta: buildUsdExportMeta(),
   };
 
@@ -243,7 +333,15 @@ function main() {
   }
 }
 
-module.exports = { collectRunsFromDir, buildByFlowMode, buildByStage, buildUsdExportMeta, rollupStepsCostOutcome };
+module.exports = {
+  collectRunsFromDir,
+  buildByFlowMode,
+  buildByStage,
+  buildUsdExportMeta,
+  rollupStepsCostOutcome,
+  summarizeFailureTaxonomyFromRows,
+  aggregateFailureTaxonomyAcrossRuns,
+};
 
 if (require.main === module) {
   main();
