@@ -32,7 +32,7 @@ This document defines the **optional contractual configuration** for ai-minions:
 ## Example flows (conceptual)
 
 1. **Without contract:** clone repo → `cd orchestrator` → `npm install` → run orchestrator as documented today — **no** `minions.md` required.
-2. **With contract (once loader exists):** same clone, add `minions.md` from the official template → run → runner validates file → applies only rules that have runtime support → trace records contract version and outcome.
+2. **With contract (once loader exists):** same clone, add `minions.md` from a **future approved template** (the epic will define the canonical template paths) → run → runner validates file → applies only rules that have runtime support → trace records contract version and outcome.
 
 ## Where to go next
 

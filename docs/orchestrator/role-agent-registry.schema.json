@@ -29,31 +29,37 @@
     },
     "expected_inputs": {
       "type": "array",
+      "minItems": 1,
       "items": { "type": "string", "minLength": 1 },
       "description": "Artifacts, envelopes, or structured inputs the role requires before activation."
     },
     "expected_outputs": {
       "type": "array",
+      "minItems": 1,
       "items": { "type": "string", "minLength": 1 },
       "description": "Structured outputs or handoff fields the role must produce when used."
     },
     "allowed_capabilities": {
       "type": "array",
+      "minItems": 1,
       "items": { "type": "string", "minLength": 1 },
       "description": "Capability tokens (e.g. read_repo, call_mcp, network_egress) — policy layer will interpret."
     },
     "activation_constraints": {
       "type": "array",
+      "minItems": 1,
       "items": { "type": "string", "minLength": 1 },
       "description": "Human-readable constraints for when the role may be selected (machine policy comes in later tickets)."
     },
     "success_criteria": {
       "type": "array",
+      "minItems": 1,
       "items": { "type": "string", "minLength": 1 },
       "description": "Observable conditions that indicate the role succeeded."
     },
     "failure_conditions": {
       "type": "array",
+      "minItems": 1,
       "items": { "type": "string", "minLength": 1 },
       "description": "Observable conditions that indicate the role failed or must not continue."
     }
