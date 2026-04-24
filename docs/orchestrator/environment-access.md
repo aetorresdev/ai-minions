@@ -206,15 +206,17 @@ Each role has a fixed permission level. The session `mode` is the **ceiling** �
 
 ## Implementation status
 
-**Current status: implemented** (`orchestrator/agents.js` + `orchestrator/agents/permissions.js` + `orchestrator/orchestrator.js`)
+**Current status: implemented** (`orchestrator/agents.js` **facade** + `orchestrator/agents/permissions.js` + split modules under `orchestrator/agents/` + `orchestrator/orchestrator.js`)
+
+The **canonical import** for consumers remains `require("./agents")` / `require("../agents")` → `agents.js`. Implementation is split (`permissions.js`, `validate-output.js`, `registry.js`, `runtime/*`, …); only **export names** on that facade are stable contract for other packages and tests.
 
 | Component | Status | Location |
 |---|---|---|
 | `parseEnvironment()` | ✅ | `orchestrator.js` — parses ENVIRONMENT block from session header via regex |
-| `resolveCredentials()` | ✅ | `agents.js` — reads env vars at call time, warns on missing |
-| `effectiveMode()` | ✅ | `agents/permissions.js` (re-exported from `agents.js`) — applies role permission matrix against session ceiling |
-| `buildEnvContext()` | ✅ | `agents.js` — generates context string injected into each agent's system prompt |
-| `askAgent()` injection | ✅ | `agents.js` — passes `sessionEnv` to `buildEnvContext` before claude CLI call |
+| `resolveCredentials()` | ✅ | **`agents.js` facade** — reads env vars at call time, warns on missing (logic lives in facade file) |
+| `effectiveMode()` | ✅ | **`agents/permissions.js`** — role matrix vs session ceiling; **re-exported** from `agents.js` |
+| `buildEnvContext()` | ✅ | **`agents.js` facade** — builds ENVIRONMENT block string; calls `effectiveMode()` from permissions module |
+| `askAgent()` injection | ✅ | **`agents.js` facade** — calls `buildEnvContext` then `runClaude` / `runOllama` from `agents/runtime/*` |
 | CERBERUS hardcoded read | ✅ | `effectiveMode()` in `agents/permissions.js` — returns `"read"` for cerberus regardless of session mode |
 | Missing env var blocker | ✅ | `resolveCredentials()` — missing vars surfaced in agent context as blockers |
 
