@@ -22,6 +22,20 @@ Configured in `orchestrator/agents.js` (`MODEL_ROUTING`).
 
 **Local safe = true** means a local or cheaper model can substitute. Roles with `false` require strong reasoning (implementation, adversarial review) that weaker models cannot reliably provide.
 
+### Explicit strategy by role (executable)
+
+Single source in code: `orchestrator/agents.js` — `MODEL_ROUTING`, `FALLBACK_POLICY`, `resolveModel()`, `resolveFallback()`. **Do not** drift this table without updating that module and `tests/modelRoutingStrategy.test.js` (expected role keys).
+
+| Role | Escalation / fallback rule | Notes |
+|------|---------------------------|--------|
+| `orchestrator`, `summarizer` | Primary fails → use `fallback` model; **degraded allowed** | JSON/summary-shaped outputs; Ollama when `OLLAMA_MODEL` set |
+| `owner` | Primary fails → Ollama or Haiku **degraded** | Scope text tolerates weaker model |
+| `dev-*`, `qa` | Primary fails → Haiku **degraded** | Implementation/review still gated downstream (QA/CERBERUS) |
+| `architect` | **No silent degradation** — primary failure → hard fail | `resolveFallback` throws; design quality bar |
+| `cerberus` | **No silent degradation** — primary failure → hard fail | Adversarial review must not run on arbitrary fallback |
+
+Overrides: `MODEL_OVERRIDE_<ROLE>` (see below) and `models.json` profiles via `setModelProfile` / `--profile` — precedence documented in `resolveModel` JSDoc in `agents.js`.
+
 ### Ollama configuration
 
 `orchestrator` and `summarizer` run on Ollama when `OLLAMA_MODEL` is set. If unset or Ollama is unreachable, they fall back to `claude-haiku-4-5-20251001` automatically.

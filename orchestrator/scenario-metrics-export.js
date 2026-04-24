@@ -13,7 +13,64 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { parseJsonl, buildReport } = require("./token-trace-report");
+const { parseJsonl, buildReport, optionalOllamaUsdEstimate } = require("./token-trace-report");
+
+/**
+ * Aggregate Ollama token totals from context_stats-derived `by_agent_phase` across runs.
+ * Keys in each run's `by_agent_phase` are built in token-trace-report as `agent | phase | →target`.
+ * @param {object[]} runs — entries from collectRunsFromDir (must include by_agent_phase)
+ * @returns {{ by_role: Record<string, { ollama_prompt_tokens: number, ollama_completion_tokens: number, context_stats_events: number }>, by_phase: Record<string, { ollama_prompt_tokens: number, ollama_completion_tokens: number, context_stats_events: number }> }}
+ */
+function buildByStage(runs) {
+  /** @type {Record<string, { ollama_prompt_tokens: number, ollama_completion_tokens: number, context_stats_events: number }>} */
+  const byRole = {};
+  /** @type {Record<string, { ollama_prompt_tokens: number, ollama_completion_tokens: number, context_stats_events: number }>} */
+  const byPhase = {};
+
+  function bump(rec, p, c, n) {
+    rec.ollama_prompt_tokens += p;
+    rec.ollama_completion_tokens += c;
+    rec.context_stats_events += n;
+  }
+
+  for (const r of runs) {
+    const map = r.by_agent_phase && typeof r.by_agent_phase === "object" ? r.by_agent_phase : {};
+    for (const [key, v] of Object.entries(map)) {
+      const parts = key.split(" | ").map((s) => s.trim());
+      const agent = parts[0] && parts[0].length ? parts[0] : "(unknown)";
+      const phaseRaw = parts[1];
+      const phase = phaseRaw && phaseRaw !== "-" ? phaseRaw : "(no_phase)";
+      const p = typeof v.prompt === "number" && !Number.isNaN(v.prompt) ? v.prompt : 0;
+      const c = typeof v.completion === "number" && !Number.isNaN(v.completion) ? v.completion : 0;
+      const n = typeof v.n === "number" && !Number.isNaN(v.n) ? v.n : 0;
+      if (!byRole[agent]) {
+        byRole[agent] = { ollama_prompt_tokens: 0, ollama_completion_tokens: 0, context_stats_events: 0 };
+      }
+      if (!byPhase[phase]) {
+        byPhase[phase] = { ollama_prompt_tokens: 0, ollama_completion_tokens: 0, context_stats_events: 0 };
+      }
+      bump(byRole[agent], p, c, n);
+      bump(byPhase[phase], p, c, n);
+    }
+  }
+
+  return { by_role: byRole, by_phase: byPhase };
+}
+
+/**
+ * @returns {{ usd_rates_configured: boolean, usd_note: string }}
+ */
+function buildUsdExportMeta() {
+  const rawP = process.env.ORCH_USD_PER_MTOK_PROMPT;
+  const rawC = process.env.ORCH_USD_PER_MTOK_COMPLETION;
+  const configured = rawP != null && String(rawP).trim() !== "" && rawC != null && String(rawC).trim() !== "";
+  return {
+    usd_rates_configured: configured,
+    usd_note: configured
+      ? "Per-run ollama_usd_estimate uses env rates; values are estimates (no Ollama billing API)."
+      : "Set ORCH_USD_PER_MTOK_PROMPT and ORCH_USD_PER_MTOK_COMPLETION for USD estimates on each run.",
+  };
+}
 
 /**
  * @param {string} tracesDir
@@ -54,6 +111,7 @@ function collectRunsFromDir(tracesDir, opts = {}) {
     const taskId = (rows.find((r) => r.task_id) || {}).task_id || path.basename(name, ".jsonl");
     const report = buildReport(rows);
     const sessionEnd = report.session_end;
+    const ollamaUsdEstimate = optionalOllamaUsdEstimate(report);
 
     runs.push({
       scenario_id: scenarioId || null,
@@ -72,6 +130,7 @@ function collectRunsFromDir(tracesDir, opts = {}) {
       by_agent_phase: report.by_agent_phase,
       mcp_from_session_end: report.mcp_from_session_end,
       mcp_events_count: report.mcp_events_count,
+      ...(ollamaUsdEstimate ? { ollama_usd_estimate: ollamaUsdEstimate } : {}),
     });
   }
 
@@ -170,6 +229,8 @@ function main() {
     runs,
     by_scenario: byScenario,
     by_flow_mode: buildByFlowMode(runs),
+    by_stage: buildByStage(runs),
+    usd_export_meta: buildUsdExportMeta(),
   };
 
   const json = JSON.stringify(payload, null, 2);
@@ -181,7 +242,7 @@ function main() {
   }
 }
 
-module.exports = { collectRunsFromDir, buildByFlowMode };
+module.exports = { collectRunsFromDir, buildByFlowMode, buildByStage, buildUsdExportMeta };
 
 if (require.main === module) {
   main();
