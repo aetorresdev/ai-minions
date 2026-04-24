@@ -12,5 +12,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [mcp-task-examples.md](mcp-task-examples.md) | Subagent / `mcp_task` |
 | [CURSOR_RULE_SETUP.md](CURSOR_RULE_SETUP.md) | User Rules vs project rules |
 | [shared-dependencies.md](shared-dependencies.md) | `mcp-servers/`, `scripts/hooks/`, `skills/`, `agents/` — required vs optional, access, failure modes |
+| [graph-validation.md](graph-validation.md) | Run-level JSONL step graph: `validateTraceRunGraph`, violation types, CI fixtures |
+| [role-agent-registry.md](role-agent-registry.md) | Future roles: minimal registry schema (design-time; no runtime wiring) |
 
 **Cursor rule:** `.cursor/rules/orchestrator.mdc` — `scripts/install-orchestrator-rule.sh` to copy it to another repo.
