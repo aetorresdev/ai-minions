@@ -125,6 +125,62 @@ describe("deriveExplain — clean trace", () => {
     ];
     const r = deriveExplain(rows);
     assert.equal(r.cost_usd, undefined);
+    assert.ok(Array.isArray(r.rollup_steps));
+    assert.equal(r.rollup_steps.length, 0);
+  });
+});
+
+// ── deriveExplain — intent_ids, rollup_steps, failure_axis ───────────────────
+
+describe("deriveExplain — intent, rollup, failure_axis", () => {
+  it("collects intent_ids, iteration_done_summary, last_failure_axis, rollup_steps", () => {
+    const rows = [
+      baseSession({ ts_ms: 1000 }),
+      {
+        event: "context_stats",
+        step_id: "s1",
+        intent_id: "i-b",
+        ollama_prompt_tokens: 10,
+        ollama_completion_tokens: 0,
+        ts_ms: 1100,
+      },
+      {
+        event: "context_stats",
+        step_id: "s2",
+        intent_id: "i-a",
+        ollama_prompt_tokens: 5,
+        ollama_completion_tokens: 0,
+        ts_ms: 1200,
+      },
+      {
+        event: "iteration_done",
+        iteration: 0,
+        outcome: "iterate",
+        failure_axis: "policy",
+        intent_ids: ["i-b"],
+        ts_ms: 2000,
+      },
+      {
+        event: "iteration_done",
+        iteration: 1,
+        outcome: "done",
+        failure_axis: "none",
+        intent_ids: ["i-b", "i-a"],
+        ts_ms: 3000,
+      },
+      { event: "session_end", outcome: "done", ts_ms: 4000 },
+    ];
+    const r = deriveExplain(rows);
+    assert.deepEqual(r.intent_ids, ["i-b", "i-a"]);
+    assert.equal(r.last_failure_axis, "none");
+    assert.ok(Array.isArray(r.iteration_done_summary));
+    assert.equal(r.iteration_done_summary.length, 2);
+    assert.equal(r.iteration_done_summary[0].failure_axis, "policy");
+    assert.deepEqual(r.iteration_done_summary[0].intent_ids, ["i-b"]);
+    assert.ok(Array.isArray(r.rollup_steps));
+    assert.equal(r.rollup_steps.length, 2);
+    assert.equal(r.rollup_steps[0].step_id, "s1");
+    assert.equal(r.rollup_steps[0].ollama_total_tokens, 10);
   });
 });
 

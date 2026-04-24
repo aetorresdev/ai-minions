@@ -151,6 +151,8 @@ Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../
 
 **Graph fields:** every step-level event carries `step_id` (primary join key, e.g. `<task_id>-i1-dev-backend`), `step_index` (0-based plan position), and `retry_number` (0 = first attempt). **Every trace line** adds `ts_ms` (epoch ms) next to `ts`. `iteration_done` adds structured `transition_reason: { type, details? }` (enum types in `strict-mode.md`). Use these to reconstruct execution flow without parsing `(agent, iteration)` tuples.
 
+**QA cost signal (optional):** successful **`agent_done`** rows with **`agent: "qa"`** may include **`qa_triple_template`** and **`qa_blocker_non_vacuous`** (three-line finding template + non-vacuous `blocker:` line). Per-step rollups in **`token-trace-report.js`** / scenario export / **`explain-run`** surface the same keys — **separate from** **`step_failed`** (see `strict-mode.md`).
+
 **On-demand token / MCP summary (v1):** after a run, use the `task_id` printed by `run-orchestrator.js` (or pass any trace basename):
 
 ```bash
@@ -163,12 +165,23 @@ Optional env: `ORCH_TRACES_DIR` — defaults to `~/.claude/metrics/traces`. **`O
 
 **Trace contract:** every JSONL line includes `trace_schema_version` (`"2"` — first published baseline). `iteration_done.transition_reason` is always an **object** `{ type, details? }`. Versioning policy (semver-like semantics, breaking vs non-breaking, mismatch): `docs/orchestrator/schema-versioning.md`. Short governance: `docs/orchestrator/strict-mode.md` § *Trace schema versions* and § *Trace contract governance*.
 
-**Batch export by scenario:** traces can carry `scenario_id` on `session_start` / `session_end` when you pass `traceScenarioId` to `run()` or set env **`ORCH_TRACE_SCENARIO_ID`**. Tagged runs from tests use the same mechanism. Aggregate JSON includes **`runs`**, **`by_scenario`**, **`by_flow_mode`**, **`by_stage`** (Ollama token rollups by `agent` and by `phase` from `context_stats`), **`usd_export_meta`**, and optional per-run **`ollama_usd_estimate`** when USD env vars are set:
+**Batch export by scenario:** traces can carry `scenario_id` on `session_start` / `session_end` when you pass `traceScenarioId` to `run()` or set env **`ORCH_TRACE_SCENARIO_ID`**. Tagged runs from tests use the same mechanism. Aggregate JSON includes **`runs`**, **`by_scenario`**, **`by_flow_mode`**, **`by_stage`** (Ollama token rollups by `agent` and by `phase` from `context_stats`), **`failure_taxonomy_aggregate`** (counts of `iteration_done` by `reason_code` / `failure_axis` / `failure_type` — per run: **`failure_taxonomy`**), **`usd_export_meta`**, and optional per-run **`ollama_usd_estimate`** when USD env vars are set. Dashboard policy: [`docs/orchestrator/dashboard-failure-taxonomy.md`](../docs/orchestrator/dashboard-failure-taxonomy.md).
 
 ```bash
 npm run metrics:export-scenarios -- --since-m 60 --out /tmp/orch-metrics.json
 # flags: --dir, --include-untagged, --out (stdout if omitted)
 ```
+
+**Console dashboard (no TUI; no hosted UI in this package):** stdout tables (literal output is **ASCII-only**; values copied from trace fields may contain other bytes). Failure taxonomy + top steps by tokens:
+
+```bash
+# smoke without a local trace (fixture shipped in repo):
+npm run dashboard:console -- --file tests/fixtures/golden-path-clean-v1.jsonl
+npm run dashboard:console -- --file ~/.claude/metrics/traces/<task_id>.jsonl
+npm run dashboard:console -- --batch --since-m 60 --include-untagged
+```
+
+See [`docs/orchestrator/dashboard-failure-taxonomy.md`](../docs/orchestrator/dashboard-failure-taxonomy.md) § *Console first*.
 
 **Not** in this example runner: unified Anthropic token API for Claude CLI routes (Ollama paths expose token totals as above).
 

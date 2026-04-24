@@ -6,6 +6,7 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const { validateOutput, normalizeDevContractText } = require("../agents");
+const { qaAgentDoneTraceExtras } = require("../agents/validate-output");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -226,6 +227,26 @@ describe("normalizeDevContractText", () => {
     const raw = "Sure.\n\nfiles_read:\n  - marker.txt\nfiles_modified:\n  - marker.txt\nvalidation_run: wc -l marker.txt\n";
     const n = normalizeDevContractText(raw);
     ok("dev-backend", n);
+  });
+});
+
+describe("qaAgentDoneTraceExtras", () => {
+  it("returns empty object when three-line template is absent", () => {
+    assert.deepEqual(qaAgentDoneTraceExtras("Only prose with blocker keyword inline but no template."), {});
+  });
+
+  it("marks triple template and substantive blocker", () => {
+    const out = qaAgentDoneTraceExtras(
+      "blocker: npm test fails in src/x.js\nimprovement: add types\nnice-to-have: (none)",
+    );
+    assert.deepEqual(out, { qa_triple_template: true, qa_blocker_non_vacuous: true });
+  });
+
+  it("marks triple template with vacuous blocker", () => {
+    const out = qaAgentDoneTraceExtras(
+      "blocker: (none)\nimprovement: use const\nnice-to-have: (none)",
+    );
+    assert.deepEqual(out, { qa_triple_template: true, qa_blocker_non_vacuous: false });
   });
 });
 

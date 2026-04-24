@@ -434,6 +434,15 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 | `retry_number` | number | How many times this `agentId` has already run in the current iteration (0 = first attempt) |
 | `intent_id` | string (optional) | UUID shared across **retries of the same plan slot** (`step_index` + `agentId`) within one outer iteration — groups token and outcome rows for analytics |
 
+**`agent_done` when `agent` is `qa` (optional, additive v2):** after a successful **`askAgent("qa", …)`**, the runner may attach **cost-vs-outcome** flags derived from the same **three-line template** parser used for CERBERUS (`blocker:` / `improvement:` / `nice-to-have:`). They are **not** a substitute for **`validateOutput`** (contract still decides pass/fail).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `qa_triple_template` | boolean | Present and **`true`** when all three labelled lines were detected in order (see `qaAgentDoneTraceExtras` in `orchestrator/agents/validate-output.js`). |
+| `qa_blocker_non_vacuous` | boolean | When `qa_triple_template` is **`true`**: **`true`** if the `blocker:` line is not vacuous (`(none)`, `n/a`, empty, …); **`false`** if it is vacuous. |
+
+**Rollups:** `rollupStepsCostOutcome` in `orchestrator/token-trace-report.js` (also used by **`explain-run`** and scenario export) copies these into per-**`step_id`** rows as **`qa_triple_template`** / **`qa_blocker_non_vacuous`** only when the template was seen — **orthogonal** to **`step_failed`** (`contract_fail` / `gate_fail` / `edge_type === "fail"`). Use all three for dashboards (e.g. “expensive QA step with substantive blocker but gates still green”).
+
 `iteration_done` events add:
 
 | Field | Type | Description |
@@ -449,9 +458,35 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 
 **Granularity (known trade-off):** several distinct flows share **`contract_mismatch`** (e.g. CERBERUS-driven iterate, orchestrator decide corrections, generic gate contract, invalid decide → `stopped`). Use **`transition_reason.reason_code`** for drill-down, **`failure_type`** for coarse SLOs, and **`failure_axis`** for product-facing buckets without overloading `failure_type`. Dashboards should prefer **`(failure_type, failure_axis, reason_code)`** when building charts.
 
-**`tool_error` scope (v1):** currently assigned when a **`gate_blocked_iterate`** path is tied to **`gate_kind: "compact_handoff"`** (MCP/handoff integration). Other tools or MCPs that need the same coarse bucket should get an **explicit** branch in the mapper (and tests), not an implicit “anything unknown = tool_error”, so semantics stay auditable when the runner grows.
+**`tool_error` scope (v1):** currently assigned when a **`gate_blocked_iterate`** path is tied to **`gate_kind: "compact_handoff"`** (MCP/handoff integration). Other tools or MCPs that need the same coarse bucket should get an **explicit** branch in the mapper (and tests), not an implicit blanket assignment to **`tool_error`**, so semantics stay auditable when the runner grows.
 
 Rough mapping from `outcome` (legacy UI) to `transition_reason.type`: `done` → `DONE`; `iterate` after CERBERUS blockers + corrections → `GATE_BLOCK`; `iterate_fallback` → `ITERATE_FALLBACK`; `gate_blocked_iterate` → `GATE_BLOCK`; `max_iterations_*` → `MAX_ITERATIONS`; `iterate` after orchestrator decide JSON corrections → `ITERATE`; `stopped` (invalid decide) → `CONTRACT_FAIL`. See `transitionReason()` in `orchestrator.js`.
+
+### Canonical dashboard mapping (`reason_code` → `failure_type` + `failure_axis`)
+
+**Policy (FAIL-TAX refinement):** charts and exports should **join on** **`transition_reason.reason_code`** first, then bucket with **`failure_axis`**, and only then aggregate **`failure_type`** for coarse SLOs. Do **not** infer “what went wrong” from **`failure_type: contract_mismatch`** alone.
+
+The writer computes **`failure_type`** / **`failure_axis`** with **`failureTypeForIterationDone`** / **`failureAxisForIterationDone`** in **`orchestrator/orchestrator.js`**. For **`gate_blocked_iterate`**, the writer passes **`iterationDoneCtx({ gateKinds: [...] })`** so **`compact_handoff`** can select **`gate_tool`** + **`tool_error`** vs **`gate_artifact`** + **`contract_mismatch`**.
+
+| `reason_code` | Typical `outcome` | Notes / `ctx` | `failure_type` | `failure_axis` |
+|---------------|-----------------|----------------|----------------|----------------|
+| `RUN_COMPLETED` | `done` | Terminal success | *(field omitted)* | *(field omitted)* |
+| `CERBERUS_BLOCKERS_ITERATE` | `iterate` | CERBERUS blockers + corrections path | `contract_mismatch` | `cerberus` |
+| `ORCHESTRATOR_NO_CORRECTIONS_JSON` | `iterate_fallback` | Decide JSON missing / empty corrections | `contract_mismatch` | `orchestrate` |
+| `ORCHESTRATOR_DECIDE_CORRECTIONS` | `iterate` | Decide returned corrections | `contract_mismatch` | `orchestrate` |
+| `CONTRACT_OR_DECIDE_FAILURE` | `stopped` | Invalid decide / contract stop | `contract_mismatch` | `contract` |
+| `VALIDATION_FAILURE_GENERIC` | _(no primary path in example runner)_ | Reserved for `type: VALIDATION_FAIL` | `contract_mismatch` | `unknown` |
+| `GATE_ARTIFACT_OR_HANDOFF` | `gate_blocked_iterate` | `ctx.gateKinds` includes **`compact_handoff`** | `tool_error` | `gate_tool` |
+| `GATE_ARTIFACT_OR_HANDOFF` | `gate_blocked_iterate` | Other / empty `gateKinds` (e.g. `handoff_structure`, `goal_alignment`) | `contract_mismatch` | `gate_artifact` |
+| `MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS` | `max_iterations_with_gate_blocks` | Gate-blocked cap | `retry_exceeded` | `gate_artifact` |
+| `MAX_ITERATIONS_CERBERUS_BLOCKERS` | `max_iterations_with_blockers` | CERBERUS blocker cap | `retry_exceeded` | `cerberus` |
+| `MAX_ITERATIONS_LOOP_EXHAUSTED` | `loop_limit_stopped` | While-loop exhausted without `done` | `retry_exceeded` | `loop_cap` |
+| `GUARD_COST_LIMIT` | `guard_abort` | `ORCH_MAX_COST_USD` | `cost_abort` | `guard` |
+| `GUARD_STEP_RETRY_LIMIT` | `guard_abort` | `ORCH_MAX_RETRIES` per agent | `retry_exceeded` | `guard` |
+
+**Maintenance:** when adding a **`reason_code`** to the JSON Schema enum, extend **`TRANSITION_REASON_CODES`** / **`inferReasonCode()`** in **`orchestrator.js`**, add a row here, and add a row to the **`failure taxonomy matrix`** test in **`tests/traceSchema.test.js`**.
+
+**Operational dashboards:** see [`dashboard-failure-taxonomy.md`](./dashboard-failure-taxonomy.md) (export fields, `jq`, console dashboard; optional hosted BI outside this repo).
 
 `step_id` is the primary join key across events within a run. Consumers (token reports, EIL visualisation) use it to correlate `agent_start` → `agent_done` → `gate_result` → `context_stats` for the same step without scanning by `(agent, iteration)` tuples.
 
@@ -501,6 +536,7 @@ When traces leave the operator workstation (CI artifacts, ticket paste, shared d
 | **`task_id`, `session_id`, `trace_schema_version`, `iteration`, `event` names** | Low | Allow as-is | Identifiers for correlation; avoid embedding secrets in ids. |
 | **`ts` / `ts_ms`, `duration_ms`, token totals, counts** | Low | Allow | Operational timing and cost aggregates. |
 | **`step_id`, `agent` / `agentId`, `retry_number`, `edge_type`, `outcome`** | Low–medium | Allow | Structure of the run; can still aid fingerprinting if combined with rare task text. |
+| **`qa_triple_template`, `qa_blocker_non_vacuous`** (on `agent_done` / `rollup_steps`) | Low | Allow | Boolean flags for cost-vs-outcome analytics; no raw finding text. |
 | **`task` (truncated goal snippet on `agent_start`), `summary` lines, `plan` text** | Medium | **Truncate** (e.g. 200–500 chars) or **omit** unless reviewer needs it | Competitive or personal goal text. |
 | **`reason`, `details`, gate `reason`, `contract_fail` messages, alignment `notes`** | Medium–high | **Truncate** heavily or **omit**; prefer **`reason_code`** + enum | Often contains paths, snippets, or model paraphrase of internal state. |
 | **`mcp_call` args / payloads, raw MCP errors, file paths in violations** | High | **Omit** or replace with **`hash`** / stable surrogate | Paths and parameters leak repo layout and secrets. |
@@ -549,6 +585,8 @@ This is **not** the same as registering MCPs inside the Anthropic Claude app: th
 
 - **`npm run test:e2e:dev-first-shot-report`** (see **`model-routing.md`** § *DEV roles with Ollama*) runs the **degraded** E2E smoke (`skipStateMcp: true`) with **`maxIterations: 1`** only and reports **`first_shot_pass_rate`** for DEV **output contract** (`files_read` / `files_modified` / `validation_run`). A good trend there means: small local models are more often producing gate-acceptable DEV text on the first try.
 - **`npm run test:e2e:strict`** exercises **hard gates on disk** (`skipStateMcp: false`, MCP direct). The suite can **pass overall** while a **specific** scenario (e.g. the same “multiply function in `utils.js`” goal used in a `run()` test) **never** produced a **`gate_result` / `goal_alignment`** row in the traces that the alignment rate helper samples — so **`alignment_failure_rate: n/a`** or **`0/n`** is **not** a certificate that “goal alignment was validated for that scenario.” It only reflects what appeared in those traces for that suite run.
+
+**Baseline vs guarantee:** a single green report (e.g. **`first_shot_pass_rate: 1`** with a **small** `runs` count such as 5/5) is a valid **metric-backed baseline** for closing a **shaping + instrumentation** slice — it is **not** a permanent statistical proof. Keep using **`first_shot_pass_rate`** as a **trend** over CI history; widen sample size before tightening policy (e.g. making single-iteration smoke mandatory in the blocking lane).
 
 **Operational split (review guidance):** (1) watch **`first_shot_pass_rate`** over CI history for the DEV contract lane; (2) **separately** watch strict traces (or add targeted tests) for **`validate_goal_alignment`** coverage on the goals you care about — especially when logs show alignment skipped, not run, or not persisted for a path you expected to exercise.
 
