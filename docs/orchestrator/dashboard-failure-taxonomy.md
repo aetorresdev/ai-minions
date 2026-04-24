@@ -1,6 +1,23 @@
 # Dashboards: failure taxonomy from traces
 
-This doc is the **operational companion** to [`strict-mode.md`](./strict-mode.md) § *Canonical dashboard mapping* (`reason_code` → `failure_axis` → `failure_type`). Use it when wiring Grafana, batch jobs, or ad-hoc analysis over JSONL traces.
+This doc is the **operational companion** to [`strict-mode.md`](./strict-mode.md) § *Canonical dashboard mapping* (`reason_code` → `failure_axis` → `failure_type`). In this repository, supported consumption is **console output** (`dashboard:console`), **batch JSON** (`metrics:export-scenarios`), and **`jq`** over JSONL. **Hosted BI** (Grafana, Loki, etc.) is **not shipped here**; if you need charts in a central stack, build that in your own deployment using the same fields and policy order below.
+
+## Console first (no TUI, no web UI)
+
+Before any hosted UI, you can **“see the dashboard” in the terminal**: same policy order (reason_code → failure_axis → failure_type) plus a **cost-vs-outcome** table (top steps by Ollama tokens from `rollupStepsCostOutcome`).
+
+From `orchestrator/`:
+
+```bash
+npm run dashboard:console -- --file ~/.claude/metrics/traces/<task_id>.jsonl
+# batch (same discovery as metrics:export-scenarios — tagged scenarios by default):
+npm run dashboard:console -- --batch --since-m 120
+npm run dashboard:console -- --batch --include-untagged
+# optional strict parse:
+npm run dashboard:console -- --file trace.jsonl --strict-traces
+```
+
+Implementation: `orchestrator/console-dashboard.js` (stdout only; ASCII tables and `#`…`.` bars). Not an interactive TUI — just **printed layout** you can pipe to `less`, log in CI, or paste from a scrollback buffer.
 
 ## Data sources
 
@@ -46,19 +63,12 @@ jq -r 'select(.event=="iteration_done") | .transition_reason.reason_code // "(mi
   | sort | uniq -c | sort -nr
 ```
 
-## Ingest to Loki / Elasticsearch
+## Optional: ingest to a log or trace backend
 
-If you ship each JSONL line as a log record:
+If you forward JSONL lines to Loki, Elasticsearch, OpenSearch, or similar:
 
 - Prefer **low-cardinality** labels or facets: `event`, `reason_code`, `failure_axis`, `failure_type`, `flow_mode`, `scenario_id`.
 - Keep **`task_id`** for drill-down links, not as a high-cardinality label on every stat panel.
-- Parse nested `transition_reason` in the pipeline (JSON parser / OTTL) so dashboards query flat fields.
+- Parse nested `transition_reason` in the pipeline (JSON parser / OTTL) so queries use flat fields aligned with strict-mode.
 
-## Grafana
-
-There is **no** checked-in Grafana JSON in this repo yet: backends and label conventions differ per deployment. Build panels from:
-
-- **Batch:** load `failure_taxonomy_aggregate` from `npm run metrics:export-scenarios -- --out metrics.json` (Transform → rows, or Infinity CSV plugin).
-- **Live:** Loki/Tempo queries over ingested trace lines once fields are extracted per the table in strict-mode.
-
-When you add a provisioned dashboard JSON under version control, reference this doc and the strict-mode table in the dashboard description.
+For **Grafana** (or another UI), point panels at those extracted fields; keep dashboard JSON and data sources in **your** infra repo if you use them—nothing is required to be committed under this orchestrator package.
