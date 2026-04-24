@@ -15,6 +15,8 @@ ajv validate -s docs/orchestrator/role-agent-registry.schema.json -d path/to/rol
 
 ## Field semantics
 
+Each array field (`expected_inputs`, `expected_outputs`, `allowed_capabilities`, `activation_constraints`, `success_criteria`, `failure_conditions`) must contain **at least one** string (`minItems: 1` in the bundled schema) so entries are unambiguous for review and future loaders.
+
 | Field | Role |
 |-------|------|
 | `role_id` | Stable string id for the template (not necessarily an active `agentId` in code today). |
