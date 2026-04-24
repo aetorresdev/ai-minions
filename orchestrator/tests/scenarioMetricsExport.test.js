@@ -176,6 +176,29 @@ test("aggregateFailureTaxonomyAcrossRuns merges per-run failure_taxonomy", () =>
   assert.equal(a.by_outcome.done, 1);
 });
 
+test("summarizeFailureTaxonomyFromRows tolerates unknown reason_code and odd failure_type", () => {
+  const rows = [
+    {
+      event: "iteration_done",
+      outcome: "iterate",
+      failure_type: "hypothetical_future_taxonomy",
+      failure_axis: "custom_axis",
+      transition_reason: { type: "ITERATE", reason_code: "FUTURE_REASON_NOT_IN_CATALOG" },
+    },
+    {
+      event: "iteration_done",
+      outcome: "stopped",
+    },
+  ];
+  const s = summarizeFailureTaxonomyFromRows(rows);
+  assert.equal(s.iteration_done_count, 2);
+  assert.equal(s.by_reason_code.FUTURE_REASON_NOT_IN_CATALOG, 1);
+  assert.equal(s.by_reason_code["(missing_reason_code)"], 1);
+  assert.equal(s.by_failure_type.hypothetical_future_taxonomy, 1);
+  assert.equal(s.by_failure_axis.custom_axis, 1);
+  assert.ok(Object.keys(s.by_reason_axis_type).length >= 2);
+});
+
 test("buildUsdExportMeta reflects env presence", () => {
   delete process.env.ORCH_USD_PER_MTOK_PROMPT;
   delete process.env.ORCH_USD_PER_MTOK_COMPLETION;
