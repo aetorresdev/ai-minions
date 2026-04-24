@@ -172,6 +172,15 @@ npm run metrics:export-scenarios -- --since-m 60 --out /tmp/orch-metrics.json
 # flags: --dir, --include-untagged, --out (stdout if omitted)
 ```
 
+**Console dashboard (no TUI; no hosted UI in this package):** ASCII tables for one trace or a batch — failure taxonomy + top steps by tokens:
+
+```bash
+npm run dashboard:console -- --file ~/.claude/metrics/traces/<task_id>.jsonl
+npm run dashboard:console -- --batch --since-m 60 --include-untagged
+```
+
+See [`docs/orchestrator/dashboard-failure-taxonomy.md`](../docs/orchestrator/dashboard-failure-taxonomy.md) § *Console first*.
+
 **Not** in this example runner: unified Anthropic token API for Claude CLI routes (Ollama paths expose token totals as above).
 
 **Skill:** `skills/orchestrator-token-report/SKILL.md` — when to use CLIs vs reading JSONL manually.
