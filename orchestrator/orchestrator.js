@@ -53,6 +53,7 @@ const {
   planStepsReplayFromGateBlockedArtifacts,
   summaryMaxIterationsGateBlocked,
 } = require("./decision-engine");
+const { qaAgentDoneTraceExtras } = require("./agents/validate-output");
 
 // ── Execution trace ───────────────────────────────────────────────────────────
 // Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
@@ -61,6 +62,7 @@ const {
 // Event types: session_start, agent_start, agent_done, gate_result,
 //              contract_fail, iteration_done, session_end, mcp_call,
 //              context_stats may include ollama_prompt_tokens / ollama_completion_tokens (Ollama routes)
+//              agent_done (qa): optional qa_triple_template + qa_blocker_non_vacuous for rollups
 // iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".
 //
 // Sensitive field handling:
@@ -1426,7 +1428,23 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       clearDegradedAgents();
       const stepDegraded = degradedInRun.has(agentId);
       const edgeType = retryNumber > 0 ? "retry" : "success";
-      traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...intentStep, ...edgeMeta(edgeType), duration_ms: Date.now() - stepStart, output_chars: result.length, ...(stepDegraded ? { degraded: true } : {}) });
+      /** @type {Record<string, unknown>} */
+      const donePayload = {
+        event: "agent_done",
+        agent: agentId,
+        iteration: iterations,
+        step_id: stepId,
+        step_index: stepIndex,
+        retry_number: retryNumber,
+        ...graphMeta,
+        ...intentStep,
+        ...edgeMeta(edgeType),
+        duration_ms: Date.now() - stepStart,
+        output_chars: result.length,
+        ...(stepDegraded ? { degraded: true } : {}),
+      };
+      if (agentId === "qa") Object.assign(donePayload, qaAgentDoneTraceExtras(result));
+      traceEvent(taskId, donePayload);
       setStepCompleted(runState);
       if (contextStats) {
         bumpOllamaFromStats(contextStats);

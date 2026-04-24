@@ -116,6 +116,23 @@ function parseCerberusTripleTemplate(output) {
   return null;
 }
 
+/**
+ * Optional fields for `agent_done` when agent is **qa** — same triple-line shape as CERBERUS
+ * (`blocker:` / `improvement:` / `nice-to-have:`). Used for cost-vs-outcome rollups when the step
+ * still passes output contract and gates (no `contract_fail` / `gate_result` failure on that step).
+ *
+ * @param {string} output
+ * @returns {{ qa_triple_template: true, qa_blocker_non_vacuous: boolean } | Record<string, never>}
+ */
+function qaAgentDoneTraceExtras(output) {
+  const t = parseCerberusTripleTemplate(String(output));
+  if (!t) return {};
+  return {
+    qa_triple_template: true,
+    qa_blocker_non_vacuous: !_isVacuousFindingVal(t.blocker),
+  };
+}
+
 /** Minimal semantic floor for CERBERUS when the three-line template is used. */
 function validateCerberusSemanticFloor(output) {
   const t = parseCerberusTripleTemplate(output);
@@ -290,4 +307,5 @@ module.exports = {
   validateCerberusSemanticFloor,
   extractContextStats,
   cerberusFindingHasAnchor: _cerberusFindingHasAnchor,
+  qaAgentDoneTraceExtras,
 };
