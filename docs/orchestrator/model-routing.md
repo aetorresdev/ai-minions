@@ -6,7 +6,7 @@ Defines which model each role uses, when local fallback is safe, and what struct
 
 ## Model routing
 
-Configured in `orchestrator/agents.js` (`MODEL_ROUTING`).
+Configured in `orchestrator/agents/routing/model-routing.js` (`MODEL_ROUTING`).
 
 | Role | Primary | Fallback | Local safe? |
 |------|---------|----------|-------------|
@@ -24,7 +24,7 @@ Configured in `orchestrator/agents.js` (`MODEL_ROUTING`).
 
 ### Explicit strategy by role (executable)
 
-Single source in code: `orchestrator/agents.js` — `MODEL_ROUTING`, `FALLBACK_POLICY`, `resolveModel()`, `resolveFallback()`. **Do not** drift this table without updating that module and `tests/modelRoutingStrategy.test.js` (expected role keys).
+Single source in code: `orchestrator/agents/routing/model-routing.js` — `MODEL_ROUTING`, `FALLBACK_POLICY`; `orchestrator/agents.js` — `resolveModel()`, `resolveFallback()`. **Do not** drift this table without updating those modules and `tests/modelRoutingStrategy.test.js` (expected role keys).
 
 | Role | Escalation / fallback rule | Notes |
 |------|---------------------------|--------|
@@ -126,15 +126,15 @@ Override keys in `models.json` and `MODEL_OVERRIDE_*` env vars use the normalize
 1. `MODEL_OVERRIDE_<ROLE>` env var — always wins, retrocompatible
 2. `profiles.<profile>.overrides.<ROLE>` from `models.json`
 3. `profiles.<profile>.default` from `models.json`
-4. Hardcoded `MODEL_ROUTING` in `agents.js` (current behavior, fallback)
+4. Hardcoded `MODEL_ROUTING` in `agents/routing/model-routing.js` (current behavior, fallback)
 
-**Implementation target:** `resolveModel(role, profile, modelsConfig)` in `agents.js`; `--profile` flag parsed in `run-orchestrator.js`.
+**Implementation target:** `resolveModel(role, profile, modelsConfig)` in `orchestrator/agents.js`; `--profile` flag parsed in `run-orchestrator.js`.
 
 ---
 
 ## Fallback policy
 
-Configured in `orchestrator/agents.js` (`FALLBACK_POLICY`).
+Configured in `orchestrator/agents/routing/model-routing.js` (`FALLBACK_POLICY`).
 
 When the primary model fails, the runner attempts the fallback model per role. If both fail, behavior depends on the role's `degraded` flag:
 
@@ -191,7 +191,7 @@ When **`OLLAMA_MODEL`** is set, the orchestrator role uses **`runOllama`** like 
 - Handoff YAML schema (required keys, field names)
 - Role permission matrix (`ROLE_PERMISSION`)
 - Gate sequence (`advance_mode`, `validate_transition` requirements)
-- Fallback policy (`FALLBACK_POLICY`)
+- Fallback policy (`FALLBACK_POLICY` in `agents/routing/model-routing.js`)
 
 Current version: **1.0**
 
