@@ -24,7 +24,7 @@ Configured in `orchestrator/agents/routing/model-routing.js` (`MODEL_ROUTING`).
 
 ### Explicit strategy by role (executable)
 
-Single source in code: `orchestrator/agents/routing/model-routing.js` — `MODEL_ROUTING`, `FALLBACK_POLICY`; `orchestrator/agents.js` — `resolveModel()`, `resolveFallback()`. **Do not** drift this table without updating those modules and `tests/modelRoutingStrategy.test.js` (expected role keys).
+Single source in code: `orchestrator/agents/routing/model-routing.js` — `MODEL_ROUTING`, `FALLBACK_POLICY`; `orchestrator/agents.js` — `resolveModel()`, `resolveFallback()`. Per-role output contracts: `orchestrator/agents/validate-output.js` (`validateOutput`, etc.). **Do not** drift this table without updating those modules and `tests/modelRoutingStrategy.test.js` (expected role keys).
 
 | Role | Escalation / fallback rule | Notes |
 |------|---------------------------|--------|
