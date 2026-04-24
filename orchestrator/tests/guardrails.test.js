@@ -33,8 +33,9 @@ const origSpawnSync = cp.spawnSync;
 function clearOrchestratorModuleCaches() {
   const agentsPath = path.resolve(__dirname, "..", "agents.js");
   const orchPath = path.resolve(__dirname, "..", "orchestrator.js");
+  const modelRoutingPath = path.resolve(__dirname, "..", "agents", "routing", "model-routing.js");
   for (const k of Object.keys(require.cache)) {
-    if (k === agentsPath || k === orchPath) delete require.cache[k];
+    if (k === agentsPath || k === orchPath || k === modelRoutingPath) delete require.cache[k];
   }
 }
 
