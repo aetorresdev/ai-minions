@@ -434,6 +434,15 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 | `retry_number` | number | How many times this `agentId` has already run in the current iteration (0 = first attempt) |
 | `intent_id` | string (optional) | UUID shared across **retries of the same plan slot** (`step_index` + `agentId`) within one outer iteration — groups token and outcome rows for analytics |
 
+**`agent_done` when `agent` is `qa` (optional, additive v2):** after a successful **`askAgent("qa", …)`**, the runner may attach **cost-vs-outcome** flags derived from the same **three-line template** parser used for CERBERUS (`blocker:` / `improvement:` / `nice-to-have:`). They are **not** a substitute for **`validateOutput`** (contract still decides pass/fail).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `qa_triple_template` | boolean | Present and **`true`** when all three labelled lines were detected in order (see `qaAgentDoneTraceExtras` in `orchestrator/agents/validate-output.js`). |
+| `qa_blocker_non_vacuous` | boolean | When `qa_triple_template` is **`true`**: **`true`** if the `blocker:` line is not vacuous (`(none)`, `n/a`, empty, …); **`false`** if it is vacuous. |
+
+**Rollups:** `rollupStepsCostOutcome` in `orchestrator/token-trace-report.js` (also used by **`explain-run`** and scenario export) copies these into per-**`step_id`** rows as **`qa_triple_template`** / **`qa_blocker_non_vacuous`** only when the template was seen — **orthogonal** to **`step_failed`** (`contract_fail` / `gate_fail` / `edge_type === "fail"`). Use all three for dashboards (e.g. “expensive QA step with substantive blocker but gates still green”).
+
 `iteration_done` events add:
 
 | Field | Type | Description |
@@ -501,6 +510,7 @@ When traces leave the operator workstation (CI artifacts, ticket paste, shared d
 | **`task_id`, `session_id`, `trace_schema_version`, `iteration`, `event` names** | Low | Allow as-is | Identifiers for correlation; avoid embedding secrets in ids. |
 | **`ts` / `ts_ms`, `duration_ms`, token totals, counts** | Low | Allow | Operational timing and cost aggregates. |
 | **`step_id`, `agent` / `agentId`, `retry_number`, `edge_type`, `outcome`** | Low–medium | Allow | Structure of the run; can still aid fingerprinting if combined with rare task text. |
+| **`qa_triple_template`, `qa_blocker_non_vacuous`** (on `agent_done` / `rollup_steps`) | Low | Allow | Boolean flags for cost-vs-outcome analytics; no raw finding text. |
 | **`task` (truncated goal snippet on `agent_start`), `summary` lines, `plan` text** | Medium | **Truncate** (e.g. 200–500 chars) or **omit** unless reviewer needs it | Competitive or personal goal text. |
 | **`reason`, `details`, gate `reason`, `contract_fail` messages, alignment `notes`** | Medium–high | **Truncate** heavily or **omit**; prefer **`reason_code`** + enum | Often contains paths, snippets, or model paraphrase of internal state. |
 | **`mcp_call` args / payloads, raw MCP errors, file paths in violations** | High | **Omit** or replace with **`hash`** / stable surrogate | Paths and parameters leak repo layout and secrets. |

@@ -11,7 +11,7 @@ Use this skill when the user asks for **token usage**, **trace metrics**, **MCP 
 
 | Artifact | Path | Contents |
 |----------|------|----------|
-| Per-run JSONL trace | `~/.claude/metrics/traces/<task_id>.jsonl` | Every line: `ts`, `ts_ms`, `trace_schema_version` (`"2"`). `iteration_done.transition_reason`: `{ type, reason_code, details?, gate_id?, step_id? }`. Schema: `orchestrator/schemas/trace-v2-line.schema.json`. Optional strict parse: `ORCH_TRACE_VALIDATE=1` or `--strict-traces` on CLIs. |
+| Per-run JSONL trace | `~/.claude/metrics/traces/<task_id>.jsonl` | Every line: `ts`, `ts_ms`, `trace_schema_version` (`"2"`). `iteration_done.transition_reason`: `{ type, reason_code, details?, gate_id?, step_id? }`. Optional on **`agent_done`** (**`qa`**): `qa_triple_template`, `qa_blocker_non_vacuous` (cost-vs-outcome; see `strict-mode.md`). Schema: `orchestrator/schemas/trace-v2-line.schema.json`. Optional strict parse: `ORCH_TRACE_VALIDATE=1` or `--strict-traces` on CLIs. |
 | Override trace dir | Env `ORCH_TRACES_DIR` | Same layout as above |
 
 After `node run-orchestrator.js …`, the CLI prints **`Task ID:`** — that string is the `<task_id>` basename for the trace file.
@@ -45,6 +45,7 @@ node scenario-metrics-export.js --dir ~/.claude/metrics/traces --since-m 120 --o
 - **Claude CLI / Haiku** routes in the example runner do **not** populate `ollama_*` — only Ollama HTTP paths do.
 - **USD (optional):** set **`ORCH_USD_PER_MTOK_PROMPT`** and **`ORCH_USD_PER_MTOK_COMPLETION`** (both required; USD per 1e6 Ollama tokens) so `token-trace-report` / scenario export attach estimates — **always marked `usd_note: "estimated"`** (Ollama has no billing line-item API here); you supply rates only.
 - **`scenario_id`** is a **label** for batching (usually the E2E test name), not a security boundary.
+- **`rollup_steps` / `--json`:** per-**`step_id`** rows may include **`qa_triple_template`** and **`qa_blocker_non_vacuous`** when the QA step emitted the template flags — orthogonal to **`step_failed`**; use for dashboards, not as sole “QA rejected” signal (no template → no flags).
 
 ## Docs
 

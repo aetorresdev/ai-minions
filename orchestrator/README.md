@@ -151,6 +151,8 @@ Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../
 
 **Graph fields:** every step-level event carries `step_id` (primary join key, e.g. `<task_id>-i1-dev-backend`), `step_index` (0-based plan position), and `retry_number` (0 = first attempt). **Every trace line** adds `ts_ms` (epoch ms) next to `ts`. `iteration_done` adds structured `transition_reason: { type, details? }` (enum types in `strict-mode.md`). Use these to reconstruct execution flow without parsing `(agent, iteration)` tuples.
 
+**QA cost signal (optional):** successful **`agent_done`** rows with **`agent: "qa"`** may include **`qa_triple_template`** and **`qa_blocker_non_vacuous`** (three-line finding template + non-vacuous `blocker:` line). Per-step rollups in **`token-trace-report.js`** / scenario export / **`explain-run`** surface the same keys — **separate from** **`step_failed`** (see `strict-mode.md`).
+
 **On-demand token / MCP summary (v1):** after a run, use the `task_id` printed by `run-orchestrator.js` (or pass any trace basename):
 
 ```bash

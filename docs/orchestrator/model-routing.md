@@ -257,7 +257,7 @@ Every multi-agent run writes a structured JSONL trace to `~/.claude/metrics/trac
 |-------|--------|------|
 | `session_start` | `flow_mode`, `max_iterations`, `cwd`, `goal` (truncated), `scenario_id?` | Before plan — `scenario_id` optional (`traceScenarioId` / `ORCH_TRACE_SCENARIO_ID`) for batch metrics export |
 | `agent_start` | `agent`, `iteration`, `task` (truncated) | Before `askAgent()` |
-| `agent_done` | `agent`, `iteration`, `duration_ms`, `output_chars`, `degraded?` | After successful `askAgent()` — `degraded: true` when fallback model was used |
+| `agent_done` | `agent`, `iteration`, `duration_ms`, `output_chars`, `degraded?`, **`qa_triple_template?`**, **`qa_blocker_non_vacuous?`** (QA only) | After successful `askAgent()` — `degraded: true` when fallback model was used; **QA-only:** optional flags when output matches the three-line `blocker:` / `improvement:` / `nice-to-have:` template (`qaAgentDoneTraceExtras` — see `strict-mode.md` § *Flow-aware trace metadata*) |
 | `contract_fail` | `agent`, `iteration`, `duration_ms`, `reason`, `critical`, `gate_id?` | When `validateOutput()` throws — `critical: true` for architect/qa/cerberus; `gate_id` identifies which specific gate failed |
 | `context_stats` | `agent`, `iteration`, `files_read_count`, `files_modified_count` | After successful ARCHITECT or DEV step — counts declared files for efficiency tracking |
 | `gate_result` | `agent`, `iteration`, `gate`, `passed`, `reason?`, `confidence?`, `from_mode?`, `to_mode?` | After each gate check |
