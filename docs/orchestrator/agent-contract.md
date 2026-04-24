@@ -91,7 +91,7 @@ Separate from the **disk-backed** state store above, the Node `run()` path maint
 
 `run()` returns **`runState`** (public view via `getRunStatePublicView`) alongside `done`, `summary`, `artifacts`, … for wrappers and **explain-run** (`run_state_snapshot` on **`session_end`** uses the same public view). During the worker loop, **`runState.step`** is set to **running** on `agent_start`, **done** after a successful **`agent_done`** (`setStepCompleted`), cleared on **contract_fail** before **`agent_done`** (`setStepFailedAndClear`), and set to **retrying** when a **post-`agent_done` gate** fails with an inner-loop `continue` (`markStepRetryingAfterGate` — compact_handoff strict, handoff_structure, goal_alignment, transition). Each outer **`iterations += 1`** calls **`syncRunIteration`**, which clears **`step`** so a new iteration does not inherit the prior worker’s terminal row until the next **`setStepRunning`**.
 
-**Trace graph (`validateTraceRunGraph`):** `step_id` is owned by **`agent_start`**; **`agent_done`** reuses the same id without registering again (see `trace-schema.js` § inline doc on `validateTraceRunGraph`).
+**Trace graph (`validateTraceRunGraph`):** `step_id` is owned by **`agent_start`**; **`agent_done`** reuses the same id without registering again. Canonical rules and violation types: [graph-validation.md](graph-validation.md).
 
 ---
 
