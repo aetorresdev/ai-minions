@@ -25,7 +25,7 @@ This document is the **canonical reference** for how the orchestrator validates 
 1. **`agent_start`** **registers** a `step_id`. A second `agent_start` with the same `step_id` is a violation (`duplicate_step_id`).
 2. **`agent_done`** and other events (`gate_result`, `contract_fail`, `context_stats`, …) may **reuse** an existing `step_id` without registering again.
 3. Any non–`agent_start` event that references a `step_id` that was **never** registered via `agent_start` is a violation (`step_id_unknown`). Exception path: `agent_done` without a prior start is reported as `agent_done_without_start`.
-4. **`parent_step_id`**: if present on a line, the parent `step_id` must already be registered when that line is processed in the parent pass (`orphan_parent`).
+4. **`parent_step_id`**: if present on a line, the value must refer to a `step_id` that was **registered by an `agent_start` somewhere in the same run** (the same array of lines passed to `validateTraceRunGraph`). The implementation checks membership in that **final** registry of started steps — it does **not** require the parent row to appear earlier in **file / time order**. **Emit-time** checks in the writer (for example `assertParentStepExists` and stderr warnings) are **separate** from this run-level graph validation pass.
 
 ## Violation types (today)
 
@@ -34,7 +34,7 @@ This document is the **canonical reference** for how the orchestrator validates 
 | `duplicate_step_id` | Second `agent_start` reusing the same `step_id`. |
 | `agent_done_without_start` | `agent_done` for a `step_id` that was never started. |
 | `step_id_unknown` | Non-start event uses a `step_id` not in the registry (includes missing `agent_start`). |
-| `orphan_parent` | `parent_step_id` does not refer to a registered step. |
+| `orphan_parent` | `parent_step_id` is set but does not match any `step_id` registered via `agent_start` in this run. |
 
 `line_index` is the 0-based index of the offending line in the input array when applicable.
 
