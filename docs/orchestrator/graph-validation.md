@@ -9,7 +9,9 @@ This document is the **canonical reference** for how the orchestrator validates 
 
 ## API
 
-`validateTraceRunGraph(lines)` accepts an array of parsed trace line objects (same shape as after `JSON.parse` on each JSONL row). It returns:
+`validateTraceRunGraph(lines)` accepts an array of parsed trace line objects (same shape as after `JSON.parse` on each JSONL row).
+
+**Return value (only shape):**
 
 ```ts
 {
@@ -26,16 +28,18 @@ This document is the **canonical reference** for how the orchestrator validates 
 }
 ```
 
-**`ok`:** `true` only when `violations` is empty. **`warnings`** are non-fatal (for example a run with lines but no `step_id` anywhere).
+- **`ok`:** `true` iff `violations.length === 0` (warnings do not affect `ok`).
+- **`violations`:** hard failures; see the table below.
+- **`warnings`:** non-fatal signals only (e.g. `no_steps_emitted` when the run has lines but no non-empty `step_id` on any line).
 
-## Step lifecycle rules
+## Step lifecycle rules (ordered)
 
-1. **`agent_start`** **registers** a `step_id`. A second `agent_start` with the same `step_id` is a violation (`duplicate_step_id`).
-2. **`agent_done`** and other events (`gate_result`, `contract_fail`, `context_stats`, …) may **reuse** an existing `step_id` without registering again.
-3. A line with a non-empty `step_id` must have a non-empty **`event`** string; otherwise `missing_event_with_step_id` (the line does not participate in lifecycle registration).
-4. Any non–`agent_start` event that references a `step_id` that was **never** registered via `agent_start` is a violation (`step_id_unknown`). Exception path: `agent_done` without a prior start is reported as `agent_done_without_start`.
-5. **`parent_step_id`**: if present on a line, the value must refer to a `step_id` that was **registered by an `agent_start` somewhere in the same run** (the same array of lines passed to `validateTraceRunGraph`). The implementation checks membership in that **final** registry of started steps — it does **not** require the parent row to appear earlier in **file / time order**. **Emit-time** checks in the writer (for example `assertParentStepExists` and stderr warnings) are **separate** from this run-level graph validation pass.
-6. **Directed cycles** among `parent_step_id → step_id` edges (both endpoints registered) are reported as **`cycle`** (first cycle found wins). Self-edges (`parent_step_id === step_id`) count as a cycle.
+1. **`agent_start`** registers `step_id`. A second `agent_start` for the same id is a violation: **`duplicate_step_id`**.
+2. **`agent_done`** and other events (`gate_result`, `contract_fail`, …) may **reuse** a `step_id` already registered by `agent_start`; they do not register a new id.
+3. A **non-empty** `step_id` requires a **non-empty** `event` string; otherwise **`missing_event_with_step_id`** (that line does not participate in registration).
+4. A **non–`agent_start`** event whose `step_id` is not in the registry → **`step_id_unknown`**. The special case **`agent_done`** without a prior **`agent_start`** for that id → **`agent_done_without_start`**.
+5. A **non-empty** `parent_step_id` must refer to a `step_id` present in the run’s **final** registry (all ids registered by any `agent_start` in the same `lines` array); otherwise **`orphan_parent`**. Membership is **not** checked in file order; **emit-time** writer checks (e.g. `assertParentStepExists`) are separate from this pass.
+6. **Directed** edges `parent_step_id → step_id` (both endpoints in that registry) are checked for cycles; a cycle is **`cycle`** (first hit wins). **`parent_step_id === step_id`** counts as a cycle.
 
 ## Violation types (today)
 

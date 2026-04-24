@@ -164,17 +164,8 @@ function parseTraceLine(line, opts = {}) {
 
 /**
  * @param {object[]} lines - parsed trace line objects from a single run
- * @returns {{
- *   ok: boolean,
- *   violations: Array<{type: string, step_id?: string|null, parent_step_id?: string, line_index?: number, to_step_id?: string, event?: string}>,
- *   warnings: Array<{type: string, ok?: boolean}>
- * }}
- *
- * **step_id lifecycle:** `agent_start` **registers** a step id (duplicate `agent_start` with same id → violation).
- * `agent_done` (and other events) may reuse that id without registering again. `agent_done` without a prior
- * `agent_start` for the same `step_id` → `agent_done_without_start`.
- *
- * Human-readable contract: docs/orchestrator/graph-validation.md
+ * @returns {{ ok: boolean, violations: Array<{type: string, step_id?: string|null, parent_step_id?: string, line_index?: number, to_step_id?: string, event?: string}>, warnings: Array<{type: string, ok?: boolean}> }}
+ * @see docs/orchestrator/graph-validation.md
  */
 function validateTraceRunGraph(lines) {
   const violations = /** @type {Array<{type: string, step_id?: string|null, parent_step_id?: string, line_index?: number, to_step_id?: string, event?: string}>} */ ([]);
