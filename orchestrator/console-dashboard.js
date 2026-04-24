@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Console “dashboard”: ASCII tables from trace JSONL (no TUI / no Grafana).
- * Aligns with strict-mode § failure taxonomy + rollupStepsCostOutcome.
+ * Console "dashboard": ASCII-only tables from trace JSONL (no TUI / no Grafana).
+ * Aligns with strict-mode.md failure taxonomy + rollupStepsCostOutcome.
  *
  * Usage:
  *   node console-dashboard.js --file ~/.claude/metrics/traces/<task_id>.jsonl
@@ -38,7 +38,7 @@ function sortedEntries(obj) {
  */
 function linesCountTable(label, counts, maxRows = 24, barWidth = 28) {
   const lines = [];
-  lines.push(`── ${label} ──`);
+  lines.push(`-- ${label} --`);
   const ent = sortedEntries(counts);
   if (!ent.length) {
     lines.push("(no rows)");
@@ -49,10 +49,10 @@ function linesCountTable(label, counts, maxRows = 24, barWidth = 28) {
   for (const [k, n] of ent.slice(0, maxRows)) {
     const barN = Math.round((n / maxC) * barWidth);
     const bar = "#".repeat(barN) + ".".repeat(Math.max(0, barWidth - barN));
-    const key = k.length > wKey ? `${k.slice(0, wKey - 1)}…` : k.padEnd(wKey);
+    const key = k.length > wKey ? `${k.slice(0, wKey - 1)}...` : k.padEnd(wKey);
     lines.push(`${key}  ${String(n).padStart(5)}  ${bar}`);
   }
-  if (ent.length > maxRows) lines.push(`… ${ent.length - maxRows} more`);
+  if (ent.length > maxRows) lines.push(`... ${ent.length - maxRows} more`);
   return lines;
 }
 
@@ -65,7 +65,7 @@ function buildDashboardText(rows, meta = {}) {
   const lines = [];
   const src = meta.source || "(rows)";
   lines.push("+----------------------------------------------------------------------+");
-  lines.push("|  Orchestrator console dashboard (trace JSONL — stdout tables only)   |");
+  lines.push("|  Orchestrator console dashboard (trace JSONL - stdout tables only)     |");
   lines.push("+----------------------------------------------------------------------+");
   lines.push(`Source: ${src}`);
   lines.push("");
@@ -89,7 +89,7 @@ function buildDashboardText(rows, meta = {}) {
   lines.push("");
 
   const tax = summarizeFailureTaxonomyFromRows(rows);
-  lines.push("Failure taxonomy (event=iteration_done) — drill: reason_code → axis → type");
+  lines.push("Failure taxonomy (event=iteration_done) - drill: reason_code -> axis -> type");
   lines.push(`  iteration_done lines: ${tax.iteration_done_count}`);
   lines.push("");
   lines.push(...linesCountTable("by reason_code", tax.by_reason_code));
@@ -102,7 +102,7 @@ function buildDashboardText(rows, meta = {}) {
   lines.push("");
 
   const roll = rollupStepsCostOutcome(rows);
-  lines.push("── Top steps by Ollama tokens (rollupStepsCostOutcome) ──");
+  lines.push("-- Top steps by Ollama tokens (rollupStepsCostOutcome) --");
   if (!roll.length) {
     lines.push("(no step_id rows with context_stats)");
   } else {
@@ -113,7 +113,7 @@ function buildDashboardText(rows, meta = {}) {
     lines.push("-".repeat(92));
     for (const s of top) {
       const sid = String(s.step_id);
-      const sidDisp = sid.length > 44 ? `${sid.slice(0, 20)}…${sid.slice(-21)}` : sid.padEnd(44);
+      const sidDisp = sid.length > 44 ? `${sid.slice(0, 20)}...${sid.slice(-21)}` : sid.padEnd(44);
       const ag = String(s.agent ?? "-").slice(0, 14).padEnd(14);
       const pf = String(s.ollama_prompt_tokens).padStart(6);
       const cf = String(s.ollama_completion_tokens).padStart(6);
@@ -165,7 +165,7 @@ function buildBatchDashboardText(opts) {
   lines.push("");
   lines.push(...linesCountTable("Aggregate by failure_type", agg.by_failure_type, 32));
   lines.push("");
-  lines.push("── Per run (compact) ──");
+  lines.push("-- Per run (compact) --");
   lines.push("task_id".padEnd(28) + "scenario".padEnd(16) + "iter_done  top_reason");
   lines.push("-".repeat(76));
   for (const r of runs.slice(0, 40)) {
@@ -177,7 +177,7 @@ function buildBatchDashboardText(opts) {
     const tr = top ? `${top[0]}(${top[1]})` : "-";
     lines.push(`${tid}${sc}${String(n).padStart(9)}  ${tr}`);
   }
-  if (runs.length > 40) lines.push(`… ${runs.length - 40} more runs`);
+  if (runs.length > 40) lines.push(`... ${runs.length - 40} more runs`);
   lines.push("");
   return lines.join("\n");
 }

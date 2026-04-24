@@ -172,9 +172,11 @@ npm run metrics:export-scenarios -- --since-m 60 --out /tmp/orch-metrics.json
 # flags: --dir, --include-untagged, --out (stdout if omitted)
 ```
 
-**Console dashboard (no TUI; no hosted UI in this package):** ASCII tables for one trace or a batch — failure taxonomy + top steps by tokens:
+**Console dashboard (no TUI; no hosted UI in this package):** stdout tables (literal output is **ASCII-only**; values copied from trace fields may contain other bytes). Failure taxonomy + top steps by tokens:
 
 ```bash
+# smoke without a local trace (fixture shipped in repo):
+npm run dashboard:console -- --file tests/fixtures/golden-path-clean-v1.jsonl
 npm run dashboard:console -- --file ~/.claude/metrics/traces/<task_id>.jsonl
 npm run dashboard:console -- --batch --since-m 60 --include-untagged
 ```
