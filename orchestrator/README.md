@@ -616,10 +616,18 @@ References:
 ```
 orchestrator/
 ├── agents.js              # Public facade: require("./agents") — AGENTS, askAgent, validateOutput, exports
-├── agents/                # Split modules (ROLE-REGISTRY-2-S1+); same API via agents.js
+├── agents/                # Split modules (ROLE-REGISTRY-2-S1); same API via agents.js
 │   ├── routing/
 │   │   └── model-routing.js   # MODEL_ROUTING, FALLBACK_POLICY, Ollama routing constants
-│   └── permissions.js         # ROLE_PERMISSION, effectiveMode()
+│   ├── permissions.js         # ROLE_PERMISSION, effectiveMode()
+│   ├── validate-output.js     # validateOutput, normalizeDevContractText, CERBERUS semantic helpers
+│   ├── registry.js            # buildAgents() → AGENTS (prompts + model getters)
+│   ├── prompts/
+│   │   └── ollama-appends.js  # OLLAMA_* system appendices for local models
+│   └── runtime/
+│       ├── run-ollama.js      # Ollama /api/chat
+│       ├── run-claude.js      # claude CLI spawn (call-time spawnSync for test stubs)
+│       └── summarize-handoff.js
 ├── orchestrator.js      # Autonomous loop: plan → execute → gate → cerberus → decide
 ├── context-utils.js     # Context truncation helpers
 ├── run-orchestrator.js  # CLI entry point

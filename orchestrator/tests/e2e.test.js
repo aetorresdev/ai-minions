@@ -625,7 +625,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     if (skipIfNoOllama(t)) return;
 
     // Import validateOutput internals via the agents module exports
-    // agents.js does not export validateOutput directly — use the unit test approach:
+    // validateOutput lives in agents/validate-output.js (re-exported from agents facade) — use the unit test approach:
     // require a fresh stub of cp.spawnSync so Ollama path is bypassed.
     const cp = require("node:child_process");
     const original = cp.spawnSync;

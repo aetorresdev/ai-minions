@@ -25,14 +25,15 @@ When changing any of the files below, update the paired counterpart before openi
 
 | If you change… | Also update… |
 |----------------|--------------|
-| `validateOutput()` contracts in `agents.js` | `docs/orchestrator/agent-contract.md` § Output contracts |
-| Role ALLOW/FORBID logic in `agents.js` | `docs/orchestrator/agent-contract.md` § ALLOW/FORBID table |
+| `validateOutput()` contracts in `orchestrator/agents/validate-output.js` | `docs/orchestrator/agent-contract.md` § Output contracts |
+| Role ALLOW/FORBID text lives in `orchestrator/agents/registry.js` (prompts); matrix in `permissions.js` | `docs/orchestrator/agent-contract.md` § ALLOW/FORBID table |
 | Hook gate logic (`scripts/hooks/`) | `docs/orchestrator/strict-mode.md` § Gate sequence |
 | `CLAUDE.md` Activation Rules or MODE protocol | `docs/orchestrator/agent-contract.md` § MODE Protocol |
 | `CONTRACT_VERSION` in `agents.js` | `docs/orchestrator/model-routing.md` (if routing changed) |
 | `MODEL_ROUTING` / `FALLBACK_POLICY` in `orchestrator/agents/routing/model-routing.js` | `docs/orchestrator/model-routing.md` + `tests/modelRoutingStrategy.test.js` |
 | `ROLE_PERMISSION` / `effectiveMode()` in `orchestrator/agents/permissions.js` | `docs/orchestrator/agent-contract.md` § ALLOW/FORBID + `docs/orchestrator/environment-access.md` + `tests/rolePermissionMatrix.test.js` |
 | New files under `orchestrator/agents/` | `orchestrator/README.md` § Structure, `docs/orchestrator/PATHS.md`, `docs/orchestrator/shared-dependencies.md`, `docs/orchestrator/role-agent-registry.md` |
+| `AGENTS` / `buildAgents` in `orchestrator/agents/registry.js` | `docs/orchestrator/agent-contract.md` § MODE roles; `model-routing.md` if model table changes |
 | Pricing constants in `scripts/hooks/constants.py` | `docs/orchestrator/strict-mode.md` § Shared hook modules |
 
 **Rule:** `CLAUDE.md` is a consistency aid — not enforcement. Real gates live in `validateOutput()` and the hooks. If they diverge, the runtime wins.
