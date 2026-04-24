@@ -16,7 +16,8 @@ The **MODE contract** and strict-mode behavior are defined only under `docs/orch
 | **MCP: compact-handoff** | `mcp-servers/compact-handoff/` | Structured handoff YAML when gates require it | Same as orchestrator-state for direct transport | `mcp-direct.py` | Same |
 | **Other MCP trees** | `mcp-servers/*` (excl. above) | Lint surface only today (entire tree checked by ruff) | **Lint / quality** | `lint-py.js` includes full `mcp-servers/` | `lint:py` may fail; runtime unaffected unless you add imports |
 | **Skills** | `skills/` | Cursor / human procedures; optional `@skill` context | **Never** read by the Node orchestrator loop | None in `orchestrator/*.js` | No runtime failure; operators lack guidance if docs not followed |
-| **Agent prompts (repo)** | `agents/` | Subagent specs for `mcp_task` / IDE; not the same as `orchestrator/agents.js` | **Never** imported by the orchestrator package | None in `orchestrator/*.js` | No runtime failure |
+| **Subagent prompts (repo root)** | `agents/` | Specs for `mcp_task` / IDE skills | **Never** imported by the orchestrator Node package | None in `orchestrator/*.js` | No runtime failure |
+| **MODE runtime (orchestrator package)** | `orchestrator/agents.js` + `orchestrator/agents/**` | Public entry is **`require("./agents")`** on `agents.js` (facade). Split modules today: `agents/routing/model-routing.js`, `agents/permissions.js` — more under epic **ROLE-REGISTRY-2** | **Yes** for multi-agent runs | `orchestrator.js`, `cli.js`, tests `require("../agents")` | Wrong edits break contracts / CI |
 | **Contract & ops docs** | `docs/orchestrator/` | MODE, traces, PATHS, this file | **Human / review**; comments in code reference by path | Read in editor; not loaded at runtime | Drift vs `validateOutput()` / traces |
 | **CI workflows** | `.github/workflows/orchestrator-*.yml` | Lint, unit, E2E | **Automation** | `cd orchestrator` + `npm ci` / `npm test` | CI red |
 
