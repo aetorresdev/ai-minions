@@ -486,6 +486,8 @@ The writer computes **`failure_type`** / **`failure_axis`** with **`failureTypeF
 
 **Maintenance:** when adding a **`reason_code`** to the JSON Schema enum, extend **`TRANSITION_REASON_CODES`** / **`inferReasonCode()`** in **`orchestrator.js`**, add a row here, and add a row to the **`failure taxonomy matrix`** test in **`tests/traceSchema.test.js`**.
 
+**Operational dashboards:** see [`dashboard-failure-taxonomy.md`](./dashboard-failure-taxonomy.md) (export fields, `jq`, Loki/Grafana notes).
+
 `step_id` is the primary join key across events within a run. Consumers (token reports, EIL visualisation) use it to correlate `agent_start` → `agent_done` → `gate_result` → `context_stats` for the same step without scanning by `(agent, iteration)` tuples.
 
 ### Graph edges
