@@ -23,6 +23,8 @@ const fs   = require("fs");
 const path = require("path");
 const os   = require("os");
 
+const { rollupStepsCostOutcome } = require("./token-trace-report");
+
 const MAX_BYTES = 50 * 1024 * 1024;
 const MAX_LINES = 10_000;
 
@@ -222,6 +224,40 @@ function deriveExplain(rows) {
     result.failure_type = "UNKNOWN";
   }
 
+  result.rollup_steps = rollupStepsCostOutcome(rows);
+
+  const intentOrder = [];
+  const intentSeen = new Set();
+  for (const r of rows) {
+    if (typeof r.intent_id === "string" && r.intent_id.length > 0 && !intentSeen.has(r.intent_id)) {
+      intentSeen.add(r.intent_id);
+      intentOrder.push(r.intent_id);
+    }
+  }
+  if (intentOrder.length) result.intent_ids = intentOrder;
+
+  /** @type {string | undefined} */
+  let lastFailureAxis = undefined;
+  const iterationDoneSummary = [];
+  for (const r of rows) {
+    if (r.event !== "iteration_done") continue;
+    const entry = {
+      iteration: typeof r.iteration === "number" ? r.iteration : undefined,
+      outcome: typeof r.outcome === "string" ? r.outcome : undefined,
+    };
+    if (typeof r.failure_type === "string") entry.failure_type = r.failure_type;
+    if (typeof r.failure_axis === "string") {
+      entry.failure_axis = r.failure_axis;
+      lastFailureAxis = r.failure_axis;
+    }
+    if (Array.isArray(r.intent_ids)) {
+      entry.intent_ids = r.intent_ids.filter((x) => typeof x === "string");
+    }
+    iterationDoneSummary.push(entry);
+  }
+  if (iterationDoneSummary.length) result.iteration_done_summary = iterationDoneSummary;
+  if (lastFailureAxis !== undefined) result.last_failure_axis = lastFailureAxis;
+
   return result;
 }
 
@@ -245,6 +281,18 @@ function printHuman(runId, filePath, explain, skipped, truncated) {
   }
   console.log(`retries:      ${explain.retries}`);
   if (explain.failure_type !== undefined) console.log(`failure_type: ${explain.failure_type}`);
+  if (explain.last_failure_axis !== undefined) console.log(`last_failure_axis: ${explain.last_failure_axis}`);
+  if (explain.intent_ids && explain.intent_ids.length) {
+    const show = explain.intent_ids.slice(0, 4).join(", ");
+    const more = explain.intent_ids.length > 4 ? ` (+${explain.intent_ids.length - 4} more)` : "";
+    console.log(`intent_ids:   ${explain.intent_ids.length} unique — ${show}${more}`);
+  }
+  if (explain.rollup_steps && explain.rollup_steps.length) {
+    const top = explain.rollup_steps[0];
+    console.log(
+      `top_step:     ${top.step_id} tokens=${top.ollama_total_tokens} failed=${top.step_failed}`,
+    );
+  }
   if (explain.cost_usd !== undefined)     console.log(`cost_usd:     ${explain.cost_usd}`);
   if (skipped > 0) {
     console.log(`\n⚠️  ${skipped} línea(s) inválida(s) omitidas`);

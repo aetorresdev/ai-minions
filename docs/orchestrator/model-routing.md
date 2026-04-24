@@ -171,6 +171,8 @@ E2E and local harnesses may route **all** roles through Ollama when **`OLLAMA_MO
 
 **Implementation detail:** prompts and **`normalizeDevContractText()`** improve first-shot odds but do not, by themselves, guarantee first-shot compliance under local models.
 
+**Baseline vs large-N proof:** a single green first-shot report on a **small** sample (e.g. five consecutive passes) is a valid **metric-backed baseline** for closing a **shaping + instrumentation** slice — not a permanent statistical certificate. Keep **`first_shot_pass_rate`** as a **trend** in CI history; widen `runs` before tightening policy (e.g. making single-iteration smoke mandatory in the blocking lane). See **`strict-mode.md`** § *DEV first-shot metric vs strict path* → *Baseline vs guarantee*.
+
 **Scope boundary:** the two lanes above measure only DEV **output-shape** compliance under **`skipStateMcp: true`** (degraded E2E). They do **not** prove **`validate_goal_alignment`**, **`advance_mode`**, or other **strict** gates for any particular goal. A green **`first_shot_pass_rate`** run is **orthogonal** to “strict path healthy end-to-end” — see **`strict-mode.md`** § *DEV first-shot metric vs strict path*.
 
 ### Orchestrator with Ollama (plan / decide JSON)
