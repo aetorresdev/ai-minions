@@ -169,6 +169,8 @@ function parseTraceLine(line, opts = {}) {
  * **step_id lifecycle:** `agent_start` **registers** a step id (duplicate `agent_start` with same id → violation).
  * `agent_done` (and other events) may reuse that id without registering again. `agent_done` without a prior
  * `agent_start` for the same `step_id` → `agent_done_without_start`.
+ *
+ * Human-readable contract: docs/orchestrator/graph-validation.md
  */
 function validateTraceRunGraph(lines) {
   const violations = [];
