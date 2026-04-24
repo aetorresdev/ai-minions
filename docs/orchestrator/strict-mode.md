@@ -38,7 +38,7 @@ Operator-set **env-only** aborts (see [orchestrator README](../../orchestrator/R
 
 `session_start` → `agent_start` → `agent_done` → `iteration_done` (`outcome: done`, `transition_reason.type: DONE`) → `session_end`.
 
-CI validates each line against `trace-v2-line.schema.json` and the step graph slice with `validateTraceRunGraph` (`orchestrator/tests/goldenPath.test.js`). **`step_id` semantics:** only **`agent_start`** registers an id; **`agent_done`** and other events (e.g. `gate_result`) may reuse that id — duplicate **`agent_start`** with the same `step_id` remains a violation (see `trace-schema.js`).
+CI validates each line against `trace-v2-line.schema.json` and the **run-level** step graph with `validateTraceRunGraph` (`orchestrator/tests/goldenPath.test.js`). **Canonical doc:** [graph-validation.md](graph-validation.md) (lifecycle rules, violation types, fixtures).
 
 Use this as a **regression anchor** for per-line schema, event ordering, and graph invariants — not as proof of product success on real Ollama traffic.
 
@@ -488,6 +488,23 @@ Before the step loop runs, the plan is validated via `validateStepGraph()`:
 A `graph_validation_fail` trace event is emitted and execution halts if validation fails.
 
 At emit time, `assertParentStepExists()` warns (stderr) if a `parent_step_id` references a `step_id` not yet emitted — guards against orphan edges ahead of fan-out and multi-parent support.
+
+### Trace field classification (exports, dashboards, shared logs)
+
+When traces leave the operator workstation (CI artifacts, ticket paste, shared dashboards), classify fields so redaction tooling (present or future) applies a **consistent default**. This table is **policy documentation** only until a writer-time sanitizer closes the corresponding implementation ticket.
+
+| Group / examples | Sensitivity | Default when exporting externally | Notes |
+|------------------|-------------|-------------------------------------|--------|
+| **`task_id`, `session_id`, `trace_schema_version`, `iteration`, `event` names** | Low | Allow as-is | Identifiers for correlation; avoid embedding secrets in ids. |
+| **`ts` / `ts_ms`, `duration_ms`, token totals, counts** | Low | Allow | Operational timing and cost aggregates. |
+| **`step_id`, `agent` / `agentId`, `retry_number`, `edge_type`, `outcome`** | Low–medium | Allow | Structure of the run; can still aid fingerprinting if combined with rare task text. |
+| **`task` (truncated goal snippet on `agent_start`), `summary` lines, `plan` text** | Medium | **Truncate** (e.g. 200–500 chars) or **omit** unless reviewer needs it | Competitive or personal goal text. |
+| **`reason`, `details`, gate `reason`, `contract_fail` messages, alignment `notes`** | Medium–high | **Truncate** heavily or **omit**; prefer **`reason_code`** + enum | Often contains paths, snippets, or model paraphrase of internal state. |
+| **`mcp_call` args / payloads, raw MCP errors, file paths in violations** | High | **Omit** or replace with **`hash`** / stable surrogate | Paths and parameters leak repo layout and secrets. |
+| **`handoff` / full YAML excerpts, `approved_artifacts` lists, envelope paths** | High | **Omit** by default; if required, **hash** paths + redact contents | Primary secret and IP surface for strict runs. |
+| **`run_state_snapshot`**, nested `artifact` bodies | High | **Omit** unless stripped to public-safe view | May mirror envelope or filesystem hints. |
+
+**Principle:** prefer **closed `reason_code` enums** and short structural flags in shared artifacts; keep free-form strings for **local** `explain-run` and operator-only copies.
 
 ---
 
