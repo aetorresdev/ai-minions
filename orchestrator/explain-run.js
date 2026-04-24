@@ -267,7 +267,7 @@ function printHuman(runId, filePath, explain, skipped, truncated) {
   console.log(`run_id:       ${runId}`);
   console.log(`trace_file:   ${filePath}`);
   if (truncated) {
-    console.log("⚠️  File exceeded limits (50 MB / 10,000 lines) — truncated to last session_end segment");
+    console.log("WARNING: file exceeded limits (50 MB / 10000 lines) - truncated to last session_end segment");
   }
   console.log(`final_status: ${explain.final_status ?? "(no outcome recorded)"}`);
   if (explain.goal      !== undefined) console.log(`goal:         ${explain.goal}`);
@@ -285,7 +285,7 @@ function printHuman(runId, filePath, explain, skipped, truncated) {
   if (explain.intent_ids && explain.intent_ids.length) {
     const show = explain.intent_ids.slice(0, 4).join(", ");
     const more = explain.intent_ids.length > 4 ? ` (+${explain.intent_ids.length - 4} more)` : "";
-    console.log(`intent_ids:   ${explain.intent_ids.length} unique — ${show}${more}`);
+    console.log(`intent_ids:   ${explain.intent_ids.length} unique - ${show}${more}`);
   }
   if (explain.rollup_steps && explain.rollup_steps.length) {
     const top = explain.rollup_steps[0];
@@ -295,7 +295,7 @@ function printHuman(runId, filePath, explain, skipped, truncated) {
   }
   if (explain.cost_usd !== undefined)     console.log(`cost_usd:     ${explain.cost_usd}`);
   if (skipped > 0) {
-    console.log(`\n⚠️  ${skipped} línea(s) inválida(s) omitidas`);
+    console.log(`\nWARNING: ${skipped} invalid JSON line(s) skipped`);
   }
 }
 

@@ -130,6 +130,104 @@ describe("deriveExplain — clean trace", () => {
   });
 });
 
+// ── OBS-CONSUME-1 (groomed backlog) — successful / blocked / multi-intent ───
+
+describe("deriveExplain — OBS-CONSUME-1 acceptance shapes", () => {
+  it("successful run: done outcome, rollup shows step not failed, optional QA signal", () => {
+    const rows = [
+      baseSession({ ts_ms: 1000 }),
+      {
+        event: "context_stats",
+        step_id: "step-ok",
+        agent: "dev-backend",
+        iteration: 0,
+        intent_id: "intent-a",
+        ollama_prompt_tokens: 100,
+        ollama_completion_tokens: 20,
+        ts_ms: 1100,
+      },
+      { event: "agent_done", step_id: "step-ok", intent_id: "intent-a", edge_type: "success", ts_ms: 1200 },
+      {
+        event: "agent_done",
+        step_id: "step-ok",
+        agent: "qa",
+        qa_triple_template: true,
+        qa_blocker_non_vacuous: false,
+        ts_ms: 1300,
+      },
+      { event: "iteration_done", iteration: 0, outcome: "done", ts_ms: 2000 },
+      { event: "session_end", outcome: "done", ts_ms: 3000 },
+    ];
+    const r = deriveExplain(rows);
+    assert.equal(r.final_status, "done");
+    assert.ok(Array.isArray(r.rollup_steps));
+    assert.equal(r.rollup_steps.length, 1);
+    assert.equal(r.rollup_steps[0].step_id, "step-ok");
+    assert.equal(r.rollup_steps[0].step_failed, false);
+    assert.equal(r.rollup_steps[0].qa_triple_template, true);
+    assert.equal(r.rollup_steps[0].qa_blocker_non_vacuous, false);
+    assert.deepEqual(r.intent_ids, ["intent-a"]);
+  });
+
+  it("blocked-style run: contract_fail surfaces as step_failed in rollup", () => {
+    const rows = [
+      baseSession({ ts_ms: 1000 }),
+      {
+        event: "context_stats",
+        step_id: "step-bad",
+        agent: "dev-backend",
+        ollama_prompt_tokens: 5,
+        ollama_completion_tokens: 0,
+        ts_ms: 1100,
+      },
+      { event: "agent_done", step_id: "step-bad", edge_type: "success", ts_ms: 1150 },
+      { event: "contract_fail", step_id: "step-bad", ts_ms: 1200 },
+      { event: "iteration_done", iteration: 0, outcome: "done", failure_type: "contract_mismatch", ts_ms: 2000 },
+      { event: "session_end", outcome: "done", ts_ms: 3000 },
+    ];
+    const r = deriveExplain(rows);
+    assert.equal(r.final_status, "done");
+    assert.equal(r.failure_type, "contract_mismatch");
+    assert.equal(r.rollup_steps.length, 1);
+    assert.equal(r.rollup_steps[0].step_failed, true);
+    assert.equal(r.rollup_steps[0].contract_fail, true);
+  });
+
+  it("run with multiple distinct intent_ids (grouping order = first appearance)", () => {
+    const rows = [
+      baseSession({ ts_ms: 1000 }),
+      {
+        event: "context_stats",
+        step_id: "a",
+        intent_id: "third",
+        ollama_prompt_tokens: 1,
+        ollama_completion_tokens: 0,
+        ts_ms: 1100,
+      },
+      {
+        event: "context_stats",
+        step_id: "b",
+        intent_id: "first",
+        ollama_prompt_tokens: 2,
+        ollama_completion_tokens: 0,
+        ts_ms: 1200,
+      },
+      {
+        event: "context_stats",
+        step_id: "c",
+        intent_id: "second",
+        ollama_prompt_tokens: 3,
+        ollama_completion_tokens: 0,
+        ts_ms: 1300,
+      },
+      { event: "session_end", outcome: "done", ts_ms: 2000 },
+    ];
+    const r = deriveExplain(rows);
+    assert.deepEqual(r.intent_ids, ["third", "first", "second"]);
+    assert.equal(r.rollup_steps.length, 3);
+  });
+});
+
 // ── deriveExplain — intent_ids, rollup_steps, failure_axis ───────────────────
 
 describe("deriveExplain — intent, rollup, failure_axis", () => {
