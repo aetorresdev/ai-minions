@@ -34,6 +34,8 @@ files_modified:
 validation_run: <shell command + outcome (grep/node/npm test/wc)>
 
 Rules: non-empty files_read and files_modified lists; every modified path must appear under files_read; validation_run required; never files_read: [].
+Do not wrap the YAML in markdown code fences. The first non-whitespace character of your reply must be the letter f from files_read (start of the YAML mapping).
+If you truly read nothing new, cite one path you opened from the task/cwd — never emit files_read: [].
 After the YAML, at most 2 short lines of prose.
 `;
 

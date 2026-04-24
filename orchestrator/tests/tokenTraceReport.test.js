@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { parseJsonl, buildReport, optionalOllamaUsdEstimate } = require("../token-trace-report");
+const { parseJsonl, buildReport, optionalOllamaUsdEstimate, rollupStepsCostOutcome } = require("../token-trace-report");
 
 test("parseJsonl skips empty lines and collects errors", () => {
   const { rows, errors } = parseJsonl(`{"a":1}\n\nnot-json\n{"b":2}\n`);
@@ -41,6 +41,29 @@ test("buildReport aggregates context_stats and session_end", () => {
   assert.equal(report.mcp_events_count, 1);
   assert.equal(report.mcp_from_session_end.mcp_total_calls, 1);
   assert.ok(report.by_agent_phase["orchestrator | plan"]);
+});
+
+test("rollupStepsCostOutcome joins tokens and failure signals by step_id", () => {
+  const intent = "11111111-2222-3333-4444-555555555555";
+  const rows = [
+    { event: "agent_start", step_id: "s1", intent_id: intent, agent: "dev-backend", iteration: 1 },
+    { event: "agent_done", step_id: "s1", intent_id: intent, edge_type: "success", agent: "dev-backend", iteration: 1 },
+    { event: "context_stats", step_id: "s1", intent_id: intent, agent: "dev-backend", iteration: 1, ollama_prompt_tokens: 100, ollama_completion_tokens: 40 },
+    { event: "context_stats", step_id: "s1", intent_id: intent, agent: "dev-backend", iteration: 1, ollama_prompt_tokens: 10, ollama_completion_tokens: 5 },
+    { event: "agent_start", step_id: "s2", intent_id: intent, agent: "qa", iteration: 1 },
+    { event: "gate_result", step_id: "s2", passed: false, gate: "handoff_structure" },
+    { event: "context_stats", step_id: "s2", agent: "qa", iteration: 1, ollama_prompt_tokens: 1, ollama_completion_tokens: 1 },
+  ];
+  const roll = rollupStepsCostOutcome(rows);
+  assert.equal(roll.length, 2);
+  assert.equal(roll[0].step_id, "s1");
+  assert.equal(roll[0].ollama_total_tokens, 155);
+  assert.equal(roll[0].step_failed, false);
+  assert.equal(roll[0].intent_id, intent);
+  const s2 = roll.find((x) => x.step_id === "s2");
+  assert.ok(s2);
+  assert.equal(s2.step_failed, true);
+  assert.equal(s2.gate_fail, true);
 });
 
 test("optionalOllamaUsdEstimate marks USD as estimated when env rates set", () => {
