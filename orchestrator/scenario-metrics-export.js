@@ -13,7 +13,7 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { parseJsonl, buildReport, optionalOllamaUsdEstimate } = require("./token-trace-report");
+const { parseJsonl, buildReport, optionalOllamaUsdEstimate, rollupStepsCostOutcome } = require("./token-trace-report");
 
 /**
  * Aggregate Ollama token totals from context_stats-derived `by_agent_phase` across runs.
@@ -130,6 +130,7 @@ function collectRunsFromDir(tracesDir, opts = {}) {
       by_agent_phase: report.by_agent_phase,
       mcp_from_session_end: report.mcp_from_session_end,
       mcp_events_count: report.mcp_events_count,
+      rollup_steps: rollupStepsCostOutcome(rows),
       ...(ollamaUsdEstimate ? { ollama_usd_estimate: ollamaUsdEstimate } : {}),
     });
   }
@@ -242,7 +243,7 @@ function main() {
   }
 }
 
-module.exports = { collectRunsFromDir, buildByFlowMode, buildByStage, buildUsdExportMeta };
+module.exports = { collectRunsFromDir, buildByFlowMode, buildByStage, buildUsdExportMeta, rollupStepsCostOutcome };
 
 if (require.main === module) {
   main();

@@ -45,6 +45,8 @@ There is **no** automatic cross-version rewrite at read time today; multi-versio
 
 ## Examples
 
+**Recent additive fields (still `trace_schema_version: "2"`):** optional `intent_id` on step-level rows; optional `intent_ids` and `failure_axis` on `iteration_done`; see `strict-mode.md` § *Trace line envelope* / iteration table.
+
 **Valid v2 line (shape abbreviated):**
 
 ```json

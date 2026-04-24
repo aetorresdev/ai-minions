@@ -6,7 +6,7 @@ const cp = require("child_process");
 cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 
 const { validateTraceLine, parseTraceLine, getValidationMetrics, resetValidationMetrics, REJECTION_REASONS } = require("../trace-schema");
-const { transitionReason, failureTypeForIterationDone } = require("../orchestrator");
+const { transitionReason, failureTypeForIterationDone, failureAxisForIterationDone } = require("../orchestrator");
 
 test("validateTraceLine accepts session_start v2 envelope", () => {
   const row = {
@@ -119,6 +119,41 @@ test("validateTraceLine accepts iteration_done GUARD cost limit", () => {
   };
   const v = validateTraceLine(row);
   assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
+test("validateTraceLine accepts iteration_done with intent_ids and failure_axis", () => {
+  const row = {
+    ts: "2026-04-15T12:00:00.000Z",
+    ts_ms: 1713182400000,
+    trace_schema_version: "2",
+    task_id: "task-abc",
+    event: "iteration_done",
+    iteration: 1,
+    outcome: "iterate",
+    failure_type: "contract_mismatch",
+    failure_axis: "cerberus",
+    intent_ids: ["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"],
+    ...transitionReason("GATE_BLOCK", "cerberus_blockers"),
+  };
+  const v = validateTraceLine(row);
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
+test("failureAxisForIterationDone maps reason codes and outcomes", () => {
+  assert.equal(failureAxisForIterationDone("done", "RUN_COMPLETED"), "unknown");
+  assert.equal(failureAxisForIterationDone("iterate", "CERBERUS_BLOCKERS_ITERATE"), "cerberus");
+  assert.equal(failureAxisForIterationDone("iterate", "ORCHESTRATOR_DECIDE_CORRECTIONS"), "orchestrate");
+  assert.equal(failureAxisForIterationDone("iterate_fallback", "ORCHESTRATOR_NO_CORRECTIONS_JSON"), "orchestrate");
+  assert.equal(failureAxisForIterationDone("guard_abort", "GUARD_COST_LIMIT"), "guard");
+  assert.equal(
+    failureAxisForIterationDone("gate_blocked_iterate", "GATE_ARTIFACT_OR_HANDOFF", { gateKinds: ["compact_handoff"] }),
+    "gate_tool",
+  );
+  assert.equal(
+    failureAxisForIterationDone("gate_blocked_iterate", "GATE_ARTIFACT_OR_HANDOFF", { gateKinds: ["output_contract"] }),
+    "gate_artifact",
+  );
+  assert.equal(failureAxisForIterationDone("loop_limit_stopped", "MAX_ITERATIONS_LOOP_EXHAUSTED"), "loop_cap");
 });
 
 test("failureTypeForIterationDone maps reason codes and gate kinds", () => {
