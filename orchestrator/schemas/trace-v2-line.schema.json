@@ -61,6 +61,24 @@
               "gate_id": { "type": "string", "maxLength": 120 },
               "step_id": { "type": "string", "maxLength": 240 }
             }
+          },
+          "failure_axis": {
+            "type": "string",
+            "enum": [
+              "guard",
+              "cerberus",
+              "gate_artifact",
+              "gate_tool",
+              "orchestrate",
+              "loop_cap",
+              "contract",
+              "unknown"
+            ]
+          },
+          "intent_ids": {
+            "type": "array",
+            "maxItems": 48,
+            "items": { "type": "string", "minLength": 8, "maxLength": 64 }
           }
         }
       }

@@ -258,6 +258,18 @@ function _sanitize(event) {
   if ("failure_type" in out && out.failure_type != null) {
     out.failure_type = String(out.failure_type).slice(0, 64);
   }
+  if ("failure_axis" in out && out.failure_axis != null) {
+    out.failure_axis = String(out.failure_axis).slice(0, 32);
+  }
+  if (typeof out.intent_id === "string") {
+    out.intent_id = out.intent_id.slice(0, 64);
+  }
+  if (Array.isArray(out.intent_ids)) {
+    out.intent_ids = out.intent_ids
+      .filter((x) => typeof x === "string")
+      .map((x) => x.slice(0, 64))
+      .slice(0, 48);
+  }
   return out;
 }
 
@@ -272,6 +284,19 @@ const FAILURE_TYPES = /** @type {const} */ ([
   "retry_exceeded",
 ]);
 const FAILURE_TYPE_SET = new Set(FAILURE_TYPES);
+
+/** Middle-layer axis for dashboards — pairs with coarse `failure_type`. */
+const FAILURE_AXES = /** @type {const} */ ([
+  "guard",
+  "cerberus",
+  "gate_artifact",
+  "gate_tool",
+  "orchestrate",
+  "loop_cap",
+  "contract",
+  "unknown",
+]);
+const FAILURE_AXIS_SET = new Set(FAILURE_AXES);
 
 /**
  * Map orchestrator semantics → coarse `failure_type` on iteration_done.
@@ -310,12 +335,45 @@ function failureTypeForIterationDone(outcome, reasonCode, ctx = {}) {
 }
 
 /**
+ * Analytics axis: use with `failure_type` and `transition_reason.reason_code` in dashboards.
+ * @param {string} outcome
+ * @param {string} reasonCode
+ * @param {{ gateKinds?: string[] }} [ctx]
+ * @returns {string}
+ */
+function failureAxisForIterationDone(outcome, reasonCode, ctx = {}) {
+  if (outcome === "done") return "unknown";
+  const rc = String(reasonCode || "");
+  const kinds = ctx.gateKinds || [];
+  if (rc === "GUARD_COST_LIMIT" || rc === "GUARD_STEP_RETRY_LIMIT") return "guard";
+  if (outcome === "gate_blocked_iterate" && kinds.some((k) => k === "compact_handoff")) return "gate_tool";
+  if (
+    rc === "CERBERUS_BLOCKERS_ITERATE" ||
+    rc === "MAX_ITERATIONS_CERBERUS_BLOCKERS" ||
+    outcome === "max_iterations_with_blockers"
+  ) {
+    return "cerberus";
+  }
+  if (
+    rc === "GATE_ARTIFACT_OR_HANDOFF" ||
+    rc === "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS" ||
+    outcome === "max_iterations_with_gate_blocks"
+  ) {
+    return "gate_artifact";
+  }
+  if (rc === "ORCHESTRATOR_DECIDE_CORRECTIONS" || rc === "ORCHESTRATOR_NO_CORRECTIONS_JSON") return "orchestrate";
+  if (rc === "MAX_ITERATIONS_LOOP_EXHAUSTED" || outcome === "loop_limit_stopped") return "loop_cap";
+  if (rc === "CONTRACT_OR_DECIDE_FAILURE" || outcome === "stopped") return "contract";
+  return "unknown";
+}
+
+/**
  * @param {string} taskId
  * @param {number} iteration
  * @param {string} outcome
  * @param {ReturnType<typeof transitionReason>} trSpread
  * @param {Record<string, unknown>} [extra]
- * @param {{ gateKinds?: string[] }} [ctx]
+ * @param {{ gateKinds?: string[], intent_ids?: string[] }} [ctx]
  */
 function traceIterationDone(taskId, iteration, outcome, trSpread, extra = {}, ctx = {}) {
   const reasonCode = trSpread.transition_reason && trSpread.transition_reason.reason_code;
@@ -332,6 +390,14 @@ function traceIterationDone(taskId, iteration, outcome, trSpread, extra = {}, ct
       throw new Error(`internal: invalid failure_type ${ft}`);
     }
     payload.failure_type = ft;
+  }
+  if (outcome !== "done") {
+    const axis = failureAxisForIterationDone(outcome, String(reasonCode || ""), ctx);
+    if (!FAILURE_AXIS_SET.has(axis)) throw new Error(`internal: invalid failure_axis ${axis}`);
+    payload.failure_axis = axis;
+  }
+  if (ctx.intent_ids && ctx.intent_ids.length) {
+    payload.intent_ids = ctx.intent_ids.slice(0, 48);
   }
   traceEvent(taskId, payload);
 }
@@ -1212,23 +1278,6 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
   // ── Main loop ─────────────────────────────────────────────────────────────────
   const RED = "\x1b[31m", BOLD_C = "\x1b[1m", RESET_C = "\x1b[0m";
-  /**
-   * @param {string} phase
-   * @returns {boolean} true if run must stop (caller should `break orchestration`)
-   */
-  function costGuardAbort(phase) {
-    const raw = checkCostGuard();
-    const d = decideCostGuard({ estimate: raw.ok ? null : (raw.estimate ?? null), maxCostUsd, phase });
-    if (!d.abort) return false;
-    summary = d.summary;
-    manualReview = true;
-    traceIterationDone(taskId, iterations, "guard_abort", transitionReason("GUARD", "cost_limit", { reason_code: "GUARD_COST_LIMIT" }), {
-      estimate_usd: d.estimateUsd,
-      limit_usd: maxCostUsd,
-      guard_phase: phase,
-    });
-    return true;
-  }
 
   orchestration: while (!skipMainOrchestrationLoop && !done && iterations < maxIterations) {
     if (skipStateMcp) {
@@ -1237,6 +1286,31 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
     iterations += 1;
     syncRunIteration(runState, iterations);
     log("orchestrator", `── Iteration ${iterations}/${maxIterations} ──`);
+
+    const intentByStepSlot = new Map();
+    const intentIdsThisIteration = new Set();
+    /** @param {Record<string, unknown>} [extra] */
+    function iterationDoneCtx(extra = {}) {
+      const ids = [...intentIdsThisIteration];
+      return { ...extra, ...(ids.length ? { intent_ids: ids.slice(0, 48) } : {}) };
+    }
+    /**
+     * @param {string} phase
+     * @returns {boolean} true if run must stop (caller should `break orchestration`)
+     */
+    function costGuardAbort(phase) {
+      const raw = checkCostGuard();
+      const d = decideCostGuard({ estimate: raw.ok ? null : (raw.estimate ?? null), maxCostUsd, phase });
+      if (!d.abort) return false;
+      summary = d.summary;
+      manualReview = true;
+      traceIterationDone(taskId, iterations, "guard_abort", transitionReason("GUARD", "cost_limit", { reason_code: "GUARD_COST_LIMIT" }), {
+        estimate_usd: d.estimateUsd,
+        limit_usd: maxCostUsd,
+        guard_phase: phase,
+      }, iterationDoneCtx());
+      return true;
+    }
 
     const steps = plan.steps && plan.steps.length ? plan.steps : [];
     const contextHeader = stepSummary
@@ -1288,11 +1362,20 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
             gate_id: agentId,
           }),
           { max_step_retries: maxStepRetries, agent_id: agentId, retry_number: retryGuard.retryNumber },
+          iterationDoneCtx(),
         );
         break orchestration;
       }
       const retryNumber = prevRetries;
       retryCountThisIteration[agentId] = prevRetries + 1;
+      const stepSlotKey = `${stepIndex}:${agentId}`;
+      let intentId = intentByStepSlot.get(stepSlotKey);
+      if (!intentId) {
+        intentId = require("crypto").randomUUID();
+        intentByStepSlot.set(stepSlotKey, intentId);
+      }
+      intentIdsThisIteration.add(intentId);
+      const intentStep = { intent_id: intentId };
       const stepId = `${taskId}-i${iterations}-${agentId}${retryNumber > 0 ? `-r${retryNumber}` : ""}`;
       const graphMeta = { parent_step_id: previousStepId };
       assertParentStepExists(previousStepId, emittedStepIds);
@@ -1301,7 +1384,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       writeAgentState(agentId, goal);
       log(agentId, `Executing: ${step.task.slice(0, 80)}${step.task.length > 80 ? "..." : ""}`);
       const stepStart = Date.now();
-      traceEvent(taskId, { event: "agent_start", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, task: step.task.slice(0, 200) });
+      traceEvent(taskId, { event: "agent_start", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...intentStep, task: step.task.slice(0, 200) });
       setStepRunning(runState, stepId, agentId);
 
       let result, contextStats;
@@ -1317,7 +1400,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         const duration_ms = Date.now() - stepStart;
         const isCritical = ["architect", "qa", "cerberus"].includes(agentId);
         const gateId = err.gate_id || null;
-        traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...edgeMeta("fail"), duration_ms, reason: err.message.slice(0, 300), critical: isCritical, ...(gateId ? { gate_id: gateId } : {}) });
+        traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...intentStep, ...edgeMeta("fail"), duration_ms, reason: err.message.slice(0, 300), critical: isCritical, ...(gateId ? { gate_id: gateId } : {}) });
         setStepFailedAndClear(runState);
         log(agentId, `🟥 Output contract failed: ${err.message}`);
         artifacts.push({
@@ -1327,6 +1410,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
           gateBlocked: true,
           gateReason: err.message,
           step_id: stepId,
+          intent_id: intentId,
           gate_kind: gateId || "output_contract",
         });
         emittedStepIds.add(stepId);
@@ -1342,11 +1426,11 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       clearDegradedAgents();
       const stepDegraded = degradedInRun.has(agentId);
       const edgeType = retryNumber > 0 ? "retry" : "success";
-      traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...edgeMeta(edgeType), duration_ms: Date.now() - stepStart, output_chars: result.length, ...(stepDegraded ? { degraded: true } : {}) });
+      traceEvent(taskId, { event: "agent_done", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...intentStep, ...edgeMeta(edgeType), duration_ms: Date.now() - stepStart, output_chars: result.length, ...(stepDegraded ? { degraded: true } : {}) });
       setStepCompleted(runState);
       if (contextStats) {
         bumpOllamaFromStats(contextStats);
-        traceEvent(taskId, { event: "context_stats", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, ...graphMeta, ...contextStats });
+        traceEvent(taskId, { event: "context_stats", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, ...graphMeta, ...intentStep, ...contextStats });
       }
       if (costGuardAbort("worker")) break orchestration;
       emittedStepIds.add(stepId);
@@ -1380,6 +1464,8 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
               event: "compact_handoff_failed",
               agent: agentId,
               iteration: iterations,
+              step_id: stepId,
+              ...intentStep,
               message: msg.slice(0, 400),
               phase: "worker_step",
             });
@@ -1389,6 +1475,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
               task: step.task,
               result,
               step_id: stepId,
+              intent_id: intentId,
               gate_kind: "compact_handoff",
               ...compactHandoffStrictFailureFields(err),
             });
@@ -1399,6 +1486,8 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
             event: "compact_handoff_fallback",
             agent: agentId,
             iteration: iterations,
+            step_id: stepId,
+            ...intentStep,
             message: msg.slice(0, 400),
             phase: "worker_step",
           });
@@ -1412,7 +1501,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         const sv = validateHandoffStructure(toMode, handoffYaml, { strict: requireHandoff });
         if (!sv.valid) {
           log("gate", `🟥 Handoff structure invalid (${toMode}): ${sv.reason}`);
-          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("gate_block"), gate: "handoff_structure", passed: false, reason: sv.reason });
+          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("gate_block"), gate: "handoff_structure", passed: false, reason: sv.reason });
           artifacts.push({
             agentId,
             task: step.task,
@@ -1421,12 +1510,13 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
             gateBlocked: true,
             gateReason: `handoff_structure: ${sv.reason}`,
             step_id: stepId,
+            intent_id: intentId,
             gate_kind: "handoff_structure",
           });
           markStepRetryingAfterGate(runState);
           continue;
         }
-        traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("success"), gate: "handoff_structure", passed: true });
+        traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("success"), gate: "handoff_structure", passed: true });
       }
 
       // ── validate_goal_alignment + advance_mode ─────────────────────────────
@@ -1450,6 +1540,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
                 agent: agentId,
                 iteration: iterations,
                 step_id: stepId,
+                ...intentStep,
                 gate: "goal_alignment",
                 passed: true,
                 confidence: alignment.confidence,
@@ -1458,7 +1549,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
               });
             } else {
               log("gate", `🟥 Goal not aligned: ${alignment.notes}. Skipping advance_mode for this step.`);
-              traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("gate_block"), gate: "goal_alignment", passed: false, confidence: alignment.confidence, reason: alignment.notes });
+              traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("gate_block"), gate: "goal_alignment", passed: false, confidence: alignment.confidence, reason: alignment.notes });
               artifacts.push({
                 agentId,
                 task: step.task,
@@ -1467,6 +1558,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
                 gateBlocked: true,
                 gateReason: `goal_alignment: ${alignment.notes}`,
                 step_id: stepId,
+                intent_id: intentId,
                 gate_kind: "goal_alignment",
               });
               markStepRetryingAfterGate(runState);
@@ -1474,7 +1566,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
             }
           } else {
             log("gate", `🟩 Goal aligned (confidence: ${alignment.confidence ?? "n/a"})`);
-            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("success"), gate: "goal_alignment", passed: true, confidence: alignment.confidence });
+            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("success"), gate: "goal_alignment", passed: true, confidence: alignment.confidence });
           }
 
           log("gate", `validate_transition: ${currentMode} → ${nextMode} (iteration ${iterations})`);
@@ -1488,7 +1580,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
           if (!vt.allowed) {
             log("gate", `🟥 Transition blocked: ${(vt.errors || []).join("; ")}`);
-            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("gate_block"), gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: false, reason: (vt.errors || []).join("; ") });
+            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("gate_block"), gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: false, reason: (vt.errors || []).join("; ") });
             artifacts.push({
               agentId,
               task: step.task,
@@ -1497,6 +1589,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
               gateBlocked: true,
               gateReason: (vt.errors || []).join("; "),
               step_id: stepId,
+              intent_id: intentId,
               gate_kind: "transition",
             });
             markStepRetryingAfterGate(runState);
@@ -1504,7 +1597,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
           }
 
           log("gate", `🟩 Transition allowed — advancing to ${nextMode}`);
-          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...edgeMeta("success"), gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: true });
+          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("success"), gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: true });
           const adv = callStateMcp("advance_mode", {
             task_id: taskId,
             to_mode: nextMode,
@@ -1555,6 +1648,8 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         result,
         handoffYaml,
         gateBlocked: false,
+        step_id: stepId,
+        intent_id: intentId,
         ...(handoffSummary ? { handoffSummary } : {}),
         ...(Object.keys(handoffCompressionMeta).length ? handoffCompressionMeta : {}),
       });
@@ -1739,11 +1834,11 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         steps.forEach((c) =>
           log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
         );
-        traceIterationDone(taskId, iterations, "iterate", transitionReason("GATE_BLOCK", "cerberus_blockers"), { blockers: cerberusBlockers.count, corrections: steps.length });
+        traceIterationDone(taskId, iterations, "iterate", transitionReason("GATE_BLOCK", "cerberus_blockers"), { blockers: cerberusBlockers.count, corrections: steps.length }, iterationDoneCtx());
         plan = { steps };
       } else {
         log("orchestrator", "WARNING: orchestrator returned no corrections — retrying last DEV steps");
-        traceIterationDone(taskId, iterations, "iterate_fallback", transitionReason("ITERATE_FALLBACK", "orchestrator_no_corrections_json"), { blockers: cerberusBlockers.count });
+        traceIterationDone(taskId, iterations, "iterate_fallback", transitionReason("ITERATE_FALLBACK", "orchestrator_no_corrections_json"), { blockers: cerberusBlockers.count }, iterationDoneCtx());
         plan = { steps };
       }
       continue;
@@ -1754,7 +1849,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       manualReview = true;
       summary = `Max iterations reached with ${cerberusBlockers.count} gate-blocked CERBERUS finding(s). Manual review required.`;
       log("orchestrator", `⚠ ${summary}`);
-      traceIterationDone(taskId, iterations, "max_iterations_with_blockers", transitionReason("MAX_ITERATIONS", "cerberus_blockers_cap"), { blockers: cerberusBlockers.count });
+      traceIterationDone(taskId, iterations, "max_iterations_with_blockers", transitionReason("MAX_ITERATIONS", "cerberus_blockers_cap"), { blockers: cerberusBlockers.count }, iterationDoneCtx());
       continue;
     }
 
@@ -1784,7 +1879,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
           ...( _gb0 && _gb0.gate_kind ? { gate_id: _gb0.gate_kind } : {}),
         }),
         { gate_blocks: gateBlockedArtifacts.length },
-        { gateKinds: gateBlockedArtifacts.map((a) => a.gate_kind).filter(Boolean) },
+        iterationDoneCtx({ gateKinds: gateBlockedArtifacts.map((a) => a.gate_kind).filter(Boolean) }),
       );
       plan = { steps: planStepsReplayFromGateBlockedArtifacts(gateBlockedArtifacts) };
       continue;
@@ -1798,7 +1893,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
         reasonLines: gateBlockReasons,
       });
       log("orchestrator", `⚠ ${summary}`);
-      traceIterationDone(taskId, iterations, "max_iterations_with_gate_blocks", transitionReason("MAX_ITERATIONS", "gate_blocked_artifacts_cap"), { gate_blocks: gateBlockedArtifacts.length });
+      traceIterationDone(taskId, iterations, "max_iterations_with_gate_blocks", transitionReason("MAX_ITERATIONS", "gate_blocked_artifacts_cap"), { gate_blocks: gateBlockedArtifacts.length }, iterationDoneCtx());
       continue;
     }
 
@@ -1845,20 +1940,20 @@ Reply with JSON only.`;
       done = true;
       summary = /** @type {string} */ (mapped.summary);
       log("orchestrator", `✓ Done: ${summary}`);
-      traceIterationDone(taskId, iterations, "done", transitionReason("DONE"), { summary: summary.slice(0, 200) });
+      traceIterationDone(taskId, iterations, "done", transitionReason("DONE"), { summary: summary.slice(0, 200) }, iterationDoneCtx());
     } else if (mapped.variant === "iterate") {
       const corrections = /** @type {Array<{ agentId?: string, task: string }>} */ (mapped.planSteps);
       log("orchestrator", `↻ Iterating — ${corrections.length} correction(s):`);
       corrections.forEach((c) =>
         log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
       );
-      traceIterationDone(taskId, iterations, "iterate", transitionReason("ITERATE", "orchestrator_decide_corrections"), { corrections: corrections.length });
+      traceIterationDone(taskId, iterations, "iterate", transitionReason("ITERATE", "orchestrator_decide_corrections"), { corrections: corrections.length }, iterationDoneCtx());
       plan = { steps: corrections };
     } else {
       done = true;
       summary = /** @type {string} */ (mapped.summary);
       log("orchestrator", summary);
-      traceIterationDone(taskId, iterations, "stopped", transitionReason("CONTRACT_FAIL", summary), { summary });
+      traceIterationDone(taskId, iterations, "stopped", transitionReason("CONTRACT_FAIL", summary), { summary }, iterationDoneCtx());
     }
   }
 
@@ -1977,6 +2072,8 @@ module.exports = {
   inferReasonCode,
   TRACE_SCHEMA_VERSION,
   FAILURE_TYPES,
+  FAILURE_AXES,
   failureTypeForIterationDone,
+  failureAxisForIterationDone,
   traceIterationDone,
 };

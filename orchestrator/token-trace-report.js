@@ -158,6 +158,84 @@ function roundUsd(x) {
   return Math.round(x * 1e6) / 1e6;
 }
 
+/**
+ * Per-step Ollama token totals + failure signals for cost-vs-outcome views.
+ * Joins `context_stats` / `agent_done` / `contract_fail` / `gate_result` by `step_id`.
+ * @param {TraceRow[]} rows
+ * @returns {object[]}
+ */
+function rollupStepsCostOutcome(rows) {
+  /** @type {Map<string, { step_id: string, intent_id: string | null, agent?: string, iteration?: number, ollama_prompt_tokens: number, ollama_completion_tokens: number, last_edge_type?: string, contract_fail: boolean, gate_fail: boolean }>} */
+  const m = new Map();
+  for (const r of rows) {
+    const sid = typeof r.step_id === "string" && r.step_id.length ? r.step_id : null;
+    if (!sid) continue;
+    if (!m.has(sid)) {
+      m.set(sid, {
+        step_id: sid,
+        intent_id: null,
+        agent: undefined,
+        iteration: undefined,
+        ollama_prompt_tokens: 0,
+        ollama_completion_tokens: 0,
+        last_edge_type: undefined,
+        contract_fail: false,
+        gate_fail: false,
+      });
+    }
+    const rec = m.get(sid);
+    if (!rec) continue;
+    const ev = r.event;
+    if (ev === "context_stats") {
+      if (typeof r.agent === "string") rec.agent = r.agent;
+      if (typeof r.iteration === "number") rec.iteration = r.iteration;
+      if (typeof r.intent_id === "string") rec.intent_id = r.intent_id;
+      const p = typeof r.ollama_prompt_tokens === "number" && !Number.isNaN(r.ollama_prompt_tokens)
+        ? r.ollama_prompt_tokens : 0;
+      const c = typeof r.ollama_completion_tokens === "number" && !Number.isNaN(r.ollama_completion_tokens)
+        ? r.ollama_completion_tokens : 0;
+      rec.ollama_prompt_tokens += p;
+      rec.ollama_completion_tokens += c;
+    }
+    if (ev === "agent_done" && typeof r.edge_type === "string") {
+      rec.last_edge_type = r.edge_type;
+      if (typeof r.intent_id === "string") rec.intent_id = r.intent_id;
+    }
+    if (ev === "contract_fail") rec.contract_fail = true;
+    if (ev === "gate_result" && r.passed === false) rec.gate_fail = true;
+  }
+
+  const pRate = parseEnvPositiveFloat("ORCH_USD_PER_MTOK_PROMPT");
+  const cRate = parseEnvPositiveFloat("ORCH_USD_PER_MTOK_COMPLETION");
+  const ratesOk = pRate != null && cRate != null;
+
+  const list = [...m.values()].map((rec) => {
+    const tot = rec.ollama_prompt_tokens + rec.ollama_completion_tokens;
+    const step_failed = rec.contract_fail || rec.gate_fail || rec.last_edge_type === "fail";
+    /** @type {Record<string, unknown>} */
+    const out = {
+      step_id: rec.step_id,
+      intent_id: rec.intent_id,
+      agent: rec.agent ?? null,
+      iteration: rec.iteration ?? null,
+      ollama_prompt_tokens: rec.ollama_prompt_tokens,
+      ollama_completion_tokens: rec.ollama_completion_tokens,
+      ollama_total_tokens: tot,
+      step_failed,
+      contract_fail: rec.contract_fail,
+      gate_fail: rec.gate_fail,
+      last_edge_type: rec.last_edge_type ?? null,
+    };
+    if (ratesOk) {
+      const usd = (rec.ollama_prompt_tokens / 1e6) * pRate + (rec.ollama_completion_tokens / 1e6) * cRate;
+      out.usd_estimate = roundUsd(usd);
+    }
+    return out;
+  });
+  list.sort((a, b) => /** @type {number} */(b.ollama_total_tokens) - /** @type {number} */(a.ollama_total_tokens));
+  return list;
+}
+
 function printTextReport(taskId, tracePath, report, parseErrors) {
   console.log(`task_id:     ${taskId}`);
   console.log(`trace_file:  ${tracePath}`);
@@ -278,6 +356,7 @@ function main() {
       trace_file: tracePath,
       parse_errors: errors,
       report,
+      rollup_steps: rollupStepsCostOutcome(rows),
       ...(usd ? { ollama_usd_estimate: usd } : {}),
     }, null, 2));
   } else {
@@ -289,6 +368,7 @@ module.exports = {
   parseJsonl,
   buildReport,
   optionalOllamaUsdEstimate,
+  rollupStepsCostOutcome,
   parseTraceLine: require("./trace-schema").parseTraceLine,
 };
 
