@@ -42,6 +42,21 @@ Before adding a new **runtime** dependency on a path outside `orchestrator/`:
 
 ---
 
+## Stop hook: `flow-metrics.py` (persisted `FLOW` / post-compact)
+
+Claude Code **Stop** hook: `scripts/hooks/flow-metrics.py`. It appends JSON lines to `~/.claude/metrics/flow-metrics.jsonl` (host path) and merges transcript parse with **per-session** state so metrics do not silently default to `single_agent` when the transcript no longer contains `FLOW:` after compact.
+
+| Mechanism | Detail |
+|-----------|--------|
+| Session identity | **`CLAUDE_SESSION_ID`** must be non-empty for any **read/write** of flow-hook state. If absent: no persistence, `flow_source` is never `persisted_state`, warning **`missing_session_id`** when there are tokens to report (post-merge in Stop hook). |
+| State dir | Default: `$CLAUDE_PROJECT_DIR/.claude/flow-hook-state/<session>.json`. Override: **`FLOW_HOOK_STATE_DIR`** (absolute path recommended in CI). |
+| Sanitization | Persisted JSON is normalized: `flow_mode` must be `single_agent` or `multi_agent`; numeric fields coerced with safe defaults. Corrupt files → warning **`state_invalid`**; the Stop hook **does not crash**. |
+| `flow_mode` in JSONL | May be **`unknown`** when neither transcript nor valid persisted state provides `FLOW:` — consumers must not assume only `single_agent`/`multi_agent`. |
+| Emitted fields | `transcript_scope`, `flow_source`, `flow_from_transcript`, **`dev_qa_cycles`** (session monotonic peak), **`dev_qa_cycles_transcript`** (count from current transcript only), `compact_boundary_crossed` (heuristic: line-count drop, not proof of host compact), `warnings` (`flow_ambiguous`, `state_invalid`, `missing_session_id`). |
+| Tests | `python3 -m unittest discover -s scripts/hooks/tests -p 'test_*.py'` or `npm run test:hooks` from `orchestrator/` |
+
+---
+
 ## See also
 
 - [PATHS.md](PATHS.md) — `REPO_ROOT`, Cursor, repo-root detection  
