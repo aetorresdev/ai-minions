@@ -8,6 +8,14 @@ Before any hosted UI, you can **“see the dashboard” in the terminal**: same 
 
 From `orchestrator/`:
 
+After `npm test`, you can still smoke the **same CLI** against a **fixture** shipped in the repo (no trace in `~/.claude/metrics/traces` required). From `orchestrator/`:
+
+```bash
+npm run dashboard:console -- --file tests/fixtures/golden-path-clean-v1.jsonl
+```
+
+For a trace from a real local run:
+
 ```bash
 npm run dashboard:console -- --file ~/.claude/metrics/traces/<task_id>.jsonl
 # batch (same discovery as metrics:export-scenarios — tagged scenarios by default):
@@ -17,7 +25,7 @@ npm run dashboard:console -- --batch --include-untagged
 npm run dashboard:console -- --file trace.jsonl --strict-traces
 ```
 
-Implementation: `orchestrator/console-dashboard.js` (stdout only; ASCII tables and `#`…`.` bars). Not an interactive TUI — just **printed layout** you can pipe to `less`, log in CI, or paste from a scrollback buffer.
+Implementation: `orchestrator/console-dashboard.js` (stdout only; ASCII-only output, tables and `#` + `.` micro-bars). Not an interactive TUI - just **printed layout** you can pipe to `less`, log in CI, or paste from a scrollback buffer.
 
 ## Data sources
 
