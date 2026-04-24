@@ -159,11 +159,11 @@ npm run tokens:report -- <task_id>
 # custom file: node token-trace-report.js --file /path/to/trace.jsonl
 ```
 
-Optional env: `ORCH_TRACES_DIR` — defaults to `~/.claude/metrics/traces`. **`ORCH_TRACE_VALIDATE=1`** — when parsing JSONL in `token-trace-report` / `scenario-metrics-export`, validate each line against JSON Schema v2 (same as CLI `--strict-traces`). **Optional USD (Ollama only):** set both **`ORCH_USD_PER_MTOK_PROMPT`** and **`ORCH_USD_PER_MTOK_COMPLETION`** (USD per 1e6 tokens) so `token-trace-report` prints a rough cost line from `session_end` totals — rates are yours to supply; the runner does not fetch pricing.
+Optional env: `ORCH_TRACES_DIR` — defaults to `~/.claude/metrics/traces`. **`ORCH_TRACE_VALIDATE=1`** — when parsing JSONL in `token-trace-report` / `scenario-metrics-export`, validate each line against JSON Schema v2 (same as CLI `--strict-traces`). **Optional USD (Ollama only):** set both **`ORCH_USD_PER_MTOK_PROMPT`** and **`ORCH_USD_PER_MTOK_COMPLETION`** (USD per 1e6 tokens) so `token-trace-report` / scenario export attach **estimates** (`usd_note: "estimated"` in JSON — not vendor billing). Rates are yours to supply.
 
 **Trace contract:** every JSONL line includes `trace_schema_version` (`"2"` — first published baseline). `iteration_done.transition_reason` is always an **object** `{ type, details? }`. Versioning policy (semver-like semantics, breaking vs non-breaking, mismatch): `docs/orchestrator/schema-versioning.md`. Short governance: `docs/orchestrator/strict-mode.md` § *Trace schema versions* and § *Trace contract governance*.
 
-**Batch export by scenario:** traces can carry `scenario_id` on `session_start` / `session_end` when you pass `traceScenarioId` to `run()` or set env **`ORCH_TRACE_SCENARIO_ID`**. Tagged runs from tests use the same mechanism. Aggregate JSON includes **`runs`**, **`by_scenario`**, and **`by_flow_mode`**:
+**Batch export by scenario:** traces can carry `scenario_id` on `session_start` / `session_end` when you pass `traceScenarioId` to `run()` or set env **`ORCH_TRACE_SCENARIO_ID`**. Tagged runs from tests use the same mechanism. Aggregate JSON includes **`runs`**, **`by_scenario`**, **`by_flow_mode`**, **`by_stage`** (Ollama token rollups by `agent` and by `phase` from `context_stats`), **`usd_export_meta`**, and optional per-run **`ollama_usd_estimate`** when USD env vars are set:
 
 ```bash
 npm run metrics:export-scenarios -- --since-m 60 --out /tmp/orch-metrics.json
