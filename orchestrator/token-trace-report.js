@@ -140,6 +140,9 @@ function optionalOllamaUsdEstimate(report) {
     usd_completion_estimate: roundUsd(usdC),
     usd_total_estimate: roundUsd(usdP + usdC),
     rates_per_million_tokens_usd: { prompt: pRate, completion: cRate },
+    /** Ollama has no per-call billing API in this stack — USD is always derived from env rates × token counts. */
+    usd_note: "estimated",
+    usd_source: "env_rates_per_mtok",
   };
 }
 
