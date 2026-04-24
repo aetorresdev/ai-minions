@@ -206,16 +206,16 @@ Each role has a fixed permission level. The session `mode` is the **ceiling** �
 
 ## Implementation status
 
-**Current status: implemented** (`orchestrator/agents.js` + `orchestrator/orchestrator.js`)
+**Current status: implemented** (`orchestrator/agents.js` + `orchestrator/agents/permissions.js` + `orchestrator/orchestrator.js`)
 
 | Component | Status | Location |
 |---|---|---|
 | `parseEnvironment()` | ✅ | `orchestrator.js` — parses ENVIRONMENT block from session header via regex |
 | `resolveCredentials()` | ✅ | `agents.js` — reads env vars at call time, warns on missing |
-| `effectiveMode()` | ✅ | `agents.js` — applies role permission matrix against session ceiling |
+| `effectiveMode()` | ✅ | `agents/permissions.js` (re-exported from `agents.js`) — applies role permission matrix against session ceiling |
 | `buildEnvContext()` | ✅ | `agents.js` — generates context string injected into each agent's system prompt |
 | `askAgent()` injection | ✅ | `agents.js` — passes `sessionEnv` to `buildEnvContext` before claude CLI call |
-| CERBERUS hardcoded read | ✅ | `effectiveMode()` — returns `"read"` for cerberus regardless of session mode |
+| CERBERUS hardcoded read | ✅ | `effectiveMode()` in `agents/permissions.js` — returns `"read"` for cerberus regardless of session mode |
 | Missing env var blocker | ✅ | `resolveCredentials()` — missing vars surfaced in agent context as blockers |
 
 **Pending:**

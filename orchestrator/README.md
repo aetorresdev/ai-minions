@@ -178,6 +178,12 @@ npm run metrics:export-scenarios -- --since-m 60 --out /tmp/orch-metrics.json
 
 ## Quickstart (no MCPs — 2 minutes)
 
+### From a terminal (without the Claude Code chat UI)
+
+You do **not** need the Claude Code **desktop app** or a chat with the `MODE: ORCHESTRATOR` header. From this directory, **`node run-orchestrator.js`** (or **`node cli.js`**) runs the same runner. You **do** need **Node ≥ 18** and the **`claude` CLI** with a valid session (`claude auth status`), because DEV/QA/CERBERUS/… steps spawn `claude` as a subprocess (except tests that stub `askAgent`).
+
+**Changing default models:** precedence and examples are in [`docs/orchestrator/model-routing.md`](../docs/orchestrator/model-routing.md). Short map: **`OLLAMA_MODEL`** (orchestrator/summarizer via Ollama); **`MODEL_OVERRIDE_<ROLE>`** (e.g. `MODEL_OVERRIDE_QA`); **`models.json`** profiles + **`--profile`** on `run-orchestrator.js`; hardcoded routing table in **`agents/routing/model-routing.js`**.
+
 ```bash
 # From repo root (replace ~/.claude with your REPO_ROOT)
 cd ~/.claude/orchestrator
@@ -609,16 +615,32 @@ References:
 
 ```
 orchestrator/
-├── agents.js           # Agent definitions: MODE, model, system prompt, validateOutput()
-├── orchestrator.js     # Autonomous loop: plan → execute → gate → cerberus → decide
-├── context-utils.js    # Context truncation helpers
-├── run-orchestrator.js # CLI entry point
-├── cli.js              # Interactive single-agent chat
-├── CLAUDE.md           # Guardrails loaded by Claude Code agents
-├── package.json        # npm test → node --test tests/*.test.js
-├── .env.example        # All environment variables with defaults
+├── agents.js              # Public facade: require("./agents") — AGENTS, askAgent, validateOutput, exports
+├── agents/                # Split modules (ROLE-REGISTRY-2-S1); same API via agents.js
+│   ├── routing/
+│   │   └── model-routing.js   # MODEL_ROUTING, FALLBACK_POLICY, Ollama routing constants
+│   ├── permissions.js         # ROLE_PERMISSION, effectiveMode()
+│   ├── validate-output.js     # validateOutput, normalizeDevContractText, CERBERUS semantic helpers
+│   ├── registry.js            # buildAgents() → AGENTS (prompts + model getters)
+│   ├── prompts/
+│   │   └── ollama-appends.js  # OLLAMA_* system appendices for local models
+│   └── runtime/
+│       ├── run-ollama.js      # Ollama /api/chat
+│       ├── run-claude.js      # claude CLI spawn (call-time spawnSync for test stubs)
+│       └── summarize-handoff.js
+├── orchestrator.js      # Autonomous loop: plan → execute → gate → cerberus → decide
+├── context-utils.js     # Context truncation helpers
+├── run-orchestrator.js  # CLI entry point
+├── cli.js               # Interactive single-agent chat
+├── CLAUDE.md            # Guardrails loaded by Claude Code agents
+├── package.json         # npm test → node --test tests/*.test.js
+├── .env.example         # All environment variables with defaults
 └── tests/
-    ├── validateOutput.test.js   # Unit: output contracts per role (31 tests)
-    ├── orchestrator.test.js     # Unit: detectBlockers + validateHandoffStructure (26 tests)
-    └── askAgent.test.js         # Integration: askAgent() with mocked CLI (15 tests)
+    ├── validateOutput.test.js   # Unit: output contracts per role
+    ├── orchestrator.test.js     # Unit: detectBlockers + validateHandoffStructure
+    ├── askAgent.test.js         # Integration: askAgent() with mocked CLI
+    ├── modelRoutingStrategy.test.js
+    └── rolePermissionMatrix.test.js
 ```
+
+**Repo root `agents/`** (subagent specs for skills / MCP task) is **not** this folder — see [shared-dependencies.md](../docs/orchestrator/shared-dependencies.md) and [role-agent-registry.md](../docs/orchestrator/role-agent-registry.md).
