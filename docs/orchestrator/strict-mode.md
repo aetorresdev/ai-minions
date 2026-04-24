@@ -425,13 +425,14 @@ Deltas and latency: use **`ts_ms`** only (`ts` is human-readable ISO for the sam
 
 ## Flow-aware trace metadata
 
-Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_result`, `context_stats`) carries three graph fields that allow reconstructing the execution DAG from the JSONL alone:
+Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_result`, `context_stats`) carries graph fields that allow reconstructing the execution DAG from the JSONL alone:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `step_id` | string | Unique per agent × iteration: `<task_id>-i<N>-<agentId>` — suffixed `-r<N>` on retry (e.g. `abc-i2-dev-backend-r1`) |
 | `step_index` | number | 0-based position of the step in the plan array for this iteration |
 | `retry_number` | number | How many times this `agentId` has already run in the current iteration (0 = first attempt) |
+| `intent_id` | string (optional) | UUID shared across **retries of the same plan slot** (`step_index` + `agentId`) within one outer iteration — groups token and outcome rows for analytics |
 
 `iteration_done` events add:
 
@@ -443,8 +444,10 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 | `transition_reason.gate_id` | string (optional) | When iteration ends from a gate-blocked path: which gate (e.g. `handoff_structure`, `goal_alignment`, `transition`, `output_contract`, `compact_handoff`, …) |
 | `transition_reason.step_id` | string (optional) | When known: last blocked step’s `step_id` for correlation with `agent_done` / `gate_result` |
 | `failure_type` | string (optional) | **Required when `outcome` ≠ `done`:** closed enum `spec_missing` · `contract_mismatch` · `hallucination` · `tool_error` · `timeout` · `cost_abort` · `retry_exceeded` — coarse rollup for SLOs / GUARD-1 (`failureTypeForIterationDone` in `orchestrator.js`) |
+| `failure_axis` | string (optional) | **When `outcome` ≠ `done`:** middle layer for dashboards — `guard` · `cerberus` · `gate_artifact` · `gate_tool` · `orchestrate` · `loop_cap` · `contract` · `unknown` (`failureAxisForIterationDone` in `orchestrator.js`) |
+| `intent_ids` | string[] (optional) | Deduped `intent_id` values for worker steps touched in that outer iteration (cap 48) — links `iteration_done` to step-level retries |
 
-**Granularity (known trade-off):** several distinct flows share **`contract_mismatch`** (e.g. CERBERUS-driven iterate, orchestrator decide corrections, generic gate contract, invalid decide → `stopped`). That is deliberate: the **fine-grained** key for metrics and `explain-run`-style consumers is **`transition_reason.reason_code`** (and optional `gate_id` / `step_id`), not `failure_type` alone. Dashboards should bucket on **`(failure_type, reason_code)`** (or `reason_code` only) to avoid “everything is contract_mismatch” noise. A future refinement could add a second structured field (e.g. `failure_axis`) **only** if product needs a middle layer between the two — not required for correctness today.
+**Granularity (known trade-off):** several distinct flows share **`contract_mismatch`** (e.g. CERBERUS-driven iterate, orchestrator decide corrections, generic gate contract, invalid decide → `stopped`). Use **`transition_reason.reason_code`** for drill-down, **`failure_type`** for coarse SLOs, and **`failure_axis`** for product-facing buckets without overloading `failure_type`. Dashboards should prefer **`(failure_type, failure_axis, reason_code)`** when building charts.
 
 **`tool_error` scope (v1):** currently assigned when a **`gate_blocked_iterate`** path is tied to **`gate_kind: "compact_handoff"`** (MCP/handoff integration). Other tools or MCPs that need the same coarse bucket should get an **explicit** branch in the mapper (and tests), not an implicit “anything unknown = tool_error”, so semantics stay auditable when the runner grows.
 
