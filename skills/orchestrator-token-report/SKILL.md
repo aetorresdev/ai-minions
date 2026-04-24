@@ -38,12 +38,12 @@ node scenario-metrics-export.js --dir ~/.claude/metrics/traces --since-m 120 --o
 
 - **`--since-m`**: only files modified in the last N minutes (optional).
 - **Default:** files **without** `scenario_id` are **skipped** (avoids mixing manual runs). Use **`--include-untagged`** to include them under `scenario_id: null`.
-- Output JSON: `runs[]`, `by_scenario{}`, `by_flow_mode{}`, `run_count`, `generated_at`.
+- Output JSON: `runs[]`, `by_scenario{}`, `by_flow_mode{}`, **`by_stage`** (`by_role` / `by_phase` — Ollama token sums from `context_stats` across runs), **`usd_export_meta`** (`usd_rates_configured`, `usd_note`), optional per-run **`ollama_usd_estimate`** (includes `usd_note: "estimated"` when env rates set), `run_count`, `generated_at`.
 
 ## Interpreting gaps
 
 - **Claude CLI / Haiku** routes in the example runner do **not** populate `ollama_*` — only Ollama HTTP paths do.
-- **USD (optional):** set **`ORCH_USD_PER_MTOK_PROMPT`** and **`ORCH_USD_PER_MTOK_COMPLETION`** (both required; USD per 1e6 Ollama tokens) so `token-trace-report` prints an estimate from Ollama totals — you supply rates; nothing is fetched from a vendor API.
+- **USD (optional):** set **`ORCH_USD_PER_MTOK_PROMPT`** and **`ORCH_USD_PER_MTOK_COMPLETION`** (both required; USD per 1e6 Ollama tokens) so `token-trace-report` / scenario export attach estimates — **always marked `usd_note: "estimated"`** (Ollama has no billing line-item API here); you supply rates only.
 - **`scenario_id`** is a **label** for batching (usually the E2E test name), not a security boundary.
 
 ## Docs
@@ -55,5 +55,5 @@ node scenario-metrics-export.js --dir ~/.claude/metrics/traces --since-m 120 --o
 ## Code references
 
 - `orchestrator/token-trace-report.js` — parse + `buildReport`
-- `orchestrator/scenario-metrics-export.js` — `collectRunsFromDir`
+- `orchestrator/scenario-metrics-export.js` — `collectRunsFromDir`, `buildByStage`, `buildUsdExportMeta`
 - `orchestrator/orchestrator.js` — `traceScenarioId` / `scenario_id` on `session_start` / `session_end`
