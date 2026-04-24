@@ -42,6 +42,18 @@ Before adding a new **runtime** dependency on a path outside `orchestrator/`:
 
 ---
 
+## Stop hook: `flow-metrics.py` (persisted `FLOW` / post-compact)
+
+Claude Code **Stop** hook: `scripts/hooks/flow-metrics.py`. It appends JSON lines to `~/.claude/metrics/flow-metrics.jsonl` (host path) and merges transcript parse with **per-session** state so metrics do not silently default to `single_agent` when the transcript no longer contains `FLOW:` after compact.
+
+| Mechanism | Detail |
+|-----------|--------|
+| State dir | Default: `$CLAUDE_PROJECT_DIR/.claude/flow-hook-state/<session>.json`. Override: **`FLOW_HOOK_STATE_DIR`** (absolute path recommended in CI). |
+| Emitted fields | `transcript_scope` (`full` \| `post_compact` \| `unknown`), `flow_source` (`transcript` \| `persisted_state` \| `none`), `flow_from_transcript`, monotonic `dev_qa_cycles`, `compact_boundary_crossed`, `warnings` (e.g. `flow_ambiguous`). |
+| Tests | `python3 -m unittest discover -s scripts/hooks/tests -p 'test_*.py'` |
+
+---
+
 ## See also
 
 - [PATHS.md](PATHS.md) — `REPO_ROOT`, Cursor, repo-root detection  

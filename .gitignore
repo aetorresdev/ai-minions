@@ -45,6 +45,8 @@ secrets/
 projects/
 history.jsonl
 metrics/
+# Per-project flow-metrics hook state (not metrics/ trace authority)
+.claude/flow-hook-state/
 plugins/
 tasks/
 # MCP server virtualenvs and lock files

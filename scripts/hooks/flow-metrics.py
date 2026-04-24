@@ -5,6 +5,16 @@ Parses the current session transcript, extracts MODE declarations,
 token usage per phase, and DEV→QA iteration counts.
 Appends a JSON record to ~/.claude/metrics/flow-metrics.jsonl
 and prints a human-readable summary as hook context.
+
+Post-compact / FLOW loss (HOOKS-METRICS-1):
+  If the transcript no longer contains ``FLOW:`` but a prior run stored
+  ``flow_mode`` under project-local state (see merge_flow_report), the
+  emitted record uses that value with ``transcript_scope=post_compact`` and
+  ``flow_source=persisted_state`` — never a silent default to ``single_agent``.
+
+Env:
+  FLOW_HOOK_STATE_DIR — optional directory for per-session JSON state
+    (defaults to ``$CLAUDE_PROJECT_DIR/.claude/flow-hook-state``).
 """
 import json
 import os
@@ -67,6 +77,101 @@ def find_transcript() -> Path | None:
             return jsonls[0]
     return None
 
+
+def transcript_line_count(path: Path) -> int:
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return sum(1 for _ in f)
+    except Exception:
+        return 0
+
+
+def hook_state_path() -> Path:
+    override = os.environ.get("FLOW_HOOK_STATE_DIR", "").strip()
+    if override:
+        root = Path(override).expanduser().resolve()
+    else:
+        root = Path(PROJECT_DIR).resolve() / ".claude" / "flow-hook-state"
+    root.mkdir(parents=True, exist_ok=True)
+    sid = SESSION_ID.strip() if SESSION_ID else "no_session_id"
+    safe = re.sub(r"[^\w\-.]+", "_", sid)[:120]
+    return root / f"{safe}.json"
+
+
+def load_hook_state() -> dict:
+    p = hook_state_path()
+    if p.exists():
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(d, dict):
+                return d
+        except Exception:
+            pass
+    return {"dev_qa_ever": 0, "flow_mode": None, "last_transcript_lines": 0}
+
+
+def save_hook_state(state: dict) -> None:
+    try:
+        hook_state_path().write_text(
+            json.dumps(state, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
+def merge_flow_report(parsed: dict, persisted: dict, line_count: int) -> tuple[dict, dict]:
+    """
+    Merge transcript parse with per-session persisted flow / dev_qa peaks.
+    See module docstring for semantics (post-compact FLOW, TEST-NEG-2 / TEST-NEG-3).
+    """
+    st = dict(persisted)
+    flow_tx = parsed.get("flow_from_transcript")
+
+    if flow_tx:
+        st["flow_mode"] = flow_tx
+
+    effective_flow: str
+    if flow_tx:
+        transcript_scope = "full"
+        flow_source = "transcript"
+        effective_flow = flow_tx
+    elif st.get("flow_mode"):
+        transcript_scope = "post_compact"
+        flow_source = "persisted_state"
+        effective_flow = str(st["flow_mode"])
+    else:
+        transcript_scope = "unknown"
+        flow_source = "none"
+        effective_flow = "unknown"
+
+    warnings: list[str] = []
+    if effective_flow == "unknown" and (parsed["total_input"] or parsed["total_output"]):
+        warnings.append("flow_ambiguous")
+
+    dev_qa_report = max(int(st.get("dev_qa_ever", 0)), int(parsed["dev_qa_cycles"]))
+    st["dev_qa_ever"] = dev_qa_report
+
+    prev_lines = int(st.get("last_transcript_lines", 0))
+    compact_boundary = (
+        prev_lines > 50
+        and line_count > 0
+        and line_count < int(prev_lines * 0.55)
+    )
+    st["last_transcript_lines"] = line_count
+
+    merged = {
+        **parsed,
+        "flow_mode": effective_flow,
+        "transcript_scope": transcript_scope,
+        "flow_source": flow_source,
+        "dev_qa_cycles": dev_qa_report,
+        "compact_boundary_crossed": compact_boundary,
+        "warnings": warnings,
+    }
+    return merged, st
+
+
 # ── Parse transcript ──────────────────────────────────────────────────────────
 def parse_transcript(path: Path) -> dict:
     phases: list[dict] = []
@@ -74,7 +179,7 @@ def parse_transcript(path: Path) -> dict:
     current: dict = {}
 
     total_input = total_output = total_cache_w = total_cache_r = 0
-    flow_mode        = "single_agent"   # default; overridden by FLOW: declaration
+    flow_from_transcript: str | None = None  # set only when FLOW: appears in this parse
     session_goal     = ""
     handoff_count    = 0
     goal_aligned_count = 0
@@ -155,7 +260,7 @@ def parse_transcript(path: Path) -> dict:
                 # FLOW declaration (session header)
                 f_match = FLOW_RE.search(text)
                 if f_match:
-                    flow_mode = f_match.group(1)
+                    flow_from_transcript = f_match.group(1)
 
                 # GOAL declaration
                 g_match = GOAL_RE.search(text)
@@ -211,7 +316,7 @@ def parse_transcript(path: Path) -> dict:
         "total_output":       total_output,
         "total_cache_w":      total_cache_w,
         "total_cache_r":      total_cache_r,
-        "flow_mode":          flow_mode,
+        "flow_from_transcript": flow_from_transcript,
         "session_goal":       session_goal,
         "handoff_count":      handoff_count,
         "goal_aligned_count": goal_aligned_count,
@@ -237,9 +342,14 @@ def save_record(data: dict, transcript: Path, cost: float):
         "transcript":         str(transcript),
         "project":            PROJECT_DIR,
         "flow_mode":          data["flow_mode"],
+        "transcript_scope":   data.get("transcript_scope", "unknown"),
+        "flow_source":        data.get("flow_source", "none"),
+        "flow_from_transcript": data.get("flow_from_transcript"),
         "session_goal":       data["session_goal"],
         "phases":             data["phases"],
         "dev_qa_cycles":      data["dev_qa_cycles"],
+        "compact_boundary_crossed": data.get("compact_boundary_crossed", False),
+        "warnings":           data.get("warnings", []),
         "cerberus_turns":     data["cerberus_turns"],
         "qa_turns":           data["qa_turns"],
         "handoff_count":      data["handoff_count"],
@@ -260,10 +370,18 @@ def save_record(data: dict, transcript: Path, cost: float):
 
 # ── Human-readable summary ────────────────────────────────────────────────────
 def format_summary(data: dict, cost: float) -> str:
+    scope = data.get("transcript_scope", "")
+    src = data.get("flow_source", "")
+    scope_note = f" | scope={scope}" if scope else ""
+    src_note = f" | flow_src={src}" if src else ""
     lines = [
-        f"Flow metrics [{data['flow_mode']}]"
+        f"Flow metrics [{data['flow_mode']}]{scope_note}{src_note}"
         + (f" — {data['session_goal']}" if data["session_goal"] else "")
     ]
+    if data.get("warnings"):
+        lines.append(f"  Warnings: {', '.join(data['warnings'])}")
+    if data.get("compact_boundary_crossed"):
+        lines.append("  Transcript shrank (possible compact boundary).")
 
     if not data["phases"]:
         lines.append("  No MODE declarations detected.")
@@ -283,10 +401,13 @@ def format_summary(data: dict, cost: float) -> str:
     lines.append(f"  Blockers found: {data['blockers_found']}")
 
     total_tok = data["total_input"] + data["total_output"]
+    total_with_cache = total_tok + data["total_cache_w"] + data["total_cache_r"]
     mt = data["model_time_s"]
     mt_fmt = f"{mt // 60:.0f}m {mt % 60:.0f}s" if mt >= 60 else f"{mt:.0f}s"
     lines.append(f"  Model time: {mt_fmt} (inference only, AFK excluded)")
-    lines.append(f"  Total tokens: {total_tok:,} (~${cost:.4f} USD)")
+    lines.append(
+        f"  Tokens (input+output): {total_tok:,} | with cache R/W: {total_with_cache:,} (~${cost:.4f} USD)"
+    )
     lines.append(f"  Saved to: {METRICS_FILE}")
     return "\n".join(lines)
 
@@ -296,7 +417,11 @@ def main():
     if not transcript:
         sys.exit(0)  # silent — no transcript found
 
-    data = parse_transcript(transcript)
+    n_lines = transcript_line_count(transcript)
+    persisted = load_hook_state()
+    parsed = parse_transcript(transcript)
+    data, new_state = merge_flow_report(parsed, persisted, n_lines)
+    save_hook_state(new_state)
     cost = estimate_cost(data)
 
     # Always save if there are tokens to report
