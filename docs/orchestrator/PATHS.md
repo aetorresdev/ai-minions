@@ -21,6 +21,7 @@ On **Linux/macOS**, `~` is your home directory. On **Windows** (PowerShell): `$H
 | Script to install rule in another repo | `scripts/install-orchestrator-rule.sh` |
 | State store MCP (`orchestrator-state`) | `mcp-servers/orchestrator-state/server.py` + `README.md` |
 | Orchestrator **runtime** (product) | `orchestrator/` at repo root. The former `examples/orchestrator/` path was **removed** from this repository. |
+| MODE agents (Node) | **`orchestrator/agents.js`** — canonical `require("./agents")` facade. **`orchestrator/agents/`** — internal modules (e.g. `routing/model-routing.js`, `permissions.js`); not the same as repo-root **`agents/`** (subagent markdown for skills). |
 
 ### Legacy string `examples/orchestrator`
 

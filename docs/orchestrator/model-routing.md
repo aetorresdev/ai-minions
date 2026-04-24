@@ -71,7 +71,7 @@ MODEL_OVERRIDE_QA=claude-haiku-4-5-20251001 node run-orchestrator.js "goal"
 
 ### Profile-based selection (config-driven)
 
-> **Status:** implemented 2026-04-11. Files: `models.json`, `agents.js` (`resolveModel`, `setModelProfile`), `run-orchestrator.js` (`--profile` flag).
+> **Status:** implemented 2026-04-11. Files: `orchestrator/models.json`; `run-orchestrator.js` (`--profile`); `agents.js` (`setModelProfile`, `resolveModel` / `resolveFallback`); defaults en `agents/routing/model-routing.js`.
 
 Instead of hardcoding models or setting individual env vars, `models.json` defines named profiles. Select a profile at runtime with `--profile`:
 
@@ -189,7 +189,7 @@ When **`OLLAMA_MODEL`** is set, the orchestrator role uses **`runOllama`** like 
 `CONTRACT_VERSION` in `agents.js` is passed to `register_task` and stored in the task envelope. Bump it when any of the following change:
 
 - Handoff YAML schema (required keys, field names)
-- Role permission matrix (`ROLE_PERMISSION`)
+- Role permission matrix (`ROLE_PERMISSION` in `agents/permissions.js`)
 - Gate sequence (`advance_mode`, `validate_transition` requirements)
 - Fallback policy (`FALLBACK_POLICY` in `agents/routing/model-routing.js`)
 

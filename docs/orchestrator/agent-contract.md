@@ -254,7 +254,7 @@ Each role has a minimum output contract. If the output does not meet it, the run
 
 **Non–triple-line CERBERUS replies** (e.g. a single `**blocker**: …` paragraph) only pass the token check — same behavior as before the semantic floor.
 
-Implemented in `orchestrator/agents.js` (`validateOutput()`). Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
+Implemented in `orchestrator/agents.js` (`validateOutput()` — public **facade**; `require("./agents")`). Model routing defaults live in `orchestrator/agents/routing/model-routing.js`; the role permission matrix in `orchestrator/agents/permissions.js`. Further splits are tracked as **ROLE-REGISTRY-2** without changing this contract surface. Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
 
 #### `done` field semantics
 

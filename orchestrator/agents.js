@@ -25,6 +25,7 @@ const {
   MODEL_ROUTING,
   FALLBACK_POLICY,
 } = require("./agents/routing/model-routing");
+const { ROLE_PERMISSION, effectiveMode } = require("./agents/permissions");
 
 // ── Contract version ──────────────────────────────────────────────────────────
 // Bump when handoff schema, role permissions, or gate sequence change.
@@ -517,35 +518,7 @@ ${body}`;
   };
 }
 
-// ── Environment access — role permission matrix ───────────────────────────────
-
-// Fixed permission per role. Session mode is the ceiling — roles cannot exceed it.
-// "none"  = no credentials consumed
-// "read"  = query, describe, logs, plan/diff, dry-run
-// "write" = all read + execute, apply, insert, update, activate
-const ROLE_PERMISSION = {
-  orchestrator:  "none",
-  owner:         "none",
-  architect:     "read",
-  "dev-backend": "write",
-  "dev-frontend":"read",
-  "dev-devops":  "write",
-  qa:            "read",
-  cerberus:      "read",   // hardcoded — cannot be elevated
-  summarizer:    "none",
-};
-
-/**
- * Returns the effective access mode for a role given the session ceiling.
- * CERBERUS is always read regardless of session mode.
- */
-function effectiveMode(agentId, sessionMode) {
-  const rolePerm = ROLE_PERMISSION[agentId] ?? "none";
-  if (rolePerm === "none") return "none";
-  if (agentId === "cerberus") return "read";  // hardcoded
-  if (sessionMode === "read") return "read";  // ceiling
-  return rolePerm;  // write only if role allows and session allows
-}
+// ROLE_PERMISSION / effectiveMode: ./agents/permissions.js
 
 /**
  * Resolve credential env vars and return a safe object (values, not var names).
@@ -1147,6 +1120,7 @@ module.exports = {
   runOllama,
   normalizeDevContractText,
   effectiveMode,
+  ROLE_PERMISSION,
   resolveCredentials,
   buildEnvContext,
   CONTRACT_VERSION,
