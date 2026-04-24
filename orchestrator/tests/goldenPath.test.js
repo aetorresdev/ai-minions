@@ -32,6 +32,8 @@ test("golden path fixture — schema-valid lines + event spine + graph", () => {
   const graphRows = rows.filter((r) => r.step_id != null || r.parent_step_id != null);
   const g = validateTraceRunGraph(graphRows);
   assert.equal(g.ok, true, JSON.stringify(g.violations));
+  assert.ok(Array.isArray(g.warnings));
+  assert.equal(g.warnings.length, 0, JSON.stringify(g.warnings));
 });
 
 /**

@@ -164,23 +164,32 @@ function parseTraceLine(line, opts = {}) {
 
 /**
  * @param {object[]} lines - parsed trace line objects from a single run
- * @returns {{ ok: boolean, violations: Array<{type: string, step_id?: string, parent_step_id?: string, line_index?: number}> }}
- *
- * **step_id lifecycle:** `agent_start` **registers** a step id (duplicate `agent_start` with same id → violation).
- * `agent_done` (and other events) may reuse that id without registering again. `agent_done` without a prior
- * `agent_start` for the same `step_id` → `agent_done_without_start`.
- *
- * Human-readable contract: docs/orchestrator/graph-validation.md
+ * @returns {{ ok: boolean, violations: Array<{type: string, step_id?: string|null, parent_step_id?: string, line_index?: number, to_step_id?: string, event?: string}>, warnings: Array<{type: string, ok?: boolean}> }}
+ * @see docs/orchestrator/graph-validation.md
  */
 function validateTraceRunGraph(lines) {
-  const violations = [];
+  const violations = /** @type {Array<{type: string, step_id?: string|null, parent_step_id?: string, line_index?: number, to_step_id?: string, event?: string}>} */ ([]);
+  const warnings = /** @type {Array<{type: string, ok?: boolean}>} */ ([]);
+
+  let sawAnyStepId = false;
+  for (let i = 0; i < lines.length; i++) {
+    const sid = lines[i].step_id;
+    if (sid != null && sid !== "") sawAnyStepId = true;
+  }
+  if (lines.length > 0 && !sawAnyStepId) {
+    warnings.push({ type: "no_steps_emitted", ok: true });
+  }
 
   const stepIndex = new Set();
   for (let i = 0; i < lines.length; i++) {
     const row = lines[i];
     const step_id = row.step_id;
-    if (step_id == null) continue;
+    if (step_id == null || step_id === "") continue;
     const event = row.event;
+    if (event === undefined || event === null || event === "") {
+      violations.push({ type: "missing_event_with_step_id", step_id, line_index: i });
+      continue;
+    }
 
     if (event === "agent_start") {
       if (stepIndex.has(step_id)) {
@@ -193,18 +202,65 @@ function validateTraceRunGraph(lines) {
         violations.push({ type: "agent_done_without_start", step_id, line_index: i });
       }
     } else if (!stepIndex.has(step_id)) {
-      violations.push({ type: "step_id_unknown", step_id, line_index: i, event: String(event ?? "") });
+      violations.push({ type: "step_id_unknown", step_id, line_index: i, event: String(event) });
     }
   }
 
   for (let i = 0; i < lines.length; i++) {
     const { step_id, parent_step_id } = lines[i];
-    if (parent_step_id != null && !stepIndex.has(parent_step_id)) {
+    if (parent_step_id != null && parent_step_id !== "" && !stepIndex.has(parent_step_id)) {
       violations.push({ type: "orphan_parent", step_id: step_id ?? null, parent_step_id, line_index: i });
     }
   }
 
-  return { ok: violations.length === 0, violations };
+  /** @type {Map<string, string[]>} */
+  const adj = new Map();
+  for (let i = 0; i < lines.length; i++) {
+    const row = lines[i];
+    const s = row.step_id;
+    const p = row.parent_step_id;
+    if (s == null || s === "" || p == null || p === "") continue;
+    if (!stepIndex.has(s) || !stepIndex.has(p)) continue;
+    if (!adj.has(p)) adj.set(p, []);
+    adj.get(p).push(s);
+  }
+
+  const cycleNodes = new Set();
+  for (const [p, chs] of adj) {
+    cycleNodes.add(p);
+    for (const c of chs) cycleNodes.add(c);
+  }
+  const WHITE = 0;
+  const GRAY = 1;
+  const BLACK = 2;
+  /** @type {Map<string, number>} */
+  const color = new Map();
+  function dfsCycle(u) {
+    color.set(u, GRAY);
+    for (const v of adj.get(u) || []) {
+      const cv = color.get(v) ?? WHITE;
+      if (cv === GRAY) {
+        return { type: "cycle", step_id: u, to_step_id: v };
+      }
+      if (cv === WHITE) {
+        const hit = dfsCycle(v);
+        if (hit) return hit;
+      }
+    }
+    color.set(u, BLACK);
+    return null;
+  }
+  for (const n of cycleNodes) {
+    if ((color.get(n) ?? WHITE) === WHITE) {
+      const hit = dfsCycle(n);
+      if (hit) {
+        violations.push(hit);
+        break;
+      }
+    }
+  }
+
+  return { ok: violations.length === 0, violations, warnings };
 }
 
 module.exports = {
