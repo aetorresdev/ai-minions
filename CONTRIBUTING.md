@@ -36,6 +36,7 @@ When changing any of the files below, update the paired counterpart before openi
 | `AGENTS` / `buildAgents` in `orchestrator/agents/registry.js` | `docs/orchestrator/agent-contract.md` § MODE roles; `model-routing.md` if model table changes |
 | Pricing constants in `scripts/hooks/constants.py` | `docs/orchestrator/strict-mode.md` § Shared hook modules |
 | `orchestrator/console-dashboard.js` (flags, output shape, ASCII policy) | `docs/orchestrator/dashboard-failure-taxonomy.md` § *Console first*, `orchestrator/README.md` (console dashboard block) |
+| `iteration_done` writer (`composeIterationDonePayload`, `TRANSITION_REASON_CODES`, `inferReasonCode`) in `orchestrator/orchestrator.js` | `schemas/trace-v2-line.schema.json`, `docs/orchestrator/strict-mode.md` § *Writer invariant* + mapping table, `tests/traceSchema.test.js` matrix, `tests/iterationDoneEmitterContract.test.js` |
 
 **Rule:** `CLAUDE.md` is a consistency aid — not enforcement. Real gates live in `validateOutput()` and the hooks. If they diverge, the runtime wins.
 

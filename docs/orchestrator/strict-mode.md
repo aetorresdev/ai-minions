@@ -458,6 +458,11 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 
 **Granularity (known trade-off):** several distinct flows share **`contract_mismatch`** (e.g. CERBERUS-driven iterate, orchestrator decide corrections, generic gate contract, invalid decide → `stopped`). Use **`transition_reason.reason_code`** for drill-down, **`failure_type`** for coarse SLOs, and **`failure_axis`** for product-facing buckets without overloading `failure_type`. Dashboards should prefer **`(failure_type, failure_axis, reason_code)`** when building charts.
 
+### Writer invariant (`iteration_done` emission)
+
+- **`traceIterationDone()`** always builds the payload through **`composeIterationDonePayload()`** in **`orchestrator/orchestrator.js`**. If **`transition_reason.reason_code`** is missing or not a member of **`TRANSITION_REASON_CODES`** (same closed list as **`schemas/trace-v2-line.schema.json`**), the writer throws before append — no silent “half-structured” lines.
+- **`transitionReason()`** is the supported constructor: it validates **`type`**, maps **`(type, details)` → `reason_code`** via **`inferReasonCode()`**, or accepts an explicit **`meta.reason_code`** for **`GUARD`** paths. New terminal branches must extend **`inferReasonCode()`**, **`TRANSITION_REASON_CODES`**, the JSON Schema enum, this doc’s mapping table, the **`failure taxonomy matrix`** in **`tests/traceSchema.test.js`**, and the **`emitter paths`** table in **`tests/iterationDoneEmitterContract.test.js`**.
+
 **`tool_error` scope (v1):** currently assigned when a **`gate_blocked_iterate`** path is tied to **`gate_kind: "compact_handoff"`** (MCP/handoff integration). Other tools or MCPs that need the same coarse bucket should get an **explicit** branch in the mapper (and tests), not an implicit blanket assignment to **`tool_error`**, so semantics stay auditable when the runner grows.
 
 Rough mapping from `outcome` (legacy UI) to `transition_reason.type`: `done` → `DONE`; `iterate` after CERBERUS blockers + corrections → `GATE_BLOCK`; `iterate_fallback` → `ITERATE_FALLBACK`; `gate_blocked_iterate` → `GATE_BLOCK`; `max_iterations_*` → `MAX_ITERATIONS`; `iterate` after orchestrator decide JSON corrections → `ITERATE`; `stopped` (invalid decide) → `CONTRACT_FAIL`. See `transitionReason()` in `orchestrator.js`.
@@ -475,7 +480,7 @@ The writer computes **`failure_type`** / **`failure_axis`** with **`failureTypeF
 | `ORCHESTRATOR_NO_CORRECTIONS_JSON` | `iterate_fallback` | Decide JSON missing / empty corrections | `contract_mismatch` | `orchestrate` |
 | `ORCHESTRATOR_DECIDE_CORRECTIONS` | `iterate` | Decide returned corrections | `contract_mismatch` | `orchestrate` |
 | `CONTRACT_OR_DECIDE_FAILURE` | `stopped` | Invalid decide / contract stop | `contract_mismatch` | `contract` |
-| `VALIDATION_FAILURE_GENERIC` | _(no primary path in example runner)_ | Reserved for `type: VALIDATION_FAIL` | `contract_mismatch` | `unknown` |
+| `VALIDATION_FAILURE_GENERIC` | e.g. `stopped` | Emit with `transitionReason("VALIDATION_FAIL", details)` when adding early validation exits; **`iterationDoneEmitterContract.test.js`** holds a schema-valid example | `contract_mismatch` | `unknown` |
 | `GATE_ARTIFACT_OR_HANDOFF` | `gate_blocked_iterate` | `ctx.gateKinds` includes **`compact_handoff`** | `tool_error` | `gate_tool` |
 | `GATE_ARTIFACT_OR_HANDOFF` | `gate_blocked_iterate` | Other / empty `gateKinds` (e.g. `handoff_structure`, `goal_alignment`) | `contract_mismatch` | `gate_artifact` |
 | `MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS` | `max_iterations_with_gate_blocks` | Gate-blocked cap | `retry_exceeded` | `gate_artifact` |
@@ -484,7 +489,7 @@ The writer computes **`failure_type`** / **`failure_axis`** with **`failureTypeF
 | `GUARD_COST_LIMIT` | `guard_abort` | `ORCH_MAX_COST_USD` | `cost_abort` | `guard` |
 | `GUARD_STEP_RETRY_LIMIT` | `guard_abort` | `ORCH_MAX_RETRIES` per agent | `retry_exceeded` | `guard` |
 
-**Maintenance:** when adding a **`reason_code`** to the JSON Schema enum, extend **`TRANSITION_REASON_CODES`** / **`inferReasonCode()`** in **`orchestrator.js`**, add a row here, and add a row to the **`failure taxonomy matrix`** test in **`tests/traceSchema.test.js`**.
+**Maintenance:** when adding a **`reason_code`** to the JSON Schema enum, extend **`TRANSITION_REASON_CODES`** / **`inferReasonCode()`** in **`orchestrator.js`**, add a row here, add a row to the **`failure taxonomy matrix`** test in **`tests/traceSchema.test.js`**, and add a representative row to **`tests/iterationDoneEmitterContract.test.js`**.
 
 **Operational dashboards:** see [`dashboard-failure-taxonomy.md`](./dashboard-failure-taxonomy.md) (export fields, `jq`, console dashboard; optional hosted BI outside this repo).
 
