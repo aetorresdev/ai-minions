@@ -130,9 +130,9 @@ describe("deriveExplain — clean trace", () => {
   });
 });
 
-// ── OBS-CONSUME-1 (groomed backlog) — successful / blocked / multi-intent ───
+// ── deriveExplain: consumption shapes (success, contract_fail rollup, multi-intent) ───
 
-describe("deriveExplain — OBS-CONSUME-1 acceptance shapes", () => {
+describe("deriveExplain — consumption acceptance shapes", () => {
   it("successful run: done outcome, rollup shows step not failed, optional QA signal", () => {
     const rows = [
       baseSession({ ts_ms: 1000 }),
