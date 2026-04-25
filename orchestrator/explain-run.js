@@ -24,6 +24,7 @@ const path = require("path");
 const os   = require("os");
 
 const { rollupStepsCostOutcome } = require("./token-trace-report");
+const { sanitizeTraceRowsForRead } = require("./trace-redact");
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const MAX_LINES = 10_000;
@@ -363,11 +364,11 @@ function main() {
   const { rows, skipped }   = parseJsonl(text);
 
   // Sort by ts_ms ascending; fallback to insertion order (stable sort)
-  const sorted = rows.slice().sort((a, b) => {
+  const sorted = sanitizeTraceRowsForRead(rows.slice().sort((a, b) => {
     const ta = typeof a.ts_ms === "number" ? a.ts_ms : 0;
     const tb = typeof b.ts_ms === "number" ? b.ts_ms : 0;
     return ta - tb;
-  });
+  }));
 
   const explain = deriveExplain(sorted);
 

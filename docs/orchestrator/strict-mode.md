@@ -550,6 +550,23 @@ When traces leave the operator workstation (CI artifacts, ticket paste, shared d
 
 **Principle:** prefer **closed `reason_code` enums** and short structural flags in shared artifacts; keep free-form strings for **local** `explain-run` and operator-only copies.
 
+### Writer-time secret redaction (TRACE-SEC-R2)
+
+Before JSON Schema validation and append to `~/.claude/metrics/traces/<task_id>.jsonl`, **`_sanitize()`** in **`orchestrator/orchestrator.js`** runs **`redactSensitivePlaintext()`** on leak-prone string fields:
+
+- **`goal`** — after redaction, then truncated / hashed as before (`TRACE_REDACT_GOAL=1` unchanged).
+- **`task`**, **`reason`**, **`summary`**, **`message`** — redact then apply existing length caps.
+- **`transition_reason.details`** — redact then cap at 300 chars.
+- **`items`**, **`reasons`**, **`errors`** when they are arrays of strings (e.g. **`cerberus_check`**, **`gate_blocked_completion`**, **`graph_validation_fail`**) — each element redacted.
+
+**Patterns (deterministic placeholders):** `Bearer …` (long token), `sk-…` (OpenAI-style key), `AKIA…` (AWS access key id), `ghp_…` (GitHub PAT), Slack `xoxb-` / `xoxp-` / `xoxa-` style tokens, and `scheme://user:password@host` URL credentials → **`[REDACTED:…]`** / **`[REDACTED-url-creds]@`**. This is **shape-based**, not full secret scanning.
+
+**Opt-out (local only):** `ORCH_TRACE_SKIP_SECRET_REDACT=1` disables redaction for debugging. **Do not** use on CI artifacts or pasted traces.
+
+**Read-time defense-in-depth:** `orchestrator/trace-redact.js` exports **`sanitizeTraceRowsForRead()`** — a bounded deep walk that applies the same **`redactSensitivePlaintext()`** patterns to every string value in parsed JSONL rows before **`token-trace-report.js`** (CLI `--json` and rollups), **`scenario-metrics-export.js`** / **`collectRunsFromDir`**, **`console-dashboard.js`** / **`buildDashboardText`**, and **`explain-run.js`** (CLI output). Use this when ingesting legacy or third-party trace files that might not have passed the writer sanitizer.
+
+**Tests:** `orchestrator/tests/traceSecretRedact.test.js` (writer + read paths + CLI smoke).
+
 ---
 
 ## MCP usage audit
