@@ -66,10 +66,9 @@ const { qaAgentDoneTraceExtras } = require("./agents/validate-output");
 // iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".
 //
 // Sensitive field handling:
-//   goal  → truncated to 80 chars + SHA-256 hash (TRACE_REDACT_GOAL=1 omits text entirely)
-//   task  → truncated to 120 chars
-//   reason/summary → truncated to 300 chars
-//   transition_reason.details → truncated to 300 chars
+//   goal  → secret-shaped substrings redacted, then truncated to 80 chars + SHA-256 hash (TRACE_REDACT_GOAL=1 omits text entirely)
+//   task / reason / summary / message / string[] items,reasons,errors → redact then truncate (ORCH_TRACE_SKIP_SECRET_REDACT=1 disables redact)
+//   transition_reason.details → redacted then truncated to 300 chars
 // Trace write failures emit a one-time stderr warning (not silenced).
 
 const TRACES_DIR = process.env.ORCH_TRACES_DIR && String(process.env.ORCH_TRACES_DIR).trim()
@@ -81,6 +80,7 @@ const {
   TRACE_LINE_WRITER_VERSION,
   validateTraceLine: validateTraceLineForWrite,
 } = require("./trace-schema");
+const { redactSensitivePlaintext } = require("./trace-redact");
 
 /** Same as `TRACE_LINE_WRITER_VERSION` in trace-schema.js — single source for writer + schema. */
 const TRACE_SCHEMA_VERSION = TRACE_LINE_WRITER_VERSION;
@@ -238,18 +238,32 @@ function _hashGoal(text) {
   return require("crypto").createHash("sha256").update(text).digest("hex").slice(0, 12);
 }
 
+/**
+ * @param {unknown} v
+ * @returns {unknown}
+ */
+function _redactStringArray(v) {
+  if (!Array.isArray(v)) return v;
+  return v.map((x) => (typeof x === "string" ? redactSensitivePlaintext(x) : x));
+}
+
 function _sanitize(event) {
   const out = { ...event };
   if ("goal" in out) {
-    const h = _hashGoal(out.goal);
-    out.goal = TRACE_REDACT_GOAL ? `[redacted:${h}]` : `${String(out.goal).slice(0, 80)}… [sha256:${h}]`;
+    const cleaned = redactSensitivePlaintext(String(out.goal));
+    const h = _hashGoal(cleaned);
+    out.goal = TRACE_REDACT_GOAL ? `[redacted:${h}]` : `${cleaned.slice(0, 80)}… [sha256:${h}]`;
   }
-  if ("task" in out) out.task = String(out.task).slice(0, 120);
-  if ("reason" in out) out.reason = String(out.reason).slice(0, 300);
-  if ("summary" in out) out.summary = String(out.summary).slice(0, 300);
+  if ("task" in out) out.task = redactSensitivePlaintext(String(out.task)).slice(0, 120);
+  if ("reason" in out) out.reason = redactSensitivePlaintext(String(out.reason)).slice(0, 300);
+  if ("summary" in out) out.summary = redactSensitivePlaintext(String(out.summary)).slice(0, 300);
+  if (typeof out.message === "string") out.message = redactSensitivePlaintext(out.message).slice(0, 400);
+  if (Array.isArray(out.items)) out.items = _redactStringArray(out.items);
+  if (Array.isArray(out.reasons)) out.reasons = _redactStringArray(out.reasons);
+  if (Array.isArray(out.errors)) out.errors = _redactStringArray(out.errors);
   if (out.transition_reason && typeof out.transition_reason === "object" && out.transition_reason !== null) {
     const tr = { ...out.transition_reason };
-    if ("details" in tr && tr.details != null) tr.details = String(tr.details).slice(0, 300);
+    if ("details" in tr && tr.details != null) tr.details = redactSensitivePlaintext(String(tr.details)).slice(0, 300);
     if ("gate_id" in tr && tr.gate_id != null) tr.gate_id = String(tr.gate_id).slice(0, 120);
     if ("step_id" in tr && tr.step_id != null) tr.step_id = String(tr.step_id).slice(0, 240);
     if (out.event === "iteration_done" && tr.type && !tr.reason_code) {
@@ -2091,6 +2105,7 @@ module.exports = {
   detectBlockers,
   validateHandoffStructure,
   _sanitize,
+  redactSensitivePlaintext,
   _hashGoal,
   resolveRequireHandoff,
   compactHandoffDegradedMeta,
