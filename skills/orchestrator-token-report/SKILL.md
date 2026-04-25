@@ -58,4 +58,4 @@ node scenario-metrics-export.js --dir ~/.claude/metrics/traces --since-m 120 --o
 
 - `orchestrator/token-trace-report.js` — parse + `buildReport`
 - `orchestrator/scenario-metrics-export.js` — `collectRunsFromDir`, `buildByStage`, `buildUsdExportMeta`
-- `orchestrator/orchestrator.js` — `traceScenarioId` / `scenario_id` on `session_start` / `session_end`
+- `orchestrator/orchestrator.js` — `traceScenarioId` / `scenario_id` on `session_start` / `session_end`; `composeIterationDonePayload()` / `traceIterationDone()` (closed `reason_code` before write)
