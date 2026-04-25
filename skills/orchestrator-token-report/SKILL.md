@@ -51,7 +51,7 @@ node scenario-metrics-export.js --dir ~/.claude/metrics/traces --since-m 120 --o
 
 - `orchestrator/README.md` — Quickstart + metrics commands
 - `docs/orchestrator/strict-mode.md` — trace events, MCP audit, Ollama token fields; **`iteration_done`:** § *Canonical dashboard mapping* (`reason_code` → `failure_type` + `failure_axis`)
-- `docs/orchestrator/dashboard-failure-taxonomy.md` — batch export **`failure_taxonomy`**, **`jq`**; **console:** `npm run dashboard:console` (ASCII-only framing; smoke with `tests/fixtures/golden-path-clean-v1.jsonl`)
+- `docs/orchestrator/dashboard-failure-taxonomy.md` — batch export **`failure_taxonomy`**, **`jq`**; **console:** `npm run dashboard:console` (ASCII-only framing; smoke with `tests/fixtures/golden-path-clean-v1.jsonl`); § *Reader tolerance* (export + console helpers must not throw on unknown `reason_code` or sparse `iteration_done` rows)
 - `docs/orchestrator/model-routing.md` — execution trace event types
 
 ## Code references

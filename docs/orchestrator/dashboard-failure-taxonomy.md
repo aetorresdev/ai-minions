@@ -56,6 +56,10 @@ Per run, **`failure_taxonomy`**:
 
 Root payload: **`failure_taxonomy_aggregate`** — same shape, summed over **`runs`**.
 
+### Reader tolerance (batch export and console dashboard)
+
+Summaries use the same counting helper as **`npm run dashboard:console`**: unknown `transition_reason.reason_code` values, missing `transition_reason`, and non-catalog `failure_type` / `failure_axis` strings are **counted as string keys** (including the literal **`(missing_reason_code)`** when the field is absent) instead of failing the export or the ASCII dashboard. That keeps older or forward-compatible traces readable. **Writer discipline** (every terminal failure emitting a stable `reason_code` on `iteration_done`) remains the contract in **`strict-mode.md`** § *Canonical dashboard mapping* and in the trace schema; fixing gaps there is separate from these read-side tables.
+
 ## Ad-hoc: `jq` over one JSONL file
 
 List `reason_code` for every `iteration_done`:
