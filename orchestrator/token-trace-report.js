@@ -13,6 +13,7 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { sanitizeTraceRowsForRead } = require("./trace-redact");
 
 /** @typedef {{ ts?: string, task_id?: string, event?: string, [k: string]: unknown }} TraceRow */
 
@@ -358,8 +359,9 @@ function main() {
 
   const text = fs.readFileSync(tracePath, "utf8");
   const { rows, errors } = parseJsonl(text, { validateLines: strictTraces });
-  const tid = taskId || (rows.find((r) => r.task_id) && rows.find((r) => r.task_id).task_id) || path.basename(tracePath, ".jsonl");
-  const report = buildReport(rows);
+  const safeRows = sanitizeTraceRowsForRead(rows);
+  const tid = taskId || (safeRows.find((r) => r.task_id) && safeRows.find((r) => r.task_id).task_id) || path.basename(tracePath, ".jsonl");
+  const report = buildReport(safeRows);
 
   if (jsonOut) {
     const usd = optionalOllamaUsdEstimate(report);
@@ -368,7 +370,7 @@ function main() {
       trace_file: tracePath,
       parse_errors: errors,
       report,
-      rollup_steps: rollupStepsCostOutcome(rows),
+      rollup_steps: rollupStepsCostOutcome(safeRows),
       ...(usd ? { ollama_usd_estimate: usd } : {}),
     }, null, 2));
   } else {

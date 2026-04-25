@@ -30,6 +30,26 @@ test("linesCountTable includes bars and keys", () => {
   assertAllCharsAscii(joined, "linesCountTable");
 });
 
+test("buildDashboardText does not echo raw api-token-shaped step_id in rollup", () => {
+  const sk = "sk-" + "g".repeat(25);
+  const rows = [
+    { event: "session_start", task_id: "t-red", flow_mode: "single_agent", max_iterations: 1, scenario_id: "S-red" },
+    {
+      event: "context_stats",
+      task_id: "t-red",
+      step_id: `step-${sk}-tail`,
+      agent: "dev-backend",
+      iteration: 0,
+      ollama_prompt_tokens: 5,
+      ollama_completion_tokens: 2,
+    },
+    { event: "session_end", task_id: "t-red", done: true, iterations: 1, gate_blocks: 0 },
+  ];
+  const out = buildDashboardText(rows, { source: "fixture" });
+  assert.ok(!out.includes(sk));
+  assert.match(out, /\[REDACTED:api_token\]/);
+});
+
 test("buildDashboardText includes taxonomy and rollup header", () => {
   const rows = [
     {

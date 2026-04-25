@@ -95,6 +95,35 @@ test("buildByStage aggregates by_role and by_phase from by_agent_phase", () => {
   assert.equal(st.by_phase.worker.ollama_prompt_tokens, 120);
 });
 
+test("collectRunsFromDir redacts secret-shaped strings before by_agent_phase rollups", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-scen-red-"));
+  try {
+    const sk = "sk-" + "f".repeat(25);
+    const row = [
+      { ts: "t0", task_id: "tid-red", event: "session_start", flow_mode: "single_agent", scenario_id: "Sc-R", max_iterations: 1 },
+      {
+        ts: "t1",
+        task_id: "tid-red",
+        event: "context_stats",
+        step_id: "s-red",
+        agent: `svc-${sk}-agent`,
+        phase: "worker",
+        ollama_prompt_tokens: 2,
+        ollama_completion_tokens: 1,
+      },
+      { ts: "t2", task_id: "tid-red", event: "session_end", iterations: 1, done: true },
+    ].map((o) => JSON.stringify(o)).join("\n");
+    fs.writeFileSync(path.join(dir, "tid-red.jsonl"), row, "utf8");
+    const runs = collectRunsFromDir(dir, { includeUntagged: false });
+    assert.equal(runs.length, 1);
+    const dump = JSON.stringify(runs[0].by_agent_phase || {});
+    assert.ok(!dump.includes(sk));
+    assert.match(dump, /\[REDACTED:api_token\]/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("collectRunsFromDir attaches ollama_usd_estimate when USD env is set", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-scen-usd-"));
   process.env.ORCH_USD_PER_MTOK_PROMPT = "0.5";

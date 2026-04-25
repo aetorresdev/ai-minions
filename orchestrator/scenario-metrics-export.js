@@ -14,6 +14,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { parseJsonl, buildReport, optionalOllamaUsdEstimate, rollupStepsCostOutcome } = require("./token-trace-report");
+const { sanitizeTraceRowsForRead } = require("./trace-redact");
 
 /**
  * Aggregate Ollama token totals from context_stats-derived `by_agent_phase` across runs.
@@ -191,13 +192,14 @@ function collectRunsFromDir(tracesDir, opts = {}) {
     const { rows, errors } = parseJsonl(text, { validateLines: validateTrace });
     if (!rows.length) continue;
 
-    const sessionStart = rows.find((r) => r.event === "session_start");
+    const safeRows = sanitizeTraceRowsForRead(rows);
+    const sessionStart = safeRows.find((r) => r.event === "session_start");
     const scenarioId = sessionStart && typeof sessionStart.scenario_id === "string"
       ? sessionStart.scenario_id : null;
     if (!scenarioId && !includeUntagged) continue;
 
-    const taskId = (rows.find((r) => r.task_id) || {}).task_id || path.basename(name, ".jsonl");
-    const report = buildReport(rows);
+    const taskId = (safeRows.find((r) => r.task_id) || {}).task_id || path.basename(name, ".jsonl");
+    const report = buildReport(safeRows);
     const sessionEnd = report.session_end;
     const ollamaUsdEstimate = optionalOllamaUsdEstimate(report);
 
@@ -218,8 +220,8 @@ function collectRunsFromDir(tracesDir, opts = {}) {
       by_agent_phase: report.by_agent_phase,
       mcp_from_session_end: report.mcp_from_session_end,
       mcp_events_count: report.mcp_events_count,
-      rollup_steps: rollupStepsCostOutcome(rows),
-      failure_taxonomy: summarizeFailureTaxonomyFromRows(rows),
+      rollup_steps: rollupStepsCostOutcome(safeRows),
+      failure_taxonomy: summarizeFailureTaxonomyFromRows(safeRows),
       ...(ollamaUsdEstimate ? { ollama_usd_estimate: ollamaUsdEstimate } : {}),
     });
   }

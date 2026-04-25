@@ -23,6 +23,7 @@ const {
   aggregateFailureTaxonomyAcrossRuns,
   collectRunsFromDir,
 } = require("./scenario-metrics-export");
+const { sanitizeTraceRowsForRead } = require("./trace-redact");
 
 /** @param {Record<string, number>} obj */
 function sortedEntries(obj) {
@@ -62,6 +63,7 @@ function linesCountTable(label, counts, maxRows = 24, barWidth = 28) {
  * @returns {string}
  */
 function buildDashboardText(rows, meta = {}) {
+  const rws = sanitizeTraceRowsForRead(rows);
   const lines = [];
   const src = meta.source || "(rows)";
   lines.push("+----------------------------------------------------------------------+");
@@ -70,7 +72,7 @@ function buildDashboardText(rows, meta = {}) {
   lines.push(`Source: ${src}`);
   lines.push("");
 
-  const report = buildReport(rows);
+  const report = buildReport(rws);
   const ss = report.session_start;
   const se = report.session_end;
   if (ss) {
@@ -88,7 +90,7 @@ function buildDashboardText(rows, meta = {}) {
   }
   lines.push("");
 
-  const tax = summarizeFailureTaxonomyFromRows(rows);
+  const tax = summarizeFailureTaxonomyFromRows(rws);
   lines.push("Failure taxonomy (event=iteration_done) - drill: reason_code -> axis -> type");
   lines.push(`  iteration_done lines: ${tax.iteration_done_count}`);
   lines.push("");
@@ -101,7 +103,7 @@ function buildDashboardText(rows, meta = {}) {
   lines.push(...linesCountTable("by outcome", tax.by_outcome));
   lines.push("");
 
-  const roll = rollupStepsCostOutcome(rows);
+  const roll = rollupStepsCostOutcome(rws);
   lines.push("-- Top steps by Ollama tokens (rollupStepsCostOutcome) --");
   if (!roll.length) {
     lines.push("(no step_id rows with context_stats)");

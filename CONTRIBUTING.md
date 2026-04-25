@@ -28,6 +28,7 @@ When changing any of the files below, update the paired counterpart before openi
 | `validateOutput()` contracts in `orchestrator/agents/validate-output.js` | `docs/orchestrator/agent-contract.md` § Output contracts |
 | Role ALLOW/FORBID text lives in `orchestrator/agents/registry.js` (prompts); matrix in `permissions.js` | `docs/orchestrator/agent-contract.md` § ALLOW/FORBID table |
 | Hook gate logic (`scripts/hooks/`) | `docs/orchestrator/strict-mode.md` § Gate sequence |
+| `redactSensitivePlaintext` / `_sanitize` (writer) + `sanitizeTraceRowsForRead` (export/dashboard/CLIs) in `orchestrator/trace-redact.js` / `orchestrator/orchestrator.js` | `docs/orchestrator/strict-mode.md` § *Writer-time* + *Read-time*, `tests/traceSecretRedact.test.js`, `orchestrator/README.md` (env `ORCH_TRACE_SKIP_SECRET_REDACT`; **refused when `CI` is set**) |
 | `CLAUDE.md` Activation Rules or MODE protocol | `docs/orchestrator/agent-contract.md` § MODE Protocol |
 | `CONTRACT_VERSION` in `agents.js` | `docs/orchestrator/model-routing.md` (if routing changed) |
 | `MODEL_ROUTING` / `FALLBACK_POLICY` in `orchestrator/agents/routing/model-routing.js` | `docs/orchestrator/model-routing.md` + `tests/modelRoutingStrategy.test.js` |

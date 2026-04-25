@@ -105,6 +105,7 @@ Use this to pick the right setup for your situation.
 | Ollama not on `localhost:11434` | `OLLAMA_HOST`, `OLLAMA_PORT` | `runOllama()` (agent calls) uses these; defaults match local `ollama serve` |
 | Slow machine / CI | `CLAUDE_CLI_TIMEOUT=300000` | Default 180s may be too short for cold starts |
 | Sensitive goal (logs to disk) | `TRACE_REDACT_GOAL=1` | Goal text omitted from trace files; only SHA-256 hash retained |
+| Local debug: verbatim trace strings | `ORCH_TRACE_SKIP_SECRET_REDACT=1` | Disables deterministic secret-shaped redaction in `_sanitize` **and** read-time `sanitizeTraceRowsForRead` (export, dashboard, `token-trace-report`, `explain-run`) — **local only**; combined with **`CI=true`** (or `1` / `yes`) the process **exits** on load / first redaction call |
 | Single focused task | `--iterations 1`, `--flow single_agent` | Skip multi-agent overhead; one DEV + CERBERUS pass |
 | Complex multi-role task | `--iterations 3`, `--flow multi_agent` | Full plan → DEV → QA → CERBERUS loop with corrections |
 | QA ran degraded (Haiku fallback) | Add manual review | `qa_degraded: true` in `session_end` trace — coverage may be reduced |
