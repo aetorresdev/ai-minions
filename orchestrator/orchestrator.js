@@ -300,6 +300,34 @@ const FAILURE_AXES = /** @type {const} */ ([
 ]);
 const FAILURE_AXIS_SET = new Set(FAILURE_AXES);
 
+/** Allowed values for iteration_done.transition_reason.type. */
+const TRANSITION_REASON_TYPES = new Set([
+  "DONE",
+  "VALIDATION_FAIL",
+  "GATE_BLOCK",
+  "MAX_ITERATIONS",
+  "CONTRACT_FAIL",
+  "ITERATE_FALLBACK",
+  "ITERATE",
+  "GUARD",
+]);
+
+/** Closed catalog for analytics / aggregation (JSON Schema enum in schemas/trace-v2-line.schema.json). */
+const TRANSITION_REASON_CODES = new Set([
+  "RUN_COMPLETED",
+  "CERBERUS_BLOCKERS_ITERATE",
+  "ORCHESTRATOR_NO_CORRECTIONS_JSON",
+  "MAX_ITERATIONS_CERBERUS_BLOCKERS",
+  "GATE_ARTIFACT_OR_HANDOFF",
+  "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS",
+  "ORCHESTRATOR_DECIDE_CORRECTIONS",
+  "CONTRACT_OR_DECIDE_FAILURE",
+  "VALIDATION_FAILURE_GENERIC",
+  "GUARD_COST_LIMIT",
+  "GUARD_STEP_RETRY_LIMIT",
+  "MAX_ITERATIONS_LOOP_EXHAUSTED",
+]);
+
 /**
  * Map orchestrator semantics → coarse `failure_type` on iteration_done.
  *
@@ -370,6 +398,46 @@ function failureAxisForIterationDone(outcome, reasonCode, ctx = {}) {
 }
 
 /**
+ * Assemble the `iteration_done` trace row (writer contract). Used by `traceIterationDone` and emitter contract tests.
+ * @param {number} iteration
+ * @param {string} outcome
+ * @param {ReturnType<typeof transitionReason>} trSpread
+ * @param {Record<string, unknown>} [extra]
+ * @param {{ gateKinds?: string[], intent_ids?: string[] }} [ctx]
+ * @returns {Record<string, unknown>}
+ */
+function composeIterationDonePayload(iteration, outcome, trSpread, extra = {}, ctx = {}) {
+  const reasonCode = trSpread.transition_reason && trSpread.transition_reason.reason_code;
+  const rcs = reasonCode != null ? String(reasonCode) : "";
+  if (!TRANSITION_REASON_CODES.has(rcs)) {
+    throw new Error(`iteration_done: transition_reason.reason_code missing or not in catalog (${JSON.stringify(reasonCode)})`);
+  }
+  const payload = {
+    event: "iteration_done",
+    iteration,
+    outcome,
+    ...trSpread,
+    ...extra,
+  };
+  const ft = failureTypeForIterationDone(outcome, rcs, ctx);
+  if (ft != null) {
+    if (!FAILURE_TYPE_SET.has(ft)) {
+      throw new Error(`internal: invalid failure_type ${ft}`);
+    }
+    payload.failure_type = ft;
+  }
+  if (outcome !== "done") {
+    const axis = failureAxisForIterationDone(outcome, rcs, ctx);
+    if (!FAILURE_AXIS_SET.has(axis)) throw new Error(`internal: invalid failure_axis ${axis}`);
+    payload.failure_axis = axis;
+  }
+  if (ctx.intent_ids && ctx.intent_ids.length) {
+    payload.intent_ids = ctx.intent_ids.slice(0, 48);
+  }
+  return payload;
+}
+
+/**
  * @param {string} taskId
  * @param {number} iteration
  * @param {string} outcome
@@ -378,59 +446,8 @@ function failureAxisForIterationDone(outcome, reasonCode, ctx = {}) {
  * @param {{ gateKinds?: string[], intent_ids?: string[] }} [ctx]
  */
 function traceIterationDone(taskId, iteration, outcome, trSpread, extra = {}, ctx = {}) {
-  const reasonCode = trSpread.transition_reason && trSpread.transition_reason.reason_code;
-  const payload = {
-    event: "iteration_done",
-    iteration,
-    outcome,
-    ...trSpread,
-    ...extra,
-  };
-  const ft = failureTypeForIterationDone(outcome, String(reasonCode || ""), ctx);
-  if (ft != null) {
-    if (!FAILURE_TYPE_SET.has(ft)) {
-      throw new Error(`internal: invalid failure_type ${ft}`);
-    }
-    payload.failure_type = ft;
-  }
-  if (outcome !== "done") {
-    const axis = failureAxisForIterationDone(outcome, String(reasonCode || ""), ctx);
-    if (!FAILURE_AXIS_SET.has(axis)) throw new Error(`internal: invalid failure_axis ${axis}`);
-    payload.failure_axis = axis;
-  }
-  if (ctx.intent_ids && ctx.intent_ids.length) {
-    payload.intent_ids = ctx.intent_ids.slice(0, 48);
-  }
-  traceEvent(taskId, payload);
+  traceEvent(taskId, composeIterationDonePayload(iteration, outcome, trSpread, extra, ctx));
 }
-
-/** Allowed values for iteration_done.transition_reason.type. */
-const TRANSITION_REASON_TYPES = new Set([
-  "DONE",
-  "VALIDATION_FAIL",
-  "GATE_BLOCK",
-  "MAX_ITERATIONS",
-  "CONTRACT_FAIL",
-  "ITERATE_FALLBACK",
-  "ITERATE",
-  "GUARD",
-]);
-
-/** Closed catalog for analytics / aggregation (JSON Schema enum in schemas/trace-v2-line.schema.json). */
-const TRANSITION_REASON_CODES = new Set([
-  "RUN_COMPLETED",
-  "CERBERUS_BLOCKERS_ITERATE",
-  "ORCHESTRATOR_NO_CORRECTIONS_JSON",
-  "MAX_ITERATIONS_CERBERUS_BLOCKERS",
-  "GATE_ARTIFACT_OR_HANDOFF",
-  "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS",
-  "ORCHESTRATOR_DECIDE_CORRECTIONS",
-  "CONTRACT_OR_DECIDE_FAILURE",
-  "VALIDATION_FAILURE_GENERIC",
-  "GUARD_COST_LIMIT",
-  "GUARD_STEP_RETRY_LIMIT",
-  "MAX_ITERATIONS_LOOP_EXHAUSTED",
-]);
 
 /**
  * Map (type, details) → stable reason_code. Extend when adding new iteration_done paths.
@@ -2094,4 +2111,5 @@ module.exports = {
   failureTypeForIterationDone,
   failureAxisForIterationDone,
   traceIterationDone,
+  composeIterationDonePayload,
 };
