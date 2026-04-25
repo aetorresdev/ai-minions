@@ -73,6 +73,53 @@ test("buildDashboardText includes taxonomy and rollup header", () => {
   assertAllCharsAscii(out, "buildDashboardText");
 });
 
+test("buildDashboardText includes mixed iteration_done rows without throwing", () => {
+  const rows = [
+    { event: "session_start", task_id: "mix", flow_mode: "single_agent", max_iterations: 4, scenario_id: "S-mix" },
+    {
+      event: "iteration_done",
+      task_id: "mix",
+      iteration: 0,
+      outcome: "iterate",
+      transition_reason: { type: "ITERATE", reason_code: "CERBERUS_BLOCKERS_ITERATE" },
+      failure_type: "contract_mismatch",
+      failure_axis: "cerberus",
+    },
+    {
+      event: "iteration_done",
+      task_id: "mix",
+      iteration: 1,
+      outcome: "gate_blocked_iterate",
+      transition_reason: { type: "ITERATE", reason_code: "GATE_ARTIFACT_OR_HANDOFF" },
+      failure_type: "tool_error",
+      failure_axis: "gate_tool",
+    },
+    {
+      event: "iteration_done",
+      task_id: "mix",
+      iteration: 2,
+      outcome: "stopped",
+    },
+    {
+      event: "iteration_done",
+      task_id: "mix",
+      iteration: 3,
+      outcome: "iterate",
+      transition_reason: { type: "ITERATE", reason_code: "FUTURE_REASON_NOT_IN_SCHEMA" },
+      failure_type: "hypothetical_ft",
+      failure_axis: "hypothetical_axis",
+    },
+    { event: "session_end", task_id: "mix", done: false, iterations: 4, gate_blocks: 1 },
+  ];
+  const out = buildDashboardText(rows, { source: "mix-taxonomy" });
+  assertAllCharsAscii(out, "buildDashboardText mixed taxonomy");
+  assert.match(out, /CERBERUS_BLOCKERS_ITERATE/);
+  assert.match(out, /GATE_ARTIFACT_OR_HANDOFF/);
+  assert.match(out, /tool_error/);
+  assert.match(out, /\(missing_reason_code\)/);
+  assert.match(out, /FUTURE_REASON_NOT_IN_SCHEMA/);
+});
+
 test("buildDashboardText stays ASCII-only with long step_id (ellipsis path)", () => {
   const longId = `x-${"a".repeat(60)}-x`;
   const rows = [
