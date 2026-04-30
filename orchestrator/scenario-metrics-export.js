@@ -13,8 +13,15 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { parseJsonl, buildReport, optionalOllamaUsdEstimate, rollupStepsCostOutcome } = require("./token-trace-report");
+const {
+  parseJsonl,
+  buildReport,
+  optionalOllamaUsdEstimate,
+  rollupStepsCostOutcome,
+  summarizeFailureTaxonomyFromRows,
+} = require("./token-trace-report");
 const { sanitizeTraceRowsForRead } = require("./trace-redact");
+const { buildRunOutcomeSummary } = require("./run-outcome-summary");
 
 /**
  * Aggregate Ollama token totals from context_stats-derived `by_agent_phase` across runs.
@@ -70,56 +77,6 @@ function buildUsdExportMeta() {
     usd_note: configured
       ? "Per-run ollama_usd_estimate uses env rates; values are estimates (no Ollama billing API)."
       : "Set ORCH_USD_PER_MTOK_PROMPT and ORCH_USD_PER_MTOK_COMPLETION for USD estimates on each run.",
-  };
-}
-
-/**
- * Count `iteration_done` rows for batch dashboards (order: reason_code → failure_axis → failure_type).
- * See `docs/orchestrator/strict-mode.md` § *Canonical dashboard mapping*.
- * @param {object[]} rows
- * @returns {{
- *   iteration_done_count: number,
- *   by_reason_code: Record<string, number>,
- *   by_failure_axis: Record<string, number>,
- *   by_failure_type: Record<string, number>,
- *   by_outcome: Record<string, number>,
- *   by_reason_axis_type: Record<string, number>
- * }}
- */
-function summarizeFailureTaxonomyFromRows(rows) {
-  /** @type {Record<string, number>} */
-  const byReason = {};
-  /** @type {Record<string, number>} */
-  const byAxis = {};
-  /** @type {Record<string, number>} */
-  const byFt = {};
-  /** @type {Record<string, number>} */
-  const byOutcome = {};
-  /** @type {Record<string, number>} */
-  const byComposite = {};
-  let n = 0;
-  for (const r of rows) {
-    if (r.event !== "iteration_done") continue;
-    n += 1;
-    const tr = r.transition_reason && typeof r.transition_reason === "object" ? r.transition_reason : {};
-    const rc = typeof tr.reason_code === "string" && tr.reason_code ? tr.reason_code : "(missing_reason_code)";
-    byReason[rc] = (byReason[rc] || 0) + 1;
-    const oc = typeof r.outcome === "string" ? r.outcome : "(missing_outcome)";
-    byOutcome[oc] = (byOutcome[oc] || 0) + 1;
-    const axis = typeof r.failure_axis === "string" && r.failure_axis ? r.failure_axis : null;
-    if (axis) byAxis[axis] = (byAxis[axis] || 0) + 1;
-    const ft = typeof r.failure_type === "string" && r.failure_type ? r.failure_type : null;
-    if (ft) byFt[ft] = (byFt[ft] || 0) + 1;
-    const fk = `${rc}|${axis || "-"}|${ft || "-"}`;
-    byComposite[fk] = (byComposite[fk] || 0) + 1;
-  }
-  return {
-    iteration_done_count: n,
-    by_reason_code: byReason,
-    by_failure_axis: byAxis,
-    by_failure_type: byFt,
-    by_outcome: byOutcome,
-    by_reason_axis_type: byComposite,
   };
 }
 
@@ -222,6 +179,10 @@ function collectRunsFromDir(tracesDir, opts = {}) {
       mcp_events_count: report.mcp_events_count,
       rollup_steps: rollupStepsCostOutcome(safeRows),
       failure_taxonomy: summarizeFailureTaxonomyFromRows(safeRows),
+      run_outcome_summary: buildRunOutcomeSummary(safeRows, {
+        trace_file: abs,
+        ollama_usd_estimate: ollamaUsdEstimate || null,
+      }),
       ...(ollamaUsdEstimate ? { ollama_usd_estimate: ollamaUsdEstimate } : {}),
     });
   }
@@ -343,6 +304,7 @@ module.exports = {
   rollupStepsCostOutcome,
   summarizeFailureTaxonomyFromRows,
   aggregateFailureTaxonomyAcrossRuns,
+  buildRunOutcomeSummary,
 };
 
 if (require.main === module) {

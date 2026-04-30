@@ -1,0 +1,192 @@
+#!/usr/bin/env node
+/**
+ * Single consumption shape for trace JSONL: what / where / why / cost / QA / intent grouping.
+ * Used by scenario export, console dashboard, and token-trace-report --json.
+ */
+
+"use strict";
+
+const {
+  buildReport,
+  optionalOllamaUsdEstimate,
+  rollupStepsCostOutcome,
+  summarizeFailureTaxonomyFromRows,
+} = require("./token-trace-report");
+
+/**
+ * @param {object[]} rows — sanitized trace rows (same pipeline as export/dashboard)
+ * @param {{ trace_file?: string | null, ollama_usd_estimate?: object | null }} [meta]
+ * @returns {object}
+ */
+function buildRunOutcomeSummary(rows, meta = {}) {
+  const report = buildReport(rows);
+  const ss = report.session_start;
+  const se = report.session_end;
+  const tax = summarizeFailureTaxonomyFromRows(rows);
+  const rollup = rollupStepsCostOutcome(rows);
+
+  const taskId = typeof ss?.task_id === "string" ? ss.task_id
+    : (rows.find((r) => typeof r.task_id === "string") || {}).task_id ?? null;
+
+  const iterDone = rows.filter((r) => r.event === "iteration_done");
+  const lastIter = iterDone.length ? iterDone[iterDone.length - 1] : null;
+
+  const topReasons = Object.entries(tax.by_reason_code)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([reason_code, count]) => ({ reason_code, count }));
+
+  /** @type {Record<string, { intent_id: string | null, ollama_total_tokens: number, steps: number, failed_steps: number }>} */
+  const intentMap = {};
+  for (const s of rollup) {
+    const raw = s.intent_id;
+    const key = raw != null && String(raw).length ? String(raw) : "(no_intent)";
+    if (!intentMap[key]) {
+      intentMap[key] = {
+        intent_id: key === "(no_intent)" ? null : key,
+        ollama_total_tokens: 0,
+        steps: 0,
+        failed_steps: 0,
+      };
+    }
+    const g = intentMap[key];
+    g.ollama_total_tokens += typeof s.ollama_total_tokens === "number" ? s.ollama_total_tokens : 0;
+    g.steps += 1;
+    if (s.step_failed) g.failed_steps += 1;
+  }
+  const intent_groups = Object.values(intentMap).sort(
+    (a, b) => b.ollama_total_tokens - a.ollama_total_tokens,
+  );
+
+  let qaTriple = 0;
+  let qaBlocker = 0;
+  for (const s of rollup) {
+    if (s.qa_triple_template === true) {
+      qaTriple += 1;
+      if (s.qa_blocker_non_vacuous === true) qaBlocker += 1;
+    }
+  }
+
+  const pEnd = se && typeof se.ollama_prompt_tokens_total === "number" ? se.ollama_prompt_tokens_total : null;
+  const cEnd = se && typeof se.ollama_completion_tokens_total === "number"
+    ? se.ollama_completion_tokens_total : null;
+  const fromCtx = report.ollama_from_context_stats || { prompt: 0, completion: 0 };
+  const prompt = pEnd != null ? pEnd : fromCtx.prompt;
+  const completion = cEnd != null ? cEnd : fromCtx.completion;
+
+  const usd = meta.ollama_usd_estimate != null
+    ? meta.ollama_usd_estimate
+    : optionalOllamaUsdEstimate(report);
+
+  /** @type {object} */
+  const cost = {
+    ollama_prompt_tokens: typeof prompt === "number" ? prompt : 0,
+    ollama_completion_tokens: typeof completion === "number" ? completion : 0,
+    ollama_total_tokens: (typeof prompt === "number" ? prompt : 0) + (typeof completion === "number" ? completion : 0),
+    basis: pEnd != null || cEnd != null ? "session_end_totals_else_context_stats_sum" : "context_stats_only",
+  };
+  if (usd && typeof usd === "object") {
+    cost.usd_estimate = usd;
+  }
+
+  const tr = lastIter && lastIter.transition_reason && typeof lastIter.transition_reason === "object"
+    ? lastIter.transition_reason
+    : null;
+
+  return {
+    schema_version: "1",
+    where: {
+      task_id: taskId,
+      trace_file: meta.trace_file != null ? meta.trace_file : null,
+      scenario_id: ss && typeof ss.scenario_id === "string" ? ss.scenario_id : null,
+      flow_mode: ss && typeof ss.flow_mode === "string" ? ss.flow_mode : null,
+      max_iterations: typeof ss?.max_iterations === "number" ? ss.max_iterations : null,
+    },
+    what: {
+      done: typeof se?.done === "boolean" ? se.done : null,
+      iterations: typeof se?.iterations === "number" ? se.iterations : null,
+      summary: typeof se?.summary === "string" ? se.summary.slice(0, 500) : null,
+      last_iteration_outcome: typeof lastIter?.outcome === "string" ? lastIter.outcome : null,
+      last_transition_reason: tr
+        ? {
+          type: typeof tr.type === "string" ? tr.type : null,
+          reason_code: typeof tr.reason_code === "string" ? tr.reason_code : null,
+        }
+        : null,
+    },
+    why: {
+      gate_blocks: typeof se?.gate_blocks === "number" ? se.gate_blocks : null,
+      iteration_done_events: tax.iteration_done_count,
+      top_reason_codes: topReasons,
+      rollup_failed_steps: rollup.filter((x) => x.step_failed).length,
+      rollup_contract_fail_steps: rollup.filter((x) => x.contract_fail).length,
+      rollup_gate_fail_steps: rollup.filter((x) => x.gate_fail).length,
+    },
+    cost,
+    qa: {
+      qa_degraded: se?.qa_degraded === true,
+      manual_review_recommended: se?.manual_review_recommended === true,
+      handoff_fallback_used: se?.handoff_fallback_used === true,
+      qa_triple_template_steps: qaTriple,
+      qa_substantive_blocker_steps: qaBlocker,
+    },
+    intent_groups,
+  };
+}
+
+/**
+ * @param {ReturnType<typeof buildRunOutcomeSummary>} summary
+ * @returns {string[]}
+ */
+function formatRunOutcomeSummaryLines(summary) {
+  const lines = [];
+  lines.push("-- run_outcome_summary (consumption layer) --");
+  const w = summary.where;
+  lines.push(
+    `where: task_id=${w.task_id ?? "?"}  scenario=${w.scenario_id ?? "-"}  flow=${w.flow_mode ?? "?"}`
+      + (w.trace_file ? `  file=${w.trace_file}` : ""),
+  );
+  const what = summary.what;
+  lines.push(
+    `what:  done=${what.done}  iterations=${what.iterations ?? "?"}  last_outcome=${what.last_iteration_outcome ?? "-"}`
+      + `  reason=${what.last_transition_reason?.reason_code ?? "-"}`,
+  );
+  if (what.summary) lines.push(`  summary: ${what.summary.replace(/\s+/g, " ").slice(0, 160)}`);
+  const y = summary.why;
+  lines.push(
+    `why:   gate_blocks=${y.gate_blocks ?? "?"}  iter_done=${y.iteration_done_events}`
+      + `  failed_steps=${y.rollup_failed_steps}  contract_fail=${y.rollup_contract_fail_steps}  gate_fail=${y.rollup_gate_fail_steps}`,
+  );
+  if (y.top_reason_codes && y.top_reason_codes.length) {
+    const top = y.top_reason_codes.slice(0, 3).map((x) => `${x.reason_code}*${x.count}`).join(", ");
+    lines.push(`  top_reason_codes: ${top}`);
+  }
+  const c = summary.cost;
+  lines.push(
+    `cost:  prompt=${c.ollama_prompt_tokens}  completion=${c.ollama_completion_tokens}  total=${c.ollama_total_tokens}`
+      + (c.usd_estimate && typeof c.usd_estimate.usd_total_estimate === "number"
+        ? `  usd~=${c.usd_estimate.usd_total_estimate}`
+        : ""),
+  );
+  const q = summary.qa;
+  const qaBits = [];
+  if (q.qa_degraded) qaBits.push("qa_degraded");
+  if (q.manual_review_recommended) qaBits.push("manual_review");
+  if (q.handoff_fallback_used) qaBits.push("handoff_fallback");
+  if (q.qa_triple_template_steps) qaBits.push(`qa_triple=${q.qa_triple_template_steps}`);
+  if (q.qa_substantive_blocker_steps) qaBits.push(`qa_blocker=${q.qa_substantive_blocker_steps}`);
+  lines.push(`qa:    ${qaBits.length ? qaBits.join(" ") : "(no signals)"}`);
+  if (summary.intent_groups && summary.intent_groups.length) {
+    const ig = summary.intent_groups.slice(0, 6).map(
+      (g) => `${g.intent_id ?? "(null)"}:${g.ollama_total_tokens}tok/${g.steps}st/${g.failed_steps}fail`,
+    ).join(" | ");
+    lines.push(`intent_groups: ${ig}`);
+  }
+  lines.push("");
+  return lines;
+}
+
+module.exports = {
+  buildRunOutcomeSummary,
+  formatRunOutcomeSummaryLines,
+};
