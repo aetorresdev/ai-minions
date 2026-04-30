@@ -187,13 +187,14 @@ npm run metrics:export-scenarios -- --since-m 60 --out /tmp/orch-metrics.json
 }
 ```
 
-**Console dashboard (no TUI; no hosted UI in this package):** stdout tables (literal output is **ASCII-only**; values copied from trace fields may contain other bytes). Failure taxonomy + top steps by tokens:
+**Console dashboard (no TUI; no hosted UI in this package):** stdout tables; structural framing stays ASCII. Field values copied from traces may contain non-ASCII bytes. Optional ANSI highlights semantic states (`done`, gate blocks, QA rollup markers) when stdout is a TTY and **`--color=auto`** (default), or when **`--color=always`**. **`--color=never`** or **`NO_COLOR`** (non-empty) disables color and overrides **`--color=always`**. Failure taxonomy + top steps by tokens + **`run_outcome_summary`** block:
 
 ```bash
 # smoke without a local trace (fixture shipped in repo):
 npm run dashboard:console -- --file tests/fixtures/golden-path-clean-v1.jsonl
 npm run dashboard:console -- --file ~/.claude/metrics/traces/<task_id>.jsonl
 npm run dashboard:console -- --batch --since-m 60 --include-untagged
+# force ANSI even when piped: --color=always
 ```
 
 See [`docs/orchestrator/dashboard-failure-taxonomy.md`](../docs/orchestrator/dashboard-failure-taxonomy.md) § *Console first*.

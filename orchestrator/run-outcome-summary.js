@@ -134,11 +134,36 @@ function buildRunOutcomeSummary(rows, meta = {}) {
   };
 }
 
+/** @param {boolean} use @param {number} code @param {string} s */
+function ansi(use, code, s) {
+  return use ? `\x1b[${code}m${s}\x1b[0m` : s;
+}
+
+/** @param {boolean} use @param {boolean|null|undefined} done */
+function colorDoneToken(use, done) {
+  const t = String(done);
+  if (!use) return t;
+  if (done === true) return ansi(true, 32, t);
+  if (done === false) return ansi(true, 31, t);
+  return ansi(true, 2, t);
+}
+
+/** @param {boolean} use @param {string|null|undefined} outcome */
+function colorLastOutcomeToken(use, outcome) {
+  const t = outcome != null && String(outcome).length ? String(outcome) : "-";
+  if (!use) return t;
+  if (t === "done") return ansi(true, 32, t);
+  if (t === "iterate" || t === "blocked" || t === "abort") return ansi(true, 33, t);
+  return t;
+}
+
 /**
  * @param {ReturnType<typeof buildRunOutcomeSummary>} summary
+ * @param {{ useColor?: boolean }} [opts]
  * @returns {string[]}
  */
-function formatRunOutcomeSummaryLines(summary) {
+function formatRunOutcomeSummaryLines(summary, opts = {}) {
+  const use = opts.useColor === true;
   const lines = [];
   lines.push("-- run_outcome_summary (consumption layer) --");
   const w = summary.where;
@@ -147,14 +172,21 @@ function formatRunOutcomeSummaryLines(summary) {
       + (w.trace_file ? `  file=${w.trace_file}` : ""),
   );
   const what = summary.what;
+  const rc = what.last_transition_reason?.reason_code ?? "-";
+  const rcDisp = use && rc !== "-" ? ansi(true, 36, rc) : rc;
   lines.push(
-    `what:  done=${what.done}  iterations=${what.iterations ?? "?"}  last_outcome=${what.last_iteration_outcome ?? "-"}`
-      + `  reason=${what.last_transition_reason?.reason_code ?? "-"}`,
+    `what:  done=${colorDoneToken(use, what.done)}  iterations=${what.iterations ?? "?"}`
+      + `  last_outcome=${colorLastOutcomeToken(use, what.last_iteration_outcome)}`
+      + `  reason=${rcDisp}`,
   );
   if (what.summary) lines.push(`  summary: ${what.summary.replace(/\s+/g, " ").slice(0, 160)}`);
   const y = summary.why;
+  const gb = y.gate_blocks ?? "?";
+  const gbDisp = use && typeof y.gate_blocks === "number" && y.gate_blocks > 0
+    ? ansi(true, 33, String(gb))
+    : String(gb);
   lines.push(
-    `why:   gate_blocks=${y.gate_blocks ?? "?"}  iter_done=${y.iteration_done_events}`
+    `why:   gate_blocks=${gbDisp}  iter_done=${y.iteration_done_events}`
       + `  failed_steps=${y.rollup_failed_steps}  contract_fail=${y.rollup_contract_fail_steps}  gate_fail=${y.rollup_gate_fail_steps}`,
   );
   if (y.top_reason_codes && y.top_reason_codes.length) {
@@ -175,7 +207,9 @@ function formatRunOutcomeSummaryLines(summary) {
   if (q.handoff_fallback_used) qaBits.push("handoff_fallback");
   if (q.qa_triple_template_steps) qaBits.push(`qa_triple=${q.qa_triple_template_steps}`);
   if (q.qa_substantive_blocker_steps) qaBits.push(`qa_blocker=${q.qa_substantive_blocker_steps}`);
-  lines.push(`qa:    ${qaBits.length ? qaBits.join(" ") : "(no signals)"}`);
+  const qaPlain = qaBits.length ? qaBits.join(" ") : "(no signals)";
+  const qaDisp = use && qaBits.length ? ansi(true, 33, qaPlain) : qaPlain;
+  lines.push(`qa:    ${qaDisp}`);
   if (summary.intent_groups && summary.intent_groups.length) {
     const ig = summary.intent_groups.slice(0, 6).map(
       (g) => `${g.intent_id ?? "(null)"}:${g.ollama_total_tokens}tok/${g.steps}st/${g.failed_steps}fail`,

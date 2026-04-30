@@ -6,7 +6,14 @@ const { spawnSync } = require("node:child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { buildDashboardText, buildBatchDashboardText, linesCountTable, sortedEntries } = require("../console-dashboard");
+const {
+  buildDashboardText,
+  buildBatchDashboardText,
+  linesCountTable,
+  sortedEntries,
+  resolveConsoleColorMode,
+  shouldUseAnsiForStdout,
+} = require("../console-dashboard");
 
 /** @param {string} s */
 function assertAllCharsAscii(s, label) {
@@ -189,4 +196,37 @@ test("CLI: node console-dashboard.js --file golden fixture exits 0, ASCII stdout
   assertAllCharsAscii(r.stdout, "CLI dashboard stdout");
   assert.match(r.stdout, /Orchestrator console dashboard/);
   assert.match(r.stdout, /RUN_COMPLETED/);
+});
+
+test("resolveConsoleColorMode: NO_COLOR wins over --color=always", () => {
+  assert.equal(resolveConsoleColorMode(["--color=always"], { NO_COLOR: "1" }), "never");
+});
+
+test("shouldUseAnsiForStdout: auto off when not TTY", () => {
+  assert.equal(shouldUseAnsiForStdout("auto", false), false);
+  assert.equal(shouldUseAnsiForStdout("always", false), true);
+});
+
+test("buildDashboardText useColor adds ANSI only to semantic tokens", () => {
+  const rows = [
+    { event: "session_start", task_id: "c1", flow_mode: "single_agent", scenario_id: "S", max_iterations: 1 },
+    { event: "session_end", task_id: "c1", done: true, iterations: 1, gate_blocks: 0 },
+  ];
+  const plain = buildDashboardText(rows, { source: "t" }, { useColor: false });
+  assertAllCharsAscii(plain, "plain dashboard");
+  const color = buildDashboardText(rows, { source: "t" }, { useColor: true });
+  assert.ok(color.includes("\x1b["), "expected ANSI CSI in colored dashboard");
+});
+
+test("CLI: --color=always includes escape codes (non-ASCII allowed)", () => {
+  const bin = path.join(__dirname, "..", "console-dashboard.js");
+  const fixture = path.join(__dirname, "fixtures", "golden-path-clean-v1.jsonl");
+  const env = { ...process.env };
+  delete env.NO_COLOR;
+  const r = spawnSync(process.execPath, [bin, "--file", fixture, "--color=always"], {
+    encoding: "utf8",
+    env,
+  });
+  assert.equal(r.status, 0, r.stderr || "non-zero exit");
+  assert.ok(r.stdout.includes("\x1b["), "expected ANSI in stdout");
 });

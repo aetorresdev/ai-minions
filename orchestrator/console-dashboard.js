@@ -30,6 +30,42 @@ const {
 const { sanitizeTraceRowsForRead } = require("./trace-redact");
 const { buildRunOutcomeSummary, formatRunOutcomeSummaryLines } = require("./run-outcome-summary");
 
+/** @param {boolean} u @param {number} c @param {string} s */
+function ansi(u, c, s) {
+  return u ? `\x1b[${c}m${s}\x1b[0m` : s;
+}
+
+/**
+ * @param {string[]} argv
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {'auto'|'always'|'never'}
+ */
+function resolveConsoleColorMode(argv, env = process.env) {
+  if (env.NO_COLOR != null && String(env.NO_COLOR) !== "") return "never";
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a && a.startsWith("--color=")) {
+      const v = a.slice("--color=".length).trim().toLowerCase();
+      if (v === "auto" || v === "always" || v === "never") return v;
+    }
+    if (a === "--color" && argv[i + 1]) {
+      const v = String(argv[i + 1]).trim().toLowerCase();
+      if (v === "auto" || v === "always" || v === "never") return v;
+    }
+  }
+  return "auto";
+}
+
+/**
+ * @param {'auto'|'always'|'never'} mode
+ * @param {boolean} [isTTY]
+ */
+function shouldUseAnsiForStdout(mode, isTTY = process.stdout.isTTY) {
+  if (mode === "never") return false;
+  if (mode === "always") return true;
+  return !!isTTY;
+}
+
 /** @param {Record<string, number>} obj */
 function sortedEntries(obj) {
   return Object.entries(obj || {}).sort((a, b) => b[1] - a[1]);
@@ -65,9 +101,11 @@ function linesCountTable(label, counts, maxRows = 24, barWidth = 28) {
 /**
  * @param {object[]} rows
  * @param {{ source?: string }} meta
+ * @param {{ useColor?: boolean }} [dashOpts]
  * @returns {string}
  */
-function buildDashboardText(rows, meta = {}) {
+function buildDashboardText(rows, meta = {}, dashOpts = {}) {
+  const useColor = dashOpts.useColor === true;
   const rws = sanitizeTraceRowsForRead(rows);
   const lines = [];
   const src = meta.source || "(rows)";
@@ -79,7 +117,7 @@ function buildDashboardText(rows, meta = {}) {
 
   const report = buildReport(rws);
   const outcomeSummary = buildRunOutcomeSummary(rws, { trace_file: meta.source || null });
-  lines.push(...formatRunOutcomeSummaryLines(outcomeSummary));
+  lines.push(...formatRunOutcomeSummaryLines(outcomeSummary, { useColor }));
   const ss = report.session_start;
   const se = report.session_end;
   if (ss) {
@@ -91,7 +129,17 @@ function buildDashboardText(rows, meta = {}) {
     lines.push("Session: (no session_start)");
   }
   if (se) {
-    lines.push(`Outcome:  done=${se.done}  iterations=${se.iterations ?? "?"}  gate_blocks=${se.gate_blocks ?? "?"}`);
+    const dRaw = String(se.done);
+    const dStr = useColor
+      ? (se.done === true ? ansi(true, 32, "true")
+        : se.done === false ? ansi(true, 31, "false")
+          : ansi(true, 2, dRaw))
+      : dRaw;
+    const gb = se.gate_blocks;
+    const gbStr = useColor && typeof gb === "number" && gb > 0
+      ? ansi(true, 33, String(gb))
+      : String(gb ?? "?");
+    lines.push(`Outcome:  done=${dStr}  iterations=${se.iterations ?? "?"}  gate_blocks=${gbStr}`);
   } else {
     lines.push("Outcome:  (no session_end)");
   }
@@ -127,10 +175,14 @@ function buildDashboardText(rows, meta = {}) {
       const pf = String(s.ollama_prompt_tokens).padStart(6);
       const cf = String(s.ollama_completion_tokens).padStart(6);
       const tf = String(s.ollama_total_tokens).padStart(7);
-      const fl = s.step_failed ? "Y" : " ";
+      const flRaw = s.step_failed ? "Y" : " ";
+      const fl = useColor && s.step_failed ? ansi(true, 31, "Y") : flRaw;
       let qa = " ";
       if (s.qa_triple_template === true) {
-        qa = s.qa_blocker_non_vacuous === true ? "B" : s.qa_blocker_non_vacuous === false ? "v" : "?";
+        const qRaw = s.qa_blocker_non_vacuous === true ? "B" : s.qa_blocker_non_vacuous === false ? "v" : "?";
+        qa = useColor && qRaw === "B" ? ansi(true, 33, "B") : useColor && (qRaw === "v" || qRaw === "?")
+          ? ansi(true, 2, qRaw)
+          : qRaw;
       }
       lines.push(`${sidDisp} ${ag}  ${pf}  ${cf}  ${tf}   ${fl}   ${qa}`);
     }
@@ -144,14 +196,14 @@ function buildDashboardText(rows, meta = {}) {
 
 function usage() {
   console.error(`Usage:
-  node console-dashboard.js --file <trace.jsonl>
-  node console-dashboard.js --batch [--dir DIR] [--since-m MINUTES] [--include-untagged]
+  node console-dashboard.js --file <trace.jsonl> [--color auto|always|never]
+  node console-dashboard.js --batch [--dir DIR] [--since-m MINUTES] [--include-untagged] [--color auto|always|never]
 
-Env: ORCH_TRACES_DIR  ORCH_TRACE_VALIDATE=1`);
+Env: ORCH_TRACES_DIR  ORCH_TRACE_VALIDATE=1  NO_COLOR (disables ANSI)`);
 }
 
 /**
- * @param {{ sinceMs?: number, includeUntagged?: boolean, validateTrace?: boolean }} opts
+ * @param {{ sinceMs?: number, includeUntagged?: boolean, validateTrace?: boolean, useColor?: boolean }} opts
  * @returns {string}
  */
 function buildBatchDashboardText(opts) {
@@ -199,6 +251,8 @@ function main() {
   }
 
   const strict = argv.includes("--strict-traces") || process.env.ORCH_TRACE_VALIDATE === "1";
+  const colorMode = resolveConsoleColorMode(argv);
+  const useColor = shouldUseAnsiForStdout(colorMode, process.stdout.isTTY);
 
   if (argv.includes("--batch")) {
     let tracesDir = process.env.ORCH_TRACES_DIR || path.join(os.homedir(), ".claude", "metrics", "traces");
@@ -215,6 +269,7 @@ function main() {
       sinceMs,
       includeUntagged,
       validateTrace: strict,
+      useColor,
     });
     process.stdout.write(text + "\n");
     return;
@@ -243,7 +298,7 @@ function main() {
     errors.slice(0, 8).forEach((e) => process.stderr.write(`  ${e}\n`));
   }
 
-  process.stdout.write(buildDashboardText(rows, { source: filePath }) + "\n");
+  process.stdout.write(buildDashboardText(rows, { source: filePath }, { useColor }) + "\n");
 }
 
 module.exports = {
@@ -251,6 +306,8 @@ module.exports = {
   buildBatchDashboardText,
   linesCountTable,
   sortedEntries,
+  resolveConsoleColorMode,
+  shouldUseAnsiForStdout,
 };
 
 if (require.main === module) {
