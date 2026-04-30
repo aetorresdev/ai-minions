@@ -166,11 +166,25 @@ Optional env: `ORCH_TRACES_DIR` — defaults to `~/.claude/metrics/traces`. **`O
 
 **Trace contract:** every JSONL line includes `trace_schema_version` (`"2"` — first published baseline). `iteration_done.transition_reason` is always an **object** `{ type, details? }`. Versioning policy (semver-like semantics, breaking vs non-breaking, mismatch): `docs/orchestrator/schema-versioning.md`. Short governance: `docs/orchestrator/strict-mode.md` § *Trace schema versions* and § *Trace contract governance*.
 
-**Batch export by scenario:** traces can carry `scenario_id` on `session_start` / `session_end` when you pass `traceScenarioId` to `run()` or set env **`ORCH_TRACE_SCENARIO_ID`**. Tagged runs from tests use the same mechanism. Aggregate JSON includes **`runs`**, **`by_scenario`**, **`by_flow_mode`**, **`by_stage`** (Ollama token rollups by `agent` and by `phase` from `context_stats`), **`failure_taxonomy_aggregate`** (counts of `iteration_done` by `reason_code` / `failure_axis` / `failure_type` — per run: **`failure_taxonomy`**), **`usd_export_meta`**, and optional per-run **`ollama_usd_estimate`** when USD env vars are set. Dashboard policy: [`docs/orchestrator/dashboard-failure-taxonomy.md`](../docs/orchestrator/dashboard-failure-taxonomy.md).
+**Batch export by scenario:** traces can carry `scenario_id` on `session_start` / `session_end` when you pass `traceScenarioId` to `run()` or set env **`ORCH_TRACE_SCENARIO_ID`**. Tagged runs from tests use the same mechanism. Aggregate JSON includes **`runs`**, **`by_scenario`**, **`by_flow_mode`**, **`by_stage`** (Ollama token rollups by `agent` and by `phase` from `context_stats`), **`failure_taxonomy_aggregate`** (counts of `iteration_done` by `reason_code` / `failure_axis` / `failure_type` — per run: **`failure_taxonomy`**), **`usd_export_meta`**, optional per-run **`ollama_usd_estimate`** when USD env vars are set, and per-run **`run_outcome_summary`** (readable **where / what / why / cost / QA / intent_groups** — same shape as `token-trace-report.js --json` and the console dashboard header). Dashboard policy: [`docs/orchestrator/dashboard-failure-taxonomy.md`](../docs/orchestrator/dashboard-failure-taxonomy.md).
 
 ```bash
 npm run metrics:export-scenarios -- --since-m 60 --out /tmp/orch-metrics.json
 # flags: --dir, --include-untagged, --out (stdout if omitted)
+```
+
+**Readable run summary (export field `run_outcome_summary`):** one object answers what happened, where, why (taxonomy + gate/step signals), token cost (and optional USD when env rates are set), QA signals, and intent-grouped rollups. Example (abbreviated):
+
+```json
+{
+  "schema_version": "1",
+  "where": { "task_id": "abc", "scenario_id": "golden-path", "flow_mode": "single_agent", "trace_file": "/path/to/abc.jsonl" },
+  "what": { "done": true, "iterations": 1, "summary": "Shipped fix", "last_transition_reason": { "type": "DONE", "reason_code": "RUN_COMPLETED" } },
+  "why": { "gate_blocks": 0, "iteration_done_events": 1, "top_reason_codes": [{ "reason_code": "RUN_COMPLETED", "count": 1 }], "rollup_failed_steps": 0 },
+  "cost": { "ollama_prompt_tokens": 100, "ollama_completion_tokens": 40, "ollama_total_tokens": 140, "basis": "session_end_totals_else_context_stats_sum" },
+  "qa": { "qa_degraded": false, "manual_review_recommended": false, "qa_triple_template_steps": 0 },
+  "intent_groups": []
+}
 ```
 
 **Console dashboard (no TUI; no hosted UI in this package):** stdout tables (literal output is **ASCII-only**; values copied from trace fields may contain other bytes). Failure taxonomy + top steps by tokens:

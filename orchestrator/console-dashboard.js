@@ -17,13 +17,18 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
-const { parseJsonl, buildReport, rollupStepsCostOutcome } = require("./token-trace-report");
 const {
+  parseJsonl,
+  buildReport,
+  rollupStepsCostOutcome,
   summarizeFailureTaxonomyFromRows,
+} = require("./token-trace-report");
+const {
   aggregateFailureTaxonomyAcrossRuns,
   collectRunsFromDir,
 } = require("./scenario-metrics-export");
 const { sanitizeTraceRowsForRead } = require("./trace-redact");
+const { buildRunOutcomeSummary, formatRunOutcomeSummaryLines } = require("./run-outcome-summary");
 
 /** @param {Record<string, number>} obj */
 function sortedEntries(obj) {
@@ -73,6 +78,8 @@ function buildDashboardText(rows, meta = {}) {
   lines.push("");
 
   const report = buildReport(rws);
+  const outcomeSummary = buildRunOutcomeSummary(rws, { trace_file: meta.source || null });
+  lines.push(...formatRunOutcomeSummaryLines(outcomeSummary));
   const ss = report.session_start;
   const se = report.session_end;
   if (ss) {
