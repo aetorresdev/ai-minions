@@ -4,9 +4,24 @@
 
 AI coding workflows fail because they optimize output, not process.
 
-This repo treats AI as a **structured engineering system**: contracts, gates, and measurable signals—so its behavior is **observable, reproducible, and debuggable**.
+**ai-minions** is a **contract-driven agent harness** for orchestrating AI-assisted software workflows. Positioning matters: it is not defined primarily as “multi-agent orchestrator”—that label undersells the control plane.
+
+It focuses on:
+
+- Explicit role contracts
+- Compact handoffs
+- Validation gates
+- Traceable decisions
+- Permission-aware execution
+- Observable run outcomes
+
+The goal is not to make agents sound autonomous. The goal is to make agent behavior **bounded, auditable, and rejectable** before it damages the workflow.
+
+This repo still treats AI as a **structured engineering system**: contracts, gates, and measurable signals—so behavior stays **observable, reproducible, and debuggable**.
 
 The goal is not to make AI feel smarter. It is to make it **harder to approve something you do not understand**—because that is exactly how broken systems get shipped.
+
+> ai-minions is not trying to make agents more human. It is building the harness around them so their work becomes bounded, observable, testable, and rejectable.
 
 > *Si no lo entiendo, no lo apruebo.* — If I don't understand it, I don't approve it.
 > Most production incidents start with someone doing exactly the opposite.
@@ -167,6 +182,7 @@ Full wiring diagram: [`docs/orchestrator/system-architecture-diagram.md`](docs/o
 | | |
 |---|---|
 | [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md) | Roles, handoff YAML, state-store authority, output contracts |
+| [`docs/orchestrator/agent-harness.md`](docs/orchestrator/agent-harness.md) | Harness layers (context, memory/state, control, validation, observability) |
 | [`docs/optional-contract-mode.md`](docs/optional-contract-mode.md) | Optional `minions.md` contract mode: goals, non-goals, behavior matrix (phase 1 design) |
 | [`orchestrator/`](orchestrator/) | Node product runner: planning, `validateOutput`, MCP gates, traces |
 | [`mcp-servers/orchestrator-state/`](mcp-servers/orchestrator-state/) | Disk-backed task store + gate MCP (pytest included) |
