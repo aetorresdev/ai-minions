@@ -14,6 +14,7 @@ excludes=(
   ":(exclude).github"
   ":(exclude)orchestrator/tests/e2e.strict.test.js"
   ":(exclude)orchestrator/tests/e2e.strict.harness.test.js"
+  ":(exclude)orchestrator/tests/capability-plan-reject.test.js"
   ":(exclude)orchestrator/agents.js"
   ":(exclude)orchestrator/orchestrator.js"
   ":(exclude)orchestrator/README.md"
