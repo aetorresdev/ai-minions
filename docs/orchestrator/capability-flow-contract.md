@@ -1,6 +1,6 @@
 # Capability flow contract (task / run / step)
 
-**Status:** design — closes the gap between isolated agents and a **provable** multi-role execution path.
+**Status:** **Partially implemented** — `cap.orchestrator.v1` matrix and **`validatePlanStepRoles`** are in the runner; trace fixture **`golden-path-clean-v1`** proves a minimal single-role spine. The **documentation and repository anchor slice** (§8 tables and example YAML) is mergeable on its own; **full flow-contract closure** still requires the **remaining implementation scope** in §8 (multi-agent trace harness, richer failure coverage) — see below.
 
 **Depends on:** [runtime-permission-contract.md](runtime-permission-contract.md) for domain allow/deny on each step. **Relates to:** [agent-contract.md](agent-contract.md) (MODE, handoffs, state store).
 
@@ -116,20 +116,93 @@ Example sequence for **`multi_agent`**: ORCHESTRATOR (plan) → DEV-BACKEND → 
 
 ---
 
-## 8. CERBERUS validation points
+## 8. Repository anchors and proof in this repo
+
+### Capability matrix and plan validation (implemented)
+
+| Artifact | Path |
+|----------|------|
+| Matrix JSON | `orchestrator/agents/capability-matrix.v1.json` |
+| Loader / helpers | `orchestrator/agents/capability-matrix.js` |
+| Tests (matrix parity, `requiredDomains`, `requiredHandoffKeys`, read-session **credential ceiling**, merged **`validatePlanStepsCapability`**) | `orchestrator/tests/capability-matrix.test.js` |
+
+Orchestrator plans and correction steps must use **`agentId`** only; unknown role ids fail validation before workers run via **`validatePlanStepsCapability`** (roles + optional **`requiredDomains`** + optional **`requiredHandoffKeys`** + session credential ceiling). Optional **`requiredDomains`**: each domain must be allowed for that role’s matrix row (`roleCanUseDomains`). Optional **`requiredHandoffKeys`**: names must be from the allowed plan-handoff vocabulary (contract-only; real YAML still passes **`validateHandoffStructure`** at runtime). **`credentialSessionMode`** (`run({ credentialSessionMode })` or env **`ORCH_SESSION_CREDENTIAL_MODE=read`**) applies **`effectiveMode`** from **`permissions.js`**: domains **`shell`**, **`network`**, **`git`** in **`requiredDomains`** require a **write**-capable effective session for that role.
+
+### Minimal trace-backed flow (implemented fixture)
+
+| Artifact | Role |
+|----------|------|
+| JSONL fixture | `orchestrator/tests/fixtures/golden-path-clean-v1.jsonl` |
+| Clock / duration bounds | `orchestrator/tests/fixtures/golden-path-clean-v1.meta.json` |
+| Schema + graph + explain bounds | `orchestrator/tests/goldenPath.test.js` |
+
+The fixture is **`single_agent`**, one outer iteration, one **`dev-backend`** step, **`iteration_done`** with **`RUN_COMPLETED`** — the smallest spine that matches §2–§5 units (task → run → step) without failures.
+
+**Multi-role linear chain (synthetic, schema-valid JSONL):**
+
+| Artifact | Role |
+|----------|------|
+| JSONL fixture | `orchestrator/tests/fixtures/golden-multi-role-chain-v1.jsonl` |
+| Clock / duration bounds | `orchestrator/tests/fixtures/golden-multi-role-chain-v1.meta.json` |
+| Schema + graph + agent order | `orchestrator/tests/multiRoleChainFixture.test.js` |
+
+**`flow_mode`:** `multi_agent`; **one outer iteration** with three steps — **`dev-backend` → `qa` → `cerberus`** — chained via **`parent_step_id`**, then **`iteration_done`** (`RUN_COMPLETED`) and **`session_end`**. This is a **single reviewable artifact** covering three matrix roles; it does **not** emit an **orchestrator** `agent_start` (in live runs the plan phase is separate from worker steps). Extending the fixture or adding a harness that matches §7 literally (including orchestrator/decide loop) is optional follow-on.
+
+**Worked example (YAML, aligned to the golden fixture scale):**
+
+```yaml
+# Illustrative only — permission_policy_ref wiring is runtime-permission-contract territory
+task_contract:
+  goal: "Golden path reference — no failures"
+  flow_mode: single_agent
+  max_iterations: 1
+  roles_in_flow:
+    - role_id: dev-backend
+      capabilities_ref: cap.orchestrator.v1   # row must ⊆ matrix entry for dev-backend
+
+step_contract:
+  step_id: "task-golden-v1-i1-dev-backend"
+  step_index: 0
+  owner_role: dev-backend
+  intent_summary: "noop"
+  inputs:
+    required_handoff_keys: []   # fixture omits handoff YAML — expand in richer examples
+  outputs:
+    artifact_kind: code_change
+    must_record_artifacts: false
+  validation:
+    next_gate: orchestrator
+    contract_validator: validateOutput
+  capability_requirements:
+    domains: [filesystem, shell]   # ⊆ matrix row for dev-backend
+```
+
+### §7 full narrative vs fixtures
+
+The **§7** narrative (ORCHESTRATOR plan → DEV → QA → CERBERUS → ORCHESTRATOR decide → …) remains the **target** for a fully realistic run. The **multi-role chain fixture** above instantiates a **subset** (worker chain only, one iteration, clean completion). Closing the gap to a **live-shaped** trace (plan step, multiple outer iterations, gate failures) is **incremental** work on the same ticket.
+
+### Remaining implementation scope (narrowing)
+
+**Delivered in runner:** plan-time **`validatePlanStepsCapability`** — matrix ids, **`requiredDomains`**, **`requiredHandoffKeys`** vocabulary, session credential ceiling vs **`shell`**/**`network`**/**`git`** using **`permissions.effectiveMode`**. **`plan_capability_reject`** traces unchanged when validation fails.
+
+**Still incremental / other tracks:** (1) **`permission_check`** / **`PERM_*`** trace lines and path/network preflight per [runtime-permission-contract.md](runtime-permission-contract.md) — implementation milestone separate from matrix validation; (2) richer synthetic harness (**iterate**, gate failures, multiple outer iterations) if product needs more than `golden-multi-role-chain-v1`.
+
+---
+
+## 9. CERBERUS validation points
 
 - After strategic or architectural claims (see [strategic-recommendation-gate.md](strategic-recommendation-gate.md)), output must pass structured gate when enabled.
 - Capability matrix must list whether **CERBERUS** may enforce **strategic gate** vs only output contract — default: output contract always; strategic gate optional flag on envelope.
 
 ---
 
-## 9. Acceptance mapping
+## 10. Acceptance mapping
 
 | Groomed criterion | Where addressed |
 |-------------------|----------------|
 | task/run/step contract | §2–§5 |
-| Role capability matrix | §4 |
+| Role capability matrix | §4 (+ concrete JSON §4, §8) |
 | Handoff inputs/outputs | §6 |
 | optional context_required | §3 |
-| Representative E2E | §7 |
-| CERBERUS validation points | §8 |
+| Representative E2E | §7 (target narrative); §8 (golden + multi-role chain fixtures; **remaining scope** for full §7 harness) |
+| CERBERUS validation points | §9 |
