@@ -6,7 +6,13 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
-const { parseJsonl, enforceLimits, deriveExplain, resolveLatestRunFile } = require("../explain-run");
+const {
+  parseJsonl,
+  enforceLimits,
+  deriveExplain,
+  resolveLatestRunFile,
+  composeExplainExport,
+} = require("../explain-run");
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -77,6 +83,36 @@ describe("enforceLimits", () => {
     assert.ok(out.includes("session_end"));
     // Output must NOT contain all 10001 lines
     assert.ok(out.split("\n").filter((l) => l.trim()).length < 10001);
+  });
+});
+
+// ── composeExplainExport (run_outcome_summary + deriveExplain) ───────────────
+
+describe("composeExplainExport", () => {
+  it("includes schema_version 1 run_outcome_summary aligned with session_end", () => {
+    const rows = [
+      baseSession({ ts_ms: 1000 }),
+      {
+        event: "iteration_done",
+        outcome: "done",
+        ts_ms: 2000,
+        transition_reason: { type: "DONE", reason_code: "RUN_COMPLETED" },
+      },
+      {
+        event: "session_end",
+        done: true,
+        iterations: 1,
+        gate_blocks: 0,
+        summary: "Shipped",
+        ts_ms: 3000,
+      },
+    ];
+    const sorted = rows.slice().sort((a, b) => (a.ts_ms || 0) - (b.ts_ms || 0));
+    const c = composeExplainExport(sorted, { trace_file: "/tmp/x.jsonl" });
+    assert.equal(c.run_outcome_summary.schema_version, "1");
+    assert.equal(c.run_outcome_summary.what.done, true);
+    assert.equal(c.run_outcome_summary.where.task_id, "task-1");
+    assert.equal(c.final_status, "done");
   });
 });
 
