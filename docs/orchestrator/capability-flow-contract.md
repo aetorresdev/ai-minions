@@ -124,9 +124,9 @@ Example sequence for **`multi_agent`**: ORCHESTRATOR (plan) → DEV-BACKEND → 
 |----------|------|
 | Matrix JSON | `orchestrator/agents/capability-matrix.v1.json` |
 | Loader / helpers | `orchestrator/agents/capability-matrix.js` |
-| Tests (parity with **`MODEL_ROUTING`**, unknown `agentId`, legacy `agent` rejection, domain subset, optional **`requiredDomains` per step**) | `orchestrator/tests/capability-matrix.test.js` |
+| Tests (matrix parity, `requiredDomains`, `requiredHandoffKeys`, read-session **credential ceiling**, merged **`validatePlanStepsCapability`**) | `orchestrator/tests/capability-matrix.test.js` |
 
-Orchestrator plans and correction steps must use **`agentId`** only; unknown role ids fail validation before workers run (see **`validatePlanStepRoles`**). A plan step may include optional **`requiredDomains`** (string array); when present, each domain must be allowed for that role’s matrix row (`roleCanUseDomains`).
+Orchestrator plans and correction steps must use **`agentId`** only; unknown role ids fail validation before workers run via **`validatePlanStepsCapability`** (roles + optional **`requiredDomains`** + optional **`requiredHandoffKeys`** + session credential ceiling). Optional **`requiredDomains`**: each domain must be allowed for that role’s matrix row (`roleCanUseDomains`). Optional **`requiredHandoffKeys`**: names must be from the allowed plan-handoff vocabulary (contract-only; real YAML still passes **`validateHandoffStructure`** at runtime). **`credentialSessionMode`** (`run({ credentialSessionMode })` or env **`ORCH_SESSION_CREDENTIAL_MODE=read`**) applies **`effectiveMode`** from **`permissions.js`**: domains **`shell`**, **`network`**, **`git`** in **`requiredDomains`** require a **write**-capable effective session for that role.
 
 ### Minimal trace-backed flow (implemented fixture)
 
@@ -181,12 +181,11 @@ step_contract:
 
 The **§7** narrative (ORCHESTRATOR plan → DEV → QA → CERBERUS → ORCHESTRATOR decide → …) remains the **target** for a fully realistic run. The **multi-role chain fixture** above instantiates a **subset** (worker chain only, one iteration, clean completion). Closing the gap to a **live-shaped** trace (plan step, multiple outer iterations, gate failures) is **incremental** work on the same ticket.
 
-### Remaining implementation scope (outstanding after the anchor doc slice)
+### Remaining implementation scope (narrowing)
 
-Merging this contract’s **documentation and anchor** work does **not** by itself complete the full capability-flow program. Still required for end-to-end proof:
+**Delivered in runner:** plan-time **`validatePlanStepsCapability`** — matrix ids, **`requiredDomains`**, **`requiredHandoffKeys`** vocabulary, session credential ceiling vs **`shell`**/**`network`**/**`git`** using **`permissions.effectiveMode`**. **`plan_capability_reject`** traces unchanged when validation fails.
 
-1. **Harness or fixture extension** matching **§7** more literally — e.g. orchestrator-visible plan/worker ordering, multiple outer iterations, **iterate** / gate paths — building on `golden-multi-role-chain-v1` or separate artifacts.
-2. **Handoff and permission enforcement** — required handoff keys per step, **`PERM_*`** / runtime-permission integration at gates (see [runtime-permission-contract.md](runtime-permission-contract.md)); optional **`requiredDomains`** on plan steps is implemented for matrix validation only and does not replace permission checks at execution time.
+**Still incremental / other tracks:** (1) **`permission_check`** / **`PERM_*`** trace lines and path/network preflight per [runtime-permission-contract.md](runtime-permission-contract.md) — implementation milestone separate from matrix validation; (2) richer synthetic harness (**iterate**, gate failures, multiple outer iterations) if product needs more than `golden-multi-role-chain-v1`.
 
 ---
 

@@ -55,7 +55,7 @@ const {
 } = require("./decision-engine");
 const { qaAgentDoneTraceExtras } = require("./agents/validate-output");
 const {
-  validatePlanStepRoles,
+  validatePlanStepsCapability,
   CAPABILITY_MATRIX_VERSION,
 } = require("./agents/capability-matrix");
 
@@ -1097,6 +1097,7 @@ function parseEnvironment(prompt) {
  *   skipStateMcp?: boolean
  *   requireHandoff?: boolean — if set, overrides default: strict (!skipStateMcp) requires compact_handoff; degraded skips hard fail
  *   traceScenarioId?: string — optional label written to trace `session_start` / `session_end` as `scenario_id` (batch metrics export). Env: ORCH_TRACE_SCENARIO_ID.
+ *   credentialSessionMode?: 'read'|'write' — session credential ceiling for plan validation with `requiredDomains` (default write). Env: ORCH_SESSION_CREDENTIAL_MODE=read.
  * }} options
  */
 async function run(goal, options = {}) {
@@ -1119,6 +1120,12 @@ async function run(goal, options = {}) {
   const approvedArtifacts = options.approvedArtifacts || [];
   const skipStateMcp  = options.skipStateMcp === true;
   const requireHandoff = resolveRequireHandoff(options);
+  const credentialSessionMode =
+    options.credentialSessionMode === "read" || options.credentialSessionMode === "write"
+      ? options.credentialSessionMode
+      : String(process.env.ORCH_SESSION_CREDENTIAL_MODE || "").toLowerCase() === "read"
+        ? "read"
+        : "write";
 
   const maxContextChars = options.maxContextCharsPerArtifact
     ?? envInt("AI_TEAM_MAX_CONTEXT_CHARS", DEFAULT_MAX_CONTEXT_CHARS);
@@ -1292,7 +1299,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
     }
     log("orchestrator", `Plan ready — ${plan.steps.length} step(s):`);
     plan.steps.forEach((s, i) => log(s.agentId || "?", `Step ${i + 1}: ${s.task}`));
-    const capPlan = validatePlanStepRoles(plan.steps);
+    const capPlan = validatePlanStepsCapability(plan.steps, { sessionCredentialMode: credentialSessionMode });
     if (!capPlan.ok) {
       summary = `Plan rejected — ${capPlan.errors.join("; ")}`;
       manualReview = true;
@@ -1338,7 +1345,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
     // Corrections from decide replace plan.steps — validate again from iteration 2 onward (iteration 1 covered after plan parse).
     if (iterations > 1) {
       const stepsEarly = plan.steps && plan.steps.length ? plan.steps : [];
-      const capIter = validatePlanStepRoles(stepsEarly);
+      const capIter = validatePlanStepsCapability(stepsEarly, { sessionCredentialMode: credentialSessionMode });
       if (!capIter.ok) {
         summary = `Plan rejected — ${capIter.errors.join("; ")}`;
         manualReview = true;
