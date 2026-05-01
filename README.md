@@ -17,8 +17,6 @@ It focuses on:
 
 The goal is not to make agents sound autonomous. The goal is to make agent behavior **bounded, auditable, and rejectable** before it damages the workflow.
 
-This repo still treats AI as a **structured engineering system**: contracts, gates, and measurable signals—so behavior stays **observable, reproducible, and debuggable**.
-
 The goal is not to make AI feel smarter. It is to make it **harder to approve something you do not understand**—because that is exactly how broken systems get shipped.
 
 > ai-minions is not trying to make agents more human. It is building the harness around them so their work becomes bounded, observable, testable, and rejectable.
