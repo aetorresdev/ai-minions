@@ -1,6 +1,6 @@
 # Capability flow contract (task / run / step)
 
-**Status:** design — closes the gap between isolated agents and a **provable** multi-role execution path.
+**Status:** **Partially implemented** — `cap.orchestrator.v1` matrix and **`validatePlanStepRoles`** are in the runner; trace fixture **`golden-path-clean-v1`** proves a minimal single-role spine. Full **multi-agent** chain from §7 as one reviewable E2E artifact remains a follow-on harness slice (same groomed ticket until closed).
 
 **Depends on:** [runtime-permission-contract.md](runtime-permission-contract.md) for domain allow/deny on each step. **Relates to:** [agent-contract.md](agent-contract.md) (MODE, handoffs, state store).
 
@@ -116,20 +116,77 @@ Example sequence for **`multi_agent`**: ORCHESTRATOR (plan) → DEV-BACKEND → 
 
 ---
 
-## 8. CERBERUS validation points
+## 8. Repository anchors and proof in this repo
+
+### Capability matrix and plan validation (implemented)
+
+| Artifact | Path |
+|----------|------|
+| Matrix JSON | `orchestrator/agents/capability-matrix.v1.json` |
+| Loader / helpers | `orchestrator/agents/capability-matrix.js` |
+| Tests (parity with **`MODEL_ROUTING`**, unknown `agentId`, legacy `agent` rejection, domain subset) | `orchestrator/tests/capability-matrix.test.js` |
+
+Orchestrator plans and correction steps must use **`agentId`** only; unknown role ids fail validation before workers run (see **`validatePlanStepRoles`**).
+
+### Minimal trace-backed flow (implemented fixture)
+
+| Artifact | Role |
+|----------|------|
+| JSONL fixture | `orchestrator/tests/fixtures/golden-path-clean-v1.jsonl` |
+| Clock / duration bounds | `orchestrator/tests/fixtures/golden-path-clean-v1.meta.json` |
+| Schema + graph + explain bounds | `orchestrator/tests/goldenPath.test.js` |
+
+The fixture is **`single_agent`**, one outer iteration, one **`dev-backend`** step, **`iteration_done`** with **`RUN_COMPLETED`** — the smallest spine that matches §2–§5 units (task → run → step) without failures.
+
+**Worked example (YAML, aligned to the golden fixture scale):**
+
+```yaml
+# Illustrative only — permission_policy_ref wiring is runtime-permission-contract territory
+task_contract:
+  goal: "Golden path reference — no failures"
+  flow_mode: single_agent
+  max_iterations: 1
+  roles_in_flow:
+    - role_id: dev-backend
+      capabilities_ref: cap.orchestrator.v1   # row must ⊆ matrix entry for dev-backend
+
+step_contract:
+  step_id: "task-golden-v1-i1-dev-backend"
+  step_index: 0
+  owner_role: dev-backend
+  intent_summary: "noop"
+  inputs:
+    required_handoff_keys: []   # fixture omits handoff YAML — expand in richer examples
+  outputs:
+    artifact_kind: code_change
+    must_record_artifacts: false
+  validation:
+    next_gate: orchestrator
+    contract_validator: validateOutput
+  capability_requirements:
+    domains: [filesystem, shell]   # ⊆ matrix row for dev-backend
+```
+
+### Multi-agent reference chain (contract target, not yet one fixture)
+
+§7 sequence (ORCHESTRATOR plan → DEV → QA → CERBERUS → …) is the **reference narrative** for a CERBERUS-reviewable E2E. The repository does not yet ship a single JSONL that spans every role in that chain; adding it is explicit backlog under the same capability-flow workstream.
+
+---
+
+## 9. CERBERUS validation points
 
 - After strategic or architectural claims (see [strategic-recommendation-gate.md](strategic-recommendation-gate.md)), output must pass structured gate when enabled.
 - Capability matrix must list whether **CERBERUS** may enforce **strategic gate** vs only output contract — default: output contract always; strategic gate optional flag on envelope.
 
 ---
 
-## 9. Acceptance mapping
+## 10. Acceptance mapping
 
 | Groomed criterion | Where addressed |
 |-------------------|----------------|
 | task/run/step contract | §2–§5 |
-| Role capability matrix | §4 |
+| Role capability matrix | §4 (+ concrete JSON §4, §8) |
 | Handoff inputs/outputs | §6 |
 | optional context_required | §3 |
-| Representative E2E | §7 |
-| CERBERUS validation points | §8 |
+| Representative E2E | §7 (target narrative); §8 (golden fixture + multi-agent gap called out) |
+| CERBERUS validation points | §9 |
