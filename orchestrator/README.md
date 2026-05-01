@@ -297,8 +297,9 @@ The agent resolves the latest run automatically and runs `explain-run` without e
 | `iteration_done_summary` | Per-`iteration_done`: `iteration`, `outcome`, optional `failure_axis` / `failure_type` / `intent_ids` |
 | `last_failure_axis` | Last `failure_axis` seen on an `iteration_done` line |
 | `rollup_steps` | Per-step rollup (tokens, `step_failed`, `contract_fail`, `gate_fail`, optional QA flags) — same builder as `token-trace-report` / scenario export |
+| `run_outcome_summary` | **Consumption layer** — single object (`schema_version` 1): where / what / why / cost / QA / `intent_groups`; included in **`--json`** and printed after human fields (ASCII block). See [`docs/orchestrator/run-outcome-consumption.md`](../docs/orchestrator/run-outcome-consumption.md). |
 
-**Readable run summary (one example):** run `npm run explain-run -- --file tests/fixtures/golden-path-clean-v1.jsonl --json`. The payload merges the fields above so a reviewer can see final outcome, step-level cost/outcome rollup, and iteration summaries without reading raw JSONL line-by-line. For failure taxonomy and console tables, see `docs/orchestrator/dashboard-failure-taxonomy.md` and `npm run dashboard:console`.
+**Readable run summary (one example):** run `npm run explain-run -- --file tests/fixtures/golden-path-clean-v1.jsonl --json`. The payload merges **`deriveExplain`** fields with **`run_outcome_summary`**. For field definitions and an example JSON shape, see **`docs/orchestrator/run-outcome-consumption.md`**. For failure taxonomy and console tables, see `docs/orchestrator/dashboard-failure-taxonomy.md` and `npm run dashboard:console`.
 
 **Parse errors and size limits:** invalid JSON lines are skipped; derivation still runs on the rest. Human CLI output ends with `WARNING: <n> invalid JSON line(s) skipped` when lines were dropped. If the file exceeds 50 MB or 10,000 lines, input is truncated to the last span that includes a `session_end`, and human output starts with `WARNING: file exceeded limits (50 MB / 10000 lines) - truncated to last session_end segment`.
 
