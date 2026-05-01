@@ -179,12 +179,12 @@ function edgeMeta(edgeType) {
  * Validates the step graph before execution begins.
  * Checks structural issues detectable before run:
  *   - steps must be an array
- *   - each step must have agentId or agent field
+ *   - each step must have agentId (legacy "agent" on plan rows is not accepted; matches plan capability validation)
  *
  * parent_step_id references are validated at emit time via assertParentStepExists
  * since stepIds are computed dynamically during the loop.
  *
- * @param {{ agentId?: string, agent?: string, task?: string }[]} steps
+ * @param {{ agentId?: string, task?: string }[]} steps
  * @param {Set<string>} validAgents
  * @returns {{ valid: boolean, errors: string[] }}
  */
@@ -196,9 +196,9 @@ function validateStepGraph(steps, validAgents) {
   const seen = new Map(); // agentId → count (for stepId collision detection)
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
-    const agentId = step.agentId || step.agent;
+    const agentId = step.agentId != null ? String(step.agentId).trim() : "";
     if (!agentId) {
-      errors.push(`step[${i}] missing agentId/agent field`);
+      errors.push(`step[${i}] missing agentId`);
       continue;
     }
     if (!validAgents.has(agentId)) continue; // skipped by loop — not an error
@@ -1414,7 +1414,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
     for (let stepIndex = 0; stepIndex < steps.length; stepIndex++) {
       const step = steps[stepIndex];
-      const agentId = step.agentId || step.agent;
+      const agentId = step.agentId != null ? String(step.agentId).trim() : "";
       if (!agentId || !VALID_WORKER_AGENTS.has(agentId)) continue;
 
       if (previousAgentId && previousAgentId !== agentId) logRoleSwitch(previousAgentId, agentId);
