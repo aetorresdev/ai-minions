@@ -104,10 +104,10 @@ context_retrieval_request:
 
 | Scenario | Expected policy outcome |
 |----------|-------------------------|
-| Read-only path | `filesystem` **read** allowed for prefix; **write** denied with `PATH_WRITE_FORBIDDEN`. |
-| Denied path | Preflight or runtime deny before agent runs with `PATH_ACCESS_DENIED`. |
+| Read-only path | `filesystem` **read** allowed for prefix; **write** denied with `PERM_PATH_WRITE_FORBIDDEN`. |
+| Denied path | Preflight or runtime deny before agent runs with `PERM_PATH_ACCESS_DENIED` (or `PERM_PATH_READ_DENIED` / `PERM_PATH_WRITE_FORBIDDEN` when the failure mode is known). |
 | Chunk retrieval | `allow_full_document: false`, scopes bounded → **allow** if domain allowed. |
-| Full-file disguised as retrieval | Deny with `RETRIEVAL_FULL_FILE_FORBIDDEN` at preflight if request violates constraints. |
+| Full-file disguised as retrieval | Deny with `PERM_RETRIEVAL_FULL_FILE_FORBIDDEN` at preflight if request violates constraints. |
 | Retrieval denied before execution | Preflight emits **permission_result** `denied` without starting LLM step. |
 
 ---
@@ -156,6 +156,7 @@ Prefix **`PERM_`** for machine-readable stable IDs (subset; implementations exte
 | `PERM_DOMAIN_DISABLED` | Domain not allowed by envelope. |
 | `PERM_PATH_READ_DENIED` | Filesystem read not covered by allow rules. |
 | `PERM_PATH_WRITE_FORBIDDEN` | Write blocked (read-only profile). |
+| `PERM_PATH_ACCESS_DENIED` | Path operation denied when policy blocks access and a read- or write-specific code is not the best fit (e.g. path sealed / outside all allowed roots). Prefer `PERM_PATH_READ_DENIED` or `PERM_PATH_WRITE_FORBIDDEN` when applicable. |
 | `PERM_NETWORK_HOST_DENIED` | Host not in allow_hosts / class denied. |
 | `PERM_MCP_TOOL_DENIED` | Tool/server not allowed. |
 | `PERM_SHELL_FORBIDDEN` | Shell execution not permitted. |
