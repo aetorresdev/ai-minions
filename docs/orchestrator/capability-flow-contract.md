@@ -64,6 +64,8 @@ Logical shape — concrete YAML may live in `docs/` or repo config:
 
 Each row must be expressible as a **`capabilities_ref`** expanded to the permission envelope domains (§3–4 of runtime-permission-contract).
 
+**Concrete matrix (runner):** `orchestrator/agents/capability-matrix.v1.json` and `orchestrator/agents/capability-matrix.js` (`cap.orchestrator.v1`). Plans and correction steps with an unknown `agentId` fail validation before worker execution.
+
 ---
 
 ## 5. Step contract
