@@ -213,8 +213,12 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
   // Deterministic test harness (tests/e2e.strict.test.js). Never set outside that suite.
   if (process.env.ORCH_TEST_SYSTEM_PATH_HARNESS === "1") {
     if (agentId === "orchestrator" && phase === "plan") {
+      const stepsPayload =
+        process.env.ORCH_TEST_PLAN_UNKNOWN_ROLE === "1"
+          ? [{ agentId: "unknown-cap-test-role", task: "matrix rejection regression" }]
+          : [{ agentId: "dev-backend", task: "Add multiply to utils.js" }];
       const stub = JSON.stringify({
-        steps: [{ agentId: "dev-backend", task: "Add multiply to utils.js" }],
+        steps: stepsPayload,
       });
       const check = validateOutput(agentId, stub, { phase: "plan" });
       if (!check.valid) {

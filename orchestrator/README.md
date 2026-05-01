@@ -499,11 +499,13 @@ npm run test:e2e:all  # E2E suite with all available Ollama models
 
 **Forbidden in production.** Only **`tests/e2e.strict.harness.test.js`** (`npm run test:e2e:strict:harness`) sets `ORCH_TEST_SYSTEM_PATH_HARNESS=1`. It is **not** referenced from `cli.js`, `run-orchestrator.js`, or any operator runbook — only that harness file + core orchestrator/README/docs (allowlisted in `scripts/ci-check-harness-scope.sh`). **`npm run test:e2e:strict`** (default CI) **does not** load the harness file. That path is **not** “strict E2E” in the alignment sense: deterministic `askAgent` stubs, `register_task` with `enforce_goal_alignment: false`, and a **Node-only** bypass when `validate_goal_alignment` returns `aligned: false`, so you can prove **state store + transitions + `compact_handoff`** without flaking on the alignment model. It deliberately **does not** prove trustworthy goal alignment or unattended success with production models. Do not set the variable outside that harness test subprocess.
 
+**Companion (same subprocess only):** **`ORCH_TEST_PLAN_UNKNOWN_ROLE=1`** is referenced **only** from **`tests/capability-plan-reject.test.js`** (+ allowlisted files). With **`ORCH_TEST_SYSTEM_PATH_HARNESS=1`**, it forces the plan stub to emit an unknown `agentId` so capability validation rejects the plan before any worker runs.
+
 ### CI pipelines
 
 | Workflow | Runner | Triggers |
 |----------|--------|---------|
-| `orchestrator-unit-tests.yml` (`name: orchestrator-unit-tests`) | GitHub cloud | **All PRs** to `main`/`master` (lint + unit). **Push** to `main`/`master` when `orchestrator/**`, `scripts/hooks/**`, or this workflow file changes. **No** `examples/orchestrator/**` path filter (legacy path removed). `workflow_dispatch` supported. First step runs `orchestrator/scripts/ci-check-harness-scope.sh`: fails if `ORCH_TEST_SYSTEM_PATH_HARNESS` appears outside the allowlist or if the pre-rename strict-gate env var name appears in tracked code (see script) |
+| `orchestrator-unit-tests.yml` (`name: orchestrator-unit-tests`) | GitHub cloud | **All PRs** to `main`/`master` (lint + unit). **Push** to `main`/`master` when `orchestrator/**`, `scripts/hooks/**`, or this workflow file changes. **No** `examples/orchestrator/**` path filter (legacy path removed). `workflow_dispatch` supported. First step runs `orchestrator/scripts/ci-check-harness-scope.sh`: fails if `ORCH_TEST_SYSTEM_PATH_HARNESS` or `ORCH_TEST_PLAN_UNKNOWN_ROLE` appears outside the allowlist, or if the pre-rename strict-gate env var name appears in tracked code (see script) |
 | `orchestrator-e2e.yml` | Self-hosted (`ollama` label) | Push/PR when orchestrator core, `mcp-direct.py`, `tests/**`, `package.json` / lockfile, MCP server dirs, or this workflow change; **`workflow_dispatch`** (input `ollama_model`) |
 
 The E2E workflow requires a self-hosted runner with labels **`self-hosted`** and **`ollama`**, Ollama at `localhost:11434`, and network for `astral-sh/setup-uv` + `npm ci`. It runs **`npm run test:e2e`** then **`npm run test:e2e:strict`** (strict suite **without** `ORCH_TEST_SYSTEM_PATH_HARNESS`; optional harness: `npm run test:e2e:strict:harness` locally). **Fork PRs:** the E2E job is skipped when the PR comes from a fork (so the run does not wait forever for a runner the fork cannot use). GitHub’s rules for **required checks** allow successful / skipped / neutral in many setups when the workflow completed; a skipped **job** is usually safer than a workflow that never starts (which can leave checks **Pending**). Still: validate once with a **real fork PR** and your branch protection, because only the GitHub UI confirms your org’s rule set. See `.github/workflows/orchestrator-e2e.yml` and `docs/orchestrator/strict-mode.md` § *GitHub Actions — orchestrator-e2e.yml*.
@@ -670,13 +672,13 @@ orchestrator/
 ├── CLAUDE.md            # Guardrails loaded by Claude Code agents
 ├── package.json         # npm test → node --test tests/*.test.js
 ├── .env.example         # All environment variables with defaults
-└── tests/
-    ├── validateOutput.test.js   # Unit: output contracts per role
-    ├── orchestrator.test.js     # Unit: detectBlockers + validateHandoffStructure
-    ├── askAgent.test.js         # Integration: askAgent() with mocked CLI
-    ├── modelRoutingStrategy.test.js
-    ├── rolePermissionMatrix.test.js
-    └── capability-matrix.test.js
+└── tests/                     # representative; full list in package.json test script
+    ├── validateOutput.test.js
+    ├── orchestrator.test.js
+    ├── askAgent.test.js
+    ├── capability-matrix.test.js
+    ├── capability-plan-reject.test.js  # harness: unknown plan agentId → plan_capability_reject
+    └── …
 ```
 
 **Repo root `agents/`** (subagent specs for skills / MCP task) is **not** this folder — see [shared-dependencies.md](../docs/orchestrator/shared-dependencies.md) and [role-agent-registry.md](../docs/orchestrator/role-agent-registry.md).

@@ -47,6 +47,12 @@ describe("capability matrix", () => {
     assert.ok(r.errors.some((e) => e.includes("nope")));
   });
 
+  it("validatePlanStepRoles rejects legacy agent field (agentId only)", () => {
+    const r = validatePlanStepRoles([{ agent: "dev-backend", task: "x" }]);
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.some((e) => /legacy.*agent/i.test(e)));
+  });
+
   it("roleCanUseDomains enforces subset", () => {
     assert.equal(roleCanUseDomains("orchestrator", ["shell"]).ok, false);
     assert.equal(roleCanUseDomains("dev-backend", ["filesystem", "shell"]).ok, true);

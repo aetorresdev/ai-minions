@@ -60,6 +60,7 @@ function roleCanUseDomains(agentId, requiredDomains) {
 
 /**
  * Ensure every plan/correction step references a role present in the matrix (same surface as AGENTS).
+ * Steps must use **agentId** only — legacy `agent` is rejected (capability-flow-contract shape).
  * @param {{ agentId?: string, agent?: string, task?: string }[] | null | undefined} steps
  * @returns {{ ok: boolean, errors: string[] }}
  */
@@ -70,8 +71,16 @@ function validatePlanStepRoles(steps) {
   }
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
-    const agentId = step && (step.agentId || step.agent);
-    if (!agentId || !String(agentId).trim()) {
+    if (!step || typeof step !== "object") {
+      errors.push(`step[${i}] invalid`);
+      continue;
+    }
+    if (Object.prototype.hasOwnProperty.call(step, "agent")) {
+      errors.push(`step[${i}] must use agentId only (remove legacy "agent" field)`);
+      continue;
+    }
+    const agentId = step.agentId;
+    if (agentId == null || !String(agentId).trim()) {
       errors.push(`step[${i}] missing agentId`);
       continue;
     }
