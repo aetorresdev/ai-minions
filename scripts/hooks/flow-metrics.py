@@ -513,7 +513,8 @@ def format_summary(data: dict, cost: float) -> str:
     mt_fmt = f"{mt // 60:.0f}m {mt % 60:.0f}s" if mt >= 60 else f"{mt:.0f}s"
     lines.append(f"  Model time: {mt_fmt} (inference only, AFK excluded)")
     lines.append(
-        f"  Tokens (input+output): {total_tok:,} | with cache R/W: {total_with_cache:,} (~${cost:.4f} USD)"
+        f"  Tokens (input+output): {total_tok:,} | with cache R/W: {total_with_cache:,} "
+        f"(~${cost:.4f} USD **estimated** from transcript counts × PRICE; not billing)"
     )
     lines.append(f"  Saved to: {METRICS_FILE}")
     return "\n".join(lines)
