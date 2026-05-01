@@ -419,11 +419,11 @@ describe("validateStepGraph — plan structure validation", () => {
     assert.ok(result.errors[0].includes("array"));
   });
 
-  it("returns invalid when a step has no agentId or agent field", () => {
+  it("returns invalid when a step has no agentId", () => {
     const steps = [{ task: "do something" }];
     const result = validateStepGraph(steps, validAgents);
     assert.equal(result.valid, false);
-    assert.ok(result.errors[0].includes("missing agentId/agent"));
+    assert.ok(result.errors[0].includes("missing agentId"));
   });
 
   it("skips steps with unknown agentId without error", () => {
@@ -435,10 +435,11 @@ describe("validateStepGraph — plan structure validation", () => {
     assert.equal(result.valid, true);
   });
 
-  it("accepts agent field as alias for agentId", () => {
+  it("rejects legacy agent field (agentId only, aligned with plan capability validation)", () => {
     const steps = [{ agent: "dev-backend", task: "work" }];
     const result = validateStepGraph(steps, validAgents);
-    assert.equal(result.valid, true);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors[0].includes("missing agentId"));
   });
 });
 
