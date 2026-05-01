@@ -1,0 +1,52 @@
+{
+  "$schema_comment": "Aligned with docs/orchestrator/capability-flow-contract.md §4 and runtime-permission domains. Positive allow-list per role; not runtime enforcement.",
+  "version": "cap.orchestrator.v1",
+  "domains": [
+    "remote_model",
+    "local_model",
+    "shell",
+    "filesystem",
+    "network",
+    "mcp",
+    "git",
+    "context_retrieval"
+  ],
+  "roles": {
+    "orchestrator": {
+      "domains": ["local_model"],
+      "notes": "Plan/decide via Ollama; no shell or workspace writes in contract split."
+    },
+    "owner": {
+      "domains": ["remote_model", "filesystem"],
+      "notes": "Scope and acceptance; Claude session read/query."
+    },
+    "architect": {
+      "domains": ["filesystem", "remote_model", "mcp"],
+      "notes": "Design and diagrams; no implementation apply."
+    },
+    "dev-backend": {
+      "domains": ["filesystem", "shell", "remote_model", "local_model", "network", "mcp", "git"],
+      "notes": "Implementation path typical for backend."
+    },
+    "dev-frontend": {
+      "domains": ["filesystem", "shell", "remote_model", "local_model", "network", "mcp", "git"],
+      "notes": "Same capability envelope as dev-backend unless policy narrows later."
+    },
+    "dev-devops": {
+      "domains": ["filesystem", "shell", "remote_model", "local_model", "network", "mcp", "git"],
+      "notes": "Infra / CI / Terraform-style work."
+    },
+    "qa": {
+      "domains": ["filesystem", "remote_model", "mcp"],
+      "notes": "Read artifacts and review; no implementation ownership."
+    },
+    "cerberus": {
+      "domains": ["filesystem", "remote_model"],
+      "notes": "Read outputs for review; credential ceiling remains read via permissions.js."
+    },
+    "summarizer": {
+      "domains": ["local_model"],
+      "notes": "Ollama handoff compression path."
+    }
+  }
+}

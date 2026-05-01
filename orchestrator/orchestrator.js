@@ -54,6 +54,10 @@ const {
   summaryMaxIterationsGateBlocked,
 } = require("./decision-engine");
 const { qaAgentDoneTraceExtras } = require("./agents/validate-output");
+const {
+  validatePlanStepRoles,
+  CAPABILITY_MATRIX_VERSION,
+} = require("./agents/capability-matrix");
 
 // ── Execution trace ───────────────────────────────────────────────────────────
 // Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
@@ -1288,6 +1292,17 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
     }
     log("orchestrator", `Plan ready — ${plan.steps.length} step(s):`);
     plan.steps.forEach((s, i) => log(s.agentId || "?", `Step ${i + 1}: ${s.task}`));
+    const capPlan = validatePlanStepRoles(plan.steps);
+    if (!capPlan.ok) {
+      summary = `Plan rejected — ${capPlan.errors.join("; ")}`;
+      manualReview = true;
+      traceEvent(taskId, {
+        event: "plan_capability_reject",
+        capability_matrix_version: CAPABILITY_MATRIX_VERSION,
+        errors: capPlan.errors,
+      });
+      skipMainOrchestrationLoop = true;
+    }
   }
 
   // ── Advance ORCHESTRATOR → first MODE ────────────────────────────────────────
@@ -1319,6 +1334,23 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
     iterations += 1;
     syncRunIteration(runState, iterations);
     log("orchestrator", `── Iteration ${iterations}/${maxIterations} ──`);
+
+    // Corrections from decide replace plan.steps — validate again from iteration 2 onward (iteration 1 covered after plan parse).
+    if (iterations > 1) {
+      const stepsEarly = plan.steps && plan.steps.length ? plan.steps : [];
+      const capIter = validatePlanStepRoles(stepsEarly);
+      if (!capIter.ok) {
+        summary = `Plan rejected — ${capIter.errors.join("; ")}`;
+        manualReview = true;
+        traceEvent(taskId, {
+          event: "plan_capability_reject",
+          capability_matrix_version: CAPABILITY_MATRIX_VERSION,
+          errors: capIter.errors,
+          iteration: iterations,
+        });
+        break orchestration;
+      }
+    }
 
     const intentByStepSlot = new Map();
     const intentIdsThisIteration = new Set();
