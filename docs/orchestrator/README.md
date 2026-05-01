@@ -18,6 +18,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [mcp-task-examples.md](mcp-task-examples.md) | Subagent / `mcp_task` |
 | [CURSOR_RULE_SETUP.md](CURSOR_RULE_SETUP.md) | User Rules vs project rules |
 | [shared-dependencies.md](shared-dependencies.md) | `mcp-servers/`, `scripts/hooks/`, `skills/`, `agents/` — required vs optional, access, failure modes |
+| [hooks-claude-code-metrics-validation.md](hooks-claude-code-metrics-validation.md) | Compact read policy, snapshot scope, metric trust, end-of-run validation footer for Claude Code hooks |
 | [graph-validation.md](graph-validation.md) | Run-level JSONL step graph: `validateTraceRunGraph`, violation types, CI fixtures |
 | [run-outcome-consumption.md](run-outcome-consumption.md) | **`run_outcome_summary`** schema — interpreting traces without raw JSONL (`explain-run`, export, dashboard) |
 | [failure-semantics-contract.md](failure-semantics-contract.md) | **`iteration_done`** failure taxonomy — `reason_code`, `failure_type`, `failure_axis` (writer/reader contract, links to strict-mode and tests) |
