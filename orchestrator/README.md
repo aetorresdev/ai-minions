@@ -388,6 +388,8 @@ Options:
   --skip-gates         Disable orchestrator-state MCP gates
 ```
 
+Optional project file **`minions.md`** at `--cwd` may declare **`trace_scenario_id`** (for trace batching) when `ORCH_TRACE_SCENARIO_ID` is unset. Invalid file → clear error and exit. See **`docs/orchestrator/minions-project-contract.md`**.
+
 ---
 
 ## Interactive chat (single agent)
