@@ -61,7 +61,8 @@ function roleCanUseDomains(agentId, requiredDomains) {
 /**
  * Ensure every plan/correction step references a role present in the matrix (same surface as AGENTS).
  * Steps must use **agentId** only — legacy `agent` is rejected (capability-flow-contract shape).
- * @param {{ agentId?: string, agent?: string, task?: string }[] | null | undefined} steps
+ * Optional **`requiredDomains`**: when present (array of domain strings), each must be allowed for that role per the matrix.
+ * @param {{ agentId?: string, agent?: string, task?: string, requiredDomains?: string[] }[] | null | undefined} steps
  * @returns {{ ok: boolean, errors: string[] }}
  */
 function validatePlanStepRoles(steps) {
@@ -89,6 +90,19 @@ function validatePlanStepRoles(steps) {
       errors.push(
         `step[${i}] unknown role "${id}" (capability matrix ${CAPABILITY_MATRIX_VERSION})`,
       );
+      continue;
+    }
+    if (Object.prototype.hasOwnProperty.call(step, "requiredDomains")) {
+      const rd = step.requiredDomains;
+      if (!Array.isArray(rd)) {
+        errors.push(`step[${i}] requiredDomains must be an array when present`);
+        continue;
+      }
+      const domains = rd.map((x) => String(x).trim()).filter(Boolean);
+      const dc = roleCanUseDomains(id, domains);
+      if (!dc.ok) {
+        errors.push(`step[${i}] ${dc.reason}`);
+      }
     }
   }
   return { ok: errors.length === 0, errors };

@@ -57,4 +57,25 @@ describe("capability matrix", () => {
     assert.equal(roleCanUseDomains("orchestrator", ["shell"]).ok, false);
     assert.equal(roleCanUseDomains("dev-backend", ["filesystem", "shell"]).ok, true);
   });
+
+  it("validatePlanStepRoles accepts optional requiredDomains when role allows them", () => {
+    const r = validatePlanStepRoles([
+      { agentId: "dev-backend", task: "x", requiredDomains: ["filesystem", "shell"] },
+    ]);
+    assert.equal(r.ok, true);
+  });
+
+  it("validatePlanStepRoles rejects requiredDomains not allowed for role", () => {
+    const r = validatePlanStepRoles([
+      { agentId: "orchestrator", task: "plan", requiredDomains: ["shell"] },
+    ]);
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.some((e) => /cannot use domain/.test(e)));
+  });
+
+  it("validatePlanStepRoles rejects non-array requiredDomains", () => {
+    const r = validatePlanStepRoles([{ agentId: "dev-backend", task: "x", requiredDomains: "filesystem" }]);
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.some((e) => /requiredDomains must be an array/i.test(e)));
+  });
 });
