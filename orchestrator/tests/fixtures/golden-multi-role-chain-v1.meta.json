@@ -1,0 +1,21 @@
+{
+  "meta_version": 1,
+  "fixture_file": "golden-multi-role-chain-v1.jsonl",
+  "description": "Multi-role single-iteration chain for capability-flow §7 narrative (synthetic clocks). CI fails if bounds drift without intentional baseline refresh (set UPDATE_GOLDEN_MULTI_META=1 after editing the trace).",
+  "bounds": {
+    "wall_span_ts_ms": {
+      "min": 4000,
+      "max": 4000,
+      "from": "session_end.ts_ms - session_start.ts_ms"
+    },
+    "agent_done_duration_ms_total": {
+      "min": 30,
+      "max": 30,
+      "from": "sum(agent_done.duration_ms)"
+    },
+    "cost_usd_explain_sum": {
+      "expect_absent": true,
+      "from": "deriveExplain(rows).cost_usd omitted when no line carries cost_usd"
+    }
+  }
+}
