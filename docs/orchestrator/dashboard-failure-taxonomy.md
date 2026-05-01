@@ -1,6 +1,6 @@
 # Dashboards: failure taxonomy from traces
 
-This doc is the **operational companion** to [`strict-mode.md`](./strict-mode.md) § *Canonical dashboard mapping* (`reason_code` → `failure_axis` → `failure_type`). In this repository, supported consumption is **console output** (`dashboard:console`), **batch JSON** (`metrics:export-scenarios`), and **`jq`** over JSONL. **Hosted BI** (Grafana, Loki, etc.) is **not shipped here**; if you need charts in a central stack, build that in your own deployment using the same fields and policy order below.
+This doc is the **operational companion** to [`strict-mode.md`](./strict-mode.md) § *Canonical dashboard mapping* (`reason_code` → `failure_axis` → `failure_type`). For a single entry point that links schema, code mappers, and tests, see [`failure-semantics-contract.md`](./failure-semantics-contract.md). In this repository, supported consumption is **console output** (`dashboard:console`), **batch JSON** (`metrics:export-scenarios`), and **`jq`** over JSONL. **Hosted BI** (Grafana, Loki, etc.) is **not shipped here**; if you need charts in a central stack, build that in your own deployment using the same fields and policy order below.
 
 ## Console first (no TUI, no web UI)
 
