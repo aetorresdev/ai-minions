@@ -460,6 +460,8 @@ Every step-level event (`agent_start`, `agent_done`, `contract_fail`, `gate_resu
 
 ### Writer invariant (`iteration_done` emission)
 
+**Consolidated index:** [failure-semantics-contract.md](./failure-semantics-contract.md) (links schema, mappers, tests, and this section).
+
 - **`traceIterationDone()`** always builds the payload through **`composeIterationDonePayload()`** in **`orchestrator/orchestrator.js`**. If **`transition_reason.reason_code`** is missing or not a member of **`TRANSITION_REASON_CODES`** (same closed list as **`schemas/trace-v2-line.schema.json`**), the writer throws before append — no silent “half-structured” lines.
 - **`transitionReason()`** is the supported constructor: it validates **`type`**, maps **`(type, details)` → `reason_code`** via **`inferReasonCode()`**, or accepts an explicit **`meta.reason_code`** for **`GUARD`** paths. New terminal branches must extend **`inferReasonCode()`**, **`TRANSITION_REASON_CODES`**, the JSON Schema enum, this doc’s mapping table, the **`failure taxonomy matrix`** in **`tests/traceSchema.test.js`**, and the **`emitter paths`** table in **`tests/iterationDoneEmitterContract.test.js`**.
 
