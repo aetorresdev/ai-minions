@@ -115,12 +115,12 @@ context_retrieval_request:
   query_text_hash: "<optional sha256 of query for audit>"
 ```
 
-**Examples the runtime must cover:**
+**Examples the runtime must cover** (every `reason_code` below is exactly one row from §9 — no alias strings):
 
 | Scenario | Expected policy outcome |
 |----------|-------------------------|
 | Read-only path | `filesystem` **read** OK for prefix;<br>**write** denied → `PERM_PATH_WRITE_FORBIDDEN`. |
-| Denied path | Preflight or runtime deny.<br>Use `PERM_PATH_ACCESS_DENIED` or more specific `PERM_*` codes. |
+| Denied path | Preflight or runtime deny.<br>Typical: read not covered → `PERM_PATH_READ_DENIED`; generic path denial → `PERM_PATH_ACCESS_DENIED` (§9). |
 | Chunk retrieval | `allow_full_document: false`, scopes bounded → **allow** if domain allowed. |
 | Full-file disguised as retrieval | Deny → `PERM_RETRIEVAL_FULL_FILE_FORBIDDEN` at preflight if constraints violated. |
 | Retrieval denied before execution | Preflight emits **permission_result** `denied` without starting LLM step. |
