@@ -1,6 +1,6 @@
 # Capability flow contract (task / run / step)
 
-**Status:** **Partially implemented** — `cap.orchestrator.v1` matrix and **`validatePlanStepRoles`** are in the runner; trace fixture **`golden-path-clean-v1`** proves a minimal single-role spine. Full **multi-agent** chain from §7 as one reviewable E2E artifact remains a follow-on harness slice (same groomed ticket until closed).
+**Status:** **Partially implemented** — `cap.orchestrator.v1` matrix and **`validatePlanStepRoles`** are in the runner; trace fixture **`golden-path-clean-v1`** proves a minimal single-role spine. The **documentation and repository anchor slice** (§8 tables and example YAML) is mergeable on its own; **full flow-contract closure** still requires the **remaining implementation scope** in §8 (multi-agent trace harness, richer failure coverage) — see below.
 
 **Depends on:** [runtime-permission-contract.md](runtime-permission-contract.md) for domain allow/deny on each step. **Relates to:** [agent-contract.md](agent-contract.md) (MODE, handoffs, state store).
 
@@ -171,6 +171,13 @@ step_contract:
 
 §7 sequence (ORCHESTRATOR plan → DEV → QA → CERBERUS → …) is the **reference narrative** for a CERBERUS-reviewable E2E. The repository does not yet ship a single JSONL that spans every role in that chain; adding it is explicit backlog under the same capability-flow workstream.
 
+### Remaining implementation scope (outstanding after the anchor doc slice)
+
+Merging this contract’s **documentation and anchor** work does **not** by itself complete the full capability-flow program. Still required for end-to-end proof:
+
+1. **Single reviewable JSONL (or equivalent harness)** that instantiates the **§7 multi-agent chain** in one trace — no dead-end handoff; suitable for review in the same way as other golden fixtures.
+2. **Richer validation and tests** for capability and handoff **failure modes** beyond **unknown plan `agentId`** and **legacy `agent` field** rejection — e.g. step domain not allowed for role, missing required handoff keys, safe block with explicit `iteration_done` / gate reason tied to permission or contract (aligned with [runtime-permission-contract.md](runtime-permission-contract.md) when enforcement exists).
+
 ---
 
 ## 9. CERBERUS validation points
@@ -188,5 +195,5 @@ step_contract:
 | Role capability matrix | §4 (+ concrete JSON §4, §8) |
 | Handoff inputs/outputs | §6 |
 | optional context_required | §3 |
-| Representative E2E | §7 (target narrative); §8 (golden fixture + multi-agent gap called out) |
+| Representative E2E | §7 (target narrative); §8 (golden fixture + multi-agent gap + **remaining scope** for harness) |
 | CERBERUS validation points | §9 |
