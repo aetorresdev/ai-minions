@@ -15,6 +15,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [shared-dependencies.md](shared-dependencies.md) | `mcp-servers/`, `scripts/hooks/`, `skills/`, `agents/` — required vs optional, access, failure modes |
 | [graph-validation.md](graph-validation.md) | Run-level JSONL step graph: `validateTraceRunGraph`, violation types, CI fixtures |
 | [run-outcome-consumption.md](run-outcome-consumption.md) | **`run_outcome_summary`** schema — interpreting traces without raw JSONL (`explain-run`, export, dashboard) |
+| [failure-semantics-contract.md](failure-semantics-contract.md) | **`iteration_done`** failure taxonomy — `reason_code`, `failure_type`, `failure_axis` (writer/reader contract, links to strict-mode and tests) |
 | [role-agent-registry.md](role-agent-registry.md) | Future roles: minimal registry schema (design-time; no runtime wiring) |
 
 **Cursor rule:** `.cursor/rules/orchestrator.mdc` — `scripts/install-orchestrator-rule.sh` to copy it to another repo.

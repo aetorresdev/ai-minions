@@ -50,8 +50,9 @@ What makes behavior inspectable and comparable:
 
 - Trace schema and line semantics — [strict-mode.md](strict-mode.md)
 - `reason_code` values, including future or applicable permission `PERM_*` codes once permission gates emit them (see [runtime-permission-contract.md](runtime-permission-contract.md))
+- Failure semantics for **`iteration_done`** ([failure-semantics-contract.md](failure-semantics-contract.md))
 - Run outcome summaries and rollups
-- Dashboard / export consumption (e.g. OBS-CONSUME-1 direction)
+- Dashboard / export consumption ([dashboard-failure-taxonomy.md](dashboard-failure-taxonomy.md), [run-outcome-consumption.md](run-outcome-consumption.md))
 
 ---
 
