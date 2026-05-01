@@ -2,15 +2,31 @@
 
 **Status:** design — lightweight validator so recommendations are **evidence-backed**, not generic advice.
 
-**When it applies:** outputs that **change or recommend** architecture, orchestration flow, role/capability design, security posture, runtime behavior, alpha scope/order, or model/tool selection affecting behavior or cost.
+**When it applies:**
 
-**When it does not apply:** purely tactical code edits inside an agreed design, typo fixes, or summaries that add no new recommendation.
+Outputs that **change or recommend**:
+
+- architecture
+- orchestration flow
+- role/capability design
+- security posture
+- runtime behavior
+- alpha scope/order
+- model/tool selection affecting behavior or cost
+
+**When it does not apply:**
+
+Purely tactical code edits inside an agreed design, typo fixes, or summaries that add no new
+recommendation.
 
 ---
 
 ## 1. Required payload shape
 
-Structured block (YAML or JSON) attached to CERBERUS output **or** emitted as a dedicated trace appendix — parsers accept this schema:
+Structured block (YAML or JSON) attached to CERBERUS output **or** emitted as a dedicated trace
+appendix.
+
+Parsers accept this schema:
 
 ```yaml
 recommendation: string
@@ -36,7 +52,11 @@ validation_plan:
 priority_or_sequence: string   # required when recommending parallel streams or both/and options
 ```
 
-**Out of scope:** scoring subjective “quality” of prose or detecting “consulting soup” by style alone — **not** a goal. Failures are **structural** (missing sections), not aesthetic.
+**Out of scope:**
+
+Scoring subjective “quality” of prose or detecting “consulting soup” by style alone — **not** a goal.
+
+Failures are **structural** (missing sections), not aesthetic.
 
 ---
 
@@ -46,7 +66,7 @@ priority_or_sequence: string   # required when recommending parallel streams or 
 |-----------|--------|
 | `recommendation` empty or whitespace | **Fail** |
 | Any `rejected_alternatives` entry missing `option` or `reason_rejected` | **Fail** |
-| `explicit_tradeoffs` empty when more than one plausible approach exists (heuristic: ≥2 `rejected_alternatives`) | **Fail** |
+| `explicit_tradeoffs` empty when more than one plausible approach exists<br>(heuristic: ≥2 `rejected_alternatives`) | **Fail** |
 | `context_evidence` empty | **Fail** |
 | `risks` empty | **Fail** |
 | `failure_modes` empty | **Fail** |
@@ -54,7 +74,12 @@ priority_or_sequence: string   # required when recommending parallel streams or 
 | Recommendation implies **both** path A and B without `priority_or_sequence` | **Fail** |
 | `priority_or_sequence` empty when both/and detected | **Fail** |
 
-“Both/and” heuristic: presence of conjunction language in `recommendation` (`both`, `and`, `parallel`) **and** multiple incompatible actions — runner may use a simple pattern list or human-readable flag from DEV.
+“Both/and” heuristic:
+
+Presence of conjunction language in `recommendation` (`both`, `and`, `parallel`) **and** multiple
+incompatible actions.
+
+Runner may use a simple pattern list or human-readable flag from DEV.
 
 ---
 
@@ -72,7 +97,10 @@ Exact trace schema is implementation work — this doc fixes **contract fields**
 
 ## 4. Relation to output contract
 
-Existing **validateOutput** / role formats remain authoritative for **role correctness**. This gate is an **additional** structured block when the content classifies as strategic per § opening criteria.
+Existing **validateOutput** / role formats remain authoritative for **role correctness**.
+
+This gate is an **additional** structured block when the content classifies as strategic per the
+opening criteria.
 
 ---
 
