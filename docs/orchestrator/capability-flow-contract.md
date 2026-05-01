@@ -124,9 +124,9 @@ Example sequence for **`multi_agent`**: ORCHESTRATOR (plan) → DEV-BACKEND → 
 |----------|------|
 | Matrix JSON | `orchestrator/agents/capability-matrix.v1.json` |
 | Loader / helpers | `orchestrator/agents/capability-matrix.js` |
-| Tests (parity with **`MODEL_ROUTING`**, unknown `agentId`, legacy `agent` rejection, domain subset) | `orchestrator/tests/capability-matrix.test.js` |
+| Tests (parity with **`MODEL_ROUTING`**, unknown `agentId`, legacy `agent` rejection, domain subset, optional **`requiredDomains` per step**) | `orchestrator/tests/capability-matrix.test.js` |
 
-Orchestrator plans and correction steps must use **`agentId`** only; unknown role ids fail validation before workers run (see **`validatePlanStepRoles`**).
+Orchestrator plans and correction steps must use **`agentId`** only; unknown role ids fail validation before workers run (see **`validatePlanStepRoles`**). A plan step may include optional **`requiredDomains`** (string array); when present, each domain must be allowed for that role’s matrix row (`roleCanUseDomains`).
 
 ### Minimal trace-backed flow (implemented fixture)
 
@@ -137,6 +137,16 @@ Orchestrator plans and correction steps must use **`agentId`** only; unknown rol
 | Schema + graph + explain bounds | `orchestrator/tests/goldenPath.test.js` |
 
 The fixture is **`single_agent`**, one outer iteration, one **`dev-backend`** step, **`iteration_done`** with **`RUN_COMPLETED`** — the smallest spine that matches §2–§5 units (task → run → step) without failures.
+
+**Multi-role linear chain (synthetic, schema-valid JSONL):**
+
+| Artifact | Role |
+|----------|------|
+| JSONL fixture | `orchestrator/tests/fixtures/golden-multi-role-chain-v1.jsonl` |
+| Clock / duration bounds | `orchestrator/tests/fixtures/golden-multi-role-chain-v1.meta.json` |
+| Schema + graph + agent order | `orchestrator/tests/multiRoleChainFixture.test.js` |
+
+**`flow_mode`:** `multi_agent`; **one outer iteration** with three steps — **`dev-backend` → `qa` → `cerberus`** — chained via **`parent_step_id`**, then **`iteration_done`** (`RUN_COMPLETED`) and **`session_end`**. This is a **single reviewable artifact** covering three matrix roles; it does **not** emit an **orchestrator** `agent_start` (in live runs the plan phase is separate from worker steps). Extending the fixture or adding a harness that matches §7 literally (including orchestrator/decide loop) is optional follow-on.
 
 **Worked example (YAML, aligned to the golden fixture scale):**
 
@@ -167,16 +177,16 @@ step_contract:
     domains: [filesystem, shell]   # ⊆ matrix row for dev-backend
 ```
 
-### Multi-agent reference chain (contract target, not yet one fixture)
+### §7 full narrative vs fixtures
 
-§7 sequence (ORCHESTRATOR plan → DEV → QA → CERBERUS → …) is the **reference narrative** for a CERBERUS-reviewable E2E. The repository does not yet ship a single JSONL that spans every role in that chain; adding it is explicit backlog under the same capability-flow workstream.
+The **§7** narrative (ORCHESTRATOR plan → DEV → QA → CERBERUS → ORCHESTRATOR decide → …) remains the **target** for a fully realistic run. The **multi-role chain fixture** above instantiates a **subset** (worker chain only, one iteration, clean completion). Closing the gap to a **live-shaped** trace (plan step, multiple outer iterations, gate failures) is **incremental** work on the same ticket.
 
 ### Remaining implementation scope (outstanding after the anchor doc slice)
 
 Merging this contract’s **documentation and anchor** work does **not** by itself complete the full capability-flow program. Still required for end-to-end proof:
 
-1. **Single reviewable JSONL (or equivalent harness)** that instantiates the **§7 multi-agent chain** in one trace — no dead-end handoff; suitable for review in the same way as other golden fixtures.
-2. **Richer validation and tests** for capability and handoff **failure modes** beyond **unknown plan `agentId`** and **legacy `agent` field** rejection — e.g. step domain not allowed for role, missing required handoff keys, safe block with explicit `iteration_done` / gate reason tied to permission or contract (aligned with [runtime-permission-contract.md](runtime-permission-contract.md) when enforcement exists).
+1. **Harness or fixture extension** matching **§7** more literally — e.g. orchestrator-visible plan/worker ordering, multiple outer iterations, **iterate** / gate paths — building on `golden-multi-role-chain-v1` or separate artifacts.
+2. **Handoff and permission enforcement** — required handoff keys per step, **`PERM_*`** / runtime-permission integration at gates (see [runtime-permission-contract.md](runtime-permission-contract.md)); optional **`requiredDomains`** on plan steps is implemented for matrix validation only and does not replace permission checks at execution time.
 
 ---
 
@@ -195,5 +205,5 @@ Merging this contract’s **documentation and anchor** work does **not** by itse
 | Role capability matrix | §4 (+ concrete JSON §4, §8) |
 | Handoff inputs/outputs | §6 |
 | optional context_required | §3 |
-| Representative E2E | §7 (target narrative); §8 (golden fixture + multi-agent gap + **remaining scope** for harness) |
+| Representative E2E | §7 (target narrative); §8 (golden + multi-role chain fixtures; **remaining scope** for full §7 harness) |
 | CERBERUS validation points | §9 |
