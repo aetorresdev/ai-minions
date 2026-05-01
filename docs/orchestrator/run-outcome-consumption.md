@@ -25,8 +25,21 @@ Per-step detail lives in **`rollupStepsCostOutcome(rows)`** (same pipeline as ex
 |---------|------|
 | **`npm run explain-run`** | Human output ends with **`formatRunOutcomeSummaryLines`**; **`--json`** includes **`run_outcome_summary`** next to **`deriveExplain`** fields |
 | **`console-dashboard.js`** | Uses **`buildRunOutcomeSummary`** / **`formatRunOutcomeSummaryLines`** for ASCII tables |
-| **`scenario-metrics-export.js`** | Each run includes **`run_outcome_summary`** |
+| **`scenario-metrics-export.js`** | Each run includes **`run_outcome_summary`**; batch JSON documents fields under **`consumption`** |
 | **`token-trace-report`** | Shares **`buildReport`**, rollup, and taxonomy helpers |
+
+## Batch scenario export (`npm run metrics:export-scenarios`)
+
+**CLI:** `orchestrator/scenario-metrics-export.js` (see `orchestrator/README.md`). The JSON object includes:
+
+| Top-level key | Purpose |
+|---------------|---------|
+| **`consumption`** | **`payload_schema_version`**, path to this doc, **`runs_entry_keys`** (expected keys on each `runs[]` item), **`reviewer_quick_path`** (dot paths for outcome review) |
+| **`runs`** | One object per trace file, each with **`run_outcome_summary`**, **`rollup_steps`**, **`failure_taxonomy`**, session rollups, etc. |
+| **`by_scenario`**, **`by_flow_mode`**, **`by_stage`** | Aggregations for comparison |
+| **`failure_taxonomy_aggregate`**, **`usd_export_meta`** | Cross-run taxonomy and USD rate help text |
+
+Optional per-run **`ollama_usd_estimate`** appears only when USD env rates are set. Keys are listed in **`consumption.runs_entry_keys`** so exports stay self-describing.
 
 Sanitization/redaction: rows should pass through the same pipeline as dashboard/export (**`sanitizeTraceRowsForRead`**) before consumption when reading untrusted traces.
 
