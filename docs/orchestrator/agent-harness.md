@@ -49,7 +49,7 @@ What must pass before progress is recorded:
 What makes behavior inspectable and comparable:
 
 - Trace schema and line semantics — [strict-mode.md](strict-mode.md)
-- `reason_code` (including permission `PERM_*` where applicable)
+- `reason_code` values, including future or applicable permission `PERM_*` codes once permission gates emit them (see [runtime-permission-contract.md](runtime-permission-contract.md))
 - Run outcome summaries and rollups
 - Dashboard / export consumption (e.g. OBS-CONSUME-1 direction)
 
