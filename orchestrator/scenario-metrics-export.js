@@ -8,6 +8,8 @@
  *
  * Default: only traces whose first session_start includes scenario_id (tagged runs, e.g. tests).
  * Writes JSON to stdout if --out is omitted.
+ *
+ * Top-level **`consumption`** documents payload shape and reviewer fields (`buildExportPayloadMeta`).
  */
 
 const fs = require("fs");
@@ -77,6 +79,53 @@ function buildUsdExportMeta() {
     usd_note: configured
       ? "Per-run ollama_usd_estimate uses env rates; values are estimates (no Ollama billing API)."
       : "Set ORCH_USD_PER_MTOK_PROMPT and ORCH_USD_PER_MTOK_COMPLETION for USD estimates on each run.",
+  };
+}
+
+/** Keys on each `runs[]` element from collectRunsFromDir (optional keys omitted if absent). */
+const RUN_EXPORT_ENTRY_KEYS = Object.freeze([
+  "scenario_id",
+  "task_id",
+  "trace_file",
+  "trace_mtime_iso",
+  "parse_errors",
+  "flow_mode",
+  "max_iterations",
+  "done",
+  "iterations",
+  "gate_blocks",
+  "agents_run",
+  "ollama_session_end_totals",
+  "ollama_from_context_stats",
+  "by_agent_phase",
+  "mcp_from_session_end",
+  "mcp_events_count",
+  "rollup_steps",
+  "failure_taxonomy",
+  "run_outcome_summary",
+  "ollama_usd_estimate",
+]);
+
+/**
+ * Stable metadata for batch JSON consumers (OBS consumption layer).
+ * @returns {{ payload_schema_version: string, documentation_path: string, runs_entry_keys: string[], reviewer_quick_path: string[] }}
+ */
+function buildExportPayloadMeta() {
+  return {
+    payload_schema_version: "1",
+    documentation_path: "docs/orchestrator/run-outcome-consumption.md",
+    runs_entry_keys: [...RUN_EXPORT_ENTRY_KEYS],
+    reviewer_quick_path: [
+      "runs[].run_outcome_summary.what.done",
+      "runs[].run_outcome_summary.what.summary",
+      "runs[].run_outcome_summary.why.gate_blocks",
+      "runs[].run_outcome_summary.why.top_reason_codes",
+      "runs[].run_outcome_summary.cost",
+      "runs[].run_outcome_summary.qa",
+      "runs[].run_outcome_summary.intent_groups",
+      "runs[].rollup_steps",
+      "runs[].failure_taxonomy",
+    ],
   };
 }
 
@@ -239,6 +288,7 @@ function emptyBucket() {
 
 function usage() {
   console.error(`Usage: node scenario-metrics-export.js [--dir DIR] [--since-m MINUTES] [--include-untagged] [--out FILE.json] [--strict-traces]
+JSON includes top-level consumption (schema version, doc path, runs field list, reviewer paths).
 Env: ORCH_TRACES_DIR — default trace directory (~/.claude/metrics/traces)
      ORCH_TRACE_VALIDATE=1 — validate each JSONL line against schema v2 (drops invalid lines; see parse_errors on runs)`);
 }
@@ -279,6 +329,7 @@ function main() {
     since_minutes: sinceM,
     include_untagged: includeUntagged,
     run_count: runs.length,
+    consumption: buildExportPayloadMeta(),
     runs,
     by_scenario: byScenario,
     by_flow_mode: buildByFlowMode(runs),
@@ -301,6 +352,8 @@ module.exports = {
   buildByFlowMode,
   buildByStage,
   buildUsdExportMeta,
+  buildExportPayloadMeta,
+  RUN_EXPORT_ENTRY_KEYS,
   rollupStepsCostOutcome,
   summarizeFailureTaxonomyFromRows,
   aggregateFailureTaxonomyAcrossRuns,

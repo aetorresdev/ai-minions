@@ -9,6 +9,8 @@ const {
   collectRunsFromDir,
   buildByStage,
   buildUsdExportMeta,
+  buildExportPayloadMeta,
+  RUN_EXPORT_ENTRY_KEYS,
   summarizeFailureTaxonomyFromRows,
   aggregateFailureTaxonomyAcrossRuns,
 } = require("../scenario-metrics-export");
@@ -119,6 +121,43 @@ test("collectRunsFromDir redacts secret-shaped strings before by_agent_phase rol
     const dump = JSON.stringify(runs[0].by_agent_phase || {});
     assert.ok(!dump.includes(sk));
     assert.match(dump, /\[REDACTED:api_token\]/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("buildExportPayloadMeta documents batch consumption shape", () => {
+  const m = buildExportPayloadMeta();
+  assert.equal(m.payload_schema_version, "1");
+  assert.equal(m.documentation_path, "docs/orchestrator/run-outcome-consumption.md");
+  assert.deepEqual(m.runs_entry_keys, [...RUN_EXPORT_ENTRY_KEYS]);
+  assert.ok(Array.isArray(m.reviewer_quick_path));
+  assert.ok(m.reviewer_quick_path.length > 0);
+  for (const p of m.reviewer_quick_path) {
+    assert.equal(typeof p, "string");
+  }
+});
+
+test("collectRunsFromDir run entries include documented keys (ollama_usd_estimate optional)", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-scen-keys-"));
+  delete process.env.ORCH_USD_PER_MTOK_PROMPT;
+  delete process.env.ORCH_USD_PER_MTOK_COMPLETION;
+  try {
+    const row = [
+      { ts: "t0", task_id: "tid-k", event: "session_start", flow_mode: "single_agent", scenario_id: "Sc-K", max_iterations: 1 },
+      { ts: "t1", task_id: "tid-k", event: "session_end", iterations: 1, done: true },
+    ].map((o) => JSON.stringify(o)).join("\n");
+    fs.writeFileSync(path.join(dir, "tid-k.jsonl"), row, "utf8");
+    const runs = collectRunsFromDir(dir, { includeUntagged: false });
+    assert.equal(runs.length, 1);
+    const run = runs[0];
+    for (const k of RUN_EXPORT_ENTRY_KEYS) {
+      if (k === "ollama_usd_estimate") {
+        assert.equal(Object.prototype.hasOwnProperty.call(run, k), false);
+      } else {
+        assert.ok(Object.prototype.hasOwnProperty.call(run, k), `missing key: ${k}`);
+      }
+    }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
