@@ -656,7 +656,7 @@ orchestrator/
 │   ├── routing/
 │   │   └── model-routing.js   # MODEL_ROUTING, FALLBACK_POLICY, Ollama routing constants
 │   ├── permissions.js         # ROLE_PERMISSION, effectiveMode()
-│   ├── capability-matrix.js   # role × domain matrix; validatePlanStepRoles (agentId, optional requiredDomains)
+│   ├── capability-matrix.js   # matrix + validatePlanStepsCapability (domains, handoff keys, credential ceiling)
 │   ├── capability-matrix.v1.json
 │   ├── validate-output.js     # validateOutput, normalizeDevContractText, CERBERUS semantic helpers
 │   ├── registry.js            # buildAgents() → AGENTS (prompts + model getters)

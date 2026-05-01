@@ -14,6 +14,9 @@ const {
   getDomainsForRole,
   roleCanUseDomains,
   validatePlanStepRoles,
+  validatePlanCredentialCeiling,
+  validatePlanStepHandoffDeclarations,
+  validatePlanStepsCapability,
 } = require("../agents/capability-matrix");
 
 describe("capability matrix", () => {
@@ -77,5 +80,46 @@ describe("capability matrix", () => {
     const r = validatePlanStepRoles([{ agentId: "dev-backend", task: "x", requiredDomains: "filesystem" }]);
     assert.equal(r.ok, false);
     assert.ok(r.errors.some((e) => /requiredDomains must be an array/i.test(e)));
+  });
+
+  it("validatePlanCredentialCeiling rejects shell when session ceiling is read", () => {
+    const r = validatePlanCredentialCeiling(
+      [{ agentId: "dev-backend", task: "x", requiredDomains: ["shell"] }],
+      "read",
+    );
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.some((e) => /require write-capable session/i.test(e)));
+  });
+
+  it("validatePlanCredentialCeiling allows filesystem-only domains under read session", () => {
+    const r = validatePlanCredentialCeiling(
+      [{ agentId: "qa", task: "x", requiredDomains: ["filesystem", "remote_model"] }],
+      "read",
+    );
+    assert.equal(r.ok, true);
+  });
+
+  it("validatePlanStepHandoffDeclarations rejects unknown handoff key name", () => {
+    const r = validatePlanStepHandoffDeclarations([
+      { agentId: "dev-backend", task: "x", requiredHandoffKeys: ["files_read", "not_a_real_key"] },
+    ]);
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.some((e) => /unknown requiredHandoffKeys/i.test(e)));
+  });
+
+  it("validatePlanStepsCapability merges role + credential + handoff errors", () => {
+    const r = validatePlanStepsCapability(
+      [
+        {
+          agentId: "dev-backend",
+          task: "x",
+          requiredDomains: ["shell"],
+          requiredHandoffKeys: ["bogus"],
+        },
+      ],
+      { sessionCredentialMode: "read" },
+    );
+    assert.equal(r.ok, false);
+    assert.ok(r.errors.length >= 2);
   });
 });
