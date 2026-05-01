@@ -6,7 +6,7 @@ token usage per phase, and DEV→QA iteration counts.
 Appends a JSON record to ~/.claude/metrics/flow-metrics.jsonl
 and prints a human-readable summary as hook context.
 
-Post-compact / FLOW loss (HOOKS-METRICS-1):
+Post-compact / FLOW loss:
   If the transcript no longer contains ``FLOW:`` but a prior run stored
   ``flow_mode`` under project-local state (see merge_flow_report), the
   emitted record uses that value with ``transcript_scope=post_compact`` and
@@ -519,6 +519,43 @@ def format_summary(data: dict, cost: float) -> str:
     lines.append(f"  Saved to: {METRICS_FILE}")
     return "\n".join(lines)
 
+
+def format_end_of_run_validation(data: dict) -> str:
+    """
+    Concise end-of-run validation footer — warning flags and trust caveats.
+    Non-blocking; informational only.
+    """
+    lines = ["--- End-of-run validation ---"]
+    ws = list(data.get("warnings") or [])
+    if ws:
+        lines.append("Status: WARN (non-fatal hook flags)")
+        lines.append("Warning flags: " + ", ".join(sorted(set(ws))))
+    else:
+        lines.append("Status: OK (no warning flags on this run)")
+    lines.append(
+        "Phase/MODE rows: inferred from transcript assistant text (MODE:/ROLE: regex); "
+        "best-effort. «No MODE declarations» means none matched — not proof none existed."
+    )
+    lines.append(
+        "Tokens: observed from transcript usage fields. USD: estimated via constants.PRICE "
+        "(not billing; pricing drift possible)."
+    )
+    sid = session_id()
+    lines.append(
+        f"Session id: {'present' if sid else 'missing'} — "
+        + (
+            "persisted flow hook state enabled."
+            if sid
+            else "persisted flow state skipped; flow may rely on transcript only."
+        )
+    )
+    lines.append(
+        f"Flow field: {data.get('flow_mode', '?')} "
+        f"(source={data.get('flow_source', '?')}, scope={data.get('transcript_scope', '?')})"
+    )
+    return "\n".join(lines)
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     transcript = find_transcript()
@@ -544,7 +581,7 @@ def main():
         sys.exit(0)
 
     save_record(data, transcript, cost)
-    summary = format_summary(data, cost)
+    summary = format_summary(data, cost) + "\n\n" + format_end_of_run_validation(data)
 
     # Clean up orchestrator session flag
     try:
