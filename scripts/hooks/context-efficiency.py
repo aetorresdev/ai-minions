@@ -36,6 +36,15 @@ MAX_READS_PER_FILE   = 2   # block on 3rd read of same file+offset combo
 MAX_BASH_REPEATS     = 2   # warn (not block) on repeated bash — bash has side effects
 CACHE_RATIO_WARN     = 0.40  # warn if cache_ratio drops below this
 
+# HOOKS-R2A: one-shot context budget warning when composite score falls below threshold (non-repeating).
+def budget_warn_min_score() -> int:
+    raw = os.environ.get("CTX_EFFICIENCY_BUDGET_WARN_MIN_SCORE", "45").strip()
+    try:
+        v = int(raw)
+        return max(0, min(100, v))
+    except ValueError:
+        return 45
+
 # Tools to skip in PostToolUse metric collection (not relevant to efficiency)
 _SKIP_METRIC = {"TodoWrite", "ToolSearch", "AskUserQuestion"}
 
@@ -62,7 +71,10 @@ def get_ctx(state: dict) -> dict:
         state["ctx_efficiency"] = {
             "reads": [],      # list of {path, offset} dicts
             "bash_cmds": [],  # list of command strings (truncated to 200 chars)
+            "budget_warn_emitted": False,
         }
+    if "budget_warn_emitted" not in state["ctx_efficiency"]:
+        state["ctx_efficiency"]["budget_warn_emitted"] = False
     return state["ctx_efficiency"]
 
 
@@ -166,6 +178,12 @@ def handle_post_tool(hook: dict):
 
     if cache_ratio < CACHE_RATIO_WARN:
         parts.append("⚠ low cache")
+
+    thr = budget_warn_min_score()
+    if score < thr and not ctx.get("budget_warn_emitted"):
+        parts.append(f"⚠ context budget low (score {score} < {thr}; threshold via CTX_EFFICIENCY_BUDGET_WARN_MIN_SCORE)")
+        ctx["budget_warn_emitted"] = True
+        save_state(state)
 
     output = {
         "hookSpecificOutput": {

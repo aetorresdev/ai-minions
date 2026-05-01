@@ -21,6 +21,7 @@ const path = require("path");
 const fs   = require("fs");
 const { run } = require("./orchestrator");
 const { setModelProfile } = require("./agents");
+const { loadMinionsProjectConfig } = require("./minions-config");
 
 function loadModelsConfig() {
   const configPath = path.join(__dirname, "models.json");
@@ -86,6 +87,17 @@ async function main() {
   }
 
   console.log(`\nOrchestrator starting in: ${cwd}`);
+  const minions = loadMinionsProjectConfig(cwd);
+  if (minions.error) {
+    console.error(minions.error);
+    process.exit(1);
+  }
+  const traceScenarioFromMinions =
+    minions.config?.orchestrator?.trace_scenario_id &&
+    !(process.env.ORCH_TRACE_SCENARIO_ID && String(process.env.ORCH_TRACE_SCENARIO_ID).trim())
+      ? String(minions.config.orchestrator.trace_scenario_id).trim()
+      : undefined;
+
   const handoffNote = requireHandoffOverride === true ? " | require_handoff: forced ON"
     : requireHandoffOverride === false ? " | require_handoff: forced OFF"
       : "";
@@ -99,6 +111,7 @@ async function main() {
     taskId,
     skipStateMcp: skipGates,
     ...(requireHandoffOverride !== null ? { requireHandoff: requireHandoffOverride } : {}),
+    ...(traceScenarioFromMinions ? { traceScenarioId: traceScenarioFromMinions } : {}),
   });
 
   // Note: each agent call uses CLAUDE_CLI_TIMEOUT (default 3 min).
