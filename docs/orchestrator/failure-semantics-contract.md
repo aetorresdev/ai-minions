@@ -33,4 +33,4 @@ Unified classification for **`iteration_done`** traces: stable **`transition_rea
 
 ## Out of scope here
 
-Trace redaction and secret-handling policy, network egress controls, and model routing behavior — unchanged by this failure classification contract (see [strict-mode.md](./strict-mode.md) and `orchestrator/trace-redact.js` for redaction).
+Trace redaction and secret-handling policy, network egress controls, and model routing behavior — unchanged by this failure classification contract (see [trace-privacy-contract.md](./trace-privacy-contract.md) and [strict-mode.md](./strict-mode.md)).

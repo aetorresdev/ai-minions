@@ -51,6 +51,7 @@ What makes behavior inspectable and comparable:
 - Trace schema and line semantics — [strict-mode.md](strict-mode.md)
 - `reason_code` values, including future or applicable permission `PERM_*` codes once permission gates emit them (see [runtime-permission-contract.md](runtime-permission-contract.md))
 - Failure semantics for **`iteration_done`** ([failure-semantics-contract.md](failure-semantics-contract.md))
+- Trace privacy / redaction ([trace-privacy-contract.md](trace-privacy-contract.md); details in [strict-mode.md](strict-mode.md) § writer + field classification)
 - Run outcome summaries and rollups
 - Dashboard / export consumption ([dashboard-failure-taxonomy.md](dashboard-failure-taxonomy.md), [run-outcome-consumption.md](run-outcome-consumption.md))
 

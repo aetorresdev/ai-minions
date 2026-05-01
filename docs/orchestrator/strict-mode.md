@@ -554,6 +554,8 @@ When traces leave the operator workstation (CI artifacts, ticket paste, shared d
 
 ### Writer-time secret redaction (TRACE-SEC-R2)
 
+**Consolidated index:** [trace-privacy-contract.md](./trace-privacy-contract.md) (writer vs read paths, env, tests, limits).
+
 Before JSON Schema validation and append to `~/.claude/metrics/traces/<task_id>.jsonl`, **`_sanitize()`** in **`orchestrator/orchestrator.js`** runs **`redactSensitivePlaintext()`** on leak-prone string fields:
 
 - **`goal`** — after redaction, then truncated / hashed as before (`TRACE_REDACT_GOAL=1` unchanged).
