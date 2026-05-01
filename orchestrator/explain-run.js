@@ -25,6 +25,7 @@ const os   = require("os");
 
 const { rollupStepsCostOutcome } = require("./token-trace-report");
 const { sanitizeTraceRowsForRead } = require("./trace-redact");
+const { buildRunOutcomeSummary, formatRunOutcomeSummaryLines } = require("./run-outcome-summary");
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const MAX_LINES = 10_000;
@@ -262,9 +263,24 @@ function deriveExplain(rows) {
   return result;
 }
 
+/**
+ * Merge deriveExplain + run_outcome_summary for CLI / JSON export (OBS consumption layer).
+ * @param {object[]} sortedRows — sorted ascending by ts_ms; sanitized for read
+ * @param {{ trace_file?: string | null, ollama_usd_estimate?: object | null }} [meta]
+ * @returns {object}
+ */
+function composeExplainExport(sortedRows, meta = {}) {
+  const explain = deriveExplain(sortedRows);
+  const run_outcome_summary = buildRunOutcomeSummary(sortedRows, {
+    trace_file: meta.trace_file != null ? meta.trace_file : null,
+    ...(meta.ollama_usd_estimate != null ? { ollama_usd_estimate: meta.ollama_usd_estimate } : {}),
+  });
+  return { ...explain, run_outcome_summary };
+}
+
 // ── Output ───────────────────────────────────────────────────────────────────
 
-function printHuman(runId, filePath, explain, skipped, truncated) {
+function printHuman(runId, filePath, explain, skipped, truncated, sortedRows) {
   console.log(`run_id:       ${runId}`);
   console.log(`trace_file:   ${filePath}`);
   if (truncated) {
@@ -298,15 +314,19 @@ function printHuman(runId, filePath, explain, skipped, truncated) {
   if (skipped > 0) {
     console.log(`\nWARNING: ${skipped} invalid JSON line(s) skipped`);
   }
+
+  const ros = buildRunOutcomeSummary(sortedRows, { trace_file: filePath });
+  const useColor = process.stdout.isTTY && process.env.NO_COLOR == null;
+  console.log(formatRunOutcomeSummaryLines(ros, { useColor }).join("\n"));
 }
 
-function printJson(runId, filePath, explain, skipped, truncated) {
+function printJson(runId, filePath, sortedRows, skipped, truncated) {
   console.log(JSON.stringify({
     run_id: runId,
     trace_file: filePath,
     truncated,
     skipped_lines: skipped,
-    ...explain,
+    ...composeExplainExport(sortedRows, { trace_file: filePath }),
   }, null, 2));
 }
 
@@ -319,7 +339,7 @@ function usage() {
 Options:
   --file <path>   Read this JSONL file directly
   --run-id <id>   Look up <id>.jsonl in traces dir
-  --json          Output structured JSON instead of human-readable text
+  --json          Output structured JSON (includes run_outcome_summary + deriveExplain fields)
   (none)          Resolve latest run by ts_ms (tie-break: sequence_id)
 
 Env: ORCH_TRACES_DIR (default: ~/.claude/metrics/traces)`);
@@ -379,9 +399,9 @@ function main() {
     || path.basename(filePath, ".jsonl");
 
   if (jsonOut) {
-    printJson(resolvedRunId, filePath, explain, skipped, truncated);
+    printJson(resolvedRunId, filePath, sorted, skipped, truncated);
   } else {
-    printHuman(resolvedRunId, filePath, explain, skipped, truncated);
+    printHuman(resolvedRunId, filePath, explain, skipped, truncated, sorted);
   }
 }
 
@@ -389,4 +409,10 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { parseJsonl, enforceLimits, deriveExplain, resolveLatestRunFile };
+module.exports = {
+  parseJsonl,
+  enforceLimits,
+  deriveExplain,
+  resolveLatestRunFile,
+  composeExplainExport,
+};
