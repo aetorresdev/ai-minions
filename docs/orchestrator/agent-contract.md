@@ -6,6 +6,26 @@ This document defines the roles and **MODE protocol** to prevent a single agent 
 
 **Related (alpha design contracts):** [Runtime permission contract](runtime-permission-contract.md) · [Capability flow (task/run/step)](capability-flow-contract.md) · [Strategic recommendation gate](strategic-recommendation-gate.md)
 
+**Harness framing:** [Agent harness model](agent-harness.md) — how context, memory/state, control, validation, and observability fit together.
+
+---
+
+## Contract role inside the harness
+
+Agent contracts are **not** prompts. They are **execution boundaries**.
+
+Each contract should make explicit:
+
+- **Role responsibility** — what this MODE owns and what it must not do
+- **Allowed inputs** — envelope, artifacts, environmental constraints
+- **Expected outputs** — shape, minimum fields, handoff YAML
+- **Validation criteria** — what `validateOutput` / gates enforce
+- **Allowed capabilities / tools** — aligned with the capability matrix where relevant
+- **Failure behavior** — fail closed, trace expectations, no silent advance
+- **Trace expectations** — what evidence must appear in JSONL / events for audit
+
+Treat ambiguous prose as a bug: reviewers and automation should not have to guess whether a path was allowed.
+
 ---
 
 ## Risk: one chat, many roles
