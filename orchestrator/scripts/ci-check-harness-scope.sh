@@ -40,4 +40,21 @@ if git grep -q "E2E_STRICT_GATE_PATH" -- . "${legacy_excludes[@]}" 2>/dev/null; 
   exit 1
 fi
 
+# --- ORCH_TEST_PLAN_UNKNOWN_ROLE (harness-only; plan stub with unknown agentId for regression tests)
+U="ORCH_TEST_PLAN_UNKNOWN""_ROLE"
+excludes_u=(
+  ":(exclude).github"
+  ":(exclude)orchestrator/tests/capability-plan-reject.test.js"
+  ":(exclude)orchestrator/agents.js"
+  ":(exclude)orchestrator/README.md"
+  ":(exclude)orchestrator/scripts/ci-check-harness-scope.sh"
+)
+
+mapfile -t hits_u < <(git grep -l "$U" -- . "${excludes_u[@]}" 2>/dev/null || true)
+if ((${#hits_u[@]} > 0)); then
+  echo "::error::ORCH_TEST_PLAN_UNKNOWN_ROLE referenced outside allowlist:"
+  printf '%s\n' "${hits_u[@]}"
+  exit 1
+fi
+
 echo "Harness scope OK."
