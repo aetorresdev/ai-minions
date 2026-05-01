@@ -653,6 +653,8 @@ orchestrator/
 │   ├── routing/
 │   │   └── model-routing.js   # MODEL_ROUTING, FALLBACK_POLICY, Ollama routing constants
 │   ├── permissions.js         # ROLE_PERMISSION, effectiveMode()
+│   ├── capability-matrix.js   # CAPABILITY-FLOW-1: role × domain matrix + validatePlanStepRoles
+│   ├── capability-matrix.v1.json
 │   ├── validate-output.js     # validateOutput, normalizeDevContractText, CERBERUS semantic helpers
 │   ├── registry.js            # buildAgents() → AGENTS (prompts + model getters)
 │   ├── prompts/
@@ -673,7 +675,8 @@ orchestrator/
     ├── orchestrator.test.js     # Unit: detectBlockers + validateHandoffStructure
     ├── askAgent.test.js         # Integration: askAgent() with mocked CLI
     ├── modelRoutingStrategy.test.js
-    └── rolePermissionMatrix.test.js
+    ├── rolePermissionMatrix.test.js
+    └── capability-matrix.test.js
 ```
 
 **Repo root `agents/`** (subagent specs for skills / MCP task) is **not** this folder — see [shared-dependencies.md](../docs/orchestrator/shared-dependencies.md) and [role-agent-registry.md](../docs/orchestrator/role-agent-registry.md).

@@ -20,7 +20,6 @@ The goal is not to make agents sound autonomous. The goal is to make agent behav
 The goal is not to make AI feel smarter. It is to make it **harder to approve something you do not understand**—because that is exactly how broken systems get shipped.
 
 > ai-minions is not trying to make agents more human. It is building the harness around them so their work becomes bounded, observable, testable, and rejectable.
-
 > *Si no lo entiendo, no lo apruebo.* — If I don't understand it, I don't approve it.
 > Most production incidents start with someone doing exactly the opposite.
 
