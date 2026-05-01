@@ -1,5 +1,5 @@
 """
-HOOKS-R2D: negative / malformed input should not crash hooks (fail safe / exit 0).
+Negative / malformed hook stdin should not crash scripts (fail safe / exit 0).
 """
 import os
 import subprocess

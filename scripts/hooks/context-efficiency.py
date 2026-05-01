@@ -2,6 +2,23 @@
 """
 context-efficiency.py — PreToolUse + PostToolUse hook
 
+Compact policy (deterministic — same inputs + session state ⇒ same decision):
+  PreToolUse Read:
+    - Block when the same (file_path, offset) pair would be read more than
+      MAX_READS_PER_FILE times in this session (see code constant).
+    - Otherwise append read to ctx_efficiency.reads and allow.
+  PostToolUse:
+    - Efficiency score 0–100 from repeated reads, repeated bash, low cache_ratio
+      (CACHE_RATIO_WARN); optional one-shot budget warning when score <
+      CTX_EFFICIENCY_BUDGET_WARN_MIN_SCORE (default 45), recorded once per session
+      via ctx_efficiency.budget_warn_emitted.
+
+Snapshot / flow snapshot (explicit N/A for this hook):
+  This script does **not** implement session snapshot reinjection or
+  «compact boundary» capture — those live elsewhere (e.g. repo scripts under
+  scripts/hooks/*.sh or Claude product behaviour). State here is limited to
+  ctx_efficiency counters under ~/.claude/metrics/sessions/<SESSION_ID>.json.
+
 PreToolUse (matcher: Read):
   Blocks re-reads of the same file within the same session.
   A re-read is defined as the same file_path appearing more than once
@@ -36,7 +53,7 @@ MAX_READS_PER_FILE   = 2   # block on 3rd read of same file+offset combo
 MAX_BASH_REPEATS     = 2   # warn (not block) on repeated bash — bash has side effects
 CACHE_RATIO_WARN     = 0.40  # warn if cache_ratio drops below this
 
-# HOOKS-R2A: one-shot context budget warning when composite score falls below threshold (non-repeating).
+# One-shot context budget warning when composite score falls below threshold (non-repeating).
 def budget_warn_min_score() -> int:
     raw = os.environ.get("CTX_EFFICIENCY_BUDGET_WARN_MIN_SCORE", "45").strip()
     try:
