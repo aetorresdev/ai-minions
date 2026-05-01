@@ -4,6 +4,8 @@ This document defines the roles and **MODE protocol** to prevent a single agent 
 
 **Location (from the root of this repo):** `docs/orchestrator/agent-contract.md`. Convention and other clones: [PATHS.md](PATHS.md).
 
+**Related (alpha design contracts):** [Runtime permission contract](runtime-permission-contract.md) · [Capability flow (task/run/step)](capability-flow-contract.md) · [Strategic recommendation gate](strategic-recommendation-gate.md)
+
 ---
 
 ## Risk: one chat, many roles
