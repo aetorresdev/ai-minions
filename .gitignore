@@ -71,3 +71,10 @@ docs/archive/ai-minions-backlog-groomed-*.md
 
 # Claude session snapshots (local; not repo content)
 .claude/state/
+.claude/snapshots/
+state/*
+usage-data/*
+stats-cache.json
+mcp-needs-auth-cache.json
+.cursor/*
+scripts/clean-ai-commit-trails.sh
