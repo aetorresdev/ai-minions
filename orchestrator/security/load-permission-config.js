@@ -10,11 +10,6 @@ const PROFILES_PATH = path.join(SECURITY_DIR, "permission-profiles.v1.json");
 const CATALOG_PATH = path.join(SECURITY_DIR, "capability-catalog.v1.json");
 const MATRIX_PATH = path.join(AGENTS_DIR, "capability-matrix.v1.json");
 
-const VALID_DOMAINS = [
-  "remote_model", "local_model", "shell", "filesystem",
-  "network", "mcp", "git", "context_retrieval"
-];
-
 const VALID_PROFILES = ["dev-local", "ci-safe", "prod-guarded"];
 
 function loadJson(filePath) {
@@ -27,14 +22,13 @@ function validateMatrix(matrix) {
   if (!matrix.domains || !Array.isArray(matrix.domains)) {
     throw new Error("capability-matrix missing domains array");
   }
-  for (const d of matrix.domains) {
-    if (!VALID_DOMAINS.includes(d)) {
-      throw new Error(`capability-matrix unknown domain: ${d}`);
-    }
+  if (matrix.domains.length === 0) {
+    throw new Error("capability-matrix domains array must not be empty");
   }
   if (!matrix.roles || typeof matrix.roles !== "object") {
     throw new Error("capability-matrix missing roles");
   }
+  // matrix.domains is authoritative — no secondary enum here
 }
 
 function validateProfiles(profiles, matrixDomains) {
@@ -70,7 +64,7 @@ function validateCatalog(catalog, matrixDomains) {
   }
   // capability_classes entries must reference valid domains
   if (catalog.capability_classes) {
-    for (const [domainKey, classes] of Object.entries(catalog.capability_classes)) {
+    for (const [domainKey, _] of Object.entries(catalog.capability_classes)) {
       if (domainKey === "mcp" || domainKey === "context_retrieval") continue; // structured differently
       if (!matrixDomains.includes(domainKey)) {
         throw new Error(`capability-catalog capability_classes references unknown domain: ${domainKey}`);
@@ -107,4 +101,4 @@ function resolveProfile(profileName, profiles) {
   return profile;
 }
 
-module.exports = { loadPermissionConfig, resolveProfile, VALID_PROFILES, VALID_DOMAINS };
+module.exports = { loadPermissionConfig, resolveProfile, VALID_PROFILES };
