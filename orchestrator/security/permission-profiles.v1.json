@@ -1,0 +1,138 @@
+{
+  "$schema_comment": "Built-in permission profiles for the orchestrator runtime. Extends domains defined in orchestrator/agents/capability-matrix.v1.json. Aligned with docs/orchestrator/runtime-permission-contract.md §4.",
+  "version": "profiles.orchestrator.v1",
+  "declaration_sources_precedence": [
+    "permissions_yaml",
+    "built_in_profile",
+    "capability_catalog",
+    "repo_skill_metadata"
+  ],
+  "profiles": {
+    "dev-local": {
+      "description": "Normal local development. Broad capability envelope; ambiguous writes require classification.",
+      "domains": {
+        "remote_model": "allow",
+        "local_model": "allow",
+        "shell": "approval_required",
+        "filesystem": {
+          "default": "read_write",
+          "write_classes": {
+            "write_local_repo": "allow",
+            "write_draft": "allow",
+            "write_external_state": "approval_required",
+            "external_side_effect": "approval_required",
+            "ambiguous_write": "requires_classification"
+          },
+          "destructive": "deny"
+        },
+        "network": {
+          "default": "deny",
+          "allow_hosts": ["localhost", "127.0.0.1", "localhost:11434"]
+        },
+        "mcp": {
+          "default": "deny",
+          "trust_policy": {
+            "local_declared": "allow",
+            "remote_declared": "warn_allow",
+            "runtime_discovered": "warn_deny",
+            "unknown": "deny"
+          }
+        },
+        "git": "read_write",
+        "context_retrieval": {
+          "default": "allow",
+          "constraints": {
+            "forbid_full_file": true,
+            "max_chunks_per_query": 20
+          }
+        }
+      },
+      "credential_reveal": "deny",
+      "credential_export": "deny"
+    },
+    "ci-safe": {
+      "description": "CI environment. No external writes or side effects; MCP only if explicitly configured.",
+      "domains": {
+        "remote_model": "allow",
+        "local_model": "allow",
+        "shell": "deny",
+        "filesystem": {
+          "default": "read_write",
+          "write_classes": {
+            "write_local_repo": "allow",
+            "write_draft": "allow",
+            "write_external_state": "deny",
+            "external_side_effect": "deny",
+            "ambiguous_write": "requires_classification"
+          },
+          "destructive": "deny"
+        },
+        "network": {
+          "default": "deny",
+          "allow_hosts": []
+        },
+        "mcp": {
+          "default": "deny",
+          "trust_policy": {
+            "local_declared": "allow_if_ci_configured",
+            "remote_declared": "deny",
+            "runtime_discovered": "deny",
+            "unknown": "deny"
+          }
+        },
+        "git": "read_only",
+        "context_retrieval": {
+          "default": "warn_only",
+          "constraints": {
+            "forbid_full_file": true,
+            "max_chunks_per_query": 10
+          }
+        }
+      },
+      "credential_reveal": "deny",
+      "credential_export": "deny"
+    },
+    "prod-guarded": {
+      "description": "Demo or client-facing runs. Declared capabilities only; external writes require explicit allow.",
+      "domains": {
+        "remote_model": "allow",
+        "local_model": "deny",
+        "shell": "deny",
+        "filesystem": {
+          "default": "read_only",
+          "write_classes": {
+            "write_local_repo": "deny",
+            "write_draft": "approval_required",
+            "write_external_state": "approval_required",
+            "external_side_effect": "approval_required",
+            "ambiguous_write": "deny"
+          },
+          "destructive": "deny"
+        },
+        "network": {
+          "default": "deny",
+          "allow_hosts": []
+        },
+        "mcp": {
+          "default": "deny",
+          "trust_policy": {
+            "local_declared": "allow",
+            "remote_declared": "approval_required",
+            "runtime_discovered": "deny",
+            "unknown": "deny"
+          }
+        },
+        "git": "read_only",
+        "context_retrieval": {
+          "default": "allow",
+          "constraints": {
+            "forbid_full_file": true,
+            "max_chunks_per_query": 10
+          }
+        }
+      },
+      "credential_reveal": "deny",
+      "credential_export": "deny"
+    }
+  }
+}
