@@ -65,7 +65,7 @@ function validateCatalog(catalog, matrixDomains) {
   // capability_classes entries must reference valid domains
   if (catalog.capability_classes) {
     for (const [domainKey, _] of Object.entries(catalog.capability_classes)) {
-      if (domainKey === "mcp" || domainKey === "context_retrieval") continue; // structured differently
+      if (domainKey === "mcp" || domainKey === "context_retrieval" || domainKey === "description") continue;
       if (!matrixDomains.includes(domainKey)) {
         throw new Error(`capability-catalog capability_classes references unknown domain: ${domainKey}`);
       }

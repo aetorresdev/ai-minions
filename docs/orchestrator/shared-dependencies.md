@@ -47,6 +47,8 @@ Before adding a new **runtime** dependency on a path outside `orchestrator/`:
 
 Claude Code **Stop** hook: `scripts/hooks/flow-metrics.py`. It appends JSON lines to `~/.claude/metrics/flow-metrics.jsonl` (host path) and merges transcript parse with **per-session** state so metrics do not silently default to `single_agent` when the transcript no longer contains `FLOW:` after compact.
 
+For **metric trust levels**, **warning-flag semantics**, and the **end-of-run validation** block appended to the Stop hook `systemMessage`, see [hooks-claude-code-metrics-validation.md](hooks-claude-code-metrics-validation.md) (same topics for `context-efficiency.py` compact policy there).
+
 | Mechanism | Detail |
 |-----------|--------|
 | Session identity | **`CLAUDE_SESSION_ID`** must be non-empty for any **read/write** of flow-hook state. If absent: no persistence, `flow_source` is never `persisted_state`, warning **`missing_session_id`** when there are tokens to report (post-merge in Stop hook). |
@@ -61,4 +63,5 @@ Claude Code **Stop** hook: `scripts/hooks/flow-metrics.py`. It appends JSON line
 ## See also
 
 - [PATHS.md](PATHS.md) — `REPO_ROOT`, Cursor, repo-root detection  
-- [agent-contract.md](agent-contract.md) — MODE, MCP tool flow, skills *by role* (editor context)
+- [agent-contract.md](agent-contract.md) — MODE, MCP tool flow, skills *by role* (editor context)  
+- [hooks-claude-code-metrics-validation.md](hooks-claude-code-metrics-validation.md) — Claude Code hooks: compact policy, trust caveats, Stop-hook footer
