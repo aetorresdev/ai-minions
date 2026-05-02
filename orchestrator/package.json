@@ -30,5 +30,8 @@
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "eslint": "^9.39.4"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.1"
   }
 }

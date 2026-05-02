@@ -28,13 +28,18 @@ function withTempRepo(yamlContent, fn) {
   }
 }
 
-const MINIMAL_VALID_JSON = JSON.stringify({
-  permission_policy_version: 1,
-  extends: ["dev-local"],
-  project_capabilities: ["n8n_workflow_authoring"],
-  runtime: { allow_public_docs_lookup: true },
-  credentials: { reveal: "deny", export: "deny" },
-});
+const MINIMAL_VALID_YAML = `
+permission_policy_version: 1
+extends:
+  - dev-local
+project_capabilities:
+  - n8n_workflow_authoring
+runtime:
+  allow_public_docs_lookup: true
+credentials:
+  reveal: deny
+  export: deny
+`;
 
 describe("loadProjectPolicy", () => {
   it("returns null when .ai-minions/permissions.yaml is absent", () => {
@@ -45,7 +50,7 @@ describe("loadProjectPolicy", () => {
   });
 
   it("loads and returns valid project policy", () => {
-    withTempRepo(MINIMAL_VALID_JSON, (dir) => {
+    withTempRepo(MINIMAL_VALID_YAML, (dir) => {
       const result = loadProjectPolicy(dir);
       assert.ok(result);
       assert.equal(result.permission_policy_version, 1);
@@ -54,7 +59,7 @@ describe("loadProjectPolicy", () => {
   });
 
   it("throws on malformed policy (bad version)", () => {
-    const bad = JSON.stringify({ permission_policy_version: 99, extends: ["dev-local"] });
+    const bad = "permission_policy_version: 99\nextends:\n  - dev-local\n";
     withTempRepo(bad, (dir) => {
       assert.throws(
         () => loadProjectPolicy(dir),
@@ -64,7 +69,7 @@ describe("loadProjectPolicy", () => {
   });
 
   it("throws on missing extends", () => {
-    const bad = JSON.stringify({ permission_policy_version: 1 });
+    const bad = "permission_policy_version: 1\n";
     withTempRepo(bad, (dir) => {
       assert.throws(
         () => loadProjectPolicy(dir),
@@ -74,7 +79,7 @@ describe("loadProjectPolicy", () => {
   });
 
   it("throws on unknown profile in extends", () => {
-    const bad = JSON.stringify({ permission_policy_version: 1, extends: ["super-admin"] });
+    const bad = "permission_policy_version: 1\nextends:\n  - super-admin\n";
     withTempRepo(bad, (dir) => {
       assert.throws(
         () => loadProjectPolicy(dir),
@@ -105,7 +110,7 @@ describe("validatePolicy — dangerous_actions", () => {
           extends: ["dev-local"],
           dangerous_actions: { allow: [{ id: "terraform_apply" }] },
         }),
-      /must include 'id', 'tool', and 'target_class'/
+      /must include non-empty string 'id', 'tool', and 'target_class'/
     );
   });
 
@@ -118,6 +123,32 @@ describe("validatePolicy — dangerous_actions", () => {
           allow: [{ id: "terraform_apply", tool: "terraform", target_class: "local_dev_cloud_account" }],
         },
       })
+    );
+  });
+
+  it("rejects plain string in allow[] (not a scoped object)", () => {
+    assert.throws(
+      () =>
+        validatePolicy({
+          permission_policy_version: 1,
+          extends: ["dev-local"],
+          dangerous_actions: { allow: ["terraform_apply"] },
+        }),
+      /must be a scoped object/
+    );
+  });
+
+  it("rejects allow entry with unknown guarded action id", () => {
+    assert.throws(
+      () =>
+        validatePolicy({
+          permission_policy_version: 1,
+          extends: ["dev-local"],
+          dangerous_actions: {
+            allow: [{ id: "totally_unknown_action", tool: "bash", target_class: "any" }],
+          },
+        }),
+      /Unknown guarded action in dangerous_actions\.allow/
     );
   });
 
@@ -157,7 +188,7 @@ describe("mergeProjectPolicy", () => {
   });
 
   it("returns project_policy source when policy present", () => {
-    const policy = JSON.parse(MINIMAL_VALID_JSON);
+    const policy = { permission_policy_version: 1, extends: ["dev-local"], project_capabilities: ["n8n_workflow_authoring"] };
     const merged = mergeProjectPolicy(fakeProfile, policy, "dev-local");
     assert.equal(merged.policy_source, "project_policy");
     assert.deepEqual(merged.project_capabilities, ["n8n_workflow_authoring"]);

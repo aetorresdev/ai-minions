@@ -21,24 +21,10 @@ const GUARDED_ACTIONS = [
   "n8n_execute_workflow",
 ];
 
+const yaml = require("js-yaml");
+
 function parseYaml(raw) {
-  // Minimal YAML parser for the permitted policy shape.
-  // We use a line-by-line approach to avoid pulling in a full YAML dep.
-  // Only supports the subset used by permissions.yaml (flat keys, arrays, nested objects).
-  // For production, replace with js-yaml when adding it to package.json.
-  try {
-    // Delegate to js-yaml if available, otherwise use JSON fallback for tests
-    // eslint-disable-next-line
-    const yaml = require("js-yaml");
-    return yaml.load(raw);
-  } catch (_) {
-    // In test environments that pass JSON strings, fall back gracefully
-    try {
-      return JSON.parse(raw);
-    } catch (jsonErr) {
-      throw new Error(`Policy parse error: ${jsonErr.message}`);
-    }
-  }
+  return yaml.load(raw);
 }
 
 function validatePolicy(policy) {
@@ -69,7 +55,7 @@ function validatePolicy(policy) {
     }
   }
 
-  // Wildcard allow is forbidden
+  // Wildcard allow is forbidden; every entry must be a scoped object with known guarded action
   if (policy.dangerous_actions?.allow) {
     const allows = policy.dangerous_actions.allow;
     if (Array.isArray(allows)) {
@@ -77,13 +63,18 @@ function validatePolicy(policy) {
         if (entry === "*") {
           throw new Error("Wildcard allow ('*') is forbidden in dangerous_actions.allow");
         }
-        // Each scoped allow must declare action + tool + target_class
-        if (typeof entry === "object") {
-          if (!entry.id || !entry.tool || !entry.target_class) {
+        if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+          throw new Error("Each dangerous_actions.allow entry must be a scoped object");
+        }
+        for (const key of ["id", "tool", "target_class"]) {
+          if (typeof entry[key] !== "string" || entry[key].trim() === "") {
             throw new Error(
-              "Each dangerous_actions.allow entry must include 'id', 'tool', and 'target_class'"
+              "Each dangerous_actions.allow entry must include non-empty string 'id', 'tool', and 'target_class'"
             );
           }
+        }
+        if (!GUARDED_ACTIONS.includes(entry.id)) {
+          throw new Error(`Unknown guarded action in dangerous_actions.allow: ${entry.id}`);
         }
       }
     }
