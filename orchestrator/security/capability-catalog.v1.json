@@ -1,0 +1,87 @@
+{
+  "$schema_comment": "Capability catalog for the orchestrator runtime. References domains from orchestrator/agents/capability-matrix.v1.json — does NOT redefine them. Aligned with docs/orchestrator/runtime-permission-contract.md §3.",
+  "version": "catalog.orchestrator.v1",
+  "extends": "orchestrator/agents/capability-matrix.v1.json",
+  "doc_categories": {
+    "description": "Allowed documentation retrieval scopes per context_retrieval domain.",
+    "categories": [
+      "n8n_docs",
+      "terraform_docs",
+      "kubernetes_docs",
+      "aws_docs",
+      "gcp_docs",
+      "github_docs",
+      "jenkins_docs",
+      "docker_docs"
+    ]
+  },
+  "capability_classes": {
+    "description": "Fine-grained action classes within each domain. Evaluator uses these to resolve action_class from raw tool input.",
+    "filesystem": {
+      "write_local_repo": {
+        "description": "Write to files within the current workspace/repo root.",
+        "domain": "filesystem",
+        "requires_target_classification": false
+      },
+      "write_draft": {
+        "description": "Write to a scratch or draft location outside the repo (e.g. /tmp, notes).",
+        "domain": "filesystem",
+        "requires_target_classification": false
+      },
+      "write_external_state": {
+        "description": "Write that mutates external or shared state (database, remote config, deployed artifact).",
+        "domain": "filesystem",
+        "requires_target_classification": true
+      },
+      "external_side_effect": {
+        "description": "Action with observable external side effect beyond the local workspace.",
+        "domain": "filesystem",
+        "requires_target_classification": true
+      },
+      "ambiguous_write": {
+        "description": "Write whose target class cannot be determined from input alone. Must not proceed without classification.",
+        "domain": "filesystem",
+        "requires_target_classification": true,
+        "default_policy": "requires_approval"
+      },
+      "destructive": {
+        "description": "Irreversible deletion or overwrite of existing state.",
+        "domain": "filesystem",
+        "requires_target_classification": true,
+        "default_policy": "deny"
+      }
+    },
+    "mcp": {
+      "trust_levels": {
+        "local_declared": "MCP server configured locally AND declared in project policy or built-in profile.",
+        "remote_declared": "Remote MCP endpoint declared explicitly with target class and allowed capabilities.",
+        "runtime_discovered": "MCP/tool seen during execution but NOT in any declaration source.",
+        "unknown": "No matching declaration."
+      }
+    },
+    "context_retrieval": {
+      "scoped_retrieval": {
+        "description": "Retrieval bounded by declared scopes, chunk budget, no full-file access.",
+        "domain": "context_retrieval",
+        "requires_target_classification": false
+      },
+      "full_file_retrieval": {
+        "description": "Attempt to retrieve a full file as a document. Forbidden by default in all profiles.",
+        "domain": "context_retrieval",
+        "requires_target_classification": true,
+        "default_policy": "deny"
+      }
+    }
+  },
+  "credential_classes": {
+    "description": "Credential-related action classes. Always deny reveal/export regardless of profile.",
+    "credential_reveal": {
+      "description": "Printing, echoing, or displaying a secret value in any output.",
+      "default_policy": "deny"
+    },
+    "credential_export": {
+      "description": "Writing a secret value to a file, log, or external target.",
+      "default_policy": "deny"
+    }
+  }
+}
