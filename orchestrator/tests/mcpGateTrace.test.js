@@ -33,7 +33,7 @@ describe("MCP gate — trace parity (direct transport)", () => {
     delete process.env.ORCH_SKIP_MCP_PERMISSION_GATE;
 
     origSpawn = cp.spawnSync;
-    cp.spawnSync = (cmd, args, opts) => {
+    cp.spawnSync = (cmd, args, _opts) => {
       const argv = [cmd, ...(Array.isArray(args) ? args : [])].map((x) => String(x));
       if (argv.some((a) => a.includes("mcp-direct.py"))) {
         return { error: null, status: 0, stdout: '{"ok":true,"task_id":"stub"}\n', stderr: "" };
@@ -82,7 +82,7 @@ describe("MCP gate — trace parity (direct transport)", () => {
 
   it("denied MCP: one permission_check, zero mcp_call, mcp-direct.py not spawned", () => {
     let pythonLaunches = 0;
-    cp.spawnSync = (cmd, args, opts) => {
+    cp.spawnSync = (cmd, args, _opts) => {
       const argv = [cmd, ...(Array.isArray(args) ? args : [])].map((x) => String(x));
       if (argv.some((a) => a.includes("mcp-direct.py"))) {
         pythonLaunches += 1;
