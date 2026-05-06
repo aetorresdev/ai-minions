@@ -185,7 +185,7 @@ The **§7** narrative (ORCHESTRATOR plan → DEV → QA → CERBERUS → ORCHEST
 
 **Delivered in runner:** plan-time **`validatePlanStepsCapability`** — matrix ids, **`requiredDomains`**, **`requiredHandoffKeys`** vocabulary, session credential ceiling vs **`shell`**/**`network`**/**`git`** using **`permissions.effectiveMode`**. **`plan_capability_reject`** traces unchanged when validation fails.
 
-**Still incremental / other tracks:** (1) **`permission_check`** / **`PERM_*`** trace lines and path/network preflight per [runtime-permission-contract.md](runtime-permission-contract.md) — implementation milestone separate from matrix validation; (2) richer synthetic harness (**iterate**, gate failures, multiple outer iterations) if product needs more than `golden-multi-role-chain-v1`.
+**Still incremental / other tracks:** (1) **`permission_check`** on the **MCP** path is emitted by the reference runner when MCP audit is active (see [runtime-permission-contract.md](runtime-permission-contract.md) §8.4); path/network preflight and full **`PERM_*`** schema alignment remain separate milestones; (2) richer synthetic harness (**iterate**, gate failures, multiple outer iterations) if product needs more than `golden-multi-role-chain-v1`.
 
 ---
 

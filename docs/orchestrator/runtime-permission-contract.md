@@ -170,6 +170,16 @@ Add or extend lines (exact schema work is implementation; fields here are contra
 Existing **`iteration_done`** / stop paths may carry `transition_reason.reason_code` from §9 when the
 loop exits due to permission policy.
 
+### 8.4 Orchestrator MCP path (partial implementation)
+
+The reference runner (`orchestrator/orchestrator.js`) evaluates **MCP** invocations before execution and,
+when the per-run MCP audit task id is active, emits a **`permission_check`** trace line **before** the
+corresponding **`mcp_call`**. Payload shape is built by `orchestrator/security/trace-security-decision.js`
+(subset of evaluator input/output: `decision`, `reason_code`, `permission_profile`, `domain`, `action_class`,
+`target_class`, `requires_approval`, etc.). Evaluator codes for MCP trust today use the groomed vocabulary
+(e.g. `mcp_trust_allow`, `mcp_ci_configured_allow`, `mcp_trust_warn_deny`) — not necessarily the **`PERM_*`**
+prefixes listed in §9; aligning enums and schema validation is tracked as **SEC-NET-R1-C**.
+
 ---
 
 ## 9. Reason codes (policy results)

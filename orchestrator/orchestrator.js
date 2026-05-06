@@ -85,6 +85,7 @@ const {
   validateTraceLine: validateTraceLineForWrite,
 } = require("./trace-schema");
 const { redactSensitivePlaintext } = require("./trace-redact");
+const { runMcpPermissionGate } = require("./security/mcp-permission-gate");
 
 /** Same as `TRACE_LINE_WRITER_VERSION` in trace-schema.js — single source for writer + schema. */
 const TRACE_SCHEMA_VERSION = TRACE_LINE_WRITER_VERSION;
@@ -226,6 +227,42 @@ function recordMcpInvocation(entry) {
   if (!_mcpAuditTaskId) return;
   _mcpAuditCalls.push(entry);
   traceEvent(_mcpAuditTaskId, { event: "mcp_call", ...entry });
+}
+
+/**
+ * SEC-NET-R1-B: permission evaluator before MCP execution (fail closed).
+ * Set `ORCH_SKIP_MCP_PERMISSION_GATE=1` to bypass (tests / emergency only).
+ * @param {string} server
+ * @param {string} toolName
+ * @param {string} [cwd]
+ */
+function gateMcpInvocation(server, toolName, cwd) {
+  if (process.env.ORCH_SKIP_MCP_PERMISSION_GATE === "1") return;
+  const repoRoot = cwd || process.cwd();
+  let result;
+  try {
+    result = runMcpPermissionGate({
+      server,
+      tool: toolName,
+      repoRoot,
+    });
+  } catch (err) {
+    const e = new Error(`MCP permission gate failed: ${err.message}`);
+    e.cause = err;
+    e.code = "MCP_PERMISSION_GATE_ERROR";
+    throw e;
+  }
+  if (_mcpAuditTaskId) {
+    traceEvent(_mcpAuditTaskId, result.tracePayload);
+  }
+  const out = result.output;
+  if (out.decision === "deny" || out.decision === "requires_approval" || !out.safe_to_continue) {
+    const msg = `MCP invocation denied (${out.reason_code}): ${server}.${toolName}`;
+    const err = new Error(msg);
+    err.code = "MCP_PERMISSION_DENIED";
+    err.permission_decision = out;
+    throw err;
+  }
 }
 
 /**
@@ -790,7 +827,8 @@ function sanitizeOrchestratorStateArgs(toolName, args) {
 /**
  * Call compact-handoff or orchestrator-state via mcp-direct.py (no claude CLI).
  */
-function invokeMcpDirect(server, toolName, args) {
+function invokeMcpDirect(server, toolName, args, { cwd } = {}) {
+  gateMcpInvocation(server, toolName, cwd);
   const script = path.join(__dirname, "mcp-direct.py");
   if (!fs.existsSync(script)) {
     throw new Error(`mcp-direct.py not found at ${script}`);
@@ -837,14 +875,16 @@ function invokeMcpDirect(server, toolName, args) {
  * Returns parsed JSON response or throws on failure.
  */
 function callStateMcp(toolName, args, { cwd } = {}) {
-  void cwd;
   if (useMcpDirectTransport()) {
-    const parsed = invokeMcpDirect("orchestrator-state", toolName, sanitizeOrchestratorStateArgs(toolName, args));
+    const parsed = invokeMcpDirect("orchestrator-state", toolName, sanitizeOrchestratorStateArgs(toolName, args), {
+      cwd,
+    });
     if (parsed === null || typeof parsed !== "object") {
       throw new Error(`orchestrator-state.${toolName} returned non-JSON`);
     }
     return parsed;
   }
+  gateMcpInvocation("orchestrator-state", toolName, cwd);
   const argsStr = Object.entries(args)
     .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
     .join(", ");
@@ -918,21 +958,26 @@ function compactHandoffStrictFailureFields(err) {
 }
 
 function callCompactHandoff({ text, modeCompleted, nextMode, iteration, maxIterations, flowMode }, { cwd } = {}) {
-  void cwd;
   if (useMcpDirectTransport()) {
-    const out = invokeMcpDirect("compact-handoff", "compact_handoff", {
-      text,
-      mode_completed: modeCompleted,
-      next_mode: nextMode,
-      iteration,
-      max_iterations: maxIterations,
-      flow_mode: flowMode,
-    });
+    const out = invokeMcpDirect(
+      "compact-handoff",
+      "compact_handoff",
+      {
+        text,
+        mode_completed: modeCompleted,
+        next_mode: nextMode,
+        iteration,
+        max_iterations: maxIterations,
+        flow_mode: flowMode,
+      },
+      { cwd }
+    );
     const yaml = typeof out === "string" ? out : "";
     if (!yaml.trim()) throw new Error("compact_handoff returned empty output");
     if (yaml.startsWith("error:")) throw new Error(yaml.slice(0, 400));
     return yaml.trim();
   }
+  gateMcpInvocation("compact-handoff", "compact_handoff", cwd);
   const prompt = `Call the MCP tool compact-handoff.compact_handoff with these arguments and return only the raw YAML string, no other text:
 compact_handoff(
   text=${JSON.stringify(text)},
@@ -2166,4 +2211,11 @@ module.exports = {
   failureAxisForIterationDone,
   traceIterationDone,
   composeIterationDonePayload,
+
+  /** Test-only: MCP path surface for trace parity assertions — not a supported public API. */
+  _test_invokeMcpDirect: invokeMcpDirect,
+  _test_callStateMcp: callStateMcp,
+  _test_callCompactHandoff: callCompactHandoff,
+  _test_beginMcpAudit: beginMcpAudit,
+  _test_clearMcpAudit: clearMcpAudit,
 };

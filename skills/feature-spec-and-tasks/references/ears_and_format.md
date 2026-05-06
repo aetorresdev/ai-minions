@@ -82,7 +82,7 @@ The output is a **single spec document** (e.g. `docs/specs/<initiative>.md` or u
 | `reviewing-docker` | Review or audit Dockerfiles. |
 | `managing-n8n` | Create, validate, or optimize n8n workflows. |
 | `creating-circleci` / `reviewing-circleci` | Create or review CircleCI config. |
-| **Manual / security review** | Run security scan; review and apply only approved patches. Use when: (1) you have [Claude Code Security](https://claude.com/claude-code-security) (claude.com, Enterprise/Team) — run scan there and create tickets from validated findings; (2) otherwise use `compliance-checker` (Checkov/Trivy) + `reviewing-terraform` / `reviewing-docker` + manual review. Document findings and remediation status. |
+| **Manual / security review** | Run security scan; review and apply only approved patches. Use when: (1) you have [Claude Code Security](https://claude.com/product/claude-security) (claude.com, Enterprise/Team) — run scan there and create tickets from validated findings; (2) otherwise use `compliance-checker` (Checkov/Trivy) + `reviewing-terraform` / `reviewing-docker` + manual review. Document findings and remediation status. |
 | **Manual / review** | Human-only decision, sign-off, or cross-cutting review (non-security). |
 
 ### 6. Deployment order (for larger specs)
@@ -110,7 +110,7 @@ The output is a **single spec document** (e.g. `docs/specs/<initiative>.md` or u
 ### Security (when the initiative touches code or infra)
 
 - Include at least one **security review** task (Skill: **Manual / security review**).
-- **If you have access**: [Claude Code Security](https://claude.com/claude-code-security) (claude.com, Enterprise/Team) — run scan there and create follow-up tasks from findings.
+- **If you have access**: [Claude Code Security](https://claude.com/product/claude-security) (claude.com, Enterprise/Team) — run scan there and create follow-up tasks from findings.
 - **Otherwise**: Use `compliance-checker` (Checkov/Trivy), `reviewing-terraform`, `reviewing-docker`, and manual review; document findings in the spec or a dedicated doc.
 
 ## When to use this format
