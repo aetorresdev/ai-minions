@@ -1,0 +1,1539 @@
+{
+  "version": "tool-action-manifest.orchestrator.v1",
+  "tools": {
+    "terraform": {
+      "id": "terraform",
+      "type": "shell_tool",
+      "risk_profile": "infrastructure",
+      "capabilities": [
+        "infra.plan",
+        "infra.validate",
+        "infra.apply"
+      ],
+      "aliases": [
+        "terraform"
+      ],
+      "rules": [
+        {
+          "id": "terraform_plan",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "plan"
+            ]
+          },
+          "action_class": "simulate",
+          "target_class": "cloud_infra",
+          "detail": "terraform_plan"
+        },
+        {
+          "id": "terraform_apply",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "apply"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "cloud_infra",
+          "detail": "terraform_apply"
+        },
+        {
+          "id": "terraform_destroy",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "destroy"
+            ]
+          },
+          "action_class": "destructive",
+          "target_class": "cloud_infra",
+          "detail": "terraform_destroy"
+        },
+        {
+          "id": "terraform_fmt",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "fmt"
+            ]
+          },
+          "action_class": "validate",
+          "target_class": "cloud_infra",
+          "detail": "terraform_fmt"
+        },
+        {
+          "id": "terraform_validate",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "validate"
+            ]
+          },
+          "action_class": "validate",
+          "target_class": "cloud_infra",
+          "detail": "terraform_validate"
+        },
+        {
+          "id": "terraform_show",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "show"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "cloud_infra",
+          "detail": "terraform_show"
+        }
+      ],
+      "adapter": "terraform",
+      "delegate_unmatched_to_adapter": true
+    },
+    "kubectl": {
+      "id": "kubectl",
+      "type": "shell_tool",
+      "risk_profile": "kubernetes",
+      "capabilities": [
+        "k8s.read",
+        "k8s.mutate"
+      ],
+      "aliases": [
+        "kubectl"
+      ],
+      "rules": [],
+      "adapter": "kubectl",
+      "delegate_unmatched_to_adapter": true
+    },
+    "aws": {
+      "id": "aws",
+      "type": "shell_tool",
+      "risk_profile": "cloud_api",
+      "capabilities": [
+        "aws.invoke"
+      ],
+      "aliases": [
+        "aws"
+      ],
+      "rules": [],
+      "adapter": "aws",
+      "delegate_unmatched_to_adapter": true
+    },
+    "git": {
+      "id": "git",
+      "type": "shell_tool",
+      "risk_profile": "source_control",
+      "capabilities": [
+        "git.read",
+        "git.write"
+      ],
+      "aliases": [
+        "git"
+      ],
+      "rules": [],
+      "adapter": "git",
+      "delegate_unmatched_to_adapter": true
+    },
+    "filesystem": {
+      "id": "filesystem",
+      "type": "shell_tool",
+      "risk_profile": "workspace_fs",
+      "capabilities": [
+        "fs.read",
+        "fs.write"
+      ],
+      "aliases": [
+        "cat",
+        "head",
+        "tail",
+        "less",
+        "more",
+        "ls",
+        "stat",
+        "du",
+        "pwd",
+        "realpath",
+        "touch",
+        "mkdir",
+        "mv",
+        "cp",
+        "chmod",
+        "ln",
+        "rm",
+        "rmdir",
+        "find"
+      ],
+      "rules": [],
+      "adapter": "filesystem",
+      "delegate_unmatched_to_adapter": true
+    },
+    "docker": {
+      "id": "docker",
+      "type": "shell_tool",
+      "risk_profile": "containers",
+      "capabilities": [
+        "container.ops"
+      ],
+      "aliases": [
+        "docker",
+        "podman"
+      ],
+      "rules": [
+        {
+          "id": "docker_ps",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "ps"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "containers",
+          "detail": "docker_ps"
+        },
+        {
+          "id": "docker_images",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "images"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "containers",
+          "detail": "docker_images"
+        },
+        {
+          "id": "docker_inspect",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "inspect"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "containers",
+          "detail": "docker_inspect"
+        },
+        {
+          "id": "docker_version",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "version"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "containers",
+          "detail": "docker_version"
+        },
+        {
+          "id": "docker_info",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "info"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "containers",
+          "detail": "docker_info"
+        },
+        {
+          "id": "docker_logs",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "logs"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "containers",
+          "detail": "docker_logs"
+        },
+        {
+          "id": "docker_stats",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "stats"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "containers",
+          "detail": "docker_stats"
+        },
+        {
+          "id": "docker_events",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "events"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "containers",
+          "detail": "docker_events"
+        },
+        {
+          "id": "docker_diff",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "diff"
+            ]
+          },
+          "action_class": "simulate",
+          "target_class": "containers",
+          "detail": "docker_diff"
+        },
+        {
+          "id": "docker_push",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "push"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "containers",
+          "detail": "docker_push"
+        },
+        {
+          "id": "docker_pull",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "pull"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "containers",
+          "detail": "docker_pull"
+        },
+        {
+          "id": "docker_build",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "build"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "containers",
+          "detail": "docker_build"
+        },
+        {
+          "id": "docker_run",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "run"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "containers",
+          "detail": "docker_run"
+        },
+        {
+          "id": "docker_create",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "create"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "containers",
+          "detail": "docker_create"
+        },
+        {
+          "id": "docker_compose",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "compose"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "containers",
+          "detail": "docker_compose"
+        },
+        {
+          "id": "docker_exec",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "exec"
+            ]
+          },
+          "action_class": "execute",
+          "target_class": "containers",
+          "detail": "docker_exec"
+        },
+        {
+          "id": "docker_rm",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "rm"
+            ]
+          },
+          "action_class": "destructive",
+          "target_class": "containers",
+          "detail": "docker_rm"
+        },
+        {
+          "id": "docker_rmi",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "rmi"
+            ]
+          },
+          "action_class": "destructive",
+          "target_class": "containers",
+          "detail": "docker_rmi"
+        },
+        {
+          "id": "docker_prune",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "prune"
+            ]
+          },
+          "action_class": "destructive",
+          "target_class": "containers",
+          "detail": "docker_prune"
+        }
+      ],
+      "delegate_unmatched_to_adapter": false
+    },
+    "n8n": {
+      "id": "n8n",
+      "type": "shell_tool",
+      "risk_profile": "automation",
+      "capabilities": [
+        "workflow.automation"
+      ],
+      "aliases": [
+        "n8n"
+      ],
+      "rules": [
+        {
+          "id": "n8n_start",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "start"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "automation",
+          "detail": "n8n_start"
+        },
+        {
+          "id": "n8n_webhook",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "webhook"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "automation",
+          "detail": "n8n_webhook"
+        },
+        {
+          "id": "n8n_worker",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "worker"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "automation",
+          "detail": "n8n_worker"
+        },
+        {
+          "id": "n8n_execute",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "execute"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "automation",
+          "detail": "n8n_execute"
+        },
+        {
+          "id": "n8n_colon_import",
+          "match": {
+            "type": "argv0_prefix",
+            "prefix": "import:"
+          },
+          "action_class": "write_draft",
+          "target_class": "automation",
+          "detail": "import:"
+        },
+        {
+          "id": "n8n_colon_create",
+          "match": {
+            "type": "argv0_prefix",
+            "prefix": "create:"
+          },
+          "action_class": "write_draft",
+          "target_class": "automation",
+          "detail": "create:"
+        },
+        {
+          "id": "n8n_colon_update",
+          "match": {
+            "type": "argv0_prefix",
+            "prefix": "update:"
+          },
+          "action_class": "write_draft",
+          "target_class": "automation",
+          "detail": "update:"
+        },
+        {
+          "id": "n8n_export_family",
+          "match": {
+            "type": "argv0_prefix",
+            "prefix": "export:"
+          },
+          "action_class": "read",
+          "target_class": "automation",
+          "detail": "export:"
+        },
+        {
+          "id": "n8n_list_workflow",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "list:workflow"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "automation",
+          "detail": "list:workflow"
+        },
+        {
+          "id": "n8n_user_management_reset",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "user-management:reset"
+            ]
+          },
+          "action_class": "credential_use",
+          "target_class": "automation",
+          "detail": "user-management:reset"
+        },
+        {
+          "id": "n8n_credential_export",
+          "match": {
+            "type": "argv0_prefix",
+            "prefix": "credential:export"
+          },
+          "action_class": "credential_export",
+          "target_class": "automation",
+          "detail": "n8n_credential_export"
+        },
+        {
+          "id": "n8n_credential_family",
+          "match": {
+            "type": "argv0_prefix",
+            "prefix": "credential:"
+          },
+          "action_class": "credential_use",
+          "target_class": "automation",
+          "detail": "credential:"
+        }
+      ],
+      "delegate_unmatched_to_adapter": false
+    },
+    "github_actions": {
+      "id": "github_actions",
+      "type": "shell_tool",
+      "risk_profile": "github_platform",
+      "capabilities": [
+        "github.cli"
+      ],
+      "aliases": [
+        "gh"
+      ],
+      "rules": [
+        {
+          "id": "gh_auth_login",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "auth",
+              "login"
+            ]
+          },
+          "action_class": "credential_use",
+          "target_class": "github_platform",
+          "detail": "gh_auth_login"
+        },
+        {
+          "id": "gh_auth_setup_git",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "auth",
+              "setup-git"
+            ]
+          },
+          "action_class": "credential_use",
+          "target_class": "github_platform",
+          "detail": "gh_auth_setup-git"
+        },
+        {
+          "id": "gh_auth_token",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "auth",
+              "token"
+            ]
+          },
+          "action_class": "credential_reveal",
+          "target_class": "github_platform",
+          "detail": "gh_auth_token"
+        },
+        {
+          "id": "gh_auth_refresh",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "auth",
+              "refresh"
+            ]
+          },
+          "action_class": "credential_reveal",
+          "target_class": "github_platform",
+          "detail": "gh_auth_refresh"
+        },
+        {
+          "id": "gh_auth_read",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "auth"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "github_platform",
+          "detail": "gh_auth_read"
+        },
+        {
+          "id": "gh_secret_set",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "secret",
+              "set"
+            ]
+          },
+          "action_class": "credential_export",
+          "target_class": "github_platform",
+          "detail": "gh_secret_set"
+        },
+        {
+          "id": "gh_secret_delete",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "secret",
+              "delete"
+            ]
+          },
+          "action_class": "credential_export",
+          "target_class": "github_platform",
+          "detail": "gh_secret_delete"
+        },
+        {
+          "id": "gh_secret_list",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "secret"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "github_platform",
+          "detail": "gh_secret_list"
+        },
+        {
+          "id": "gh_workflow_run",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "workflow",
+              "run"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_workflow_run"
+        },
+        {
+          "id": "gh_workflow_disable",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "workflow",
+              "disable"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_workflow_disable"
+        },
+        {
+          "id": "gh_workflow_enable",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "workflow",
+              "enable"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_workflow_enable"
+        },
+        {
+          "id": "gh_workflow_read",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "workflow"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "github_platform",
+          "detail": "gh_workflow"
+        },
+        {
+          "id": "gh_run_watch",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "run",
+              "watch"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_run_watch"
+        },
+        {
+          "id": "gh_run_download",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "run",
+              "download"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_run_download"
+        },
+        {
+          "id": "gh_run_rerun",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "run",
+              "rerun"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_run_rerun"
+        },
+        {
+          "id": "gh_run_cancel",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "run",
+              "cancel"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_run_cancel"
+        },
+        {
+          "id": "gh_run_read",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "run"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "github_platform",
+          "detail": "gh_run"
+        },
+        {
+          "id": "gh_pr_create",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "pr",
+              "create"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_pr_create"
+        },
+        {
+          "id": "gh_pr_merge",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "pr",
+              "merge"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_pr_merge"
+        },
+        {
+          "id": "gh_pr_close",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "pr",
+              "close"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_pr_close"
+        },
+        {
+          "id": "gh_pr_reopen",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "pr",
+              "reopen"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_pr_reopen"
+        },
+        {
+          "id": "gh_pr_comment",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "pr",
+              "comment"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_pr_comment"
+        },
+        {
+          "id": "gh_pr_read",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "pr"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "github_platform",
+          "detail": "gh_pr"
+        },
+        {
+          "id": "gh_issue_create",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "issue",
+              "create"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_issue_create"
+        },
+        {
+          "id": "gh_issue_merge",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "issue",
+              "merge"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_issue_merge"
+        },
+        {
+          "id": "gh_issue_close",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "issue",
+              "close"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_issue_close"
+        },
+        {
+          "id": "gh_issue_reopen",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "issue",
+              "reopen"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_issue_reopen"
+        },
+        {
+          "id": "gh_issue_comment",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "issue",
+              "comment"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_issue_comment"
+        },
+        {
+          "id": "gh_issue_read",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "issue"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "github_platform",
+          "detail": "gh_issue"
+        },
+        {
+          "id": "gh_release_create",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "release",
+              "create"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_release_create"
+        },
+        {
+          "id": "gh_release_delete",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "release",
+              "delete"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "github_platform",
+          "detail": "gh_release_delete"
+        },
+        {
+          "id": "gh_release_read",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "release"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "github_platform",
+          "detail": "gh_release"
+        }
+      ],
+      "delegate_unmatched_to_adapter": false
+    },
+    "gcloud": {
+      "id": "gcloud",
+      "type": "shell_tool",
+      "risk_profile": "gcp",
+      "capabilities": [
+        "gcloud.deploy"
+      ],
+      "aliases": [
+        "gcloud"
+      ],
+      "rules": [
+        {
+          "id": "gcloud_auth_login",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "auth",
+              "login"
+            ]
+          },
+          "action_class": "credential_use",
+          "target_class": "gcp",
+          "detail": "gcloud_auth_login"
+        },
+        {
+          "id": "gcloud_auth_activate_sa",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "auth",
+              "activate-service-account"
+            ]
+          },
+          "action_class": "credential_use",
+          "target_class": "gcp",
+          "detail": "gcloud_auth_activate-service-account"
+        },
+        {
+          "id": "gcloud_auth_read",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "auth"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "gcp",
+          "detail": "gcloud_auth_read"
+        },
+        {
+          "id": "gcloud_secrets_access",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "secrets",
+              "versions",
+              "access"
+            ]
+          },
+          "action_class": "credential_reveal",
+          "target_class": "gcp",
+          "detail": "gcloud_secrets_access"
+        },
+        {
+          "id": "gcloud_secrets_create",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "secrets",
+              "create"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp",
+          "detail": "gcloud_secrets_create"
+        },
+        {
+          "id": "gcloud_secrets_delete",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "secrets",
+              "delete"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp",
+          "detail": "gcloud_secrets_delete"
+        },
+        {
+          "id": "gcloud_secrets_read",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "secrets"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "gcp",
+          "detail": "gcloud_secrets"
+        },
+        {
+          "id": "gcloud_config_set",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "config",
+              "set"
+            ]
+          },
+          "action_class": "write_external_state",
+          "target_class": "gcp",
+          "detail": "gcloud_config_set"
+        },
+        {
+          "id": "gcloud_config_read",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "config"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "gcp",
+          "detail": "gcloud_config"
+        },
+        {
+          "id": "gcloud_run",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "run"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp",
+          "detail": "gcloud_run"
+        },
+        {
+          "id": "gcloud_functions",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "functions"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp",
+          "detail": "gcloud_functions"
+        },
+        {
+          "id": "gcloud_compute",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "compute"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp",
+          "detail": "gcloud_compute"
+        },
+        {
+          "id": "gcloud_deploy",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "deploy"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp",
+          "detail": "gcloud_deploy"
+        },
+        {
+          "id": "gcloud_builds",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "builds"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp",
+          "detail": "gcloud_builds"
+        },
+        {
+          "id": "gcloud_container",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "container"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp",
+          "detail": "gcloud_container"
+        }
+      ],
+      "delegate_unmatched_to_adapter": false
+    },
+    "gsutil": {
+      "id": "gsutil",
+      "type": "shell_tool",
+      "risk_profile": "gcp_storage",
+      "capabilities": [
+        "gsutil.transfer"
+      ],
+      "aliases": [
+        "gsutil"
+      ],
+      "rules": [
+        {
+          "id": "gsutil_rm",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "rm"
+            ]
+          },
+          "action_class": "destructive",
+          "target_class": "gcp_storage",
+          "detail": "gsutil_rm"
+        },
+        {
+          "id": "gsutil_cp",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "cp"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp_storage",
+          "detail": "gsutil_cp"
+        },
+        {
+          "id": "gsutil_rsync",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "rsync"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp_storage",
+          "detail": "gsutil_rsync"
+        },
+        {
+          "id": "gsutil_mv",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "mv"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp_storage",
+          "detail": "gsutil_mv"
+        },
+        {
+          "id": "gsutil_ls",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "ls"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "gcp_storage",
+          "detail": "gsutil_ls"
+        },
+        {
+          "id": "gsutil_du",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "du"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "gcp_storage",
+          "detail": "gsutil_du"
+        },
+        {
+          "id": "gsutil_stat",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "stat"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "gcp_storage",
+          "detail": "gsutil_stat"
+        }
+      ],
+      "delegate_unmatched_to_adapter": false
+    },
+    "bq": {
+      "id": "bq",
+      "type": "shell_tool",
+      "risk_profile": "gcp_bigquery",
+      "capabilities": [
+        "bq.query"
+      ],
+      "aliases": [
+        "bq"
+      ],
+      "rules": [
+        {
+          "id": "bq_rm",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "rm"
+            ]
+          },
+          "action_class": "destructive",
+          "target_class": "gcp_bigquery",
+          "detail": "bq_rm"
+        },
+        {
+          "id": "bq_delete",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "delete"
+            ]
+          },
+          "action_class": "destructive",
+          "target_class": "gcp_bigquery",
+          "detail": "bq_delete"
+        },
+        {
+          "id": "bq_query",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "query"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp_bigquery",
+          "detail": "bq_query"
+        },
+        {
+          "id": "bq_load",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "load"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp_bigquery",
+          "detail": "bq_load"
+        },
+        {
+          "id": "bq_mk",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "mk"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "gcp_bigquery",
+          "detail": "bq_mk"
+        },
+        {
+          "id": "bq_show",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "show"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "gcp_bigquery",
+          "detail": "bq_show"
+        },
+        {
+          "id": "bq_ls",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "ls"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "gcp_bigquery",
+          "detail": "bq_ls"
+        },
+        {
+          "id": "bq_extract",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "extract"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "gcp_bigquery",
+          "detail": "bq_extract"
+        }
+      ],
+      "delegate_unmatched_to_adapter": false
+    },
+    "jenkins": {
+      "id": "jenkins",
+      "type": "shell_tool",
+      "risk_profile": "ci_cd",
+      "capabilities": [
+        "jenkins.cli"
+      ],
+      "aliases": [
+        "jenkins",
+        "jenkins-cli"
+      ],
+      "rules": [
+        {
+          "id": "jenkins_read_family",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "help"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "ci_cd",
+          "detail": "jenkins_help"
+        },
+        {
+          "id": "jenkins_list_jobs",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "list-jobs"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "ci_cd",
+          "detail": "jenkins_list_jobs"
+        },
+        {
+          "id": "jenkins_get_job",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "get-job"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "ci_cd",
+          "detail": "jenkins_get_job"
+        },
+        {
+          "id": "jenkins_whoami",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "who-am-i"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "ci_cd",
+          "detail": "jenkins_who-am-i"
+        },
+        {
+          "id": "jenkins_version",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "version"
+            ]
+          },
+          "action_class": "read",
+          "target_class": "ci_cd",
+          "detail": "jenkins_version"
+        },
+        {
+          "id": "jenkins_build",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "build"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "ci_cd",
+          "detail": "jenkins_build"
+        },
+        {
+          "id": "jenkins_enable_job",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "enable-job"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "ci_cd",
+          "detail": "jenkins_enable-job"
+        },
+        {
+          "id": "jenkins_disable_job",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "disable-job"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "ci_cd",
+          "detail": "jenkins_disable-job"
+        },
+        {
+          "id": "jenkins_install_plugin",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "install-plugin"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "ci_cd",
+          "detail": "jenkins_install-plugin"
+        },
+        {
+          "id": "jenkins_delete_job",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "delete-job"
+            ]
+          },
+          "action_class": "destructive",
+          "target_class": "ci_cd",
+          "detail": "jenkins_delete-job"
+        },
+        {
+          "id": "jenkins_clear_queue",
+          "match": {
+            "type": "argv_prefix",
+            "argv": [
+              "clear-queue"
+            ]
+          },
+          "action_class": "external_side_effect",
+          "target_class": "ci_cd",
+          "detail": "jenkins_clear-queue"
+        }
+      ],
+      "delegate_unmatched_to_adapter": false
+    }
+  }
+}

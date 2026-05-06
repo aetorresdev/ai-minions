@@ -29,6 +29,12 @@ particular storage backend.
 - **Not** replacing output contracts (`validateOutput`) — permission denial is orthogonal
   (fail closed before or during execution).
 
+### Tool action classification vs enforcement
+
+`orchestrator/security/action-classifiers/classify-action.js` and `tool-action-manifest.v1.json` produce **classification only** (`action_class`, optional `target_class`, `reason_code`). They **do not** authorize execution or network/filesystem access.
+
+Binding classification to **allow / deny / requires_approval** is the job of the **permission evaluator** (runtime guards and structured traces). Unknown tool (`reason_code: unknown_tool`) or unknown action (`unknown_action_class`) must remain **fail-safe** at evaluation time — never treated as implicit allow.
+
 ---
 
 ## 3. Permission domains
