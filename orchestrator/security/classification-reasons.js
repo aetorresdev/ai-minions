@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Observable reason codes for permission traces (CERBERUS / SEC-NET-R1-A).
+ * Observable reason codes for permission traces and the permission evaluator.
  * Evaluator maps these to deny | requires_approval | allow per profile.
  */
 module.exports = {

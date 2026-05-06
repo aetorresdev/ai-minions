@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Normalized action_class strings consumed by permission profiles / evaluator (PERMISSION-MODEL-3).
+ * Normalized action_class strings consumed by permission profiles and the permission evaluator.
  * Classifiers only emit values from this set (plus optional detail strings).
  */
 const ACTION_CLASSES = [

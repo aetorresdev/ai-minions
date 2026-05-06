@@ -92,6 +92,13 @@ describe("action classifiers — classifyAction (manifest-first)", () => {
     assert.equal(r.reason_code, R.UNKNOWN_ACTION_CLASS);
     assert.equal(r.tool_id, "docker");
   });
+
+  it("n8n credential:export manifest rule (credential_export)", () => {
+    const r = classifyAction({ executable: "n8n", args: ["credential:export"] });
+    assert.equal(r.action_class, "credential_export");
+    assert.equal(r.reason_code, R.CLASSIFIED_BY_MANIFEST);
+    assert.equal(r.manifest_action_id, "n8n_credential_export");
+  });
 });
 
 describe("action classifiers — manifest AC (test overrides)", () => {

@@ -534,6 +534,16 @@
           "detail": "user-management:reset"
         },
         {
+          "id": "n8n_credential_export",
+          "match": {
+            "type": "argv0_prefix",
+            "prefix": "credential:export"
+          },
+          "action_class": "credential_export",
+          "target_class": "automation",
+          "detail": "n8n_credential_export"
+        },
+        {
           "id": "n8n_credential_family",
           "match": {
             "type": "argv0_prefix",

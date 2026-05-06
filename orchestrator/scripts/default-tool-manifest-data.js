@@ -2,7 +2,7 @@
 
 /**
  * Source data for security/tool-action-manifest.v1.json (regenerate: node scripts/emit-tool-manifest.cjs).
- * Manifest-first per CERBERUS: metadata + declarative rules; adapters only for terraform, kubectl, git, filesystem, aws.
+ * Manifest-first: required metadata + declarative rules; optional code adapters for complex CLIs (see adapter-registry).
  */
 
 function tool(toolId, o) {
@@ -204,6 +204,14 @@ function n8nRules() {
     action_class: "credential_use",
     target_class: "automation",
     detail: "user-management:reset",
+  });
+  /** Export-style credential CLI (must precede generic `credential:` prefix rule). */
+  rules.push({
+    id: "n8n_credential_export",
+    match: { type: "argv0_prefix", prefix: "credential:export" },
+    action_class: "credential_export",
+    target_class: "automation",
+    detail: "n8n_credential_export",
   });
   rules.push({
     id: "n8n_credential_family",

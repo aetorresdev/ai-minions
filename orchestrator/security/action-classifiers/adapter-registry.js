@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Optional adapters for tools whose argv semantics need code (CERBERUS): terraform, kubectl, git, filesystem, aws.
+ * Optional adapters for tools whose argv semantics are not fully expressible in the manifest (e.g. complex CLIs).
  * Register new adapters here — no orchestrator core edits beyond this module.
  */
 const terraform = require("./terraform");
@@ -12,22 +12,22 @@ const filesystem = require("./filesystem");
 
 const adapters = {
   terraform: {
-    classify(args, ctx) {
+    classify(args, _ctx) {
       return terraform.classify(args);
     },
   },
   kubectl: {
-    classify(args, ctx) {
+    classify(args, _ctx) {
       return kubectl.classify(args);
     },
   },
   aws: {
-    classify(args, ctx) {
+    classify(args, _ctx) {
       return awsCli.classify(args);
     },
   },
   git: {
-    classify(args, ctx) {
+    classify(args, _ctx) {
       return git.classify(args);
     },
   },
