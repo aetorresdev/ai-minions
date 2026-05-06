@@ -498,6 +498,20 @@ npm run test:e2e:all  # E2E suite with all available Ollama models
 
 `ORCH_MCP_TRANSPORT=direct` makes `orchestrator.js` call `mcp-direct.py` for `orchestrator-state` and `compact-handoff` instead of `claude -p`. Use `ORCH_PYTHON` if `python3` is not on `PATH`. Optional: `ORCH_MCP_DIRECT_TIMEOUT_MS` (default 180000).
 
+### MCP permission gate
+
+Before each **`orchestrator-state`** / **`compact-handoff`** tool invocation (Python bridge **or** Claude CLI), the runner evaluates **permission profiles** + MCP trust levels (`orchestrator/security/mcp-permission-gate.js`). Denied calls throw **before** any MCP subprocess / CLI round-trip. When a run is emitting MCP audit traces, an extra **`permission_check`** JSONL line precedes each allowed **`mcp_call`**.
+
+| Variable | Effect |
+|----------|--------|
+| **`ORCH_PERMISSION_PROFILE`** | Built-in profile name: `dev-local` (default if unset and no project policy), `ci-safe`, `prod-guarded`. If unset, the first profile in `.ai-minions/permissions.yaml` `extends` is used when that file exists. |
+| **`ORCH_MCP_DECLARED_SERVERS`** | Comma-separated extra MCP server ids treated as **locally declared** (trust tier `local_declared`), in addition to built-in `orchestrator-state` and `compact-handoff`. |
+| **`ORCH_MCP_REMOTE_DECLARED_SERVERS`** | Optional comma-separated ids for **remote_declared** trust. |
+| **`ORCH_CI_MCP_CONFIGURED`** | Set to **`1`** so **`ci-safe`** can satisfy **`allow_if_ci_configured`** for MCP (also true when **`CI`** is a typical truthy CI flag). |
+| **`ORCH_SKIP_MCP_PERMISSION_GATE`** | Set to **`1`** to bypass the gate (tests / emergency only). **Do not** use in production. |
+
+Design reference: `docs/orchestrator/runtime-permission-contract.md` §3–4 (domains), §8.4 (trace shape).
+
 ### Test-only: `ORCH_TEST_SYSTEM_PATH_HARNESS` (not a product feature)
 
 **Forbidden in production.** Only **`tests/e2e.strict.harness.test.js`** (`npm run test:e2e:strict:harness`) sets `ORCH_TEST_SYSTEM_PATH_HARNESS=1`. It is **not** referenced from `cli.js`, `run-orchestrator.js`, or any operator runbook — only that harness file + core orchestrator/README/docs (allowlisted in `scripts/ci-check-harness-scope.sh`). **`npm run test:e2e:strict`** (default CI) **does not** load the harness file. That path is **not** “strict E2E” in the alignment sense: deterministic `askAgent` stubs, `register_task` with `enforce_goal_alignment: false`, and a **Node-only** bypass when `validate_goal_alignment` returns `aligned: false`, so you can prove **state store + transitions + `compact_handoff`** without flaking on the alignment model. It deliberately **does not** prove trustworthy goal alignment or unattended success with production models. Do not set the variable outside that harness test subprocess.
