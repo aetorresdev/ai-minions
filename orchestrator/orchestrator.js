@@ -875,7 +875,6 @@ function invokeMcpDirect(server, toolName, args, { cwd } = {}) {
  * Returns parsed JSON response or throws on failure.
  */
 function callStateMcp(toolName, args, { cwd } = {}) {
-  gateMcpInvocation("orchestrator-state", toolName, cwd);
   if (useMcpDirectTransport()) {
     const parsed = invokeMcpDirect("orchestrator-state", toolName, sanitizeOrchestratorStateArgs(toolName, args), {
       cwd,
@@ -885,6 +884,7 @@ function callStateMcp(toolName, args, { cwd } = {}) {
     }
     return parsed;
   }
+  gateMcpInvocation("orchestrator-state", toolName, cwd);
   const argsStr = Object.entries(args)
     .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
     .join(", ");
@@ -958,7 +958,6 @@ function compactHandoffStrictFailureFields(err) {
 }
 
 function callCompactHandoff({ text, modeCompleted, nextMode, iteration, maxIterations, flowMode }, { cwd } = {}) {
-  gateMcpInvocation("compact-handoff", "compact_handoff", cwd);
   if (useMcpDirectTransport()) {
     const out = invokeMcpDirect(
       "compact-handoff",
@@ -978,6 +977,7 @@ function callCompactHandoff({ text, modeCompleted, nextMode, iteration, maxItera
     if (yaml.startsWith("error:")) throw new Error(yaml.slice(0, 400));
     return yaml.trim();
   }
+  gateMcpInvocation("compact-handoff", "compact_handoff", cwd);
   const prompt = `Call the MCP tool compact-handoff.compact_handoff with these arguments and return only the raw YAML string, no other text:
 compact_handoff(
   text=${JSON.stringify(text)},
@@ -2211,4 +2211,11 @@ module.exports = {
   failureAxisForIterationDone,
   traceIterationDone,
   composeIterationDonePayload,
+
+  /** Test-only: MCP path surface for trace parity assertions — not a supported public API. */
+  _test_invokeMcpDirect: invokeMcpDirect,
+  _test_callStateMcp: callStateMcp,
+  _test_callCompactHandoff: callCompactHandoff,
+  _test_beginMcpAudit: beginMcpAudit,
+  _test_clearMcpAudit: clearMcpAudit,
 };

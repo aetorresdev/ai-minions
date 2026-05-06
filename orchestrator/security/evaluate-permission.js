@@ -239,7 +239,7 @@ function evaluateMcp(profile, input) {
   }
 
   const pc = input.precheck || {};
-  let level =
+  const level =
     typeof pc.mcp_trust_level === "string" && MCP_TRUST_LEVELS.has(pc.mcp_trust_level)
       ? pc.mcp_trust_level
       : "unknown";
