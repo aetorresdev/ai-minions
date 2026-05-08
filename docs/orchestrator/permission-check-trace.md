@@ -36,6 +36,12 @@ For `event === "permission_check"`, these payload fields are **required**:
 
 **Note on “warn”:** the evaluator does **not** emit a separate `decision: warn`. Warn-style policy paths are expressed via **`reason_code`** (e.g. MCP trust warn paths) together with `decision` `allow` or `deny`.
 
+### Compatibility — dashboards and rollups (e.g. future security summaries)
+
+- **Do not** infer “warning” outcomes from `decision` alone — it only takes **`allow` \| `deny` \| `requires_approval`**.
+- Rollups that must capture warn-style policy paths must key off **`reason_code`** (and optionally substring/prefix conventions such as `*_warn_*`), not `decision`.
+- Aggregating only by `decision` can **omit or mislabel** warn semantics and make summaries look healthier than they are.
+
 ## Example (allow)
 
 ```json
