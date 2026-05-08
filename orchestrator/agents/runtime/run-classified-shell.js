@@ -37,6 +37,13 @@ function spawnClassifiedSync(executable, args, options = {}) {
     args: argv,
     permissionProfileName,
   });
+  try {
+    const { emitPermissionCheckTrace } = require("../../orchestrator.js");
+    emitPermissionCheckTrace(gate.tracePayload);
+  } catch {
+    /* orchestrator not loaded or tests-only graph */
+  }
+
   const out = gate.output;
   if (out.decision === "deny" || out.decision === "requires_approval" || !out.safe_to_continue) {
     const err = new Error(`Classified shell invocation denied (${out.reason_code})`);
@@ -44,12 +51,6 @@ function spawnClassifiedSync(executable, args, options = {}) {
     err.permission_decision = out;
     err.classification = gate.classification;
     throw err;
-  }
-  try {
-    const { emitPermissionCheckTrace } = require("../../orchestrator.js");
-    emitPermissionCheckTrace(gate.tracePayload);
-  } catch {
-    /* orchestrator not loaded or tests-only graph */
   }
 
   return require("child_process").spawnSync(executable, argv, {

@@ -1,6 +1,6 @@
 "use strict";
 
-const { describe, it, beforeEach } = require("node:test");
+const { describe, it, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
 const {
   runClassifiedInvocationPermissionGate,
@@ -9,6 +9,11 @@ const {
 const { spawnClassifiedSync } = require("../agents/runtime/run-classified-shell.js");
 const { loadToolActionManifest, resetToolActionManifestCache } = require("../security/load-tool-action-manifest");
 const cp = require("child_process");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+
+const ORCH_PATH = require.resolve("../orchestrator");
 
 describe("classified-invocation permission gate", () => {
   beforeEach(() => {
@@ -133,5 +138,75 @@ describe("spawnClassifiedSync", () => {
     } finally {
       cp.spawnSync = origSpawn;
     }
+  });
+});
+
+describe("spawnClassifiedSync — permission_check when audit active (deny path)", () => {
+  let tmpDir;
+  let savedEnv;
+  let origSpawn;
+  let spawnCalls;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-classified-deny-trace-"));
+    savedEnv = {
+      ORCH_TRACES_DIR: process.env.ORCH_TRACES_DIR,
+      ORCH_PERMISSION_PROFILE: process.env.ORCH_PERMISSION_PROFILE,
+    };
+    process.env.ORCH_TRACES_DIR = tmpDir;
+    process.env.ORCH_PERMISSION_PROFILE = "ci-safe";
+    delete require.cache[ORCH_PATH];
+    resetToolActionManifestCache();
+    loadToolActionManifest();
+    spawnCalls = 0;
+    origSpawn = cp.spawnSync;
+    cp.spawnSync = () => {
+      spawnCalls += 1;
+      return { error: null, status: 0, stdout: "", stderr: "" };
+    };
+  });
+
+  afterEach(() => {
+    cp.spawnSync = origSpawn;
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    delete require.cache[ORCH_PATH];
+  });
+
+  it("denied classified invocation: one permission_check, zero spawn, CLASSIFIED_SHELL_DENIED", () => {
+    const { _test_beginMcpAudit, _test_clearMcpAudit } = require("../orchestrator.js");
+    const taskId = "task-classified-deny-trace-1";
+    _test_beginMcpAudit(taskId);
+
+    assert.throws(
+      () =>
+        spawnClassifiedSync("terraform", ["apply", "-auto-approve"], {
+          cwd: tmpDir,
+          permissionProfileName: "ci-safe",
+          traceRole: "DEV",
+        }),
+      (err) => err.code === "CLASSIFIED_SHELL_DENIED"
+    );
+
+    _test_clearMcpAudit();
+
+    assert.equal(spawnCalls, 0, "spawnSync must not run on deny");
+
+    const jsonlPath = path.join(tmpDir, `${taskId}.jsonl`);
+    assert.ok(fs.existsSync(jsonlPath));
+    const lines = fs
+      .readFileSync(jsonlPath, "utf8")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
+    const perm = lines.filter((r) => r.event === "permission_check");
+    assert.equal(perm.length, 1, `expected one permission_check, got ${perm.length}`);
+    assert.equal(perm[0].decision, "deny");
+    assert.equal(perm[0].domain, "filesystem");
+    assert.equal(perm[0].tool, "terraform");
   });
 });
