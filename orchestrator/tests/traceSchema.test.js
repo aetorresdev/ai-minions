@@ -24,6 +24,69 @@ test("validateTraceLine accepts session_start v2 envelope", () => {
   assert.equal(v.ok, true);
 });
 
+function permissionCheckBase(overrides = {}) {
+  return {
+    ts: "2026-05-05T12:00:00.000Z",
+    ts_ms: 1746446400000,
+    trace_schema_version: "2",
+    task_id: "task-perm",
+    event: "permission_check",
+    actor: "local",
+    role: "DEV",
+    tool: "acme.do_x",
+    domain: "mcp",
+    action_class: "external_side_effect",
+    target_class: null,
+    decision: "allow",
+    reason_code: "mcp_trust_allow",
+    policy_source: "built_in_profile",
+    permission_profile: "dev-local",
+    requires_approval: false,
+    ...overrides,
+  };
+}
+
+test("validateTraceLine accepts permission_check envelope", () => {
+  const v = validateTraceLine(permissionCheckBase());
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
+test("validateTraceLine rejects permission_check without permission_profile", () => {
+  const row = permissionCheckBase();
+  delete row.permission_profile;
+  const v = validateTraceLine(row);
+  assert.equal(v.ok, false);
+  assert.ok(v.errors.some((e) => /permission_profile/i.test(e)), v.errors.join(" | "));
+});
+
+test("validateTraceLine rejects permission_check with invalid decision enum", () => {
+  const v = validateTraceLine(permissionCheckBase({ decision: "warn" }));
+  assert.equal(v.ok, false);
+});
+
+test("validateTraceLine accepts permission_check deny path", () => {
+  const v = validateTraceLine(
+    permissionCheckBase({
+      decision: "deny",
+      reason_code: "mcp_trust_warn_deny",
+      requires_approval: false,
+    }),
+  );
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
+test("validateTraceLine accepts permission_check requires_approval path", () => {
+  const v = validateTraceLine(
+    permissionCheckBase({
+      decision: "requires_approval",
+      reason_code: "external_side_effect_requires_allow",
+      requires_approval: true,
+      domain: "shell",
+    }),
+  );
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
 test("validateTraceLine rejects iteration_done without reason_code", () => {
   const row = {
     ts: "2026-04-15T12:00:00.000Z",
