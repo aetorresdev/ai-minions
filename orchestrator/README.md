@@ -510,7 +510,7 @@ Before each **`orchestrator-state`** / **`compact-handoff`** tool invocation (Py
 | **`ORCH_CI_MCP_CONFIGURED`** | Set to **`1`** so **`ci-safe`** can satisfy **`allow_if_ci_configured`** for MCP (also true when **`CI`** is a typical truthy CI flag). |
 | **`ORCH_SKIP_MCP_PERMISSION_GATE`** | Set to **`1`** to bypass the gate (tests / emergency only). **Do not** use in production. |
 
-Design reference: `docs/orchestrator/runtime-permission-contract.md` §3–4 (domains), §8.4 (trace shape).
+Design reference: `docs/orchestrator/runtime-permission-contract.md` §3–4 (domains), §8.4 (trace shape). **`permission_check`** field catalog + audit: `docs/orchestrator/permission-check-trace.md`.
 
 ### Test-only: `ORCH_TEST_SYSTEM_PATH_HARNESS` (not a product feature)
 

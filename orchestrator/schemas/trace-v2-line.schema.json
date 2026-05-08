@@ -107,6 +107,46 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "permission_check" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "actor",
+          "role",
+          "tool",
+          "domain",
+          "action_class",
+          "target_class",
+          "decision",
+          "reason_code",
+          "policy_source",
+          "permission_profile",
+          "requires_approval"
+        ],
+        "properties": {
+          "actor": { "type": "string", "maxLength": 128 },
+          "role": { "type": "string", "maxLength": 64 },
+          "tool": { "type": "string", "maxLength": 512 },
+          "domain": { "type": "string", "maxLength": 64 },
+          "action_class": { "type": "string", "maxLength": 96 },
+          "target_class": {
+            "type": ["string", "null"],
+            "maxLength": 96
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["allow", "deny", "requires_approval"]
+          },
+          "reason_code": { "type": "string", "maxLength": 160 },
+          "policy_source": { "type": "string", "maxLength": 160 },
+          "permission_profile": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "requires_approval": { "type": "boolean" }
+        }
+      }
     }
   ]
 }

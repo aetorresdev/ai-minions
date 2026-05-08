@@ -64,7 +64,7 @@ const {
 // Every line: ts (ISO), ts_ms (epoch ms), trace_schema_version, task_id, …payload.
 // trace_schema_version = TRACE_LINE_WRITER_VERSION from trace-schema.js (today "2").
 // Event types: session_start, agent_start, agent_done, gate_result,
-//              contract_fail, iteration_done, session_end, mcp_call,
+//              contract_fail, iteration_done, session_end, mcp_call, permission_check,
 //              context_stats may include ollama_prompt_tokens / ollama_completion_tokens (Ollama routes)
 //              agent_done (qa): optional qa_triple_template + qa_blocker_non_vacuous for rollups
 // iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".

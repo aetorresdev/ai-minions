@@ -214,4 +214,18 @@ describe("classify-target + trace-security-decision", () => {
     assert.equal(tr.reason_code, out.reason_code);
     assert.equal(tr.requires_approval, out.requires_approval);
   });
+
+  it("traceSecurityDecision omits raw action/target payloads (no credential leakage)", () => {
+    const input = baseInput("dev-local", {
+      action_class: "read",
+      action: "SECRET_TOKEN=abc terraform apply",
+      target: { url: "https://evil.example/?token=supersecret" },
+    });
+    const out = evaluatePermission(input);
+    const tr = traceSecurityDecision(input, out);
+    assert.equal("action" in tr, false);
+    assert.equal("target" in tr, false);
+    assert.equal("precheck" in tr, false);
+    assert.equal(tr.tool, "tool");
+  });
 });
