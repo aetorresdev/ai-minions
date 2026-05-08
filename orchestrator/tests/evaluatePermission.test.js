@@ -84,7 +84,7 @@ describe("evaluate-permission — credentials", () => {
 });
 
 describe("evaluate-permission — shell", () => {
-  it("claude CLI orchestrator spawn allows when remote_model is allow (SEC-NET-R1-B2)", () => {
+  it("claude CLI orchestrator spawn allows when remote_model is allow", () => {
     const r = evaluatePermission(
       baseInput("dev-local", {
         domain: "shell",
@@ -191,6 +191,115 @@ describe("evaluate-permission — mcp domain", () => {
     );
     assert.equal(bad.decision, "deny");
     assert.equal(bad.reason_code, "mcp_ci_not_configured_denied");
+  });
+});
+
+describe("evaluate-permission — network domain (Ollama HTTP)", () => {
+  function netInput(profileName, hostname, port, overrides = {}) {
+    const cfg = loadPermissionConfig();
+    const profile = resolveProfile(profileName, cfg.profiles);
+    return {
+      actor: "local",
+      role: "DEV",
+      tool: "http_egress",
+      action_class: "read",
+      domain: "network",
+      permission_profile: profileName,
+      policy_source: "built_in_profile",
+      profile,
+      precheck: { network_hostname: hostname, network_port: port },
+      ...overrides,
+    };
+  }
+
+  it("dev-local allows localhost:11434 via allow_hosts", () => {
+    const r = evaluatePermission(netInput("dev-local", "localhost", 11434));
+    assert.equal(r.decision, "allow");
+    assert.equal(r.reason_code, "network_allowlist_allowed");
+  });
+
+  it("dev-local treats 0.0.0.0 as loopback alias for allow_hosts (OLLAMA_HOST CI/Docker)", () => {
+    const r = evaluatePermission(netInput("dev-local", "0.0.0.0", 11434));
+    assert.equal(r.decision, "allow");
+    assert.equal(r.reason_code, "network_allowlist_allowed");
+  });
+
+  it("dev-local allows localhost with port via host-only allow entry", () => {
+    const r = evaluatePermission(netInput("dev-local", "127.0.0.1", 11434));
+    assert.equal(r.decision, "allow");
+    assert.equal(r.reason_code, "network_allowlist_allowed");
+  });
+
+  it("dev-local denies non-allowlisted host", () => {
+    const r = evaluatePermission(netInput("dev-local", "evil.example", 443));
+    assert.equal(r.decision, "deny");
+    assert.equal(r.reason_code, "network_host_denied");
+  });
+
+  it("ci-safe denies localhost (empty allow_hosts)", () => {
+    const r = evaluatePermission(netInput("ci-safe", "localhost", 11434));
+    assert.equal(r.decision, "deny");
+    assert.equal(r.reason_code, "network_host_denied");
+  });
+
+  it("denies when network_hostname missing", () => {
+    const cfg = loadPermissionConfig();
+    const profile = resolveProfile("dev-local", cfg.profiles);
+    const r = evaluatePermission({
+      actor: "x",
+      role: "DEV",
+      tool: "http_egress",
+      action_class: "read",
+      domain: "network",
+      permission_profile: "dev-local",
+      policy_source: "built_in_profile",
+      profile,
+      precheck: {},
+    });
+    assert.equal(r.decision, "deny");
+    assert.equal(r.reason_code, "network_precheck_missing_host");
+  });
+
+  it("denies invalid port in precheck", () => {
+    const r = evaluatePermission(netInput("dev-local", "localhost", 999999));
+    assert.equal(r.decision, "deny");
+    assert.equal(r.reason_code, "network_precheck_invalid_port");
+  });
+});
+
+describe("evaluate-permission — context_retrieval domain", () => {
+  it("dev-local allows context_retrieval", () => {
+    const cfg = loadPermissionConfig();
+    const profile = resolveProfile("dev-local", cfg.profiles);
+    const r = evaluatePermission({
+      actor: "x",
+      role: "DEV",
+      tool: "retrieval",
+      action_class: "read",
+      domain: "context_retrieval",
+      permission_profile: "dev-local",
+      policy_source: "built_in_profile",
+      profile,
+    });
+    assert.equal(r.decision, "allow");
+    assert.equal(r.reason_code, "context_retrieval_allowed");
+  });
+
+  it("ci-safe warn_only maps to allow with warn reason", () => {
+    const cfg = loadPermissionConfig();
+    const profile = resolveProfile("ci-safe", cfg.profiles);
+    const r = evaluatePermission({
+      actor: "x",
+      role: "DEV",
+      tool: "retrieval",
+      action_class: "read",
+      domain: "context_retrieval",
+      permission_profile: "ci-safe",
+      policy_source: "built_in_profile",
+      profile,
+    });
+    assert.equal(r.decision, "allow");
+    assert.equal(r.reason_code, "context_retrieval_warn_only_allowed");
   });
 });
 

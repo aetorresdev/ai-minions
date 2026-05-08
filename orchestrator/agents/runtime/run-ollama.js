@@ -6,10 +6,41 @@
 
 const http = require('http');
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST || 'localhost';
-const OLLAMA_PORT = parseInt(process.env.OLLAMA_PORT || '11434', 10);
+function runOllama(
+  systemPrompt,
+  messages,
+  { model = "qwen2.5-coder:7b", timeoutMs, traceRole = "ORCHESTRATOR", cwd } = {},
+) {
+  const OLLAMA_HOST = process.env.OLLAMA_HOST || "localhost";
+  const OLLAMA_PORT = parseInt(process.env.OLLAMA_PORT || "11434", 10);
 
-function runOllama(systemPrompt, messages, { model = "qwen2.5-coder:7b", timeoutMs } = {}) {
+  if (process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE !== "1") {
+    const { runNetworkPermissionGate } = require("../../security/network-permission-gate");
+    const repoRoot = cwd != null ? String(cwd) : process.cwd();
+    const gate = runNetworkPermissionGate({
+      repoRoot,
+      role: traceRole,
+      actor: "orchestrator",
+      hostname: OLLAMA_HOST,
+      port: OLLAMA_PORT,
+      tool: "ollama_chat",
+      pathLabel: "/api/chat",
+    });
+    const out = gate.output;
+    if (out.decision === "deny" || out.decision === "requires_approval" || !out.safe_to_continue) {
+      const err = new Error(`Ollama HTTP egress denied (${out.reason_code})`);
+      err.code = "OLLAMA_NETWORK_DENIED";
+      err.permission_decision = out;
+      throw err;
+    }
+    try {
+      const { emitPermissionCheckTrace } = require("../../orchestrator.js");
+      emitPermissionCheckTrace(gate.tracePayload);
+    } catch {
+      /* orchestrator not loaded — trace optional */
+    }
+  }
+
   const numPredict = parseInt(process.env.OLLAMA_NUM_PREDICT, 10);
   const temperature = parseFloat(process.env.OLLAMA_TEMPERATURE || "");
   /** @type {Record<string, unknown>} */

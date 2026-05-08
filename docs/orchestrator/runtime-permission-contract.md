@@ -1,7 +1,7 @@
 # Runtime permission contract (design)
 
 **Status:** design — informs implementation of preflight checks, runtime guards, and trace payloads
-before SEC-NET and governed retrieval work is treated as complete.
+before transport-level network policy and governed retrieval work is treated as complete.
 
 **Related:**
 
@@ -184,6 +184,12 @@ prefixes listed in §9; long-term alignment with **`PERM_*`** remains future con
 `orchestrator/schemas/trace-v2-line.schema.json`. Audit guide and examples: [permission-check-trace.md](permission-check-trace.md).
 
 **Orchestrator Claude CLI (shell slice):** spawning the **`claude`** binary for agent calls is gated as **`event: permission_check`** with `tool: claude_cli`, domain **`shell`**, and precheck **`orchestrator_shell_spawn: claude_cli`**; evaluator outcome is driven by **`remote_model`** policy so `shell: approval_required` does not block the default agent path. See `orchestrator/security/claude-cli-shell-gate.js` and orchestrator README.
+
+**Orchestrator Ollama HTTP (network slice):** outbound HTTP to **`OLLAMA_HOST`:`OLLAMA_PORT`** from **`agents/runtime/run-ollama.js`** and the **`checkOllama()`** health probe in **`orchestrator.js`** is gated via domain **`network`** and precheck **`network_hostname` / `network_port`** against **`domains.network.allow_hosts`** (`orchestrator/security/network-permission-gate.js`, `evaluate-permission.js`). Client hostname **`0.0.0.0`** is normalized to **`127.0.0.1`** for allow-list matching only (CI/Docker **`OLLAMA_HOST`** quirk). When MCP audit tracing is active, **`permission_check`** lines use **`tool: ollama_chat`** or **`ollama_health_check`**. Bypass (tests / emergency only): **`ORCH_SKIP_NETWORK_PERMISSION_GATE=1`**.
+
+**Scope boundary (Ollama HTTP gate):** This gate covers **only** orchestrator-owned Ollama HTTP transport (**orchestrator → HTTP → Ollama**). It does **not** grant or deny MCP/tool-internal network egress. Declared documentation retrieval must be authorized through **MCP / `context_retrieval` / `declared_docs_category`**, not through the Ollama **`network.allow_hosts`** policy. **Claude CLI** remains governed by **`shell` / `remote_model`**, not this Ollama network gate. Generic non-Ollama HTTP egress remains **out of scope** until a dedicated slice defines proxy/sandbox/enforcement semantics.
+
+**Context retrieval (policy slice):** domain **`context_retrieval`** is evaluated for **`domains.context_retrieval.default`** (e.g. `allow`, `warn_only`, `deny`) so future docs/RAG call sites can route through the evaluator without falling through to generic deny. Short-circuit **`declared_docs_category`** remains the preferred path for catalog-validated public docs lookup.
 
 ---
 
