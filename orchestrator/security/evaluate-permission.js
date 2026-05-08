@@ -13,6 +13,18 @@
 const READ_SIMULATE_LIKE = new Set(["read", "validate", "simulate", "generate"]);
 
 /**
+ * HTTP client "host" values sometimes use `0.0.0.0` (e.g. OLLAMA_HOST in CI/Docker) to mean the local
+ * Ollama listener. For allow-list matching against loopback entries, treat as 127.0.0.1 — not a wider egress allow.
+ * @param {string} hostname — trim + lower
+ * @returns {string}
+ */
+function normalizeClientHostnameForNetworkPolicy(hostname) {
+  const h = String(hostname).trim().toLowerCase();
+  if (h === "0.0.0.0") return "127.0.0.1";
+  return h;
+}
+
+/**
  * Parse `host` or `host:port` allow-list entry (IPv4 / hostname only; IPv6 not supported).
  * @param {unknown} entry
  * @returns {{ host: string, port: number | null }}
@@ -65,7 +77,7 @@ function evaluateNetwork(profile, input) {
       safe_to_continue: false,
     });
   }
-  const hostname = String(hostRaw).trim().toLowerCase();
+  const hostname = normalizeClientHostnameForNetworkPolicy(String(hostRaw).trim().toLowerCase());
   let port = null;
   if (pc.network_port !== undefined && pc.network_port !== null && pc.network_port !== "") {
     const n = Number(pc.network_port);
@@ -616,4 +628,5 @@ module.exports = {
   evaluatePermission,
   parseAllowHostEntry,
   networkHostMatchesAllowlist,
+  normalizeClientHostnameForNetworkPolicy,
 };

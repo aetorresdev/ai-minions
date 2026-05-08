@@ -510,7 +510,7 @@ When MCP audit tracing is active (`beginMcpAudit` / same JSONL task as MCP), a *
 
 ### Ollama HTTP network gate (local model transport)
 
-**`agents/runtime/run-ollama.js`** and **`checkOllama()`** in **`orchestrator.js`** call **`orchestrator/security/network-permission-gate.js`** before opening an HTTP connection. The evaluator uses domain **`network`** and matches **`OLLAMA_HOST` / `OLLAMA_PORT`** against **`domains.network.allow_hosts`** in the active permission profile (see **`orchestrator/security/permission-profiles.v1.json`**). Denied calls throw **`OLLAMA_NETWORK_DENIED`** (chat) or **`checkOllama`** returns false (health probe). When MCP audit tracing is active, **`permission_check`** uses **`tool: ollama_chat`** or **`ollama_health_check`**.
+**`agents/runtime/run-ollama.js`** and **`checkOllama()`** in **`orchestrator.js`** call **`orchestrator/security/network-permission-gate.js`** before opening an HTTP connection. The evaluator uses domain **`network`** and matches **`OLLAMA_HOST` / `OLLAMA_PORT`** against **`domains.network.allow_hosts`** in the active permission profile (see **`orchestrator/security/permission-profiles.v1.json`**). For allow-list purposes, client host **`0.0.0.0`** is normalized to **`127.0.0.1`** (common **`OLLAMA_HOST`** value in CI/Docker when meaning local Ollama). Denied calls throw **`OLLAMA_NETWORK_DENIED`** (chat) or **`checkOllama`** returns false (health probe). When MCP audit tracing is active, **`permission_check`** uses **`tool: ollama_chat`** or **`ollama_health_check`**.
 
 | Variable | Effect |
 |----------|--------|

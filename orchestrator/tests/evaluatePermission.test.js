@@ -218,6 +218,12 @@ describe("evaluate-permission — network domain (SEC-NET-R1-B3)", () => {
     assert.equal(r.reason_code, "network_allowlist_allowed");
   });
 
+  it("dev-local treats 0.0.0.0 as loopback alias for allow_hosts (OLLAMA_HOST CI/Docker)", () => {
+    const r = evaluatePermission(netInput("dev-local", "0.0.0.0", 11434));
+    assert.equal(r.decision, "allow");
+    assert.equal(r.reason_code, "network_allowlist_allowed");
+  });
+
   it("dev-local allows localhost with port via host-only allow entry", () => {
     const r = evaluatePermission(netInput("dev-local", "127.0.0.1", 11434));
     assert.equal(r.decision, "allow");
