@@ -508,6 +508,10 @@ Before each **`claude`** subprocess spawned by **`agents/runtime/run-claude.js`*
 
 When MCP audit tracing is active (`beginMcpAudit` / same JSONL task as MCP), a **`permission_check`** line with **`tool: claude_cli`** is emitted before the subprocess runs.
 
+### Ollama HTTP network gate (local model transport)
+
+**`agents/runtime/run-ollama.js`** and **`checkOllama()`** in **`orchestrator.js`** call **`orchestrator/security/network-permission-gate.js`** before opening an HTTP connection. The evaluator uses domain **`network`** and matches **`OLLAMA_HOST` / `OLLAMA_PORT`** against **`domains.network.allow_hosts`** in the active permission profile (see **`orchestrator/security/permission-profiles.v1.json`**). Denied calls throw **`OLLAMA_NETWORK_DENIED`** (chat) or **`checkOllama`** returns false (health probe). When MCP audit tracing is active, **`permission_check`** uses **`tool: ollama_chat`** or **`ollama_health_check`**.
+
 | Variable | Effect |
 |----------|--------|
 | **`ORCH_PERMISSION_PROFILE`** | Built-in profile name: `dev-local` (default if unset and no project policy), `ci-safe`, `prod-guarded`. If unset, the first profile in `.ai-minions/permissions.yaml` `extends` is used when that file exists. |
@@ -516,6 +520,7 @@ When MCP audit tracing is active (`beginMcpAudit` / same JSONL task as MCP), a *
 | **`ORCH_CI_MCP_CONFIGURED`** | Set to **`1`** so **`ci-safe`** can satisfy **`allow_if_ci_configured`** for MCP (also true when **`CI`** is a typical truthy CI flag). |
 | **`ORCH_SKIP_MCP_PERMISSION_GATE`** | Set to **`1`** to bypass the gate (tests / emergency only). **Do not** use in production. |
 | **`ORCH_SKIP_SHELL_PERMISSION_GATE`** | Set to **`1`** to bypass the Claude CLI shell gate only (tests / emergency). **Do not** use in production. |
+| **`ORCH_SKIP_NETWORK_PERMISSION_GATE`** | Set to **`1`** to bypass the Ollama HTTP network gate only (tests / emergency). **Do not** use in production. |
 
 Design reference: `docs/orchestrator/runtime-permission-contract.md` §3–4 (domains), §8.4 (trace shape). **`permission_check`** field catalog + audit: `docs/orchestrator/permission-check-trace.md`.
 

@@ -24,8 +24,8 @@ For `event === "permission_check"`, these payload fields are **required**:
 |-------|---------|
 | `actor` | Who initiated the check (string). |
 | `role` | Active orchestrator role (string). |
-| `tool` | Tool identifier (e.g. `server.tool` for MCP, **`claude_cli`** for Anthropic CLI spawn). |
-| `domain` | Permission domain (`filesystem`, `mcp`, `shell`, …). |
+| `tool` | Tool identifier (e.g. `server.tool` for MCP, **`claude_cli`** for Anthropic CLI spawn, **`ollama_chat`** / **`ollama_health_check`** for Ollama HTTP). |
+| `domain` | Permission domain (`filesystem`, `mcp`, `shell`, **`network`**, `context_retrieval`, …). |
 | `action_class` | Classified action (`read`, `external_side_effect`, …). |
 | `target_class` | Normalized target class or `null`. |
 | `decision` | `allow` \| `deny` \| `requires_approval` |

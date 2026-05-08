@@ -7,9 +7,165 @@
  * Optional input.precheck:
  * - declared_local_capability: true → short-circuit allow (caller validated against catalog)
  * - declared_docs_category: true → short-circuit allow (caller validated docs category)
+ * - network_hostname + optional network_port → host allow-list match (`domains.network`)
  */
 
 const READ_SIMULATE_LIKE = new Set(["read", "validate", "simulate", "generate"]);
+
+/**
+ * Parse `host` or `host:port` allow-list entry (IPv4 / hostname only; IPv6 not supported).
+ * @param {unknown} entry
+ * @returns {{ host: string, port: number | null }}
+ */
+function parseAllowHostEntry(entry) {
+  const s = String(entry).trim().toLowerCase();
+  const m = s.match(/^(.+):(\d+)$/);
+  if (m) {
+    const p = parseInt(m[2], 10);
+    if (Number.isFinite(p)) return { host: m[1], port: p };
+  }
+  return { host: s, port: null };
+}
+
+/**
+ * @param {string} hostname — normalized (trim + lower)
+ * @param {number | null} port — null = unknown port (fail closed for allow-list-only profiles)
+ * @param {unknown[]} allowHosts
+ */
+function networkHostMatchesAllowlist(hostname, port, allowHosts) {
+  if (!Array.isArray(allowHosts)) return false;
+  const hn = String(hostname).trim().toLowerCase();
+  for (const raw of allowHosts) {
+    const { host, port: entryPort } = parseAllowHostEntry(raw);
+    if (host !== hn) continue;
+    if (entryPort === null) return true;
+    if (port != null && Number.isFinite(port) && entryPort === port) return true;
+  }
+  return false;
+}
+
+function evaluateNetwork(profile, input) {
+  const net = profile.domains.network;
+  if (typeof net !== "object" || net == null) {
+    return baseEnvelope(input, {
+      decision: "deny",
+      reason_code: "malformed_policy_fail_safe",
+      requires_approval: false,
+      safe_to_continue: false,
+    });
+  }
+
+  const pc = input.precheck || {};
+  const hostRaw = pc.network_hostname;
+  if (hostRaw == null || String(hostRaw).trim() === "") {
+    return baseEnvelope(input, {
+      decision: "deny",
+      reason_code: "network_precheck_missing_host",
+      requires_approval: false,
+      safe_to_continue: false,
+    });
+  }
+  const hostname = String(hostRaw).trim().toLowerCase();
+  let port = null;
+  if (pc.network_port !== undefined && pc.network_port !== null && pc.network_port !== "") {
+    const n = Number(pc.network_port);
+    if (!Number.isFinite(n) || n < 0 || n > 65535) {
+      return baseEnvelope(input, {
+        decision: "deny",
+        reason_code: "network_precheck_invalid_port",
+        requires_approval: false,
+        safe_to_continue: false,
+      });
+    }
+    port = n;
+  }
+
+  const allowHosts = Array.isArray(net.allow_hosts) ? net.allow_hosts : [];
+  if (networkHostMatchesAllowlist(hostname, port, allowHosts)) {
+    return baseEnvelope(input, {
+      decision: "allow",
+      reason_code: "network_allowlist_allowed",
+      requires_approval: false,
+      safe_to_continue: true,
+    });
+  }
+
+  const def = net.default;
+  if (def === "allow") {
+    return baseEnvelope(input, {
+      decision: "allow",
+      reason_code: "network_default_allow",
+      requires_approval: false,
+      safe_to_continue: true,
+    });
+  }
+  if (def === "approval_required") {
+    return baseEnvelope(input, {
+      decision: "requires_approval",
+      reason_code: "network_egress_requires_allow",
+      requires_approval: true,
+      safe_to_continue: false,
+    });
+  }
+
+  return baseEnvelope(input, {
+    decision: "deny",
+    reason_code: "network_host_denied",
+    requires_approval: false,
+    safe_to_continue: false,
+  });
+}
+
+function evaluateContextRetrieval(profile, input) {
+  const cr = profile.domains.context_retrieval;
+  if (typeof cr !== "object" || cr == null) {
+    return baseEnvelope(input, {
+      decision: "deny",
+      reason_code: "malformed_policy_fail_safe",
+      requires_approval: false,
+      safe_to_continue: false,
+    });
+  }
+  const d = cr.default;
+  if (d === "allow") {
+    return baseEnvelope(input, {
+      decision: "allow",
+      reason_code: "context_retrieval_allowed",
+      requires_approval: false,
+      safe_to_continue: true,
+    });
+  }
+  if (d === "warn_only") {
+    return baseEnvelope(input, {
+      decision: "allow",
+      reason_code: "context_retrieval_warn_only_allowed",
+      requires_approval: false,
+      safe_to_continue: true,
+    });
+  }
+  if (d === "deny") {
+    return baseEnvelope(input, {
+      decision: "deny",
+      reason_code: "context_retrieval_denied",
+      requires_approval: false,
+      safe_to_continue: false,
+    });
+  }
+  if (d === "approval_required") {
+    return baseEnvelope(input, {
+      decision: "requires_approval",
+      reason_code: "context_retrieval_requires_allow",
+      requires_approval: true,
+      safe_to_continue: false,
+    });
+  }
+  return baseEnvelope(input, {
+    decision: "deny",
+    reason_code: "malformed_policy_fail_safe",
+    requires_approval: false,
+    safe_to_continue: false,
+  });
+}
 
 function baseEnvelope(input, partial) {
   return {
@@ -442,6 +598,10 @@ function evaluatePermission(input) {
       return evaluateGit(input.profile, input);
     case "mcp":
       return evaluateMcp(input.profile, input);
+    case "network":
+      return evaluateNetwork(input.profile, input);
+    case "context_retrieval":
+      return evaluateContextRetrieval(input.profile, input);
     default:
       return baseEnvelope(input, {
         decision: "deny",
@@ -452,4 +612,8 @@ function evaluatePermission(input) {
   }
 }
 
-module.exports = { evaluatePermission };
+module.exports = {
+  evaluatePermission,
+  parseAllowHostEntry,
+  networkHostMatchesAllowlist,
+};

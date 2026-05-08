@@ -292,7 +292,11 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
         systemForOllama = `${agent.system}${OLLAMA_DEV_SYSTEM_APPEND}`;
       }
     }
-    const raw = await runOllama(systemForOllama, [{ role: "user", content: userMessage }], { model });
+    const raw = await runOllama(systemForOllama, [{ role: "user", content: userMessage }], {
+      model,
+      cwd,
+      traceRole: agent.mode,
+    });
     const rawOut = raw.content == null ? "" : String(raw.content);
     const output = agentId.startsWith("dev-") ? normalizeDevContractText(rawOut) : rawOut;
     const check = validateOutput(agentId, output, { phase });
@@ -342,7 +346,11 @@ async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
   if (!agent) throw new Error(`Unknown agent "${agentId}". Available: ${Object.keys(AGENTS).join(", ")}`);
   if (agent.provider === "ollama") {
     const messages = [...history, { role: "user", content: userMessage }];
-    const raw = await runOllama(agent.system, messages, { model: agent.model });
+    const raw = await runOllama(agent.system, messages, {
+      model: agent.model,
+      cwd,
+      traceRole: agent.mode,
+    });
     const reply = raw.content;
     return { reply, history: [...messages, { role: "assistant", content: reply }] };
   }

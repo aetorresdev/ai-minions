@@ -86,6 +86,7 @@ const {
 } = require("./trace-schema");
 const { redactSensitivePlaintext } = require("./trace-redact");
 const { runMcpPermissionGate } = require("./security/mcp-permission-gate");
+const { runNetworkPermissionGate } = require("./security/network-permission-gate");
 
 /** Same as `TRACE_LINE_WRITER_VERSION` in trace-schema.js — single source for writer + schema. */
 const TRACE_SCHEMA_VERSION = TRACE_LINE_WRITER_VERSION;
@@ -1072,6 +1073,28 @@ function checkOllama() {
   const host = process.env.OLLAMA_HOST || "localhost";
   const port = parseInt(process.env.OLLAMA_PORT || "11434", 10);
   return new Promise((resolve) => {
+    if (process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE !== "1") {
+      try {
+        const gate = runNetworkPermissionGate({
+          repoRoot: process.cwd(),
+          role: "ORCHESTRATOR",
+          actor: "orchestrator",
+          hostname: host,
+          port,
+          tool: "ollama_health_check",
+          pathLabel: "/api/tags",
+        });
+        emitPermissionCheckTrace(gate.tracePayload);
+        const out = gate.output;
+        if (out.decision === "deny" || out.decision === "requires_approval" || !out.safe_to_continue) {
+          resolve(false);
+          return;
+        }
+      } catch {
+        resolve(false);
+        return;
+      }
+    }
     const http = require("http");
     const req = http.request({ hostname: host, port, path: "/api/tags", method: "GET" }, (res) => {
       resolve(res.statusCode === 200);
