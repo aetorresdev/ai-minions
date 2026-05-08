@@ -75,6 +75,17 @@ Same envelope; `decision`: `"deny"`, `requires_approval`: `false`, and a deny `r
 2. Group by `permission_profile` then `reason_code` to see policy outcomes under each mode.
 3. Join with the following `mcp_call` line (when present) by proximity/`task_id` to correlate permission outcome with MCP execution.
 
+## Run-level rollup (`session_end.permission_summary`)
+
+On **`session_end`**, the orchestrator may attach **`permission_summary`**: a compact rollup derived only from **`decision`**, **`reason_code`**, **`domain`**, and **`tool`** (no prompts or secrets). It includes:
+
+- **`permission_check_total`** — row count included in the rollup (checks observed while MCP audit is active for the run; same window as correlated `permission_check` ↔ MCP auditing).
+- **`by_decision`** — counts for `allow`, `deny`, `requires_approval`.
+- **`reason_codes_top`** — up to 16 `{ reason_code, count }` pairs, sorted by count descending.
+- **`repeated_denials`** — deny fingerprints (`tool` + `domain` + `reason_code`) with **`count` ≥ 2**, sorted by count descending.
+
+Legacy traces without **`permission_summary`** remain schema-valid. For offline analysis, **`node token-trace-report.js`** recomputes an equivalent rollup from all **`permission_check`** rows in the file (**`permission_summary_derived`** in JSON output; text report section when totals are present).
+
 ## Validation
 
 Writes go through `validateTraceLine()` in `orchestrator/trace-schema.js`; invalid `permission_check` lines fail fast at emit time.

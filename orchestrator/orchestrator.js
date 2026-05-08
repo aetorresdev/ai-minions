@@ -64,7 +64,7 @@ const {
 // Every line: ts (ISO), ts_ms (epoch ms), trace_schema_version, task_id, …payload.
 // trace_schema_version = TRACE_LINE_WRITER_VERSION from trace-schema.js (today "2").
 // Event types: session_start, agent_start, agent_done, gate_result,
-//              contract_fail, iteration_done, session_end, mcp_call, permission_check,
+//              contract_fail, iteration_done, session_end (optional permission_summary rollup), mcp_call, permission_check,
 //              context_stats may include ollama_prompt_tokens / ollama_completion_tokens (Ollama routes)
 //              agent_done (qa): optional qa_triple_template + qa_blocker_non_vacuous for rollups
 // iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".
@@ -87,6 +87,7 @@ const {
 const { redactSensitivePlaintext } = require("./trace-redact");
 const { runMcpPermissionGate } = require("./security/mcp-permission-gate");
 const { runNetworkPermissionGate } = require("./security/network-permission-gate");
+const { aggregatePermissionCheckRows } = require("./security/permission-check-summary");
 
 /** Same as `TRACE_LINE_WRITER_VERSION` in trace-schema.js — single source for writer + schema. */
 const TRACE_SCHEMA_VERSION = TRACE_LINE_WRITER_VERSION;
@@ -95,15 +96,19 @@ const TRACE_SCHEMA_VERSION = TRACE_LINE_WRITER_VERSION;
 let _mcpAuditTaskId = null;
 /** @type {{ server: string, tool: string, transport: string, duration_ms: number, ok: boolean }[]} */
 let _mcpAuditCalls = [];
+/** @type {{ decision?: string, reason_code?: string, domain?: string, tool?: string }[]} */
+let _permissionCheckAuditBuffer = [];
 
 function beginMcpAudit(taskId) {
   _mcpAuditTaskId = taskId;
   _mcpAuditCalls = [];
+  _permissionCheckAuditBuffer = [];
 }
 
 function clearMcpAudit() {
   _mcpAuditTaskId = null;
   _mcpAuditCalls = [];
+  _permissionCheckAuditBuffer = [];
 }
 
 /**
@@ -577,6 +582,14 @@ function traceEvent(taskId, event) {
   const v = validateTraceLineForWrite(record);
   if (!v.ok) {
     throw new Error(`trace line failed JSON Schema: ${v.errors.join("; ")}`);
+  }
+  if (sanitized.event === "permission_check" && taskId === _mcpAuditTaskId) {
+    _permissionCheckAuditBuffer.push({
+      decision: sanitized.decision,
+      reason_code: sanitized.reason_code,
+      domain: sanitized.domain,
+      tool: sanitized.tool,
+    });
   }
   try {
     fs.mkdirSync(TRACES_DIR, { recursive: true });
@@ -2190,6 +2203,7 @@ Reply with JSON only.`;
   const manualReviewRecommended = qaDegraded || manualReview;
   const handoffFallbackAny = artifacts.some((a) => a.handoff_fallback_used === true);
   const mcpSummary = aggregateMcpUsage(_mcpAuditCalls);
+  const permission_summary = aggregatePermissionCheckRows(_permissionCheckAuditBuffer);
   traceEvent(taskId, {
     event: "session_end",
     iterations,
@@ -2200,6 +2214,7 @@ Reply with JSON only.`;
     run_state_snapshot: getRunStatePublicView(runState),
     ...(scenarioId ? { scenario_id: scenarioId } : {}),
     ...mcpSummary,
+    permission_summary,
     ...(ollamaTokenTotals.prompt > 0 || ollamaTokenTotals.completion > 0
       ? {
         ollama_prompt_tokens_total: ollamaTokenTotals.prompt,
@@ -2228,6 +2243,7 @@ module.exports = {
   compactHandoffDegradedMeta,
   compactHandoffStrictFailureFields,
   aggregateMcpUsage,
+  aggregatePermissionCheckRows,
   stripLeadingOwnerArchitectForDegradedMultiAgent,
   edgeMeta,
   EDGE_TYPE_CATEGORY,

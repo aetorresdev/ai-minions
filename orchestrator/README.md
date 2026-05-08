@@ -162,7 +162,7 @@ npm run tokens:report -- <task_id>
 # custom file: node token-trace-report.js --file /path/to/trace.jsonl
 ```
 
-Optional env: `ORCH_TRACES_DIR` — defaults to `~/.claude/metrics/traces`. **`ORCH_TRACE_VALIDATE=1`** — when parsing JSONL in `token-trace-report` / `scenario-metrics-export`, validate each line against JSON Schema v2 (same as CLI `--strict-traces`). **Optional USD (Ollama only):** set both **`ORCH_USD_PER_MTOK_PROMPT`** and **`ORCH_USD_PER_MTOK_COMPLETION`** (USD per 1e6 tokens) so `token-trace-report` / scenario export attach **estimates** (`usd_note: "estimated"` in JSON — not vendor billing). Rates are yours to supply.
+Optional env: `ORCH_TRACES_DIR` — defaults to `~/.claude/metrics/traces`. **`ORCH_TRACE_VALIDATE=1`** — when parsing JSONL in `token-trace-report` / `scenario-metrics-export`, validate each line against JSON Schema v2 (same as CLI `--strict-traces`). JSON output includes **`permission_summary_from_session_end`** (when the closing line carries **`permission_summary`**) and **`permission_summary_derived`** (rollup recomputed from every **`permission_check`** row in the file); the default text report prints a **Permission checks** section when totals are present. **Optional USD (Ollama only):** set both **`ORCH_USD_PER_MTOK_PROMPT`** and **`ORCH_USD_PER_MTOK_COMPLETION`** (USD per 1e6 tokens) so `token-trace-report` / scenario export attach **estimates** (`usd_note: "estimated"` in JSON — not vendor billing). Rates are yours to supply.
 
 **Trace contract:** every JSONL line includes `trace_schema_version` (`"2"` — first published baseline). `iteration_done.transition_reason` is always an **object** `{ type, details? }`. Versioning policy (semver-like semantics, breaking vs non-breaking, mismatch): `docs/orchestrator/schema-versioning.md`. Short governance: `docs/orchestrator/strict-mode.md` § *Trace schema versions* and § *Trace contract governance*.
 
@@ -529,7 +529,7 @@ For orchestrator-owned **`spawnSync`** of external CLIs (not MCP, not the Claude
 | **`ORCH_SKIP_CLASSIFIED_SHELL_GATE`** | Set to **`1`** to bypass the classified manifest→evaluator gate used by **`spawnClassifiedSync`** (tests / emergency). **Do not** use in production. |
 | **`ORCH_SKIP_NETWORK_PERMISSION_GATE`** | Set to **`1`** to bypass the Ollama HTTP network gate only (tests / emergency). **Do not** use in production. |
 
-Design reference: `docs/orchestrator/runtime-permission-contract.md` §3–4 (domains), §8.4 (trace shape). **`permission_check`** field catalog + audit: `docs/orchestrator/permission-check-trace.md`.
+Design reference: `docs/orchestrator/runtime-permission-contract.md` §3–4 (domains), §8.4–§8.5 (trace shape + run rollup). **`permission_check`** field catalog + audit: `docs/orchestrator/permission-check-trace.md`.
 
 ### Test-only: `ORCH_TEST_SYSTEM_PATH_HARNESS` (not a product feature)
 
