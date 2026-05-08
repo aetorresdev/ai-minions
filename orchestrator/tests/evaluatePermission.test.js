@@ -84,6 +84,41 @@ describe("evaluate-permission — credentials", () => {
 });
 
 describe("evaluate-permission — shell", () => {
+  it("claude CLI orchestrator spawn allows when remote_model is allow (SEC-NET-R1-B2)", () => {
+    const r = evaluatePermission(
+      baseInput("dev-local", {
+        domain: "shell",
+        action_class: "external_side_effect",
+        tool: "claude_cli",
+        precheck: { orchestrator_shell_spawn: "claude_cli" },
+      }),
+    );
+    assert.equal(r.decision, "allow");
+    assert.equal(r.reason_code, "shell_claude_cli_remote_model_allow");
+  });
+
+  it("claude CLI spawn denies when remote_model is deny", () => {
+    const cfg = loadPermissionConfig();
+    const p = resolveProfile("dev-local", cfg.profiles);
+    const r = evaluatePermission(
+      baseInput("dev-local", {
+        domain: "shell",
+        action_class: "external_side_effect",
+        tool: "claude_cli",
+        precheck: { orchestrator_shell_spawn: "claude_cli" },
+        profile: {
+          ...p,
+          domains: {
+            ...p.domains,
+            remote_model: "deny",
+          },
+        },
+      }),
+    );
+    assert.equal(r.decision, "deny");
+    assert.equal(r.reason_code, "shell_claude_cli_remote_model_denied");
+  });
+
   it("dev-local shell requires approval", () => {
     const r = evaluatePermission(baseInput("dev-local", { domain: "shell", action_class: "external_side_effect" }));
     assert.equal(r.decision, "requires_approval");

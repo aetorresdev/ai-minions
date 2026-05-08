@@ -266,6 +266,15 @@ function gateMcpInvocation(server, toolName, cwd) {
 }
 
 /**
+ * Emit `permission_check` for Claude CLI shell gate when MCP audit task id is active (same window as MCP traces).
+ * Used by `agents/runtime/run-claude.js`; optional when orchestrator not loaded.
+ */
+function emitPermissionCheckTrace(payload) {
+  if (!_mcpAuditTaskId) return;
+  traceEvent(_mcpAuditTaskId, payload);
+}
+
+/**
  * Test-only harness: exercise real MCP + disk transitions without trusting the alignment LLM
  * (stubs + `enforce_goal_alignment: false` + Node bypass when `aligned === false`).
  * **Not** production-safe; **not** "strict E2E" in the product sense. Set only from `tests/e2e.strict.test.js`.
@@ -2185,6 +2194,7 @@ Reply with JSON only.`;
 
 module.exports = {
   run,
+  emitPermissionCheckTrace,
   resolveMaxIterations,
   detectBlockers,
   validateHandoffStructure,

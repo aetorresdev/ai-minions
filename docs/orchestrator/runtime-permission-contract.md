@@ -183,6 +183,8 @@ prefixes listed in §9; long-term alignment with **`PERM_*`** remains future con
 **Schema validation:** `permission_check` lines are validated at write time against
 `orchestrator/schemas/trace-v2-line.schema.json`. Audit guide and examples: [permission-check-trace.md](permission-check-trace.md).
 
+**Orchestrator Claude CLI (shell slice):** spawning the **`claude`** binary for agent calls is gated as **`event: permission_check`** with `tool: claude_cli`, domain **`shell`**, and precheck **`orchestrator_shell_spawn: claude_cli`**; evaluator outcome is driven by **`remote_model`** policy so `shell: approval_required` does not block the default agent path. See `orchestrator/security/claude-cli-shell-gate.js` and orchestrator README.
+
 ---
 
 ## 9. Reason codes (policy results)

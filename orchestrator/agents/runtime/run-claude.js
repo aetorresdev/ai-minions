@@ -16,7 +16,30 @@ const MAX_OUTPUT_TOKENS = {
 
 // ── Claude CLI ────────────────────────────────────────────────────────────────
 
-function runClaude(prompt, { cwd, model, maxTokens } = {}) {
+function runClaude(prompt, { cwd, model, maxTokens, traceRole = "ORCHESTRATOR" } = {}) {
+  if (process.env.ORCH_SKIP_SHELL_PERMISSION_GATE !== "1") {
+    const { runClaudeCliPermissionGate } = require("../../security/claude-cli-shell-gate");
+    const repoRoot = cwd || process.cwd();
+    const gate = runClaudeCliPermissionGate({
+      repoRoot,
+      role: traceRole,
+      actor: "orchestrator",
+    });
+    const out = gate.output;
+    if (out.decision === "deny" || out.decision === "requires_approval" || !out.safe_to_continue) {
+      const err = new Error(`Claude CLI invocation denied (${out.reason_code})`);
+      err.code = "CLAUDE_CLI_SHELL_DENIED";
+      err.permission_decision = out;
+      throw err;
+    }
+    try {
+      const { emitPermissionCheckTrace } = require("../../orchestrator.js");
+      emitPermissionCheckTrace(gate.tracePayload);
+    } catch {
+      /* orchestrator not loaded or tests-only import graph — trace optional */
+    }
+  }
+
   const timeoutMs = parseInt(process.env.CLAUDE_CLI_TIMEOUT, 10) || 180000;
   // Pass prompt via stdin ("-p -") to avoid the claude CLI arg parser treating
   // prompt content that starts with "---" or "--" as unknown CLI flags.
