@@ -508,6 +508,10 @@ Before each **`claude`** subprocess spawned by **`agents/runtime/run-claude.js`*
 
 When MCP audit tracing is active (`beginMcpAudit` / same JSONL task as MCP), a **`permission_check`** line with **`tool: claude_cli`** is emitted before the subprocess runs.
 
+### Classified invocation gate (manifest → evaluator, non-MCP subprocess)
+
+For orchestrator-owned **`spawnSync`** of external CLIs (not MCP, not the Claude LLM transport), use **`agents/runtime/run-classified-shell.js`** → **`spawnClassifiedSync`**. It runs **`security/action-classifiers/classify-action.js`** (manifest + adapters), routes **`git`** to domain **`git`** and other manifest tools to **`filesystem`**, then **`evaluatePermission`** with the active profile / project policy — same merge path as the MCP and Claude CLI gates. Denied or **`requires_approval`** throws **`CLASSIFIED_SHELL_DENIED`** before spawn. With MCP audit tracing active, an allowed path emits **`permission_check`** (tool label is manifest **`tool_id`** when known, else the executable basename). Bypass **tests only:** **`ORCH_SKIP_CLASSIFIED_SHELL_GATE=1`**.
+
 ### Ollama HTTP network gate (local model transport)
 
 **`agents/runtime/run-ollama.js`** and **`checkOllama()`** in **`orchestrator.js`** call **`orchestrator/security/network-permission-gate.js`** before opening an HTTP connection. The evaluator uses domain **`network`** and matches **`OLLAMA_HOST` / `OLLAMA_PORT`** against **`domains.network.allow_hosts`** in the active permission profile (see **`orchestrator/security/permission-profiles.v1.json`**). For allow-list purposes, client host **`0.0.0.0`** is normalized to **`127.0.0.1`** (common **`OLLAMA_HOST`** value in CI/Docker when meaning local Ollama). Denied calls throw **`OLLAMA_NETWORK_DENIED`** (chat) or **`checkOllama`** returns false (health probe). When MCP audit tracing is active, **`permission_check`** uses **`tool: ollama_chat`** or **`ollama_health_check`**.
@@ -522,6 +526,7 @@ When MCP audit tracing is active (`beginMcpAudit` / same JSONL task as MCP), a *
 | **`ORCH_CI_MCP_CONFIGURED`** | Set to **`1`** so **`ci-safe`** can satisfy **`allow_if_ci_configured`** for MCP (also true when **`CI`** is a typical truthy CI flag). |
 | **`ORCH_SKIP_MCP_PERMISSION_GATE`** | Set to **`1`** to bypass the gate (tests / emergency only). **Do not** use in production. |
 | **`ORCH_SKIP_SHELL_PERMISSION_GATE`** | Set to **`1`** to bypass the Claude CLI shell gate only (tests / emergency). **Do not** use in production. |
+| **`ORCH_SKIP_CLASSIFIED_SHELL_GATE`** | Set to **`1`** to bypass the classified manifest→evaluator gate used by **`spawnClassifiedSync`** (tests / emergency). **Do not** use in production. |
 | **`ORCH_SKIP_NETWORK_PERMISSION_GATE`** | Set to **`1`** to bypass the Ollama HTTP network gate only (tests / emergency). **Do not** use in production. |
 
 Design reference: `docs/orchestrator/runtime-permission-contract.md` §3–4 (domains), §8.4 (trace shape). **`permission_check`** field catalog + audit: `docs/orchestrator/permission-check-trace.md`.
