@@ -145,6 +145,31 @@ function evaluateFilesystem(profile, input) {
 }
 
 function evaluateShell(profile, input) {
+  const pc = input.precheck || {};
+  /**
+   * Orchestrator spawn of `claude` CLI as LLM transport (agents.js runClaude).
+   * Governed by **remote_model** (Anthropic API via CLI), not raw `shell` approval_required,
+   * so normal dev-local runs are not blocked while profiles still express shell restrictions
+   * for future arbitrary shell execution.
+   */
+  if (pc.orchestrator_shell_spawn === "claude_cli") {
+    const rm = profile.domains && profile.domains.remote_model;
+    if (rm === "allow") {
+      return baseEnvelope(input, {
+        decision: "allow",
+        reason_code: "shell_claude_cli_remote_model_allow",
+        requires_approval: false,
+        safe_to_continue: true,
+      });
+    }
+    return baseEnvelope(input, {
+      decision: "deny",
+      reason_code: "shell_claude_cli_remote_model_denied",
+      requires_approval: false,
+      safe_to_continue: false,
+    });
+  }
+
   const dom = profile.domains.shell;
   if (dom === "approval_required") {
     return baseEnvelope(input, {

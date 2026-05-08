@@ -24,7 +24,7 @@ For `event === "permission_check"`, these payload fields are **required**:
 |-------|---------|
 | `actor` | Who initiated the check (string). |
 | `role` | Active orchestrator role (string). |
-| `tool` | Tool identifier (e.g. `server.tool` for MCP). |
+| `tool` | Tool identifier (e.g. `server.tool` for MCP, **`claude_cli`** for Anthropic CLI spawn). |
 | `domain` | Permission domain (`filesystem`, `mcp`, `shell`, …). |
 | `action_class` | Classified action (`read`, `external_side_effect`, …). |
 | `target_class` | Normalized target class or `null`. |

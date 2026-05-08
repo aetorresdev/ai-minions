@@ -502,6 +502,12 @@ npm run test:e2e:all  # E2E suite with all available Ollama models
 
 Before each **`orchestrator-state`** / **`compact-handoff`** tool invocation (Python bridge **or** Claude CLI), the runner evaluates **permission profiles** + MCP trust levels (`orchestrator/security/mcp-permission-gate.js`). Denied calls throw **before** any MCP subprocess / CLI round-trip. When a run is emitting MCP audit traces, an extra **`permission_check`** JSONL line precedes each allowed **`mcp_call`**.
 
+### Claude CLI shell gate (agent LLM transport)
+
+Before each **`claude`** subprocess spawned by **`agents/runtime/run-claude.js`** (Anthropic path), the runner evaluates **`orchestrator/security/claude-cli-shell-gate.js`**. The spawn is modeled as domain **`shell`** with precheck **`orchestrator_shell_spawn: claude_cli`**; **allow/deny** follows **`remote_model`** (not raw `shell` approval flags), so **`dev-local`** / **`ci-safe`** keep normal agent runs working while profiles can still set **`remote_model: deny`** to block Claude CLI access.
+
+When MCP audit tracing is active (`beginMcpAudit` / same JSONL task as MCP), a **`permission_check`** line with **`tool: claude_cli`** is emitted before the subprocess runs.
+
 | Variable | Effect |
 |----------|--------|
 | **`ORCH_PERMISSION_PROFILE`** | Built-in profile name: `dev-local` (default if unset and no project policy), `ci-safe`, `prod-guarded`. If unset, the first profile in `.ai-minions/permissions.yaml` `extends` is used when that file exists. |
@@ -509,6 +515,7 @@ Before each **`orchestrator-state`** / **`compact-handoff`** tool invocation (Py
 | **`ORCH_MCP_REMOTE_DECLARED_SERVERS`** | Optional comma-separated ids for **remote_declared** trust. |
 | **`ORCH_CI_MCP_CONFIGURED`** | Set to **`1`** so **`ci-safe`** can satisfy **`allow_if_ci_configured`** for MCP (also true when **`CI`** is a typical truthy CI flag). |
 | **`ORCH_SKIP_MCP_PERMISSION_GATE`** | Set to **`1`** to bypass the gate (tests / emergency only). **Do not** use in production. |
+| **`ORCH_SKIP_SHELL_PERMISSION_GATE`** | Set to **`1`** to bypass the Claude CLI shell gate only (tests / emergency). **Do not** use in production. |
 
 Design reference: `docs/orchestrator/runtime-permission-contract.md` §3–4 (domains), §8.4 (trace shape). **`permission_check`** field catalog + audit: `docs/orchestrator/permission-check-trace.md`.
 
