@@ -14,6 +14,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { sanitizeTraceRowsForRead } = require("./trace-redact");
+const { aggregatePermissionChecksFromTraceRows } = require("./security/permission-check-summary");
 
 /** @typedef {{ ts?: string, task_id?: string, event?: string, [k: string]: unknown }} TraceRow */
 
@@ -96,6 +97,12 @@ function buildReport(rows) {
   const endC = sessionEnd && typeof sessionEnd.ollama_completion_tokens_total === "number"
     ? sessionEnd.ollama_completion_tokens_total : null;
 
+  const permission_summary_derived = aggregatePermissionChecksFromTraceRows(rows);
+  const permission_summary_from_session_end =
+    sessionEnd && sessionEnd.permission_summary != null && typeof sessionEnd.permission_summary === "object"
+      ? sessionEnd.permission_summary
+      : null;
+
   return {
     session_start: sessionStart,
     session_end: sessionEnd,
@@ -112,6 +119,8 @@ function buildReport(rows) {
         mcp_by_transport: sessionEnd.mcp_by_transport,
       }
       : null,
+    permission_summary_from_session_end,
+    permission_summary_derived,
   };
 }
 
@@ -367,6 +376,26 @@ function printTextReport(taskId, tracePath, report, parseErrors) {
     }
   } else {
     console.log("(no MCP rollups on session_end)");
+  }
+
+  const ps = report.permission_summary_from_session_end || report.permission_summary_derived;
+  if (ps && typeof ps.permission_check_total === "number") {
+    console.log("\n── Permission checks (run rollup) ──");
+    console.log(`permission_check events (session buffer / derived): ${ps.permission_check_total}`);
+    const bd = ps.by_decision || {};
+    console.log(`  allow: ${bd.allow ?? 0}  deny: ${bd.deny ?? 0}  requires_approval: ${bd.requires_approval ?? 0}`);
+    if (Array.isArray(ps.reason_codes_top) && ps.reason_codes_top.length) {
+      console.log("  top reason_code:");
+      for (const row of ps.reason_codes_top.slice(0, 12)) {
+        console.log(`    ${row.reason_code}: ${row.count}`);
+      }
+    }
+    if (Array.isArray(ps.repeated_denials) && ps.repeated_denials.length) {
+      console.log("  repeated denials (same tool|domain|reason_code):");
+      for (const r of ps.repeated_denials.slice(0, 8)) {
+        console.log(`    ${r.count}x ${r.domain}/${r.tool} — ${r.reason_code}`);
+      }
+    }
   }
 }
 

@@ -193,6 +193,10 @@ prefixes listed in §9; long-term alignment with **`PERM_*`** remains future con
 
 **Context retrieval (policy slice):** domain **`context_retrieval`** is evaluated for **`domains.context_retrieval.default`** (e.g. `allow`, `warn_only`, `deny`) so future docs/RAG call sites can route through the evaluator without falling through to generic deny. Short-circuit **`declared_docs_category`** remains the preferred path for catalog-validated public docs lookup.
 
+### 8.5 Run-level rollup (`session_end.permission_summary`)
+
+The reference runner may attach **`permission_summary`** on **`session_end`**: counts by **`decision`**, top **`reason_code`** buckets, and repeated deny fingerprints (`tool` / `domain` / **`reason_code`** only — no secrets). The rollup window matches **`permission_check`** rows buffered during the same MCP audit span as **`mcp_call`** correlation; **`token-trace-report`** can also recompute a rollup from every **`permission_check`** line in a trace file. Schema when present: **`orchestrator/schemas/trace-v2-line.schema.json`**; narrative: [permission-check-trace.md](permission-check-trace.md).
+
 ---
 
 ## 9. Reason codes (policy results)

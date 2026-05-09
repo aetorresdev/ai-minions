@@ -147,6 +147,78 @@
           "requires_approval": { "type": "boolean" }
         }
       }
+    },
+    {
+      "if": {
+        "allOf": [
+          {
+            "properties": { "event": { "const": "session_end" } },
+            "required": ["event"]
+          },
+          {
+            "properties": {
+              "permission_summary": { "type": "object" }
+            },
+            "required": ["permission_summary"]
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "permission_summary": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "permission_check_total",
+              "by_decision",
+              "reason_codes_top",
+              "repeated_denials"
+            ],
+            "properties": {
+              "permission_check_total": { "type": "integer", "minimum": 0 },
+              "by_decision": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["allow", "deny", "requires_approval"],
+                "properties": {
+                  "allow": { "type": "integer", "minimum": 0 },
+                  "deny": { "type": "integer", "minimum": 0 },
+                  "requires_approval": { "type": "integer", "minimum": 0 }
+                }
+              },
+              "reason_codes_top": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["reason_code", "count"],
+                  "properties": {
+                    "reason_code": { "type": "string", "maxLength": 160 },
+                    "count": { "type": "integer", "minimum": 1 }
+                  }
+                }
+              },
+              "repeated_denials": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["fingerprint", "count", "tool", "domain", "reason_code"],
+                  "properties": {
+                    "fingerprint": { "type": "string", "maxLength": 640 },
+                    "count": { "type": "integer", "minimum": 2 },
+                    "tool": { "type": "string", "maxLength": 512 },
+                    "domain": { "type": "string", "maxLength": 64 },
+                    "reason_code": { "type": "string", "maxLength": 160 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

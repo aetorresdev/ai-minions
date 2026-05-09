@@ -87,6 +87,50 @@ test("validateTraceLine accepts permission_check requires_approval path", () => 
   assert.equal(v.ok, true, (v.errors || []).join(" | "));
 });
 
+function sessionEndBase(overrides = {}) {
+  return {
+    ts: "2026-05-05T12:00:00.000Z",
+    ts_ms: 1746446400000,
+    trace_schema_version: "2",
+    task_id: "task-se",
+    event: "session_end",
+    ...overrides,
+  };
+}
+
+test("validateTraceLine accepts session_end without permission_summary (legacy)", () => {
+  const v = validateTraceLine(sessionEndBase({ summary: "done" }));
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
+test("validateTraceLine accepts session_end with valid permission_summary", () => {
+  const v = validateTraceLine(
+    sessionEndBase({
+      permission_summary: {
+        permission_check_total: 1,
+        by_decision: { allow: 1, deny: 0, requires_approval: 0 },
+        reason_codes_top: [{ reason_code: "mcp_trust_allow", count: 1 }],
+        repeated_denials: [],
+      },
+    }),
+  );
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
+test("validateTraceLine rejects session_end permission_summary with incomplete by_decision", () => {
+  const v = validateTraceLine(
+    sessionEndBase({
+      permission_summary: {
+        permission_check_total: 0,
+        by_decision: { allow: 0, deny: 0 },
+        reason_codes_top: [],
+        repeated_denials: [],
+      },
+    }),
+  );
+  assert.equal(v.ok, false);
+});
+
 test("validateTraceLine rejects iteration_done without reason_code", () => {
   const row = {
     ts: "2026-04-15T12:00:00.000Z",
