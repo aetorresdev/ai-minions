@@ -81,8 +81,8 @@ On **`session_end`**, the orchestrator may attach **`permission_summary`**: a co
 
 - **`permission_check_total`** — row count included in the rollup (checks observed while MCP audit is active for the run; same window as correlated `permission_check` ↔ MCP auditing).
 - **`by_decision`** — counts for `allow`, `deny`, `requires_approval`.
-- **`reason_codes_top`** — up to 16 `{ reason_code, count }` pairs, sorted by count descending.
-- **`repeated_denials`** — deny fingerprints (`tool` + `domain` + `reason_code`) with **`count` ≥ 2**, sorted by count descending.
+- **`reason_codes_top`** — the producer emits at most **16** pairs, sorted by count descending; JSON Schema allows up to **32** items for forward-compatible traces.
+- **`repeated_denials`** — deny fingerprints (`tool` + `domain` + `reason_code`) with **`count` ≥ 2**, sorted by count descending, **capped at 64** (matches schema `maxItems`).
 
 Legacy traces without **`permission_summary`** remain schema-valid. For offline analysis, **`node token-trace-report.js`** recomputes an equivalent rollup from all **`permission_check`** rows in the file (**`permission_summary_derived`** in JSON output; text report section when totals are present).
 

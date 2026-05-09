@@ -3,6 +3,8 @@
 /**
  * Run-level rollups for permission_check trace lines (session_end + offline rescans).
  * Uses only decision / reason_code / domain / tool — no prompts or secrets.
+ *
+ * Cardinality: repeated_denials capped at 64 to match trace-v2-line.schema.json maxItems.
  */
 
 /**
@@ -62,7 +64,8 @@ function aggregatePermissionCheckRows(rows) {
       }
       return { fingerprint, count, tool, domain, reason_code };
     })
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 64);
 
   return {
     permission_check_total: list.length,

@@ -7,6 +7,7 @@ const {
   aggregatePermissionChecksFromTraceRows,
 } = require("../security/permission-check-summary");
 const { buildReport } = require("../token-trace-report");
+const { validateTraceLine } = require("../trace-schema");
 
 test("permission-check-summary: empty rows yields zeros and empty top lists", () => {
   const s = aggregatePermissionCheckRows([]);
@@ -35,6 +36,29 @@ test("permission-check-summary: counts decisions and reason_codes_top", () => {
     "mcp_trust_allow:1",
     "mcp_trust_denied:1",
   ]);
+});
+
+test("permission-check-summary: repeated_denials capped at 64 (schema maxItems) and session_end validates", () => {
+  const rows = [];
+  for (let i = 0; i < 65; i++) {
+    const tool = `tool.${i}`;
+    rows.push(
+      { decision: "deny", reason_code: "deny_r", domain: "mcp", tool },
+      { decision: "deny", reason_code: "deny_r", domain: "mcp", tool },
+    );
+  }
+  const ps = aggregatePermissionCheckRows(rows);
+  assert.equal(ps.repeated_denials.length, 64);
+  const sessionEnd = {
+    ts: "2026-05-05T12:00:00.000Z",
+    ts_ms: 1746446400000,
+    trace_schema_version: "2",
+    task_id: "task-cap-test",
+    event: "session_end",
+    permission_summary: ps,
+  };
+  const v = validateTraceLine(sessionEnd);
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
 });
 
 test("permission-check-summary: repeated_denials lists fingerprints with count >= 2", () => {
