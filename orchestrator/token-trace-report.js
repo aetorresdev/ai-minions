@@ -15,6 +15,7 @@ const path = require("path");
 const os = require("os");
 const { sanitizeTraceRowsForRead } = require("./trace-redact");
 const { aggregatePermissionChecksFromTraceRows } = require("./security/permission-check-summary");
+const { buildTokenUsageSummary } = require("./token-usage-summary");
 
 /** @typedef {{ ts?: string, task_id?: string, event?: string, [k: string]: unknown }} TraceRow */
 
@@ -103,6 +104,8 @@ function buildReport(rows) {
       ? sessionEnd.permission_summary
       : null;
 
+  const { token_usage_summary } = buildTokenUsageSummary(rows);
+
   return {
     session_start: sessionStart,
     session_end: sessionEnd,
@@ -121,6 +124,7 @@ function buildReport(rows) {
       : null,
     permission_summary_from_session_end,
     permission_summary_derived,
+    token_usage_summary,
   };
 }
 
@@ -251,7 +255,8 @@ function rollupStepsCostOutcome(rows) {
     if (!rec) continue;
     const ev = r.event;
     if (ev === "context_stats") {
-      if (typeof r.agent === "string") rec.agent = r.agent;
+      const isCompaction = r.invocation_type === "context_compaction" || r.execution_actor === "context_compactor";
+      if (!isCompaction && typeof r.agent === "string") rec.agent = r.agent;
       if (typeof r.iteration === "number") rec.iteration = r.iteration;
       if (typeof r.intent_id === "string") rec.intent_id = r.intent_id;
       const p = typeof r.ollama_prompt_tokens === "number" && !Number.isNaN(r.ollama_prompt_tokens)
@@ -343,6 +348,19 @@ function printTextReport(taskId, tracePath, report, parseErrors) {
     }
   } else {
     console.log("\n(no ollama_*_total on session_end — non-Ollama route or zero tokens)");
+  }
+
+  const tu = report.token_usage_summary;
+  if (tu && tu.by_role && Object.keys(tu.by_role).length) {
+    console.log("\n── Token usage summary (direct vs infra-attributed) ──");
+    console.log(`run_total: in=${tu.run_total.input_tokens} out=${tu.run_total.output_tokens} total=${tu.run_total.total_tokens}`);
+    for (const [role, v] of Object.entries(tu.by_role).sort()) {
+      console.log(
+        `  ${role}: direct in/out ${v.direct_input_tokens}/${v.direct_output_tokens}  infra in/out ${v.infra_attributed_input_tokens}/${v.infra_attributed_output_tokens}  total=${v.total_tokens}`,
+      );
+    }
+    const invN = Array.isArray(tu.by_invocation) ? tu.by_invocation.length : 0;
+    console.log(`  by_invocation rows: ${invN}`);
   }
 
   const usd = optionalOllamaUsdEstimate(report);
@@ -469,6 +487,7 @@ module.exports = {
   optionalOllamaUsdEstimate,
   rollupStepsCostOutcome,
   parseTraceLine: require("./trace-schema").parseTraceLine,
+  buildTokenUsageSummary: require("./token-usage-summary").buildTokenUsageSummary,
 };
 
 if (require.main === module) {

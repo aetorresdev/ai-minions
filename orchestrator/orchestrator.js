@@ -983,6 +983,34 @@ function compactHandoffStrictFailureFields(err) {
   };
 }
 
+/**
+ * Normalize compact_handoff tool result (YAML string legacy, or structured JSON from mcp-direct).
+ * @param {unknown} out
+ * @returns {{ yaml: string, ollama_prompt_tokens: number, ollama_completion_tokens: number }}
+ */
+function normalizeCompactHandoffResult(out) {
+  if (typeof out === "string") {
+    const yaml = out.trim();
+    if (!yaml) throw new Error("compact_handoff returned empty output");
+    if (yaml.startsWith("error:")) throw new Error(yaml.slice(0, 400));
+    return { yaml, ollama_prompt_tokens: 0, ollama_completion_tokens: 0 };
+  }
+  if (out && typeof out === "object") {
+    const o = /** @type {Record<string, unknown>} */ (out);
+    if (typeof o.handoff_yaml === "string") {
+      const yaml = o.handoff_yaml.trim();
+      if (!yaml) throw new Error("compact_handoff returned empty output");
+      if (yaml.startsWith("error:")) throw new Error(yaml.slice(0, 400));
+      const p = typeof o.ollama_prompt_tokens === "number" && !Number.isNaN(o.ollama_prompt_tokens)
+        ? o.ollama_prompt_tokens : 0;
+      const c = typeof o.ollama_completion_tokens === "number" && !Number.isNaN(o.ollama_completion_tokens)
+        ? o.ollama_completion_tokens : 0;
+      return { yaml, ollama_prompt_tokens: p, ollama_completion_tokens: c };
+    }
+  }
+  throw new Error(`compact_handoff unexpected return shape: ${String(JSON.stringify(out)).slice(0, 200)}`);
+}
+
 function callCompactHandoff({ text, modeCompleted, nextMode, iteration, maxIterations, flowMode }, { cwd } = {}) {
   if (useMcpDirectTransport()) {
     const out = invokeMcpDirect(
@@ -998,10 +1026,7 @@ function callCompactHandoff({ text, modeCompleted, nextMode, iteration, maxItera
       },
       { cwd }
     );
-    const yaml = typeof out === "string" ? out : "";
-    if (!yaml.trim()) throw new Error("compact_handoff returned empty output");
-    if (yaml.startsWith("error:")) throw new Error(yaml.slice(0, 400));
-    return yaml.trim();
+    return normalizeCompactHandoffResult(out);
   }
   gateMcpInvocation("compact-handoff", "compact_handoff", cwd);
   const prompt = `Call the MCP tool compact-handoff.compact_handoff with these arguments and return only the raw YAML string, no other text:
@@ -1031,7 +1056,7 @@ compact_handoff(
       duration_ms: Date.now() - t0,
       ok: true,
     });
-    return result.stdout.trim();
+    return normalizeCompactHandoffResult(result.stdout);
   } catch (err) {
     recordMcpInvocation({
       server: "compact-handoff",
@@ -1629,7 +1654,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       if (AGENTS_REQUIRING_GATE.has(agentId)) {
         log("gate", `Compacting handoff for ${agentId} → ${nextMode}...`);
         try {
-          handoffYaml = callCompactHandoff({
+          const compactRes = callCompactHandoff({
             text: result,
             modeCompleted: toMode,
             nextMode,
@@ -1637,6 +1662,26 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
             maxIterations,
             flowMode,
           }, { cwd });
+          handoffYaml = compactRes.yaml;
+          bumpOllamaFromStats({
+            ollama_prompt_tokens: compactRes.ollama_prompt_tokens,
+            ollama_completion_tokens: compactRes.ollama_completion_tokens,
+          });
+          traceEvent(taskId, {
+            event: "context_stats",
+            agent: "context_compactor",
+            attributed_to_role: agentId,
+            invocation_type: "context_compaction",
+            execution_actor: "context_compactor",
+            trigger_reason: "handoff_policy",
+            iteration: iterations,
+            step_id: stepId,
+            step_index: stepIndex,
+            ...graphMeta,
+            ...intentStep,
+            ollama_prompt_tokens: compactRes.ollama_prompt_tokens,
+            ollama_completion_tokens: compactRes.ollama_completion_tokens,
+          });
           log("gate", `Handoff YAML ready (${handoffYaml.length} chars)`);
         } catch (err) {
           const msg = err.message || String(err);
@@ -1895,7 +1940,7 @@ nice-to-have: ...`;
     if (!skipStateMcp) {
       let cerberusHandoff = "";
       try {
-        cerberusHandoff = callCompactHandoff({
+        const compactRes = callCompactHandoff({
           text: cerberusResult,
           modeCompleted: "CERBERUS",
           nextMode: "ORCHESTRATOR",
@@ -1903,6 +1948,23 @@ nice-to-have: ...`;
           maxIterations,
           flowMode,
         }, { cwd });
+        cerberusHandoff = compactRes.yaml;
+        bumpOllamaFromStats({
+          ollama_prompt_tokens: compactRes.ollama_prompt_tokens,
+          ollama_completion_tokens: compactRes.ollama_completion_tokens,
+        });
+        traceEvent(taskId, {
+          event: "context_stats",
+          agent: "context_compactor",
+          attributed_to_role: "cerberus",
+          invocation_type: "context_compaction",
+          execution_actor: "context_compactor",
+          trigger_reason: "handoff_policy",
+          iteration: iterations,
+          phase: "cerberus_advance",
+          ollama_prompt_tokens: compactRes.ollama_prompt_tokens,
+          ollama_completion_tokens: compactRes.ollama_completion_tokens,
+        });
       } catch (err) {
         const msg = err.message || String(err);
         if (requireHandoff) {

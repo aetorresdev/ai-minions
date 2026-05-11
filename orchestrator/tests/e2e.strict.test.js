@@ -236,7 +236,12 @@ describe("System-path E2E — MCP direct + state store", { timeout: TEST_TIMEOUT
       flow_mode: "single_agent",
     });
 
-    const yaml = typeof out === "string" ? out : "";
+    const yaml =
+      typeof out === "string"
+        ? out
+        : out && typeof out.handoff_yaml === "string"
+          ? out.handoff_yaml
+          : "";
     if (!yaml || yaml.startsWith("error:")) {
       t.skip(`compact_handoff unavailable: ${String(yaml).slice(0, 120)}`);
       return;

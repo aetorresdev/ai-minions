@@ -11,6 +11,7 @@ Tools:
 """
 import json
 import httpx
+from typing import Dict, Tuple
 from mcp.server.fastmcp import FastMCP
 
 OLLAMA_URL   = "http://localhost:11434/api/generate"
@@ -61,7 +62,8 @@ Rules:
 """
 
 
-def call_ollama(prompt: str, num_predict: int = 512) -> str:
+def call_ollama(prompt: str, num_predict: int = 512) -> Tuple[str, Dict[str, int]]:
+    """Returns (response_text, usage_dict) where usage has Ollama token counts when present."""
     payload = {
         "model": OLLAMA_MODEL,
         "prompt": prompt,
@@ -74,7 +76,13 @@ def call_ollama(prompt: str, num_predict: int = 512) -> str:
     with httpx.Client(timeout=90.0) as client:
         resp = client.post(OLLAMA_URL, json=payload)
         resp.raise_for_status()
-        return resp.json().get("response", "").strip()
+        data = resp.json()
+        text = (data.get("response") or "").strip()
+        usage = {
+            "ollama_prompt_tokens": int(data.get("prompt_eval_count") or 0),
+            "ollama_completion_tokens": int(data.get("eval_count") or 0),
+        }
+        return text, usage
 
 
 def strip_fences(text: str) -> str:
@@ -123,7 +131,7 @@ Agent output to compact:
 Produce the handoff YAML:"""
 
     try:
-        result = call_ollama(prompt)
+        result, usage = call_ollama(prompt)
     except httpx.ConnectError:
         return "error: Ollama not reachable at localhost:11434 — is it running?"
     except httpx.HTTPStatusError as e:
@@ -131,7 +139,12 @@ Produce the handoff YAML:"""
     except Exception as e:
         return f"error: {e}"
 
-    return strip_fences(result)
+    yaml_body = strip_fences(result)
+    return {
+        "handoff_yaml": yaml_body,
+        "ollama_prompt_tokens": usage["ollama_prompt_tokens"],
+        "ollama_completion_tokens": usage["ollama_completion_tokens"],
+    }
 
 
 @mcp.tool()
@@ -155,7 +168,7 @@ Format: <severity>: <reason>
 Finding: """ + finding + "\n\nClassification:"
 
     try:
-        result = call_ollama(prompt, num_predict=64)
+        result, _usage = call_ollama(prompt, num_predict=64)
     except httpx.ConnectError:
         return "error: Ollama not reachable at localhost:11434"
     except Exception as e:
@@ -201,7 +214,7 @@ Answer in JSON only, no explanation outside the JSON:
 }}"""
 
     try:
-        raw = call_ollama(prompt, num_predict=256)
+        raw, _usage = call_ollama(prompt, num_predict=256)
     except httpx.ConnectError:
         return json.dumps({"error": "Ollama not reachable at localhost:11434"})
     except Exception as e:
