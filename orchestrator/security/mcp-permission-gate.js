@@ -5,6 +5,7 @@ const { loadProjectPolicy, mergeProjectPolicy } = require("./load-project-policy
 const { evaluatePermission } = require("./evaluate-permission");
 const { traceSecurityDecision } = require("./trace-security-decision");
 const { resolveMcpTrustLevel } = require("./resolve-mcp-trust-level");
+const { isDomainAllowedForCapabilityContext, syntheticDenyOutput } = require("./trace-role-capability");
 
 /**
  * Parse comma-separated MCP server ids from env-style string.
@@ -54,6 +55,7 @@ function resolveActivePermissionProfileName(repoRoot) {
  * @param {boolean} [opts.ciMcpConfigured] — for allow_if_ci_configured (caller supplies from CI context)
  * @param {Set<string>} [opts.declaredServers] — extra declared ids (e.g. from future YAML); merged with ORCH_MCP_DECLARED_SERVERS
  * @param {Set<string>} [opts.remoteDeclaredServers] — ORCH_MCP_REMOTE_DECLARED_SERVERS
+ * @param {string} [opts.agentId] — matrix role id (e.g. orchestrator); wins over MODE-only union when set
  */
 function runMcpPermissionGate(opts) {
   const server = opts.server != null ? String(opts.server) : "";
@@ -104,6 +106,23 @@ function runMcpPermissionGate(opts) {
       ci_mcp_configured: ciConfigured,
     },
   };
+
+  if (process.env.ORCH_SKIP_ROLE_CAPABILITY_GATE !== "1") {
+    const cap = isDomainAllowedForCapabilityContext({
+      traceRole: input.role,
+      agentId: opts.agentId,
+      domain: input.domain,
+    });
+    if (!cap.ok) {
+      const output = syntheticDenyOutput(input, cap.reason_code);
+      return {
+        input,
+        output,
+        tracePayload: traceSecurityDecision(input, output),
+        trust_level: trustLevel,
+      };
+    }
+  }
 
   const output = evaluatePermission(input);
   const tracePayload = traceSecurityDecision(input, output);

@@ -9,7 +9,7 @@ const http = require('http');
 function runOllama(
   systemPrompt,
   messages,
-  { model = "qwen2.5-coder:7b", timeoutMs, traceRole = "ORCHESTRATOR", cwd } = {},
+  { model = "qwen2.5-coder:7b", timeoutMs, traceRole = "ORCHESTRATOR", traceAgentId, cwd } = {},
 ) {
   const OLLAMA_HOST = process.env.OLLAMA_HOST || "localhost";
   const OLLAMA_PORT = parseInt(process.env.OLLAMA_PORT || "11434", 10);
@@ -20,6 +20,7 @@ function runOllama(
     const gate = runNetworkPermissionGate({
       repoRoot,
       role: traceRole,
+      agentId: traceAgentId,
       actor: "orchestrator",
       hostname: OLLAMA_HOST,
       port: OLLAMA_PORT,

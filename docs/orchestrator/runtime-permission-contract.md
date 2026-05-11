@@ -197,6 +197,10 @@ prefixes listed in §9; long-term alignment with **`PERM_*`** remains future con
 
 The reference runner may attach **`permission_summary`** on **`session_end`**: counts by **`decision`**, top **`reason_code`** buckets, and repeated deny fingerprints (`tool` / `domain` / **`reason_code`** only — no secrets). The rollup window matches **`permission_check`** rows buffered during the same MCP audit span as **`mcp_call`** correlation; **`token-trace-report`** can also recompute a rollup from every **`permission_check`** line in a trace file. Schema when present: **`orchestrator/schemas/trace-v2-line.schema.json`**; narrative: [permission-check-trace.md](permission-check-trace.md).
 
+### 8.6 Role / capability matrix precheck (before evaluator)
+
+Runtime gates (`mcp-permission-gate`, `claude-cli-shell-gate`, `network-permission-gate`, `classified-invocation-permission-gate`) verify the active **`agentId`** (authoritative when supplied) or the MODE **`role`** union against **`agents/capability-matrix.v1.json`** **before** calling **`evaluatePermission`**. Denials use stable **`reason_code`** values such as **`role_capability_domain_denied`** (trace-only; not `PERM_*`). **Claude CLI transport:** matrix declares **`remote_model`** for Claude-using roles while the evaluator still uses domain **`shell`**; the precheck allows if **either** domain is listed for the role. Bypass (tests / emergency): **`ORCH_SKIP_ROLE_CAPABILITY_GATE=1`**.
+
 ---
 
 ## 9. Reason codes (policy results)

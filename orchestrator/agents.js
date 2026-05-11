@@ -296,6 +296,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
       model,
       cwd,
       traceRole: agent.mode,
+      traceAgentId: agentId,
     });
     const rawOut = raw.content == null ? "" : String(raw.content);
     const output = agentId.startsWith("dev-") ? normalizeDevContractText(rawOut) : rawOut;
@@ -322,7 +323,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
 
   let output;
   try {
-    output = runClaude(prompt, { cwd, model: agent.model, maxTokens, traceRole: agent.mode });
+    output = runClaude(prompt, { cwd, model: agent.model, maxTokens, traceRole: agent.mode, traceAgentId: agentId });
   } catch (primaryErr) {
     // Primary model failed — attempt fallback per policy
     let fb;
@@ -333,7 +334,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
       console.warn(`[${agentId}] primary failed — degraded mode with ${fb.model} (${fb.reason})`);
     }
     _degradedAgents.add(agentId);
-    output = runClaude(prompt, { cwd, model: fb.model, maxTokens, traceRole: agent.mode });
+    output = runClaude(prompt, { cwd, model: fb.model, maxTokens, traceRole: agent.mode, traceAgentId: agentId });
   }
 
   const check = validateOutput(agentId, output, { phase });
@@ -350,6 +351,7 @@ async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
       model: agent.model,
       cwd,
       traceRole: agent.mode,
+      traceAgentId: agentId,
     });
     const reply = raw.content;
     return { reply, history: [...messages, { role: "assistant", content: reply }] };
@@ -363,6 +365,7 @@ async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
     cwd,
     model: agent.model,
     traceRole: agent.mode,
+    traceAgentId: agentId,
   });
   return {
     reply,

@@ -1,5 +1,5 @@
 {
-  "$schema_comment": "Aligned with docs/orchestrator/capability-flow-contract.md §4 and runtime-permission domains. Positive allow-list per role; not runtime enforcement.",
+  "$schema_comment": "Aligned with docs/orchestrator/capability-flow-contract.md §4 and runtime-permission domains. Positive allow-list per role; used for plan-time validation and runtime role/domain precheck before the permission evaluator.",
   "version": "cap.orchestrator.v1",
   "domains": [
     "remote_model",
@@ -13,8 +13,8 @@
   ],
   "roles": {
     "orchestrator": {
-      "domains": ["local_model"],
-      "notes": "Plan/decide via Ollama; no shell or workspace writes in contract split."
+      "domains": ["local_model", "network", "mcp", "remote_model"],
+      "notes": "Plan/decide default Ollama (local_model + network); MCP bridge; remote_model when Claude transport is used for plan/decide; no arbitrary workspace shell."
     },
     "owner": {
       "domains": ["remote_model", "filesystem"],
