@@ -16,13 +16,14 @@ const MAX_OUTPUT_TOKENS = {
 
 // ── Claude CLI ────────────────────────────────────────────────────────────────
 
-function runClaude(prompt, { cwd, model, maxTokens, traceRole = "ORCHESTRATOR" } = {}) {
+function runClaude(prompt, { cwd, model, maxTokens, traceRole = "ORCHESTRATOR", traceAgentId } = {}) {
   if (process.env.ORCH_SKIP_SHELL_PERMISSION_GATE !== "1") {
     const { runClaudeCliPermissionGate } = require("../../security/claude-cli-shell-gate");
     const repoRoot = cwd || process.cwd();
     const gate = runClaudeCliPermissionGate({
       repoRoot,
       role: traceRole,
+      agentId: traceAgentId,
       actor: "orchestrator",
     });
     const out = gate.output;

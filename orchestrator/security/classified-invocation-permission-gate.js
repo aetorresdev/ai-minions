@@ -6,6 +6,7 @@ const { resolveActivePermissionProfileName } = require("./mcp-permission-gate");
 const { loadProjectPolicy, mergeProjectPolicy } = require("./load-project-policy");
 const { evaluatePermission } = require("./evaluate-permission");
 const { traceSecurityDecision } = require("./trace-security-decision");
+const { isDomainAllowedForCapabilityContext, syntheticDenyOutput } = require("./trace-role-capability");
 const { classifyAction } = require("./action-classifiers/classify-action");
 
 /**
@@ -35,6 +36,7 @@ function toolLabelFromClassification(executable, classification) {
  * @param {string} [opts.role]
  * @param {string} [opts.actor]
  * @param {string} [opts.permissionProfileName]
+ * @param {string} [opts.agentId] — matrix role id when known
  */
 function runClassifiedInvocationPermissionGate(opts) {
   const repoRoot = opts.repoRoot != null ? String(opts.repoRoot) : process.cwd();
@@ -72,6 +74,18 @@ function runClassifiedInvocationPermissionGate(opts) {
     policy_source: merged.policy_source,
     profile: merged.profile,
   };
+
+  if (process.env.ORCH_SKIP_ROLE_CAPABILITY_GATE !== "1") {
+    const cap = isDomainAllowedForCapabilityContext({
+      traceRole: input.role,
+      agentId: opts.agentId,
+      domain: input.domain,
+    });
+    if (!cap.ok) {
+      const output = syntheticDenyOutput(input, cap.reason_code);
+      return { input, output, tracePayload: traceSecurityDecision(input, output), classification };
+    }
+  }
 
   const output = evaluatePermission(input);
   const tracePayload = traceSecurityDecision(input, output);

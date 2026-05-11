@@ -20,6 +20,7 @@ function spawnClassifiedSync(executable, args, options = {}) {
     actor = "orchestrator",
     cwd,
     permissionProfileName,
+    traceAgentId,
     ...spawnOpts
   } = options;
   const repoRoot = cwd || process.cwd();
@@ -33,6 +34,7 @@ function spawnClassifiedSync(executable, args, options = {}) {
     repoRoot,
     role: traceRole,
     actor,
+    agentId: traceAgentId,
     executable,
     args: argv,
     permissionProfileName,

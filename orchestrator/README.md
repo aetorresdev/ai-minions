@@ -528,6 +528,7 @@ For orchestrator-owned **`spawnSync`** of external CLIs (not MCP, not the Claude
 | **`ORCH_SKIP_SHELL_PERMISSION_GATE`** | Set to **`1`** to bypass the Claude CLI shell gate only (tests / emergency). **Do not** use in production. |
 | **`ORCH_SKIP_CLASSIFIED_SHELL_GATE`** | Set to **`1`** to bypass the classified manifest→evaluator gate used by **`spawnClassifiedSync`** (tests / emergency). **Do not** use in production. |
 | **`ORCH_SKIP_NETWORK_PERMISSION_GATE`** | Set to **`1`** to bypass the Ollama HTTP network gate only (tests / emergency). **Do not** use in production. |
+| **`ORCH_SKIP_ROLE_CAPABILITY_GATE`** | Set to **`1`** to bypass the capability-matrix role/domain precheck before **`evaluatePermission`** (tests / emergency). **Do not** use in production. |
 
 Design reference: `docs/orchestrator/runtime-permission-contract.md` §3–4 (domains), §8.4–§8.5 (trace shape + run rollup). **`permission_check`** field catalog + audit: `docs/orchestrator/permission-check-trace.md`.
 

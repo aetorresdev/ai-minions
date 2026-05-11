@@ -5,6 +5,7 @@ const { resolveActivePermissionProfileName } = require("./mcp-permission-gate");
 const { loadProjectPolicy, mergeProjectPolicy } = require("./load-project-policy");
 const { evaluatePermission } = require("./evaluate-permission");
 const { traceSecurityDecision } = require("./trace-security-decision");
+const { isDomainAllowedForCapabilityContext, syntheticDenyOutput } = require("./trace-role-capability");
 
 /**
  * Ollama HTTP path: HTTP/TCP egress pre-check against `domains.network` (allow_hosts + default).
@@ -18,6 +19,7 @@ const { traceSecurityDecision } = require("./trace-security-decision");
  * @param {string} [opts.actor]
  * @param {string} [opts.tool] — trace label e.g. ollama_chat, ollama_health_check
  * @param {string} [opts.pathLabel] — optional trace hint (path only, no query)
+ * @param {string} [opts.agentId] — matrix role id when known
  */
 function runNetworkPermissionGate(opts) {
   const repoRoot = opts.repoRoot != null ? String(opts.repoRoot) : process.cwd();
@@ -47,6 +49,18 @@ function runNetworkPermissionGate(opts) {
       network_port: port,
     },
   };
+
+  if (process.env.ORCH_SKIP_ROLE_CAPABILITY_GATE !== "1") {
+    const cap = isDomainAllowedForCapabilityContext({
+      traceRole: input.role,
+      agentId: opts.agentId,
+      domain: input.domain,
+    });
+    if (!cap.ok) {
+      const output = syntheticDenyOutput(input, cap.reason_code);
+      return { input, output, tracePayload: traceSecurityDecision(input, output) };
+    }
+  }
 
   const output = evaluatePermission(input);
   const tracePayload = traceSecurityDecision(input, output);

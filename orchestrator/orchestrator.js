@@ -241,8 +241,9 @@ function recordMcpInvocation(entry) {
  * @param {string} server
  * @param {string} toolName
  * @param {string} [cwd]
+ * @param {{ agentId?: string, role?: string }} [gateOpts] — capability matrix context for MCP (defaults: orchestrator / ORCHESTRATOR)
  */
-function gateMcpInvocation(server, toolName, cwd) {
+function gateMcpInvocation(server, toolName, cwd, gateOpts = {}) {
   if (process.env.ORCH_SKIP_MCP_PERMISSION_GATE === "1") return;
   const repoRoot = cwd || process.cwd();
   let result;
@@ -251,6 +252,8 @@ function gateMcpInvocation(server, toolName, cwd) {
       server,
       tool: toolName,
       repoRoot,
+      agentId: gateOpts.agentId,
+      role: gateOpts.role,
     });
   } catch (err) {
     const e = new Error(`MCP permission gate failed: ${err.message}`);

@@ -1,5 +1,5 @@
 /**
- * Role → permission-domain capability matrix (design contract; not PERM_* enforcement).
+ * Role → permission-domain capability matrix (plan-time + runtime role/domain precheck for permission gates).
  * sync: docs/orchestrator/capability-flow-contract.md §4
  */
 

@@ -5,6 +5,7 @@ const { resolveActivePermissionProfileName } = require("./mcp-permission-gate");
 const { loadProjectPolicy, mergeProjectPolicy } = require("./load-project-policy");
 const { evaluatePermission } = require("./evaluate-permission");
 const { traceSecurityDecision } = require("./trace-security-decision");
+const { isDomainAllowedForCapabilityContext, syntheticDenyOutput, isClaudeCliTransportAllowedForRole } = require("./trace-role-capability");
 
 /**
  * Permission gate for orchestrator-spawned Claude CLI (`claude`) subprocess used as LLM transport.
@@ -16,6 +17,7 @@ const { traceSecurityDecision } = require("./trace-security-decision");
  * @param {string} opts.repoRoot
  * @param {string} opts.role — MODE role (e.g. DEV, QA) for trace
  * @param {string} [opts.actor]
+ * @param {string} [opts.agentId] — matrix role id when known (authoritative over MODE union)
  */
 function runClaudeCliPermissionGate(opts) {
   const repoRoot = opts.repoRoot != null ? String(opts.repoRoot) : process.cwd();
@@ -41,6 +43,17 @@ function runClaudeCliPermissionGate(opts) {
       orchestrator_shell_spawn: "claude_cli",
     },
   };
+
+  if (process.env.ORCH_SKIP_ROLE_CAPABILITY_GATE !== "1") {
+    const cap = isClaudeCliTransportAllowedForRole({
+      traceRole: input.role,
+      agentId: opts.agentId,
+    });
+    if (!cap.ok) {
+      const output = syntheticDenyOutput(input, cap.reason_code);
+      return { input, output, tracePayload: traceSecurityDecision(input, output) };
+    }
+  }
 
   const output = evaluatePermission(input);
   const tracePayload = traceSecurityDecision(input, output);

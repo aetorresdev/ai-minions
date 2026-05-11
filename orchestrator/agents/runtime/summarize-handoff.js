@@ -51,7 +51,13 @@ ${body}`;
 
   const model = process.env.AI_TEAM_SUMMARY_MODEL || "qwen2.5-coder:7b";
   const timeoutMs = parseInt(process.env.AI_TEAM_SUMMARY_TIMEOUT_MS, 10) || 240000;
-  const raw = await runOllama(SUMMARY_SYSTEM, [{ role: "user", content: user }], { model, timeoutMs });
+  const raw = await runOllama(SUMMARY_SYSTEM, [{ role: "user", content: user }], {
+    model,
+    timeoutMs,
+    cwd,
+    traceRole: "ORCHESTRATOR",
+    traceAgentId: "orchestrator",
+  });
   return {
     summary: raw.content,
     ...(raw.prompt_eval_count != null ? { ollama_prompt_tokens: raw.prompt_eval_count } : {}),

@@ -91,6 +91,19 @@ describe("classified-invocation permission gate", () => {
     assert.equal(gate.output.decision, "deny");
     assert.equal(gate.output.reason_code, "unknown_action_class_denied");
   });
+
+  it("classified gate: CERBERUS MODE denies git read (no git in matrix)", () => {
+    const gate = runClassifiedInvocationPermissionGate({
+      repoRoot: process.cwd(),
+      permissionProfileName: "dev-local",
+      executable: "git",
+      args: ["status"],
+      role: "CERBERUS",
+    });
+    assert.equal(gate.output.decision, "deny");
+    assert.equal(gate.output.reason_code, "role_capability_domain_denied");
+    assert.equal(gate.input.domain, "git");
+  });
 });
 
 describe("spawnClassifiedSync", () => {
@@ -119,6 +132,26 @@ describe("spawnClassifiedSync", () => {
       assert.equal(r.status, 0);
       assert.equal(seenExe, "terraform");
       assert.deepEqual(seenArgs, ["plan"]);
+    } finally {
+      cp.spawnSync = origSpawn;
+    }
+  });
+
+  it("throws CLASSIFIED_SHELL_DENIED when CERBERUS lacks git domain (matrix)", () => {
+    cp.spawnSync = () => assert.fail("spawn must not run");
+    try {
+      assert.throws(
+        () =>
+          spawnClassifiedSync("git", ["status"], {
+            cwd: process.cwd(),
+            permissionProfileName: "dev-local",
+            traceRole: "CERBERUS",
+          }),
+        (err) =>
+          err.code === "CLASSIFIED_SHELL_DENIED"
+          && err.permission_decision
+          && err.permission_decision.reason_code === "role_capability_domain_denied",
+      );
     } finally {
       cp.spawnSync = origSpawn;
     }

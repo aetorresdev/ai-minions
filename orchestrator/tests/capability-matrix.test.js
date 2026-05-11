@@ -57,7 +57,7 @@ describe("capability matrix", () => {
   });
 
   it("roleCanUseDomains enforces subset", () => {
-    assert.equal(roleCanUseDomains("orchestrator", ["shell"]).ok, false);
+    assert.equal(roleCanUseDomains("summarizer", ["shell"]).ok, false);
     assert.equal(roleCanUseDomains("dev-backend", ["filesystem", "shell"]).ok, true);
   });
 
@@ -70,7 +70,7 @@ describe("capability matrix", () => {
 
   it("validatePlanStepRoles rejects requiredDomains not allowed for role", () => {
     const r = validatePlanStepRoles([
-      { agentId: "orchestrator", task: "plan", requiredDomains: ["shell"] },
+      { agentId: "orchestrator", task: "plan", requiredDomains: ["git"] },
     ]);
     assert.equal(r.ok, false);
     assert.ok(r.errors.some((e) => /cannot use domain/.test(e)));
