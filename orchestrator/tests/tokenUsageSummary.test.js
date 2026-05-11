@@ -44,6 +44,45 @@ test("buildTokenUsageSummary splits direct vs infra-attributed (role totals)", (
   assert.equal(comp.execution_actor, "context_compactor");
 });
 
+test("buildTokenUsageSummary records by_model for zero-token Claude fallback segments", () => {
+  const rows = [
+    {
+      event: "context_stats",
+      agent: "qa",
+      iteration: 1,
+      step_id: "s1",
+      model_name: "claude-sonnet-4-6",
+      model_backend: "claude",
+      ollama_prompt_tokens: 0,
+      ollama_completion_tokens: 0,
+      status: "fallback_triggered",
+      fallback_reason: "model_error",
+      model_fallback_segment_index: 0,
+      model_fallback_chain_length: 2,
+    },
+    {
+      event: "context_stats",
+      agent: "qa",
+      iteration: 1,
+      step_id: "s1",
+      model_name: "claude-haiku-4-5-20251001",
+      model_backend: "claude",
+      ollama_prompt_tokens: 0,
+      ollama_completion_tokens: 0,
+      status: "completed",
+      fallback_from: "claude-sonnet-4-6",
+      usage_accounting_status: "unknown_provider_usage",
+      model_fallback_segment_index: 1,
+      model_fallback_chain_length: 2,
+    },
+  ];
+  const { token_usage_summary: s } = buildTokenUsageSummary(rows);
+  assert.equal(s.by_invocation.length, 2);
+  assert.equal(s.by_role.qa.by_model.length, 2);
+  assert.equal(s.by_role.qa.by_model[0].status, "fallback_triggered");
+  assert.equal(s.by_role.qa.by_model[1].fallback_from, "claude-sonnet-4-6");
+});
+
 test("buildReport includes token_usage_summary", () => {
   const rows = [
     { event: "context_stats", agent: "dev-backend", ollama_prompt_tokens: 1, ollama_completion_tokens: 1 },

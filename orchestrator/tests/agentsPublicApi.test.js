@@ -22,6 +22,7 @@ const EXPECTED_AGENT_EXPORT_KEYS = [
   "clearDegradedAgents",
   "effectiveMode",
   "getDegradedAgents",
+  "inferModelFallbackReason",
   "listAgents",
   "normalizeDevContractText",
   "parseCerberusTripleTemplate",

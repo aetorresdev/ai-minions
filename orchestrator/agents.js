@@ -133,6 +133,24 @@ function resolveFallback(role) {
   return { model: routing.fallback, degraded: true, reason: policy.reason };
 }
 
+/**
+ * Map primary Claude CLI failure to a coarse fallback_reason for traces (no provider token API).
+ * @param {unknown} err
+ * @returns {"model_quota_exhausted"|"model_context_limit"|"model_rate_limited"|"model_timeout"|"model_error"}
+ */
+function inferModelFallbackReason(err) {
+  const msg =
+    err && typeof err === "object" && err !== null && "message" in err && typeof /** @type {{ message?: unknown }} */ (err).message === "string"
+      ? String(/** @type {{ message: string }} */ (err).message)
+      : String(err ?? "");
+  const m = msg.toLowerCase();
+  if (m.includes("quota")) return "model_quota_exhausted";
+  if (m.includes("context") && m.includes("limit")) return "model_context_limit";
+  if (m.includes("rate") && m.includes("limit")) return "model_rate_limited";
+  if (m.includes("timeout")) return "model_timeout";
+  return "model_error";
+}
+
 const AGENTS = buildAgents({ resolveModel, ollamaModel: OLLAMA_MODEL });
 
 // ROLE_PERMISSION / effectiveMode: ./agents/permissions.js
@@ -322,9 +340,14 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
   const prompt = `${systemPrompt}\n\n---\n\n${userMessage}`;
 
   let output;
+  /** @type {unknown} */
+  let primaryFailure = null;
+  /** @type {{ model: string, degraded: boolean, reason: string } | null} */
+  let fallbackMeta = null;
   try {
     output = runClaude(prompt, { cwd, model: agent.model, maxTokens, traceRole: agent.mode, traceAgentId: agentId });
   } catch (primaryErr) {
+    primaryFailure = primaryErr;
     // Primary model failed — attempt fallback per policy
     let fb;
     try { fb = resolveFallback(agentId); } catch (policyErr) {
@@ -334,12 +357,44 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
       console.warn(`[${agentId}] primary failed — degraded mode with ${fb.model} (${fb.reason})`);
     }
     _degradedAgents.add(agentId);
+    fallbackMeta = fb;
     output = runClaude(prompt, { cwd, model: fb.model, maxTokens, traceRole: agent.mode, traceAgentId: agentId });
   }
 
   const check = validateOutput(agentId, output, { phase });
   if (!check.valid) { const err = new Error(`[output contract] ${check.reason}`); err.gate_id = check.gate_id; throw err; }
-  return { output, context_stats: check.context_stats || null };
+  const baseStats = check.context_stats || {};
+  if (fallbackMeta) {
+    const primaryModel = agent.model;
+    const fbReason = inferModelFallbackReason(primaryFailure);
+    return {
+      output,
+      context_stats: {
+        ...baseStats,
+        model_backend: "claude",
+        model_fallback_segments: [
+          {
+            model_name: primaryModel,
+            model_backend: "claude",
+            ollama_prompt_tokens: 0,
+            ollama_completion_tokens: 0,
+            status: "fallback_triggered",
+            fallback_reason: fbReason,
+          },
+          {
+            model_name: fallbackMeta.model,
+            model_backend: "claude",
+            ollama_prompt_tokens: 0,
+            ollama_completion_tokens: 0,
+            status: "completed",
+            fallback_from: primaryModel,
+            usage_accounting_status: "unknown_provider_usage",
+          },
+        ],
+      },
+    };
+  }
+  return { output, context_stats: Object.keys(baseStats).length ? baseStats : null };
 }
 
 async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
@@ -393,6 +448,7 @@ module.exports = {
   MODEL_ROUTING,
   resolveModel,
   resolveFallback,
+  inferModelFallbackReason,
   FALLBACK_POLICY,
   validateOutput,
   validateCerberusSemanticFloor,

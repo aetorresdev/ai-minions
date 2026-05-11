@@ -58,7 +58,11 @@ function buildTokenUsageSummary(rows) {
     const p = numTok(/** @type {number} */ (r.ollama_prompt_tokens));
     const c = numTok(/** @type {number} */ (r.ollama_completion_tokens));
     const infra = isCompactionRow(r);
-    const includeInvocation = p > 0 || c > 0 || infra;
+    const hasNamedModelSegment =
+      !infra &&
+      (typeof r.model_fallback_segment_index === "number" ||
+        (typeof r.model_name === "string" && r.model_name.length > 0));
+    const includeInvocation = p > 0 || c > 0 || infra || hasNamedModelSegment;
     if (!includeInvocation) continue;
     const attributed =
       typeof r.attributed_to_role === "string" && r.attributed_to_role.length
@@ -92,7 +96,22 @@ function buildTokenUsageSummary(rows) {
     rec.total_output_tokens += c;
     rec.total_tokens += p + c;
 
-    byInvocation.push({
+    if (!infra && typeof r.model_name === "string" && r.model_name.length > 0) {
+      rec.by_model.push({
+        model_backend: typeof r.model_backend === "string" ? r.model_backend : "unknown",
+        model_name: r.model_name,
+        input_tokens: p,
+        output_tokens: c,
+        total_tokens: p + c,
+        status: typeof r.status === "string" ? r.status : undefined,
+        fallback_reason: typeof r.fallback_reason === "string" ? r.fallback_reason : undefined,
+        fallback_from: typeof r.fallback_from === "string" ? r.fallback_from : undefined,
+        usage_accounting_status: typeof r.usage_accounting_status === "string" ? r.usage_accounting_status : undefined,
+      });
+    }
+
+    /** @type {Record<string, unknown>} */
+    const inv = {
       invocation_type: infra ? "context_compaction" : "agent_call",
       execution_actor: execActor,
       attributed_to_role: attributed,
@@ -104,7 +123,16 @@ function buildTokenUsageSummary(rows) {
       output_tokens: c,
       total_tokens: p + c,
       trigger_reason: typeof r.trigger_reason === "string" ? r.trigger_reason : undefined,
-    });
+    };
+    if (typeof r.model_name === "string") inv.model_name = r.model_name;
+    if (typeof r.model_backend === "string") inv.model_backend = r.model_backend;
+    if (typeof r.status === "string") inv.status = r.status;
+    if (typeof r.fallback_reason === "string") inv.fallback_reason = r.fallback_reason;
+    if (typeof r.fallback_from === "string") inv.fallback_from = r.fallback_from;
+    if (typeof r.usage_accounting_status === "string") inv.usage_accounting_status = r.usage_accounting_status;
+    if (typeof r.model_fallback_segment_index === "number") inv.model_fallback_segment_index = r.model_fallback_segment_index;
+    if (typeof r.model_fallback_chain_length === "number") inv.model_fallback_chain_length = r.model_fallback_chain_length;
+    byInvocation.push(inv);
   }
 
   const runTotalTokens = runIn + runOut;
