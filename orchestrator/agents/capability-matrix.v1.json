@@ -1,5 +1,5 @@
 {
-  "$schema_comment": "Aligned with docs/orchestrator/capability-flow-contract.md §4 and runtime-permission domains. Positive allow-list per role; not runtime enforcement.",
+  "$schema_comment": "Aligned with docs/orchestrator/capability-flow-contract.md §4 and runtime-permission domains. Positive allow-list per role; used for plan-time validation and runtime role/domain precheck before the permission evaluator.",
   "version": "cap.orchestrator.v1",
   "domains": [
     "remote_model",

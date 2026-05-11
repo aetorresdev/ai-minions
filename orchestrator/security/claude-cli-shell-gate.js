@@ -5,7 +5,7 @@ const { resolveActivePermissionProfileName } = require("./mcp-permission-gate");
 const { loadProjectPolicy, mergeProjectPolicy } = require("./load-project-policy");
 const { evaluatePermission } = require("./evaluate-permission");
 const { traceSecurityDecision } = require("./trace-security-decision");
-const { isDomainAllowedForCapabilityContext, syntheticDenyOutput, isClaudeCliTransportAllowedForRole } = require("./trace-role-capability");
+const { syntheticDenyOutput, isClaudeCliTransportAllowedForRole } = require("./trace-role-capability");
 
 /**
  * Permission gate for orchestrator-spawned Claude CLI (`claude`) subprocess used as LLM transport.
