@@ -589,6 +589,8 @@ When agents use **Ollama** (`/api/chat`), the example `agents.js` parses `prompt
 
 `session_end` includes **`ollama_prompt_tokens_total`** and **`ollama_completion_tokens_total`** when at least one of those counters is non-zero. **Claude CLI** paths do not populate these fields (no token API in this example runner). **USD cost** is not inferred automatically: you can set **`ORCH_USD_PER_MTOK_PROMPT`** and **`ORCH_USD_PER_MTOK_COMPLETION`** (USD per 1e6 Ollama tokens; both required) so `token-trace-report.js` prints an optional estimate from those totals.
 
+After each successful **`compact_handoff`** on gated steps, the orchestrator emits an additional **`context_stats`** row with **`invocation_type: context_compaction`**, **`execution_actor: context_compactor`**, **`attributed_to_role`** set to the agent whose output was compacted, and Ollama counts when the compact-handoff tool returns them (direct MCP path). Those tokens are folded into **`session_end`** totals and into **`token_usage_summary`** in `token-trace-report.js` (direct vs infra-attributed by role).
+
 **On-demand readout:** `orchestrator/token-trace-report.js` (npm script `tokens:report`) reads a completed `*.jsonl` and prints Ollama totals (from `context_stats` vs `session_end`) plus MCP rollups — see `orchestrator/README.md`.
 
 **Batch export:** optional `scenario_id` on `session_start` / `session_end` when `run({ traceScenarioId })` or `ORCH_TRACE_SCENARIO_ID` is set; `scenario-metrics-export.js` (`npm run metrics:export-scenarios`) aggregates tagged traces into JSON with **`runs`**, **`by_scenario`**, and **`by_flow_mode`** (grouping by `flow_mode` from each run).

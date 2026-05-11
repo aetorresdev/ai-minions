@@ -582,10 +582,14 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
         mode_completed: "DEV", next_mode: "QA",
         iteration: 1, max_iterations: 1, flow_mode: "single_agent",
       });
-      // compact_handoff returns a YAML string — verify it has expected keys
-      const handoffStr = typeof handoff === "string" ? handoff : JSON.stringify(handoff);
-      assert.ok(handoffStr.includes("mode_completed") || handoffStr.includes("files_modified"),
-        `compact_handoff output missing expected YAML keys: ${handoffStr.slice(0, 200)}`);
+      const yamlText =
+        typeof handoff === "string"
+          ? handoff
+          : handoff && typeof handoff.handoff_yaml === "string"
+            ? handoff.handoff_yaml
+            : JSON.stringify(handoff);
+      assert.ok(yamlText.includes("mode_completed") || yamlText.includes("files_modified"),
+        `compact_handoff output missing expected YAML keys: ${yamlText.slice(0, 200)}`);
 
       // 4. close_task
       const close = callDirect("orchestrator-state", "close_task", {
