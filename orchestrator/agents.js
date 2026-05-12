@@ -135,6 +135,7 @@ function resolveFallback(role) {
 
 /**
  * Map primary Claude CLI failure to a coarse fallback_reason for traces (no provider token API).
+ * Heuristic only — substring match on `err.message`, not a provider-official error taxonomy.
  * @param {unknown} err
  * @returns {"model_quota_exhausted"|"model_context_limit"|"model_rate_limited"|"model_timeout"|"model_error"}
  */
