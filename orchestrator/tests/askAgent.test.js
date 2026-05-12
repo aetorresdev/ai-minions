@@ -29,7 +29,7 @@ function stubSpawnSync(cmd, args, _opts) {
 }
 
 cp.spawnSync = stubSpawnSync;
-const { askAgent, getDegradedAgents, clearDegradedAgents } = require("../agents");
+const { askAgent, getDegradedAgents, clearDegradedAgents, inferModelFallbackReason } = require("../agents");
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -186,6 +186,32 @@ describe("askAgent — fallback", () => {
       () => askAgent("cerberus", "review this"),
       /policy blocks fallback/
     );
+  });
+
+  it("returns model_fallback_segments in context_stats after fallback", async () => {
+    queueResponses(
+      { output: "", error: new Error("primary unavailable") },
+      { output: VALID_DEV_OUTPUT }
+    );
+    const { output, context_stats } = await askAgent("dev-backend", "implement X");
+    assert.ok(output.includes("pytest"));
+    assert.ok(context_stats && Array.isArray(context_stats.model_fallback_segments));
+    assert.equal(context_stats.model_fallback_segments.length, 2);
+    assert.equal(context_stats.model_fallback_segments[0].status, "fallback_triggered");
+    assert.equal(context_stats.model_fallback_segments[0].fallback_reason, "model_error");
+    assert.equal(context_stats.model_fallback_segments[1].status, "completed");
+    assert.equal(context_stats.model_fallback_segments[1].usage_accounting_status, "unknown_provider_usage");
+    assert.ok(typeof context_stats.model_fallback_segments[1].fallback_from === "string");
+  });
+});
+
+describe("inferModelFallbackReason", () => {
+  it("classifies common primary failure messages", () => {
+    assert.equal(inferModelFallbackReason(new Error("quota exceeded")), "model_quota_exhausted");
+    assert.equal(inferModelFallbackReason(new Error("Context limit hit")), "model_context_limit");
+    assert.equal(inferModelFallbackReason(new Error("Rate limit exceeded")), "model_rate_limited");
+    assert.equal(inferModelFallbackReason(new Error("timeout waiting")), "model_timeout");
+    assert.equal(inferModelFallbackReason(new Error("something else")), "model_error");
   });
 });
 

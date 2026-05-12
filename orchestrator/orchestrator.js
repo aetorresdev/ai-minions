@@ -65,7 +65,7 @@ const {
 // trace_schema_version = TRACE_LINE_WRITER_VERSION from trace-schema.js (today "2").
 // Event types: session_start, agent_start, agent_done, gate_result,
 //              contract_fail, iteration_done, session_end (optional permission_summary rollup), mcp_call, permission_check,
-//              context_stats may include ollama_prompt_tokens / ollama_completion_tokens (Ollama routes)
+//              context_stats may include ollama_* tokens, compaction attribution, or model_fallback_segments (Claude primary→fallback)
 //              agent_done (qa): optional qa_triple_template + qa_blocker_non_vacuous for rollups
 // iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".
 //
@@ -1279,6 +1279,41 @@ async function run(goal, options = {}) {
       ollamaTokenTotals.completion += stats.ollama_completion_tokens;
     }
   }
+
+  /**
+   * Expand `context_stats` into one trace row per model segment (fallback chain) or a single row.
+   * @param {string} agent
+   * @param {number} iteration
+   * @param {Record<string, unknown>} graphMeta
+   * @param {Record<string, unknown>} intentStep
+   * @param {Record<string, unknown>} stats
+   * @param {Record<string, unknown>} loc
+   */
+  function expandContextStatsTraceRows(agent, iteration, graphMeta, intentStep, stats, loc = {}) {
+    if (!stats || typeof stats !== "object") return [];
+    const rawSegs = stats.model_fallback_segments;
+    const rest = { ...stats };
+    delete rest.model_fallback_segments;
+    const base = { agent, iteration, ...graphMeta, ...intentStep, ...loc, invocation_type: "agent_call" };
+    if (!Array.isArray(rawSegs) || rawSegs.length === 0) {
+      return [{ ...base, ...rest }];
+    }
+    return rawSegs.map((seg, i) => ({
+      ...base,
+      ...rest,
+      ...seg,
+      model_fallback_segment_index: i,
+      model_fallback_chain_length: rawSegs.length,
+    }));
+  }
+
+  function emitContextStatsRows(stats, agent, iteration, graphMeta, intentStep, loc = {}) {
+    if (!stats || typeof stats !== "object") return;
+    for (const row of expandContextStatsTraceRows(agent, iteration, graphMeta, intentStep, stats, loc)) {
+      bumpOllamaFromStats(row);
+      traceEvent(taskId, { event: "context_stats", ...row });
+    }
+  }
   function estimateRunUsd() {
     if (!usdRatesMtok) return null;
     return (ollamaTokenTotals.prompt / 1e6) * usdRatesMtok.prompt
@@ -1389,8 +1424,7 @@ Decompose this goal into ordered execution steps following the MODE protocol.
 Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
   const { output: planResponse, context_stats: planCtxStats } = await askAgent("orchestrator", planPrompt, { cwd, sessionEnv, phase: "plan" });
-  bumpOllamaFromStats(planCtxStats);
-  if (planCtxStats) traceEvent(taskId, { event: "context_stats", agent: "orchestrator", iteration: 0, phase: "plan", ...planCtxStats });
+  if (planCtxStats) emitContextStatsRows(planCtxStats, "orchestrator", 0, {}, {}, { phase: "plan" });
   const planCost = checkCostGuard();
   if (!planCost.ok) {
     summary = `Guardrail ORCH_MAX_COST_USD=${maxCostUsd}: estimated spend ${roundUsd6(planCost.estimate)} USD exceeds limit after plan phase.`;
@@ -1634,10 +1668,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       if (agentId === "qa") Object.assign(donePayload, qaAgentDoneTraceExtras(result));
       traceEvent(taskId, donePayload);
       setStepCompleted(runState);
-      if (contextStats) {
-        bumpOllamaFromStats(contextStats);
-        traceEvent(taskId, { event: "context_stats", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, ...graphMeta, ...intentStep, ...contextStats });
-      }
+      if (contextStats) emitContextStatsRows(contextStats, agentId, iterations, graphMeta, intentStep, { step_id: stepId, step_index: stepIndex });
       if (costGuardAbort("worker")) break orchestration;
       emittedStepIds.add(stepId);
       previousStepId = stepId;
@@ -1909,8 +1940,7 @@ nice-to-have: ...`;
     try {
       const { output, context_stats: cerbCtx } = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
       cerberusResult = output;
-      bumpOllamaFromStats(cerbCtx);
-      if (cerbCtx) traceEvent(taskId, { event: "context_stats", agent: "cerberus", iteration: iterations, phase: "review", ...cerbCtx });
+      if (cerbCtx) emitContextStatsRows(cerbCtx, "cerberus", iterations, {}, {}, { phase: "review" });
       if (costGuardAbort("cerberus")) break orchestration;
       log("cerberus", `Review ready (${cerberusResult.length} chars)`);
     } catch (err) {
@@ -2060,8 +2090,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
 
       logRoleSwitch("cerberus", "orchestrator");
       const { output: correctResponse, context_stats: correctCtx } = await askAgent("orchestrator", correctPrompt, { cwd, sessionEnv, phase: "decide" });
-      bumpOllamaFromStats(correctCtx);
-      if (correctCtx) traceEvent(taskId, { event: "context_stats", agent: "orchestrator", iteration: iterations, phase: "correct", ...correctCtx });
+      if (correctCtx) emitContextStatsRows(correctCtx, "orchestrator", iterations, {}, {}, { phase: "correct" });
       if (costGuardAbort("correct")) break orchestration;
       const corrections = extractJson(correctResponse);
       const corrPlan = decideCorrectionsPlan(corrections);
@@ -2168,8 +2197,7 @@ Reply with JSON only.`;
     try {
       const { output, context_stats: decideCtx } = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv, phase: "decide" });
       decideResponse = output;
-      bumpOllamaFromStats(decideCtx);
-      if (decideCtx) traceEvent(taskId, { event: "context_stats", agent: "orchestrator", iteration: iterations, phase: "decide", ...decideCtx });
+      if (decideCtx) emitContextStatsRows(decideCtx, "orchestrator", iterations, {}, {}, { phase: "decide" });
       if (costGuardAbort("decide")) break orchestration;
     } catch (decideErr) {
       log("orchestrator", `⚠ Decide contract failed (${decideErr.message}) — treating as stopped`);
