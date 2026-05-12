@@ -57,6 +57,7 @@ test("buildTokenUsageSummary records by_model for zero-token Claude fallback seg
       ollama_completion_tokens: 0,
       status: "fallback_triggered",
       fallback_reason: "model_error",
+      fallback_target: "claude-haiku-4-5-20251001",
       model_fallback_segment_index: 0,
       model_fallback_chain_length: 2,
     },
@@ -81,6 +82,7 @@ test("buildTokenUsageSummary records by_model for zero-token Claude fallback seg
   assert.equal(s.by_role.qa.by_model.length, 2);
   assert.equal(s.by_role.qa.by_model[0].status, "fallback_triggered");
   assert.equal(s.by_role.qa.by_model[1].fallback_from, "claude-sonnet-4-6");
+  assert.equal(s.by_invocation[0].fallback_target, "claude-haiku-4-5-20251001");
 });
 
 test("buildReport includes token_usage_summary", () => {

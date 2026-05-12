@@ -199,6 +199,7 @@ describe("askAgent — fallback", () => {
     assert.equal(context_stats.model_fallback_segments.length, 2);
     assert.equal(context_stats.model_fallback_segments[0].status, "fallback_triggered");
     assert.equal(context_stats.model_fallback_segments[0].fallback_reason, "model_error");
+    assert.equal(context_stats.model_fallback_segments[0].fallback_target, context_stats.model_fallback_segments[1].model_name);
     assert.equal(context_stats.model_fallback_segments[1].status, "completed");
     assert.equal(context_stats.model_fallback_segments[1].usage_accounting_status, "unknown_provider_usage");
     assert.ok(typeof context_stats.model_fallback_segments[1].fallback_from === "string");

@@ -129,6 +129,7 @@ function buildTokenUsageSummary(rows) {
     if (typeof r.status === "string") inv.status = r.status;
     if (typeof r.fallback_reason === "string") inv.fallback_reason = r.fallback_reason;
     if (typeof r.fallback_from === "string") inv.fallback_from = r.fallback_from;
+    if (typeof r.fallback_target === "string") inv.fallback_target = r.fallback_target;
     if (typeof r.usage_accounting_status === "string") inv.usage_accounting_status = r.usage_accounting_status;
     if (typeof r.model_fallback_segment_index === "number") inv.model_fallback_segment_index = r.model_fallback_segment_index;
     if (typeof r.model_fallback_chain_length === "number") inv.model_fallback_chain_length = r.model_fallback_chain_length;

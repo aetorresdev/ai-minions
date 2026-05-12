@@ -381,6 +381,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
             ollama_completion_tokens: 0,
             status: "fallback_triggered",
             fallback_reason: fbReason,
+            fallback_target: fallbackMeta.model,
           },
           {
             model_name: fallbackMeta.model,

@@ -65,7 +65,9 @@ const {
 // trace_schema_version = TRACE_LINE_WRITER_VERSION from trace-schema.js (today "2").
 // Event types: session_start, agent_start, agent_done, gate_result,
 //              contract_fail, iteration_done, session_end (optional permission_summary rollup), mcp_call, permission_check,
-//              context_stats may include ollama_* tokens, compaction attribution, or model_fallback_segments (Claude primary→fallback)
+//              context_stats (ollama_* tokens, compaction attribution, model_fallback_segments),
+//              context_compaction_started / context_compaction_completed (compaction lifecycle observability — not a substitute for context_stats),
+//              model_fallback_required / model_fallback_started / model_fallback_completed (model fallback lifecycle observability),
 //              agent_done (qa): optional qa_triple_template + qa_blocker_non_vacuous for rollups
 // iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".
 //
@@ -84,6 +86,11 @@ const {
   TRACE_LINE_WRITER_VERSION,
   validateTraceLine: validateTraceLineForWrite,
 } = require("./trace-schema");
+const {
+  emitModelFallbackLifecycleIfNeeded,
+  emitContextCompactionStarted,
+  emitContextCompactionCompleted,
+} = require("./trace-lifecycle-events");
 const { redactSensitivePlaintext } = require("./trace-redact");
 const { runMcpPermissionGate } = require("./security/mcp-permission-gate");
 const { runNetworkPermissionGate } = require("./security/network-permission-gate");
@@ -1424,7 +1431,10 @@ Decompose this goal into ordered execution steps following the MODE protocol.
 Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
   const { output: planResponse, context_stats: planCtxStats } = await askAgent("orchestrator", planPrompt, { cwd, sessionEnv, phase: "plan" });
-  if (planCtxStats) emitContextStatsRows(planCtxStats, "orchestrator", 0, {}, {}, { phase: "plan" });
+  if (planCtxStats) {
+    emitModelFallbackLifecycleIfNeeded(traceEvent, taskId, "orchestrator", planCtxStats, { iteration: 0, phase: "plan" });
+    emitContextStatsRows(planCtxStats, "orchestrator", 0, {}, {}, { phase: "plan" });
+  }
   const planCost = checkCostGuard();
   if (!planCost.ok) {
     summary = `Guardrail ORCH_MAX_COST_USD=${maxCostUsd}: estimated spend ${roundUsd6(planCost.estimate)} USD exceeds limit after plan phase.`;
@@ -1668,7 +1678,16 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       if (agentId === "qa") Object.assign(donePayload, qaAgentDoneTraceExtras(result));
       traceEvent(taskId, donePayload);
       setStepCompleted(runState);
-      if (contextStats) emitContextStatsRows(contextStats, agentId, iterations, graphMeta, intentStep, { step_id: stepId, step_index: stepIndex });
+      if (contextStats) {
+        emitModelFallbackLifecycleIfNeeded(
+          traceEvent,
+          taskId,
+          agentId,
+          contextStats,
+          { iteration: iterations, step_id: stepId, step_index: stepIndex, ...graphMeta, ...intentStep },
+        );
+        emitContextStatsRows(contextStats, agentId, iterations, graphMeta, intentStep, { step_id: stepId, step_index: stepIndex });
+      }
       if (costGuardAbort("worker")) break orchestration;
       emittedStepIds.add(stepId);
       previousStepId = stepId;
@@ -1684,6 +1703,8 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
       if (AGENTS_REQUIRING_GATE.has(agentId)) {
         log("gate", `Compacting handoff for ${agentId} → ${nextMode}...`);
+        const compactionMeta = { iteration: iterations, step_id: stepId, step_index: stepIndex, ...graphMeta, ...intentStep };
+        emitContextCompactionStarted(traceEvent, taskId, agentId, compactionMeta);
         try {
           const compactRes = callCompactHandoff({
             text: result,
@@ -1698,6 +1719,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
             ollama_prompt_tokens: compactRes.ollama_prompt_tokens,
             ollama_completion_tokens: compactRes.ollama_completion_tokens,
           });
+          emitContextCompactionCompleted(traceEvent, taskId, agentId, compactionMeta, compactRes);
           traceEvent(taskId, {
             event: "context_stats",
             agent: "context_compactor",
@@ -1940,7 +1962,10 @@ nice-to-have: ...`;
     try {
       const { output, context_stats: cerbCtx } = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
       cerberusResult = output;
-      if (cerbCtx) emitContextStatsRows(cerbCtx, "cerberus", iterations, {}, {}, { phase: "review" });
+      if (cerbCtx) {
+        emitModelFallbackLifecycleIfNeeded(traceEvent, taskId, "cerberus", cerbCtx, { iteration: iterations, phase: "review" });
+        emitContextStatsRows(cerbCtx, "cerberus", iterations, {}, {}, { phase: "review" });
+      }
       if (costGuardAbort("cerberus")) break orchestration;
       log("cerberus", `Review ready (${cerberusResult.length} chars)`);
     } catch (err) {
@@ -1969,6 +1994,8 @@ nice-to-have: ...`;
     // ── Compact cerberus handoff + advance to ORCHESTRATOR ────────────────────
     if (!skipStateMcp) {
       let cerberusHandoff = "";
+      const cerbCompactionMeta = { iteration: iterations, phase: "cerberus_advance" };
+      emitContextCompactionStarted(traceEvent, taskId, "cerberus", cerbCompactionMeta);
       try {
         const compactRes = callCompactHandoff({
           text: cerberusResult,
@@ -1983,6 +2010,7 @@ nice-to-have: ...`;
           ollama_prompt_tokens: compactRes.ollama_prompt_tokens,
           ollama_completion_tokens: compactRes.ollama_completion_tokens,
         });
+        emitContextCompactionCompleted(traceEvent, taskId, "cerberus", cerbCompactionMeta, compactRes);
         traceEvent(taskId, {
           event: "context_stats",
           agent: "context_compactor",
@@ -2090,7 +2118,10 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
 
       logRoleSwitch("cerberus", "orchestrator");
       const { output: correctResponse, context_stats: correctCtx } = await askAgent("orchestrator", correctPrompt, { cwd, sessionEnv, phase: "decide" });
-      if (correctCtx) emitContextStatsRows(correctCtx, "orchestrator", iterations, {}, {}, { phase: "correct" });
+      if (correctCtx) {
+        emitModelFallbackLifecycleIfNeeded(traceEvent, taskId, "orchestrator", correctCtx, { iteration: iterations, phase: "correct" });
+        emitContextStatsRows(correctCtx, "orchestrator", iterations, {}, {}, { phase: "correct" });
+      }
       if (costGuardAbort("correct")) break orchestration;
       const corrections = extractJson(correctResponse);
       const corrPlan = decideCorrectionsPlan(corrections);
@@ -2197,7 +2228,10 @@ Reply with JSON only.`;
     try {
       const { output, context_stats: decideCtx } = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv, phase: "decide" });
       decideResponse = output;
-      if (decideCtx) emitContextStatsRows(decideCtx, "orchestrator", iterations, {}, {}, { phase: "decide" });
+      if (decideCtx) {
+        emitModelFallbackLifecycleIfNeeded(traceEvent, taskId, "orchestrator", decideCtx, { iteration: iterations, phase: "decide" });
+        emitContextStatsRows(decideCtx, "orchestrator", iterations, {}, {}, { phase: "decide" });
+      }
       if (costGuardAbort("decide")) break orchestration;
     } catch (decideErr) {
       log("orchestrator", `⚠ Decide contract failed (${decideErr.message}) — treating as stopped`);
