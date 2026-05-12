@@ -46,6 +46,7 @@ test("cost accounting: actual only, equivalent_cloud missing_baseline_mapping", 
   assert.equal(r.prompt_tokens, 1_000_000);
   assert.equal(r.completion_tokens, 500_000);
   assert.equal(r.actual.total_usd, 0.5);
+  assert.equal(r.actual.is_billable, false);
   assert.equal(r.equivalent_cloud.equivalent_cloud_cost_status, "missing_baseline_mapping");
 });
 
@@ -83,6 +84,7 @@ test("cost accounting: full equivalent_cloud with baseline model", (t) => {
   const ca = buildRunCostAccountingFromReport(report);
   const r = ca.cost_accounting.run;
   assert.equal(r.actual.total_usd, 0.3);
+  assert.equal(r.actual.is_billable, false);
   assert.equal(r.equivalent_cloud.total_usd, 6);
   assert.equal(r.equivalent_cloud.baseline_model, "gpt-4o-mini");
   assert.equal(r.equivalent_cloud.baseline_provider, "openai");

@@ -1,8 +1,9 @@
 "use strict";
 
 /**
- * Run-level cost accounting: separate "actual" (env-priced tokens, billable for guards in this stack)
- * from "equivalent_cloud" (optional benchmark — not provider spend, not for hard-stop).
+ * Run-level cost accounting: **`actual`** = env-priced local token estimate used for reporting.
+ * It is not new guard enforcement and does not change **`ORCH_MAX_COST_USD`** behavior.
+ * **`equivalent_cloud`** = optional benchmark — not provider spend, not for hard-stop.
  */
 
 function parseEnvPositiveFloat(name) {
@@ -73,7 +74,7 @@ function buildRunCostAccountingFromReport(report) {
       output_usd: roundUsd(ao),
       total_usd: roundUsd(ai + ao),
       source: "env_pricing",
-      is_billable: true,
+      is_billable: false,
       usd_note: "estimated",
     };
   } else {

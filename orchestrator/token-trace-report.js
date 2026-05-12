@@ -379,7 +379,7 @@ function printTextReport(taskId, tracePath, report, parseErrors) {
     console.log(`tokens: prompt=${r.prompt_tokens} completion=${r.completion_tokens} total=${r.total_tokens}`);
     const a = r.actual;
     if (a && a.total_usd != null) {
-      console.log(`actual (billable for guards in this stack): input=$${a.input_usd} output=$${a.output_usd} total=$${a.total_usd} source=${a.source}`);
+      console.log(`actual (env-priced estimate): input=$${a.input_usd} output=$${a.output_usd} total=$${a.total_usd} source=${a.source}`);
     } else if (a) {
       console.log("actual: (rates incomplete — set ORCH_USD_PER_MTOK_PROMPT + ORCH_USD_PER_MTOK_COMPLETION)");
     }
