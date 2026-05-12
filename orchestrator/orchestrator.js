@@ -636,6 +636,45 @@ function parseOptionalPositiveFloat(name) {
 }
 
 /** @param {string} name */
+function parseOptionalRatioWithInvalid(name) {
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === "") return { value: null, invalid: null };
+  const n = Number.parseFloat(String(raw));
+  if (!Number.isFinite(n)) return { value: null, invalid: { var_name: name, reason: "not_number" } };
+  if (n <= 0 || n > 1) return { value: null, invalid: { var_name: name, reason: "out_of_range", min_exclusive: 0, max_inclusive: 1 } };
+  return { value: n, invalid: null };
+}
+
+function parseBudgetLimitsJson() {
+  const raw = process.env.ORCH_BUDGET_LIMITS_JSON;
+  if (raw == null || String(raw).trim() === "") return { limits: {}, invalid: null };
+  let parsed;
+  try {
+    parsed = JSON.parse(String(raw));
+  } catch (err) {
+    return { limits: {}, invalid: { var_name: "ORCH_BUDGET_LIMITS_JSON", reason: "invalid_json", message: err.message } };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { limits: {}, invalid: { var_name: "ORCH_BUDGET_LIMITS_JSON", reason: "not_object" } };
+  }
+  /** @type {{ run?: number, roles: Record<string, number>, steps: Record<string, number>, models: Record<string, number> }} */
+  const limits = { roles: {}, steps: {}, models: {} };
+  if (Object.prototype.hasOwnProperty.call(parsed, "run")) {
+    const n = Number(parsed.run);
+    if (Number.isFinite(n) && n > 0) limits.run = n;
+  }
+  for (const [src, dst] of [["roles", limits.roles], ["steps", limits.steps], ["models", limits.models]]) {
+    const o = parsed[src];
+    if (!o || typeof o !== "object" || Array.isArray(o)) continue;
+    for (const [k, v] of Object.entries(o)) {
+      const n = Number(v);
+      if (String(k).trim() && Number.isFinite(n) && n > 0) dst[String(k).trim()] = n;
+    }
+  }
+  return { limits, invalid: null };
+}
+
+/** @param {string} name */
 function parseEnvPositiveFloatOrNull(name) {
   const raw = process.env[name];
   if (raw == null || String(raw).trim() === "") return null;
@@ -1228,11 +1267,23 @@ function parseEnvironment(prompt) {
 async function run(goal, options = {}) {
   const maxIterations = resolveMaxIterations(options);
   const maxCostUsd = parseOptionalPositiveFloat("ORCH_MAX_COST_USD");
-  const budgetWarningRatio = parseOptionalPositiveFloat("ORCH_BUDGET_WARNING_RATIO");
+  const parsedBudgetWarningRatio = parseOptionalRatioWithInvalid("ORCH_BUDGET_WARNING_RATIO");
+  const budgetWarningRatio = parsedBudgetWarningRatio.value;
+  const parsedBudgetLimits = parseBudgetLimitsJson();
+  const budgetLimits = parsedBudgetLimits.limits;
+  if (!budgetLimits.roles) budgetLimits.roles = {};
+  if (!budgetLimits.steps) budgetLimits.steps = {};
+  if (!budgetLimits.models) budgetLimits.models = {};
+  if (maxCostUsd != null && budgetLimits.run == null) budgetLimits.run = maxCostUsd;
   const usdRatesMtok = loadOllamaUsdRatesMtok();
-  if (maxCostUsd != null && !usdRatesMtok) {
+  const hasBudgetLimits =
+    budgetLimits.run != null ||
+    Object.keys(budgetLimits.roles || {}).length > 0 ||
+    Object.keys(budgetLimits.steps || {}).length > 0 ||
+    Object.keys(budgetLimits.models || {}).length > 0;
+  if (hasBudgetLimits && !usdRatesMtok) {
     throw new Error(
-      "ORCH_MAX_COST_USD requires both ORCH_USD_PER_MTOK_PROMPT and ORCH_USD_PER_MTOK_COMPLETION (non-negative floats, USD per 1e6 tokens; same basis as token-trace-report).",
+      "Budget guards require both ORCH_USD_PER_MTOK_PROMPT and ORCH_USD_PER_MTOK_COMPLETION (non-negative floats, USD per 1e6 tokens; same basis as token-trace-report).",
     );
   }
   const maxStepRetries = parseOptionalNonNegativeInt("ORCH_MAX_RETRIES", 500);
@@ -1278,7 +1329,14 @@ async function run(goal, options = {}) {
     maxIterations,
   });
   const ollamaTokenTotals = { prompt: 0, completion: 0 };
+  const budgetUsage = {
+    run: 0,
+    roles: {},
+    steps: {},
+    models: {},
+  };
   const budgetWarningsEmitted = new Set();
+  let lastBudgetMeta = {};
   function bumpOllamaFromStats(stats) {
     if (!stats || typeof stats !== "object") return;
     if (typeof stats.ollama_prompt_tokens === "number" && !Number.isNaN(stats.ollama_prompt_tokens)) {
@@ -1287,6 +1345,52 @@ async function run(goal, options = {}) {
     if (typeof stats.ollama_completion_tokens === "number" && !Number.isNaN(stats.ollama_completion_tokens)) {
       ollamaTokenTotals.completion += stats.ollama_completion_tokens;
     }
+  }
+
+  function usdForTokens(promptTokens, completionTokens) {
+    if (!usdRatesMtok) return null;
+    return (promptTokens / 1e6) * usdRatesMtok.prompt
+      + (completionTokens / 1e6) * usdRatesMtok.completion;
+  }
+
+  function budgetModelKey(row) {
+    const backend = typeof row.model_backend === "string" && row.model_backend ? row.model_backend : "unknown";
+    const name =
+      typeof row.model_name === "string" && row.model_name
+        ? row.model_name
+        : typeof row.model === "string" && row.model
+          ? row.model
+          : "unknown";
+    return `${backend}/${name}`;
+  }
+
+  function addBudgetUsageFromRow(row) {
+    const p = typeof row.ollama_prompt_tokens === "number" && !Number.isNaN(row.ollama_prompt_tokens)
+      ? row.ollama_prompt_tokens
+      : 0;
+    const c = typeof row.ollama_completion_tokens === "number" && !Number.isNaN(row.ollama_completion_tokens)
+      ? row.ollama_completion_tokens
+      : 0;
+    const usd = usdForTokens(p, c);
+    if (usd == null || usd === 0) return;
+    budgetUsage.run += usd;
+    const role =
+      typeof row.attributed_to_role === "string" && row.attributed_to_role
+        ? row.attributed_to_role
+        : typeof row.agent === "string" && row.agent
+          ? row.agent
+          : "unknown";
+    budgetUsage.roles[role] = (budgetUsage.roles[role] || 0) + usd;
+    if (typeof row.step_id === "string" && row.step_id) {
+      budgetUsage.steps[row.step_id] = (budgetUsage.steps[row.step_id] || 0) + usd;
+    }
+    const m = budgetModelKey(row);
+    budgetUsage.models[m] = (budgetUsage.models[m] || 0) + usd;
+    lastBudgetMeta = {
+      role,
+      ...(typeof row.step_id === "string" && row.step_id ? { step_id: row.step_id } : {}),
+      model_key: m,
+    };
   }
 
   /**
@@ -1320,27 +1424,63 @@ async function run(goal, options = {}) {
     if (!stats || typeof stats !== "object") return;
     for (const row of expandContextStatsTraceRows(agent, iteration, graphMeta, intentStep, stats, loc)) {
       bumpOllamaFromStats(row);
+      addBudgetUsageFromRow(row);
       traceEvent(taskId, { event: "context_stats", ...row });
     }
   }
   function estimateRunUsd() {
     if (!usdRatesMtok) return null;
-    return (ollamaTokenTotals.prompt / 1e6) * usdRatesMtok.prompt
-      + (ollamaTokenTotals.completion / 1e6) * usdRatesMtok.completion;
+    return budgetUsage.run;
   }
-  /** @returns {{ ok: true } | { ok: false, estimate: number }} */
-  function checkCostGuard() {
-    if (maxCostUsd == null || !usdRatesMtok) return { ok: true };
-    const estimate = estimateRunUsd();
-    if (estimate == null || !Number.isFinite(estimate)) return { ok: true };
-    if (estimate > maxCostUsd) return { ok: false, estimate };
-    return { ok: true };
+
+  function budgetCheckDetails(phase, meta = {}) {
+    if (!usdRatesMtok || !hasBudgetLimits) return { ok: true };
+    /** @type {Array<Record<string, unknown>>} */
+    const triggered = [];
+    function add(scope, key, estimate, limit) {
+      if (limit == null || estimate == null || !Number.isFinite(estimate) || estimate <= limit) return;
+      triggered.push({
+        scope,
+        key,
+        estimate_usd: roundUsd6(estimate),
+        limit_usd: limit,
+      });
+    }
+    add("run", "run", budgetUsage.run, budgetLimits.run);
+    if (typeof meta.role === "string" && meta.role) add("role", meta.role, budgetUsage.roles[meta.role] || 0, budgetLimits.roles[meta.role]);
+    if (typeof meta.step_id === "string" && meta.step_id) add("step", meta.step_id, budgetUsage.steps[meta.step_id] || 0, budgetLimits.steps[meta.step_id]);
+    if (typeof meta.model_key === "string" && meta.model_key) add("model", meta.model_key, budgetUsage.models[meta.model_key] || 0, budgetLimits.models[meta.model_key]);
+    if (!triggered.length) return { ok: true };
+    const precedence = ["step", "role", "model", "run"];
+    const primary = [...triggered].sort((a, b) => precedence.indexOf(String(a.scope)) - precedence.indexOf(String(b.scope)))[0];
+    return {
+      ok: false,
+      estimate: Number(primary.estimate_usd),
+      limit: Number(primary.limit_usd),
+      phase,
+      budget_scope: primary.scope,
+      budget_key: primary.key,
+      triggered_budgets: triggered.map((x) => x.scope),
+      triggered_budget_details: triggered,
+      attributed_to_role: meta.role,
+      step_id: meta.step_id,
+      model: meta.model_key,
+      model_backend: typeof meta.model_key === "string" ? String(meta.model_key).split("/")[0] : undefined,
+    };
   }
-  function maybeEmitBudgetWarning(phase) {
-    if (maxCostUsd == null || !usdRatesMtok || budgetWarningRatio == null || budgetWarningRatio <= 0) return;
+
+  /** @returns {{ ok: true } | ReturnType<typeof budgetCheckDetails>} */
+  function checkCostGuard(phase, meta = {}) {
+    return budgetCheckDetails(phase, meta);
+  }
+
+  function maybeEmitBudgetWarning(phase, meta = {}) {
+    if (!usdRatesMtok || budgetWarningRatio == null || budgetWarningRatio <= 0) return;
+    const runLimit = budgetLimits.run;
+    if (runLimit == null) return;
     const estimate = estimateRunUsd();
     if (estimate == null || !Number.isFinite(estimate)) return;
-    const thresholdUsd = maxCostUsd * budgetWarningRatio;
+    const thresholdUsd = runLimit * budgetWarningRatio;
     if (estimate < thresholdUsd) return;
     const key = String(phase || "unknown");
     if (budgetWarningsEmitted.has(key)) return;
@@ -1350,10 +1490,33 @@ async function run(goal, options = {}) {
       phase: key,
       estimate_usd: roundUsd6(estimate),
       threshold_usd: roundUsd6(thresholdUsd),
-      limit_usd: maxCostUsd,
+      limit_usd: runLimit,
       warning_ratio: budgetWarningRatio,
       cost_basis: "actual_env_pricing_ollama_tokens",
+      budget_scope: "run",
+      ...(typeof meta.role === "string" ? { attributed_to_role: meta.role } : {}),
+      ...(typeof meta.step_id === "string" ? { step_id: meta.step_id } : {}),
+      ...(typeof meta.model_key === "string" ? { model: meta.model_key } : {}),
+      ...(typeof meta.model_key === "string" ? { model_backend: String(meta.model_key).split("/")[0] } : {}),
     });
+  }
+
+  function budgetEventFields(d) {
+    return {
+      phase: d.phase,
+      estimate_usd: d.estimate,
+      limit_usd: d.limit,
+      cost_basis: "actual_env_pricing_ollama_tokens",
+      reason_code: "GUARD_COST_LIMIT",
+      budget_scope: d.budget_scope,
+      budget_key: d.budget_key,
+      triggered_budgets: d.triggered_budgets,
+      triggered_budget_details: d.triggered_budget_details,
+      ...(typeof d.attributed_to_role === "string" ? { attributed_to_role: d.attributed_to_role } : {}),
+      ...(typeof d.step_id === "string" ? { step_id: d.step_id } : {}),
+      ...(typeof d.model === "string" ? { model: d.model } : {}),
+      ...(typeof d.model_backend === "string" ? { model_backend: d.model_backend } : {}),
+    };
   }
   let currentMode = "ORCHESTRATOR";
   const degradedInRun = new Set(); // agents that ran in fallback at least once this run
@@ -1361,6 +1524,18 @@ async function run(goal, options = {}) {
 
   log("orchestrator", `Working directory: ${cwd}`);
   log("orchestrator", `task_id: ${taskId} | flow: ${flowMode} | max_iterations: ${maxIterations}`);
+  if (parsedBudgetWarningRatio.invalid) {
+    traceEvent(taskId, {
+      event: "budget_config_invalid",
+      ...parsedBudgetWarningRatio.invalid,
+    });
+  }
+  if (parsedBudgetLimits.invalid) {
+    traceEvent(taskId, {
+      event: "budget_config_invalid",
+      ...parsedBudgetLimits.invalid,
+    });
+  }
   if (sessionEnv) {
     const credNames = sessionEnv.credentials.map(c => c.name).join(", ");
     log("orchestrator", `Environment: mode=${sessionEnv.mode} | credentials: ${credNames || "none"}`);
@@ -1384,6 +1559,9 @@ async function run(goal, options = {}) {
     if (budgetWarningRatio != null) {
       log("orchestrator", `Guardrail: ORCH_BUDGET_WARNING_RATIO=${budgetWarningRatio} (trace-only warning threshold)`);
     }
+  }
+  if (Object.keys(budgetLimits.roles || {}).length || Object.keys(budgetLimits.steps || {}).length || Object.keys(budgetLimits.models || {}).length) {
+    log("orchestrator", "Guardrail: ORCH_BUDGET_LIMITS_JSON active (run/role/step/model actual-token budget limits)");
   }
   if (maxStepRetries != null) {
     log("orchestrator", `Guardrail: ORCH_MAX_RETRIES=${maxStepRetries} (per agentId retry_number cap within one iteration)`);
@@ -1460,28 +1638,24 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
     emitContextStatsRows(planCtxStats, "orchestrator", 0, {}, {}, { phase: "plan" });
   }
   maybeEmitBudgetWarning("plan");
-  const planCost = checkCostGuard();
+  const planCost = checkCostGuard("plan", lastBudgetMeta);
   if (!planCost.ok) {
-    summary = `Guardrail ORCH_MAX_COST_USD=${maxCostUsd}: estimated spend ${roundUsd6(planCost.estimate)} USD exceeds limit after plan phase.`;
+    summary = `Guardrail budget limit (${planCost.budget_scope}) exceeded: estimated spend ${roundUsd6(planCost.estimate)} USD exceeds limit ${planCost.limit} after plan phase.`;
     manualReview = true;
     traceEvent(taskId, {
       event: "budget_block",
-      phase: "plan",
-      estimate_usd: roundUsd6(planCost.estimate),
-      limit_usd: maxCostUsd,
-      cost_basis: "actual_env_pricing_ollama_tokens",
+      ...budgetEventFields(planCost),
     });
     traceEvent(taskId, {
       event: "budget_exhausted",
-      phase: "plan",
-      estimate_usd: roundUsd6(planCost.estimate),
-      limit_usd: maxCostUsd,
-      cost_basis: "actual_env_pricing_ollama_tokens",
+      ...budgetEventFields(planCost),
     });
     traceIterationDone(taskId, 0, "guard_abort", transitionReason("GUARD", "cost_limit", { reason_code: "GUARD_COST_LIMIT" }), {
       estimate_usd: roundUsd6(planCost.estimate),
-      limit_usd: maxCostUsd,
+      limit_usd: planCost.limit,
       guard_phase: "plan",
+      budget_scope: planCost.budget_scope,
+      triggered_budgets: planCost.triggered_budgets,
     });
     skipMainOrchestrationLoop = true;
   }
@@ -1572,30 +1746,26 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
      * @returns {boolean} true if run must stop (caller should `break orchestration`)
      */
     function costGuardAbort(phase) {
-      maybeEmitBudgetWarning(phase);
-      const raw = checkCostGuard();
-      const d = decideCostGuard({ estimate: raw.ok ? null : (raw.estimate ?? null), maxCostUsd, phase });
+      maybeEmitBudgetWarning(phase, lastBudgetMeta);
+      const raw = checkCostGuard(phase, lastBudgetMeta);
+      const d = decideCostGuard({ estimate: raw.ok ? null : (raw.estimate ?? null), maxCostUsd: raw.ok ? maxCostUsd : raw.limit, phase });
       if (!d.abort) return false;
       summary = d.summary;
       manualReview = true;
       traceEvent(taskId, {
         event: "budget_block",
-        phase,
-        estimate_usd: d.estimateUsd,
-        limit_usd: maxCostUsd,
-        cost_basis: "actual_env_pricing_ollama_tokens",
+        ...budgetEventFields(raw),
       });
       traceEvent(taskId, {
         event: "budget_exhausted",
-        phase,
-        estimate_usd: d.estimateUsd,
-        limit_usd: maxCostUsd,
-        cost_basis: "actual_env_pricing_ollama_tokens",
+        ...budgetEventFields(raw),
       });
       traceIterationDone(taskId, iterations, "guard_abort", transitionReason("GUARD", "cost_limit", { reason_code: "GUARD_COST_LIMIT" }), {
         estimate_usd: d.estimateUsd,
-        limit_usd: maxCostUsd,
+        limit_usd: raw.limit,
         guard_phase: phase,
+        budget_scope: raw.budget_scope,
+        triggered_budgets: raw.triggered_budgets,
       }, iterationDoneCtx());
       return true;
     }
