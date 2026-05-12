@@ -1,9 +1,8 @@
 "use strict";
 
 /**
- * Optional trace events for **CTX-COST-1** (compaction lifecycle) and **MODEL-FALLBACK-COST-1**
- * (model fallback chain). These are **observability** lines only — they do not replace
- * `context_stats` token accounting and are not wired to cost guards.
+ * Optional trace events for compaction lifecycle and model-fallback lifecycle.
+ * Observability only; token rollups stay **`context_stats`**-based and cost guards are unchanged.
  */
 
 /**

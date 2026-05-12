@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * CTX-COST-1 + MODEL-FALLBACK-COST-1 acceptance-style fixture:
+ * Acceptance-style fixture: context lifecycle attribution + model fallback chain.
  * ARCHITECT → DEV → QA direct + QA infra compaction + QA continues + QA Sonnet→Haiku fallback.
  */
 
@@ -9,7 +9,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const { buildTokenUsageSummary } = require("../token-usage-summary");
 
-test("CTX-COST-1 chain: direct vs infra-attributed per role; run_total matches sum(context_stats tokens)", () => {
+test("context cost chain: direct vs infra-attributed per role; run_total matches sum(context_stats tokens)", () => {
   const rows = [
     { event: "context_stats", agent: "architect", iteration: 1, step_id: "s-arch", ollama_prompt_tokens: 3, ollama_completion_tokens: 5 },
     { event: "context_stats", agent: "dev-backend", iteration: 1, step_id: "s-dev", ollama_prompt_tokens: 7, ollama_completion_tokens: 9 },

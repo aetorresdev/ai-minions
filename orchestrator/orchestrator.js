@@ -66,8 +66,8 @@ const {
 // Event types: session_start, agent_start, agent_done, gate_result,
 //              contract_fail, iteration_done, session_end (optional permission_summary rollup), mcp_call, permission_check,
 //              context_stats (ollama_* tokens, compaction attribution, model_fallback_segments),
-//              context_compaction_started / context_compaction_completed (CTX-COST-1 observability — not a substitute for context_stats),
-//              model_fallback_required / model_fallback_started / model_fallback_completed (MODEL-FALLBACK-COST-1 observability),
+//              context_compaction_started / context_compaction_completed (compaction lifecycle observability — not a substitute for context_stats),
+//              model_fallback_required / model_fallback_started / model_fallback_completed (model fallback lifecycle observability),
 //              agent_done (qa): optional qa_triple_template + qa_blocker_non_vacuous for rollups
 // iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".
 //
