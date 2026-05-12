@@ -145,8 +145,9 @@ Hard limits for unattended / CI runs — **not** configurable from `run()` optio
 | **`ORCH_MAX_ITERATIONS`** | Integer **1–500**. Used when `run()` is called **without** `maxIterations` (e.g. `node run-orchestrator.js` without `--iterations`). CLI `--iterations` overrides. |
 | **`ORCH_MAX_RETRIES`** | Integer **0–500**. Max allowed **`retry_number`** per `agentId` within a **single outer iteration** (same agent scheduled twice in one pass → second call has `retry_number` 1). Abort → `iteration_done` with `failure_type: retry_exceeded`, `reason_code: GUARD_STEP_RETRY_LIMIT`. Unset = no limit. |
 | **`ORCH_MAX_COST_USD`** | Positive float (USD). Requires **both** `ORCH_USD_PER_MTOK_PROMPT` and `ORCH_USD_PER_MTOK_COMPLETION` (same basis as `token-trace-report`). Estimates spend from accumulated Ollama prompt+completion tokens after plan, each worker, summarizer, cerberus, correct, decide. Abort → `failure_type: cost_abort`, `reason_code: GUARD_COST_LIMIT`. |
+| **`ORCH_BUDGET_WARNING_RATIO`** | Optional positive float. When `ORCH_MAX_COST_USD` and USD rates are set, emits `budget_warning` once per phase after estimated actual spend reaches `ORCH_MAX_COST_USD * ratio` and before hard-stop. Trace-only; it does not block. |
 
-If **`ORCH_MAX_COST_USD`** is set without both USD rate envs, **`run()` throws at start** (fail-fast). When the outer loop exits with `done: false` without a prior terminal `iteration_done`, the runner emits **`MAX_ITERATIONS_LOOP_EXHAUSTED`**.
+If **`ORCH_MAX_COST_USD`** is set without both USD rate envs, **`run()` throws at start** (fail-fast). Cost guard events use `cost_basis: "actual_env_pricing_ollama_tokens"` and never use `equivalent_cloud`. When the outer loop exits with `done: false` without a prior terminal `iteration_done`, the runner emits **`MAX_ITERATIONS_LOOP_EXHAUSTED`**.
 
 Trace path: `~/.claude/metrics/traces/<task_id>.jsonl`. See [strict-mode.md](../docs/orchestrator/strict-mode.md) § *Flow-aware trace metadata*, § *MCP usage audit*, and § *Ollama token counts*.
 

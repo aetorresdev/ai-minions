@@ -10,6 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const cp = require("child_process");
+const ollamaRuntime = require("../agents/runtime/run-ollama");
 
 const PLAN_TWO_DEV = JSON.stringify({
   steps: [
@@ -29,6 +30,7 @@ const DEV_OK = [
 const CERB_OK = "- improvement: reviewed deliverables; no blockers identified";
 
 const origSpawnSync = cp.spawnSync;
+const origRunOllama = ollamaRuntime.runOllama;
 
 function clearOrchestratorModuleCaches() {
   const agentsPath = path.resolve(__dirname, "..", "agents.js");
@@ -177,6 +179,85 @@ describe("ORCH_MAX_RETRIES integration (spawn stub)", () => {
       else process.env.ORCH_TRACES_DIR = prevTraces;
       try { fs.rmSync(traceDir, { recursive: true, force: true }); } catch { /* ok */ }
       try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* ok */ }
+      clearOrchestratorModuleCaches();
+    }
+  });
+});
+
+describe("budget guard trace events", () => {
+  it("emits budget_warning before budget_block and budget_exhausted on hard stop", async () => {
+    const prev = {
+      cost: process.env.ORCH_MAX_COST_USD,
+      prompt: process.env.ORCH_USD_PER_MTOK_PROMPT,
+      completion: process.env.ORCH_USD_PER_MTOK_COMPLETION,
+      warning: process.env.ORCH_BUDGET_WARNING_RATIO,
+      ollama: process.env.OLLAMA_MODEL,
+      traces: process.env.ORCH_TRACES_DIR,
+      skipNetwork: process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE,
+    };
+    const traceDir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-budget-trace-"));
+    try {
+      process.env.ORCH_MAX_COST_USD = "1";
+      process.env.ORCH_USD_PER_MTOK_PROMPT = "1";
+      process.env.ORCH_USD_PER_MTOK_COMPLETION = "1";
+      process.env.ORCH_BUDGET_WARNING_RATIO = "0.5";
+      process.env.OLLAMA_MODEL = "unit-budget";
+      process.env.ORCH_TRACES_DIR = traceDir;
+      process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = "1";
+      ollamaRuntime.runOllama = async () => ({
+        content: JSON.stringify({ steps: [{ agentId: "dev-backend", task: "will not run" }] }),
+        prompt_eval_count: 600_000,
+        eval_count: 500_000,
+      });
+      clearOrchestratorModuleCaches();
+
+      const agents = require("../agents");
+      agents.setBackend("ollama");
+      const { run } = require("../orchestrator");
+      const result = await run("budget guard test", {
+        cwd: os.tmpdir(),
+        maxIterations: 1,
+        skipStateMcp: true,
+        stepSummary: false,
+      });
+
+      assert.equal(result.done, false);
+      assert.match(result.summary, /ORCH_MAX_COST_USD/i);
+
+      const files = fs.readdirSync(traceDir).filter((f) => f.endsWith(".jsonl"));
+      assert.equal(files.length, 1, "expected one trace file");
+      const events = fs.readFileSync(path.join(traceDir, files[0]), "utf8")
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => JSON.parse(l));
+      const names = events.map((e) => e.event);
+      assert.ok(names.includes("budget_warning"));
+      assert.ok(names.includes("budget_block"));
+      assert.ok(names.includes("budget_exhausted"));
+      assert.ok(events.some((e) => e.event === "iteration_done" && e.transition_reason?.reason_code === "GUARD_COST_LIMIT"));
+      const warning = events.find((e) => e.event === "budget_warning");
+      assert.equal(warning.cost_basis, "actual_env_pricing_ollama_tokens");
+      assert.equal(warning.phase, "plan");
+    } finally {
+      ollamaRuntime.runOllama = origRunOllama;
+      try { require("../agents").runOllama = origRunOllama; } catch { /* ok */ }
+      try { require("../agents").setBackend(null); } catch { /* ok */ }
+      if (prev.cost === undefined) delete process.env.ORCH_MAX_COST_USD;
+      else process.env.ORCH_MAX_COST_USD = prev.cost;
+      if (prev.prompt === undefined) delete process.env.ORCH_USD_PER_MTOK_PROMPT;
+      else process.env.ORCH_USD_PER_MTOK_PROMPT = prev.prompt;
+      if (prev.completion === undefined) delete process.env.ORCH_USD_PER_MTOK_COMPLETION;
+      else process.env.ORCH_USD_PER_MTOK_COMPLETION = prev.completion;
+      if (prev.warning === undefined) delete process.env.ORCH_BUDGET_WARNING_RATIO;
+      else process.env.ORCH_BUDGET_WARNING_RATIO = prev.warning;
+      if (prev.ollama === undefined) delete process.env.OLLAMA_MODEL;
+      else process.env.OLLAMA_MODEL = prev.ollama;
+      if (prev.traces === undefined) delete process.env.ORCH_TRACES_DIR;
+      else process.env.ORCH_TRACES_DIR = prev.traces;
+      if (prev.skipNetwork === undefined) delete process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE;
+      else process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = prev.skipNetwork;
+      try { fs.rmSync(traceDir, { recursive: true, force: true }); } catch { /* ok */ }
       clearOrchestratorModuleCaches();
     }
   });

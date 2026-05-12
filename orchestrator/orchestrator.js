@@ -1228,6 +1228,7 @@ function parseEnvironment(prompt) {
 async function run(goal, options = {}) {
   const maxIterations = resolveMaxIterations(options);
   const maxCostUsd = parseOptionalPositiveFloat("ORCH_MAX_COST_USD");
+  const budgetWarningRatio = parseOptionalPositiveFloat("ORCH_BUDGET_WARNING_RATIO");
   const usdRatesMtok = loadOllamaUsdRatesMtok();
   if (maxCostUsd != null && !usdRatesMtok) {
     throw new Error(
@@ -1277,6 +1278,7 @@ async function run(goal, options = {}) {
     maxIterations,
   });
   const ollamaTokenTotals = { prompt: 0, completion: 0 };
+  const budgetWarningsEmitted = new Set();
   function bumpOllamaFromStats(stats) {
     if (!stats || typeof stats !== "object") return;
     if (typeof stats.ollama_prompt_tokens === "number" && !Number.isNaN(stats.ollama_prompt_tokens)) {
@@ -1334,6 +1336,25 @@ async function run(goal, options = {}) {
     if (estimate > maxCostUsd) return { ok: false, estimate };
     return { ok: true };
   }
+  function maybeEmitBudgetWarning(phase) {
+    if (maxCostUsd == null || !usdRatesMtok || budgetWarningRatio == null || budgetWarningRatio <= 0) return;
+    const estimate = estimateRunUsd();
+    if (estimate == null || !Number.isFinite(estimate)) return;
+    const thresholdUsd = maxCostUsd * budgetWarningRatio;
+    if (estimate < thresholdUsd) return;
+    const key = String(phase || "unknown");
+    if (budgetWarningsEmitted.has(key)) return;
+    budgetWarningsEmitted.add(key);
+    traceEvent(taskId, {
+      event: "budget_warning",
+      phase: key,
+      estimate_usd: roundUsd6(estimate),
+      threshold_usd: roundUsd6(thresholdUsd),
+      limit_usd: maxCostUsd,
+      warning_ratio: budgetWarningRatio,
+      cost_basis: "actual_env_pricing_ollama_tokens",
+    });
+  }
   let currentMode = "ORCHESTRATOR";
   const degradedInRun = new Set(); // agents that ran in fallback at least once this run
   clearDegradedAgents();
@@ -1360,6 +1381,9 @@ async function run(goal, options = {}) {
   log("orchestrator", `Context: ${stepSummary ? "Ollama handoff between steps" : "no Ollama summary"}; truncation: ${maxContextChars > 0 ? `${maxContextChars} chars/step` : "off"}`);
   if (maxCostUsd != null) {
     log("orchestrator", `Guardrail: ORCH_MAX_COST_USD=${maxCostUsd} (Ollama USD estimate from ORCH_USD_PER_MTOK_*)`);
+    if (budgetWarningRatio != null) {
+      log("orchestrator", `Guardrail: ORCH_BUDGET_WARNING_RATIO=${budgetWarningRatio} (trace-only warning threshold)`);
+    }
   }
   if (maxStepRetries != null) {
     log("orchestrator", `Guardrail: ORCH_MAX_RETRIES=${maxStepRetries} (per agentId retry_number cap within one iteration)`);
@@ -1435,10 +1459,25 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
     emitModelFallbackLifecycleIfNeeded(traceEvent, taskId, "orchestrator", planCtxStats, { iteration: 0, phase: "plan" });
     emitContextStatsRows(planCtxStats, "orchestrator", 0, {}, {}, { phase: "plan" });
   }
+  maybeEmitBudgetWarning("plan");
   const planCost = checkCostGuard();
   if (!planCost.ok) {
     summary = `Guardrail ORCH_MAX_COST_USD=${maxCostUsd}: estimated spend ${roundUsd6(planCost.estimate)} USD exceeds limit after plan phase.`;
     manualReview = true;
+    traceEvent(taskId, {
+      event: "budget_block",
+      phase: "plan",
+      estimate_usd: roundUsd6(planCost.estimate),
+      limit_usd: maxCostUsd,
+      cost_basis: "actual_env_pricing_ollama_tokens",
+    });
+    traceEvent(taskId, {
+      event: "budget_exhausted",
+      phase: "plan",
+      estimate_usd: roundUsd6(planCost.estimate),
+      limit_usd: maxCostUsd,
+      cost_basis: "actual_env_pricing_ollama_tokens",
+    });
     traceIterationDone(taskId, 0, "guard_abort", transitionReason("GUARD", "cost_limit", { reason_code: "GUARD_COST_LIMIT" }), {
       estimate_usd: roundUsd6(planCost.estimate),
       limit_usd: maxCostUsd,
@@ -1533,11 +1572,26 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
      * @returns {boolean} true if run must stop (caller should `break orchestration`)
      */
     function costGuardAbort(phase) {
+      maybeEmitBudgetWarning(phase);
       const raw = checkCostGuard();
       const d = decideCostGuard({ estimate: raw.ok ? null : (raw.estimate ?? null), maxCostUsd, phase });
       if (!d.abort) return false;
       summary = d.summary;
       manualReview = true;
+      traceEvent(taskId, {
+        event: "budget_block",
+        phase,
+        estimate_usd: d.estimateUsd,
+        limit_usd: maxCostUsd,
+        cost_basis: "actual_env_pricing_ollama_tokens",
+      });
+      traceEvent(taskId, {
+        event: "budget_exhausted",
+        phase,
+        estimate_usd: d.estimateUsd,
+        limit_usd: maxCostUsd,
+        cost_basis: "actual_env_pricing_ollama_tokens",
+      });
       traceIterationDone(taskId, iterations, "guard_abort", transitionReason("GUARD", "cost_limit", { reason_code: "GUARD_COST_LIMIT" }), {
         estimate_usd: d.estimateUsd,
         limit_usd: maxCostUsd,
