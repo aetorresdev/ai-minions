@@ -16,6 +16,7 @@ const os = require("os");
 const { sanitizeTraceRowsForRead } = require("./trace-redact");
 const { aggregatePermissionChecksFromTraceRows } = require("./security/permission-check-summary");
 const { buildTokenUsageSummary } = require("./token-usage-summary");
+const { buildRunCostAccountingFromReport } = require("./cost-accounting-dimensions");
 
 /** @typedef {{ ts?: string, task_id?: string, event?: string, [k: string]: unknown }} TraceRow */
 
@@ -371,6 +372,27 @@ function printTextReport(taskId, tracePath, report, parseErrors) {
     console.log(`basis: ${usd.basis}`);
   }
 
+  const costAccounting = buildRunCostAccountingFromReport(report);
+  if (costAccounting?.cost_accounting?.run) {
+    const r = costAccounting.cost_accounting.run;
+    console.log("\n── Cost accounting (actual vs equivalent_cloud — advisory; not vendor billing) ──");
+    console.log(`tokens: prompt=${r.prompt_tokens} completion=${r.completion_tokens} total=${r.total_tokens}`);
+    const a = r.actual;
+    if (a && a.total_usd != null) {
+      console.log(`actual (env-priced estimate): input=$${a.input_usd} output=$${a.output_usd} total=$${a.total_usd} source=${a.source}`);
+    } else if (a) {
+      console.log("actual: (rates incomplete — set ORCH_USD_PER_MTOK_PROMPT + ORCH_USD_PER_MTOK_COMPLETION)");
+    }
+    const e = r.equivalent_cloud;
+    if (e && typeof e.total_usd === "number") {
+      console.log(
+        `equivalent_cloud (benchmark): input=$${e.input_usd} output=$${e.output_usd} total=$${e.total_usd} baseline=${e.baseline_provider}/${e.baseline_model}`,
+      );
+    } else if (e?.equivalent_cloud_cost_status) {
+      console.log(`equivalent_cloud: status=${e.equivalent_cloud_cost_status}`);
+    }
+  }
+
   const keys = Object.keys(report.by_agent_phase).sort();
   if (keys.length) {
     console.log("\n── By agent | phase (Ollama only) ──");
@@ -422,7 +444,9 @@ function usage() {
        node token-trace-report.js --file <path.jsonl> [--json] [--strict-traces]
 Env: ORCH_TRACES_DIR (default: ~/.claude/metrics/traces)
      ORCH_TRACE_VALIDATE=1 — same as --strict-traces (JSON Schema v2 per line)
-     ORCH_USD_PER_MTOK_PROMPT / ORCH_USD_PER_MTOK_COMPLETION — optional USD per 1e6 Ollama tokens (both required for estimate)`);
+     ORCH_USD_PER_MTOK_PROMPT / ORCH_USD_PER_MTOK_COMPLETION — optional USD per 1e6 Ollama tokens (both required for estimate)
+     ORCH_EQUIV_CLOUD_USD_PER_MTOK_PROMPT / ORCH_EQUIV_CLOUD_USD_PER_MTOK_COMPLETION — optional benchmark USD/Mtok (both + ORCH_EQUIV_CLOUD_BASELINE_MODEL for numeric equiv)
+     ORCH_EQUIV_CLOUD_BASELINE_MODEL / ORCH_EQUIV_CLOUD_BASELINE_PROVIDER — label for equivalent_cloud (provider defaults to custom)`);
 }
 
 function main() {
@@ -462,6 +486,7 @@ function main() {
 
   if (jsonOut) {
     const usd = optionalOllamaUsdEstimate(report);
+    const costAccounting = buildRunCostAccountingFromReport(report);
     const { buildRunOutcomeSummary } = require("./run-outcome-summary");
     console.log(JSON.stringify({
       task_id: tid,
@@ -474,6 +499,7 @@ function main() {
         ollama_usd_estimate: usd || null,
       }),
       ...(usd ? { ollama_usd_estimate: usd } : {}),
+      ...(costAccounting || {}),
     }, null, 2));
   } else {
     printTextReport(tid, tracePath, report, errors);
