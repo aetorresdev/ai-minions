@@ -89,6 +89,8 @@ All worker agents run via the **`claude` CLI** using your active Claude Code ses
 
 The MCPs (`orchestrator-state`, `compact-handoff`) are **optional** — the orchestrator runs without them but without hard gates. See [With hard gates](#with-hard-gates-recommended) to enable them.
 
+**Before each run (human operator):** use the [pre-run checklist](../docs/orchestrator/pre-run-checklist.md) — goal, scope, roles, budget, permissions, acceptance criteria, expected outputs, and evidence.
+
 ---
 
 ## Configuration decision table
