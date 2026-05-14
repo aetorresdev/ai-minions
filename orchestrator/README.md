@@ -488,6 +488,22 @@ Use `--iterations 1` to force a single pass.
 
 ---
 
+## Known limitations (alpha)
+
+- **Alpha ≠ production** — no SLA, no multi-tenant isolation; see root [`README.md`](../README.md) maturity table.
+- **`FLOW: multi_agent`** — still incomplete for some comparisons; see root README *Status — SA vs MA*.
+- **Gates vs degraded mode** — `--skip-gates` / missing MCPs = **degraded** (banner); not the same as strict disk-backed gates. See [strict-mode.md](../docs/orchestrator/strict-mode.md).
+- **Ollama** — optional for planning/summarizer; unset `OLLAMA_MODEL` falls back per [model-routing.md](../docs/orchestrator/model-routing.md). E2E suites expect a running Ollama when their names say so.
+- **Permission / network / shell gates** — coverage is **call-site** scoped; widening policy or bypass env vars can still cause real damage. See [security-posture.md](../docs/orchestrator/security-posture.md).
+
+## Security notes (alpha)
+
+- **Do not** point tools at live trace/state paths under `~/.claude/metrics/` or `~/.claude/.state/` for tampering — treat them as audit artifacts, not secrets storage.
+- **Trace privacy** — [`trace-privacy-contract.md`](../docs/orchestrator/trace-privacy-contract.md); goal redaction via `TRACE_REDACT_GOAL`; never disable redaction in real shared environments.
+- **Credential ceiling** — session modes + [`runtime-permission-contract.md`](../docs/orchestrator/runtime-permission-contract.md) + `orchestrator/security/permission-profiles.v1.json` / capability matrix; **not** a vault product.
+
+---
+
 ## Tests
 
 ```bash
@@ -506,7 +522,7 @@ npm run test:e2e:system-path  # alias; name reflects intent better than “stric
 npm run test:e2e:all  # E2E suite with all available Ollama models
 ```
 
-`ORCH_MCP_TRANSPORT=direct` makes `orchestrator.js` call `mcp-direct.py` for `orchestrator-state` and `compact-handoff` instead of `claude -p`. Use `ORCH_PYTHON` if `python3` is not on `PATH`. Optional: `ORCH_MCP_DIRECT_TIMEOUT_MS` (default 180000).
+`ORCH_MCP_TRANSPORT=direct` makes `orchestrator.js` call `mcp-direct.py` for `orchestrator-state` and `compact-handoff` instead of `claude -p`. **`ORCH_PYTHON`:** set when `python3` on `PATH` is the wrong binary or **ABI-mismatches** the MCP venv (symptom: `No module named 'pydantic_core._pydantic_core'` from `mcp-direct`). After `uv sync` in `mcp-servers/orchestrator-state` (and `compact-handoff` if you use it), point to that venv interpreter, e.g. `ORCH_PYTHON=/path/to/repo/mcp-servers/orchestrator-state/.venv/bin/python`. Optional: `ORCH_MCP_DIRECT_TIMEOUT_MS` (default 180000).
 
 ### MCP permission gate
 

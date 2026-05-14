@@ -101,6 +101,14 @@ Full wiring: [`docs/orchestrator/system-architecture-diagram.md`](docs/orchestra
 git clone https://github.com/YOUR_USERNAME/ai-minions.git ~/.claude
 ```
 
+**Orchestrator (Node) smoke** — from clone root:
+
+```bash
+cd ~/.claude/orchestrator && npm install && npm test
+# Optional strict path (Ollama + uv venvs + ORCH_PYTHON — see orchestrator/README.md § Tests):
+# ORCH_PYTHON=../mcp-servers/orchestrator-state/.venv/bin/python npm run test:e2e:strict
+```
+
 **Test a skill** (no header needed):
 
 ```
