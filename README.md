@@ -25,7 +25,15 @@ The goal is not to make AI feel smarter. It is to make it **harder to approve so
 
 ---
 
-## Why this exists
+## What is ai-minions?
+
+- A **human-supervised**, **contract-driven** harness for AI-assisted software work: fixed MODE roles, structured handoffs, and validation gates—not an autonomous team that owns releases.
+- **Manager-owned orchestration:** the orchestrator plans and gates work; **handoffs** are for explicit ownership transfer, not every role switch. See [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md).
+- **Evidence over chat memory:** traces, `validateOutput`, and optional MCP-backed gates—not “vibes” as the audit trail. Orchestrator product path: [`orchestrator/README.md`](orchestrator/README.md).
+
+---
+
+## Problems it solves
 
 The default agent stack is structurally unsafe for anything that actually matters in production—and that is exactly where people are starting to use it:
 
@@ -35,6 +43,16 @@ The default agent stack is structurally unsafe for anything that actually matter
 | **Naive multi-agent** | Cost explodes; you still have no gate on "did this transition actually happen?" |
 | **Unvalidated outputs** | Confident prose with no artifact list, no test output, no blocked advance. |
 | **No role separation** | One chat mixes author, reviewer, and release narrative. Accountability collapses. |
+
+---
+
+## Without ai-minions vs with ai-minions
+
+| Without | With |
+|---------|------|
+| Roles and accountability blur in one thread | One MODE per response; contracts in [`agent-contract.md`](docs/orchestrator/agent-contract.md) |
+| Tool/network access easy to mis-scope | Permission classification + gates + `permission_check` traces ([`runtime-permission-contract.md`](docs/orchestrator/runtime-permission-contract.md)) |
+| Cost and failures as folklore | Token summaries, budget hard-stop, JSONL traces ([`strict-mode.md`](docs/orchestrator/strict-mode.md), [`orchestrator/README.md`](orchestrator/README.md)) |
 
 ---
 
@@ -155,6 +173,34 @@ The four competency names come from Anthropic's **AI Fluency** framework (© 202
 - Not a replacement for engineers — a structure for how agents are run and reviewed.
 - Not prompt-engineering magic — wrong contracts fail in the open, not silently.
 - Not a benchmark — SA vs MA evaluation is incomplete; no fabricated tables here.
+
+---
+
+## Security posture (honest)
+
+- **Shipped controls (see code + contracts):** capability matrix pre-check, MCP / shell / network / classified-invocation gates, trace schema, secret-shaped redaction — [`runtime-permission-contract.md`](docs/orchestrator/runtime-permission-contract.md), [`trace-privacy-contract.md`](docs/orchestrator/trace-privacy-contract.md), [`strict-mode.md`](docs/orchestrator/strict-mode.md).
+- **Not a sandbox product:** widening `.ai-minions/permissions.yaml`, skipping gates, or ignoring degraded-mode banners can still cause real damage. The harness **reduces** risk; it does not **eliminate** operator responsibility.
+- **Single narrative doc:** a consolidated public threat model is still outstanding; until it exists, the linked contracts are authoritative over README wording.
+
+---
+
+## Maturity: implemented / planned / not claimed
+
+| Bucket | What it means here |
+|--------|---------------------|
+| **Implemented** | MODE protocol + YAML handoffs, `validateOutput`, JSONL traces, permission evaluator + runtime gates in the orchestrator, token/cost reporting and run budget hard-stop, hook metrics pipeline. |
+| **Planned** | One-page public security posture + threat model (doc-only); deeper session/resume semantics — tracked in repo planning docs, not implied by this README. |
+| **Not claimed** | Production SLA, OSI “open source” license, hosted control plane, turnkey marketplace, multi-tenant isolation — see [`LICENSE`](LICENSE) and [`COMMERCIAL_LICENSE.md`](COMMERCIAL_LICENSE.md). |
+
+---
+
+## Roadmap (high level)
+
+1. Keep **contracts, gates, and traces** aligned with code under `orchestrator/` and `docs/orchestrator/`.
+2. **Alpha readiness:** run and release checklists — [`pre-run-checklist.md`](docs/orchestrator/pre-run-checklist.md), [`alpha-release-checklist.md`](docs/orchestrator/alpha-release-checklist.md).
+3. **Orchestration model (detail):** [`docs/orchestrator/agent-harness.md`](docs/orchestrator/agent-harness.md) — README stays the map, not the full design.
+
+Full doc index: [`docs/orchestrator/README.md`](docs/orchestrator/README.md).
 
 ---
 
