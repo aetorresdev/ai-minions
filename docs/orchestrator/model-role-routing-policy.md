@@ -6,9 +6,17 @@
 
 This document is a **stable policy summary** for operators and reviewers: which harness roles use which default models, what fallback exists, and how “stronger” models are obtained (always **manual** in this stack — there is no automatic Opus escalation on ambiguity).
 
+**Precedence (`resolveModel` in `agents.js`):** `MODEL_OVERRIDE_<ROLE>` → profile override (if an active profile) → profile default → `MODEL_ROUTING[role].primary`.
+
+**No `--profile` flag:** `run-orchestrator.js` does not call `setModelProfile`; no profile is active. The matrix below matches **`MODEL_ROUTING` primaries** only (including the `OLLAMA_MODEL` / Haiku composition where noted for `orchestrator` / `summarizer`).
+
+**With `--profile balanced`:** Profile layers apply **before** `MODEL_ROUTING`. Today `models.json` sets `balanced.default` to `claude-sonnet-4-6` with empty `overrides`, so every role without a `MODEL_OVERRIDE_*` gets **Sonnet** as primary first — including `owner` (not Haiku from `MODEL_ROUTING`) and `orchestrator` / `summarizer` (not the Ollama-first path from `MODEL_ROUTING`). For exact keys, read `orchestrator/models.json`.
+
+**Fallback on primary failure** still comes from `MODEL_ROUTING` / `FALLBACK_POLICY` via `resolveFallback` — profiles do not replace fallback chains.
+
 ---
 
-## Policy matrix (default `balanced` profile, no `MODEL_OVERRIDE_*`)
+## Policy matrix (`MODEL_ROUTING` primaries, no active profile, no `MODEL_OVERRIDE_*`)
 
 | MODE / role | `agentId` | Default primary | Escalation (manual) | Fallback on primary failure | Rationale |
 |-------------|-----------|-----------------|---------------------|----------------------------|-----------|
@@ -20,7 +28,7 @@ This document is a **stable policy summary** for operators and reviewers: which 
 | QA | `qa` | `claude-sonnet-4-6` | `MODEL_OVERRIDE_QA` | `claude-haiku-4-5-20251001` | Validation; Haiku fallback allowed; CERBERUS still adversarial. |
 | CERBERUS | `cerberus` | `claude-sonnet-4-6` | `MODEL_OVERRIDE_CERBERUS` (e.g. Opus for release gate) | **None** — failure is a hard stop | Final risk review must not silently degrade (`degraded: false`). |
 
-**Profiles** (`orchestrator/models.json`, `run-orchestrator.js --profile`): `fast`, `balanced`, `quality` reshape primaries without changing the **fallback / degraded** rules in `FALLBACK_POLICY`. See [model-routing.md § Profile-based selection](model-routing.md#profile-based-selection-config-driven).
+**Profiles** (`orchestrator/models.json`, `run-orchestrator.js --profile`): `fast`, `balanced`, and `quality` change **primaries** through `resolveModel` per the precedence above. They do **not** replace `MODEL_ROUTING` fallback wiring or `FALLBACK_POLICY` semantics. See [model-routing.md § Profile-based selection](model-routing.md#profile-based-selection-config-driven).
 
 ---
 
