@@ -2,6 +2,8 @@
 
 Defines which model each role uses, when local fallback is safe, and what structural keys each MODE must produce in its handoff YAML.
 
+**Operator-facing policy summary (matrix):** [model-role-routing-policy.md](model-role-routing-policy.md).
+
 ---
 
 ## Model routing
