@@ -4,6 +4,11 @@
 
 ai-minions treats the LLM as **one component inside a controlled execution harness**, not as an autonomous operator.
 
+**Positioning (why “harness engineering”):**
+[harness-engineering-positioning.md](harness-engineering-positioning.md) — canonical
+**framing**, orchestration vocabulary, and “what we do not claim.” This file is the
+**layer model** (context, memory/state, control, validation, observability).
+
 ---
 
 ## Layers

@@ -1,0 +1,221 @@
+# Harness engineering positioning
+
+**Location:** `docs/orchestrator/harness-engineering-positioning.md` (repo root). See
+[PATHS.md](PATHS.md) if your workspace root differs.
+
+This document is the **canonical framing** for why ai-minions is an **agent harness**
+(controls, contracts, gates, traces, budgets, permissions) around inference—not a
+generic multi-agent demo. The root [`README.md`](../../README.md) is the **short map**;
+it should **summarize and link here**, not invent parallel claims.
+
+**Technical layer model (non-duplicative):** [agent-harness.md](agent-harness.md)
+lists context, memory/state, control, validation, and observability **layers**. This
+file explains **what harness engineering means here**, how parts map to the repo,
+and what is explicitly **not** claimed.
+
+**Normative contracts** (behavior detail): [agent-contract.md](agent-contract.md),
+[runtime-permission-contract.md](runtime-permission-contract.md),
+[strict-mode.md](strict-mode.md), [capability-flow-contract.md](capability-flow-contract.md).
+
+**Security narrative:** [security-posture.md](security-posture.md).
+
+---
+
+## What “harness engineering” means in ai-minions
+
+The model is **one component** inside a **bounded execution environment**:
+
+- **Inputs** are curated (contracts, selected files, compact handoff YAML), not
+  “the whole repo plus the internet by default.”
+- **Actions** are classified and, on gated paths, **denied before execute** when
+  policy says no (MCP, shell, network, classified spawn). See
+  `orchestrator/security/` and the permission contracts.
+- **Progress** is **not** implied by fluent text: `validateOutput`, MCP transition
+  gates, QA/CERBERUS lanes, and trace schema semantics record pass/fail.
+- **Cost** is measured and can **hard-stop** a run (budget guardrails in the
+  orchestrator; hooks report usage).
+- **Outcomes** are **inspectable** (JSONL traces, summaries, exports)—comparisons
+  should be evidence-based, not chat memory.
+
+That is **harness engineering** in the narrow sense used here: **sensors + actuators +
+policy + feedback loops + deterministic gates** around LLM steps—not “better prompts
+only.”
+
+---
+
+## Component map (repo anchors)
+
+| Harness idea | Where it lives (examples) |
+|--------------|---------------------------|
+| Compact / structured handoff | `mcp-servers/compact-handoff/`; handoff YAML in [agent-contract.md](agent-contract.md) |
+| Role contracts + MODE | [agent-contract.md](agent-contract.md); hooks under `scripts/hooks/` |
+| `validateOutput` | `orchestrator/` (runner); tests under `orchestrator/` / `tests/` |
+| QA / CERBERUS gates | Contract sections; trace events; hook enforcement paths |
+| Trace schema, strict parsing | [strict-mode.md](strict-mode.md); `orchestrator/schemas/` |
+| Permission model + gates | [runtime-permission-contract.md](runtime-permission-contract.md); `orchestrator/security/*.js` |
+| Cost / iteration guards | Orchestrator guardrails; `flow-metrics.jsonl` (hooks); docs in `orchestrator/README.md` |
+| Context / metric hooks | `scripts/hooks/`; [hooks-claude-code-metrics-validation.md](hooks-claude-code-metrics-validation.md) |
+
+If a row cannot be tied to **code, contract, or test**, treat the claim as **not
+allowed** in public positioning.
+
+---
+
+## Relations to adjacent ideas
+
+| Adjacent term | Relationship here |
+|---------------|---------------------|
+| **Context engineering** | Sub-discipline **inside** the harness: what enters each turn (tools, MCP, snippets, history). **Curate** context; do not equate with “maximize prompt size.” Appears as the **context layer** in [agent-harness.md](agent-harness.md). |
+| **Evals** | Useful for **harness + model** behavior, not a leaderboard chase. Quality targets belong in **contracts, gates, and traces** first. |
+| **Observability** | Trace lines, `reason_code`, permission summaries, run outcome consumption—see [run-outcome-consumption.md](run-outcome-consumption.md), [dashboard-failure-taxonomy.md](dashboard-failure-taxonomy.md). |
+| **Orchestration** | **Manager-owned by default** (next section). |
+| **Safe autonomy** | **Not** “zero human.” Human supervision + **rejectable** machine steps. |
+| **Runtime control** | Permission evaluation, gates, degraded mode, budget stop—**enforcement**, not vibes. |
+
+---
+
+## Orchestration model: manager-owned, bounded specialists, delegated handoff
+
+**Default:** the **orchestrator run** keeps **ownership** of the task: plan, final
+answer narrative, traces, budget, permission outcomes, approvals, and checkpoints.
+
+**Bounded specialist invocation:** roles such as OWNER, ARCHITECT, DEV, QA, CERBERUS
+are **capabilities** invoked under contract—**not** each a free-standing autonomous
+agent that “owns the product” unless the workflow explicitly says otherwise.
+
+**Delegated handoff (ownership transfer):** a **handoff** means the **next turn’s
+role owns a branch** of work (budget boundary, approval boundary, artifact boundary)
+as defined by YAML + gates—not every MODE line change in the transcript.
+
+**Not a handoff:** switching phase from ARCHITECT to DEV because “design ended” is
+a **workflow transition** inside the same run owner unless a **handoff artifact**
+and gate semantics transfer ownership.
+
+A future **dedicated handoff ownership contract** may further formalize delegated
+branches; until then, [agent-contract.md](agent-contract.md) remains the normative
+MODE + handoff reference.
+
+### Handoffs vs “agents as tools” (applied)
+
+| Pattern | Who keeps run ownership? | Typical signal |
+|---------|--------------------------|----------------|
+| **Handoff** | The **receiving** role for the delegated branch | Structured YAML + gate allows advance; branch may have its own budget/approval envelope |
+| **Agents as tools** | **Orchestrator** (or current run owner) | Subagent returns **contract-shaped artifacts**; no ownership transfer |
+
+### Valid vs invalid examples (illustrative)
+
+- **Valid — QA → CERBERUS:** CERBERUS must **own** a blocker-review branch (release
+  narrative, verdict semantics) under contract.
+- **Valid — orchestrator → DEV:** DEV owns an **implementation sub-run** that is
+  resumable with its own step/budget boundary **when** the contract and gates define
+  that branch.
+- **Invalid — ARCHITECT → DEV “because phase changed”:** phase change alone is **not**
+  delegated ownership without explicit handoff semantics.
+- **Invalid — QA → DEV “to ask for a fix”** while the orchestrator remains owner:
+  that is a **tool-like** or follow-up instruction pattern, not a handoff, unless
+  ownership is explicitly transferred.
+
+### Diagram: manager-owned default, explicit handoff as exception
+
+```mermaid
+flowchart TB
+  subgraph default [Default: manager-owned]
+    O[Run owner / orchestrator plan]
+    O --> S1[Invoke specialist under contract]
+    S1 --> G[Gates + traces]
+    G --> O
+  end
+  subgraph exception [Explicit handoff]
+    H[Handoff YAML + gate-approved advance]
+    H --> O2[Receiving role owns branch]
+  end
+  O -.->|only when contract says transfer| H
+```
+
+---
+
+## What ai-minions is **not**
+
+- **Not** a generic “agent framework” for arbitrary swarms and marketplace agents.
+- **Not** a chatbot wrapper with prettier system prompts.
+- **Not** swarm-first choreography where cost and accountability explode by default.
+- **Not** a benchmark-chasing project—SA vs MA comparisons are explicitly
+  **incomplete** in the root README maturity notes.
+- **Not** a “zero-human company” control plane—humans own scope, risk, and approval.
+
+---
+
+## Specialist splitting: only when isolation improves
+
+Adding roles or subagents is **not** free. It should improve at least one of:
+
+- **Capability isolation** (different tools/paths),
+- **Policy isolation** (different permission envelopes),
+- **Prompt clarity** (smaller, testable contracts per surface),
+- **Trace legibility** (auditors can follow branches).
+
+If split only for “org chart aesthetics,” **do not** add specialists.
+
+---
+
+## External framing (cross-check, **not** roadmap authority)
+
+Industry posts and courses (including Anthropic engineering essays on harness design,
+long-running agents, context engineering, tools, MCP execution, managed agents, and
+evals) are useful **vocabulary checks**. They are **not** compliance targets.
+
+**Rule:** never claim “Anthropic-compliant,” “industry-standard harness,” or similar
+without **repo-verifiable** evidence. Conceptual similarity ≠ certification.
+
+### Anthropic titles (illustrative) → mechanisms here
+
+Official Anthropic engineering materials include themes such as: *Harness design for
+long-running application development*; *Effective harnesses for long-running agents*;
+*Effective context engineering for AI agents*; *Writing effective tools for agents*;
+*Code execution with MCP*; *Scaling Managed Agents*; *Demystifying evals for AI
+agents*. Entry points: [anthropic.com/news](https://www.anthropic.com/news),
+[anthropic.com/engineering](https://www.anthropic.com/engineering).
+
+| External theme | ai-minions mechanism (verify in repo) |
+|----------------|--------------------------------------|
+| Harness design | Orchestrator runner, contracts, role gates, trace/export |
+| Long-running agents | Compact handoff, durable artifacts on disk; **full durable resumability not claimed** |
+| Context engineering | Compact handoff discipline, capability/manifest surfaces; context **pack** work is incremental |
+| Tool design | Manifest-first classification, evaluators, gates |
+| MCP / code execution | MCP + network + shell + classified spawn gates; progressive disclosure is **partial / planned** |
+| Managed agents | **Not claimed** as parity—no core vault/sandbox product in runner |
+| Evals | Harness quality via contracts + traces; no leaderboard narrative |
+
+### OpenAI and other vendors (cross-check only)
+
+OpenAI and other providers publish **multi-agent orchestration** and **tool
+orchestration** patterns. Use them to sanity-check **ownership** and **delegation**
+language only. They **do not** set requirements for this repository.
+
+---
+
+## Implemented / partial / planned / not claimed
+
+| Bucket | Harness-relevant meaning |
+|--------|--------------------------|
+| **Implemented** | MODE + YAML handoffs; `validateOutput`; JSONL traces + strict schema path; permission evaluator + gates on covered call sites; token/cost hooks; budget hard-stop; role/capability prechecks where wired. |
+| **Partial** | Progressive tool disclosure; some shell/network paths gated; handoff semantics evolving—see contracts for exact coverage. |
+| **Planned** | Durable session/resume story; deeper tool-eval automation; richer dashboard rollups—see root README maturity row (“Planned”). |
+| **Not claimed** | Managed-agent parity, kernel/container sandbox as core product, turnkey multi-tenant isolation, production SLA. |
+
+**Gaps to state plainly:** credential **broker/vault** productization and **OS-level
+sandbox** isolation are **not** shipped as the default harness boundary—see
+[security-posture.md](security-posture.md). **Full resumability** across all failure
+modes is **not** claimed until a dedicated design lands in contracts and tests.
+
+---
+
+## Single source of truth (framing vs layers)
+
+- **This file:** canonical **positioning** and orchestration vocabulary.
+- **[agent-harness.md](agent-harness.md):** canonical **layer stack** (context,
+  memory/state, control, validation, observability).
+- **[README.md](../../README.md):** **consumer** of both—short map, no new strong
+  claims.
+
+If README and this file disagree, **update README** to match contracts + this doc.

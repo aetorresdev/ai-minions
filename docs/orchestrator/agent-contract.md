@@ -8,6 +8,8 @@ This document defines the roles and **MODE protocol** to prevent a single agent 
 
 **Harness framing:** [Agent harness model](agent-harness.md) — how context, memory/state, control, validation, and observability fit together.
 
+**Harness positioning:** [Harness engineering positioning](harness-engineering-positioning.md) — manager-owned orchestration, handoff vs bounded invocation, and what is not claimed.
+
 ---
 
 ## Contract role inside the harness

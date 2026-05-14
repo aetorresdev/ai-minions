@@ -12,7 +12,10 @@ and code win**.
 - [`failure-semantics-contract.md`](failure-semantics-contract.md)
 - [`agent-contract.md`](agent-contract.md)
 
----
+**Related positioning (non-normative):**
+[harness-engineering-positioning.md](harness-engineering-positioning.md) — harness
+framing and orchestration vocabulary; contracts above remain authoritative for
+behavior.
 
 ## What this document is not
 
