@@ -28,7 +28,7 @@ The goal is not to make AI feel smarter. It is to make it **harder to approve so
 ## What is ai-minions?
 
 - A **human-supervised**, **contract-driven** harness for AI-assisted software work: fixed MODE roles, structured handoffs, and validation gates—not an autonomous team that owns releases.
-- **Manager-owned orchestration:** the orchestrator plans and gates work; **handoffs** are for explicit ownership transfer, not every role switch. See [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md).
+- **Manager-owned orchestration:** the orchestrator plans and gates work; **handoffs** are for explicit ownership transfer, not every role switch. See [`docs/orchestrator/harness-engineering-positioning.md`](docs/orchestrator/harness-engineering-positioning.md) (full model) and [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md) (MODE + YAML).
 - **Evidence over chat memory:** traces, `validateOutput`, and optional MCP-backed gates—not “vibes” as the audit trail. Orchestrator product path: [`orchestrator/README.md`](orchestrator/README.md).
 
 ---
@@ -178,9 +178,19 @@ The four competency names come from Anthropic's **AI Fluency** framework (© 202
 
 ## Security posture (honest)
 
-- **Shipped controls (see code + contracts):** capability matrix pre-check, MCP / shell / network / classified-invocation gates, trace schema, secret-shaped redaction — [`runtime-permission-contract.md`](docs/orchestrator/runtime-permission-contract.md), [`trace-privacy-contract.md`](docs/orchestrator/trace-privacy-contract.md), [`strict-mode.md`](docs/orchestrator/strict-mode.md).
-- **Not a sandbox product:** widening `.ai-minions/permissions.yaml`, skipping gates, or ignoring degraded-mode banners can still cause real damage. The harness **reduces** risk; it does not **eliminate** operator responsibility.
-- **Single narrative doc:** a consolidated public threat model is still outstanding; until it exists, the linked contracts are authoritative over README wording.
+**Full narrative (threats, gaps, layers):**
+[`security-posture.md`](docs/orchestrator/security-posture.md).
+
+- **Shipped controls (see code + contracts):** capability matrix pre-check, MCP /
+  shell / network / classified-invocation gates, trace schema, secret-shaped
+  redaction — [`runtime-permission-contract.md`](docs/orchestrator/runtime-permission-contract.md),
+  [`trace-privacy-contract.md`](docs/orchestrator/trace-privacy-contract.md),
+  [`strict-mode.md`](docs/orchestrator/strict-mode.md).
+- **Not a sandbox product:** widening `.ai-minions/permissions.yaml`, skipping gates,
+  or ignoring degraded-mode banners can still cause real damage. The harness
+  **reduces** risk; it does not **eliminate** operator responsibility.
+- **Contracts stay authoritative** for exact behavior; the link above is the
+  readable map.
 
 ---
 
@@ -189,7 +199,7 @@ The four competency names come from Anthropic's **AI Fluency** framework (© 202
 | Bucket | What it means here |
 |--------|---------------------|
 | **Implemented** | MODE protocol + YAML handoffs, `validateOutput`, JSONL traces, permission evaluator + runtime gates in the orchestrator, token/cost reporting and run budget hard-stop, hook metrics pipeline. |
-| **Planned** | One-page public security posture + threat model (doc-only); deeper session/resume semantics — tracked in repo planning docs, not implied by this README. |
+| **Planned** | Durable session/resume semantics; deeper tool-eval and progressive-disclosure work — see planning backlog, not implied here. |
 | **Not claimed** | Production SLA, OSI “open source” license, hosted control plane, turnkey marketplace, multi-tenant isolation — see [`LICENSE`](LICENSE) and [`COMMERCIAL_LICENSE.md`](COMMERCIAL_LICENSE.md). |
 
 ---
@@ -198,7 +208,7 @@ The four competency names come from Anthropic's **AI Fluency** framework (© 202
 
 1. Keep **contracts, gates, and traces** aligned with code under `orchestrator/` and `docs/orchestrator/`.
 2. **Alpha readiness:** run and release checklists — [`pre-run-checklist.md`](docs/orchestrator/pre-run-checklist.md), [`alpha-release-checklist.md`](docs/orchestrator/alpha-release-checklist.md).
-3. **Orchestration model (detail):** [`docs/orchestrator/agent-harness.md`](docs/orchestrator/agent-harness.md) — README stays the map, not the full design.
+3. **Harness positioning (detail):** [`docs/orchestrator/harness-engineering-positioning.md`](docs/orchestrator/harness-engineering-positioning.md) — README stays the map, not the full design. Layer stack: [`docs/orchestrator/agent-harness.md`](docs/orchestrator/agent-harness.md).
 
 Full doc index: [`docs/orchestrator/README.md`](docs/orchestrator/README.md).
 
@@ -224,7 +234,9 @@ Full wiring diagram: [`docs/orchestrator/system-architecture-diagram.md`](docs/o
 
 | | |
 |---|---|
+| [`docs/orchestrator/security-posture.md`](docs/orchestrator/security-posture.md) | Public security posture + threat model (honest); links contracts and tests |
 | [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md) | Roles, handoff YAML, state-store authority, output contracts |
+| [`docs/orchestrator/harness-engineering-positioning.md`](docs/orchestrator/harness-engineering-positioning.md) | Harness engineering framing; manager-owned orchestration; implemented vs not claimed |
 | [`docs/orchestrator/agent-harness.md`](docs/orchestrator/agent-harness.md) | Harness layers (context, memory/state, control, validation, observability) |
 | [`docs/optional-contract-mode.md`](docs/optional-contract-mode.md) | Optional `minions.md` contract mode: goals, non-goals, behavior matrix (phase 1 design) |
 | [`orchestrator/`](orchestrator/) | Node product runner: planning, `validateOutput`, MCP gates, traces |
