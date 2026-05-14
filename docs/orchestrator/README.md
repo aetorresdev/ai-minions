@@ -13,6 +13,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [adding-a-new-role.md](adding-a-new-role.md) | ROL-GOV-1: checklist for new roles + parity expectations |
 | [minions-project-contract.md](minions-project-contract.md) | OC-MINIONS-1: optional root `minions.md` JSON contract |
 | [alpha-release-checklist.md](alpha-release-checklist.md) | SHIP-1: alpha readiness checklist |
+| [security-posture.md](security-posture.md) | Public security posture + threat model (honest) |
 | [agent-harness.md](agent-harness.md) | Harness layers: context, memory/state, control, validation, observability |
 | [system-architecture-diagram.md](system-architecture-diagram.md) | Full operational Mermaid (skills, hooks, MCPs, disk, Ollama) |
 | [mcp-task-examples.md](mcp-task-examples.md) | Subagent / `mcp_task` |

@@ -178,9 +178,19 @@ The four competency names come from Anthropic's **AI Fluency** framework (© 202
 
 ## Security posture (honest)
 
-- **Shipped controls (see code + contracts):** capability matrix pre-check, MCP / shell / network / classified-invocation gates, trace schema, secret-shaped redaction — [`runtime-permission-contract.md`](docs/orchestrator/runtime-permission-contract.md), [`trace-privacy-contract.md`](docs/orchestrator/trace-privacy-contract.md), [`strict-mode.md`](docs/orchestrator/strict-mode.md).
-- **Not a sandbox product:** widening `.ai-minions/permissions.yaml`, skipping gates, or ignoring degraded-mode banners can still cause real damage. The harness **reduces** risk; it does not **eliminate** operator responsibility.
-- **Single narrative doc:** a consolidated public threat model is still outstanding; until it exists, the linked contracts are authoritative over README wording.
+**Full narrative (threats, gaps, layers):**
+[`security-posture.md`](docs/orchestrator/security-posture.md).
+
+- **Shipped controls (see code + contracts):** capability matrix pre-check, MCP /
+  shell / network / classified-invocation gates, trace schema, secret-shaped
+  redaction — [`runtime-permission-contract.md`](docs/orchestrator/runtime-permission-contract.md),
+  [`trace-privacy-contract.md`](docs/orchestrator/trace-privacy-contract.md),
+  [`strict-mode.md`](docs/orchestrator/strict-mode.md).
+- **Not a sandbox product:** widening `.ai-minions/permissions.yaml`, skipping gates,
+  or ignoring degraded-mode banners can still cause real damage. The harness
+  **reduces** risk; it does not **eliminate** operator responsibility.
+- **Contracts stay authoritative** for exact behavior; the link above is the
+  readable map.
 
 ---
 
@@ -189,7 +199,7 @@ The four competency names come from Anthropic's **AI Fluency** framework (© 202
 | Bucket | What it means here |
 |--------|---------------------|
 | **Implemented** | MODE protocol + YAML handoffs, `validateOutput`, JSONL traces, permission evaluator + runtime gates in the orchestrator, token/cost reporting and run budget hard-stop, hook metrics pipeline. |
-| **Planned** | One-page public security posture + threat model (doc-only); deeper session/resume semantics — tracked in repo planning docs, not implied by this README. |
+| **Planned** | Durable session/resume semantics; deeper tool-eval and progressive-disclosure work — see planning backlog, not implied here. |
 | **Not claimed** | Production SLA, OSI “open source” license, hosted control plane, turnkey marketplace, multi-tenant isolation — see [`LICENSE`](LICENSE) and [`COMMERCIAL_LICENSE.md`](COMMERCIAL_LICENSE.md). |
 
 ---
@@ -224,6 +234,7 @@ Full wiring diagram: [`docs/orchestrator/system-architecture-diagram.md`](docs/o
 
 | | |
 |---|---|
+| [`docs/orchestrator/security-posture.md`](docs/orchestrator/security-posture.md) | Public security posture + threat model (honest); links contracts and tests |
 | [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md) | Roles, handoff YAML, state-store authority, output contracts |
 | [`docs/orchestrator/agent-harness.md`](docs/orchestrator/agent-harness.md) | Harness layers (context, memory/state, control, validation, observability) |
 | [`docs/optional-contract-mode.md`](docs/optional-contract-mode.md) | Optional `minions.md` contract mode: goals, non-goals, behavior matrix (phase 1 design) |
