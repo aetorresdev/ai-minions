@@ -2,6 +2,8 @@
 
 **Alpha ≠ production.** This checklist defines **minimum bar** before advertising a downloadable / clone-and-run alpha.
 
+**Per-run preparation (operator):** see [pre-run checklist](pre-run-checklist.md).
+
 ## Preconditions
 
 - [ ] P2 “core controls” agreed by OWNER (hooks milestones, capability contract, failure semantics) stable enough for your audience.

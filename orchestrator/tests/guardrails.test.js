@@ -231,7 +231,6 @@ describe("budget guard trace events", () => {
         .split("\n")
         .filter(Boolean)
         .map((l) => JSON.parse(l));
-      const names = events.map((e) => e.event);
       const warningIdx = events.findIndex((e) => e.event === "budget_warning");
       const blockIdx = events.findIndex((e) => e.event === "budget_block");
       const exhaustedIdx = events.findIndex((e) => e.event === "budget_exhausted");
