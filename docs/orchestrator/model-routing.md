@@ -2,6 +2,8 @@
 
 Defines which model each role uses, when local fallback is safe, and what structural keys each MODE must produce in its handoff YAML.
 
+**Operator-facing policy summary (matrix):** [model-role-routing-policy.md](model-role-routing-policy.md).
+
 ---
 
 ## Model routing
@@ -78,7 +80,7 @@ Instead of hardcoding models or setting individual env vars, `models.json` defin
 ```bash
 node run-orchestrator.js --profile fast "goal"      # haiku everywhere except CERBERUS/ARCHITECT
 node run-orchestrator.js --profile quality "goal"   # opus default, sonnet for DEV
-# no flag → "balanced" profile (current hardcoded defaults)
+# No --profile → no active profile; uses hardcoded MODEL_ROUTING defaults (after MODEL_OVERRIDE_*)
 ```
 
 Override keys in `models.json` and `MODEL_OVERRIDE_*` env vars use the normalized role name — `role.toUpperCase().replace(/-/g, "_")`:
