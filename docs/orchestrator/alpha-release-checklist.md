@@ -6,8 +6,12 @@
 
 ## Preconditions
 
-- [ ] Core controls agreed by OWNER (hooks milestones, capability contract, failure semantics) stable enough for your audience.
-- [ ] No known **data-loss** or **secret leakage** regressions open against `trace-privacy-contract.md`.
+- [x] Core controls agreed by OWNER (hooks milestones, capability contract, failure semantics) stable enough for your audience. *(2026-05-15: alpha **`v0.1.0-alpha.1`** sign-off.)*
+- [x] No known **data-loss** or **secret leakage** regressions open against [`trace-privacy-contract.md`](trace-privacy-contract.md). *(2026-05-15: OWNER attestation at alpha close; release remains **non-production**.)*
+
+## Alpha release sign-off (OWNER)
+
+- [x] **2026-05-15:** Alpha cut **`v0.1.0-alpha.1`** signed off — preconditions above satisfied; evidence and limitations in root **`CHANGELOG.md`** and this checklist. **Not** a production claim.
 
 ## Verification and ship-ready criteria
 
@@ -53,7 +57,7 @@ These are the **same gates** as workspace above, but evidence must come from a *
 #### Fresh checkout — local clone evidence (operator machine)
 
 - [x] **Local `git clone`** of the repo to a temp directory (no `node_modules`), then **`cd <clone>/orchestrator && npm ci && npm test`** — **516/516** pass (2026-05-15). Confirmed **`orchestrator/.env.example`** and **`docs/orchestrator/pre-run-checklist.md`** exist on the clean tree (repo-only paths; no extra env files required for that gate).
-- **Runtime note (same clone, optional):** `OLLAMA_MODEL` unset → orchestrator logs **`Ollama not configured … using claude-haiku`** (documented fallback). Planner then failed on this host with **`claude` CLI: `unknown option '--max-tokens'`** — toolchain/version mismatch, not Ollama. Operators need a **`claude` CLI compatible with `orchestrator/README.md` § Quickstart** for live runs without Ollama.
+- **Runtime note (same clone, optional):** `OLLAMA_MODEL` unset → orchestrator logs **`Ollama not configured … using claude-haiku`** (documented fallback). Live runs without Ollama need a **`claude` CLI compatible with `orchestrator/README.md` § Quickstart** (including **§ Claude Code CLI compatibility**; `--max-tokens` is omitted unless **`ORCH_CLAUDE_CLI_MAX_TOKENS=1`**).
 
 #### Fresh checkout validation log
 
@@ -67,10 +71,10 @@ Remaining gates:
 
 - [x] `cd orchestrator && npm test` — all passing; Node version matches documented support. *(CI smoke + local clone above.)*
 - [x] Documented **env vars** paths: operator can rely on `.env.example` + README without tribal knowledge. *(`.env.example` present on clean tree; README / pre-run checklist in repo.)*
-- [ ] **Ollama optional:** end-to-end **`run-orchestrator.js`** success with `OLLAMA_MODEL` unset still depends on a compatible **`claude` CLI** on the host (see runtime note above). **Lint + unit** path does not require Ollama.
+- [x] **Ollama optional:** end-to-end **`run-orchestrator.js`** with `OLLAMA_MODEL` unset is **not** a release gate for **`v0.1.0-alpha.1`**; operators have a documented CLI compatibility path (runtime note + README § Claude Code CLI compatibility). A live smoke without Ollama remains **optional / post-alpha** follow-up. **Lint + unit** path does not require Ollama.
 - [x] **Strict E2E** (`npm run test:e2e:strict`) passes using **only** documented prerequisites (same as workspace list above). *(Local temp clone + `uv` + `ORCH_PYTHON` + Ollama — see validation log row “Local temp clone (strict E2E)”. Self-hosted `orchestrator-e2e.yml` remains the team default for recurring CI.)*
 
-**Still owed (operator / release):** optional live run without Ollama once `claude` matches docs; tag + version line in `CHANGELOG.md`; Preconditions § above.
+**Post-alpha (optional):** live **`run-orchestrator.js`** smoke without Ollama on a host with a supported **`claude` CLI** — not required for **`v0.1.0-alpha.1`** sign-off.
 
 ## Documentation
 
@@ -80,8 +84,12 @@ Remaining gates:
 
 ## Release artifact
 
-- [ ] Version tag or archive name matches doc (e.g. `alpha-0.x`).
-- [x] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) created with **Unreleased** / alpha-prep notes (operator fills version tag when cutting release).
+- [x] **Version tag:** `v0.1.0-alpha.1` — https://github.com/aetorresdev/ai-minions/releases/tag/v0.1.0-alpha.1
+- [x] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) — section **[0.1.0-alpha.1] - 2026-05-15** with release + evidence links.
+
+### Vendor `claude` CLI compatibility (default branch)
+
+Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestrator/README.md`** § **Claude Code CLI compatibility**: the process **does not** receive **`--max-tokens`** unless **`ORCH_CLAUDE_CLI_MAX_TOKENS=1`** is set (legacy CLIs). Default **Claude Code 2.x** omits the flag so the CLI does not fail with `unknown option`.
 
 ## Out of scope for alpha
 
