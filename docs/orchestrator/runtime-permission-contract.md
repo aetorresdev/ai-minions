@@ -257,3 +257,13 @@ Aligns with downstream network slices:
 preflight gate → runtime guard → approval prompt contract → reporting
 
 — **after** this document is referenced by PRs and schema updates.
+
+---
+
+## 13. Human governance (adjacent contract)
+
+Policy may return **`requires_approval`**; a separate **human governance** story
+(wait / grant / deny, auditable) is specified in
+[governance-gates-contract.md](governance-gates-contract.md). That file is partially implemented:
+trace schema, helper builders, and MCP **`requires_approval`** → **`approval_required`** emit are shipped.
+Product UI, persisted grant/deny writer, and resume-after-grant runner behavior remain out of scope.

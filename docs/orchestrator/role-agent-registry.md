@@ -34,9 +34,9 @@ Entries that do not validate against the schema should be **rejected at registry
 
 ## Relationship to the orchestrator
 
-- **No requirement** to register a role here before editing MODE prompts in the orchestrator package: entry **`orchestrator/agents.js`** (facade; `require("./agents")` from `orchestrator/*.js`), with split definitions under **`orchestrator/agents/`** (see **ROLE-REGISTRY-2** in the prioritized backlog — `routing/`, `permissions.js`, future `roles/`, `contracts/`).
+- **No requirement** to register a role here before editing MODE prompts in the orchestrator package: entry **`orchestrator/agents.js`** (facade; `require("./agents")` from `orchestrator/*.js`), with split definitions under **`orchestrator/agents/`** (see [agent-registry-layout.md](agent-registry-layout.md) — `routing/`, `permissions.js`, future `roles/`, `contracts/`).
 - **Do not confuse** repo-root **`agents/`** (subagent skill specs) with **`orchestrator/agents/`** (runtime modules).
-- Future work: a policy layer may **read** validated entries and emit **activate / omit / reject** with reason codes — see governed role extension tickets in the prioritized backlog.
+- Future work: a policy layer may **read** validated entries and emit **activate / omit / reject** with reason codes — see governed role extensions in the groomed backlog.
 
 ## Example (illustrative only)
 

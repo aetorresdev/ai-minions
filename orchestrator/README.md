@@ -526,7 +526,7 @@ npm run test:e2e:all  # E2E suite with all available Ollama models
 
 ### MCP permission gate
 
-Before each **`orchestrator-state`** / **`compact-handoff`** tool invocation (Python bridge **or** Claude CLI), the runner evaluates **permission profiles** + MCP trust levels (`orchestrator/security/mcp-permission-gate.js`). Denied calls throw **before** any MCP subprocess / CLI round-trip. When a run is emitting MCP audit traces, an extra **`permission_check`** JSONL line precedes each allowed **`mcp_call`**.
+Before each **`orchestrator-state`** / **`compact-handoff`** tool invocation (Python bridge **or** Claude CLI), the runner evaluates **permission profiles** + MCP trust levels (`orchestrator/security/mcp-permission-gate.js`). Denied calls throw **before** any MCP subprocess / CLI round-trip. When a run is emitting MCP audit traces, an extra **`permission_check`** JSONL line precedes each allowed **`mcp_call`**. When the evaluator returns **`requires_approval`**, the runner emits **`approval_required`** (human governance row, `gate_id: governance_human`) immediately after that **`permission_check`**, then throws **`MCP_PERMISSION_DENIED`** — see `orchestrator/governance-gate.js` and `docs/orchestrator/governance-gates-contract.md`.
 
 ### Claude CLI shell gate (agent LLM transport)
 
@@ -714,7 +714,7 @@ References:
 ```
 orchestrator/
 ├── agents.js              # Public facade: require("./agents") — AGENTS, askAgent, validateOutput, exports
-├── agents/                # Split modules (ROLE-REGISTRY-2-S1); same API via agents.js
+├── agents/                # Split modules (facade phase S1); same API via agents.js
 │   ├── routing/
 │   │   └── model-routing.js   # MODEL_ROUTING, FALLBACK_POLICY, Ollama routing constants
 │   ├── permissions.js         # ROLE_PERMISSION, effectiveMode()

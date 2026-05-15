@@ -815,3 +815,91 @@ test("validateTraceRunGraph reports multiple violations independently", () => {
   assert.ok(r.violations.some((v) => v.type === "orphan_parent"));
   assert.ok(r.violations.some((v) => v.type === "duplicate_step_id"));
 });
+
+const {
+  buildApprovalRequiredFromPermissionTrace,
+  buildApprovalGrantedPayload,
+  buildApprovalDeniedPayload,
+} = require("../governance-gate");
+
+function govEnvelope(overrides) {
+  return {
+    ts: "2026-05-10T12:00:00.000Z",
+    ts_ms: 1746878400000,
+    trace_schema_version: "2",
+    task_id: "task-gov",
+    ...overrides,
+  };
+}
+
+test("validateTraceLine accepts approval_required with optional handoff fields", () => {
+  const body = buildApprovalRequiredFromPermissionTrace(
+    {
+      actor: "local",
+      role: "DEV",
+      tool: "srv.tool",
+      domain: "mcp",
+      action_class: "external_side_effect",
+      target_class: null,
+      decision: "requires_approval",
+      reason_code: "external_side_effect_requires_allow",
+      policy_source: "built_in_profile",
+      permission_profile: "dev-local",
+      requires_approval: true,
+    },
+    {
+      mcpServer: "srv",
+      mcpTool: "tool",
+      iteration: 2,
+      step_id: "step-1",
+      ownership_change: true,
+      handoff_contract_ref: "handoff-contract-ref-7",
+      source_role: "DEV",
+      target_role: "OWNER",
+    },
+  );
+  const v = validateTraceLine(govEnvelope(body));
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
+test("validateTraceLine rejects approval_required with wrong gate_id", () => {
+  const body = buildApprovalRequiredFromPermissionTrace(
+    {
+      actor: "a",
+      role: "R",
+      tool: "t",
+      domain: "mcp",
+      action_class: "x",
+      target_class: null,
+      decision: "requires_approval",
+      reason_code: "rc",
+      policy_source: "p",
+      permission_profile: "dev-local",
+      requires_approval: true,
+    },
+    { mcpServer: "s", mcpTool: "t" },
+  );
+  body.gate_id = "wrong_gate";
+  const v = validateTraceLine(govEnvelope(body));
+  assert.equal(v.ok, false);
+});
+
+test("validateTraceLine accepts approval_granted and approval_denied", () => {
+  const aid = "ffffffff-ffff-4fff-ffff-ffffffffffff";
+  const g = validateTraceLine(
+    govEnvelope(
+      buildApprovalGrantedPayload({ approval_id: aid, agent: "operator", iteration: 0, notes: "ok" }),
+    ),
+  );
+  assert.equal(g.ok, true, (g.errors || []).join(" | "));
+  const d = validateTraceLine(
+    govEnvelope(
+      buildApprovalDeniedPayload({
+        approval_id: aid,
+        reason_code: "GOVERNANCE_TIMEOUT",
+        details: "no response",
+      }),
+    ),
+  );
+  assert.equal(d.ok, true, (d.errors || []).join(" | "));
+});

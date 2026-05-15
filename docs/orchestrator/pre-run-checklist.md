@@ -2,7 +2,7 @@
 
 Use this **before** starting an ai-minions orchestrator run. It does not change runtime behavior; it reduces mis-scoped runs, permission surprises, and wasted tokens.
 
-**Related:** [Alpha release checklist](alpha-release-checklist.md) (SHIP-1 bar for a *release*). This page is for *each* run.
+**Related:** [Alpha release checklist](alpha-release-checklist.md) (release bar). This page is for *each* run.
 
 ---
 

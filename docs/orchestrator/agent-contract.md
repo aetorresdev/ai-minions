@@ -4,7 +4,7 @@ This document defines the roles and **MODE protocol** to prevent a single agent 
 
 **Location (from the root of this repo):** `docs/orchestrator/agent-contract.md`. Convention and other clones: [PATHS.md](PATHS.md).
 
-**Related (alpha design contracts):** [Runtime permission contract](runtime-permission-contract.md) · [Capability flow (task/run/step)](capability-flow-contract.md) · [Strategic recommendation gate](strategic-recommendation-gate.md)
+**Related (alpha design contracts):** [Runtime permission contract](runtime-permission-contract.md) · [Capability flow (task/run/step)](capability-flow-contract.md) · [Strategic recommendation gate](strategic-recommendation-gate.md) · [Governance gates (human approval)](governance-gates-contract.md)
 
 **Harness framing:** [Agent harness model](agent-harness.md) — how context, memory/state, control, validation, and observability fit together.
 
@@ -87,7 +87,7 @@ See `mcp-servers/orchestrator-state/README.md` for env vars and setup.
 
 **QA trace flags (optional):** on successful **`agent_done`** for **`qa`**, the runner may emit **`qa_triple_template`** and **`qa_blocker_non_vacuous`** for **cost-vs-outcome** rollups (`rollupStepsCostOutcome` / **`explain-run`**) — see [strict-mode.md](strict-mode.md) § *Flow-aware trace metadata*. They do **not** change output-contract enforcement.
 
-**`iteration_done.failure_type`:** On `iteration_done` lines, when **`outcome` ≠ `done`**, the runner sets **`failure_type`** to a closed enum (`spec_missing` \| `contract_mismatch` \| `hallucination` \| `tool_error` \| `timeout` \| `cost_abort` \| `retry_exceeded`) for coarse rollups (SLOs); **`cost_abort`** / **`retry_exceeded`** map to env kill-switches **GUARD-1** (`ORCH_MAX_COST_USD`, `ORCH_MAX_RETRIES`, loop exhaust) — see [orchestrator README](../../orchestrator/README.md) § *Kill-switch guardrails*. Write-time validation is in `orchestrator/schemas/trace-v2-line.schema.json`. **Drill-down** for “which contract path failed” is **`transition_reason.reason_code`** (and optional `gate_id` / `step_id`) — see [strict-mode.md](strict-mode.md) § *Trace line envelope* → `failure_type` vs `reason_code`, and the **canonical dashboard mapping** table (**`reason_code` → `failure_type` + `failure_axis`**, including **`gate_tool`** vs **`gate_artifact`** for `gate_blocked_iterate`). Semantics evolve with the runner — not proof of root cause.
+**`iteration_done.failure_type`:** On `iteration_done` lines, when **`outcome` ≠ `done`**, the runner sets **`failure_type`** to a closed enum (`spec_missing` \| `contract_mismatch` \| `hallucination` \| `tool_error` \| `timeout` \| `cost_abort` \| `retry_exceeded`) for coarse rollups (SLOs); **`cost_abort`** / **`retry_exceeded`** map to env kill-switches (**`ORCH_MAX_COST_USD`**, **`ORCH_MAX_RETRIES`**, loop exhaust) — see [orchestrator README](../../orchestrator/README.md) § *Kill-switch guardrails*. Write-time validation is in `orchestrator/schemas/trace-v2-line.schema.json`. **Drill-down** for “which contract path failed” is **`transition_reason.reason_code`** (and optional `gate_id` / `step_id`) — see [strict-mode.md](strict-mode.md) § *Trace line envelope* → `failure_type` vs `reason_code`, and the **canonical dashboard mapping** table (**`reason_code` → `failure_type` + `failure_axis`**, including **`gate_tool`** vs **`gate_artifact`** for `gate_blocked_iterate`). Semantics evolve with the runner — not proof of root cause.
 
 ### Required tool flow (strict orchestration)
 
@@ -280,7 +280,7 @@ Each role has a minimum output contract. If the output does not meet it, the run
 
 **Non–triple-line CERBERUS replies** (e.g. a single `**blocker**: …` paragraph) only pass the token check — same behavior as before the semantic floor.
 
-Implemented in `orchestrator/agents/validate-output.js` (`validateOutput()`), re-exported from the public **facade** `orchestrator/agents.js` (`require("./agents")`). Model routing defaults: `orchestrator/agents/routing/model-routing.js`; role permission matrix: `orchestrator/agents/permissions.js`; MODE prompts / `AGENTS`: `orchestrator/agents/registry.js` (`buildAgents`). Further splits (**S2** per-role files, **S3** `orchestrator/contracts/`) are tracked as **ROLE-REGISTRY-2** without changing this contract surface. Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
+Implemented in `orchestrator/agents/validate-output.js` (`validateOutput()`), re-exported from the public **facade** `orchestrator/agents.js` (`require("./agents")`). Model routing defaults: `orchestrator/agents/routing/model-routing.js`; role permission matrix: `orchestrator/agents/permissions.js`; MODE prompts / `AGENTS`: `orchestrator/agents/registry.js` (`buildAgents`). Further splits (**S2** per-role files, **S3** `orchestrator/contracts/`) are tracked in the agent registry layout doc without changing this contract surface. Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
 
 #### `done` field semantics
 
