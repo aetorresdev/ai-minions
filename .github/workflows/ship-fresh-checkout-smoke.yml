@@ -1,0 +1,50 @@
+# Alpha / ship-ready — evidence from a clean GitHub Actions workspace (manual only).
+#
+# Trigger: Actions → this workflow → "Run workflow". Each run uses `actions/checkout`
+# on an ephemeral runner (satisfies "CI from clean checkout" in
+# `docs/orchestrator/alpha-release-checklist.md` § *Fresh checkout* for the gates below).
+#
+# Scope: same lint + unit path as `orchestrator-unit-tests.yml` (Node + eslint + ruff `lint:py`).
+# Out of scope here: `npm run test:e2e:strict` (needs Ollama + MCP venv — use self-hosted
+# `orchestrator-e2e.yml` or documented operator workspace per checklist).
+#
+name: SHIP fresh checkout smoke
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fresh-checkout-smoke:
+    name: Lint + unit tests (clean checkout)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify harness env name scope
+        run: bash orchestrator/scripts/ci-check-harness-scope.sh
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Node dependencies
+        run: |
+          cd orchestrator
+          npm ci
+
+      - name: Install Python linter (for npm run lint:py)
+        run: pip install ruff
+
+      - name: Lint + unit tests
+        run: |
+          cd orchestrator
+          npm test
