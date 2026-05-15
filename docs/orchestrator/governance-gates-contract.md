@@ -45,14 +45,14 @@ represented for audits and for blocking progression).
 
 Illustrative list — product may subset for alpha:
 
-- Destructive or privileged **shell** beyond what SEC-NET already blocks.
+- Destructive or privileged **shell** beyond what automatic **deny** policy already covers.
 - **Filesystem** writes **outside** declared repo scope (when detectable).
 - **Network egress** not covered by declared capability / docs category.
 - **External side effects** (deploy, ticket close, billing) after classification.
 - Proceeding when **CERBERUS** reported **blockers** (release narrative override).
 - **Budget / cost ceiling** escalation (spend more than configured cap).
 
-**Rule:** If SEC-NET already denies the action, **no** governance approval should
+**Rule:** If the evaluator already returns **deny**, **no** governance approval should
 “undeny” it. Governance operates on **requires_approval** or product-specific gates,
 not on hard **deny**.
 
@@ -78,8 +78,8 @@ Names are **published** in `trace-v2-line.schema.json` (v2) and emitted by the r
 When governance intersects delegated work:
 
 - `ownership_change` — boolean or enum indicating whether approval carries ownership transfer.
-- `handoff_contract_ref` — stable id of handoff contract artifact (future **ORCH-HANDOFF** doc).
-- `source_role`, `target_role`, `ownership_scope` — as in backlog ticket; must stay
+- `handoff_contract_ref` — stable id of handoff contract artifact (future handoff contract doc).
+- `source_role`, `target_role`, `ownership_scope` — must stay
   consistent with [agent-contract.md](agent-contract.md) handoff YAML when both exist.
 
 ---
@@ -100,19 +100,19 @@ Design requirements (for implementers):
 
 | Concern | Owned by |
 |---------|----------|
-| allow / warn / deny / `requires_approval` from policy | SEC-NET + `evaluatePermission` + gates |
+| allow / warn / deny / `requires_approval` from policy | `evaluatePermission` + permission gates |
 | MCP / shell / network / classified spawn | Respective gate modules |
 | **Human approve / deny / timeout** semantics | **This contract** (trace events + helpers shipped; UI / resume path optional) |
 
-**Out of scope:** approval UI, multi-user auth, external approval SaaS (per backlog).
+**Out of scope:** approval UI, multi-user auth, external approval SaaS (prioritized separately in the groomed backlog).
 
 ---
 
-## Acceptance mapping (backlog ticket)
+## Acceptance criteria mapping
 
-| Ticket criterion | This slice |
+| Criterion | This slice |
 |------------------|------------|
 | Contrato documentado | **Yes** — this file. |
 | Runtime / trace / tests | **Partial** — schema + MCP **`requires_approval`** emits **`approval_required`**; helpers + tests for grant/deny semantics; **no** automatic resume after grant in the runner. |
 
-**Follow-up (not blocking backlog closure):** operator or tooling path to append **`approval_granted`** / **`approval_denied`** to the same JSONL task and a runner branch that resumes after grant (out of scope for the shipped slice above).
+**Follow-up (optional product work):** operator or tooling path to append **`approval_granted`** / **`approval_denied`** to the same JSONL task and a runner branch that resumes after grant (out of scope for the shipped slice above).

@@ -714,7 +714,7 @@ References:
 ```
 orchestrator/
 ├── agents.js              # Public facade: require("./agents") — AGENTS, askAgent, validateOutput, exports
-├── agents/                # Split modules (ROLE-REGISTRY-2-S1); same API via agents.js
+├── agents/                # Split modules (facade phase S1); same API via agents.js
 │   ├── routing/
 │   │   └── model-routing.js   # MODEL_ROUTING, FALLBACK_POLICY, Ollama routing constants
 │   ├── permissions.js         # ROLE_PERMISSION, effectiveMode()

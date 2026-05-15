@@ -1,4 +1,4 @@
-# Agent registry layout (ROLE-REGISTRY-2)
+# Agent registry layout
 
 ## Canonical import
 
@@ -16,9 +16,9 @@
 | Domain capabilities | `agents/capability-matrix.v1.json` + `capability-matrix.js` |
 | Claude/Ollama execution | `agents/runtime/*` |
 
-Refactors should preserve **runtime behavior** and **export keys** unless a dedicated behavior-change ticket says otherwise.
+Refactors should preserve **runtime behavior** and **export keys** unless a dedicated behavior-change review says otherwise.
 
 ## Related
 
-- [`adding-a-new-role.md`](adding-a-new-role.md) — governance when adding roles (ROL-GOV-1).
+- [`adding-a-new-role.md`](adding-a-new-role.md) — governance when adding roles.
 - [`capability-flow-contract.md`](capability-flow-contract.md) — matrix and plan validation.

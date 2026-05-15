@@ -1,4 +1,4 @@
-# Alpha release checklist (SHIP-1)
+# Alpha release checklist
 
 **Alpha ≠ production.** This checklist defines **minimum bar** before advertising a downloadable / clone-and-run alpha.
 
@@ -6,7 +6,7 @@
 
 ## Preconditions
 
-- [ ] P2 “core controls” agreed by OWNER (hooks milestones, capability contract, failure semantics) stable enough for your audience.
+- [ ] Core controls agreed by OWNER (hooks milestones, capability contract, failure semantics) stable enough for your audience.
 - [ ] No known **data-loss** or **secret leakage** regressions open against `trace-privacy-contract.md`.
 
 ## Verification and ship-ready criteria
@@ -61,4 +61,4 @@ Do **not** tick until that run exists:
 
 ## Out of scope for alpha
 
-- Production SLA, hosted SaaS packaging, enterprise SSO — see groomed **SHIP-1** exclusions.
+- Production SLA, hosted SaaS packaging, enterprise SSO — see **alpha exclusions** in the groomed backlog index.

@@ -1,4 +1,4 @@
-# Optional `minions.md` project contract (OC-MINIONS-1)
+# Optional `minions.md` project contract
 
 Projects may place **`minions.md`** at the **repository root** used as `--cwd` for `run-orchestrator.js`. The file is **optional**. If absent, behavior is unchanged.
 

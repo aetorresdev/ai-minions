@@ -1,4 +1,4 @@
-# Adding a new role (ROL-GOV-1)
+# Adding a new role
 
 Use this checklist **before** merging a production-facing role. Incomplete additions should be rejected at review (CERBERUS / OWNER intent).
 
