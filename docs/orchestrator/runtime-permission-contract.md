@@ -257,3 +257,12 @@ Aligns with downstream network slices:
 preflight gate → runtime guard → approval prompt contract → reporting
 
 — **after** this document is referenced by PRs and schema updates.
+
+---
+
+## 13. Human governance (design, adjacent)
+
+Policy may return **`requires_approval`**; a separate **human governance** story
+(wait / grant / deny, auditable) is specified in
+[governance-gates-contract.md](governance-gates-contract.md). That file is **design
+only** until trace writers and schema entries ship.

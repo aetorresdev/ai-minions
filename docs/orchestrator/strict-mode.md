@@ -579,6 +579,8 @@ For each `run()` of `orchestrator/orchestrator.js`, every **`orchestrator-state`
 
 When MCP audit tracing is active for the run, the runner may emit a **`permission_check`** line **before** each **`mcp_call`** that proceeds (permission evaluator + profile — see [runtime-permission-contract.md](runtime-permission-contract.md) §8.4 and **`orchestrator/README.md`** § *MCP permission gate*). Denied MCP calls do not appear as **`mcp_call`** (they fail closed before invocation).
 
+When the evaluator returns **`requires_approval`** for an MCP invocation, the runner emits **`approval_required`** (`gate_id: governance_human`) on the same JSONL stream immediately after the paired **`permission_check`**, then throws **`MCP_PERMISSION_DENIED`** (execution still does not continue without product wiring for grant + retry). Payload builders and replay helpers live in **`orchestrator/governance-gate.js`**; schema rules in **`orchestrator/schemas/trace-v2-line.schema.json`**. See **`docs/orchestrator/governance-gates-contract.md`**.
+
 The **`session_end`** event on the same stream adds **`mcp_total_calls`**, **`mcp_by_tool`** (counts keyed as `server.tool`), **`mcp_by_transport`**, and **`mcp_failed_calls`**. Use this to spot duplicate transitions, unexpected `claude_cli` bridging, or retry storms. **`skipStateMcp: true`** runs typically log **`mcp_total_calls: 0`** (state MCPs are not invoked from the runner).
 
 **Not in this scope:** per-call LLM token counts — those belong with token/cost metrics and scenario-level reporting (see backlog).

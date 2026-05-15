@@ -150,6 +150,97 @@
     },
     {
       "if": {
+        "properties": { "event": { "const": "approval_required" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "agent",
+          "iteration",
+          "approval_id",
+          "gate_id",
+          "reason",
+          "action_summary",
+          "role"
+        ],
+        "properties": {
+          "agent": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "iteration": { "type": "integer", "minimum": 0 },
+          "approval_id": { "type": "string", "minLength": 8, "maxLength": 64 },
+          "gate_id": { "type": "string", "const": "governance_human" },
+          "reason": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "action_summary": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "role": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "step_id": { "type": "string", "maxLength": 240 },
+          "action_class": { "type": "string", "maxLength": 96 },
+          "target_class": {
+            "type": ["string", "null"],
+            "maxLength": 96
+          },
+          "source_role": { "type": "string", "maxLength": 64 },
+          "target_role": { "type": "string", "maxLength": 64 },
+          "ownership_change": { "type": "boolean" },
+          "handoff_contract_ref": { "type": "string", "maxLength": 200 },
+          "related_permission_check": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "tool": { "type": "string", "maxLength": 512 },
+              "domain": { "type": "string", "maxLength": 64 },
+              "decision": {
+                "type": "string",
+                "enum": ["allow", "deny", "requires_approval"]
+              },
+              "reason_code": { "type": "string", "maxLength": 160 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "approval_granted" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": ["agent", "iteration", "approval_id", "gate_id"],
+        "properties": {
+          "agent": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "iteration": { "type": "integer", "minimum": 0 },
+          "approval_id": { "type": "string", "minLength": 8, "maxLength": 64 },
+          "gate_id": { "type": "string", "const": "governance_human" },
+          "step_id": { "type": "string", "maxLength": 240 },
+          "notes": { "type": "string", "maxLength": 300 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "approval_denied" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": ["agent", "iteration", "approval_id", "gate_id", "reason_code"],
+        "properties": {
+          "agent": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "iteration": { "type": "integer", "minimum": 0 },
+          "approval_id": { "type": "string", "minLength": 8, "maxLength": 64 },
+          "gate_id": { "type": "string", "const": "governance_human" },
+          "reason_code": {
+            "type": "string",
+            "enum": [
+              "GOVERNANCE_OPERATOR_DENIED",
+              "GOVERNANCE_TIMEOUT",
+              "GOVERNANCE_POLICY_MISMATCH"
+            ]
+          },
+          "step_id": { "type": "string", "maxLength": 240 },
+          "details": { "type": "string", "maxLength": 300 }
+        }
+      }
+    },
+    {
+      "if": {
         "allOf": [
           {
             "properties": { "event": { "const": "session_end" } },

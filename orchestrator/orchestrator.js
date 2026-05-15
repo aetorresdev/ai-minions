@@ -69,6 +69,7 @@ const {
 //              context_compaction_started / context_compaction_completed (compaction lifecycle observability — not a substitute for context_stats),
 //              model_fallback_required / model_fallback_started / model_fallback_completed (model fallback lifecycle observability),
 //              agent_done (qa): optional qa_triple_template + qa_blocker_non_vacuous for rollups
+//              approval_required / approval_granted / approval_denied (human governance — see governance-gate.js + trace schema)
 // iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".
 //
 // Sensitive field handling:
@@ -95,6 +96,7 @@ const { redactSensitivePlaintext } = require("./trace-redact");
 const { runMcpPermissionGate } = require("./security/mcp-permission-gate");
 const { runNetworkPermissionGate } = require("./security/network-permission-gate");
 const { aggregatePermissionCheckRows } = require("./security/permission-check-summary");
+const { buildApprovalRequiredFromPermissionTrace } = require("./governance-gate");
 
 /** Same as `TRACE_LINE_WRITER_VERSION` in trace-schema.js — single source for writer + schema. */
 const TRACE_SCHEMA_VERSION = TRACE_LINE_WRITER_VERSION;
@@ -248,7 +250,7 @@ function recordMcpInvocation(entry) {
  * @param {string} server
  * @param {string} toolName
  * @param {string} [cwd]
- * @param {{ agentId?: string, role?: string }} [gateOpts] — capability matrix context for MCP (defaults: orchestrator / ORCHESTRATOR)
+ * @param {{ agentId?: string, role?: string, iteration?: number, step_id?: string, ownership_change?: boolean, handoff_contract_ref?: string, source_role?: string, target_role?: string }} [gateOpts] — capability matrix context for MCP (defaults: orchestrator / ORCHESTRATOR); optional fields feed governance trace when policy returns requires_approval
  */
 function gateMcpInvocation(server, toolName, cwd, gateOpts = {}) {
   if (process.env.ORCH_SKIP_MCP_PERMISSION_GATE === "1") return;
@@ -272,6 +274,23 @@ function gateMcpInvocation(server, toolName, cwd, gateOpts = {}) {
     traceEvent(_mcpAuditTaskId, result.tracePayload);
   }
   const out = result.output;
+  if (out.decision === "requires_approval" && _mcpAuditTaskId) {
+    traceEvent(
+      _mcpAuditTaskId,
+      buildApprovalRequiredFromPermissionTrace(result.tracePayload, {
+        mcpServer: server,
+        mcpTool: toolName,
+        agent: gateOpts.agentId,
+        iteration: gateOpts.iteration,
+        step_id: gateOpts.step_id,
+        role: gateOpts.role,
+        ownership_change: gateOpts.ownership_change,
+        handoff_contract_ref: gateOpts.handoff_contract_ref,
+        source_role: gateOpts.source_role,
+        target_role: gateOpts.target_role,
+      }),
+    );
+  }
   if (out.decision === "deny" || out.decision === "requires_approval" || !out.safe_to_continue) {
     const msg = `MCP invocation denied (${out.reason_code}): ${server}.${toolName}`;
     const err = new Error(msg);

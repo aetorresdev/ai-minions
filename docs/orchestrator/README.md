@@ -13,6 +13,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [adding-a-new-role.md](adding-a-new-role.md) | ROL-GOV-1: checklist for new roles + parity expectations |
 | [minions-project-contract.md](minions-project-contract.md) | OC-MINIONS-1: optional root `minions.md` JSON contract |
 | [alpha-release-checklist.md](alpha-release-checklist.md) | SHIP-1: alpha readiness checklist |
+| [governance-gates-contract.md](governance-gates-contract.md) | GOVERNANCE-GATES-1: human approval gate — design contract (trace/events; runtime pending) |
 | [security-posture.md](security-posture.md) | Public security posture + threat model (honest) |
 | [harness-engineering-positioning.md](harness-engineering-positioning.md) | Harness framing, orchestration model, external cross-checks (not authority) |
 | [agent-harness.md](agent-harness.md) | Harness layers: context, memory/state, control, validation, observability |

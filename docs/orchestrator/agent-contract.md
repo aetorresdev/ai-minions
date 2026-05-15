@@ -4,7 +4,7 @@ This document defines the roles and **MODE protocol** to prevent a single agent 
 
 **Location (from the root of this repo):** `docs/orchestrator/agent-contract.md`. Convention and other clones: [PATHS.md](PATHS.md).
 
-**Related (alpha design contracts):** [Runtime permission contract](runtime-permission-contract.md) · [Capability flow (task/run/step)](capability-flow-contract.md) · [Strategic recommendation gate](strategic-recommendation-gate.md)
+**Related (alpha design contracts):** [Runtime permission contract](runtime-permission-contract.md) · [Capability flow (task/run/step)](capability-flow-contract.md) · [Strategic recommendation gate](strategic-recommendation-gate.md) · [Governance gates (human approval)](governance-gates-contract.md)
 
 **Harness framing:** [Agent harness model](agent-harness.md) — how context, memory/state, control, validation, and observability fit together.
 
