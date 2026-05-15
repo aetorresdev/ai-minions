@@ -46,7 +46,11 @@ function runClaude(prompt, { cwd, model, maxTokens, traceRole = "ORCHESTRATOR", 
   // prompt content that starts with "---" or "--" as unknown CLI flags.
   const args = ["-p", "-", "--dangerously-skip-permissions"];
   if (model) args.push("--model", model);
-  if (maxTokens) args.push("--max-tokens", String(maxTokens));
+  // Claude Code 2.x (`claude --help`) does not document `--max-tokens`; passing it fails
+  // with "unknown option". Opt in for legacy CLIs: ORCH_CLAUDE_CLI_MAX_TOKENS=1
+  if (maxTokens && process.env.ORCH_CLAUDE_CLI_MAX_TOKENS === "1") {
+    args.push("--max-tokens", String(maxTokens));
+  }
   const result = require("child_process").spawnSync("claude", args, {
     input: prompt,
     encoding: "utf8",

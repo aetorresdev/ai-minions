@@ -680,6 +680,10 @@ This means:
 - API rate limits, quotas, or outages affect every agent call.
 - Costs accrue per agent invocation (Sonnet for DEV/QA/CERBERUS, Haiku for OWNER).
 
+### Claude Code CLI compatibility
+
+**`--max-tokens`:** current **Claude Code** (`claude` 2.x) does not document this flag; passing it fails with `unknown option`. `agents/runtime/run-claude.js` **omits** it unless you set **`ORCH_CLAUDE_CLI_MAX_TOKENS=1`** (legacy CLIs only).
+
 If you need a provider-independent runner, replace `runClaude()` in `agents.js` with any LLM client — the MODE protocol and MCP gates are decoupled from the CLI.
 
 ### Agent isolation
