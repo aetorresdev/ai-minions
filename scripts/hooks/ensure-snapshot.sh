@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-STATE_DIR="$PROJECT_DIR/.claude/state"
+STATE_DIR="$PROJECT_DIR/state"
 SNAPSHOT_FILE="$STATE_DIR/project_state.md"
 
 mkdir -p "$STATE_DIR"
@@ -49,7 +49,7 @@ create_snapshot_template() {
 [Single next concrete action]
 
 ## Resume prompt for another LLM/provider
-Continue from `.claude/state/project_state.md`.
+Continue from `state/project_state.md` (repo root).
 Read it first, trust it over chat memory, then execute the Exact next step.
 Do not assume unstated context.
 EOF
@@ -57,7 +57,7 @@ EOF
 
 if [[ ! -f "$SNAPSHOT_FILE" ]]; then
   create_snapshot_template
-  echo "Snapshot file was missing. Template created at .claude/state/project_state.md" >&2
+  echo "Snapshot file was missing. Template created at state/project_state.md" >&2
   exit 2
 fi
 
@@ -86,14 +86,14 @@ if (( ${#missing[@]} > 0 )); then
     for s in "${missing[@]}"; do
       echo " - $s"
     done
-    echo "Update .claude/state/project_state.md before stopping."
+    echo "Update state/project_state.md before stopping."
   } >&2
   exit 2
 fi
 
 # Validación ligera para evitar snapshot vacío de adorno
 if grep -Eq '^\[Describe the current main objective\]$|^\[Single next concrete action\]$' "$SNAPSHOT_FILE"; then
-  echo "Snapshot still contains placeholder text. Update .claude/state/project_state.md before stopping." >&2
+  echo "Snapshot still contains placeholder text. Update state/project_state.md before stopping." >&2
   exit 2
 fi
 

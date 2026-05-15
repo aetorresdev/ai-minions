@@ -133,9 +133,9 @@ Skipping step 1 will be blocked by a hook. There are no exceptions.
 # Session State Policy
 
 ## Mandatory state handling
-- Before stopping, always ensure `.claude/state/project_state.md` exists and is up to date.
+- Before stopping, always ensure **`state/project_state.md`** (repo root) exists and is up to date. Hooks (`ensure-snapshot.sh`, `reinject-snapshot.sh`) use this path only. **Legacy:** `.claude/state/project_state.md` may be a symlink to the same file — do not edit two divergent copies.
 - Never assume prior conversational context is still available.
-- If `.claude/state/project_state.md` exists, read it before continuing work.
+- If `state/project_state.md` exists, read it before continuing work.
 - After any major decision, architecture change, or partial implementation, update the snapshot.
 
 ## Snapshot contents

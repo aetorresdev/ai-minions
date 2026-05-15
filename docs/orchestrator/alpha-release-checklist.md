@@ -14,11 +14,11 @@
 Ship-ready verification needs **two** evidence classes:
 
 1. **Workspace** — repeatable on an existing dev tree; logged below. **Does not** substitute a fresh clone.
-2. **Fresh checkout** — new `git clone`, then **only** documented steps (no undocumented local hacks). **Leave unchecked** until that run exists.
+2. **Fresh checkout** — new `git clone` (and/or CI clean checkout), then **only** documented steps. **Partial:** CI smoke for `npm test` is recorded below; other rows stay open until satisfied.
 
 ### Workspace evidence completed
 
-- [x] `cd orchestrator && npm test` — all passing on supported Node version (see CI). *(2026-05-14: 513/513 on dev workspace.)*
+- [x] `cd orchestrator && npm test` — all passing on supported Node version (see CI). *(2026-05-15: 516/516 on dev workspace.)*
 - [x] Documented **env vars** in `orchestrator/.env.example` and `orchestrator/README.md` § Environment variables (doc review; not a clone run).
 - [x] **Ollama optional:** fallback when `OLLAMA_MODEL` unset documented (`orchestrator/README.md` decision table + [`model-routing.md`](model-routing.md)).
 - [x] `npm run test:e2e:strict` with documented prerequisites (`uv sync`, `ORCH_PYTHON` when ABI mismatches, Ollama). *(2026-05-14: 5/5 — see log table.)*
@@ -34,32 +34,54 @@ Ship-ready verification needs **two** evidence classes:
 | Date | Command | Result |
 |------|---------|--------|
 | 2026-05-14 | `cd orchestrator && npm test` | **513/513** pass |
+| 2026-05-15 | `cd orchestrator && npm test` | **516/516** pass |
 | 2026-05-14 | `ORCH_PYTHON=<REPO>/mcp-servers/orchestrator-state/.venv/bin/python npm run test:e2e:strict` | **5/5** pass (`tests/e2e.strict.test.js`) |
+| 2026-05-15 | `ORCH_PYTHON=<REPO>/mcp-servers/orchestrator-state/.venv/bin/python npm run test:e2e:strict` | **5/5** pass (workspace re-verify) |
 
-### Ship-ready criteria (fresh checkout — pending)
+### Ship-ready criteria (fresh checkout)
 
 These are the **same gates** as workspace above, but evidence must come from a **new clone** (or CI from clean checkout) using **only** repo docs — not a duplicate checklist for a different meaning.
 
 **CI (manual):** in GitHub: **Actions** → **SHIP fresh checkout smoke** → **Run workflow**. Paste the successful run URL here when auditing (`.github/workflows/ship-fresh-checkout-smoke.yml`). That run covers **`cd orchestrator && npm test`** (lint + `lint:py` + unit tests) on a clean checkout. It does **not** replace **strict E2E** (`npm run test:e2e:strict`), which still needs the prerequisites in the table above (Ollama, `uv sync`, `ORCH_PYTHON`) — use **`orchestrator-e2e.yml`** on the self-hosted runner or a documented local/container run.
 
-Do **not** tick until that run exists:
+#### Fresh checkout — CI smoke evidence
 
-- [ ] `cd orchestrator && npm test` — all passing; Node version matches documented support.
-- [ ] Documented **env vars** paths: operator can rely on `.env.example` + README without tribal knowledge.
-- [ ] **Ollama optional:** confirm documented fallback when `OLLAMA_MODEL` unset works from clean tree.
-- [ ] **Strict E2E** (`npm run test:e2e:strict`) passes using **only** documented prerequisites (same as workspace list above).
+- [x] Fresh checkout smoke executed from GitHub Actions after workflow landed on default branch.
+  - Evidence: https://github.com/aetorresdev/ai-minions/actions/runs/25942655191/job/76263702864
+  - Result: `SHIP fresh checkout smoke #1` / `Lint + unit tests (clean checkout)` succeeded on 2026-05-15 in 19s.
 
-**Still owed (operator / release):** clone run filling this subsection; tag/changelog; Preconditions § above.
+#### Fresh checkout — local clone evidence (operator machine)
+
+- [x] **Local `git clone`** of the repo to a temp directory (no `node_modules`), then **`cd <clone>/orchestrator && npm ci && npm test`** — **516/516** pass (2026-05-15). Confirmed **`orchestrator/.env.example`** and **`docs/orchestrator/pre-run-checklist.md`** exist on the clean tree (repo-only paths; no extra env files required for that gate).
+- **Runtime note (same clone, optional):** `OLLAMA_MODEL` unset → orchestrator logs **`Ollama not configured … using claude-haiku`** (documented fallback). Planner then failed on this host with **`claude` CLI: `unknown option '--max-tokens'`** — toolchain/version mismatch, not Ollama. Operators need a **`claude` CLI compatible with `orchestrator/README.md` § Quickstart** for live runs without Ollama.
+
+#### Fresh checkout validation log
+
+| Date | Context | Command / outcome |
+|------|-----------|-------------------|
+| 2026-05-15 | GitHub Actions, clean checkout | `npm ci` + `npm test` in `orchestrator/` — **pass** (see CI smoke URL above). |
+| 2026-05-15 | Local temp clone | `git clone <repo>` → `cd …/orchestrator && npm ci && npm test` — **516/516** pass. |
+| 2026-05-15 | Local temp clone (strict E2E) | `git clone` → `uv sync` in `mcp-servers/orchestrator-state` + `mcp-servers/compact-handoff` → `cd orchestrator && npm ci` → `ORCH_PYTHON=<clone>/mcp-servers/orchestrator-state/.venv/bin/python npm run test:e2e:strict` — **5/5** pass (Ollama on `localhost:11434`; same prerequisites as README / workspace log). |
+
+Remaining gates:
+
+- [x] `cd orchestrator && npm test` — all passing; Node version matches documented support. *(CI smoke + local clone above.)*
+- [x] Documented **env vars** paths: operator can rely on `.env.example` + README without tribal knowledge. *(`.env.example` present on clean tree; README / pre-run checklist in repo.)*
+- [ ] **Ollama optional:** end-to-end **`run-orchestrator.js`** success with `OLLAMA_MODEL` unset still depends on a compatible **`claude` CLI** on the host (see runtime note above). **Lint + unit** path does not require Ollama.
+- [x] **Strict E2E** (`npm run test:e2e:strict`) passes using **only** documented prerequisites (same as workspace list above). *(Local temp clone + `uv` + `ORCH_PYTHON` + Ollama — see validation log row “Local temp clone (strict E2E)”. Self-hosted `orchestrator-e2e.yml` remains the team default for recurring CI.)*
+
+**Still owed (operator / release):** optional live run without Ollama once `claude` matches docs; tag + version line in `CHANGELOG.md`; Preconditions § above.
 
 ## Documentation
 
 - [x] **Orchestrator README (alpha):** `Known limitations (alpha)` + `Security notes (alpha)` in `orchestrator/README.md` (2026-05-14).
-- [ ] **First-run path:** clone → `cd orchestrator` → `npm install` if applicable → `node run-orchestrator.js --skip-gates "smoke goal"` or documented smoke. *(Root `README.md` now has `npm install && npm test`; full smoke command still in `orchestrator/README.md` § Quickstart.)*
+- [x] **First-run path:** clone → `cd orchestrator` → **`npm ci`** (preferred when `package-lock.json` is present; `npm install` also works) → **`npm test`** for lint + unit; live orchestrator: `orchestrator/README.md` § **Quickstart (no MCPs)** (`node run-orchestrator.js --cwd … --skip-gates …`). Root **`README.md` § Quickstart** documents clone + `npm ci` + `npm test` and optional strict E2E pointer.
+- [x] **Claude Code MODE smoke (optional):** `MODE: ORCHESTRATOR` + real `CWD` + trivial `GOAL`; MCP `register_task` / `advance_mode` ORCHESTRATOR→OWNER; list CWD root — verified operator workflow (2026-05-15).
 
 ## Release artifact
 
 - [ ] Version tag or archive name matches doc (e.g. `alpha-0.x`).
-- [ ] Changelog entry: breaking vs additive (alpha may still break).
+- [x] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) created with **Unreleased** / alpha-prep notes (operator fills version tag when cutting release).
 
 ## Out of scope for alpha
 

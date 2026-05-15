@@ -81,8 +81,12 @@ def orchestrator_context(prompt: str) -> str | None:
             "   - If open_envelope returns existing artifacts (session-summary, prior handoffs): "
             "use them as project context. Do NOT re-read files already summarized there.\n"
             "2. GOAL is already in this prompt: extract it, register it with register_task.\n"
-            "3. Advance immediately to OWNER. Do NOT stay in ORCHESTRATOR.\n"
-            "4. Do NOT read files or scan the repo before advancing roles.\n"
+            "3. Call orchestrator-state advance_mode with: task_id from register_task; from_mode ORCHESTRATOR; "
+            "to_mode OWNER; handoff_yaml \"\" (empty string); iteration -1. "
+            "Do NOT call compact_handoff before this step — ORCHESTRATOR→OWNER is exempt from the "
+            "handoff-before-advance PreToolUse rule (docs/orchestrator/agent-contract.md, Enforcement). "
+            "Then declare MODE: OWNER in your reply.\n"
+            "4. Do NOT read files or scan the repo before completing steps 1–3.\n"
             "5. Role progression: ORCHESTRATOR → OWNER → ARCHITECT → DEV → QA → CERBERUS.\n"
         )
     else:
@@ -93,7 +97,8 @@ def orchestrator_context(prompt: str) -> str | None:
             "use them as project context. Do NOT re-read files already summarized there.\n"
             "2. No GOAL in prompt: ask the user for the goal in ONE sentence. Wait for response.\n"
             "3. Do NOT read files or scan the repo before the user confirms the goal.\n"
-            "4. Once goal is set, advance to OWNER.\n"
+            "4. Once goal is set: register_task, then advance_mode(task_id, from_mode=ORCHESTRATOR, to_mode=OWNER, "
+            "handoff_yaml=\"\", iteration=-1) — no compact_handoff before this advance (same ORCHESTRATOR→OWNER exemption).\n"
             "5. Role progression: ORCHESTRATOR → OWNER → ARCHITECT → DEV → QA → CERBERUS.\n"
         )
 

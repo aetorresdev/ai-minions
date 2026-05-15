@@ -21,6 +21,7 @@ excludes=(
   ":(exclude)orchestrator/scripts/ci-check-harness-scope.sh"
   ":(exclude)docs/orchestrator/strict-mode.md"
   ":(exclude).claude/state/project_state.md"
+  ":(exclude)state/project_state.md"
   ":(exclude)AI-Minions — Backlog Priorizado.md"
 )
 
