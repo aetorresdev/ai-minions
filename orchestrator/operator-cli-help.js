@@ -4,6 +4,7 @@
  */
 
 const DOCS_HOW_TO = "docs/how-to/usage-smoke-guide.md";
+const DOCS_SLASH = "docs/how-to/operator-slash-commands.md";
 
 function printOperatorCliHelp() {
   const lines = [
@@ -66,6 +67,7 @@ function printOperatorCliHelp() {
     "  npm run tokens:report -- <task_id>",
     "",
     `Operator how-to: ${DOCS_HOW_TO}`,
+    `Slash aliases (doc only): ${DOCS_SLASH}`,
     "Orchestrator detail: orchestrator/README.md",
     "",
     "Normal product path: paste MODE header in Claude Code (see README.md).",

@@ -16,6 +16,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
 const CANONICAL_GUIDE = path.join(REPO_ROOT, "docs/how-to/usage-smoke-guide.md");
 const TUI_CHECKLIST = path.join(REPO_ROOT, "docs/how-to/tui-manual-smoke-checklist.md");
 const GHA_DOC_SPIKE = path.join(REPO_ROOT, "docs/how-to/claude-gha-doc-smoke-spike.md");
+const SLASH_COMMANDS = path.join(REPO_ROOT, "docs/how-to/operator-slash-commands.md");
 const README = path.join(REPO_ROOT, "README.md");
 
 /** @type {string[]} */
@@ -126,9 +127,21 @@ function checkGuide(guideText) {
   mustInclude(guideText, "run-orchestrator.js", "CLI runner reference", rel);
   mustInclude(guideText, "tui-manual-smoke-checklist.md", "TUI checklist link", rel);
   mustInclude(guideText, "claude-gha-doc-smoke-spike.md", "optional GHA doc spike link", rel);
+  mustInclude(guideText, "operator-slash-commands.md", "slash command alias link", rel);
 
   checkForbiddenClaims(guideText, rel);
   mustNotHaveBacklogCaseIds(guideText, rel);
+}
+
+function checkSlashCommands(slashText) {
+  const rel = "docs/how-to/operator-slash-commands.md";
+  if (!slashText) return;
+  mustInclude(slashText, "/validate", "validate alias", rel);
+  mustInclude(slashText, "npm test", "validate maps to npm test", rel);
+  mustInclude(slashText, "/explain-run", "explain-run alias", rel);
+  mustInclude(slashText, "not a new runtime", "no new runtime disclaimer", rel);
+  mustNotHaveBacklogCaseIds(slashText, rel);
+  checkForbiddenClaims(slashText, rel);
 }
 
 function checkGhaDocSpike(spikeText) {
@@ -176,11 +189,13 @@ function main() {
   const guideText = readUtf8(CANONICAL_GUIDE);
   const tuiText = readUtf8(TUI_CHECKLIST);
   const spikeText = readUtf8(GHA_DOC_SPIKE);
+  const slashText = readUtf8(SLASH_COMMANDS);
   const readmeText = readUtf8(README);
 
   if (guideText) checkGuide(guideText);
   if (tuiText) checkTuiChecklist(tuiText);
   if (spikeText) checkGhaDocSpike(spikeText);
+  if (slashText) checkSlashCommands(slashText);
   if (readmeText) checkReadmeAlignment(readmeText, guideText);
 
   if (failures.length) {
