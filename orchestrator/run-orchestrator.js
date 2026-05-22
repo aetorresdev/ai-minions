@@ -22,6 +22,7 @@ const fs   = require("fs");
 const { run } = require("./orchestrator");
 const { setModelProfile } = require("./agents");
 const { loadMinionsProjectConfig } = require("./minions-config");
+const { printOperatorCliHelp, printRunOrchestratorUsageBrief } = require("./operator-cli-help");
 
 function loadModelsConfig() {
   const configPath = path.join(__dirname, "models.json");
@@ -55,6 +56,10 @@ async function main() {
   const inputArgs = [];
 
   for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--help" || args[i] === "-h") {
+      printOperatorCliHelp();
+      process.exit(0);
+    }
     if (args[i] === "--cwd" && args[i + 1])            { cwd = args[++i]; }
     else if (args[i] === "--iterations" && args[i + 1]) { maxIterationsFromCli = parseInt(args[++i], 10) || 3; }
     else if (args[i] === "--flow" && args[i + 1])       { flowMode = args[++i]; }
@@ -82,7 +87,7 @@ async function main() {
 
   const goal = inputArgs.join(" ") || await readStdin();
   if (!goal || !goal.trim()) {
-    console.error("Usage: node run-orchestrator.js [--cwd <dir>] [--iterations <n>] [--flow <mode>] [--skip-gates] [--require-handoff|--no-require-handoff] [--profile fast|balanced|quality] \"<goal>\"");
+    printRunOrchestratorUsageBrief();
     process.exit(1);
   }
 
@@ -90,7 +95,7 @@ async function main() {
   const minions = loadMinionsProjectConfig(cwd);
   if (minions.error) {
     console.error(minions.error);
-    process.exit(1);
+    process.exit(2);
   }
   const traceScenarioFromMinions =
     minions.config?.orchestrator?.trace_scenario_id &&

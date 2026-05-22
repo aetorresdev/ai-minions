@@ -179,8 +179,11 @@ function validateCerberusSemanticFloor(output) {
   return { ok: true };
 }
 const VALIDATION_RE      = /\b(validation_run|ran|executed|tested|passed|failed|lint|pytest|npm\s+test|terraform\s+validate|node\s+|output:)\b/i;
-const FILES_READ_RE      = /\bfiles?_read\s*[:-]?\s*(?:[[`'"\w]|\n\s*-)/i;
+// Allow list form, inline path (files_read: path/to/file), or bracket array
+const FILES_READ_RE      = /\bfiles?_read\s*[:-]?\s*(?:\[\s*|[-\w./~]|`|'|"|\S)/i;
 const FILES_READ_EMPTY_RE = /\bfiles?_read\s*[:-]?\s*(?:\[\s*]|:\s*\[\s*]|\s*\n(?!\s*-))/i;
+const FILES_MODIFIED_LIST_RE = /(?:files?_modified|modified)\s*[:-]\s*\n((?:\s*-\s*\S[^\n]*\n?)+)/i;
+const FILES_MODIFIED_INLINE_RE = /\bfiles?_modified\s*:\s*(\S+)/i;
 
 /**
  * Small local models often wrap YAML in markdown fences or add a short preamble.
@@ -199,7 +202,6 @@ function normalizeDevContractText(s) {
   }
   return o;
 }
-const FILES_MODIFIED_RE  = /(?:files?_modified|modified)\s*[:-]\s*\n((?:\s*-\s*\S[^\n]*\n?)+)/i;
 
 /**
  * Validate agent output against its role contract.
@@ -252,12 +254,14 @@ function validateOutput(agentId, output, { phase } = {}) {
     if (!VALIDATION_RE.test(output))
       return { valid: false, reason: `${agentId}: output must include at least one validation run (lint, test, terraform validate, etc.)`, gate_id: "validation_run_missing" };
     // files_modified is mandatory — absence is not allowed (would bypass the cross-check gate)
-    const modifiedMatch = output.match(FILES_MODIFIED_RE);
-    if (!modifiedMatch)
+    const modifiedMatch = output.match(FILES_MODIFIED_LIST_RE);
+    const modifiedInline = output.match(FILES_MODIFIED_INLINE_RE);
+    if (!modifiedMatch && !modifiedInline)
       return { valid: false, reason: `${agentId}: output must include a files_modified: list — absence bypasses the context gate`, gate_id: "files_modified_missing" };
     // Strict mode: every file in files_modified must appear in files_read
-    const modified = modifiedMatch[1].split("\n")
-      .map(l => l.replace(/^\s*-\s*/, "").trim()).filter(Boolean);
+    const modified = modifiedMatch
+      ? modifiedMatch[1].split("\n").map((l) => l.replace(/^\s*-\s*/, "").trim()).filter(Boolean)
+      : [modifiedInline[1].trim()];
     const readBlock = output.match(/\bfiles?_read\s*[:-][^\n]*\n?([\s\S]*?)(?=\n\S|\n\n|$)/i)?.[0] || "";
     const unread = modified.filter(f => !readBlock.includes(f));
     if (unread.length > 0)
@@ -292,10 +296,15 @@ function validateOutput(agentId, output, { phase } = {}) {
  * @returns {{ context_stats: { files_read_count: number, files_modified_count: number } }}
  */
 function extractContextStats(agentId, output) {
-  const readMatch  = output.match(/\bfiles?_read\s*[:-][^\n]*\n((?:\s*-\s*\S[^\n]*\n?)*)/i);
-  const modMatch   = output.match(FILES_MODIFIED_RE);
-  const filesRead  = readMatch  ? readMatch[1].split("\n").map(l => l.trim()).filter(l => l.startsWith("-")).length : 0;
-  const filesModified = modMatch ? modMatch[1].split("\n").map(l => l.trim()).filter(l => l.startsWith("-")).length : 0;
+  const readMatch = output.match(/\bfiles?_read\s*[:-][^\n]*\n((?:\s*-\s*\S[^\n]*\n?)*)/i);
+  const modList = output.match(FILES_MODIFIED_LIST_RE);
+  const modInline = output.match(FILES_MODIFIED_INLINE_RE);
+  const filesRead = readMatch
+    ? readMatch[1].split("\n").map((l) => l.trim()).filter((l) => l.startsWith("-")).length
+    : (/\bfiles?_read\s*:\s*\S+/i.test(output) ? 1 : 0);
+  const filesModified = modList
+    ? modList[1].split("\n").map((l) => l.trim()).filter((l) => l.startsWith("-")).length
+    : (modInline ? 1 : 0);
   return { context_stats: { files_read_count: filesRead, files_modified_count: filesModified } };
 }
 

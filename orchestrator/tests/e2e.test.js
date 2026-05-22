@@ -80,12 +80,17 @@ function removeTempDir(p) {
 let ollamaModel = null;   // set in before() if Ollama is reachable
 let ollamaAvailable = false;
 
-// 5 minutes per test — each test runs DEV + CERBERUS (two claude CLI round-trips)
+// 5 minutes per subtest (full orchestrator loops are slow on self-hosted runners)
 const TEST_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** @param {string} title @param {(t: import('node:test').TestContext) => Promise<void>|void} fn */
+function e2eTest(title, fn) {
+  return test(title, { timeout: TEST_TIMEOUT_MS }, fn);
+}
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
-describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurrency: 1 }, () => {
+describe("E2E — Orchestrator with Ollama", { concurrency: 1 }, () => {
 
   before(async () => {
     const models = await listOllamaModels();
@@ -106,6 +111,10 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     // Force all agent roles to use Ollama — no claude CLI calls during E2E tests
     process.env.OLLAMA_MODEL = ollamaModel;
     setBackend("ollama");
+    // Test-only bypass (mirrors orchestrator-e2e.yml): Ollama HTTP for qa/cerberus despite matrix lacking network.
+    if (process.env.ORCH_SKIP_ROLE_CAPABILITY_GATE !== "1") {
+      process.env.ORCH_SKIP_ROLE_CAPABILITY_GATE = "1";
+    }
     console.log(`[e2e] Ollama ready — using model: ${ollamaModel}`);
     console.log(`[e2e] Available models: ${models.join(", ")}`);
     console.log(`[e2e] setBackend("ollama") — all agent roles will use Ollama`);
@@ -129,7 +138,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
 
   // ── Scenario 1: Single-Agent flow ─────────────────────────────────────────
 
-  test("single_agent flow completes with done=true and at least one artifact", async (t) => {
+  e2eTest("single_agent flow completes with done=true and at least one artifact", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const cwd = makeTempDir();
@@ -168,7 +177,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   });
 
   // Ollama DEV: at least one artifact must pass validateOutput without format gate-block
-  test("single_agent Ollama: dev-backend passes output contract at least once (format smoke)", async (t) => {
+  e2eTest("single_agent Ollama: dev-backend passes output contract at least once (format smoke)", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const { validateOutput } = require("../agents");
@@ -219,7 +228,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
 
   // ── Scenario 2: Multi-Agent flow ─────────────────────────────────────────
 
-  test("multi_agent flow produces DEV + QA artifacts", async (t) => {
+  e2eTest("multi_agent flow produces DEV + QA artifacts", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const cwd = makeTempDir();
@@ -259,7 +268,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
 
   // ── Scenario 3: Direct execution (no planning) ────────────────────────────
 
-  test("direct execution with maxIterations=1 and skipStateMcp produces a result", async (t) => {
+  e2eTest("direct execution with maxIterations=1 and skipStateMcp produces a result", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const cwd = makeTempDir();
@@ -287,7 +296,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
 
   // ── Scenario 4: Degraded mode banner is emitted ───────────────────────────
 
-  test("degraded mode: skipStateMcp=true emits degraded banner in output", async (t) => {
+  e2eTest("degraded mode: skipStateMcp=true emits degraded banner in output", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     // Capture stdout to check for the degraded banner
@@ -325,7 +334,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
 
   // ── Scenario 5: Trace file is written ────────────────────────────────────
 
-  test("trace file is written to ~/.claude/metrics/traces/<task_id>.jsonl", async (t) => {
+  e2eTest("trace file is written to ~/.claude/metrics/traces/<task_id>.jsonl", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const cwd = makeTempDir();
@@ -371,7 +380,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
 
   // ── Scenario 6: Artifact contract fields are always present ──────────────
 
-  test("all artifacts carry agentId, task, result, and gateBlocked fields", async (t) => {
+  e2eTest("all artifacts carry agentId, task, result, and gateBlocked fields", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const cwd = makeTempDir();
@@ -402,7 +411,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
 
   // ── Scenario 7: All available Ollama models can plan ─────────────────────
 
-  test("each available Ollama model can plan a simple task (orchestrator step)", async (t) => {
+  e2eTest("each available Ollama model can plan a simple task (orchestrator step)", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const models = await listOllamaModels();
@@ -446,7 +455,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
 
   // ── Scenario 8: gate_events.jsonl válido después de un run ───────────────
 
-  test("gate_events.jsonl is valid JSONL with required fields after a run", async (t) => {
+  e2eTest("gate_events.jsonl is valid JSONL with required fields after a run", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const gateEventsFile = path.join(os.homedir(), ".claude", "metrics", "gate_events.jsonl");
@@ -486,7 +495,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
 
   // ── Scenario 9: loop_trace.jsonl válido y crece con el run ───────────────
 
-  test("loop_trace.jsonl is valid JSONL with role/tool fields after a run", async (t) => {
+  e2eTest("loop_trace.jsonl is valid JSONL with role/tool fields after a run", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     if (!process.env.CLAUDE_SESSION_ID) {
@@ -529,7 +538,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // Llama mcp-direct.py desde el test (no desde el orchestrator) para validar
   // que los MCPs funcionan end-to-end con Ollama sin pasar por claude CLI.
 
-  test("mcp-direct: orchestrator-state register→advance→close writes valid events.jsonl with intact hash chain", async (t) => {
+  e2eTest("mcp-direct: orchestrator-state register→advance→close writes valid events.jsonl with intact hash chain", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const { spawnSync: sp } = require("node:child_process");
@@ -629,7 +638,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // We import validateOutput and call it with controlled bad payloads directly
   // (setBackend("ollama") routes through runOllama via http, not spawnSync).
 
-  test("contract violation input: validateOutput rejects plan with empty steps and non-JSON", async (t) => {
+  e2eTest("contract violation input: validateOutput rejects plan with empty steps and non-JSON", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     // Import validateOutput internals via the agents module exports
@@ -664,7 +673,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // ── Scenario 12: Contract Violation — Output (complete) ──────────────────
   // DEV output missing validation_run must be caught and not propagate.
 
-  test("contract violation output: validateOutput rejects DEV output missing validation_run", async (t) => {
+  e2eTest("contract violation output: validateOutput rejects DEV output missing validation_run", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const { validateOutput } = require("../agents");
@@ -695,7 +704,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // setBackend("ollama") routes agents directly through Ollama without attempting
   // the claude CLI primary. No fallback is triggered → getDegradedAgents() stays empty.
 
-  test("backend override: setBackend(ollama) routes directly — no degraded agents", async (t) => {
+  e2eTest("backend override: setBackend(ollama) routes directly — no degraded agents", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const agents = require("../agents");
@@ -726,7 +735,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // Verify that when setBackend("ollama") is active, all agent invocations go
   // through runOllama() — no direct claude CLI spawn should occur.
 
-  test("bypass detection: no direct claude CLI call when backend=ollama", async (t) => {
+  e2eTest("bypass detection: no direct claude CLI call when backend=ollama", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     // Patch spawnSync to detect any call to 'claude' binary
@@ -763,7 +772,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // means a contract failure degrades gracefully to "stopped" — tested here at the
   // contract layer directly, and in Sc13 at the run() level.
 
-  test("malformed model response: decide contract rejects garbage and partial JSON", async (t) => {
+  e2eTest("malformed model response: decide contract rejects garbage and partial JSON", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const { validateOutput } = require("../agents");
@@ -792,7 +801,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // orchestrator must NOT return done:true even if CERBERUS finds no blockers.
   // Expected outcome: done:false OR summary contains "Manual review" / "gate-blocked".
 
-  test("gate-blocked enforcement: contract failure prevents done:true even if CERBERUS is silent", async (t) => {
+  e2eTest("gate-blocked enforcement: contract failure prevents done:true even if CERBERUS is silent", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const cwd = makeTempDir();
@@ -836,7 +845,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // validateHandoffStructure() must reject empty or malformed handoff YAML
   // for DEV and QA modes in strict mode, blocking invalid transitions.
 
-  test("transition integrity: empty or malformed handoff blocks DEV and QA transitions in strict mode", async (t) => {
+  e2eTest("transition integrity: empty or malformed handoff blocks DEV and QA transitions in strict mode", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const { validateHandoffStructure } = require("../orchestrator");
@@ -873,7 +882,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // DEV and QA must use different agentIds — same agent cannot self-review.
   // Verified by inspecting AGENTS config: no agent has both dev-* and qa roles.
 
-  test("self-evaluation prevention: DEV and QA agents have distinct IDs", async (t) => {
+  e2eTest("self-evaluation prevention: DEV and QA agents have distinct IDs", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const { AGENTS } = require("../agents");
@@ -900,7 +909,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // Same validateOutput() call with identical input must return identical
   // { valid, gate_id } across multiple invocations (schema consistency).
 
-  test("determinism check: validateOutput returns consistent schema for identical inputs", async (t) => {
+  e2eTest("determinism check: validateOutput returns consistent schema for identical inputs", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const { validateOutput } = require("../agents");
@@ -933,7 +942,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // Data injected outside the handoff contract (e.g. raw env vars, extra keys)
   // must not appear in validateOutput() results or affect gate decisions.
 
-  test("context leakage: out-of-contract fields do not affect gate decisions", async (t) => {
+  e2eTest("context leakage: out-of-contract fields do not affect gate decisions", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const { validateOutput } = require("../agents");
@@ -964,7 +973,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // handoff contract must surface as a hard failure, not a silent pass.
   // Tested via validateHandoffStructure with strict=true for all role types.
 
-  test("strict mode: any handoff deviation surfaces as hard failure", async (t) => {
+  e2eTest("strict mode: any handoff deviation surfaces as hard failure", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const { validateHandoffStructure } = require("../orchestrator");
@@ -1002,7 +1011,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
   // ── T6: Failure-First E2E ─────────────────────────────────────────────────
   // Negative scenarios: each failure mode must be caught and surfaced cleanly.
 
-  test("failure-first: invalid plan input is rejected before execution", async (t) => {
+  e2eTest("failure-first: invalid plan input is rejected before execution", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const { validateOutput } = require("../agents");
@@ -1022,7 +1031,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     t.diagnostic("Failure-first: invalid plan inputs (missing agentId, missing task, null) all rejected");
   });
 
-  test("failure-first: broken handoff (partial YAML) is caught by validateHandoffStructure", async (t) => {
+  e2eTest("failure-first: broken handoff (partial YAML) is caught by validateHandoffStructure", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const { validateHandoffStructure } = require("../orchestrator");
@@ -1039,7 +1048,7 @@ describe("E2E — Orchestrator with Ollama", { timeout: TEST_TIMEOUT_MS, concurr
     t.diagnostic("Failure-first: broken/partial handoff YAML caught before transition");
   });
 
-  test("failure-first: tool failure (unknown agentId) throws immediately", async (t) => {
+  e2eTest("failure-first: tool failure (unknown agentId) throws immediately", async (t) => {
     if (skipIfNoOllama(t)) return;
 
     const { askAgent } = require("../agents");

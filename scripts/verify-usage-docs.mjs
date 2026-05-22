@@ -81,9 +81,9 @@ function checkForbiddenClaims(text, fileRel) {
   }
 }
 
-/** Backlog-style case IDs must not appear in versioned operator docs. */
+/** Backlog-style ticket IDs must not appear in versioned operator docs. */
 function mustNotHaveBacklogCaseIds(text, fileRel) {
-  const hits = text.match(/\b[A-Z]{2,10}-\d{2}\b/g);
+  const hits = text.match(/\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+)+-\d+\b/g);
   if (hits?.length) {
     const unique = [...new Set(hits)];
     fail(`${fileRel}: backlog-style case IDs not allowed in operator docs: ${unique.join(", ")}`);

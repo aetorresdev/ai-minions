@@ -118,6 +118,10 @@ describe("dev-backend", () => {
   it("accepts dev-backend YAML-first Ollama-style handoff (three blocks)", () => ok("dev-backend",
     "files_read:\n  - src/api.ts\nfiles_modified:\n  - src/api.ts\nvalidation_run: npm test → exit 0\n\nAdded null check on request body."
   ));
+
+  it("accepts inline path form (Ollama single-line YAML)", () => ok("dev-backend",
+    "files_read: marker.txt\nfiles_modified: marker.txt\nvalidation_run: grep E2E_CONTRACT_OK marker.txt"
+  ));
 });
 
 // ── qa / cerberus ─────────────────────────────────────────────────────────────
