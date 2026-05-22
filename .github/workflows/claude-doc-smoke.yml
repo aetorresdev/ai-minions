@@ -1,0 +1,63 @@
+# Experimental LLM doc review (spike). Complements docs-usage-verify.yml (deterministic).
+# Manual only — does not run on push/PR. Requires ANTHROPIC_API_KEY repository secret.
+name: Claude doc smoke (spike)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_turns:
+        description: Max Claude Code turns (keep low for cost control)
+        required: false
+        default: "3"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-doc-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  claude-doc-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deterministic docs gate (baseline)
+        run: node scripts/verify-usage-docs.mjs
+
+      - name: LLM doc coherence review (read-only tools)
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are reviewing operator documentation for the ai-minions repository (spike job).
+            Read only — do not create commits, branches, or file edits.
+
+            Files to review:
+            - README.md
+            - docs/how-to/usage-smoke-guide.md
+            - docs/how-to/tui-manual-smoke-checklist.md
+            - docs/orchestrator/environment-access.md
+
+            Checks:
+            1) Invocation guidance is coherent (CLI vs TUI vs orchestration header).
+            2) ENVIRONMENT examples use variable NAMES only (no literal secrets or API key values).
+            3) No prohibited production/SLA/marketplace claims outside the documented maturity table.
+            4) Cross-links between README and how-to guides are consistent.
+
+            Output: a single JSON object (no markdown fence) with this schema:
+            {
+              "verdict": "PASS" | "WARN" | "BLOCK",
+              "findings": [
+                { "id": "string", "severity": "PASS"|"WARN"|"BLOCK", "file": "path", "summary": "string" }
+              ],
+              "notes": "string"
+            }
+
+            If ANTHROPIC_API_KEY is missing or you cannot complete the review, set verdict to BLOCK and explain in notes.
+          claude_args: >-
+            --max-turns ${{ inputs.max_turns }}
+            --allowedTools Read,Grep,Glob

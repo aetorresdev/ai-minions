@@ -9,6 +9,7 @@ on:
       - "docs/how-to/**"
       - "scripts/verify-usage-docs.mjs"
       - ".github/workflows/docs-usage-verify.yml"
+      - ".github/workflows/claude-doc-smoke.yml"
   push:
     branches: [main, master]
     paths:
@@ -16,6 +17,7 @@ on:
       - "docs/how-to/**"
       - "scripts/verify-usage-docs.mjs"
       - ".github/workflows/docs-usage-verify.yml"
+      - ".github/workflows/claude-doc-smoke.yml"
   workflow_dispatch:
 
 permissions:
