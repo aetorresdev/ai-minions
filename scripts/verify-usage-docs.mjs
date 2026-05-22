@@ -15,6 +15,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
 
 const CANONICAL_GUIDE = path.join(REPO_ROOT, "docs/how-to/usage-smoke-guide.md");
 const TUI_CHECKLIST = path.join(REPO_ROOT, "docs/how-to/tui-manual-smoke-checklist.md");
+const GHA_DOC_SPIKE = path.join(REPO_ROOT, "docs/how-to/claude-gha-doc-smoke-spike.md");
 const README = path.join(REPO_ROOT, "README.md");
 
 /** @type {string[]} */
@@ -124,9 +125,20 @@ function checkGuide(guideText) {
   mustInclude(guideText, "environment-access.md", "link to environment contract", rel);
   mustInclude(guideText, "run-orchestrator.js", "CLI runner reference", rel);
   mustInclude(guideText, "tui-manual-smoke-checklist.md", "TUI checklist link", rel);
+  mustInclude(guideText, "claude-gha-doc-smoke-spike.md", "optional GHA doc spike link", rel);
 
   checkForbiddenClaims(guideText, rel);
   mustNotHaveBacklogCaseIds(guideText, rel);
+}
+
+function checkGhaDocSpike(spikeText) {
+  const rel = "docs/how-to/claude-gha-doc-smoke-spike.md";
+  if (!spikeText) return;
+  mustInclude(spikeText, "workflow_dispatch", "manual dispatch only", rel);
+  mustInclude(spikeText, "ANTHROPIC_API_KEY", "secret prerequisite", rel);
+  mustInclude(spikeText, "claude-doc-smoke.yml", "workflow file reference", rel);
+  mustNotHaveBacklogCaseIds(spikeText, rel);
+  checkForbiddenClaims(spikeText, rel);
 }
 
 function checkTuiChecklist(tuiText) {
@@ -163,10 +175,12 @@ function checkReadmeAlignment(readmeText, guideText) {
 function main() {
   const guideText = readUtf8(CANONICAL_GUIDE);
   const tuiText = readUtf8(TUI_CHECKLIST);
+  const spikeText = readUtf8(GHA_DOC_SPIKE);
   const readmeText = readUtf8(README);
 
   if (guideText) checkGuide(guideText);
   if (tuiText) checkTuiChecklist(tuiText);
+  if (spikeText) checkGhaDocSpike(spikeText);
   if (readmeText) checkReadmeAlignment(readmeText, guideText);
 
   if (failures.length) {

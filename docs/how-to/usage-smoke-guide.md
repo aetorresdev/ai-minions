@@ -6,6 +6,7 @@ Canonical how-to for trying **ai-minions** without reading the whole repository.
 
 - [Pre-run checklist](../orchestrator/pre-run-checklist.md) — before each run
 - [TUI manual smoke checklist](tui-manual-smoke-checklist.md) — Claude Code only (not the Node runner)
+- [Claude GHA doc smoke spike](claude-gha-doc-smoke-spike.md) — optional manual `workflow_dispatch` (not a merge gate)
 - [Environment access contract](../orchestrator/environment-access.md) — `ENVIRONMENT` block schema
 - [Orchestrator README](../../orchestrator/README.md) — CLI flags, env vars, traces, `explain-run`
 - [Alpha release checklist](../orchestrator/alpha-release-checklist.md) — release bar (not required for a casual smoke)
@@ -285,7 +286,7 @@ Copy and fill after a smoke (CLI or TUI). Attach logs/traces with secrets redact
 
 - Production SLA, hosted control plane, multi-tenant isolation
 - Proving E2E `mode: read` write-blocks or multi-agent credential validation (see *Implementation status* in [environment-access.md](../orchestrator/environment-access.md))
-- Claude GitHub Action doc review (separate spike)
+- Claude GitHub Action doc review (optional manual spike — [claude-gha-doc-smoke-spike.md](claude-gha-doc-smoke-spike.md); not a merge gate)
 - Comparing single_agent vs multi_agent as a benchmark — MA path is **incomplete** per README
 
 ---
