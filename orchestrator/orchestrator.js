@@ -2637,4 +2637,7 @@ module.exports = {
   _test_callCompactHandoff: callCompactHandoff,
   _test_beginMcpAudit: beginMcpAudit,
   _test_clearMcpAudit: clearMcpAudit,
+
+  /** Test / doc: parse ENVIRONMENT block from MODE header goal text. */
+  parseEnvironment,
 };

@@ -133,6 +133,12 @@ function checkTuiChecklist(tuiText) {
   const rel = "docs/how-to/tui-manual-smoke-checklist.md";
   if (!tuiText) return;
   mustInclude(tuiText, "MODE: ORCHESTRATOR", "orchestration prompt", rel);
+  mustInclude(tuiText, "FLOW: multi_agent", "multi_agent case", rel);
+  mustInclude(tuiText, "MODE: CERBERUS", "adversarial review case", rel);
+  mustInclude(tuiText, "EXAMPLE_API_URL", "ENVIRONMENT names-only example", rel);
+  for (let n = 1; n <= 8; n += 1) {
+    mustInclude(tuiText, `## ${n}.`, `checklist case ${n}`, rel);
+  }
   mustNotHaveBacklogCaseIds(tuiText, rel);
   checkForbiddenClaims(tuiText, rel);
 }
