@@ -7,6 +7,7 @@ Canonical how-to for trying **ai-minions** without reading the whole repository.
 - [Pre-run checklist](../orchestrator/pre-run-checklist.md) — before each run
 - [TUI manual smoke checklist](tui-manual-smoke-checklist.md) — Claude Code only (not the Node runner)
 - [Claude GHA doc smoke spike](claude-gha-doc-smoke-spike.md) — optional manual `workflow_dispatch` (not a merge gate)
+- [Operator slash commands](operator-slash-commands.md) — UX aliases to documented CLI (not a new runtime)
 - [Environment access contract](../orchestrator/environment-access.md) — `ENVIRONMENT` block schema
 - [Orchestrator README](../../orchestrator/README.md) — CLI flags, env vars, traces, `explain-run`
 - [Alpha release checklist](../orchestrator/alpha-release-checklist.md) — release bar (not required for a casual smoke)
@@ -178,7 +179,7 @@ echo "Smoke: respond with OK" | node run-orchestrator.js --skip-gates --iteratio
 
 **Exit behavior:** missing goal → exit `1`; unhandled exception → exit `1`; normal completion prints `Done`, `Task ID`, and artifact summaries (gate blocks appear inline).
 
-Discover commands: `node run-orchestrator.js --help` (run, explain, report, validate, and manual check pointers). Flags above match [`run-orchestrator.js`](../../orchestrator/run-orchestrator.js) and [orchestrator README](../../orchestrator/README.md).
+Discover commands: `node run-orchestrator.js --help` (run, explain, report, validate, and manual check pointers). Optional slash-style aliases: [operator-slash-commands.md](operator-slash-commands.md). Flags above match [`run-orchestrator.js`](../../orchestrator/run-orchestrator.js) and [orchestrator README](../../orchestrator/README.md).
 
 ### Inspect traces and cost
 

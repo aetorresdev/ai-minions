@@ -10,6 +10,7 @@ on:
       - "scripts/verify-usage-docs.mjs"
       - ".github/workflows/docs-usage-verify.yml"
       - ".github/workflows/claude-doc-smoke.yml"
+      - "orchestrator/operator-cli-help.js"
   push:
     branches: [main, master]
     paths:
@@ -18,6 +19,7 @@ on:
       - "scripts/verify-usage-docs.mjs"
       - ".github/workflows/docs-usage-verify.yml"
       - ".github/workflows/claude-doc-smoke.yml"
+      - "orchestrator/operator-cli-help.js"
   workflow_dispatch:
 
 permissions:

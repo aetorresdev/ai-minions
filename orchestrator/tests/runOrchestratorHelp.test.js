@@ -29,6 +29,7 @@ test("run-orchestrator --help exits 0 and documents command groups", () => {
   assert.match(out, /--skip-gates/);
   assert.match(out, /ORCH_TRACES_DIR/);
   assert.match(out, /usage-smoke-guide\.md/);
+  assert.match(out, /operator-slash-commands\.md/);
   assert.doesNotMatch(out, /production-ready/i);
 });
 
