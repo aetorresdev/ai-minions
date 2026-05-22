@@ -2,7 +2,7 @@
 
 Canonical how-to for trying **ai-minions** without reading the whole repository. Technical contracts stay in [`docs/orchestrator/`](../orchestrator/README.md); this page is the **single source of truth** for smoke usage (CLI runner + Claude Code TUI).
 
-**Related**
+### Related
 
 - [Pre-run checklist](../orchestrator/pre-run-checklist.md) — before each run
 - [TUI manual smoke checklist](tui-manual-smoke-checklist.md) — Claude Code only (not the Node runner)
@@ -60,7 +60,7 @@ npm test
 
 Expect the unit suite to pass (count changes over time; check CI badge on the repo). Optional strict E2E needs Ollama, Python venvs, and extra env — see [orchestrator README — Tests](../../orchestrator/README.md).
 
-**Prerequisites for a real orchestrator run (not just `npm test`):**
+### Prerequisites for a real orchestrator run (not just `npm test`)
 
 | Check | Command |
 |-------|---------|
@@ -123,14 +123,14 @@ Three layers — do not mix them up:
 | **`ENVIRONMENT` in the call** | Declares which **names** this run may use and the access **mode** (`read` / `write`). |
 | **Runtime (target)** | A variable present in `process.env` but **not** listed under `ENVIRONMENT` for this run must **not** be treated as authorized for agents (enforcement tracked in runtime work; until then, treat this as the operator contract). |
 
-**Rules for testers and doc authors:**
+### Rules for testers and doc authors
 
 1. **`.env` does not grant permission** — it only makes values available.
 2. **`ENVIRONMENT` lists names only** — never paste tokens, passwords, or connection strings into the header or this guide.
 3. **No `ENVIRONMENT` block** → design intent is **no credential access** for that run (agents work on files/specs only).
 4. **Previous envelopes, snapshots, or traces** → do **not** inherit credential permission into a new run.
 
-**Local example (illustrative):**
+### Local example (illustrative)
 
 ```bash
 # In REPO_ROOT — gitignored
@@ -271,7 +271,7 @@ Copy and fill after a smoke (CLI or TUI). Attach logs/traces with secrets redact
 
 ## What to test vs what not to test (alpha)
 
-**In scope for smoke**
+### In scope for smoke
 
 - Clone, `npm ci`, `npm test`
 - One `--skip-gates` CLI run with a trivial goal
@@ -279,7 +279,7 @@ Copy and fill after a smoke (CLI or TUI). Attach logs/traces with secrets redact
 - Trace readable via `explain-run` or `tokens:report`
 - Environment section understood (names only in `ENVIRONMENT`)
 
-**Out of scope / do not file as alpha blockers**
+### Out of scope / do not file as alpha blockers
 
 - Production SLA, hosted control plane, multi-tenant isolation
 - Full credential enforcement automation (runtime contract still evolving — see environment rules above)
