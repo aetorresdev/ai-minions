@@ -167,3 +167,42 @@ Approve the last change for merge. No files attached.
 ## Minimal completion bar
 
 For a light smoke, complete at least **cases 1 and 3** and file one report using the template in [usage-smoke-guide.md](usage-smoke-guide.md).
+
+---
+
+## Example report (cases 1 and 3 — illustrative)
+
+Fictional sample for reviewers; paths and dates are placeholders.
+
+```markdown
+## Smoke report
+
+- **Date:** 2026-05-22
+- **Path:** Claude Code TUI
+- **Repo commit:** abc1234
+- **FLOW:** single_agent
+- **Gates:** n/a (TUI only)
+- **Verdict:** PASS
+
+### Steps
+
+1. Case 1 — confirmed workspace `/home/tester/ai-minions`; no edits before confirmation.
+2. Case 3 — pasted canonical MODE header; agent stayed bounded to docs/ listing.
+
+### Expected
+
+Workspace stated; orchestration header respected.
+
+### Actual
+
+Matches expected for cases 1 and 3.
+
+### Evidence
+
+- Quote: "workspace root is /home/tester/ai-minions"
+- `git status` clean after case 3
+
+### Severity
+
+- [x] USABILITY — checklist OK
+```
