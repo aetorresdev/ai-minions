@@ -121,7 +121,9 @@ Three layers — do not mix them up:
 |-------|----------------|
 | **`.env` / shell / CI `env`** | Supplies **values** to the process (`export VAR=...`, `dotenv`, GitHub Actions `secrets` → `env`). |
 | **`ENVIRONMENT` in the call** | Declares which **names** this run may use and the access **mode** (`read` / `write`). |
-| **Runtime (target)** | A variable present in `process.env` but **not** listed under `ENVIRONMENT` for this run must **not** be treated as authorized for agents (enforcement tracked in runtime work; until then, treat this as the operator contract). |
+| **Runtime (orchestrator)** | Parses the block, resolves env var names, applies role/mode matrix, and injects context into agents — see [environment-access.md](../orchestrator/environment-access.md) (*Implementation status*). |
+
+Prompt/context enforcement exists per `environment-access.md` (`parseEnvironment`, `resolveCredentials`, `effectiveMode`, `buildEnvContext`, agent injection; CERBERUS read-only). **This smoke guide does not prove** end-to-end runtime enforcement for `mode: read` write-blocking or multi-agent runs with live credentials (those remain pending in that doc). Treat smoke results as **operator-contract evidence**, not full enforcement proof.
 
 ### Rules for testers and doc authors
 
@@ -175,7 +177,7 @@ echo "Smoke: respond with OK" | node run-orchestrator.js --skip-gates --iteratio
 
 **Exit behavior:** missing goal → exit `1`; unhandled exception → exit `1`; normal completion prints `Done`, `Task ID`, and artifact summaries (gate blocks appear inline).
 
-CLI `--help` coverage is still being expanded; until then, flags above match [`run-orchestrator.js`](../../orchestrator/run-orchestrator.js) and [orchestrator README](../../orchestrator/README.md).
+Discover commands: `node run-orchestrator.js --help` (run, explain, report, validate, and manual check pointers). Flags above match [`run-orchestrator.js`](../../orchestrator/run-orchestrator.js) and [orchestrator README](../../orchestrator/README.md).
 
 ### Inspect traces and cost
 
@@ -282,7 +284,7 @@ Copy and fill after a smoke (CLI or TUI). Attach logs/traces with secrets redact
 ### Out of scope / do not file as alpha blockers
 
 - Production SLA, hosted control plane, multi-tenant isolation
-- Full credential enforcement automation (runtime contract still evolving — see environment rules above)
+- Proving E2E `mode: read` write-blocks or multi-agent credential validation (see *Implementation status* in [environment-access.md](../orchestrator/environment-access.md))
 - Claude GitHub Action doc review (separate spike)
 - Comparing single_agent vs multi_agent as a benchmark — MA path is **incomplete** per README
 
