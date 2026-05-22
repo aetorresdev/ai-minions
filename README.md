@@ -139,6 +139,8 @@ ENVIRONMENT:
 
 Watch logs: `tail -f ~/.claude/logs/orchestrator.log`. Gate sequence: [`docs/orchestrator/strict-mode.md`](docs/orchestrator/strict-mode.md). CLI flags and degraded mode: [`orchestrator/README.md`](orchestrator/README.md).
 
+**External testers:** full smoke walkthrough (CLI + TUI + env contract + bug template) — [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
+
 ---
 
 ## Experiments and metrics
