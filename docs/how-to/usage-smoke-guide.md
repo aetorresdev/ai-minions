@@ -2,7 +2,7 @@
 
 Canonical how-to for trying **ai-minions** without reading the whole repository. Technical contracts stay in [`docs/orchestrator/`](../orchestrator/README.md); this page is the **single source of truth** for smoke usage (CLI runner + Claude Code TUI).
 
-### Related
+## Related
 
 - [Pre-run checklist](../orchestrator/pre-run-checklist.md) — before each run
 - [TUI manual smoke checklist](tui-manual-smoke-checklist.md) — Claude Code only (not the Node runner)
