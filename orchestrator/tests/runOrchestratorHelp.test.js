@@ -3,6 +3,8 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
+const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 
 const RUNNER = path.join(__dirname, "..", "run-orchestrator.js");
@@ -45,4 +47,17 @@ test("run-orchestrator without goal exits 1 and points to --help", () => {
   });
   assert.equal(r.status, 1);
   assert.match(r.stderr, /--help/);
+});
+
+test("run-orchestrator exits 2 for invalid minions.md in --cwd", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ai-minions-invalid-"));
+  fs.writeFileSync(path.join(tmp, "minions.md"), "```json\n{ bad json\n```", "utf8");
+
+  const r = spawnSync(process.execPath, [RUNNER, "--cwd", tmp, "Smoke"], {
+    encoding: "utf8",
+    cwd: path.join(__dirname, ".."),
+  });
+
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /minions\.md/);
 });
