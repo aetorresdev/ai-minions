@@ -1,0 +1,36 @@
+# Deterministic validation of operator usage docs (no LLM).
+name: Docs usage verify
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "README.md"
+      - "docs/how-to/**"
+      - "scripts/verify-usage-docs.mjs"
+      - ".github/workflows/docs-usage-verify.yml"
+  push:
+    branches: [main, master]
+    paths:
+      - "README.md"
+      - "docs/how-to/**"
+      - "scripts/verify-usage-docs.mjs"
+      - ".github/workflows/docs-usage-verify.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-usage-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-usage-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify usage how-to and README alignment
+        run: node scripts/verify-usage-docs.mjs
