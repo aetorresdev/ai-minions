@@ -35,7 +35,9 @@ cd REPO_ROOT/orchestrator
 npm ci
 npm test
 node run-orchestrator.js --help
-node scripts/verify-usage-docs.mjs   # from repo root
+
+cd REPO_ROOT
+node scripts/verify-usage-docs.mjs
 ```
 
 After a smoke run:

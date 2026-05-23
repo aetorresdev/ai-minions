@@ -76,3 +76,19 @@ test("emitContextHygieneSignal produces schema-valid trace row", () => {
   assert.equal(lines[0].event, "context_hygiene_signal");
   assert.equal(lines[0].signal_id, "context_growth_rate");
 });
+
+test("context_hygiene_signal without signal_id fails schema validation", () => {
+  const v = validateTraceLine({
+    ts: new Date(1).toISOString(),
+    ts_ms: 1,
+    trace_schema_version: "2",
+    task_id: "t-hygiene",
+    event: "context_hygiene_signal",
+    agent: "qa",
+    active_role: "qa",
+    severity: "warn",
+    suggestion: "missing signal_id",
+  });
+  assert.equal(v.ok, false);
+  assert.ok(v.errors?.length);
+});
