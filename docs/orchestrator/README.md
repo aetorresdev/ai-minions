@@ -27,6 +27,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [failure-semantics-contract.md](failure-semantics-contract.md) | **`iteration_done`** failure taxonomy — `reason_code`, `failure_type`, `failure_axis` (writer/reader contract, links to strict-mode and tests) |
 | [trace-privacy-contract.md](trace-privacy-contract.md) | Secret-shaped redaction — writer **`_sanitize`**, read **`sanitizeTraceRowsForRead`**, env flags, test anchors |
 | [token-hygiene-guide.md](token-hygiene-guide.md) | Operator habits: new run vs continue, handoffs, scope splits, reading token reports (no runtime enforcement) |
+| [context-hygiene-signals.md](context-hygiene-signals.md) | Trace `context_hygiene_signal` events — observability only |
 | [role-agent-registry.md](role-agent-registry.md) | Future roles: minimal registry schema (design-time; no runtime wiring) |
 
 **Cursor rule:** `.cursor/rules/orchestrator.mdc` — `scripts/install-orchestrator-rule.sh` to copy it to another repo.
