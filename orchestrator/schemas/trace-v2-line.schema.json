@@ -269,6 +269,50 @@
     },
     {
       "if": {
+        "properties": { "event": { "const": "review_record" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "review_schema_version",
+          "reviewer_role",
+          "verdict",
+          "blockers",
+          "non_blocking_notes",
+          "evidence_refs",
+          "reviewed_artifact_ids",
+          "iteration"
+        ],
+        "properties": {
+          "review_schema_version": { "type": "string", "enum": ["1"] },
+          "reviewer_role": { "type": "string", "enum": ["qa", "cerberus"] },
+          "verdict": { "type": "string", "enum": ["approve", "request_changes", "block"] },
+          "blockers": {
+            "type": "array",
+            "maxItems": 8,
+            "items": { "type": "string", "maxLength": 300 }
+          },
+          "non_blocking_notes": {
+            "type": "array",
+            "maxItems": 8,
+            "items": { "type": "string", "maxLength": 300 }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "maxItems": 16,
+            "items": { "type": "string", "maxLength": 240 }
+          },
+          "reviewed_artifact_ids": {
+            "type": "array",
+            "maxItems": 8,
+            "items": { "type": "string", "maxLength": 240 }
+          },
+          "iteration": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    {
+      "if": {
         "allOf": [
           {
             "properties": { "event": { "const": "session_end" } },
