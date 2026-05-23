@@ -17,6 +17,9 @@ const CANONICAL_GUIDE = path.join(REPO_ROOT, "docs/how-to/usage-smoke-guide.md")
 const TUI_CHECKLIST = path.join(REPO_ROOT, "docs/how-to/tui-manual-smoke-checklist.md");
 const GHA_DOC_SPIKE = path.join(REPO_ROOT, "docs/how-to/claude-gha-doc-smoke-spike.md");
 const SLASH_COMMANDS = path.join(REPO_ROOT, "docs/how-to/operator-slash-commands.md");
+const TOKEN_HYGIENE = path.join(REPO_ROOT, "docs/orchestrator/token-hygiene-guide.md");
+const CONTEXT_HYGIENE = path.join(REPO_ROOT, "docs/orchestrator/context-hygiene-signals.md");
+const HARNESS_CHECKPOINTS = path.join(REPO_ROOT, "docs/how-to/harness-health-checkpoints.md");
 const README = path.join(REPO_ROOT, "README.md");
 
 /** @type {string[]} */
@@ -128,9 +131,51 @@ function checkGuide(guideText) {
   mustInclude(guideText, "tui-manual-smoke-checklist.md", "TUI checklist link", rel);
   mustInclude(guideText, "claude-gha-doc-smoke-spike.md", "optional GHA doc spike link", rel);
   mustInclude(guideText, "operator-slash-commands.md", "slash command alias link", rel);
+  mustInclude(guideText, "harness-health-checkpoints.md", "harness checkpoints link", rel);
 
   checkForbiddenClaims(guideText, rel);
   mustNotHaveBacklogCaseIds(guideText, rel);
+}
+
+function checkContextHygieneDoc(docText) {
+  const rel = "docs/orchestrator/context-hygiene-signals.md";
+  if (!docText) return;
+  mustInclude(docText, "context_hygiene_signal", "trace event name", rel);
+  mustInclude(docText, "context_growth_rate", "growth rate signal", rel);
+  mustInclude(docText, "compaction_recommended", "compaction signal", rel);
+  mustInclude(docText, "Observability only", "no enforcement disclaimer", rel);
+  mustNotHaveBacklogCaseIds(docText, rel);
+  checkForbiddenClaims(docText, rel);
+}
+
+function checkHarnessCheckpoints(docText) {
+  const rel = "docs/how-to/harness-health-checkpoints.md";
+  if (!docText) return;
+  mustInclude(docText, "Bootstrap passes", "bootstrap checkpoint", rel);
+  mustInclude(docText, "npm test", "validation checkpoint", rel);
+  mustInclude(docText, "Demo harness vs ai-minions", "demo comparison section", rel);
+  mustInclude(docText, "doctor", "future doctor note", rel);
+  mustNotHaveBacklogCaseIds(docText, rel);
+  checkForbiddenClaims(docText, rel);
+}
+
+function checkTokenHygieneGuide(hygieneText) {
+  const rel = "docs/orchestrator/token-hygiene-guide.md";
+  if (!hygieneText) return;
+  const sections = [
+    "When to start a new run vs continue",
+    "When to use compact handoff",
+    "When to split a large task",
+    "How to write requests by role",
+    "What not to paste in full",
+    "How to read the token trace report",
+  ];
+  for (const title of sections) {
+    mustInclude(hygieneText, title, `section: ${title}`, rel);
+  }
+  mustInclude(hygieneText, "tokens:report", "token trace report CLI", rel);
+  mustNotHaveBacklogCaseIds(hygieneText, rel);
+  checkForbiddenClaims(hygieneText, rel);
 }
 
 function checkSlashCommands(slashText) {
@@ -173,6 +218,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "MODE: ORCHESTRATOR", "Quickstart MODE header", rel);
   mustInclude(readmeText, "FLOW: single_agent", "Quickstart single_agent", rel);
   mustInclude(readmeText, "usage-smoke-guide.md", "link to canonical how-to", rel);
+  mustInclude(readmeText, "token-hygiene-guide.md", "link to token hygiene guide", rel);
 
   checkForbiddenClaims(readmeText, rel);
 
@@ -190,12 +236,18 @@ function main() {
   const tuiText = readUtf8(TUI_CHECKLIST);
   const spikeText = readUtf8(GHA_DOC_SPIKE);
   const slashText = readUtf8(SLASH_COMMANDS);
+  const hygieneText = readUtf8(TOKEN_HYGIENE);
+  const contextHygieneText = readUtf8(CONTEXT_HYGIENE);
+  const harnessText = readUtf8(HARNESS_CHECKPOINTS);
   const readmeText = readUtf8(README);
 
   if (guideText) checkGuide(guideText);
   if (tuiText) checkTuiChecklist(tuiText);
   if (spikeText) checkGhaDocSpike(spikeText);
   if (slashText) checkSlashCommands(slashText);
+  if (hygieneText) checkTokenHygieneGuide(hygieneText);
+  if (contextHygieneText) checkContextHygieneDoc(contextHygieneText);
+  if (harnessText) checkHarnessCheckpoints(harnessText);
   if (readmeText) checkReadmeAlignment(readmeText, guideText);
 
   if (failures.length) {
