@@ -2210,6 +2210,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
     }
 
     // ── Cerberus review ───────────────────────────────────────────────────────
+    let cerberusReviewRecordEmitted = false;
     logRoleSwitch(previousAgentId || "orchestrator", "cerberus");
     log("cerberus", "Reviewing deliverables...");
     const reviewChunks = artifacts.map((a) => {
@@ -2269,6 +2270,7 @@ nice-to-have: ...`;
             .map((a) => a.step_id),
         }),
       );
+      cerberusReviewRecordEmitted = true;
       artifacts.push({
         agentId: "cerberus",
         task: "(session review) Deliverable review before decide",
@@ -2375,16 +2377,18 @@ nice-to-have: ...`;
     const reviewedIds = artifacts
       .filter((a) => a.step_id && !a.gateBlocked && a.agentId !== "cerberus")
       .map((a) => a.step_id);
-    traceReviewRecord(
-      traceEvent,
-      taskId,
-      buildReviewRecord({
-        reviewerRole: "cerberus",
-        output: cerberusResult,
-        iteration: iterations,
-        reviewedArtifactIds: reviewedIds,
-      }),
-    );
+    if (!cerberusReviewRecordEmitted) {
+      traceReviewRecord(
+        traceEvent,
+        taskId,
+        buildReviewRecord({
+          reviewerRole: "cerberus",
+          output: cerberusResult,
+          iteration: iterations,
+          reviewedArtifactIds: reviewedIds,
+        }),
+      );
+    }
     traceEvent(taskId, { event: "cerberus_check", iteration: iterations, blockers: cerberusBlockers.count, items: cerberusBlockers.items.slice(0, 5) });
 
     const cerbDecision = decideCerberusBlockersBranch({

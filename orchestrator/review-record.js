@@ -11,6 +11,9 @@ const REVIEW_SCHEMA_VERSION = "1";
 const MAX_NOTE_LEN = 300;
 const MAX_BLOCKERS = 8;
 const MAX_EVIDENCE_REFS = 16;
+const FINDING_KEYWORD_RE = /\b(blocker|improvement|nice-to-have)\b/i;
+const NOTE_MISSING_TRIPLE = "review output did not match required triple template";
+const NOTE_UNSTRUCTURED_FINDING = "review output not in triple template; structured verdict unavailable";
 
 function normalizeFindingVal(s) {
   return String(s || "").trim().toLowerCase().replace(/[()]/g, "");
@@ -87,6 +90,15 @@ function buildReviewRecord(input) {
       }
       if (!isVacuousFindingVal(triple.nice)) {
         nonBlockingNotes.push(truncateNote(`nice-to-have: ${triple.nice}`));
+      }
+    } else {
+      const trimmed = String(output).trim();
+      if (!trimmed) {
+        blockers.push("review output empty or missing");
+      } else if (FINDING_KEYWORD_RE.test(output)) {
+        nonBlockingNotes.push(truncateNote(NOTE_UNSTRUCTURED_FINDING));
+      } else {
+        blockers.push(truncateNote(NOTE_MISSING_TRIPLE));
       }
     }
   }

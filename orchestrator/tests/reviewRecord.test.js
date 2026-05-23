@@ -113,3 +113,62 @@ test("buildRunOutcomeSummary includes review block from trace rows", () => {
   assert.match(text, /review: final=block/);
   assert.match(text, /schema gap/);
 });
+
+test("buildReviewRecord: gateBlocked with empty output stays block", () => {
+  const r = buildReviewRecord({
+    reviewerRole: "cerberus",
+    output: "",
+    iteration: 1,
+    gateBlocked: true,
+    gateReason: "output contract failed",
+  });
+  assert.equal(r.verdict, "block");
+});
+
+test("buildReviewRecord: empty output without gate is block not approve", () => {
+  const r = buildReviewRecord({
+    reviewerRole: "cerberus",
+    output: "",
+    iteration: 1,
+  });
+  assert.equal(r.verdict, "block");
+});
+
+test("buildReviewRecord: non-triple output with finding keywords is not approve", () => {
+  const r = buildReviewRecord({
+    reviewerRole: "cerberus",
+    output: "blocker found in orchestrator/foo.js",
+    iteration: 1,
+  });
+  assert.equal(r.verdict, "request_changes");
+  assert.ok(r.non_blocking_notes.some((n) => n.includes("triple template")));
+});
+
+test("buildReviewRecord: non-triple output without keywords is block", () => {
+  const r = buildReviewRecord({
+    reviewerRole: "qa",
+    output: "looks good to me",
+    iteration: 1,
+  });
+  assert.equal(r.verdict, "block");
+});
+
+test("summarizeReviewRecordsFromRows: last cerberus record wins (single emit on contract fail)", () => {
+  const rows = [
+    {
+      event: "review_record",
+      task_id: "t1",
+      review_schema_version: "1",
+      reviewer_role: "cerberus",
+      verdict: "block",
+      blockers: ["contract fail"],
+      non_blocking_notes: [],
+      evidence_refs: [],
+      reviewed_artifact_ids: [],
+      iteration: 1,
+    },
+  ];
+  const s = summarizeReviewRecordsFromRows(rows);
+  assert.equal(s.final_verdict, "block");
+  assert.equal(s.cerberus_verdict, "block");
+});

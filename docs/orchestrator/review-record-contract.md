@@ -21,14 +21,18 @@ JSON Schema: `orchestrator/schemas/trace-v2-line.schema.json` (`review_record` b
 
 ## Verdict rules
 
-Parsed from the shared three-line template (`blocker:` / `improvement:` / `nice-to-have:`):
+Parsed from the shared three-line template (`blocker:` / `improvement:` / `nice-to-have:`). **Approve only when the triple template is present and all three lines are vacuous.**
 
 | Condition | Verdict |
 |-----------|---------|
 | Gate/contract failure on reviewer | `block` |
-| - Substantive `blocker:` line | `block` |
+| Substantive `blocker:` line | `block` |
 | Substantive `improvement:` or `nice-to-have:` only | `request_changes` |
-| All vacuous / `(none)` | `approve` |
+| All vacuous / `(none)` in triple | `approve` |
+| Non-empty output **without** triple but finding keywords present | `request_changes` (unstructured; note in `non_blocking_notes`) |
+| Empty output or non-empty without triple and without keywords | `block` |
+
+Only one `review_record` per CERBERUS pass per iteration when contract fails (no follow-up record with empty output).
 
 ## Consumption
 
