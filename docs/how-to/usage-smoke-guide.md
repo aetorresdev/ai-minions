@@ -9,6 +9,7 @@ Canonical how-to for trying **ai-minions** without reading the whole repository.
 - [Claude GHA doc smoke spike](claude-gha-doc-smoke-spike.md) — optional manual `workflow_dispatch` (not a merge gate)
 - [Operator slash commands](operator-slash-commands.md) — UX aliases to documented CLI (not a new runtime)
 - [Token hygiene guide](../orchestrator/token-hygiene-guide.md) — session habits and reading cost traces
+- [Harness health checkpoints](harness-health-checkpoints.md) — minimal readiness checklist
 - [Environment access contract](../orchestrator/environment-access.md) — `ENVIRONMENT` block schema
 - [Orchestrator README](../../orchestrator/README.md) — CLI flags, env vars, traces, `explain-run`
 - [Alpha release checklist](../orchestrator/alpha-release-checklist.md) — release bar (not required for a casual smoke)
