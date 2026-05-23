@@ -13,6 +13,8 @@ The stable object is produced by **`buildRunOutcomeSummary()`** in `orchestrator
 | **`why`** | `gate_blocks`, counts of `iteration_done`, top `reason_code`s from failure taxonomy, rollup aggregates (`rollup_failed_steps`, `rollup_contract_fail_steps`, `rollup_gate_fail_steps`) |
 | **`cost`** | Ollama prompt/completion/total tokens, optional USD estimate, **`basis`** explaining token source |
 | **`qa`** | `qa_degraded`, `manual_review_recommended`, `handoff_fallback_used`, QA template / substantive blocker step counts |
+| **`review`** | Durable QA/CERBERUS verdicts — see [review-record-contract.md](review-record-contract.md) |
+| **`recovery`** | Stranded run/step sweep — `clean`, `finding_count`, `summary`, `findings[]`, `policy` — see [recovery-sweep-contract.md](recovery-sweep-contract.md) |
 | **`intent_groups`** | Per-distinct-intent aggregates: tokens, step counts, failed steps (from **`rollupStepsCostOutcome`** in `token-trace-report.js`) |
 
 ### Relation to `rollup_steps`

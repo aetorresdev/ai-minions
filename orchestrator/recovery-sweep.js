@@ -1,0 +1,262 @@
+"use strict";
+
+/**
+ * Stranded run/step recovery semantics — detect and explain incomplete traces.
+ * No auto-retry without explicit policy. See docs/orchestrator/recovery-sweep-contract.md
+ */
+
+const {
+  governanceOwnershipHandoffUnresolved,
+  governanceRunnerShouldHold,
+} = require("./governance-gate");
+
+const RECOVERY_SCHEMA_VERSION = "1";
+const MAX_FINDINGS = 16;
+const MAX_DESC_LEN = 300;
+
+/** @typedef {"missing_session_end"|"stranded_step"|"unresolved_ownership_handoff"|"pending_governance_approval"|"no_agent_steps"} RecoveryFindingKind */
+
+/**
+ * @param {string} s
+ * @returns {string}
+ */
+function truncateDesc(s) {
+  const t = String(s || "").trim();
+  if (t.length <= MAX_DESC_LEN) return t;
+  return `${t.slice(0, MAX_DESC_LEN - 1)}…`;
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {object[]}
+ */
+function detectStrandedSteps(rows) {
+  /** @type {Map<string, { agent: string | null, iteration: number | null }>} */
+  const started = new Map();
+  /** @type {Set<string>} */
+  const completed = new Set();
+
+  for (const r of rows) {
+    if (!r || typeof r.step_id !== "string" || !r.step_id.length) continue;
+    if (r.event === "agent_start") {
+      if (!started.has(r.step_id)) {
+        started.set(r.step_id, {
+          agent: typeof r.agent === "string" ? r.agent : null,
+          iteration: typeof r.iteration === "number" ? r.iteration : null,
+        });
+      }
+    } else if (r.event === "agent_done") {
+      completed.add(r.step_id);
+    }
+  }
+
+  /** @type {object[]} */
+  const findings = [];
+  for (const [step_id, meta] of started) {
+    if (completed.has(step_id)) continue;
+    findings.push({
+      finding_kind: "stranded_step",
+      severity: "error",
+      blocks_auto_recovery: true,
+      step_id,
+      agent: meta.agent,
+      iteration: meta.iteration,
+      description: truncateDesc(`Step ${step_id} has agent_start without matching agent_done`),
+    });
+  }
+  return findings;
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {object[]}
+ */
+function detectSessionLifecycle(rows) {
+  const hasStart = rows.some((r) => r && r.event === "session_start");
+  const hasEnd = rows.some((r) => r && r.event === "session_end");
+  /** @type {object[]} */
+  const findings = [];
+
+  if (hasStart && !hasEnd) {
+    findings.push({
+      finding_kind: "missing_session_end",
+      severity: "error",
+      blocks_auto_recovery: true,
+      step_id: null,
+      description: "Trace has session_start but no session_end — run may have aborted or trace was truncated",
+    });
+  }
+
+  if (hasStart && !rows.some((r) => r && r.event === "agent_start")) {
+    findings.push({
+      finding_kind: "no_agent_steps",
+      severity: "warn",
+      blocks_auto_recovery: true,
+      step_id: null,
+      description: "Run started but no agent_start events were emitted",
+    });
+  }
+
+  return findings;
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {object[]}
+ */
+function detectHandoffAndGovernance(rows) {
+  /** @type {object[]} */
+  const findings = [];
+
+  if (governanceOwnershipHandoffUnresolved(rows)) {
+    findings.push({
+      finding_kind: "unresolved_ownership_handoff",
+      severity: "error",
+      blocks_auto_recovery: true,
+      step_id: null,
+      description: "Delegated ownership handoff has approval_required without approval_granted",
+    });
+  }
+
+  if (governanceRunnerShouldHold(rows)) {
+    findings.push({
+      finding_kind: "pending_governance_approval",
+      severity: "warn",
+      blocks_auto_recovery: true,
+      step_id: null,
+      description: "Governance approval is pending or denied — runner must hold until operator resolves",
+    });
+  }
+
+  return findings;
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {{ findings: object[], finding_count: number, blocks_auto_recovery: boolean, clean: boolean, summary: string }}
+ */
+function analyzeRecoveryFromRows(rows) {
+  const safe = Array.isArray(rows) ? rows : [];
+  const findings = [
+    ...detectSessionLifecycle(safe),
+    ...detectStrandedSteps(safe),
+    ...detectHandoffAndGovernance(safe),
+  ].slice(0, MAX_FINDINGS);
+
+  const blocks_auto_recovery = findings.some((f) => f.blocks_auto_recovery === true);
+  const clean = findings.length === 0;
+  let summary;
+  if (clean) {
+    summary = "No stranded steps or incomplete session/handoff signals detected";
+  } else {
+    const kinds = [...new Set(findings.map((f) => f.finding_kind))];
+    summary = `Recovery sweep found ${findings.length} issue(s): ${kinds.join(", ")}`;
+  }
+
+  return {
+    findings,
+    finding_count: findings.length,
+    blocks_auto_recovery,
+    clean,
+    summary,
+  };
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {{ findings: object[], finding_count: number, blocks_auto_recovery: boolean, clean: boolean, summary: string, sweep_event: object | null }}
+ */
+function summarizeRecoveryFromRows(rows) {
+  const analysis = analyzeRecoveryFromRows(rows);
+  /** @type {object | null} */
+  let sweep_event = null;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if (r && r.event === "recovery_completed") {
+      sweep_event = {
+        finding_count: typeof r.finding_count === "number" ? r.finding_count : analysis.finding_count,
+        clean: r.clean === true,
+        summary: typeof r.summary === "string" ? r.summary : analysis.summary,
+        policy: typeof r.policy === "string" ? r.policy : "no_auto_retry",
+      };
+      break;
+    }
+  }
+
+  return {
+    ...analysis,
+    sweep_event,
+  };
+}
+
+/**
+ * @param {(taskId: string, ev: Record<string, unknown>) => void} traceEvent
+ * @param {string} taskId
+ * @param {object} finding
+ */
+function traceRecoveryDetected(traceEvent, taskId, finding) {
+  traceEvent(taskId, {
+    event: "recovery_detected",
+    recovery_schema_version: RECOVERY_SCHEMA_VERSION,
+    finding_kind: finding.finding_kind,
+    severity: finding.severity,
+    description: truncateDesc(finding.description),
+    blocks_auto_recovery: finding.blocks_auto_recovery === true,
+    ...(finding.step_id ? { step_id: finding.step_id } : {}),
+    ...(typeof finding.agent === "string" ? { agent: finding.agent } : {}),
+    ...(typeof finding.iteration === "number" ? { iteration: finding.iteration } : {}),
+  });
+}
+
+/**
+ * @param {(taskId: string, ev: Record<string, unknown>) => void} traceEvent
+ * @param {string} taskId
+ * @param {ReturnType<typeof analyzeRecoveryFromRows>} analysis
+ */
+function traceRecoverySweepOutcome(traceEvent, taskId, analysis) {
+  if (analysis.blocks_auto_recovery) {
+    traceEvent(taskId, {
+      event: "recovery_blocked",
+      recovery_schema_version: RECOVERY_SCHEMA_VERSION,
+      policy: "no_auto_retry",
+      reason: truncateDesc(analysis.summary),
+      finding_count: analysis.finding_count,
+    });
+  }
+
+  traceEvent(taskId, {
+    event: "recovery_completed",
+    recovery_schema_version: RECOVERY_SCHEMA_VERSION,
+    policy: "no_auto_retry",
+    finding_count: analysis.finding_count,
+    clean: analysis.clean,
+    summary: truncateDesc(analysis.summary),
+  });
+}
+
+/**
+ * Post-hoc sweep on trace rows. Emits recovery_detected per finding, then blocked/completed.
+ * Does not mutate runtime state or retry steps.
+ *
+ * @param {(taskId: string, ev: Record<string, unknown>) => void} traceEvent
+ * @param {string} taskId
+ * @param {object[]} rows
+ * @returns {ReturnType<typeof analyzeRecoveryFromRows>}
+ */
+function runRecoverySweepAndTrace(traceEvent, taskId, rows) {
+  const analysis = analyzeRecoveryFromRows(rows);
+  for (const finding of analysis.findings) {
+    traceRecoveryDetected(traceEvent, taskId, finding);
+  }
+  traceRecoverySweepOutcome(traceEvent, taskId, analysis);
+  return analysis;
+}
+
+module.exports = {
+  RECOVERY_SCHEMA_VERSION,
+  analyzeRecoveryFromRows,
+  summarizeRecoveryFromRows,
+  traceRecoveryDetected,
+  traceRecoverySweepOutcome,
+  runRecoverySweepAndTrace,
+};
