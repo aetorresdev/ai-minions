@@ -92,6 +92,10 @@ const {
   emitContextCompactionStarted,
   emitContextCompactionCompleted,
 } = require("./trace-lifecycle-events");
+const {
+  createContextHygieneTracker,
+  emitContextHygieneSignalsFromStats,
+} = require("./context-hygiene-signals");
 const { redactSensitivePlaintext } = require("./trace-redact");
 const { runMcpPermissionGate } = require("./security/mcp-permission-gate");
 const { runNetworkPermissionGate } = require("./security/network-permission-gate");
@@ -1356,6 +1360,7 @@ async function run(goal, options = {}) {
   };
   const budgetWarningsEmitted = new Set();
   let lastBudgetMeta = {};
+  const contextHygieneTracker = createContextHygieneTracker();
   function bumpOllamaFromStats(stats) {
     if (!stats || typeof stats !== "object") return;
     if (typeof stats.ollama_prompt_tokens === "number" && !Number.isNaN(stats.ollama_prompt_tokens)) {
@@ -1441,6 +1446,16 @@ async function run(goal, options = {}) {
 
   function emitContextStatsRows(stats, agent, iteration, graphMeta, intentStep, loc = {}) {
     if (!stats || typeof stats !== "object") return;
+    const meta = { ...graphMeta, ...intentStep, ...loc };
+    emitContextHygieneSignalsFromStats(
+      traceEvent,
+      taskId,
+      agent,
+      iteration,
+      stats,
+      meta,
+      contextHygieneTracker,
+    );
     for (const row of expandContextStatsTraceRows(agent, iteration, graphMeta, intentStep, stats, loc)) {
       bumpOllamaFromStats(row);
       addBudgetUsageFromRow(row);

@@ -241,6 +241,34 @@
     },
     {
       "if": {
+        "properties": { "event": { "const": "context_hygiene_signal" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": ["agent", "active_role", "signal_id", "severity", "suggestion"],
+        "properties": {
+          "agent": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "active_role": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "signal_id": {
+            "type": "string",
+            "enum": [
+              "context_growth_rate",
+              "repeated_large_input_detected",
+              "compaction_recommended",
+              "fresh_run_recommended"
+            ]
+          },
+          "severity": { "type": "string", "enum": ["info", "warn"] },
+          "suggestion": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "metrics": {
+            "type": "object",
+            "additionalProperties": { "type": "number" }
+          }
+        }
+      }
+    },
+    {
+      "if": {
         "allOf": [
           {
             "properties": { "event": { "const": "session_end" } },

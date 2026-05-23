@@ -17,7 +17,7 @@ Slash names are **documentation shortcuts** for humans and IDE assistants. They 
 | `/explain-run` | `npm run explain-run -- --run-id <task_id>` | Human summary of a completed trace | Missing trace file → not found message; pass `--file` if needed |
 | `/report-cost` | `npm run tokens:report -- <task_id>` | Token/cost rollups for one trace | Missing JSONL → script error; try `--strict-traces` if schema warnings |
 | `/validate-trace` | `npm run tokens:report -- <task_id> --strict-traces` | Parse trace with schema validation enabled | Invalid lines reported; see `ORCH_TRACE_VALIDATE` in orchestrator README |
-| `/check-health` | Manual: [pre-run-checklist](../orchestrator/pre-run-checklist.md) + `node --version`, `claude --version`, `curl -sS http://127.0.0.1:11434/api/tags` | Preconditions before a real run | No `doctor` subcommand yet — checklist only |
+| `/check-health` | Manual: [pre-run-checklist](../orchestrator/pre-run-checklist.md) + [harness health checkpoints](harness-health-checkpoints.md) | Preconditions before a real run | No `doctor` subcommand yet — checklist only |
 | `/show-blockers` | `npm run explain-run -- --run-id <task_id>` (read **Blockers** section) | Surface blockers from last run | Same as explain-run; no separate binary |
 
 ## Copy-paste blocks
