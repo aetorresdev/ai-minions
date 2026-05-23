@@ -13,6 +13,7 @@ const {
   summarizeFailureTaxonomyFromRows,
 } = require("./token-trace-report");
 const { summarizeReviewRecordsFromRows } = require("./review-record");
+const { summarizeRecoveryFromRows } = require("./recovery-sweep");
 
 /**
  * @param {object[]} rows — sanitized trace rows (same pipeline as export/dashboard)
@@ -95,6 +96,7 @@ function buildRunOutcomeSummary(rows, meta = {}) {
     : null;
 
   const reviewSummary = summarizeReviewRecordsFromRows(rows);
+  const recoverySummary = summarizeRecoveryFromRows(rows);
 
   return {
     schema_version: "1",
@@ -134,6 +136,28 @@ function buildRunOutcomeSummary(rows, meta = {}) {
       qa_substantive_blocker_steps: qaBlocker,
     },
     review: reviewSummary,
+    recovery: {
+      policy: "no_auto_retry",
+      computed_from: recoverySummary.computed_from || "full_trace",
+      clean: recoverySummary.clean,
+      finding_count: recoverySummary.finding_count,
+      blocks_auto_recovery: recoverySummary.blocks_auto_recovery,
+      summary: recoverySummary.summary,
+      findings: recoverySummary.findings.map((f) => ({
+        finding_kind: f.finding_kind,
+        severity: f.severity,
+        step_id: f.step_id ?? null,
+        description: f.description,
+      })),
+      historical_sweep: recoverySummary.sweep_event,
+      ...(recoverySummary.sweep_event != null
+        && recoverySummary.sweep_event.clean !== recoverySummary.clean
+        ? {
+          recompute_note:
+              "Export state is recomputed from the full trace; may differ from recovery_completed emitted before session_end.",
+        }
+        : {}),
+    },
     intent_groups,
   };
 }
@@ -223,6 +247,14 @@ function formatRunOutcomeSummaryLines(summary, opts = {}) {
     if (lastCerb && lastCerb.blockers?.length) {
       lines.push(`  blockers: ${lastCerb.blockers.slice(0, 3).join(" | ")}`);
     }
+  }
+  if (summary.recovery) {
+    const rec = summary.recovery;
+    const recDisp = use && !rec.clean ? ansi(true, 33, rec.summary) : rec.summary;
+    lines.push(
+      `recovery: clean=${rec.clean}  findings=${rec.finding_count}  policy=${rec.policy}`,
+    );
+    if (rec.summary) lines.push(`  ${recDisp}`);
   }
   if (summary.intent_groups && summary.intent_groups.length) {
     const ig = summary.intent_groups.slice(0, 6).map(

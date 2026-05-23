@@ -97,6 +97,7 @@ const {
   emitContextHygieneSignalsFromStats,
 } = require("./context-hygiene-signals");
 const { buildReviewRecord, traceReviewRecord } = require("./review-record");
+const { runRecoverySweepAndTrace } = require("./recovery-sweep");
 const { redactSensitivePlaintext } = require("./trace-redact");
 const { runMcpPermissionGate } = require("./security/mcp-permission-gate");
 const { runNetworkPermissionGate } = require("./security/network-permission-gate");
@@ -601,6 +602,22 @@ function transitionReason(type, details, meta = {}) {
     transition_reason.step_id = String(meta.step_id).slice(0, 240);
   }
   return { transition_reason };
+}
+
+function loadTraceRowsForTask(taskId) {
+  const filePath = path.join(TRACES_DIR, `${taskId}.jsonl`);
+  if (!fs.existsSync(filePath)) return [];
+  /** @type {object[]} */
+  const rows = [];
+  for (const line of fs.readFileSync(filePath, "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      rows.push(JSON.parse(line));
+    } catch {
+      /* skip malformed */
+    }
+  }
+  return rows;
 }
 
 function traceEvent(taskId, event) {
@@ -2636,6 +2653,10 @@ Reply with JSON only.`;
   const handoffFallbackAny = artifacts.some((a) => a.handoff_fallback_used === true);
   const mcpSummary = aggregateMcpUsage(_mcpAuditCalls);
   const permission_summary = aggregatePermissionCheckRows(_permissionCheckAuditBuffer);
+  const traceRows = loadTraceRowsForTask(taskId);
+  runRecoverySweepAndTrace(traceEvent, taskId, traceRows, {
+    lifecycleMode: "live_before_session_end",
+  });
   traceEvent(taskId, {
     event: "session_end",
     iterations,

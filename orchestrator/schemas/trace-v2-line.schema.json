@@ -313,6 +313,82 @@
     },
     {
       "if": {
+        "properties": { "event": { "const": "recovery_detected" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "recovery_schema_version",
+          "finding_kind",
+          "severity",
+          "description",
+          "blocks_auto_recovery"
+        ],
+        "properties": {
+          "recovery_schema_version": { "type": "string", "enum": ["1"] },
+          "finding_kind": {
+            "type": "string",
+            "enum": [
+              "missing_session_end",
+              "stranded_step",
+              "unresolved_ownership_handoff",
+              "pending_governance_approval",
+              "no_agent_steps"
+            ]
+          },
+          "severity": { "type": "string", "enum": ["info", "warn", "error"] },
+          "description": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "blocks_auto_recovery": { "type": "boolean" },
+          "step_id": { "type": "string", "maxLength": 240 },
+          "agent": { "type": "string", "maxLength": 128 },
+          "iteration": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "recovery_blocked" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "recovery_schema_version",
+          "policy",
+          "reason",
+          "finding_count"
+        ],
+        "properties": {
+          "recovery_schema_version": { "type": "string", "enum": ["1"] },
+          "policy": { "type": "string", "enum": ["no_auto_retry"] },
+          "reason": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "finding_count": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "recovery_completed" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "recovery_schema_version",
+          "policy",
+          "finding_count",
+          "clean",
+          "summary"
+        ],
+        "properties": {
+          "recovery_schema_version": { "type": "string", "enum": ["1"] },
+          "policy": { "type": "string", "enum": ["no_auto_retry"] },
+          "finding_count": { "type": "integer", "minimum": 0 },
+          "clean": { "type": "boolean" },
+          "summary": { "type": "string", "minLength": 1, "maxLength": 300 }
+        }
+      }
+    },
+    {
+      "if": {
         "allOf": [
           {
             "properties": { "event": { "const": "session_end" } },
