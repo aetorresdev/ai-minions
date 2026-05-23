@@ -96,6 +96,7 @@ const {
   createContextHygieneTracker,
   emitContextHygieneSignalsFromStats,
 } = require("./context-hygiene-signals");
+const { buildReviewRecord, traceReviewRecord } = require("./review-record");
 const { redactSensitivePlaintext } = require("./trace-redact");
 const { runMcpPermissionGate } = require("./security/mcp-permission-gate");
 const { runNetworkPermissionGate } = require("./security/network-permission-gate");
@@ -1933,8 +1934,23 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         output_chars: result.length,
         ...(stepDegraded ? { degraded: true } : {}),
       };
-      if (agentId === "qa") Object.assign(donePayload, qaAgentDoneTraceExtras(result));
+      if (agentId === "qa") {
+        Object.assign(donePayload, qaAgentDoneTraceExtras(result));
+      }
       traceEvent(taskId, donePayload);
+      if (agentId === "qa") {
+        traceReviewRecord(
+          traceEvent,
+          taskId,
+          buildReviewRecord({
+            reviewerRole: "qa",
+            output: result,
+            iteration: iterations,
+            stepId,
+            reviewedArtifactIds: [stepId],
+          }),
+        );
+      }
       setStepCompleted(runState);
       if (contextStats) {
         emitModelFallbackLifecycleIfNeeded(
@@ -2239,6 +2255,20 @@ nice-to-have: ...`;
         ...(gateId ? { gate_id: gateId } : {}),
       });
       log("cerberus", `🟥 Output contract failed: ${err.message}`);
+      traceReviewRecord(
+        traceEvent,
+        taskId,
+        buildReviewRecord({
+          reviewerRole: "cerberus",
+          output: "",
+          iteration: iterations,
+          gateBlocked: true,
+          gateReason: err.message,
+          reviewedArtifactIds: artifacts
+            .filter((a) => a.step_id && !a.gateBlocked)
+            .map((a) => a.step_id),
+        }),
+      );
       artifacts.push({
         agentId: "cerberus",
         task: "(session review) Deliverable review before decide",
@@ -2342,6 +2372,19 @@ nice-to-have: ...`;
     // If blockers exist and iterations remain → force iterate.
     // If no blockers → allow orchestrator to declare done.
     const cerberusBlockers = detectBlockers(cerberusResult);
+    const reviewedIds = artifacts
+      .filter((a) => a.step_id && !a.gateBlocked && a.agentId !== "cerberus")
+      .map((a) => a.step_id);
+    traceReviewRecord(
+      traceEvent,
+      taskId,
+      buildReviewRecord({
+        reviewerRole: "cerberus",
+        output: cerberusResult,
+        iteration: iterations,
+        reviewedArtifactIds: reviewedIds,
+      }),
+    );
     traceEvent(taskId, { event: "cerberus_check", iteration: iterations, blockers: cerberusBlockers.count, items: cerberusBlockers.items.slice(0, 5) });
 
     const cerbDecision = decideCerberusBlockersBranch({

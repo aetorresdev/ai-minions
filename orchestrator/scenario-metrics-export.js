@@ -122,6 +122,8 @@ function buildExportPayloadMeta() {
       "runs[].run_outcome_summary.why.top_reason_codes",
       "runs[].run_outcome_summary.cost",
       "runs[].run_outcome_summary.qa",
+      "runs[].run_outcome_summary.review.final_verdict",
+      "runs[].run_outcome_summary.review.records",
       "runs[].run_outcome_summary.intent_groups",
       "runs[].rollup_steps",
       "runs[].failure_taxonomy",

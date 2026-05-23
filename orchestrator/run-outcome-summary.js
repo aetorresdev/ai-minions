@@ -12,6 +12,7 @@ const {
   rollupStepsCostOutcome,
   summarizeFailureTaxonomyFromRows,
 } = require("./token-trace-report");
+const { summarizeReviewRecordsFromRows } = require("./review-record");
 
 /**
  * @param {object[]} rows — sanitized trace rows (same pipeline as export/dashboard)
@@ -93,6 +94,8 @@ function buildRunOutcomeSummary(rows, meta = {}) {
     ? lastIter.transition_reason
     : null;
 
+  const reviewSummary = summarizeReviewRecordsFromRows(rows);
+
   return {
     schema_version: "1",
     where: {
@@ -130,6 +133,7 @@ function buildRunOutcomeSummary(rows, meta = {}) {
       qa_triple_template_steps: qaTriple,
       qa_substantive_blocker_steps: qaBlocker,
     },
+    review: reviewSummary,
     intent_groups,
   };
 }
@@ -210,6 +214,16 @@ function formatRunOutcomeSummaryLines(summary, opts = {}) {
   const qaPlain = qaBits.length ? qaBits.join(" ") : "(no signals)";
   const qaDisp = use && qaBits.length ? ansi(true, 33, qaPlain) : qaPlain;
   lines.push(`qa:    ${qaDisp}`);
+  if (summary.review) {
+    const rv = summary.review;
+    lines.push(
+      `review: final=${rv.final_verdict ?? "-"}  cerberus=${rv.cerberus_verdict ?? "-"}  qa=${rv.qa_verdict ?? "-"}`,
+    );
+    const lastCerb = [...(rv.records || [])].reverse().find((r) => r.reviewer_role === "cerberus");
+    if (lastCerb && lastCerb.blockers?.length) {
+      lines.push(`  blockers: ${lastCerb.blockers.slice(0, 3).join(" | ")}`);
+    }
+  }
   if (summary.intent_groups && summary.intent_groups.length) {
     const ig = summary.intent_groups.slice(0, 6).map(
       (g) => `${g.intent_id ?? "(null)"}:${g.ollama_total_tokens}tok/${g.steps}st/${g.failed_steps}fail`,
