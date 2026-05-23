@@ -136,7 +136,7 @@ test("buildRunOutcomeSummary includes recovery section", () => {
   assert.equal(summary.recovery.policy, "no_auto_retry");
 });
 
-test("summarizeRecoveryFromRows reads recovery_completed from trace when present", () => {
+test("summarizeRecoveryFromRows: recompute is SoT; historical sweep kept when present", () => {
   const rows = [
     ...INCOMPLETE_RUN,
     {
@@ -149,6 +149,76 @@ test("summarizeRecoveryFromRows reads recovery_completed from trace when present
     },
   ];
   const s = summarizeRecoveryFromRows(rows);
+  assert.equal(s.computed_from, "full_trace");
+  assert.equal(s.clean, false);
+  assert.equal(s.finding_count, 2);
   assert.ok(s.sweep_event);
-  assert.equal(s.sweep_event.finding_count, 2);
+  assert.equal(s.sweep_event.clean, false);
+});
+
+test("summarizeRecoveryFromRows: full trace with session_end overrides false historical sweep", () => {
+  const rowsBeforeEnd = [
+    { event: "session_start", task_id: "t-live" },
+    { event: "agent_start", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
+    { event: "agent_done", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
+  ];
+  const rows = [
+    ...rowsBeforeEnd,
+    {
+      event: "recovery_completed",
+      policy: "no_auto_retry",
+      finding_count: 1,
+      clean: false,
+      summary: "false positive from live_before_session_end era",
+    },
+    { event: "session_end", task_id: "t-live", done: true, iterations: 1 },
+  ];
+  const s = summarizeRecoveryFromRows(rows);
+  assert.equal(s.clean, true);
+  assert.equal(s.sweep_event.clean, false);
+});
+
+const ROWS_BEFORE_SESSION_END = [
+  { event: "session_start", task_id: "t-live" },
+  { event: "agent_start", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
+  { event: "agent_done", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
+];
+
+test("live_before_session_end: healthy run does not false-flag missing_session_end", () => {
+  /** @type {object[]} */
+  const emitted = [];
+  runRecoverySweepAndTrace(
+    (_id, ev) => emitted.push(ev),
+    "t-live",
+    ROWS_BEFORE_SESSION_END,
+    { lifecycleMode: "live_before_session_end" },
+  );
+  assert.equal(
+    emitted.filter((e) => e.event === "recovery_detected" && e.finding_kind === "missing_session_end").length,
+    0,
+  );
+  assert.equal(emitted.filter((e) => e.event === "recovery_blocked").length, 0);
+  const completed = emitted.find((e) => e.event === "recovery_completed");
+  assert.ok(completed);
+  assert.equal(completed.clean, true);
+  assert.equal(completed.finding_count, 0);
+});
+
+test("live_before_session_end: still detects stranded_step", () => {
+  const rows = [
+    { event: "session_start", task_id: "t-live" },
+    { event: "agent_start", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
+    { event: "agent_done", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
+    { event: "agent_start", task_id: "t-live", step_id: "s2", agent: "qa", iteration: 1 },
+  ];
+  /** @type {object[]} */
+  const emitted = [];
+  runRecoverySweepAndTrace(
+    (_id, ev) => emitted.push(ev),
+    "t-live",
+    rows,
+    { lifecycleMode: "live_before_session_end" },
+  );
+  assert.ok(emitted.some((e) => e.event === "recovery_detected" && e.finding_kind === "stranded_step"));
+  assert.ok(emitted.some((e) => e.event === "recovery_blocked"));
 });

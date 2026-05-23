@@ -69,15 +69,16 @@ function detectStrandedSteps(rows) {
 
 /**
  * @param {object[]} rows
+ * @param {{ skipMissingSessionEnd?: boolean }} [opts]
  * @returns {object[]}
  */
-function detectSessionLifecycle(rows) {
+function detectSessionLifecycle(rows, opts = {}) {
   const hasStart = rows.some((r) => r && r.event === "session_start");
   const hasEnd = rows.some((r) => r && r.event === "session_end");
   /** @type {object[]} */
   const findings = [];
 
-  if (hasStart && !hasEnd) {
+  if (!opts.skipMissingSessionEnd && hasStart && !hasEnd) {
     findings.push({
       finding_kind: "missing_session_end",
       severity: "error",
@@ -133,12 +134,18 @@ function detectHandoffAndGovernance(rows) {
 
 /**
  * @param {object[]} rows
- * @returns {{ findings: object[], finding_count: number, blocks_auto_recovery: boolean, clean: boolean, summary: string }}
+ * @param {{ lifecycleMode?: "post_hoc" | "live_before_session_end" }} [opts]
+ * @returns {{ findings: object[], finding_count: number, blocks_auto_recovery: boolean, clean: boolean, summary: string, lifecycle_mode: string }}
  */
-function analyzeRecoveryFromRows(rows) {
+function analyzeRecoveryFromRows(rows, opts = {}) {
+  const lifecycleMode = opts.lifecycleMode === "live_before_session_end"
+    ? "live_before_session_end"
+    : "post_hoc";
   const safe = Array.isArray(rows) ? rows : [];
   const findings = [
-    ...detectSessionLifecycle(safe),
+    ...detectSessionLifecycle(safe, {
+      skipMissingSessionEnd: lifecycleMode === "live_before_session_end",
+    }),
     ...detectStrandedSteps(safe),
     ...detectHandoffAndGovernance(safe),
   ].slice(0, MAX_FINDINGS);
@@ -159,15 +166,19 @@ function analyzeRecoveryFromRows(rows) {
     blocks_auto_recovery,
     clean,
     summary,
+    lifecycle_mode: lifecycleMode,
   };
 }
 
 /**
+ * Post-hoc / export: recompute from full trace is source of truth.
+ * `sweep_event` is the last `recovery_completed` row when present (historical evidence only).
+ *
  * @param {object[]} rows
- * @returns {{ findings: object[], finding_count: number, blocks_auto_recovery: boolean, clean: boolean, summary: string, sweep_event: object | null }}
+ * @returns {{ findings: object[], finding_count: number, blocks_auto_recovery: boolean, clean: boolean, summary: string, sweep_event: object | null, computed_from: string }}
  */
 function summarizeRecoveryFromRows(rows) {
-  const analysis = analyzeRecoveryFromRows(rows);
+  const analysis = analyzeRecoveryFromRows(rows, { lifecycleMode: "post_hoc" });
   /** @type {object | null} */
   let sweep_event = null;
   for (let i = rows.length - 1; i >= 0; i--) {
@@ -185,6 +196,7 @@ function summarizeRecoveryFromRows(rows) {
 
   return {
     ...analysis,
+    computed_from: "full_trace",
     sweep_event,
   };
 }
@@ -241,10 +253,14 @@ function traceRecoverySweepOutcome(traceEvent, taskId, analysis) {
  * @param {(taskId: string, ev: Record<string, unknown>) => void} traceEvent
  * @param {string} taskId
  * @param {object[]} rows
+ * @param {{ lifecycleMode?: "post_hoc" | "live_before_session_end" }} [opts]
  * @returns {ReturnType<typeof analyzeRecoveryFromRows>}
  */
-function runRecoverySweepAndTrace(traceEvent, taskId, rows) {
-  const analysis = analyzeRecoveryFromRows(rows);
+function runRecoverySweepAndTrace(traceEvent, taskId, rows, opts = {}) {
+  const lifecycleMode = opts.lifecycleMode === "live_before_session_end"
+    ? "live_before_session_end"
+    : "post_hoc";
+  const analysis = analyzeRecoveryFromRows(rows, { lifecycleMode });
   for (const finding of analysis.findings) {
     traceRecoveryDetected(traceEvent, taskId, finding);
   }

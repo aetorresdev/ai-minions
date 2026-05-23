@@ -138,6 +138,7 @@ function buildRunOutcomeSummary(rows, meta = {}) {
     review: reviewSummary,
     recovery: {
       policy: "no_auto_retry",
+      computed_from: recoverySummary.computed_from || "full_trace",
       clean: recoverySummary.clean,
       finding_count: recoverySummary.finding_count,
       blocks_auto_recovery: recoverySummary.blocks_auto_recovery,
@@ -148,7 +149,14 @@ function buildRunOutcomeSummary(rows, meta = {}) {
         step_id: f.step_id ?? null,
         description: f.description,
       })),
-      sweep_event: recoverySummary.sweep_event,
+      historical_sweep: recoverySummary.sweep_event,
+      ...(recoverySummary.sweep_event != null
+        && recoverySummary.sweep_event.clean !== recoverySummary.clean
+        ? {
+          recompute_note:
+              "Export state is recomputed from the full trace; may differ from recovery_completed emitted before session_end.",
+        }
+        : {}),
     },
     intent_groups,
   };

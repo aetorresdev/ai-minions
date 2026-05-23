@@ -2654,7 +2654,9 @@ Reply with JSON only.`;
   const mcpSummary = aggregateMcpUsage(_mcpAuditCalls);
   const permission_summary = aggregatePermissionCheckRows(_permissionCheckAuditBuffer);
   const traceRows = loadTraceRowsForTask(taskId);
-  runRecoverySweepAndTrace(traceEvent, taskId, traceRows);
+  runRecoverySweepAndTrace(traceEvent, taskId, traceRows, {
+    lifecycleMode: "live_before_session_end",
+  });
   traceEvent(taskId, {
     event: "session_end",
     iterations,
