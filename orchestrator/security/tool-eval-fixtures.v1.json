@@ -1,0 +1,185 @@
+{
+  "version": "tool-eval-fixtures.orchestrator.v1",
+  "scenarios": [
+    {
+      "id": "filesystem_cat_read_dev",
+      "family": "filesystem",
+      "intent": "correct_tool_and_argv",
+      "description": "Read repo file via cat — classify read, dev-local allows",
+      "executable": "cat",
+      "args": ["README.md"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "filesystem",
+        "action_class": "read",
+        "domain": "filesystem",
+        "decision": "allow"
+      }
+    },
+    {
+      "id": "git_status_dev_allow",
+      "family": "git",
+      "intent": "correct_tool_and_argv",
+      "description": "git status — read under git domain, dev-local allows",
+      "executable": "git",
+      "args": ["status"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "git",
+        "action_class": "read",
+        "domain": "git",
+        "decision": "allow"
+      }
+    },
+    {
+      "id": "git_push_ci_safe_permission_denied",
+      "family": "git",
+      "intent": "permission_policy",
+      "description": "git push classifies correctly but ci-safe denies external_side_effect",
+      "executable": "git",
+      "args": ["push"],
+      "permission_profile": "ci-safe",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "git",
+        "action_class": "external_side_effect",
+        "domain": "git",
+        "decision": "deny"
+      }
+    },
+    {
+      "id": "terraform_plan_dev_allow",
+      "family": "terraform",
+      "intent": "correct_tool_and_argv",
+      "description": "terraform plan — manifest simulate, dev-local allows",
+      "executable": "terraform",
+      "args": ["plan"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "terraform",
+        "action_class": "simulate",
+        "target_class": "cloud_infra",
+        "domain": "filesystem",
+        "decision": "allow"
+      }
+    },
+    {
+      "id": "terraform_apply_ci_safe_permission_denied",
+      "family": "terraform",
+      "intent": "permission_policy",
+      "description": "terraform apply classifies external_side_effect; ci-safe denies",
+      "executable": "terraform",
+      "args": ["apply", "-auto-approve"],
+      "permission_profile": "ci-safe",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "terraform",
+        "action_class": "external_side_effect",
+        "target_class": "cloud_infra",
+        "domain": "filesystem",
+        "decision": "deny"
+      }
+    },
+    {
+      "id": "kubectl_get_dev_allow",
+      "family": "kubectl",
+      "intent": "correct_tool_and_argv",
+      "description": "kubectl get pods — read, dev-local allows",
+      "executable": "kubectl",
+      "args": ["get", "pods"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "kubectl",
+        "action_class": "read",
+        "domain": "filesystem",
+        "decision": "allow"
+      }
+    },
+    {
+      "id": "kubectl_apply_ci_safe_permission_denied",
+      "family": "kubectl",
+      "intent": "permission_policy",
+      "description": "kubectl apply — external_side_effect denied on ci-safe",
+      "executable": "kubectl",
+      "args": ["apply", "-f", "deploy.yaml"],
+      "permission_profile": "ci-safe",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "kubectl",
+        "action_class": "external_side_effect",
+        "domain": "filesystem",
+        "decision": "deny"
+      }
+    },
+    {
+      "id": "unknown_executable_tool_selection",
+      "family": "unknown",
+      "intent": "wrong_tool",
+      "description": "Unknown binary — unknown tool, deny (tool selection failure)",
+      "executable": "/bin/obscure-tool-xyz-TOOL-EVAL",
+      "args": ["run"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": null,
+        "action_class": "unknown",
+        "domain": "filesystem",
+        "decision": "deny"
+      }
+    },
+    {
+      "id": "docker_bad_subcommand_tool_selection",
+      "family": "docker",
+      "intent": "bad_parameters",
+      "description": "Known tool but unmatched argv — unknown action (selection/argv failure)",
+      "executable": "docker",
+      "args": ["nonexistent_subcommand_xyz"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "docker",
+        "action_class": "unknown",
+        "domain": "filesystem",
+        "decision": "deny"
+      }
+    },
+    {
+      "id": "git_diff_wrong_tool_for_infra_intent",
+      "family": "git",
+      "intent": "wrong_tool",
+      "description": "Agent picked git for an op that needed terraform — classification passes but wrong tool family for infra mutate",
+      "executable": "git",
+      "args": ["diff"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "git",
+        "action_class": "read",
+        "domain": "git",
+        "decision": "allow"
+      },
+      "note": "Harness eval flags wrong-tool intent via fixture metadata; runtime still allows read"
+    },
+    {
+      "id": "manifest_incomplete_tool_unknown",
+      "family": "manifest",
+      "intent": "incomplete_metadata",
+      "description": "Tool entry without rules/adapter — any argv yields unknown action",
+      "executable": "stub-no-rules",
+      "args": ["ping"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "use_test_manifest": "incomplete_tool",
+      "expected": {
+        "tool_id": "stub_no_rules",
+        "action_class": "unknown",
+        "domain": "filesystem",
+        "decision": "deny"
+      }
+    }
+  ]
+}
