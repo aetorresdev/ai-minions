@@ -15,7 +15,7 @@ ai-minions treats the LLM as **one component inside a controlled execution harne
 
 ### 1. Context layer
 
-What the model sees in each inference:
+What the model sees in each inference — **assembly rules:** [context-package-contract.md](context-package-contract.md).
 
 - `compact_handoff` and structured handoff YAML
 - Selected files and minimal file packages
@@ -29,7 +29,7 @@ What survives across steps and runs:
 - Trace JSONL (`~/.claude/metrics/traces`, schema versioning)
 - State MCP / disk-backed envelope (`orchestrator-state`)
 - Run summaries and session snapshots
-- A future local unified store (evaluation tracked as a post-alpha backlog item)
+- Storage decision: [memory-store-decision.md](memory-store-decision.md) — separated planes; no unified DB in v0.1.x
 
 ### 3. Control layer
 

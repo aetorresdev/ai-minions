@@ -215,7 +215,8 @@ under a malicious goal."
 
 Planned or post-alpha unless code says otherwise:
 
-- Durable session log / resumability — **contract + export** in [session-resume-contract.md](session-resume-contract.md); harness emit path optional follow-up.
+- Unified local memory DB — **decision doc** [memory-store-decision.md](memory-store-decision.md): **no-go** for merged store in v0.1.x; trace JSONL stays SoT; optional future index only (not approved for implementation in design PR).
+- Context package assembly — **contract** [context-package-contract.md](context-package-contract.md): design-only; no runtime builder in v0.1.x.
 - Sandbox boundary for arbitrary code separate from policy text only.
 - Credential isolation via vault or proxy patterns.
 - Tool misuse evaluations beyond static classification.
