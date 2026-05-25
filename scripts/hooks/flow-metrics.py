@@ -34,8 +34,8 @@ CLAUDE_HOME  = Path.home() / ".claude"
 METRICS_FILE = CLAUDE_HOME / "metrics" / "flow-metrics.jsonl"
 
 
-def session_id() -> str:
-    """Non-empty when host or orchestrator bridge provides session identity."""
+def session_id(transcript: Path | None = None) -> str:
+    """Non-empty when host, orchestrator bridge, or transcript path provides identity."""
     sid = (os.environ.get("CLAUDE_SESSION_ID") or "").strip()
     if sid:
         return sid
@@ -46,6 +46,36 @@ def session_id() -> str:
     ctx = load_orch_run_context()
     if ctx.get("session_id"):
         return str(ctx["session_id"]).strip()
+    if transcript is not None:
+        stem = transcript.stem
+        if re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            stem,
+        ):
+            return stem
+    return ""
+
+
+def derive_scope_from_goal(goal: str) -> tuple[str, str | None]:
+    g = (goal or "").strip()
+    epic = re.search(r"\b(?:epic|scope)\s*:\s*(.+)", g, re.I)
+    if epic and epic.group(1).strip():
+        return epic.group(1).strip()[:200], None
+    if len(g) >= 12:
+        return g[:120], None
+    return "unknown", "goal_too_short_for_scope_derivation"
+
+
+def message_text(msg: dict) -> str:
+    content = msg.get("content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(
+            block.get("text", "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
     return ""
 
 
@@ -61,9 +91,15 @@ def load_orch_run_context() -> dict:
     return raw if isinstance(raw, dict) else {}
 
 sys.path.insert(0, str(Path(__file__).parent))
-from constants import MODE_RE, PRICE  # noqa: E402
+from constants import (  # noqa: E402
+    MODE_RE,
+    PRICE,
+    FALLBACK_PRICING_PROFILE,
+    cost_from_tokens,
+    resolve_pricing_profile,
+)
 
-# Sonnet 4.6 pricing (per million tokens, as of 2026-04)
+# Sonnet 4.6 pricing (per million tokens, as of 2026-04) — default when model unknown
 PRICE_INPUT_PER_M  = PRICE["input"]
 PRICE_OUTPUT_PER_M = PRICE["output"]
 PRICE_CACHE_WRITE  = PRICE["cache_w"]
@@ -177,27 +213,27 @@ def hook_state_root() -> Path:
     return Path(PROJECT_DIR).resolve() / ".claude" / "flow-hook-state"
 
 
-def hook_state_path() -> Path:
+def hook_state_path(transcript: Path | None = None) -> Path:
     """Requires non-empty session_id(); callers must guard."""
-    sid = session_id()
+    sid = session_id(transcript)
     if not sid:
-        raise RuntimeError("hook_state_path requires CLAUDE_SESSION_ID")
+        raise RuntimeError("hook_state_path requires session identity")
     root = hook_state_root()
     root.mkdir(parents=True, exist_ok=True)
     safe = re.sub(r"[^\w\-.]+", "_", sid)[:120]
     return root / f"{safe}.json"
 
 
-def load_hook_state() -> tuple[dict, list[str]]:
+def load_hook_state(transcript: Path | None = None) -> tuple[dict, list[str]]:
     """
-    Load and sanitize persisted state. Without CLAUDE_SESSION_ID, returns defaults
+    Load and sanitize persisted state. Without session identity, returns defaults
     and does not touch disk (CERBERUS: avoid shared no_session_id contamination).
     """
     warnings: list[str] = []
-    if not session_id():
+    if not session_id(transcript):
         return default_hook_state(), warnings
 
-    p = hook_state_path()
+    p = hook_state_path(transcript)
     if not p.exists():
         return default_hook_state(), warnings
 
@@ -215,11 +251,11 @@ def load_hook_state() -> tuple[dict, list[str]]:
     return clean, warnings
 
 
-def save_hook_state(state: dict) -> None:
-    if not session_id():
+def save_hook_state(state: dict, transcript: Path | None = None) -> None:
+    if not session_id(transcript):
         return
     try:
-        hook_state_path().write_text(
+        hook_state_path(transcript).write_text(
             json.dumps(state, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
@@ -232,6 +268,7 @@ def merge_flow_report(
     persisted: dict,
     line_count: int,
     load_warnings: list[str] | None = None,
+    transcript: Path | None = None,
 ) -> tuple[dict, dict]:
     """
     Merge transcript parse with per-session persisted flow / dev_qa peaks.
@@ -242,8 +279,8 @@ def merge_flow_report(
     """
     load_warnings = list(load_warnings or [])
     orch_ctx = load_orch_run_context()
-    # Without CLAUDE_SESSION_ID, never trust caller-supplied persisted state (CERBERUS).
-    if not session_id():
+    # Without session identity, never trust caller-supplied persisted state (CERBERUS).
+    if not session_id(transcript):
         st = default_hook_state()
     else:
         st = dict(persisted)
@@ -258,6 +295,10 @@ def merge_flow_report(
     scope_unknown_reason = orch_ctx.get("scope_unknown_reason") if isinstance(
         orch_ctx.get("scope_unknown_reason"), str
     ) else None
+    if not scope_value and parsed.get("session_goal"):
+        scope_value, goal_reason = derive_scope_from_goal(parsed["session_goal"])
+        if goal_reason and not scope_unknown_reason:
+            scope_unknown_reason = goal_reason
     if flow_tx:
         transcript_scope = "full"
         flow_source = "transcript"
@@ -307,6 +348,8 @@ def merge_flow_report(
         merged["scope"] = scope_value
     if scope_unknown_reason:
         merged["scope_unknown_reason"] = scope_unknown_reason
+    if parsed.get("models_usage"):
+        merged["models_usage"] = parsed["models_usage"]
     return merged, st
 
 
@@ -323,7 +366,19 @@ def parse_transcript(path: Path) -> dict:
     goal_aligned_count = 0
     blockers_found   = 0
     model_time_s     = 0.0   # sum of user→assistant gaps (inference time only)
+    models_usage: dict[str, dict[str, int]] = {}
     _last_user_ts = None  # datetime | None
+
+    def bump_model_usage(model: str, inp: int, out: int, cw: int, cr: int):
+        key = model or "unknown"
+        bucket = models_usage.setdefault(
+            key,
+            {"input": 0, "output": 0, "cache_write": 0, "cache_read": 0},
+        )
+        bucket["input"] += inp
+        bucket["output"] += out
+        bucket["cache_write"] += cw
+        bucket["cache_read"] += cr
 
     def flush():
         nonlocal current
@@ -350,6 +405,26 @@ def parse_transcript(path: Path) -> dict:
                 except Exception:
                     pass
 
+                msg = entry.get("message", {})
+                user_text = message_text(msg)
+                if user_text:
+                    if not flow_from_transcript:
+                        f_match = FLOW_RE.search(user_text)
+                        if f_match:
+                            flow_from_transcript = f_match.group(1)
+                    if not session_goal:
+                        g_match = GOAL_RE.search(user_text)
+                        if g_match:
+                            session_goal = g_match.group(1).strip()[:120]
+
+                msg_content = msg.get("content", [])
+                if isinstance(msg_content, list):
+                    for block in msg_content:
+                        if isinstance(block, dict) and block.get("type") == "tool_result":
+                            result_content = block.get("content", "")
+                            if isinstance(result_content, str) and ALIGNED_RE.search(result_content):
+                                goal_aligned_count += 1
+
             if etype == "assistant":
                 if _last_user_ts and ts_raw:
                     try:
@@ -373,6 +448,7 @@ def parse_transcript(path: Path) -> dict:
                 total_output += out
                 total_cache_w += cw
                 total_cache_r += cr
+                bump_model_usage(msg.get("model", "unknown"), inp, out, cw, cr)
 
                 text = " ".join(
                     c.get("text", "") for c in content
@@ -410,6 +486,15 @@ def parse_transcript(path: Path) -> dict:
                     if isinstance(block, dict) and block.get("type") == "tool_use":
                         if "compact_handoff" in block.get("name", ""):
                             handoff_count += 1
+                        if "register_task" in block.get("name", ""):
+                            tool_in = block.get("input") or {}
+                            if isinstance(tool_in, dict):
+                                if not flow_from_transcript:
+                                    fm = tool_in.get("flow_mode")
+                                    if isinstance(fm, str) and fm in VALID_FLOWS:
+                                        flow_from_transcript = fm
+                                if not session_goal and isinstance(tool_in.get("goal"), str):
+                                    session_goal = tool_in["goal"].strip()[:120]
 
                 # goal alignment results (in tool results from user entries — checked below)
                 # blockers in text
@@ -421,16 +506,6 @@ def parse_transcript(path: Path) -> dict:
                     current["output_tokens"] += out
                     current["cache_write"]   += cw
                     current["cache_read"]    += cr
-
-            # Tool results (validate_goal_alignment responses come as user toolUseResult)
-            elif etype == "user":
-                msg_content = entry.get("message", {}).get("content", [])
-                if isinstance(msg_content, list):
-                    for block in msg_content:
-                        if isinstance(block, dict) and block.get("type") == "tool_result":
-                            result_content = block.get("content", "")
-                            if isinstance(result_content, str) and ALIGNED_RE.search(result_content):
-                                goal_aligned_count += 1
 
     flush()
 
@@ -460,28 +535,104 @@ def parse_transcript(path: Path) -> dict:
         "goal_aligned_count": goal_aligned_count,
         "blockers_found":     blockers_found,
         "model_time_s":       round(model_time_s),
+        "models_usage":       models_usage,
     }
 
 # ── Cost estimate ─────────────────────────────────────────────────────────────
-def estimate_cost(d: dict) -> float:
-    return (
-        d["total_input"]   / 1_000_000 * PRICE_INPUT_PER_M  +
-        d["total_output"]  / 1_000_000 * PRICE_OUTPUT_PER_M +
-        d["total_cache_w"] / 1_000_000 * PRICE_CACHE_WRITE  +
-        d["total_cache_r"] / 1_000_000 * PRICE_CACHE_READ
+def build_cost_estimate(data: dict) -> dict:
+    """
+    USD estimate from token counts + transcript model ids.
+    Never claims billing accuracy; exposes cost_confidence explicitly.
+    """
+    models_usage = data.get("models_usage") or {}
+    orch_ctx = load_orch_run_context()
+    ctx_model = orch_ctx.get("primary_model") if isinstance(orch_ctx.get("primary_model"), str) else None
+
+    if not models_usage:
+        cost = cost_from_tokens(
+            data["total_input"],
+            data["total_output"],
+            data["total_cache_w"],
+            data["total_cache_r"],
+            PRICE,
+        )
+        return {
+            "cost_usd": cost,
+            "primary_model": ctx_model,
+            "pricing_profile": FALLBACK_PRICING_PROFILE,
+            "cost_confidence": "low",
+            "pricing_source": "transcript_no_model_field",
+            "provider": "anthropic",
+            "pricing_basis": "no model in transcript; Sonnet 4.6 fallback",
+        }
+
+    total = 0.0
+    profiles: set[str] = set()
+    model_ids: list[str] = []
+    any_unknown = False
+    for model, usage in sorted(models_usage.items()):
+        price, profile, matched = resolve_pricing_profile(model)
+        if not matched:
+            any_unknown = True
+        profiles.add(profile)
+        model_ids.append(model)
+        total += cost_from_tokens(
+            usage.get("input", 0),
+            usage.get("output", 0),
+            usage.get("cache_write", 0),
+            usage.get("cache_read", 0),
+            price,
+        )
+
+    primary_model = model_ids[0] if len(model_ids) == 1 else (ctx_model or "mixed")
+    if len(profiles) == 1:
+        pricing_profile = next(iter(profiles))
+    else:
+        pricing_profile = "mixed_models"
+
+    if any_unknown:
+        cost_confidence = "low"
+    elif len(model_ids) == 1:
+        _, _, matched = resolve_pricing_profile(model_ids[0])
+        cost_confidence = "estimated_model_matched" if matched else "low"
+    else:
+        cost_confidence = "mixed_models"
+
+    basis = (
+        f"{primary_model} → {pricing_profile}"
+        if cost_confidence == "estimated_model_matched"
+        else f"{len(model_ids)} models ({pricing_profile}); check cost_confidence"
     )
 
+    return {
+        "cost_usd": total,
+        "primary_model": primary_model,
+        "pricing_profile": pricing_profile,
+        "cost_confidence": cost_confidence,
+        "pricing_source": "transcript_message_model",
+        "provider": "anthropic",
+        "pricing_basis": basis,
+    }
+
+
+def estimate_cost(data: dict) -> tuple[float, str]:
+    """Backward-compatible wrapper."""
+    meta = build_cost_estimate(data)
+    return meta["cost_usd"], meta["pricing_basis"]
+
 # ── Persist ───────────────────────────────────────────────────────────────────
-def save_record(data: dict, transcript: Path, cost: float):
+def save_record(data: dict, transcript: Path, cost_meta: dict):
     METRICS_FILE.parent.mkdir(parents=True, exist_ok=True)
     record = {
         "ts":                 datetime.now(timezone.utc).isoformat(),
-        "session_id":         session_id(),
+        "session_id":         session_id(transcript),
         "transcript":         str(transcript),
         "project":            PROJECT_DIR,
         "flow_mode":          data["flow_mode"],
         "transcript_scope":   data.get("transcript_scope", "unknown"),
         "flow_source":        data.get("flow_source", "none"),
+        "scope":              data.get("scope"),
+        "scope_unknown_reason": data.get("scope_unknown_reason"),
         "flow_from_transcript": data.get("flow_from_transcript"),
         "session_goal":       data["session_goal"],
         "phases":             data["phases"],
@@ -500,7 +651,14 @@ def save_record(data: dict, transcript: Path, cost: float):
             "cache_write": data["total_cache_w"],
             "cache_read":  data["total_cache_r"],
         },
-        "cost_usd":            round(cost, 4),
+        "cost_usd":            round(cost_meta["cost_usd"], 4),
+        "primary_model":       cost_meta.get("primary_model"),
+        "pricing_profile":     cost_meta.get("pricing_profile"),
+        "cost_confidence":     cost_meta.get("cost_confidence"),
+        "pricing_source":      cost_meta.get("pricing_source"),
+        "provider":            cost_meta.get("provider"),
+        "pricing_basis":       cost_meta.get("pricing_basis"),
+        "models_seen":         sorted((data.get("models_usage") or {}).keys()),
         "model_time_s":        data["model_time_s"],
     }
     with open(METRICS_FILE, "a") as f:
@@ -508,10 +666,10 @@ def save_record(data: dict, transcript: Path, cost: float):
     return record
 
 # ── Human-readable summary ────────────────────────────────────────────────────
-def format_summary(data: dict, cost: float) -> str:
-    scope = data.get("transcript_scope", "")
+def format_summary(data: dict, cost: float, pricing_basis: str = "") -> str:
+    scope_disp = data.get("scope") or data.get("transcript_scope", "")
     src = data.get("flow_source", "")
-    scope_note = f" | scope={scope}" if scope else ""
+    scope_note = f" | scope={scope_disp}" if scope_disp else ""
     src_note = f" | flow_src={src}" if src else ""
     lines = [
         f"Flow metrics [{data['flow_mode']}]{scope_note}{src_note}"
@@ -544,20 +702,30 @@ def format_summary(data: dict, cost: float) -> str:
     lines.append(f"  Goal aligned: {data['goal_aligned_count']} validations passed")
     lines.append(f"  Blockers found: {data['blockers_found']}")
 
+    pm = data.get("primary_model")
+    if pm:
+        lines.append(f"  Model: {pm}")
+    lines.append(
+        f"  Pricing profile: {data.get('pricing_profile', '?')} | "
+        f"Cost confidence: {data.get('cost_confidence', '?')}"
+    )
+
     total_tok = data["total_input"] + data["total_output"]
     total_with_cache = total_tok + data["total_cache_w"] + data["total_cache_r"]
     mt = data["model_time_s"]
     mt_fmt = f"{mt // 60:.0f}m {mt % 60:.0f}s" if mt >= 60 else f"{mt:.0f}s"
     lines.append(f"  Model time: {mt_fmt} (inference only, AFK excluded)")
+    basis = pricing_basis or data.get("pricing_basis") or "Sonnet 4.6 default"
+    conf = data.get("cost_confidence", "?")
     lines.append(
         f"  Tokens (input+output): {total_tok:,} | with cache R/W: {total_with_cache:,} "
-        f"(~${cost:.4f} USD **estimated** from transcript counts × PRICE; not billing)"
+        f"(~${cost:.4f} USD **estimated**; {basis}; confidence={conf}; not billing)"
     )
     lines.append(f"  Saved to: {METRICS_FILE}")
     return "\n".join(lines)
 
 
-def format_end_of_run_validation(data: dict) -> str:
+def format_end_of_run_validation(data: dict, transcript: Path | None = None) -> str:
     """
     Concise end-of-run validation footer — warning flags and trust caveats.
     Non-blocking; informational only.
@@ -570,14 +738,17 @@ def format_end_of_run_validation(data: dict) -> str:
     else:
         lines.append("Status: OK (no warning flags on this run)")
     lines.append(
-        "Phase/MODE rows: inferred from transcript assistant text (MODE:/ROLE: regex); "
-        "best-effort. «No MODE declarations» means none matched — not proof none existed."
+        "Phase/MODE rows: inferred from transcript (user FLOW/GOAL + assistant MODE); best-effort."
     )
+    conf = data.get("cost_confidence", "?")
+    profile = data.get("pricing_profile", "?")
+    pm = data.get("primary_model") or "unknown"
     lines.append(
-        "Tokens: observed from transcript usage fields. USD: estimated via constants.PRICE "
-        "(not billing; pricing drift possible)."
+        f"Cost: transcript usage × list rates. Model: {pm} | Profile: {profile} | "
+        f"Confidence: {conf} (not billing)."
     )
-    sid = session_id()
+    sid = session_id(transcript)
+    scope_disp = _scope_display(data)
     lines.append(
         f"Session id: {'present' if sid else 'missing'} — "
         + (
@@ -588,9 +759,13 @@ def format_end_of_run_validation(data: dict) -> str:
     )
     lines.append(
         f"Flow field: {data.get('flow_mode', '?')} "
-        f"(source={data.get('flow_source', '?')}, scope={data.get('transcript_scope', '?')})"
+        f"(source={data.get('flow_source', '?')}, scope={scope_disp})"
     )
     return "\n".join(lines)
+
+
+def _scope_display(data: dict) -> str:
+    return str(data.get("scope") or data.get("transcript_scope") or "?")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -599,16 +774,27 @@ def main():
     if not transcript:
         sys.exit(0)  # silent — no transcript found
 
+    sid = session_id(transcript)
     n_lines = transcript_line_count(transcript)
-    persisted, load_warnings = load_hook_state()
+    persisted, load_warnings = load_hook_state(transcript)
     parsed = parse_transcript(transcript)
-    data, new_state = merge_flow_report(parsed, persisted, n_lines, load_warnings=load_warnings)
-    save_hook_state(new_state)
-    cost = estimate_cost(data)
+    data, new_state = merge_flow_report(
+        parsed, persisted, n_lines, load_warnings=load_warnings, transcript=transcript,
+    )
+    save_hook_state(new_state, transcript)
+    cost_meta = build_cost_estimate(data)
+    data.update(cost_meta)
+
+    # Pricing trust warnings
+    if cost_meta.get("cost_confidence") == "low":
+        tw = list(data.get("warnings", []))
+        if "pricing_low_confidence" not in tw:
+            tw.append("pricing_low_confidence")
+        data["warnings"] = tw
 
     # Always save if there are tokens to report
     total_tok = data["total_input"] + data["total_output"]
-    if not session_id() and total_tok > 0:
+    if not sid and total_tok > 0:
         tw = list(data.get("warnings", []))
         if "missing_session_id" not in tw:
             tw.append("missing_session_id")
@@ -617,12 +803,14 @@ def main():
     if total_tok == 0:
         sys.exit(0)
 
-    save_record(data, transcript, cost)
-    summary = format_summary(data, cost) + "\n\n" + format_end_of_run_validation(data)
+    save_record(data, transcript, cost_meta)
+    summary = format_summary(
+        data, cost_meta["cost_usd"], cost_meta.get("pricing_basis", ""),
+    ) + "\n\n" + format_end_of_run_validation(data, transcript)
 
     # Clean up orchestrator session flag
     try:
-        flag = Path(os.path.expanduser("~/.claude/metrics")) / f"orch-session-{session_id()}.flag"
+        flag = Path(os.path.expanduser("~/.claude/metrics")) / f"orch-session-{sid}.flag"
         flag.unlink(missing_ok=True)
     except Exception:
         pass
