@@ -172,6 +172,18 @@ test("buildReviewRecord: QA with browser verified marker", () => {
   assert.equal(r.qa_verification_level, "browser_verified");
 });
 
+test("buildReviewRecord: QA negative browser phrase stays static_pass_browser_pending", () => {
+  const r = buildReviewRecord({
+    reviewerRole: "qa",
+    output:
+      "blocker: none\nimprovement: none\nnice-to-have: none\n"
+      + "Browser execution not performed; manual QA required",
+    iteration: 1,
+  });
+  assert.equal(r.verdict, "approve");
+  assert.equal(r.qa_verification_level, "static_pass_browser_pending");
+});
+
 test("summarizeReviewRecordsFromRows flags browser_verification_pending for static QA pass", () => {
   const rows = [
     {

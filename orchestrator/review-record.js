@@ -15,10 +15,18 @@ const FINDING_KEYWORD_RE = /\b(blocker|improvement|nice-to-have)\b/i;
 const NOTE_MISSING_TRIPLE = "review output did not match required triple template";
 const NOTE_UNSTRUCTURED_FINDING = "review output not in triple template; structured verdict unavailable";
 const QA_BROWSER_VERIFIED_RE = /browser[_\s-]?verified|playwright|browser execution/i;
+const QA_BROWSER_NEGATIVE_RE =
+  /browser (?:qa|execution|verification).{0,80}(?:not performed|pending|required|manual|skipped|missing)/i;
+
+function qaBrowserEvidenceClaimed(output) {
+  const text = String(output || "");
+  if (QA_BROWSER_NEGATIVE_RE.test(text)) return false;
+  return QA_BROWSER_VERIFIED_RE.test(text);
+}
 
 function deriveQaVerificationLevel(reviewerRole, output, gateBlocked, verdict) {
   if (reviewerRole !== "qa" || gateBlocked || verdict === "block") return null;
-  if (QA_BROWSER_VERIFIED_RE.test(String(output || ""))) return "browser_verified";
+  if (qaBrowserEvidenceClaimed(output)) return "browser_verified";
   if (verdict === "approve") return "static_pass_browser_pending";
   return null;
 }
