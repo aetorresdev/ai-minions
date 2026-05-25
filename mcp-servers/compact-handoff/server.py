@@ -11,7 +11,7 @@ Tools:
 """
 import json
 import httpx
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple, Union
 from mcp.server.fastmcp import FastMCP
 
 OLLAMA_URL   = "http://localhost:11434/api/generate"
@@ -94,15 +94,22 @@ def strip_fences(text: str) -> str:
     return "\n".join(lines).strip()
 
 
+def _coerce_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 @mcp.tool()
 def compact_handoff(
     text: str,
     mode_completed: str = "DEV",
     next_mode: str = "QA",
-    iteration: int = 1,
-    max_iterations: int = 3,
+    iteration: Union[int, str] = 1,
+    max_iterations: Union[int, str] = 3,
     flow_mode: str = "single_agent",
-) -> str:
+) -> Dict[str, Any]:
     """
     Compact an agent's raw output into a structured handoff YAML.
     Call this at the end of EVERY MODE before transitioning to the next.
@@ -115,12 +122,14 @@ def compact_handoff(
         max_iterations: Max iterations before escalating to ORCHESTRATOR (default 3)
         flow_mode: Architecture being benchmarked — "single_agent" or "multi_agent"
     """
+    iteration_i = _coerce_int(iteration, 1)
+    max_iterations_i = _coerce_int(max_iterations, 3)
     prompt = f"""{COMPACT_SYSTEM}
 
 mode_completed: {mode_completed}
 next_mode: {next_mode}
-iteration: {iteration}
-max_iterations: {max_iterations}
+iteration: {iteration_i}
+max_iterations: {max_iterations_i}
 flow_mode: {flow_mode}
 
 Agent output to compact:

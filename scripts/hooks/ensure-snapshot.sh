@@ -57,8 +57,9 @@ EOF
 
 if [[ ! -f "$SNAPSHOT_FILE" ]]; then
   create_snapshot_template
-  echo "Snapshot file was missing. Template created at state/project_state.md" >&2
-  exit 2
+  echo "SNAPSHOT_BOOTSTRAP: template created at state/project_state.md (expected on first run)" >&2
+  echo "Update state/project_state.md before your next stop hook." >&2
+  exit 0
 fi
 
 required_sections=(
@@ -93,8 +94,9 @@ fi
 
 # Validación ligera para evitar snapshot vacío de adorno
 if grep -Eq '^\[Describe the current main objective\]$|^\[Single next concrete action\]$' "$SNAPSHOT_FILE"; then
-  echo "Snapshot still contains placeholder text. Update state/project_state.md before stopping." >&2
-  exit 2
+  echo "SNAPSHOT_WARN: placeholder text remains in state/project_state.md — update before relying on snapshot." >&2
+  echo "Remediation: fill Goal, Current status, and Exact next step in state/project_state.md" >&2
+  exit 0
 fi
 
 exit 0

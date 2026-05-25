@@ -14,6 +14,14 @@ const MAX_EVIDENCE_REFS = 16;
 const FINDING_KEYWORD_RE = /\b(blocker|improvement|nice-to-have)\b/i;
 const NOTE_MISSING_TRIPLE = "review output did not match required triple template";
 const NOTE_UNSTRUCTURED_FINDING = "review output not in triple template; structured verdict unavailable";
+const QA_BROWSER_VERIFIED_RE = /browser[_\s-]?verified|playwright|browser execution/i;
+
+function deriveQaVerificationLevel(reviewerRole, output, gateBlocked, verdict) {
+  if (reviewerRole !== "qa" || gateBlocked || verdict === "block") return null;
+  if (QA_BROWSER_VERIFIED_RE.test(String(output || ""))) return "browser_verified";
+  if (verdict === "approve") return "static_pass_browser_pending";
+  return null;
+}
 
 function normalizeFindingVal(s) {
   return String(s || "").trim().toLowerCase().replace(/[()]/g, "");
@@ -108,6 +116,8 @@ function buildReviewRecord(input) {
   if (gateBlocked || blockers.length > 0) verdict = "block";
   else if (nonBlockingNotes.length > 0) verdict = "request_changes";
 
+  const qa_verification_level = deriveQaVerificationLevel(reviewerRole, output, gateBlocked, verdict);
+
   const evidenceText = [...blockers, ...nonBlockingNotes].join("\n");
   const evidence_refs = extractEvidenceRefs(evidenceText).filter(
     (ref) => cerberusFindingHasAnchor(ref) || ref.includes("/"),
@@ -123,6 +133,7 @@ function buildReviewRecord(input) {
     reviewed_artifact_ids: reviewedArtifactIds.slice(0, MAX_BLOCKERS),
     iteration,
     step_id: stepId,
+    ...(qa_verification_level ? { qa_verification_level } : {}),
   };
 }
 
@@ -144,6 +155,7 @@ function traceReviewRecord(traceEvent, taskId, record) {
     reviewed_artifact_ids: record.reviewed_artifact_ids,
     iteration: record.iteration,
     ...(record.step_id ? { step_id: record.step_id } : {}),
+    ...(record.qa_verification_level ? { qa_verification_level: record.qa_verification_level } : {}),
   });
 }
 
@@ -165,18 +177,33 @@ function summarizeReviewRecordsFromRows(rows) {
       reviewed_artifact_ids: Array.isArray(r.reviewed_artifact_ids) ? r.reviewed_artifact_ids : [],
       iteration: typeof r.iteration === "number" ? r.iteration : null,
       step_id: typeof r.step_id === "string" ? r.step_id : null,
+      ...(typeof r.qa_verification_level === "string" ? { qa_verification_level: r.qa_verification_level } : {}),
     });
   }
 
   let cerberus_verdict = null;
   let qa_verdict = null;
+  let qa_verification_level = null;
   for (const rec of records) {
     if (rec.reviewer_role === "cerberus") cerberus_verdict = rec.verdict;
-    if (rec.reviewer_role === "qa") qa_verdict = rec.verdict;
+    if (rec.reviewer_role === "qa") {
+      qa_verdict = rec.verdict;
+      if (rec.qa_verification_level) qa_verification_level = rec.qa_verification_level;
+    }
   }
   const final_verdict = cerberus_verdict ?? qa_verdict;
+  const browser_verification_pending = qa_verification_level === "static_pass_browser_pending";
+  const all_p0_p1_verified_claim_safe = cerberus_verdict === "approve" && !browser_verification_pending;
 
-  return { records, final_verdict, cerberus_verdict, qa_verdict };
+  return {
+    records,
+    final_verdict,
+    cerberus_verdict,
+    qa_verdict,
+    qa_verification_level,
+    browser_verification_pending,
+    all_p0_p1_verified_claim_safe,
+  };
 }
 
 module.exports = {

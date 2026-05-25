@@ -91,6 +91,14 @@ def call_compact_handoff(tool: str, args: dict) -> str:
     fn = getattr(mod, tool, None)
     if fn is None:
         return json.dumps({"ok": False, "error": f"unknown tool: {tool}"})
+    if tool == "compact_handoff" and isinstance(args, dict):
+        args = dict(args)
+        for key in ("iteration", "max_iterations"):
+            if key in args:
+                try:
+                    args[key] = int(args[key])
+                except (TypeError, ValueError):
+                    pass
     result = fn(**args)
     return result if isinstance(result, str) else json.dumps(result)
 

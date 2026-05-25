@@ -983,10 +983,12 @@ describe("E2E — Orchestrator with Ollama", { concurrency: 1 }, () => {
       { mode: "DEV",      yaml: "",      expectValid: false, label: "empty DEV" },
       { mode: "QA",       yaml: "",      expectValid: false, label: "empty QA" },
       { mode: "CERBERUS", yaml: "",      expectValid: false, label: "empty CERBERUS" },
+      { mode: "ARCHITECT", yaml: "",      expectValid: false, label: "empty ARCHITECT" },
       // Missing required fields
       { mode: "DEV",      yaml: "goal: x", expectValid: false, label: "DEV missing files_modified+validation_run" },
       { mode: "QA",       yaml: "goal: x", expectValid: false, label: "QA missing verdict" },
       { mode: "CERBERUS", yaml: "goal: x", expectValid: false, label: "CERBERUS missing verdict" },
+      { mode: "ARCHITECT", yaml: "design: approved", expectValid: false, label: "ARCHITECT missing required keys" },
       // Open blockers in CERBERUS — blocked even with verdict
       { mode: "CERBERUS", yaml: "verdict: fail\nblockers:\n  - critical issue found", expectValid: false, label: "CERBERUS with open blockers" },
       // Valid handoffs — must pass in strict mode
@@ -996,7 +998,7 @@ describe("E2E — Orchestrator with Ollama", { concurrency: 1 }, () => {
       // but non-empty output always passes (no required fields for these roles)
       { mode: "OWNER",        yaml: "summary: scope agreed", expectValid: true, label: "OWNER non-empty" },
       { mode: "ORCHESTRATOR", yaml: "plan: ready",           expectValid: true, label: "ORCHESTRATOR non-empty" },
-      { mode: "ARCHITECT",    yaml: "design: approved",      expectValid: true, label: "ARCHITECT non-empty" },
+      { mode: "ARCHITECT",    yaml: "decisions:\n  - event-driven\npending_for_next_mode:\n  - implement api", expectValid: true, label: "valid ARCHITECT" },
     ];
 
     for (const { mode, yaml, expectValid, label } of strictCases) {

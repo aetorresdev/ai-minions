@@ -171,6 +171,25 @@ describe("validateHandoffStructure / CERBERUS", () => {
   });
 });
 
+describe("validateHandoffStructure / ARCHITECT", () => {
+  it("passes with decisions", () => {
+    const r = validateHandoffStructure("ARCHITECT", "decisions:\n  - use postgres\n");
+    assert.equal(r.valid, true);
+  });
+
+  it("passes with nested pending_for_next_mode under handoff", () => {
+    const yaml = "handoff:\n  pending_for_next_mode:\n    - implement api\n";
+    const r = validateHandoffStructure("ARCHITECT", yaml);
+    assert.equal(r.valid, true);
+  });
+
+  it("fails without required architect keys", () => {
+    const r = validateHandoffStructure("ARCHITECT", "design: approved");
+    assert.equal(r.valid, false);
+    assert.match(r.reason, /ARCHITECT handoff must include/);
+  });
+});
+
 describe("validateHandoffStructure / exempt modes", () => {
   it("OWNER always passes", () => {
     const r = validateHandoffStructure("OWNER", "anything goes here");
@@ -179,11 +198,6 @@ describe("validateHandoffStructure / exempt modes", () => {
 
   it("ORCHESTRATOR always passes", () => {
     const r = validateHandoffStructure("ORCHESTRATOR", "");
-    assert.equal(r.valid, true);
-  });
-
-  it("ARCHITECT always passes", () => {
-    const r = validateHandoffStructure("ARCHITECT", "design decisions...");
     assert.equal(r.valid, true);
   });
 });

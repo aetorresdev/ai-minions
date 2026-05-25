@@ -35,8 +35,30 @@ METRICS_FILE = CLAUDE_HOME / "metrics" / "flow-metrics.jsonl"
 
 
 def session_id() -> str:
-    """Non-empty only when the host provides a session identity (read each call for tests/CI)."""
-    return (os.environ.get("CLAUDE_SESSION_ID") or "").strip()
+    """Non-empty when host or orchestrator bridge provides session identity."""
+    sid = (os.environ.get("CLAUDE_SESSION_ID") or "").strip()
+    if sid:
+        return sid
+    for env_key in ("ORCH_TASK_ID", "ORCH_TRACE_TASK_ID"):
+        v = (os.environ.get(env_key) or "").strip()
+        if v:
+            return v
+    ctx = load_orch_run_context()
+    if ctx.get("session_id"):
+        return str(ctx["session_id"]).strip()
+    return ""
+
+
+def load_orch_run_context() -> dict:
+    """Project-local bridge written by orchestrator CLI (flow-hook-bridge.js)."""
+    p = Path(PROJECT_DIR).resolve() / ".claude" / "orch-run-context.json"
+    if not p.exists():
+        return {}
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return raw if isinstance(raw, dict) else {}
 
 sys.path.insert(0, str(Path(__file__).parent))
 from constants import MODE_RE, PRICE  # noqa: E402
@@ -219,6 +241,7 @@ def merge_flow_report(
     ``dev_qa_cycles_transcript`` is the count from the current transcript parse only.
     """
     load_warnings = list(load_warnings or [])
+    orch_ctx = load_orch_run_context()
     # Without CLAUDE_SESSION_ID, never trust caller-supplied persisted state (CERBERUS).
     if not session_id():
         st = default_hook_state()
@@ -231,6 +254,10 @@ def merge_flow_report(
         st["flow_mode"] = flow_tx
 
     effective_flow: str
+    scope_value = orch_ctx.get("scope") if isinstance(orch_ctx.get("scope"), str) else None
+    scope_unknown_reason = orch_ctx.get("scope_unknown_reason") if isinstance(
+        orch_ctx.get("scope_unknown_reason"), str
+    ) else None
     if flow_tx:
         transcript_scope = "full"
         flow_source = "transcript"
@@ -239,10 +266,16 @@ def merge_flow_report(
         transcript_scope = "post_compact"
         flow_source = "persisted_state"
         effective_flow = st["flow_mode"]
+    elif safe_flow(orch_ctx.get("flow_mode")):
+        transcript_scope = str(orch_ctx.get("transcript_scope") or "orchestrator_run")
+        flow_source = str(orch_ctx.get("flow_src") or "orchestrator_cli")
+        effective_flow = orch_ctx["flow_mode"]
     else:
         transcript_scope = "unknown"
         flow_source = "none"
         effective_flow = "unknown"
+        if not scope_unknown_reason:
+            scope_unknown_reason = "no_flow_in_transcript_or_bridge"
 
     warnings: list[str] = list(load_warnings)
     if effective_flow == "unknown" and (parsed["total_input"] or parsed["total_output"]):
@@ -270,6 +303,10 @@ def merge_flow_report(
         "compact_boundary_crossed": compact_boundary,
         "warnings": warnings,
     }
+    if scope_value:
+        merged["scope"] = scope_value
+    if scope_unknown_reason:
+        merged["scope_unknown_reason"] = scope_unknown_reason
     return merged, st
 
 
