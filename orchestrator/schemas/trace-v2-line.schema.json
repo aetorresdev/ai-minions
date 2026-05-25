@@ -474,8 +474,7 @@
         ],
         "properties": {
           "session_resume_schema_version": { "type": "string", "enum": ["1"] },
-          "task_id": { "type": ["string", "null"] },
-          "eligible": { "type": "boolean" },
+          "task_id": { "type": "string", "minLength": 1 },
           "block_codes": {
             "type": "array",
             "maxItems": 16,
@@ -528,7 +527,7 @@
         ],
         "properties": {
           "session_resume_schema_version": { "type": "string", "enum": ["1"] },
-          "task_id": { "type": ["string", "null"] },
+          "task_id": { "type": "string", "minLength": 1 },
           "resume_of_task_id": { "type": ["string", "null"] },
           "block_codes": {
             "type": "array",

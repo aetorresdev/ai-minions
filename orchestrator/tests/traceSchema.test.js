@@ -903,3 +903,79 @@ test("validateTraceLine accepts approval_granted and approval_denied", () => {
   );
   assert.equal(d.ok, true, (d.errors || []).join(" | "));
 });
+
+const {
+  buildSessionCheckpointCreatedEvent,
+  buildSessionResumeBlockedEvent,
+} = require("../session-resume");
+
+function sessionResumeEnvelope(overrides) {
+  return {
+    ts: "2026-05-18T12:00:00.000Z",
+    ts_ms: 1747569600000,
+    trace_schema_version: "2",
+    task_id: "task-resume-v1",
+    ...overrides,
+  };
+}
+
+test("validateTraceLine accepts session_checkpoint_created v2 envelope", () => {
+  const body = buildSessionCheckpointCreatedEvent(
+    { task_id: "task-resume-v1" },
+    { eligible: true, block_codes: [], summary: "Resume allowed from checkpoint" },
+  );
+  const v = validateTraceLine(sessionResumeEnvelope(body));
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
+test("validateTraceLine accepts session_resume_requested v2 envelope", () => {
+  const v = validateTraceLine(sessionResumeEnvelope({
+    event: "session_resume_requested",
+    session_resume_schema_version: "1",
+    task_id: "task-resume-new",
+    resume_of_task_id: "task-resume-v1",
+  }));
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
+test("validateTraceLine accepts session_resume_loaded v2 envelope", () => {
+  const v = validateTraceLine(sessionResumeEnvelope({
+    event: "session_resume_loaded",
+    session_resume_schema_version: "1",
+    task_id: "task-resume-new",
+    resume_of_task_id: "task-resume-v1",
+    checkpoint_task_id: "task-resume-v1",
+  }));
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
+test("validateTraceLine accepts session_resume_blocked v2 envelope", () => {
+  const body = buildSessionResumeBlockedEvent(
+    { task_id: "task-resume-v1", resume_of_task_id: "task-resume-old" },
+    {
+      block_codes: ["open_review_blockers"],
+      summary: "Resume blocked: open_review_blockers",
+    },
+  );
+  const v = validateTraceLine(sessionResumeEnvelope(body));
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
+test("validateTraceLine rejects session_checkpoint_created without task_id on envelope", () => {
+  const body = buildSessionCheckpointCreatedEvent(
+    { task_id: "task-resume-v1" },
+    { eligible: false, block_codes: ["incomplete_checkpoint"], summary: "blocked" },
+  );
+  delete body.task_id;
+  const v = validateTraceLine({
+    ts: "2026-05-18T12:00:00.000Z",
+    ts_ms: 1747569600000,
+    trace_schema_version: "2",
+    event: body.event,
+    session_resume_schema_version: body.session_resume_schema_version,
+    eligible: body.eligible,
+    block_codes: body.block_codes,
+    summary: body.summary,
+  });
+  assert.equal(v.ok, false);
+});

@@ -40,10 +40,12 @@ Session log ≠ memory store. Memory holds knowledge; checkpoint holds auditable
 
 | Event | When |
 |-------|------|
-| `session_checkpoint_created` | Operator or tooling materializes checkpoint |
+| `session_checkpoint_created` | Operator or tooling materializes checkpoint (requires non-empty `task_id`) |
 | `session_resume_requested` | Operator requests resume |
 | `session_resume_loaded` | Harness accepted checkpoint and loaded minimal context |
-| `session_resume_blocked` | Resume denied; includes `block_codes` |
+| `session_resume_blocked` | Resume denied; includes `block_codes` (requires non-empty `task_id`) |
+
+Incomplete checkpoints without `task_id` belong in **`run_outcome_summary.resume`** / export objects only — do not emit them as trace v2 lines.
 
 JSON Schema: `orchestrator/schemas/trace-v2-line.schema.json` (`session_*` branches).
 

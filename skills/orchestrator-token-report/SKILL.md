@@ -38,7 +38,7 @@ node scenario-metrics-export.js --dir ~/.claude/metrics/traces --since-m 120 --o
 
 - Human tables: prompt/completion totals, breakdown by `agent` + `phase`, MCP rollups.
 - JSON: `buildReport`, `run_outcome_summary` (via `--json` / export), `runs[]` / `by_scenario{}` from scenario export.
-- Contract reference: [workflow-skill-contract.md](../../docs/orchestrator/workflow-skill-contract.md) — **conformant** migrante.
+- Contract reference: [workflow-skill-contract.md](../../docs/orchestrator/workflow-skill-contract.md) — **conformant** reference skill.
 
 ## Risks
 

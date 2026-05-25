@@ -290,14 +290,27 @@ function summarizeSessionResumeFromRows(rows, opts = {}) {
 
 /**
  * @param {object} checkpoint
+ * @returns {string}
+ */
+function requireCheckpointTaskId(checkpoint) {
+  const taskId = checkpoint && typeof checkpoint.task_id === "string" ? checkpoint.task_id.trim() : "";
+  if (!taskId.length) {
+    throw new Error("session resume trace event requires checkpoint.task_id");
+  }
+  return taskId;
+}
+
+/**
+ * @param {object} checkpoint
  * @param {object} evaluation from evaluateResumeEligibility
  * @returns {object}
  */
 function buildSessionCheckpointCreatedEvent(checkpoint, evaluation) {
+  const task_id = requireCheckpointTaskId(checkpoint);
   return {
     event: "session_checkpoint_created",
     session_resume_schema_version: SESSION_RESUME_SCHEMA_VERSION,
-    task_id: checkpoint.task_id,
+    task_id,
     eligible: evaluation.eligible,
     block_codes: evaluation.block_codes,
     summary: evaluation.summary,
@@ -310,11 +323,12 @@ function buildSessionCheckpointCreatedEvent(checkpoint, evaluation) {
  * @returns {object}
  */
 function buildSessionResumeBlockedEvent(checkpoint, evaluation) {
+  const task_id = requireCheckpointTaskId(checkpoint);
   return {
     event: "session_resume_blocked",
     session_resume_schema_version: SESSION_RESUME_SCHEMA_VERSION,
-    task_id: checkpoint.task_id,
-    resume_of_task_id: checkpoint.resume_of_task_id,
+    task_id,
+    resume_of_task_id: checkpoint.resume_of_task_id ?? null,
     block_codes: evaluation.block_codes,
     summary: evaluation.summary,
   };

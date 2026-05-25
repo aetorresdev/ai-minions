@@ -7,6 +7,7 @@ const {
   evaluateResumeEligibility,
   summarizeSessionResumeFromRows,
   buildSessionResumeBlockedEvent,
+  buildSessionCheckpointCreatedEvent,
 } = require("../session-resume");
 
 const VALID_INTERRUPTED = [
@@ -126,5 +127,18 @@ describe("session-resume — checkpoint and eligibility", () => {
     const row = buildSessionResumeBlockedEvent(cp, ev);
     assert.equal(row.event, "session_resume_blocked");
     assert.ok(row.block_codes.includes("open_review_blockers"));
+  });
+
+  it("trace event builders require checkpoint.task_id", () => {
+    const cp = buildSessionCheckpointFromRows([]);
+    const ev = evaluateResumeEligibility(cp);
+    assert.throws(
+      () => buildSessionCheckpointCreatedEvent(cp, ev),
+      /requires checkpoint\.task_id/,
+    );
+    assert.throws(
+      () => buildSessionResumeBlockedEvent(cp, ev),
+      /requires checkpoint\.task_id/,
+    );
   });
 });
