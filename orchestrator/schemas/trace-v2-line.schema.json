@@ -458,6 +458,86 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "session_checkpoint_created" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "session_resume_schema_version",
+          "task_id",
+          "eligible",
+          "block_codes",
+          "summary"
+        ],
+        "properties": {
+          "session_resume_schema_version": { "type": "string", "enum": ["1"] },
+          "task_id": { "type": ["string", "null"] },
+          "eligible": { "type": "boolean" },
+          "block_codes": {
+            "type": "array",
+            "maxItems": 16,
+            "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+          },
+          "summary": { "type": "string", "minLength": 1, "maxLength": 300 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "session_resume_requested" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": ["session_resume_schema_version", "task_id", "resume_of_task_id"],
+        "properties": {
+          "session_resume_schema_version": { "type": "string", "enum": ["1"] },
+          "task_id": { "type": "string", "minLength": 1 },
+          "resume_of_task_id": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "session_resume_loaded" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": ["session_resume_schema_version", "task_id", "resume_of_task_id"],
+        "properties": {
+          "session_resume_schema_version": { "type": "string", "enum": ["1"] },
+          "task_id": { "type": "string", "minLength": 1 },
+          "resume_of_task_id": { "type": "string", "minLength": 1 },
+          "checkpoint_task_id": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "session_resume_blocked" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "session_resume_schema_version",
+          "task_id",
+          "block_codes",
+          "summary"
+        ],
+        "properties": {
+          "session_resume_schema_version": { "type": "string", "enum": ["1"] },
+          "task_id": { "type": ["string", "null"] },
+          "resume_of_task_id": { "type": ["string", "null"] },
+          "block_codes": {
+            "type": "array",
+            "maxItems": 16,
+            "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+          },
+          "summary": { "type": "string", "minLength": 1, "maxLength": 300 }
+        }
+      }
     }
   ]
 }

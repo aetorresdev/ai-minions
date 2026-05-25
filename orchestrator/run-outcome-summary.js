@@ -14,6 +14,7 @@ const {
 } = require("./token-trace-report");
 const { summarizeReviewRecordsFromRows } = require("./review-record");
 const { summarizeRecoveryFromRows } = require("./recovery-sweep");
+const { summarizeSessionResumeFromRows } = require("./session-resume");
 
 /**
  * @param {object[]} rows — sanitized trace rows (same pipeline as export/dashboard)
@@ -97,6 +98,7 @@ function buildRunOutcomeSummary(rows, meta = {}) {
 
   const reviewSummary = summarizeReviewRecordsFromRows(rows);
   const recoverySummary = summarizeRecoveryFromRows(rows);
+  const resumeSummary = summarizeSessionResumeFromRows(rows);
 
   return {
     schema_version: "1",
@@ -157,6 +159,26 @@ function buildRunOutcomeSummary(rows, meta = {}) {
               "Export state is recomputed from the full trace; may differ from recovery_completed emitted before session_end.",
         }
         : {}),
+    },
+    resume: {
+      policy: resumeSummary.policy,
+      computed_from: resumeSummary.computed_from,
+      eligible: resumeSummary.eligible,
+      block_codes: resumeSummary.block_codes,
+      summary: resumeSummary.summary,
+      side_effects_require_revalidation: resumeSummary.side_effects_require_revalidation,
+      trace_signals: resumeSummary.trace_signals,
+      checkpoint: {
+        task_id: resumeSummary.checkpoint.task_id,
+        resume_of_task_id: resumeSummary.checkpoint.resume_of_task_id,
+        session_complete: resumeSummary.checkpoint.session_complete,
+        active_step_id: resumeSummary.checkpoint.active_step_id,
+        active_role: resumeSummary.checkpoint.active_role,
+        recovery_clean: resumeSummary.checkpoint.recovery_clean,
+        cost_checkpoint: resumeSummary.checkpoint.cost_checkpoint,
+        handoff_contract: resumeSummary.checkpoint.handoff_contract,
+        review_summary: resumeSummary.checkpoint.review_summary,
+      },
     },
     intent_groups,
   };
@@ -255,6 +277,15 @@ function formatRunOutcomeSummaryLines(summary, opts = {}) {
       `recovery: clean=${rec.clean}  findings=${rec.finding_count}  policy=${rec.policy}`,
     );
     if (rec.summary) lines.push(`  ${recDisp}`);
+  }
+  if (summary.resume) {
+    const rs = summary.resume;
+    const rsDisp = use && !rs.eligible ? ansi(true, 33, rs.summary) : rs.summary;
+    lines.push(
+      `resume: eligible=${rs.eligible}  session_complete=${rs.checkpoint?.session_complete ?? "?"}`
+        + (rs.trace_signals?.is_resume_run ? "  is_resume_run" : ""),
+    );
+    if (rs.summary) lines.push(`  ${rsDisp}`);
   }
   if (summary.intent_groups && summary.intent_groups.length) {
     const ig = summary.intent_groups.slice(0, 6).map(

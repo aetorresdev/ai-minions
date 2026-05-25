@@ -15,6 +15,7 @@ The stable object is produced by **`buildRunOutcomeSummary()`** in `orchestrator
 | **`qa`** | `qa_degraded`, `manual_review_recommended`, `handoff_fallback_used`, QA template / substantive blocker step counts |
 | **`review`** | Durable QA/CERBERUS verdicts — see [review-record-contract.md](review-record-contract.md) |
 | **`recovery`** | Stranded run/step sweep — `clean`, `finding_count`, `summary`, `findings[]`, `policy` — see [recovery-sweep-contract.md](recovery-sweep-contract.md) |
+| **`resume`** | Session checkpoint + resume eligibility — `eligible`, `block_codes`, `checkpoint`, `trace_signals` — see [session-resume-contract.md](session-resume-contract.md) |
 | **`intent_groups`** | Per-distinct-intent aggregates: tokens, step counts, failed steps (from **`rollupStepsCostOutcome`** in `token-trace-report.js`) |
 
 ### Relation to `rollup_steps`

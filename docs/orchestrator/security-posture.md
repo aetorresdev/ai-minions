@@ -215,7 +215,7 @@ under a malicious goal."
 
 Planned or post-alpha unless code says otherwise:
 
-- Durable session log / resumability as a first-class product story.
+- Durable session log / resumability — **contract + export** in [session-resume-contract.md](session-resume-contract.md); harness emit path optional follow-up.
 - Sandbox boundary for arbitrary code separate from policy text only.
 - Credential isolation via vault or proxy patterns.
 - Tool misuse evaluations beyond static classification.
