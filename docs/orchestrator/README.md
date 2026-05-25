@@ -30,6 +30,8 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [context-hygiene-signals.md](context-hygiene-signals.md) | Trace `context_hygiene_signal` events — observability only |
 | [review-record-contract.md](review-record-contract.md) | Durable QA/CERBERUS `review_record` trace events + export consumption |
 | [recovery-sweep-contract.md](recovery-sweep-contract.md) | Stranded run/step detection (`recovery_*` events); detect/explain only |
+| [session-resume-contract.md](session-resume-contract.md) | Session checkpoint + resume eligibility (`session_*` events); explicit operator resume only |
+| [workflow-skill-contract.md](workflow-skill-contract.md) | Local `SKILL.md` template, conformance checklist, role ↔ skill loading (doc only) |
 | [role-agent-registry.md](role-agent-registry.md) | Future roles: minimal registry schema (design-time; no runtime wiring) |
 
 **Cursor rule:** `.cursor/rules/orchestrator.mdc` — `scripts/install-orchestrator-rule.sh` to copy it to another repo.
