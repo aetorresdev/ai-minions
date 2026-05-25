@@ -217,6 +217,15 @@ npm run control-plane:tui -- --batch --since-m 60
 
 See `docs/orchestrator/control-plane-tui-contract.md`.
 
+**Portable project template (export/import dry-run):**
+
+```bash
+npm run project-template -- export --cwd /path/to/app --out /tmp/ai-minions-project.json
+npm run project-template -- import --dry-run --cwd /path/to/app --file /tmp/ai-minions-project.json
+```
+
+See `docs/orchestrator/portable-project-template-contract.md`.
+
 See [`docs/orchestrator/dashboard-failure-taxonomy.md`](../docs/orchestrator/dashboard-failure-taxonomy.md) § *Console first*.
 
 **Not** in this example runner: unified Anthropic token API for Claude CLI routes (Ollama paths expose token totals as above).

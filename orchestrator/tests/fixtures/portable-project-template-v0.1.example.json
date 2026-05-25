@@ -1,0 +1,30 @@
+{
+  "portable_project_template_version": "0.1",
+  "exported_at": "2026-05-18T12:00:00.000Z",
+  "source_repo_basename": "example-app",
+  "harness_refs": {
+    "capability_matrix": {
+      "version": "cap.orchestrator.v1",
+      "harness_relative_path": "orchestrator/agents/capability-matrix.v1.json",
+      "role_ids": ["orchestrator", "qa", "cerberus"]
+    },
+    "routing": {
+      "policy_doc": "docs/orchestrator/model-role-routing-policy.md",
+      "models_json_profile_names": ["fast", "balanced", "quality"],
+      "env_override_pattern": "MODEL_OVERRIDE_<ROLE>"
+    },
+    "built_in_permission_profiles": ["dev-local", "ci-safe", "prod-guarded"]
+  },
+  "project_files": [
+    {
+      "relative_path": "minions.md",
+      "encoding": "utf8",
+      "content": "# minions project contract\n\n```json\n{\n  \"minions_contract_version\": \"0.1\",\n  \"orchestrator\": {\n    \"trace_scenario_id\": \"example-smoke\"\n  }\n}\n```\n"
+    }
+  ],
+  "doc_pointers": [],
+  "scrub": {
+    "redactions_applied": 0,
+    "export_blocked_on_remaining_secrets": true
+  }
+}

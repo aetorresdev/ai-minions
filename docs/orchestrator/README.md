@@ -34,6 +34,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [memory-store-decision.md](memory-store-decision.md) | Local storage categories, matrix, go/no-go (design-first; trace SoT) |
 | [context-package-contract.md](context-package-contract.md) | Context package inclusion policy — required / optional / excluded / rejected (design-first) |
 | [control-plane-tui-contract.md](control-plane-tui-contract.md) | Read-only run inspect CLI (`control-plane:tui`); stdout panel over run_outcome_summary |
+| [portable-project-template-contract.md](portable-project-template-contract.md) | Export/import scrubbed project config bundle; import dry-run only |
 | [skill-security-threatmodel.md](skill-security-threatmodel.md) | Workflow skills threat model — threat → control → gap (no skill sandbox claim) |
 | [workflow-skill-contract.md](workflow-skill-contract.md) | Local `SKILL.md` template, conformance checklist, role ↔ skill loading (doc only) |
 | [role-agent-registry.md](role-agent-registry.md) | Future roles: minimal registry schema (design-time; no runtime wiring) |
