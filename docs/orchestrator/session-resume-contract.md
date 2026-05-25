@@ -21,7 +21,7 @@ A checkpoint (`buildSessionCheckpointFromRows`) captures operational state — n
 | `recovery_clean` | recomputed recovery sweep |
 | `session_complete` | whether `session_end` exists |
 
-Session log ≠ memory store. Memory holds knowledge; checkpoint holds auditable run state (storage fit evaluated separately in the memory-store design lane).
+Session log ≠ memory store. Memory holds knowledge; checkpoint holds auditable run state — see [memory-store-decision.md](memory-store-decision.md).
 
 ## Resume rules
 
@@ -69,5 +69,7 @@ grep 'session_' ~/.claude/metrics/traces/<task_id>.jsonl
 
 - [recovery-sweep-contract.md](recovery-sweep-contract.md)
 - [review-record-contract.md](review-record-contract.md)
+- [memory-store-decision.md](memory-store-decision.md)
+- [context-package-contract.md](context-package-contract.md)
 - [run-outcome-consumption.md](run-outcome-consumption.md)
 - [governance-gates-contract.md](governance-gates-contract.md)
