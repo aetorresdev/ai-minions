@@ -207,6 +207,16 @@ npm run dashboard:console -- --batch --since-m 60 --include-untagged
 # force ANSI even when piped: --color=always
 ```
 
+**Read-only control plane (run inspect):**
+
+```bash
+npm run control-plane:tui -- --file tests/fixtures/golden-path-clean-v1.jsonl
+npm run control-plane:tui -- --run-id <task_id>
+npm run control-plane:tui -- --batch --since-m 60
+```
+
+See `docs/orchestrator/control-plane-tui-contract.md`.
+
 See [`docs/orchestrator/dashboard-failure-taxonomy.md`](../docs/orchestrator/dashboard-failure-taxonomy.md) § *Console first*.
 
 **Not** in this example runner: unified Anthropic token API for Claude CLI routes (Ollama paths expose token totals as above).

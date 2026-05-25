@@ -217,6 +217,8 @@ Planned or post-alpha unless code says otherwise:
 
 - Unified local memory DB — **decision doc** [memory-store-decision.md](memory-store-decision.md): **no-go** for merged store in v0.1.x; trace JSONL stays SoT; optional future index only (not approved for implementation in design PR).
 - Context package assembly — **contract** [context-package-contract.md](context-package-contract.md): design-only; no runtime builder in v0.1.x.
+- Workflow skills — **threat model** [skill-security-threatmodel.md](skill-security-threatmodel.md): no sandbox; registry/scan future.
+- Read-only run inspect — **CLI** [control-plane-tui-contract.md](control-plane-tui-contract.md): `npm run control-plane:tui`.
 - Sandbox boundary for arbitrary code separate from policy text only.
 - Credential isolation via vault or proxy patterns.
 - Tool misuse evaluations beyond static classification.

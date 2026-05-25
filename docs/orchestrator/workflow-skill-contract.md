@@ -77,6 +77,6 @@ Before merging a new or updated skill:
 
 ## Related
 
-- [security-posture.md](security-posture.md) — skills as attack surface (planned threat model doc)
+- [skill-security-threatmodel.md](skill-security-threatmodel.md) — skills as attack surface; threat → control → gap
 - [agent-contract.md](agent-contract.md) — MODE and role contracts
 - [shared-dependencies.md](shared-dependencies.md) — `skills/` layout
