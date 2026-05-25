@@ -79,3 +79,4 @@ mcp-needs-auth-cache.json
 .cursor/*
 scripts/clean-ai-commit-trails.sh
 scripts/sync-trello-backlog.py
+paste-cache/

@@ -153,6 +153,90 @@ test("buildReviewRecord: non-triple output without keywords is block", () => {
   assert.equal(r.verdict, "block");
 });
 
+test("buildReviewRecord: QA approve without browser evidence is static_pass_browser_pending", () => {
+  const r = buildReviewRecord({
+    reviewerRole: "qa",
+    output: "blocker: none\nimprovement: none\nnice-to-have: none",
+    iteration: 1,
+  });
+  assert.equal(r.verdict, "approve");
+  assert.equal(r.qa_verification_level, "static_pass_browser_pending");
+});
+
+test("buildReviewRecord: QA with browser verified marker", () => {
+  const r = buildReviewRecord({
+    reviewerRole: "qa",
+    output: "blocker: none\nimprovement: none\nnice-to-have: none\nbrowser_verified via Playwright",
+    iteration: 1,
+  });
+  assert.equal(r.qa_verification_level, "browser_verified");
+});
+
+test("buildReviewRecord: QA negative browser phrase stays static_pass_browser_pending", () => {
+  const r = buildReviewRecord({
+    reviewerRole: "qa",
+    output:
+      "blocker: none\nimprovement: none\nnice-to-have: none\n"
+      + "Browser execution not performed; manual QA required",
+    iteration: 1,
+  });
+  assert.equal(r.verdict, "approve");
+  assert.equal(r.qa_verification_level, "static_pass_browser_pending");
+});
+
+test("summarizeReviewRecordsFromRows flags browser_verification_pending for static QA pass", () => {
+  const rows = [
+    {
+      event: "review_record",
+      reviewer_role: "qa",
+      verdict: "approve",
+      qa_verification_level: "static_pass_browser_pending",
+      blockers: [],
+      non_blocking_notes: [],
+      evidence_refs: [],
+      reviewed_artifact_ids: [],
+      iteration: 1,
+    },
+    {
+      event: "review_record",
+      reviewer_role: "cerberus",
+      verdict: "approve",
+      blockers: [],
+      non_blocking_notes: [],
+      evidence_refs: [],
+      reviewed_artifact_ids: [],
+      iteration: 1,
+    },
+  ];
+  const s = summarizeReviewRecordsFromRows(rows);
+  assert.equal(s.browser_verification_pending, true);
+  assert.equal(s.all_p0_p1_verified_claim_safe, false);
+});
+
+test("buildRunOutcomeSummary warns when browser evidence pending", () => {
+  const rows = [
+    { event: "session_start", task_id: "t1", flow_mode: "single_agent" },
+    {
+      event: "review_record",
+      task_id: "t1",
+      review_schema_version: "1",
+      reviewer_role: "qa",
+      verdict: "approve",
+      qa_verification_level: "static_pass_browser_pending",
+      blockers: [],
+      non_blocking_notes: [],
+      evidence_refs: [],
+      reviewed_artifact_ids: [],
+      iteration: 1,
+    },
+    { event: "session_end", task_id: "t1", done: true, iterations: 1, gate_blocks: 0 },
+  ];
+  const s = buildRunOutcomeSummary(rows);
+  assert.equal(s.review.browser_verification_pending, true);
+  const text = require("../run-outcome-summary").formatRunOutcomeSummaryLines(s).join("\n");
+  assert.match(text, /browser_evidence: pending/);
+});
+
 test("summarizeReviewRecordsFromRows: last cerberus record wins (single emit on contract fail)", () => {
   const rows = [
     {

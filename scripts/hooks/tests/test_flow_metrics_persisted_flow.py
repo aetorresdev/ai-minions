@@ -65,6 +65,8 @@ class TestMergeFlowReport(unittest.TestCase):
     def tearDown(self):
         os.environ.pop("CLAUDE_SESSION_ID", None)
         os.environ.pop("FLOW_HOOK_STATE_DIR", None)
+        os.environ.pop("CLAUDE_PROJECT_DIR", None)
+        os.environ.pop("ORCH_TASK_ID", None)
 
     def test_post_compact_uses_persisted_multi_agent(self):
         parsed = {
@@ -137,6 +139,46 @@ class TestMergeFlowReport(unittest.TestCase):
         merged, _ = fm2.merge_flow_report(parsed, injected, 40, [])
         self.assertEqual(merged["flow_mode"], "unknown")
         self.assertEqual(merged["flow_source"], "none")
+
+    def test_orch_run_context_bridge_when_no_claude_session(self):
+        os.environ.pop("CLAUDE_SESSION_ID", None)
+        with tempfile.TemporaryDirectory() as project:
+            os.environ["CLAUDE_PROJECT_DIR"] = project
+            ctx_path = Path(project) / ".claude" / "orch-run-context.json"
+            ctx_path.parent.mkdir(parents=True, exist_ok=True)
+            ctx_path.write_text(
+                json.dumps(
+                    {
+                        "session_id": "orch-task-99",
+                        "flow_mode": "single_agent",
+                        "flow_src": "orchestrator_cli",
+                        "transcript_scope": "orchestrator_run",
+                        "scope": "bug lane B1-B4",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            fm2 = _load_flow_metrics()
+            self.assertEqual(fm2.session_id(), "orch-task-99")
+            parsed = {
+                "flow_from_transcript": None,
+                "dev_qa_cycles": 0,
+                "total_input": 10,
+                "total_output": 1,
+                "phases": [],
+            }
+            merged, _ = fm2.merge_flow_report(parsed, {}, 5, [])
+            self.assertEqual(merged["flow_mode"], "single_agent")
+            self.assertEqual(merged["flow_source"], "orchestrator_cli")
+            self.assertEqual(merged["scope"], "bug lane B1-B4")
+            os.environ.pop("CLAUDE_PROJECT_DIR", None)
+
+    def test_session_id_from_orch_task_id_env(self):
+        os.environ.pop("CLAUDE_SESSION_ID", None)
+        os.environ["ORCH_TASK_ID"] = "env-task-42"
+        fm2 = _load_flow_metrics()
+        self.assertEqual(fm2.session_id(), "env-task-42")
+        os.environ.pop("ORCH_TASK_ID", None)
 
 
 class TestLoadHookStateCorrupt(unittest.TestCase):

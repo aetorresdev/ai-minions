@@ -265,6 +265,12 @@ function formatRunOutcomeSummaryLines(summary, opts = {}) {
     lines.push(
       `review: final=${rv.final_verdict ?? "-"}  cerberus=${rv.cerberus_verdict ?? "-"}  qa=${rv.qa_verdict ?? "-"}`,
     );
+    if (rv.qa_verification_level) {
+      lines.push(`  qa_verification: ${rv.qa_verification_level}`);
+    }
+    if (rv.browser_verification_pending) {
+      lines.push("  browser_evidence: pending (do not claim all P0/P1 verified)");
+    }
     const lastCerb = [...(rv.records || [])].reverse().find((r) => r.reviewer_role === "cerberus");
     if (lastCerb && lastCerb.blockers?.length) {
       lines.push(`  blockers: ${lastCerb.blockers.slice(0, 3).join(" | ")}`);

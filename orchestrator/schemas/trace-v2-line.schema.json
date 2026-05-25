@@ -307,7 +307,11 @@
             "maxItems": 8,
             "items": { "type": "string", "maxLength": 240 }
           },
-          "iteration": { "type": "integer", "minimum": 0 }
+          "iteration": { "type": "integer", "minimum": 0 },
+          "qa_verification_level": {
+            "type": "string",
+            "enum": ["static_pass_browser_pending", "browser_verified"]
+          }
         }
       }
     },

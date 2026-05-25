@@ -23,6 +23,7 @@
  *     `mcp-direct.py` (Python + `mcp-servers` venvs) instead of the claude CLI for state store + compact_handoff.
  */
 
+const { deriveRunScope, writeOrchRunContext } = require("./flow-hook-bridge");
 const { askAgent, summarizeHandoff, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
 const { formatArtifactLine, envInt, truncateForContext } = require("./context-utils");
 const { spawnSync } = require("child_process");
@@ -871,6 +872,16 @@ function validateHandoffStructure(mode, yaml, { strict = false } = {}) {
     if (!hasTop && !hasNested) {
       return { valid: false, reason: "DEV handoff must include files_modified or validation_run" };
     }
+  } else if (mode === "ARCHITECT") {
+    const archKeys = ["decisions", "pending_for_next_mode", "design_summary", "risks"];
+    const hasTop = archKeys.some((k) => presentKeys.has(k));
+    const hasNested = /(^|\n)\s{1,12}(decisions|pending_for_next_mode|design_summary|risks)\s*:/m.test(yaml);
+    if (!hasTop && !hasNested) {
+      return {
+        valid: false,
+        reason: "ARCHITECT handoff must include decisions, pending_for_next_mode, design_summary, or risks",
+      };
+    }
   } else if (mode === "QA") {
     if (!presentKeys.has("verdict")) {
       return { valid: false, reason: "QA handoff must include verdict" };
@@ -1054,6 +1065,7 @@ function compactHandoffDegradedMeta(err) {
   return {
     handoff_compression: "unavailable",
     handoff_fallback_used: true,
+    handoff_degraded: true,
     handoff_error: msg,
   };
 }
@@ -1189,7 +1201,7 @@ const AGENT_TO_MODE = {
 const VALID_WORKER_AGENTS = new Set(Object.keys(AGENT_TO_MODE));
 
 // Agents that require compact_handoff + validate_goal_alignment before advancing
-const AGENTS_REQUIRING_GATE = new Set(["dev-backend", "dev-frontend", "dev-devops", "qa", "cerberus"]);
+const AGENTS_REQUIRING_GATE = new Set(["architect", "dev-backend", "dev-frontend", "dev-devops", "qa", "cerberus"]);
 
 // ── Ollama connectivity check ─────────────────────────────────────────────────
 
@@ -1332,6 +1344,8 @@ async function run(goal, options = {}) {
   const cwd           = options.cwd || process.cwd();
   const flowMode      = options.flowMode || "single_agent";
   const taskId        = options.taskId || `task-${randomUUID().slice(0, 8)}`;
+  writeOrchRunContext(cwd, { taskId, flowMode, goal });
+  const runScope = deriveRunScope(goal);
   const rawScenario = options.traceScenarioId ?? process.env.ORCH_TRACE_SCENARIO_ID ?? "";
   const scenarioId = String(rawScenario).trim() ? String(rawScenario).trim().slice(0, 240) : null;
   beginMcpAudit(taskId);
@@ -1620,7 +1634,11 @@ async function run(goal, options = {}) {
   }
   traceEvent(taskId, {
     event: "session_start",
+    session_id: taskId,
     flow_mode: flowMode,
+    flow_src: "orchestrator_cli",
+    scope: runScope.scope,
+    ...(runScope.scope_unknown_reason ? { scope_unknown_reason: runScope.scope_unknown_reason } : {}),
     max_iterations: maxIterations,
     cwd,
     goal: goal.slice(0, 200),
@@ -2027,6 +2045,18 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
             ollama_completion_tokens: compactRes.ollama_completion_tokens,
           });
           log("gate", `Handoff YAML ready (${handoffYaml.length} chars)`);
+          traceEvent(taskId, {
+            event: "gate_result",
+            agent: agentId,
+            iteration: iterations,
+            step_id: stepId,
+            ...graphMeta,
+            ...intentStep,
+            ...edgeMeta("success"),
+            gate: "compact_handoff",
+            passed: true,
+            formal_handoff_completed: true,
+          });
         } catch (err) {
           const msg = err.message || String(err);
           if (requireHandoff) {
@@ -2060,6 +2090,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
             ...intentStep,
             message: msg.slice(0, 400),
             phase: "worker_step",
+            handoff_degraded: true,
           });
           handoffCompressionMeta = compactHandoffDegradedMeta(err);
           log("gate", `⚠ compact_handoff unavailable (degraded — continuing without YAML compression): ${msg}`);
@@ -2355,6 +2386,7 @@ nice-to-have: ...`;
             iteration: iterations,
             message: msg.slice(0, 400),
             phase: "cerberus_advance",
+            handoff_degraded: true,
           });
           log("gate", `⚠ compact_handoff unavailable (degraded — CERBERUS advance): ${msg}`);
         }
@@ -2659,6 +2691,10 @@ Reply with JSON only.`;
   });
   traceEvent(taskId, {
     event: "session_end",
+    session_id: taskId,
+    flow_src: "orchestrator_cli",
+    scope: runScope.scope,
+    ...(runScope.scope_unknown_reason ? { scope_unknown_reason: runScope.scope_unknown_reason } : {}),
     iterations,
     done,
     summary: summary.slice(0, 200),
@@ -2676,7 +2712,7 @@ Reply with JSON only.`;
       : {}),
     ...(qaDegraded ? { qa_degraded: true } : {}),
     ...(manualReviewRecommended ? { manual_review_recommended: true } : {}),
-    ...(handoffFallbackAny ? { handoff_fallback_used: true } : {}),
+    ...(handoffFallbackAny ? { handoff_fallback_used: true, handoff_degraded: true } : {}),
   });
 
   clearMcpAudit();

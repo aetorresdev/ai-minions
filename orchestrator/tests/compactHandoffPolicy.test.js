@@ -31,6 +31,7 @@ describe("compactHandoffDegradedMeta", () => {
     const m = compactHandoffDegradedMeta(new Error("mcp timeout"));
     assert.equal(m.handoff_compression, "unavailable");
     assert.equal(m.handoff_fallback_used, true);
+    assert.equal(m.handoff_degraded, true);
     assert.equal(m.handoff_error, "mcp timeout");
   });
 });
