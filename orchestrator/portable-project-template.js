@@ -27,7 +27,7 @@ const PROJECT_FILE_SLOTS = Object.freeze([
 ]);
 
 const SENSITIVE_KEY_RE =
-  /(?:^|_)(secret|password|token|api_key|apikey|credential|private_key|auth)(?:$|_)/i;
+  /(secret|password|token|api[_-]?key|apikey|credential|private[_-]?key|auth)/i;
 
 const UNREDACTED_SECRET_PATTERNS = [
   /\bBearer\s+[A-Za-z0-9\-._~+/=*]{16,}\b/i,
@@ -207,6 +207,9 @@ function validateDocPointersFile(filePath) {
     }
     if (entry.relative_path.includes("..")) {
       throw new Error("doc-pointers.json: relative_path must not contain '..'");
+    }
+    if (path.isAbsolute(entry.relative_path)) {
+      throw new Error("doc-pointers.json: relative_path must be relative (not absolute)");
     }
   }
 }

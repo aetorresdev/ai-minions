@@ -71,6 +71,50 @@ credentials:
   assert.equal(containsUnredactedSecretShape(content), false);
 });
 
+test("scrubProjectFileContent redacts camelCase sensitive runtime keys", () => {
+  const yaml = `
+permission_policy_version: 1
+extends:
+  - dev-local
+runtime:
+  githubToken: plain-generic-token
+  clientSecret: plain-generic-secret
+  dbPassword: plain-generic-password
+  apiKey: plain-generic-api-key
+credentials:
+  reveal: deny
+  export: deny
+`;
+  const { content } = scrubProjectFileContent(".ai-minions/permissions.yaml", yaml);
+  assert.ok(!content.includes("plain-generic-token"));
+  assert.ok(!content.includes("plain-generic-secret"));
+  assert.ok(!content.includes("plain-generic-password"));
+  assert.ok(!content.includes("plain-generic-api-key"));
+  assert.match(content, /githubToken:\s+'?\[REDACTED:sensitive_key\]'?/);
+  assert.match(content, /clientSecret:\s+'?\[REDACTED:sensitive_key\]'?/);
+  assert.match(content, /dbPassword:\s+'?\[REDACTED:sensitive_key\]'?/);
+  assert.match(content, /apiKey:\s+'?\[REDACTED:sensitive_key\]'?/);
+});
+
+test("buildExportBundle rejects absolute doc-pointers relative_path", () => {
+  withTempProject(
+    {
+      "minions.md": MINIONS,
+      ".ai-minions/doc-pointers.json": JSON.stringify(
+        {
+          doc_pointers_version: "0.1",
+          entries: [{ label: "Bad", relative_path: "/etc/passwd" }],
+        },
+        null,
+        2,
+      ),
+    },
+    (dir) => {
+      assert.throws(() => buildExportBundle(dir), /relative_path must be relative/);
+    },
+  );
+});
+
 test("buildExportBundle includes harness refs and scrubbed project files", () => {
   withTempProject(
     {

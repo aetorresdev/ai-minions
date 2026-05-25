@@ -42,8 +42,9 @@ Optional `doc-pointers.json` schema:
 ## Secret scrubbing
 
 - Reuses trace redaction patterns (`Bearer`, `sk-`, AWS keys, GitHub PAT, Slack tokens, URL creds).
-- YAML/JSON keys matching `*secret*`, `*password*`, `*token*`, `*api_key*`, `*credential*` have values replaced with `[REDACTED:sensitive_key]`.
+- YAML/JSON keys whose names contain `secret`, `password`, `token`, `api_key` / `apiKey`, `credential`, `private_key`, or `auth` (any casing; camelCase included) have values replaced with `[REDACTED:sensitive_key]`.
 - Export **aborts** if any secret-shaped plaintext remains after scrub.
+- `doc-pointers.json` entries must use **relative** paths (no `..`, no absolute paths).
 
 ## Import dry-run
 
