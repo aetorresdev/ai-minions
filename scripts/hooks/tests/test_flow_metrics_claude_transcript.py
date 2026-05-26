@@ -3,7 +3,6 @@ Claude Code transcript parsing: user FLOW header, transcript session id, per-mod
 """
 import importlib.util
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path

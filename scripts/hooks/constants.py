@@ -18,23 +18,36 @@ MODE_RE = re.compile(
     r'\b(?:MODE|ROLE)\s*:\s*(' + '|'.join(KNOWN_MODES) + r')\b'
 )
 
-# Sonnet 4.6 pricing per million tokens
-# Update here when pricing changes — all hooks pick it up automatically
+# Sonnet 4.6 pricing per million tokens (Anthropic list rates, 2026-04 snapshot)
 PRICE = {"input": 3.00, "output": 15.00, "cache_w": 3.75, "cache_r": 0.30}
 
-# Per-model list rates (USD per 1M tokens). Longest key match wins.
+
+def _rates(input_m: float, output_m: float) -> dict:
+    """List rates per 1M tokens; cache write = 1.25× input, cache read = 0.1× input."""
+    return {
+        "input": input_m,
+        "output": output_m,
+        "cache_w": round(input_m * 1.25, 4),
+        "cache_r": round(input_m * 0.10, 4),
+    }
+
+
+# Per-model list rates (USD per 1M). Longest substring key wins — put specific versions first.
 MODEL_PRICES = {
-    "claude-sonnet-4-6": PRICE,
-    "claude-sonnet-4-5": {"input": 3.00, "output": 15.00, "cache_w": 3.75, "cache_r": 0.30},
-    "claude-haiku-4-5": {"input": 0.80, "output": 4.00, "cache_w": 1.00, "cache_r": 0.08},
-    "claude-opus-4": {"input": 15.00, "output": 75.00, "cache_w": 18.75, "cache_r": 1.50},
+    "claude-sonnet-4-6": _rates(3.00, 15.00),
+    "claude-sonnet-4-5": _rates(3.00, 15.00),
+    "claude-haiku-4-5": _rates(1.00, 5.00),
+    "claude-opus-4-7": _rates(5.00, 25.00),
+    "claude-opus-4-6": _rates(5.00, 25.00),
+    "claude-opus-4": _rates(15.00, 75.00),
 }
 
-# Stable profile ids for metrics export (not raw model slugs).
 MODEL_PRICING_PROFILE = {
     "claude-sonnet-4-6": "anthropic_sonnet_4_6",
     "claude-sonnet-4-5": "anthropic_sonnet_4_5",
     "claude-haiku-4-5": "anthropic_haiku_4_5",
+    "claude-opus-4-7": "anthropic_opus_4_7",
+    "claude-opus-4-6": "anthropic_opus_4_6",
     "claude-opus-4": "anthropic_opus_4",
 }
 
