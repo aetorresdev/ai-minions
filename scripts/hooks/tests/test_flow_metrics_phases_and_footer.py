@@ -46,7 +46,8 @@ class TestFormatEndOfRunValidation(unittest.TestCase):
         text = self.fm.format_end_of_run_validation(data)
         self.assertIn("Status: OK", text)
         self.assertIn("Phase/MODE rows", text)
-        self.assertIn("estimated via constants.PRICE", text)
+        self.assertIn("Cost:", text)
+        self.assertIn("Confidence:", text)
         self.assertIn("Flow field: multi_agent", text)
 
     def test_warn_lists_flags(self):
