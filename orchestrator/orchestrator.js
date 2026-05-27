@@ -30,6 +30,7 @@ const {
   resolveHandoffMode,
   validateHandoffForMode,
   qaSpecFlowTraceExtras,
+  shouldEmitQaReviewRecord,
 } = require("./qa-spec-flow");
 const { askAgent, summarizeHandoff, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
 const { formatArtifactLine, envInt, truncateForContext } = require("./context-utils");
@@ -1984,7 +1985,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         Object.assign(donePayload, qaAgentDoneTraceExtras(result));
       }
       traceEvent(taskId, donePayload);
-      if (agentId === "qa") {
+      if (shouldEmitQaReviewRecord(agentId, step)) {
         traceReviewRecord(
           traceEvent,
           taskId,

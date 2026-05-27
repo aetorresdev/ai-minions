@@ -39,6 +39,8 @@ After a successful **QA_SPEC** step in the same iteration, **DEV** handoff YAML 
 | `qa_spec_emitted` | QA_SPEC handoff structure validation passed |
 | `qa_exec_verdict` | QA_EXEC handoff structure validation passed; includes `verdict` when parseable |
 
+**Review records:** `review_record` is emitted only for **QA_EXEC** (and legacy `qa` without `qaPhase: spec`). **QA_SPEC** emits `qa_spec_emitted` only — spec output must not be scored as a failed review triple.
+
 ## Environment
 
 | Variable | Default | Effect |

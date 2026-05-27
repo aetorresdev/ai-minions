@@ -8,8 +8,10 @@ const {
   applyQaSpecBeforeDevPlan,
   resolveHandoffMode,
   validateHandoffForMode,
+  shouldEmitQaReviewRecord,
 } = require("../qa-spec-flow");
 const { validateHandoffStructure } = require("../orchestrator");
+const { buildReviewRecord } = require("../review-record");
 
 describe("qa-spec-flow", () => {
   it("isQaSpecBeforeDevEnabled only for multi_agent unless disabled", () => {
@@ -38,6 +40,48 @@ describe("qa-spec-flow", () => {
     assert.equal(out[0].qaPhase, "spec");
     assert.equal(out[1].agentId, "dev-backend");
     assert.equal(out[2].qaPhase, "exec");
+  });
+
+  it("forces qa after first dev to exec even if planner incorrectly marks spec", () => {
+    const steps = [
+      { agentId: "qa", qaPhase: "spec", task: "spec ok" },
+      { agentId: "dev-backend", task: "implement" },
+      { agentId: "qa", qaPhase: "spec", task: "wrong tag" },
+      { agentId: "cerberus", task: "audit" },
+    ];
+    const out = applyQaSpecBeforeDevPlan(steps, { enabled: true });
+    assert.equal(out[0].qaPhase, "spec");
+    assert.equal(out[2].agentId, "qa");
+    assert.equal(out[2].qaPhase, "exec");
+    assert.equal(resolveHandoffMode("qa", out[2], "QA"), "QA_EXEC");
+  });
+
+  it("shouldEmitQaReviewRecord skips QA_SPEC and allows QA_EXEC", () => {
+    const specOutput = [
+      "test_strategy: unit",
+      "acceptance_criteria:",
+      "  - divide by zero throws",
+      "validation_commands:",
+      "  - npm test",
+    ].join("\n");
+    assert.equal(shouldEmitQaReviewRecord("qa", { qaPhase: "spec" }), false);
+    assert.equal(shouldEmitQaReviewRecord("qa", { qaPhase: "exec" }), true);
+
+    const specReview = buildReviewRecord({
+      reviewerRole: "qa",
+      output: specOutput,
+      iteration: 1,
+      stepId: "s-spec",
+    });
+    assert.equal(specReview.verdict, "block");
+
+    const execReview = buildReviewRecord({
+      reviewerRole: "qa",
+      output: "blocker: none\nimprovement: tests pass\nnice-to-have: none",
+      iteration: 1,
+      stepId: "s-exec",
+    });
+    assert.equal(execReview.verdict, "request_changes");
   });
 
   it("resolveHandoffMode maps qa phases", () => {

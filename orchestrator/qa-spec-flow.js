@@ -70,7 +70,7 @@ function applyQaSpecBeforeDevPlan(steps, { enabled = true } = {}) {
     if (i < firstDevIdx) {
       out[i] = { ...out[i], qaPhase: "spec" };
       hasSpecBeforeDev = true;
-    } else if (!out[i].qaPhase) {
+    } else {
       out[i] = { ...out[i], qaPhase: "exec" };
     }
   }
@@ -84,6 +84,27 @@ function applyQaSpecBeforeDevPlan(steps, { enabled = true } = {}) {
   }
 
   return out;
+}
+
+/**
+ * @param {string} agentId
+ * @param {{ qaPhase?: string } | null | undefined} step
+ * @returns {boolean}
+ */
+function isQaSpecStep(agentId, step) {
+  if (agentId !== "qa") return false;
+  const p = step?.qaPhase != null ? String(step.qaPhase).trim().toLowerCase() : "";
+  return p === "spec";
+}
+
+/**
+ * QA_SPEC defines acceptance criteria — not a review verdict. Do not emit review_record.
+ * @param {string} agentId
+ * @param {{ qaPhase?: string } | null | undefined} step
+ * @returns {boolean}
+ */
+function shouldEmitQaReviewRecord(agentId, step) {
+  return agentId === "qa" && !isQaSpecStep(agentId, step);
 }
 
 /**
@@ -211,6 +232,8 @@ module.exports = {
   QA_SPEC_DEFAULT_TASK,
   isQaSpecBeforeDevEnabled,
   qaPhaseFromStep,
+  isQaSpecStep,
+  shouldEmitQaReviewRecord,
   resolveHandoffMode,
   applyQaSpecBeforeDevPlan,
   validateHandoffForMode,
