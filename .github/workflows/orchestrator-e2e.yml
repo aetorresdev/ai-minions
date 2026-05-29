@@ -111,9 +111,6 @@ jobs:
       - name: Run E2E suite (test:e2e)
         env:
           OLLAMA_MODEL: ${{ github.event.inputs.ollama_model || 'qwen2.5-coder:7b' }}
-          # Test-only: all roles use Ollama HTTP; qa/cerberus lack network in capability-matrix.
-          # Bypasses role-capability precheck so E2E can exercise full loops — not production behavior.
-          ORCH_SKIP_ROLE_CAPABILITY_GATE: "1"
         run: |
           cd orchestrator
           npm run test:e2e

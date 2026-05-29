@@ -20,9 +20,9 @@
  * Uses **maxIterations: 2** so a second loop can recover when the local model misses YAML-first on the first try (CI stability). For a strict first-shot check, run with env **E2E_DEV_CONTRACT_FIRST_SHOT=1** (uses maxIterations: 1).
  * (requires Ollama; asserts `validateOutput` passes on at least one DEV artifact — not in default `npm test`).
  *
- * **Capability matrix / Ollama:** roles **qa** and **cerberus** do not declare **`network`** in `capability-matrix.v1.json`.
- * When `setBackend("ollama")` routes those agents through `runOllama`, the network permission gate may deny with **`role_capability_domain_denied`** in logs.
- * Subtests can still **pass** when assertions only require plan/DEV artifacts or format smoke — this suite is **not** a guarantee of a full successful QA→CERBERUS review path over HTTP to Ollama unless those roles are given `network` in the matrix or the test uses Claude CLI for those steps.
+ * **Capability matrix / Ollama:** review roles **qa** and **cerberus** declare **`local_model`** and **`network`**
+ * (LOCAL-ONLY-CAPABILITY-ALIGN-1) so Ollama HTTP in local-only / setBackend("ollama") paths is not denied at the role gate.
+ * Subtests that exercise full QA→CERBERUS over HTTP still depend on Ollama model quality and output contracts.
  */
 
 "use strict";
@@ -111,10 +111,6 @@ describe("E2E — Orchestrator with Ollama", { concurrency: 1 }, () => {
     // Force all agent roles to use Ollama — no claude CLI calls during E2E tests
     process.env.OLLAMA_MODEL = ollamaModel;
     setBackend("ollama");
-    // Test-only bypass (mirrors orchestrator-e2e.yml): Ollama HTTP for qa/cerberus despite matrix lacking network.
-    if (process.env.ORCH_SKIP_ROLE_CAPABILITY_GATE !== "1") {
-      process.env.ORCH_SKIP_ROLE_CAPABILITY_GATE = "1";
-    }
     console.log(`[e2e] Ollama ready — using model: ${ollamaModel}`);
     console.log(`[e2e] Available models: ${models.join(", ")}`);
     console.log(`[e2e] setBackend("ollama") — all agent roles will use Ollama`);
