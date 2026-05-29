@@ -142,6 +142,21 @@ async function defaultFetchOllamaTags(opts) {
 }
 
 /**
+ * @param {LocalBackendStatus} backend
+ * @param {string} reason
+ * @param {string} missingMessage
+ * @returns {LocalModelDiscoveryResult}
+ */
+function discoveryFailure(backend, reason, missingMessage) {
+  backend.reason = reason;
+  return {
+    backends: [backend],
+    models: [],
+    missing_local_backend: missingMessage,
+  };
+}
+
+/**
  * Discover local backends and models without running inference.
  * @param {{
  *   host?: string,
@@ -164,41 +179,48 @@ async function discoverLocalModels(options = {}) {
     reason: null,
   };
 
-  const response = await fetchTags({
-    host,
-    port,
-    cwd: options.cwd,
-    timeoutMs: options.timeoutMs,
-  });
+  let response;
+  try {
+    response = await fetchTags({
+      host,
+      port,
+      cwd: options.cwd,
+      timeoutMs: options.timeoutMs,
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    return discoveryFailure(
+      backend,
+      reason,
+      'missing local backend: ollama unreachable',
+    );
+  }
 
   if (response.denied) {
-    backend.reason = 'network_denied';
-    return {
-      backends: [backend],
-      models: [],
-      missing_local_backend: 'missing local backend: ollama network egress denied',
-    };
+    return discoveryFailure(
+      backend,
+      'network_denied',
+      'missing local backend: ollama network egress denied',
+    );
   }
 
   if (!response.ok) {
-    backend.reason = response.error || `http_${response.statusCode ?? 'error'}`;
-    return {
-      backends: [backend],
-      models: [],
-      missing_local_backend: 'missing local backend: ollama unreachable',
-    };
+    return discoveryFailure(
+      backend,
+      response.error || `http_${response.statusCode ?? 'error'}`,
+      'missing local backend: ollama unreachable',
+    );
   }
 
   let parsed;
   try {
     parsed = JSON.parse(String(response.body ?? '{}'));
   } catch {
-    backend.reason = 'invalid_json';
-    return {
-      backends: [backend],
-      models: [],
-      missing_local_backend: 'missing local backend: ollama returned invalid tags payload',
-    };
+    return discoveryFailure(
+      backend,
+      'invalid_json',
+      'missing local backend: ollama returned invalid tags payload',
+    );
   }
 
   const rawModels = Array.isArray(parsed.models) ? parsed.models : [];

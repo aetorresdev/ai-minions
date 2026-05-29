@@ -84,6 +84,20 @@ describe("local-model-discovery — discoverLocalModels", () => {
     assert.match(result.missing_local_backend, /invalid tags payload/);
     assert.equal(result.backends[0].reason, "invalid_json");
   });
+
+  it("returns stable shape when fetchTags throws", async () => {
+    const result = await discoverLocalModels({
+      fetchTags: async () => {
+        throw new Error("fetchTags boom");
+      },
+    });
+
+    assert.match(result.missing_local_backend, /missing local backend/);
+    assert.equal(result.backends.length, 1);
+    assert.equal(result.backends[0].available, false);
+    assert.equal(result.backends[0].reason, "fetchTags boom");
+    assert.deepEqual(result.models, []);
+  });
 });
 
 describe("local-model-discovery — optional live integration", () => {
