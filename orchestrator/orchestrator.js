@@ -33,6 +33,11 @@ const {
   shouldEmitQaReviewRecord,
 } = require("./qa-spec-flow");
 const { askAgent, summarizeHandoff, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
+const {
+  configureLocalModelPolicy,
+  validateLocalOnlyRunPrerequisites,
+  setLocalModelTraceReporter,
+} = require("./local-model-policy");
 const { formatArtifactLine, envInt, truncateForContext } = require("./context-utils");
 const { spawnSync } = require("child_process");
 const { randomUUID } = require("crypto");
@@ -1310,6 +1315,7 @@ function parseEnvironment(prompt) {
  *   skipStateMcp?: boolean
  *   requireHandoff?: boolean — if set, overrides default: strict (!skipStateMcp) requires compact_handoff; degraded skips hard fail
  *   traceScenarioId?: string — optional label written to trace `session_start` / `session_end` as `scenario_id` (batch metrics export). Env: ORCH_TRACE_SCENARIO_ID.
+ *   localModel?: string — CLI `--model` override for local-only / Ollama execution.
  *   credentialSessionMode?: 'read'|'write' — session credential ceiling for plan validation with `requiredDomains` (default write). Env: ORCH_SESSION_CREDENTIAL_MODE=read.
  * }} options
  */
@@ -1583,6 +1589,9 @@ async function run(goal, options = {}) {
   let currentMode = "ORCHESTRATOR";
   const degradedInRun = new Set(); // agents that ran in fallback at least once this run
   clearDegradedAgents();
+  configureLocalModelPolicy({ cliModel: options.localModel ?? null });
+  setLocalModelTraceReporter((payload) => traceEvent(taskId, payload));
+  const localOnlyCtx = await validateLocalOnlyRunPrerequisites({ checkOllama });
 
   log("orchestrator", `Working directory: ${cwd}`);
   log("orchestrator", `task_id: ${taskId} | flow: ${flowMode} | max_iterations: ${maxIterations}`);
@@ -1605,7 +1614,12 @@ async function run(goal, options = {}) {
 
   // ── Ollama connectivity check ────────────────────────────────────────────────
   const ollamaModel = process.env.OLLAMA_MODEL || null;
-  if (ollamaModel) {
+  if (localOnlyCtx.local_only_mode) {
+    log(
+      "orchestrator",
+      `Local-only mode — model: ${localOnlyCtx.selected_model} (source: ${localOnlyCtx.override_source})`,
+    );
+  } else if (ollamaModel) {
     const ollamaOk = await checkOllama();
     if (!ollamaOk) {
       log("orchestrator", `WARNING: OLLAMA_MODEL=${ollamaModel} set but Ollama unreachable at ${process.env.OLLAMA_HOST || "localhost"}:${process.env.OLLAMA_PORT || "11434"}. orchestrator/summarizer will use claude-haiku fallback.`);
@@ -1640,6 +1654,7 @@ async function run(goal, options = {}) {
     goal: goal.slice(0, 200),
     require_handoff: requireHandoff,
     ...(scenarioId ? { scenario_id: scenarioId } : {}),
+    ...localOnlyCtx,
   });
 
   // ── Degraded mode banner ──────────────────────────────────────────────────────

@@ -13,14 +13,17 @@
  *   --flow <mode>        Flow mode for metrics: single_agent | multi_agent (default: single_agent)
  *   --task-id <id>       Task ID for state store (default: auto-generated)
  *   --skip-gates         Skip orchestrator-state MCP gates (useful for testing)
+ *   --model <name>       Local model override (requires local-only or Ollama path)
  *
  * Traces: optional env ORCH_TRACE_SCENARIO_ID labels session_start/session_end (scenario_id) for batch metrics export.
+ * Local-only: ORCH_MODEL_MODE=local_only or ORCH_ALLOW_REMOTE_MODELS=0; ORCH_LOCAL_MODEL / OLLAMA_MODEL.
  */
 
 const path = require("path");
 const fs   = require("fs");
 const { run } = require("./orchestrator");
 const { setModelProfile } = require("./agents");
+const { configureLocalModelPolicy } = require("./local-model-policy");
 const { loadMinionsProjectConfig } = require("./minions-config");
 const { printOperatorCliHelp, printRunOrchestratorUsageBrief } = require("./operator-cli-help");
 
@@ -51,6 +54,7 @@ async function main() {
   let taskId;
   let skipGates = false;
   let profile = null;
+  let cliModel = null;
   /** @type {boolean | null} */
   let requireHandoffOverride = null;
   const inputArgs = [];
@@ -68,6 +72,7 @@ async function main() {
     else if (args[i] === "--require-handoff")           { requireHandoffOverride = true; }
     else if (args[i] === "--no-require-handoff")       { requireHandoffOverride = false; }
     else if (args[i] === "--profile" && args[i + 1])    { profile = args[++i]; }
+    else if (args[i] === "--model" && args[i + 1])        { cliModel = args[++i]; }
     else                                                 { inputArgs.push(args[i]); }
   }
 
@@ -84,6 +89,8 @@ async function main() {
       console.log(`Profile: ${profile}`);
     }
   }
+
+  configureLocalModelPolicy({ cliModel });
 
   const goal = inputArgs.join(" ") || await readStdin();
   if (!goal || !goal.trim()) {
@@ -107,7 +114,7 @@ async function main() {
     : requireHandoffOverride === false ? " | require_handoff: forced OFF"
       : "";
   const maxIterDisplay = maxIterationsFromCli != null ? maxIterationsFromCli : "(env ORCH_MAX_ITERATIONS or 3)";
-  console.log(`Flow: ${flowMode} | Max iterations: ${maxIterDisplay}${profile ? ` | Profile: ${profile}` : ""}${skipGates ? " | Gates: DISABLED" : ""}${handoffNote}\n`);
+  console.log(`Flow: ${flowMode} | Max iterations: ${maxIterDisplay}${profile ? ` | Profile: ${profile}` : ""}${cliModel ? ` | Model: ${cliModel}` : ""}${skipGates ? " | Gates: DISABLED" : ""}${handoffNote}\n`);
 
   const result = await run(goal.trim(), {
     ...(maxIterationsFromCli != null ? { maxIterations: maxIterationsFromCli } : {}),
@@ -115,6 +122,7 @@ async function main() {
     flowMode,
     taskId,
     skipStateMcp: skipGates,
+    ...(cliModel ? { localModel: cliModel } : {}),
     ...(requireHandoffOverride !== null ? { requireHandoff: requireHandoffOverride } : {}),
     ...(traceScenarioFromMinions ? { traceScenarioId: traceScenarioFromMinions } : {}),
   });

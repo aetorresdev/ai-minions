@@ -5,6 +5,7 @@
 'use strict';
 
 const { runOllama } = require('./run-ollama');
+const { isLocalOnlyModeEnabled, resolveLocalModelOverride } = require('../../local-model-policy');
 
 const SUMMARY_SYSTEM = `You are a technical summarizer for handoffs between agents in the same pipeline.
 Your output will be read by the NEXT agent. Preserve actionable context: file names, APIs, decisions, errors.
@@ -49,7 +50,14 @@ ${task}
 ## Full agent output (to condense into handoff)
 ${body}`;
 
-  const model = process.env.AI_TEAM_SUMMARY_MODEL || "qwen2.5-coder:7b";
+  const model = (() => {
+    if (isLocalOnlyModeEnabled()) {
+      const resolved = resolveLocalModelOverride();
+      if (resolved?.model) return resolved.model;
+    }
+    if (process.env.AI_TEAM_SUMMARY_MODEL) return process.env.AI_TEAM_SUMMARY_MODEL;
+    return "qwen2.5-coder:7b";
+  })();
   const timeoutMs = parseInt(process.env.AI_TEAM_SUMMARY_TIMEOUT_MS, 10) || 240000;
   const raw = await runOllama(SUMMARY_SYSTEM, [{ role: "user", content: user }], {
     model,

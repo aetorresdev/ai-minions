@@ -43,6 +43,12 @@ const {
   OLLAMA_ORCHESTRATOR_DECIDE_APPEND,
 } = require("./agents/prompts/ollama-appends");
 const { buildAgents } = require("./agents/registry");
+const {
+  isLocalOnlyModeEnabled,
+  resolveLocalModelOverride,
+  assertRemoteProviderBlocked,
+  getEffectiveOllamaModel,
+} = require("./local-model-policy");
 
 // ── Contract version ──────────────────────────────────────────────────────────
 // Bump when handoff schema, role permissions, or gate sequence change.
@@ -296,15 +302,25 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase 
   }
 
   const forceOllama = _backendOverride === "ollama" && OLLAMA_MODEL;
-  if (agent.provider === "ollama" || forceOllama) {
-    const model = forceOllama ? OLLAMA_MODEL : agent.model;
+  const localOnlyRoute = isLocalOnlyModeEnabled();
+  if (localOnlyRoute) {
+    const resolved = resolveLocalModelOverride();
+    if (!resolved?.model) {
+      assertRemoteProviderBlocked({ provider: agent.provider, agentId, backend: "claude" });
+    }
+  }
+  if (agent.provider === "ollama" || forceOllama || localOnlyRoute) {
+    const model = getEffectiveOllamaModel({ forceOllama, agentModel: agent.model });
+    if (!model) {
+      assertRemoteProviderBlocked({ provider: agent.provider, agentId, backend: "claude" });
+    }
     let systemForOllama = agent.system;
     if (agentId === "orchestrator") {
       systemForOllama =
         phase === "decide"
           ? `${agent.system}${OLLAMA_ORCHESTRATOR_DECIDE_APPEND}`
           : `${agent.system}${OLLAMA_ORCHESTRATOR_PLAN_APPEND}`;
-    } else if (forceOllama) {
+    } else if (forceOllama || localOnlyRoute) {
       if (agentId === "architect") {
         systemForOllama = `${agent.system}${OLLAMA_ARCHITECT_SYSTEM_APPEND}`;
       } else if (agentId.startsWith("dev-")) {
@@ -333,6 +349,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase 
     if (raw.eval_count != null) context_stats.ollama_completion_tokens = raw.eval_count;
     return { output, context_stats };
   }
+  assertRemoteProviderBlocked({ provider: agent.provider, agentId, backend: "claude" });
   const maxTokens = MAX_OUTPUT_TOKENS[agentId] ?? undefined;
   const envContext = sessionEnv ? buildEnvContext(agentId, sessionEnv) : "";
   const systemPrompt = envContext
@@ -349,6 +366,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase 
     output = runClaude(prompt, { cwd, model: agent.model, maxTokens, traceRole: agent.mode, traceAgentId: agentId });
   } catch (primaryErr) {
     primaryFailure = primaryErr;
+    assertRemoteProviderBlocked({ provider: "claude", agentId, backend: "claude" });
     // Primary model failed — attempt fallback per policy
     let fb;
     try { fb = resolveFallback(agentId); } catch (policyErr) {
@@ -402,10 +420,19 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase 
 async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
   const agent = AGENTS[agentId];
   if (!agent) throw new Error(`Unknown agent "${agentId}". Available: ${Object.keys(AGENTS).join(", ")}`);
-  if (agent.provider === "ollama") {
+  if (agent.provider === "ollama" || isLocalOnlyModeEnabled()) {
+    if (isLocalOnlyModeEnabled()) {
+      const resolved = resolveLocalModelOverride();
+      if (!resolved?.model) {
+        assertRemoteProviderBlocked({ provider: agent.provider, agentId, backend: "claude" });
+      }
+    }
+    const chatModel = isLocalOnlyModeEnabled()
+      ? getEffectiveOllamaModel({ agentModel: agent.model })
+      : agent.model;
     const messages = [...history, { role: "user", content: userMessage }];
     const raw = await runOllama(agent.system, messages, {
-      model: agent.model,
+      model: chatModel,
       cwd,
       traceRole: agent.mode,
       traceAgentId: agentId,
@@ -413,6 +440,7 @@ async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
     const reply = raw.content;
     return { reply, history: [...messages, { role: "assistant", content: reply }] };
   }
+  assertRemoteProviderBlocked({ provider: agent.provider, agentId, backend: "claude" });
   let conversationText = "";
   for (const msg of history) {
     conversationText += `${msg.role === "user" ? "User" : agent.name}: ${msg.content}\n\n`;
