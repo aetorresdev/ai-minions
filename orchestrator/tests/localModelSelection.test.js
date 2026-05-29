@@ -190,4 +190,31 @@ describe("local-model-selection — ranking", () => {
       assert.equal(policy.default_model, "qwen2.5-coder:14b");
     });
   });
+
+  it("throws on invalid model-policy.yaml version", () => {
+    withTempPolicy("model_policy_version: 99\n", (dir) => {
+      assert.throws(() => loadModelPolicy(dir), /unsupported model_policy_version/);
+    });
+  });
+
+  it("selectLocalModel propagates invalid yaml errors", async () => {
+    await withTempPolicy("model_policy_version: 99\n", async (dir) => {
+      await assert.rejects(
+        () => selectLocalModel({ cwd: dir, discover: mockDiscover, interactive: false }),
+        /unsupported model_policy_version/,
+      );
+    });
+  });
+
+  it("throws when max_size_bytes filters all discovered models", async () => {
+    await assert.rejects(
+      () =>
+        selectLocalModel({
+          discover: mockDiscover,
+          interactive: false,
+          loadPolicy: () => ({ model_policy_version: 1, max_size_bytes: 1 }),
+        }),
+      /max_size_bytes/,
+    );
+  });
 });
