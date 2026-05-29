@@ -91,6 +91,12 @@ describe("capability matrix", () => {
     assert.ok(r.errors.some((e) => /require write-capable session/i.test(e)));
   });
 
+  it("review roles allow local_model and network for local-only Ollama routing", () => {
+    assert.equal(roleCanUseDomains("qa", ["local_model", "network"]).ok, true);
+    assert.equal(roleCanUseDomains("cerberus", ["local_model", "network"]).ok, true);
+    assert.equal(roleCanUseDomains("cerberus", ["mcp"]).ok, false);
+  });
+
   it("validatePlanCredentialCeiling allows filesystem-only domains under read session", () => {
     const r = validatePlanCredentialCeiling(
       [{ agentId: "qa", task: "x", requiredDomains: ["filesystem", "remote_model"] }],

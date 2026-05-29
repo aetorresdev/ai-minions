@@ -17,6 +17,24 @@ describe("trace-role-capability (SEC-NET-R3)", () => {
     assert.equal(normalizeModeKey("dev"), "DEV");
   });
 
+  it("agentId cerberus allows network for local Ollama (local-only alignment)", () => {
+    const r = isDomainAllowedForCapabilityContext({
+      traceRole: "CERBERUS",
+      agentId: "cerberus",
+      domain: "network",
+    });
+    assert.equal(r.ok, true);
+  });
+
+  it("agentId qa allows local_model for Ollama routing", () => {
+    const r = isDomainAllowedForCapabilityContext({
+      traceRole: "QA",
+      agentId: "qa",
+      domain: "local_model",
+    });
+    assert.equal(r.ok, true);
+  });
+
   it("agentId cerberus denies mcp domain", () => {
     const r = isDomainAllowedForCapabilityContext({
       traceRole: "QA",
@@ -87,19 +105,35 @@ describe("gates — role capability precheck", () => {
     assert.equal(gate.output.reason_code, "role_capability_domain_denied");
   });
 
-  it("runNetworkPermissionGate denies network for CERBERUS MODE union", () => {
+  it("runNetworkPermissionGate allows Ollama for cerberus agentId under dev-local", () => {
     const gate = runNetworkPermissionGate({
       repoRoot: "/tmp",
       permissionProfileName: "dev-local",
       role: "CERBERUS",
+      agentId: "cerberus",
       actor: "orchestrator",
       hostname: "127.0.0.1",
       port: 11434,
       tool: "ollama_chat",
       pathLabel: "/api/chat",
     });
-    assert.equal(gate.output.decision, "deny");
-    assert.equal(gate.output.reason_code, "role_capability_domain_denied");
+    assert.equal(gate.output.decision, "allow");
+    assert.equal(gate.output.reason_code, "network_allowlist_allowed");
+  });
+
+  it("runNetworkPermissionGate allows Ollama for qa agentId under dev-local", () => {
+    const gate = runNetworkPermissionGate({
+      repoRoot: "/tmp",
+      permissionProfileName: "dev-local",
+      role: "QA",
+      agentId: "qa",
+      actor: "orchestrator",
+      hostname: "localhost",
+      port: 11434,
+      tool: "ollama_chat",
+      pathLabel: "/api/chat",
+    });
+    assert.equal(gate.output.decision, "allow");
   });
 
   it("runMcpPermissionGate denies mcp when agentId cerberus", () => {

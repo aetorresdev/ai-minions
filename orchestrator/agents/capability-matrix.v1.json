@@ -37,12 +37,12 @@
       "notes": "Infra / CI / Terraform-style work."
     },
     "qa": {
-      "domains": ["filesystem", "remote_model", "mcp"],
-      "notes": "Read artifacts and review; no implementation ownership."
+      "domains": ["filesystem", "remote_model", "local_model", "network", "mcp"],
+      "notes": "Read artifacts and review; local_model + network when local-only routes QA through Ollama HTTP; remote_model for Claude path."
     },
     "cerberus": {
-      "domains": ["filesystem", "remote_model"],
-      "notes": "Read outputs for review; credential ceiling remains read via permissions.js."
+      "domains": ["filesystem", "remote_model", "local_model", "network"],
+      "notes": "Read outputs for review; local_model + network when local-only routes CERBERUS through Ollama HTTP; credential ceiling remains read via permissions.js."
     },
     "summarizer": {
       "domains": ["local_model"],

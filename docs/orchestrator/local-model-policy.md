@@ -23,6 +23,14 @@ If a model is configured but Ollama is unreachable, the run fails — **no silen
 
 In local-only mode, `summarizeHandoff` uses the same resolved override chain (`--model` > `ORCH_LOCAL_MODEL` > `OLLAMA_MODEL`); `AI_TEAM_SUMMARY_MODEL` does not override it.
 
+## Capability matrix alignment (local-only routing)
+
+When `ORCH_MODEL_MODE=local_only`, `askAgent()` routes **all** roles through Ollama HTTP (`runOllama`). Review roles **qa** and **cerberus** must declare **`local_model`** and **`network`** in `capability-matrix.v1.json` or the network permission gate returns `role_capability_domain_denied` before inference runs.
+
+Ollama egress remains constrained by the active permission profile (`network.allow_hosts`, typically localhost:11434). Adding matrix domains does not grant arbitrary HTTP egress.
+
+**Owner** and **architect** are not aligned in this slice — multi-agent plans that include those steps under local-only may still fail until a follow-on expands their matrix rows.
+
 ## Trace events
 
 | Event | When |
