@@ -1589,9 +1589,9 @@ async function run(goal, options = {}) {
   let currentMode = "ORCHESTRATOR";
   const degradedInRun = new Set(); // agents that ran in fallback at least once this run
   clearDegradedAgents();
-  configureLocalModelPolicy({ cliModel: options.localModel ?? null });
+  configureLocalModelPolicy({ cliModel: options.localModel ?? null, cwd });
   setLocalModelTraceReporter((payload) => traceEvent(taskId, payload));
-  const localOnlyCtx = await validateLocalOnlyRunPrerequisites({ checkOllama });
+  const localOnlyCtx = await validateLocalOnlyRunPrerequisites({ checkOllama, cwd });
 
   log("orchestrator", `Working directory: ${cwd}`);
   log("orchestrator", `task_id: ${taskId} | flow: ${flowMode} | max_iterations: ${maxIterations}`);
@@ -1617,7 +1617,7 @@ async function run(goal, options = {}) {
   if (localOnlyCtx.local_only_mode) {
     log(
       "orchestrator",
-      `Local-only mode — model: ${localOnlyCtx.selected_model} (source: ${localOnlyCtx.override_source})`,
+      `Local-only mode — model: ${localOnlyCtx.selected_model} (source: ${localOnlyCtx.override_source}${localOnlyCtx.selection_reason ? `; ${localOnlyCtx.selection_reason}` : ""})`,
     );
   } else if (ollamaModel) {
     const ollamaOk = await checkOllama();

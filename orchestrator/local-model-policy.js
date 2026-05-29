@@ -7,10 +7,14 @@
 
 const GATE_ID = 'model_policy_block';
 
-/** @type {{ cliModel: string | null, skipBackendCheck: boolean }} */
+const { selectLocalModel } = require('./local-model-selection');
+
+/** @type {{ cliModel: string | null, skipBackendCheck: boolean, selectionResult: import('./local-model-selection').LocalModelSelectionResult | null, cwd: string | null }} */
 let _runConfig = {
   cliModel: null,
   skipBackendCheck: false,
+  selectionResult: null,
+  cwd: null,
 };
 
 /** @type {((payload: Record<string, unknown>) => void) | null} */
@@ -37,11 +41,21 @@ function isLocalOnlyModeEnabled() {
 }
 
 /**
- * Resolve explicit local model override (MVP: CLI > ORCH_LOCAL_MODEL > OLLAMA_MODEL).
+ * Resolve explicit local model override (sync fast-path or cached selection result).
  * @param {{ cliModel?: string | null }} [opts]
- * @returns {{ model: string, override_source: string } | null}
+ * @returns {{ model: string, override_source: string, selection_reason?: string, discovered_models?: string[] } | null}
  */
 function resolveLocalModelOverride(opts = {}) {
+  if (_runConfig.selectionResult?.selected_model) {
+    const sel = _runConfig.selectionResult;
+    return {
+      model: sel.selected_model,
+      override_source: sel.override_source,
+      selection_reason: sel.selection_reason,
+      discovered_models: sel.discovered_models,
+    };
+  }
+
   const cliModel = normalizeModelName(opts.cliModel ?? _runConfig.cliModel);
   if (cliModel) {
     return { model: cliModel, override_source: 'cli' };
@@ -62,16 +76,27 @@ function resolveLocalModelOverride(opts = {}) {
  * @param {{ cliModel?: string | null, skipBackendCheck?: boolean }} [opts]
  */
 function configureLocalModelPolicy(opts = {}) {
-  if (Object.prototype.hasOwnProperty.call(opts, "cliModel")) {
+  if (Object.prototype.hasOwnProperty.call(opts, 'cliModel')) {
     _runConfig.cliModel = normalizeModelName(opts.cliModel);
   }
-  if (Object.prototype.hasOwnProperty.call(opts, "skipBackendCheck")) {
+  if (Object.prototype.hasOwnProperty.call(opts, 'skipBackendCheck')) {
     _runConfig.skipBackendCheck = opts.skipBackendCheck === true;
+  }
+  if (Object.prototype.hasOwnProperty.call(opts, 'selectionResult')) {
+    _runConfig.selectionResult = opts.selectionResult ?? null;
+  }
+  if (Object.prototype.hasOwnProperty.call(opts, 'cwd')) {
+    _runConfig.cwd = opts.cwd != null ? String(opts.cwd) : null;
   }
 }
 
 function resetLocalModelPolicy() {
-  _runConfig = { cliModel: null, skipBackendCheck: false };
+  _runConfig = {
+    cliModel: null,
+    skipBackendCheck: false,
+    selectionResult: null,
+    cwd: null,
+  };
   _traceReporter = null;
 }
 
@@ -135,29 +160,54 @@ function getLocalOnlySessionContext(opts = {}) {
   return {
     local_only_mode: true,
     ...(resolved
-      ? { selected_model: resolved.model, override_source: resolved.override_source }
+      ? {
+          selected_model: resolved.model,
+          override_source: resolved.override_source,
+          ...(resolved.selection_reason ? { selection_reason: resolved.selection_reason } : {}),
+          ...(resolved.discovered_models?.length
+            ? { discovered_models: resolved.discovered_models }
+            : {}),
+        }
       : {}),
   };
 }
 
 /**
  * Fail fast before agent loop when local-only is on but model/backend is missing.
- * @param {{ checkOllama?: () => Promise<boolean> }} [deps]
+ * @param {{ checkOllama?: () => Promise<boolean>, cwd?: string, selectLocalModel?: typeof selectLocalModel }} [deps]
  */
 async function validateLocalOnlyRunPrerequisites(deps = {}) {
   const ctx = getLocalOnlySessionContext();
   if (!ctx.local_only_mode) return ctx;
 
-  const resolved = resolveLocalModelOverride();
-  if (!resolved) {
+  const cwd = deps.cwd ?? _runConfig.cwd ?? process.cwd();
+  const selectFn = deps.selectLocalModel ?? selectLocalModel;
+
+  try {
+    _runConfig.selectionResult = await selectFn({
+      cwd,
+      cliModel: _runConfig.cliModel,
+      interactive: process.env.ORCH_NON_INTERACTIVE === '1' ? false : undefined,
+    });
+  } catch (err) {
     throw createLocalOnlyPolicyError(
-      '[local-only] No local model configured. Provide --model, ORCH_LOCAL_MODEL, or OLLAMA_MODEL.',
+      err instanceof Error ? err.message : String(err),
       { missing: 'selected_model' },
     );
   }
 
+  const resolved = resolveLocalModelOverride();
+  if (!resolved?.model) {
+    throw createLocalOnlyPolicyError(
+      '[local-only] No local model configured. Provide --model, ORCH_LOCAL_MODEL, model-policy.yaml, or discoverable Ollama models.',
+      { missing: 'selected_model' },
+    );
+  }
+
+  const enriched = getLocalOnlySessionContext();
+
   if (_runConfig.skipBackendCheck) {
-    return ctx;
+    return enriched;
   }
 
   const checkOllama = deps.checkOllama;
@@ -173,7 +223,7 @@ async function validateLocalOnlyRunPrerequisites(deps = {}) {
     );
   }
 
-  return ctx;
+  return enriched;
 }
 
 /**

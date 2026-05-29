@@ -139,9 +139,15 @@ describe("local-model-policy — prerequisites", () => {
 
   it("fails when no model configured", async () => {
     await assert.rejects(
-      () => policy.validateLocalOnlyRunPrerequisites({ checkOllama: async () => true }),
+      () =>
+        policy.validateLocalOnlyRunPrerequisites({
+          checkOllama: async () => true,
+          selectLocalModel: async () => {
+            throw new Error("[local-model-selection] No local models discovered.");
+          },
+        }),
       (err) => {
-        assert.match(err.message, /No local model configured/);
+        assert.match(err.message, /No local models discovered/);
         assert.equal(err.gate_id, policy.GATE_ID);
         return true;
       },
