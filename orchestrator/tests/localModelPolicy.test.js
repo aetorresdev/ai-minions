@@ -3,10 +3,13 @@
 const { describe, it, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
 const cp = require("child_process");
+const fs = require("fs");
 const path = require("path");
 
 const policy = require("../local-model-policy");
 const ollamaRuntime = require("../agents/runtime/run-ollama");
+
+const ORCH_ROOT = path.resolve(__dirname, "..");
 
 function saveEnv(keys) {
   /** @type {Record<string, string | undefined>} */
@@ -26,6 +29,30 @@ function clearModuleCache(prefix) {
   for (const key of Object.keys(require.cache)) {
     if (key.includes(prefix)) delete require.cache[key];
   }
+}
+
+function clearOrchestratorModuleCaches() {
+  const paths = new Set([
+    path.join(ORCH_ROOT, "agents.js"),
+    path.join(ORCH_ROOT, "orchestrator.js"),
+    path.join(ORCH_ROOT, "agents", "runtime", "run-ollama.js"),
+    path.join(ORCH_ROOT, "agents", "runtime", "summarize-handoff.js"),
+    path.join(ORCH_ROOT, "agents", "routing", "model-routing.js"),
+  ]);
+  for (const key of Object.keys(require.cache)) {
+    if (paths.has(key)) delete require.cache[key];
+  }
+}
+
+function readTraceEvents(traceDir) {
+  const files = fs.readdirSync(traceDir).filter((f) => f.endsWith(".jsonl"));
+  assert.equal(files.length, 1, `expected one trace file in ${traceDir}, got: ${files.join(",")}`);
+  return fs
+    .readFileSync(path.join(traceDir, files[0]), "utf8")
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
 }
 
 describe("local-model-policy — mode detection", () => {
@@ -214,6 +241,48 @@ describe("askAgent — local-only blocks remote", () => {
   });
 });
 
+describe("summarizeHandoff — local-only model precedence", () => {
+  const keys = ["ORCH_MODEL_MODE", "ORCH_LOCAL_MODEL", "AI_TEAM_SUMMARY_MODEL"];
+  const summarizePath = path.join(ORCH_ROOT, "agents", "runtime", "summarize-handoff.js");
+  let prev;
+  const origRunOllama = ollamaRuntime.runOllama;
+
+  beforeEach(() => {
+    prev = saveEnv(keys);
+    process.env.ORCH_MODEL_MODE = "local_only";
+    process.env.ORCH_LOCAL_MODEL = "run-model";
+    process.env.AI_TEAM_SUMMARY_MODEL = "summary-model";
+    policy.resetLocalModelPolicy();
+    delete require.cache[summarizePath];
+  });
+
+  afterEach(() => {
+    ollamaRuntime.runOllama = origRunOllama;
+    restoreEnv(prev);
+    policy.resetLocalModelPolicy();
+    delete require.cache[summarizePath];
+  });
+
+  it("uses resolved local model instead of AI_TEAM_SUMMARY_MODEL", async () => {
+    /** @type {string | undefined} */
+    let capturedModel;
+    ollamaRuntime.runOllama = async (_system, _messages, opts) => {
+      capturedModel = opts.model;
+      return { content: "handoff summary", prompt_eval_count: 1, eval_count: 1 };
+    };
+
+    const { summarizeHandoff } = require("../agents/runtime/summarize-handoff");
+    await summarizeHandoff({
+      agentId: "dev-backend",
+      task: "implement feature",
+      result: "files_modified:\n  - app.js",
+      cwd: ORCH_ROOT,
+    });
+
+    assert.equal(capturedModel, "run-model");
+  });
+});
+
 describe("session_start trace contract", () => {
   const keys = ["ORCH_MODEL_MODE", "ORCH_LOCAL_MODEL"];
   let prev;
@@ -235,6 +304,81 @@ describe("session_start trace contract", () => {
     assert.equal(ctx.local_only_mode, true);
     assert.equal(ctx.selected_model, "cli-override-model");
     assert.equal(ctx.override_source, "cli");
+  });
+});
+
+describe("run() — session_start trace emission", () => {
+  const keys = [
+    "ORCH_MODEL_MODE",
+    "ORCH_LOCAL_MODEL",
+    "ORCH_TRACES_DIR",
+    "ORCH_SKIP_NETWORK_PERMISSION_GATE",
+  ];
+  let prev;
+  let traceDir;
+  let runCwd;
+  const origRunOllama = ollamaRuntime.runOllama;
+  const origSpawnSync = cp.spawnSync;
+
+  beforeEach(() => {
+    prev = saveEnv(keys);
+    const tmpRoot = path.join(__dirname, ".tmp-local-only-traces");
+    fs.mkdirSync(tmpRoot, { recursive: true });
+    traceDir = fs.mkdtempSync(path.join(tmpRoot, "trace-"));
+    runCwd = fs.mkdtempSync(path.join(tmpRoot, "cwd-"));
+    process.env.ORCH_MODEL_MODE = "local_only";
+    process.env.ORCH_LOCAL_MODEL = "trace-fallback-model";
+    process.env.ORCH_TRACES_DIR = traceDir;
+    process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = "1";
+    policy.resetLocalModelPolicy();
+    policy.configureLocalModelPolicy({ skipBackendCheck: true });
+
+    ollamaRuntime.runOllama = async () => ({
+      content: JSON.stringify({ steps: [{ agentId: "dev-backend", task: "trace regression" }] }),
+      prompt_eval_count: 1,
+      eval_count: 1,
+    });
+
+    cp.spawnSync = (...args) => {
+      if (String(args[0]).includes("claude")) {
+        throw new Error("claude CLI must not run in local-only trace regression test");
+      }
+      return origSpawnSync(...args);
+    };
+
+    clearOrchestratorModuleCaches();
+  });
+
+  afterEach(() => {
+    ollamaRuntime.runOllama = origRunOllama;
+    cp.spawnSync = origSpawnSync;
+    restoreEnv(prev);
+    policy.resetLocalModelPolicy();
+    try { fs.rmSync(traceDir, { recursive: true, force: true }); } catch { /* ok */ }
+    try { fs.rmSync(runCwd, { recursive: true, force: true }); } catch { /* ok */ }
+    clearOrchestratorModuleCaches();
+  });
+
+  it("writes local_only_mode fields on session_start in trace JSONL", async () => {
+    const { run } = require("../orchestrator");
+    try {
+      await run("local-only trace regression", {
+        cwd: runCwd,
+        maxIterations: 1,
+        skipStateMcp: true,
+        stepSummary: false,
+        localModel: "cli-override-model",
+      });
+    } catch {
+      // session_start is emitted before the agent loop; later steps may fail without a full mock chain.
+    }
+
+    const events = readTraceEvents(traceDir);
+    const start = events.find((e) => e.event === "session_start");
+    assert.ok(start, `session_start missing; events: ${events.map((e) => e.event).join(",")}`);
+    assert.equal(start.local_only_mode, true);
+    assert.equal(start.selected_model, "cli-override-model");
+    assert.equal(start.override_source, "cli");
   });
 });
 

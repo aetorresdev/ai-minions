@@ -51,11 +51,11 @@ ${task}
 ${body}`;
 
   const model = (() => {
-    if (process.env.AI_TEAM_SUMMARY_MODEL) return process.env.AI_TEAM_SUMMARY_MODEL;
     if (isLocalOnlyModeEnabled()) {
       const resolved = resolveLocalModelOverride();
       if (resolved?.model) return resolved.model;
     }
+    if (process.env.AI_TEAM_SUMMARY_MODEL) return process.env.AI_TEAM_SUMMARY_MODEL;
     return "qwen2.5-coder:7b";
   })();
   const timeoutMs = parseInt(process.env.AI_TEAM_SUMMARY_TIMEOUT_MS, 10) || 240000;

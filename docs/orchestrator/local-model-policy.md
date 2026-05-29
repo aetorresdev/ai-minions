@@ -21,6 +21,8 @@ If local-only is enabled and none of the above is set, the run fails before agen
 
 If a model is configured but Ollama is unreachable, the run fails — **no silent fallback to Claude**.
 
+In local-only mode, `summarizeHandoff` uses the same resolved override chain (`--model` > `ORCH_LOCAL_MODEL` > `OLLAMA_MODEL`); `AI_TEAM_SUMMARY_MODEL` does not override it.
+
 ## Trace events
 
 | Event | When |
