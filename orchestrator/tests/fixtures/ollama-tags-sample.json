@@ -1,0 +1,32 @@
+{
+  "models": [
+    {
+      "name": "qwen2.5-coder:7b",
+      "model": "qwen2.5-coder:7b",
+      "modified_at": "2026-01-15T10:00:00.000000001Z",
+      "size": 4683087332,
+      "digest": "sha256:abc123",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen2",
+        "families": ["qwen2"],
+        "parameter_size": "7.6B",
+        "quantization_level": "Q4_K_M"
+      }
+    },
+    {
+      "name": "llama3.1:8b",
+      "model": "llama3.1:8b",
+      "modified_at": "2026-01-10T08:00:00.000000001Z",
+      "size": 4920753328,
+      "digest": "sha256:def456",
+      "details": {
+        "format": "gguf",
+        "families": ["llama"],
+        "parameter_size": "8.0B",
+        "quantization_level": "Q4_K_M"
+      }
+    }
+  ]
+}
