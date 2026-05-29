@@ -8,8 +8,10 @@ Select a local model with explicit precedence and deterministic non-TTY behavior
 2. `ORCH_LOCAL_MODEL`
 3. `OLLAMA_MODEL` (legacy env)
 4. `.ai-minions/model-policy.yaml` → `default_model`
-5. Auto-detect via `discoverLocalModels()` + deterministic ranking
-6. Interactive TTY prompt (when stdin/stdout are TTY and not CI)
+5. Auto-detect: `discoverLocalModels()` + deterministic ranking — if exactly one candidate remains, or the session is non-interactive, the top-ranked model is selected (`override_source: auto_detect`)
+6. Optional TTY prompt when multiple ranked candidates remain **and** the session is interactive (stdin/stdout TTY, not CI) — operator picks from the ranked list (`override_source: tty_prompt`)
+
+Steps 5 and 6 are not competing precedence tiers: discovery/ranking always runs before an optional prompt. Non-interactive mode never waits for stdin.
 
 ## Model policy file
 
@@ -29,7 +31,7 @@ Set `ORCH_NON_INTERACTIVE=1` or rely on `CI=true` — selection never blocks on 
 
 ## Trace fields (`session_start` when local-only)
 
-- `discovered_models` — model names from discovery (auto/TYY paths)
+- `discovered_models` — model names from discovery (auto/TTY paths)
 - `selected_model`
 - `override_source` — `cli`, `env_orchestr_local_model`, `env_ollama_model`, `model_policy_yaml`, `auto_detect`, `tty_prompt`
 - `selection_reason` — human-readable rationale
