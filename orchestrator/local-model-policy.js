@@ -156,10 +156,7 @@ async function validateLocalOnlyRunPrerequisites(deps = {}) {
     );
   }
 
-  if (
-    _runConfig.skipBackendCheck ||
-    process.env.ORCH_TEST_SYSTEM_PATH_HARNESS === '1'
-  ) {
+  if (_runConfig.skipBackendCheck) {
     return ctx;
   }
 

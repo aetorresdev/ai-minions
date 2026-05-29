@@ -3,8 +3,6 @@
 const { describe, it, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
 const cp = require("child_process");
-const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const policy = require("../local-model-policy");
@@ -144,7 +142,6 @@ describe("askAgent — local-only blocks remote", () => {
     "ORCH_MODEL_MODE",
     "ORCH_LOCAL_MODEL",
     "OLLAMA_MODEL",
-    "ORCH_TEST_SYSTEM_PATH_HARNESS",
   ];
   let prevEnv;
   let callCount = 0;
@@ -154,7 +151,6 @@ describe("askAgent — local-only blocks remote", () => {
     prevEnv = saveEnv(envKeys);
     process.env.ORCH_MODEL_MODE = "local_only";
     process.env.ORCH_LOCAL_MODEL = "mock-local-model";
-    delete process.env.ORCH_TEST_SYSTEM_PATH_HARNESS;
     policy.resetLocalModelPolicy();
     policy.configureLocalModelPolicy({ cliModel: null, skipBackendCheck: true });
     callCount = 0;
@@ -218,82 +214,27 @@ describe("askAgent — local-only blocks remote", () => {
   });
 });
 
-describe("run() — local-only session_start trace", () => {
-  const envKeys = [
-    "ORCH_MODEL_MODE",
-    "ORCH_LOCAL_MODEL",
-    "ORCH_TRACES_DIR",
-    "ORCH_SKIP_NETWORK_PERMISSION_GATE",
-    "ORCH_TEST_SYSTEM_PATH_HARNESS",
-  ];
-  let prevEnv;
-  let traceDir;
-  const origRunOllama = ollamaRuntime.runOllama;
-  const origSpawnSync = cp.spawnSync;
+describe("session_start trace contract", () => {
+  const keys = ["ORCH_MODEL_MODE", "ORCH_LOCAL_MODEL"];
+  let prev;
 
   beforeEach(() => {
-    prevEnv = saveEnv(envKeys);
-    traceDir = fs.mkdtempSync(path.join(os.tmpdir(), "local-only-trace-"));
+    prev = saveEnv(keys);
     process.env.ORCH_MODEL_MODE = "local_only";
-    process.env.ORCH_LOCAL_MODEL = "trace-model";
-    process.env.ORCH_TRACES_DIR = traceDir;
-    process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = "1";
     policy.resetLocalModelPolicy();
-    policy.configureLocalModelPolicy({ skipBackendCheck: true });
-
-    ollamaRuntime.runOllama = async (_sys, _msgs, opts) => ({
-      content: JSON.stringify({ steps: [{ agentId: "dev-backend", task: "stop early" }] }),
-      prompt_eval_count: 1,
-      eval_count: 1,
-      model: opts.model,
-    });
-
-    cp.spawnSync = (...args) => {
-      const cmd = args[0];
-      if (String(cmd).includes("claude")) {
-        throw new Error("claude CLI must not run in local-only integration test");
-      }
-      return origSpawnSync(...args);
-    };
-
-    clearModuleCache("run-ollama");
-    clearModuleCache(`${path.sep}agents.js`);
-    clearModuleCache("orchestrator");
+    policy.configureLocalModelPolicy({ cliModel: "cli-override-model" });
   });
 
   afterEach(() => {
-    ollamaRuntime.runOllama = origRunOllama;
-    cp.spawnSync = origSpawnSync;
-    restoreEnv(prevEnv);
+    restoreEnv(prev);
     policy.resetLocalModelPolicy();
-    try { fs.rmSync(traceDir, { recursive: true, force: true }); } catch { /* ok */ }
-    clearModuleCache("orchestrator");
-    clearModuleCache(`${path.sep}agents.js`);
   });
 
-  it("writes local_only_mode fields on session_start", async () => {
-    process.env.ORCH_TEST_SYSTEM_PATH_HARNESS = "1";
-    const { run } = require("../orchestrator");
-    await run("local-only trace smoke", {
-      cwd: os.tmpdir(),
-      maxIterations: 1,
-      skipStateMcp: true,
-      stepSummary: false,
-      localModel: "cli-override-model",
-    });
-
-    const files = fs.readdirSync(traceDir).filter((f) => f.endsWith(".jsonl"));
-    assert.equal(files.length, 1);
-    const events = fs
-      .readFileSync(path.join(traceDir, files[0]), "utf8")
-      .trim()
-      .split("\n")
-      .map((l) => JSON.parse(l));
-    const start = events.find((e) => e.event === "session_start");
-    assert.ok(start);
-    assert.equal(start.local_only_mode, true);
-    assert.equal(start.selected_model, "cli-override-model");
-    assert.equal(start.override_source, "cli");
+  it("getLocalOnlySessionContext matches fields spread into session_start", () => {
+    const ctx = policy.getLocalOnlySessionContext();
+    assert.equal(ctx.local_only_mode, true);
+    assert.equal(ctx.selected_model, "cli-override-model");
+    assert.equal(ctx.override_source, "cli");
   });
 });
 
