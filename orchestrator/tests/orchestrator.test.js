@@ -128,6 +128,11 @@ describe("validateHandoffStructure / QA", () => {
     assert.equal(r.valid, true);
   });
 
+  it("QA_EXEC matches QA rules", () => {
+    const r = validateHandoffStructure("QA_EXEC", "verdict: fail\nissues:\n  - broken\n");
+    assert.equal(r.valid, true);
+  });
+
   it("passes with verdict and issues", () => {
     const r = validateHandoffStructure("QA", "verdict: fail\nissues:\n  - broken\n");
     assert.equal(r.valid, true);
@@ -143,6 +148,27 @@ describe("validateHandoffStructure / QA", () => {
     const r = validateHandoffStructure("QA", "verdict: pass\n");
     assert.equal(r.valid, false);
     assert.match(r.reason, /findings or issues/);
+  });
+});
+
+describe("validateHandoffStructure / QA_SPEC", () => {
+  it("passes with required keys", () => {
+    const yaml = [
+      "test_strategy: unit",
+      "acceptance_criteria:",
+      "  - multiply works",
+      "validation_commands:",
+      "  - npm test",
+    ].join("\n");
+    const r = validateHandoffStructure("QA_SPEC", yaml, { strict: true });
+    assert.equal(r.valid, true);
+  });
+
+  it("fails without acceptance_criteria", () => {
+    const r = validateHandoffStructure("QA_SPEC", "test_strategy: x\nvalidation_commands:\n  - t\n", {
+      strict: true,
+    });
+    assert.equal(r.valid, false);
   });
 });
 

@@ -205,6 +205,8 @@ Roles **PM**, **Software/Infra Architect**, **Backend/Frontend/DevOps** map to t
 
    `OWNER/ORCHESTRATOR (brief) → ARCHITECT (if applicable) → DEV → QA → CERBERUS → (decision) → DEV or close`
 
+   **multi_agent (acceptance-first):** when `ORCH_QA_SPEC_BEFORE_DEV` is not `0`, the runner normalizes plans to `… → QA_SPEC → DEV → QA_EXEC → CERBERUS`. See [qa-spec-before-dev-contract.md](qa-spec-before-dev-contract.md).
+
 3. After **CERBERUS**, the Orchestrator decides: another DEV round, back to QA, or escalate to OWNER.
 4. **Forbidden** in a single assistant message: DEV + QA + CERBERUS mixed. One response = **one MODE** (except ORCHESTRATOR which only lists the plan and **one** next MODE to execute).
 

@@ -24,6 +24,14 @@
  */
 
 const { deriveRunScope, writeOrchRunContext } = require("./flow-hook-bridge");
+const {
+  isQaSpecBeforeDevEnabled,
+  applyQaSpecBeforeDevPlan,
+  resolveHandoffMode,
+  validateHandoffForMode,
+  qaSpecFlowTraceExtras,
+  shouldEmitQaReviewRecord,
+} = require("./qa-spec-flow");
 const { askAgent, summarizeHandoff, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
 const { formatArtifactLine, envInt, truncateForContext } = require("./context-utils");
 const { spawnSync } = require("child_process");
@@ -844,35 +852,30 @@ function extractJson(text) {
  *   strict=true:            empty YAML fails — compact-handoff is required in strict mode
  *
  * Required keys:
- *   DEV      → files_modified OR validation_run
- *   QA       → verdict AND (findings OR issues)
+ *   DEV      → files_modified OR validation_run (+ acceptance_criteria|qa_spec_ref after QA_SPEC)
+ *   QA_SPEC  → acceptance_criteria, test_strategy|required_tests, validation_commands
+ *   QA_EXEC  → verdict AND (findings OR issues)  (legacy mode QA: same as QA_EXEC)
  *   CERBERUS → verdict AND blockers must be empty/absent
  *
  * Returns { valid: boolean, reason: string }
  */
-function validateHandoffStructure(mode, yaml, { strict = false } = {}) {
+function validateHandoffStructure(mode, yaml, { strict = false, requireQaSpecRef = false } = {}) {
+  if (mode === "DEV" || mode === "QA_SPEC" || mode === "QA_EXEC" || mode === "QA") {
+    return validateHandoffForMode(mode, yaml, { strict, requireQaSpecRef });
+  }
+
   if (!yaml || !yaml.trim()) {
     if (strict) return { valid: false, reason: `${mode} handoff is empty — compact_handoff must be called before advance_mode in strict mode` };
     return { valid: true, reason: "" };
   }
 
-  // Extract top-level keys from YAML without a full parser
-  // Matches "key:" at the start of a line (with optional leading spaces)
   const presentKeys = new Set();
   for (const line of yaml.split("\n")) {
     const m = line.match(/^\s{0,2}(\w[\w_-]*):/);
     if (m) presentKeys.add(m[1]);
   }
 
-  if (mode === "DEV") {
-    const hasTop = presentKeys.has("files_modified") || presentKeys.has("validation_run");
-    // compact-handoff often nests keys under `handoff:` (indented >2 spaces) — shallow top-level scan misses them
-    const hasNested =
-      /(^|\n)\s{1,12}files_modified\s*:/m.test(yaml) || /(^|\n)\s{1,12}validation_run\s*:/m.test(yaml);
-    if (!hasTop && !hasNested) {
-      return { valid: false, reason: "DEV handoff must include files_modified or validation_run" };
-    }
-  } else if (mode === "ARCHITECT") {
+  if (mode === "ARCHITECT") {
     const archKeys = ["decisions", "pending_for_next_mode", "design_summary", "risks"];
     const hasTop = archKeys.some((k) => presentKeys.has(k));
     const hasNested = /(^|\n)\s{1,12}(decisions|pending_for_next_mode|design_summary|risks)\s*:/m.test(yaml);
@@ -881,13 +884,6 @@ function validateHandoffStructure(mode, yaml, { strict = false } = {}) {
         valid: false,
         reason: "ARCHITECT handoff must include decisions, pending_for_next_mode, design_summary, or risks",
       };
-    }
-  } else if (mode === "QA") {
-    if (!presentKeys.has("verdict")) {
-      return { valid: false, reason: "QA handoff must include verdict" };
-    }
-    if (!presentKeys.has("findings") && !presentKeys.has("issues")) {
-      return { valid: false, reason: "QA handoff must include findings or issues" };
     }
   } else if (mode === "CERBERUS") {
     const hasVerdictTop = presentKeys.has("verdict");
@@ -1690,6 +1686,8 @@ async function run(goal, options = {}) {
       ? `
 
 Hard requirement for FLOW multi_agent: "steps" MUST include at least one implementation agent (agentId dev-backend, dev-frontend, or dev-devops) with a concrete code-edit task, and a later step with agentId qa that reviews that implementation. For goals that change source files, do NOT emit a plan with only owner or architect — those roles scope or design; implementation and QA review are mandatory in this flow.
+${isQaSpecBeforeDevEnabled(flowMode) ? `
+Acceptance-first (QA_SPEC before DEV): place a qa step BEFORE the first dev-* step to define acceptance_criteria, test_strategy (or required_tests), edge_cases, non_goals, and validation_commands. Tag that step with "qaPhase": "spec". The post-implementation qa review step must use "qaPhase": "exec" and run after dev-* completes.` : ""}
 
 When the goal is a localized change to existing application code (bugfix, validation, small feature) in the working directory, prefer the MINIMAL pipeline only: dev-backend → qa → cerberus (in that order). The dev-backend task must name the file(s) to edit and require files_read[], files_modified:, and validation_run in the output. Omit owner and architect unless the goal explicitly asks for product scope, a written spec, architecture trade-offs, or diagrams before coding.`
       : "";
@@ -1739,6 +1737,17 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         traceEvent(taskId, {
           event: "plan_normalized",
           removed_leading_steps: before - plan.steps.length,
+        });
+      }
+    }
+    if (isQaSpecBeforeDevEnabled(flowMode) && plan.steps.length) {
+      const beforeQa = plan.steps.length;
+      plan.steps = applyQaSpecBeforeDevPlan(plan.steps, { enabled: true });
+      if (plan.steps.length !== beforeQa) {
+        traceEvent(taskId, {
+          event: "plan_normalized",
+          reason: "qa_spec_before_dev",
+          steps_added: plan.steps.length - beforeQa,
         });
       }
     }
@@ -1868,6 +1877,9 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       throw new Error(msg);
     }
 
+    let qaSpecSatisfiedThisIteration = false;
+    const qaSpecFlowEnabledRun = isQaSpecBeforeDevEnabled(flowMode);
+
     for (let stepIndex = 0; stepIndex < steps.length; stepIndex++) {
       const step = steps[stepIndex];
       const agentId = step.agentId != null ? String(step.agentId).trim() : "";
@@ -1920,7 +1932,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         const agentResult = await askAgent(
           agentId,
           `Working directory: ${cwd}\n\nContext:\n${contextBlock}\n\nYour task:\n${step.task}`,
-          { cwd, sessionEnv }
+          { cwd, sessionEnv, qaPhase: step.qaPhase }
         );
         result = agentResult.output;
         contextStats = agentResult.context_stats || null;
@@ -1973,7 +1985,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
         Object.assign(donePayload, qaAgentDoneTraceExtras(result));
       }
       traceEvent(taskId, donePayload);
-      if (agentId === "qa") {
+      if (shouldEmitQaReviewRecord(agentId, step)) {
         traceReviewRecord(
           traceEvent,
           taskId,
@@ -2005,7 +2017,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       let handoffYaml = "";
       /** @type {Record<string, unknown>} */
       let handoffCompressionMeta = {};
-      const toMode = AGENT_TO_MODE[agentId];
+      const toMode = resolveHandoffMode(agentId, step, AGENT_TO_MODE[agentId]);
       const nextStepIdx = steps.indexOf(step) + 1;
       const nextAgent   = steps[nextStepIdx]?.agentId;
       const nextMode    = nextAgent ? (AGENT_TO_MODE[nextAgent] || "ORCHESTRATOR") : "ORCHESTRATOR";
@@ -2099,7 +2111,8 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
       // ── Structural handoff validation (per-MODE key check) ────────────────
       if (AGENTS_REQUIRING_GATE.has(agentId)) {
-        const sv = validateHandoffStructure(toMode, handoffYaml, { strict: requireHandoff });
+        const requireQaSpecRef = qaSpecFlowEnabledRun && qaSpecSatisfiedThisIteration && toMode === "DEV";
+        const sv = validateHandoffStructure(toMode, handoffYaml, { strict: requireHandoff, requireQaSpecRef });
         if (!sv.valid) {
           log("gate", `🟥 Handoff structure invalid (${toMode}): ${sv.reason}`);
           traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("gate_block"), gate: "handoff_structure", passed: false, reason: sv.reason });
@@ -2118,6 +2131,19 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
           continue;
         }
         traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("success"), gate: "handoff_structure", passed: true });
+        if (toMode === "QA_SPEC") qaSpecSatisfiedThisIteration = true;
+        const qaFlowTrace = qaSpecFlowTraceExtras(toMode, true, handoffYaml);
+        if (qaFlowTrace.event) {
+          traceEvent(taskId, {
+            ...qaFlowTrace,
+            agent: agentId,
+            iteration: iterations,
+            step_id: stepId,
+            step_index: stepIndex,
+            ...graphMeta,
+            ...intentStep,
+          });
+        }
       }
 
       // ── validate_goal_alignment + advance_mode ─────────────────────────────
@@ -2734,6 +2760,9 @@ module.exports = {
   aggregateMcpUsage,
   aggregatePermissionCheckRows,
   stripLeadingOwnerArchitectForDegradedMultiAgent,
+  isQaSpecBeforeDevEnabled,
+  applyQaSpecBeforeDevPlan,
+  resolveHandoffMode,
   edgeMeta,
   EDGE_TYPE_CATEGORY,
   validateStepGraph,

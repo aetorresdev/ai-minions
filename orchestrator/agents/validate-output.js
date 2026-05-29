@@ -210,7 +210,7 @@ function normalizeDevContractText(s) {
  * @param {{ phase?: "plan"|"decide" }} options
  * @returns {{ valid: boolean, reason: string, gate_id?: string, context_stats?: object }}
  */
-function validateOutput(agentId, output, { phase } = {}) {
+function validateOutput(agentId, output, { phase, qaPhase } = {}) {
   if (!output || !output.trim()) {
     return { valid: false, reason: `${agentId}: empty output`, gate_id: "empty_output" };
   }
@@ -270,6 +270,31 @@ function validateOutput(agentId, output, { phase } = {}) {
   }
 
   if (agentId === "qa") {
+    const phaseNorm = qaPhase != null ? String(qaPhase).trim().toLowerCase() : "";
+    if (phaseNorm === "spec") {
+      if (!/\bacceptance_criteria\s*:/i.test(output)) {
+        return {
+          valid: false,
+          reason: `${agentId}: QA_SPEC output must include acceptance_criteria`,
+          gate_id: "qa_spec_acceptance_missing",
+        };
+      }
+      if (!/\btest_strategy\s*:/i.test(output) && !/\brequired_tests\s*:/i.test(output)) {
+        return {
+          valid: false,
+          reason: `${agentId}: QA_SPEC output must include test_strategy or required_tests`,
+          gate_id: "qa_spec_tests_missing",
+        };
+      }
+      if (!/\bvalidation_commands\s*:/i.test(output)) {
+        return {
+          valid: false,
+          reason: `${agentId}: QA_SPEC output must include validation_commands`,
+          gate_id: "qa_spec_validation_commands_missing",
+        };
+      }
+      return { valid: true, reason: "" };
+    }
     if (!FINDING_RE.test(output))
       return { valid: false, reason: `${agentId}: output must classify at least one finding as blocker | improvement | nice-to-have`, gate_id: "finding_classification_missing" };
     return { valid: true, reason: "" };

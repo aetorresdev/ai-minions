@@ -225,7 +225,7 @@ function setBackend(name) { _backendOverride = (name === "ollama") ? "ollama" : 
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
+async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase } = {}) {
   const agent = AGENTS[agentId];
   if (!agent) throw new Error(`Unknown agent "${agentId}". Available: ${Object.keys(AGENTS).join(", ")}`);
 
@@ -319,7 +319,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase } = {}) {
     });
     const rawOut = raw.content == null ? "" : String(raw.content);
     const output = agentId.startsWith("dev-") ? normalizeDevContractText(rawOut) : rawOut;
-    const check = validateOutput(agentId, output, { phase });
+    const check = validateOutput(agentId, output, { phase, qaPhase });
     if (!check.valid) {
       const err = new Error(`[output contract] ${check.reason}`);
       err.gate_id = check.gate_id;

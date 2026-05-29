@@ -238,7 +238,10 @@ describe("E2E — Orchestrator with Ollama", { concurrency: 1 }, () => {
         "function divide(a, b) { return a / b; }\nmodule.exports = { divide };\n"
       );
 
-      const result = await e2eRun(t,
+      const prevQaSpec = process.env.ORCH_QA_SPEC_BEFORE_DEV;
+      try {
+        process.env.ORCH_QA_SPEC_BEFORE_DEV = "0";
+        const result = await e2eRun(t,
         "Add input validation to the divide function in calculator.js: throw an Error if b is zero. " +
           "Use a minimal multi-agent plan only: dev-backend implements (with files_read, files_modified, validation_run), then qa reviews, then cerberus — no owner or architect steps.",
         {
@@ -261,6 +264,10 @@ describe("E2E — Orchestrator with Ollama", { concurrency: 1 }, () => {
         hasDev && hasQa,
         `Expected dev-backend (or dev-*) and qa artifacts — got: ${agentIds.join(", ")}`
       );
+      } finally {
+        if (prevQaSpec === undefined) delete process.env.ORCH_QA_SPEC_BEFORE_DEV;
+        else process.env.ORCH_QA_SPEC_BEFORE_DEV = prevQaSpec;
+      }
     } finally {
       removeTempDir(cwd);
     }

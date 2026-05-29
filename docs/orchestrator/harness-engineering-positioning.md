@@ -43,6 +43,74 @@ only.”
 
 ---
 
+## Harness mental model
+
+**Models are replaceable reasoning engines.** The durable system boundary is the
+**harness**: context curation, tools, external memory/artifacts, roles, verification,
+traces, permissions, and limits.
+
+In ai-minions, the harness includes:
+
+- orchestrator-owned execution flow (manager-owned by default)
+- role contracts and MODE gates
+- compact handoff and durable artifacts
+- permission and governance gates
+- trace schema and run outcome consumption
+- cost/budget guards
+- QA / CERBERUS validation (evidence before “done”)
+- explicit gaps for sandboxing, full resumability, and credential isolation
+
+**Minimum viable harness** (e.g. `agents.md` + init checks + progress files + roles)
+is a valid **personal-repo** pattern. ai-minions targets **observable, validable**
+harness depth: contracts, traces, fail-closed gates, and audit—not a prettier chat.
+
+### Common misconceptions
+
+| Common misconception | ai-minions position |
+|----------------------|---------------------|
+| A better model fixes agent reliability | Reliability comes from context, contracts, validation, and runtime control |
+| More tools means a better agent | Tool surface must be minimal, classified, gated, and evaluated |
+| More agents means a better system | Specialists only when they improve contract, policy, tool isolation, or trace legibility |
+| The agent says it is done | Done requires evidence (tests, schema, traces, QA/CERBERUS) |
+| Handoff means the role changed in chat | Handoff means ownership changed under an explicit contract |
+| Claude Code / Cursor *is* the whole harness | They are **execution harnesses**; ai-minions is a **control-plane harness** on top |
+
+---
+
+## Execution harness vs control-plane harness
+
+**Claude Code, Cursor, Codex CLI, Gemini CLI, OpenCode** are **developer-agent
+execution harnesses**: repo context, tools, file edits, shell, local config, conversational
+flow. They wrap the model for day-to-day work.
+
+**ai-minions does not replace them.** It sits **above** as a **contract-driven
+orchestration / control harness**:
+
+| Layer | Responsibility |
+|-------|----------------|
+| Execution harness (Claude Code, Cursor, …) | Run bounded work: edit, execute, use IDE tools |
+| ai-minions | Orchestration, role contracts, handoff policy, permission gates, validation gates, traceability, cost accounting, approval semantics |
+
+**Analogy (Jenkins):** the execution harness is the **agent/slave** (shell, git, tests).
+ai-minions is closer to **controller + pipeline governance + policy + logs**—not
+another editor competing with Cursor.
+
+**Ownership rule (avoid duplicate harnesses):**
+
+- Execution harness: *how* a step runs in the repo/session.
+- ai-minions: *who* may act, *under what contract*, *with what evidence*, *at what cost*,
+  and *whether the run may advance*.
+
+If both layers decide permissions, context, completion, and approval without a clear
+split, operators cannot audit outcomes—treat that as an architecture smell, not a
+feature.
+
+**Portability:** DEV may use Claude Code today, Codex or Ollama tomorrow; contracts,
+traces, gates, and CERBERUS semantics stay. The **runner** changes; the **harness
+contract** does not.
+
+---
+
 ## Component map (repo anchors)
 
 | Harness idea | Where it lives (examples) |
@@ -200,8 +268,8 @@ language only. They **do not** set requirements for this repository.
 |--------|--------------------------|
 | **Implemented** | MODE + YAML handoffs; `validateOutput`; JSONL traces + strict schema path; permission evaluator + gates on covered call sites; token/cost hooks; budget hard-stop; role/capability prechecks where wired. |
 | **Partial** | Progressive tool disclosure; some shell/network paths gated; handoff semantics evolving—see contracts for exact coverage. |
-| **Planned** | Durable session/resume story; deeper tool-eval automation; richer dashboard rollups—see root README maturity row (“Planned”). |
-| **Not claimed** | Managed-agent parity, kernel/container sandbox as core product, turnkey multi-tenant isolation, production SLA. |
+| **Planned** | Durable session/resume story; deeper tool-eval automation; richer dashboard rollups; **governed improvement loop** (proposals only—see backlog `SELF-IMPROVEMENT-LOOP-1`). |
+| **Not claimed** | Managed-agent parity, kernel/container sandbox as core product, turnkey multi-tenant isolation, production SLA, **autonomous self-modifying harness** (prompt/contract/policy mutation without human approval). |
 
 **Gaps to state plainly:** credential **broker/vault** productization and **OS-level
 sandbox** isolation are **not** shipped as the default harness boundary—see
