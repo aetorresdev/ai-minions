@@ -63,6 +63,17 @@ function parseCommonArgs(argv) {
   return out;
 }
 
+/**
+ * @param {string | undefined} value
+ * @returns {number | undefined}
+ */
+function parseMaxIterations(value) {
+  if (value == null) return undefined;
+  const n = parseInt(String(value), 10);
+  if (!Number.isFinite(n) || n < 1) return Number.NaN;
+  return n;
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   if (!argv.length || argv.includes('-h') || argv.includes('--help')) {
@@ -89,6 +100,11 @@ async function main() {
       console.error('run requires --goal');
       process.exit(1);
     }
+    const maxIterations = parseMaxIterations(opts.maxIterations);
+    if (opts.maxIterations != null && Number.isNaN(maxIterations)) {
+      console.error('--iterations requires a positive integer');
+      process.exit(1);
+    }
     try {
       const launched = await launchRun({
         goal: String(opts.goal),
@@ -97,7 +113,7 @@ async function main() {
         modelPolicy: opts.modelPolicy,
         model: opts.model,
         skipStateMcp: opts.skipGates === true,
-        maxIterations: opts.maxIterations != null ? parseInt(String(opts.maxIterations), 10) : undefined,
+        maxIterations,
       });
       console.log(formatPreflightText(launched.preflight));
       console.log('');
@@ -135,7 +151,7 @@ async function main() {
   process.exit(1);
 }
 
-module.exports = { printHelp, parseCommonArgs, main };
+module.exports = { printHelp, parseCommonArgs, parseMaxIterations, main };
 
 if (require.main === module) {
   main().catch((err) => {

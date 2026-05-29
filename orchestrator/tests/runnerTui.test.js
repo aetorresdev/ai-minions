@@ -17,7 +17,7 @@ const {
   formatRunStatusText,
   terminalStatusFromRunResult,
 } = require("../runner-launcher");
-const { parseCommonArgs } = require("../runner-tui-cli");
+const { parseCommonArgs, parseMaxIterations } = require("../runner-tui-cli");
 
 const fixtureTags = JSON.parse(
   fs.readFileSync(path.join(__dirname, "fixtures", "ollama-tags-sample.json"), "utf8"),
@@ -52,6 +52,17 @@ describe("runner-preflight", () => {
   it("normalizeModelPolicy accepts remote_ok aliases", () => {
     assert.equal(normalizeModelPolicy("remote-approved"), "remote_ok");
     assert.equal(normalizeModelPolicy("local_only"), "local_only");
+    assert.equal(normalizeModelPolicy(undefined), "local_only");
+  });
+
+  it("normalizeModelPolicy returns null for unknown values", () => {
+    assert.equal(normalizeModelPolicy("banana_ops"), null);
+  });
+
+  it("buildRunPreflight blocks unknown model policy", async () => {
+    const pf = await buildRunPreflight({ modelPolicy: "banana_ops" });
+    assert.equal(pf.ok, false);
+    assert.ok(pf.blockers.some((b) => /unknown model policy: banana_ops/.test(b)));
   });
 
   it("remote_ok preflight skips local selection", async () => {
@@ -171,5 +182,12 @@ describe("runner-tui-cli args", () => {
     assert.equal(opts.flowMode, "multi_agent");
     assert.equal(opts.modelPolicy, "local_only");
     assert.equal(opts.skipGates, true);
+  });
+
+  it("parseMaxIterations rejects non-numeric values", () => {
+    assert.equal(parseMaxIterations(undefined), undefined);
+    assert.equal(parseMaxIterations("3"), 3);
+    assert.ok(Number.isNaN(parseMaxIterations("nope")));
+    assert.ok(Number.isNaN(parseMaxIterations("0")));
   });
 });

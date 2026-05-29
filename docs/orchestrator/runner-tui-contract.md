@@ -27,7 +27,7 @@ Exit codes:
 
 Resolves model policy and (for `local_only`) local model selection + Ollama reachability. **No agents executed.**
 
-Uses `selectLocalModel()` and `discoverLocalModels()` — same precedence as the local model lane (CLI → env → YAML → auto → TTY).
+Uses `selectLocalModel()` and `discoverLocalModels()` with **`interactive: false`** — same override precedence as the local model lane (CLI → env → YAML → auto-detect ranking). **No TTY prompt** in this slice; unknown `--model-policy` values fail preflight (exit 2), they do not default to `local_only`.
 
 ### `run`
 
@@ -47,7 +47,7 @@ Reads trace JSONL from `ORCH_TRACES_DIR` (default `~/.claude/metrics/traces`) an
 | `local_only` (default) | Preflight requires Ollama + resolved local model; run enforces local-only |
 | `remote_ok` | Skips local model preflight; remote providers allowed per existing routing |
 
-Aliases: `remote-approved`, `remote_approved` → `remote_ok`.
+Aliases: `remote-approved`, `remote_approved` → `remote_ok`. Any other explicit value is rejected at preflight.
 
 ## Relationship to other surfaces
 

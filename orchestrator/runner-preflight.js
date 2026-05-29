@@ -11,12 +11,16 @@ const VALID_MODEL_POLICIES = new Set(['local_only', 'remote_ok']);
 
 /**
  * @param {unknown} value
- * @returns {'local_only' | 'remote_ok'}
+ * @returns {'local_only' | 'remote_ok' | null}
  */
 function normalizeModelPolicy(value) {
-  const v = String(value ?? 'local_only').trim().toLowerCase();
+  if (value == null || String(value).trim() === '') {
+    return 'local_only';
+  }
+  const v = String(value).trim().toLowerCase();
+  if (v === 'local_only') return 'local_only';
   if (v === 'remote_ok' || v === 'remote-approved' || v === 'remote_approved') return 'remote_ok';
-  return 'local_only';
+  return null;
 }
 
 /**
@@ -41,17 +45,31 @@ function normalizeModelPolicy(value) {
  */
 async function buildRunPreflight(options = {}) {
   const cwd = options.cwd || process.cwd();
-  const modelPolicy = normalizeModelPolicy(options.modelPolicy);
   const discover = options.discover ?? discoverLocalModels;
   const selectFn = options.selectLocalModel ?? selectLocalModel;
   /** @type {string[]} */
   const blockers = [];
 
-  if (options.modelPolicy != null && !VALID_MODEL_POLICIES.has(normalizeModelPolicy(options.modelPolicy))) {
+  const modelPolicy = normalizeModelPolicy(options.modelPolicy);
+  const policyExplicit = options.modelPolicy != null && String(options.modelPolicy).trim() !== '';
+  if (policyExplicit && modelPolicy == null) {
     blockers.push(`unknown model policy: ${options.modelPolicy}`);
+    return {
+      ok: false,
+      model_policy: 'local_only',
+      provider: 'ollama',
+      selected_model: null,
+      override_source: null,
+      selection_reason: null,
+      discovered_models: [],
+      ollama_reachable: null,
+      blockers,
+    };
   }
 
-  if (modelPolicy === 'remote_ok') {
+  const resolvedPolicy = modelPolicy ?? 'local_only';
+
+  if (resolvedPolicy === 'remote_ok') {
     return {
       ok: blockers.length === 0,
       model_policy: 'remote_ok',
@@ -98,7 +116,7 @@ async function buildRunPreflight(options = {}) {
 
   return {
     ok: blockers.length === 0,
-    model_policy: 'local_only',
+    model_policy: resolvedPolicy,
     provider: 'ollama',
     selected_model: selection.selected_model,
     override_source: selection.override_source,
