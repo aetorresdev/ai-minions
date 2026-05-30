@@ -3,9 +3,10 @@
  * Runner TUI/CLI — create and execute orchestrator runs (product surface MVP).
  *
  * Usage:
- *   node runner-tui-cli.js preflight --model-policy local_only [--cwd DIR] [--model NAME]
- *   node runner-tui-cli.js run --goal "..." [--flow single_agent|multi_agent] [--model-policy local_only] [--skip-gates]
- *   node runner-tui-cli.js status --run-id <task_id>
+ *   node runner-tui-cli.js preflight --model-policy local_only [--cwd DIR] [--model NAME] [--interactive]
+ *   node runner-tui-cli.js routing [--model-policy local_only|remote_ok] [--model NAME] [--flow single_agent]
+ *   node runner-tui-cli.js run --goal "..." [--flow single_agent|multi_agent] [--model-policy local_only] [--interactive]
+ *   node runner-tui-cli.js status --run-id <task_id> [--show-routing]
  */
 
 'use strict';
@@ -18,27 +19,39 @@ const {
   launchRun,
   loadRunStatusFromTrace,
   formatRunStatusText,
+  formatTraceRoleRoutingText,
 } = require('./runner-launcher');
+const {
+  buildRoleRoutingPreview,
+  formatModelPolicyCatalogText,
+  formatRoleRoutingText,
+  resolveInteractiveModelPolicy,
+} = require('./runner-model-routing');
 
 function printHelp() {
   console.log(`Runner TUI/CLI — launch orchestrator runs
 
 Commands:
   preflight   Resolve model policy + Ollama reachability (no agents executed)
+  routing     Show model policy catalog + per-role routing preview
   run         Preflight then execute orchestrator run()
   status      Read terminal status from trace JSONL
 
-Options (preflight / run):
+Options (preflight / run / routing):
   --cwd <dir>              Project directory (default: cwd)
   --model-policy <name>    local_only | remote_ok (default: local_only)
   --model <name>           Explicit local model override
-  --flow <mode>            single_agent | multi_agent (run only)
-  --goal <text>            Run goal (run only)
-  --skip-gates             Pass --skip-gates to orchestrator (run only)
-  --iterations <n>         Max iterations (run only)
+  --interactive            TTY: prompt for policy (and model when ambiguous)
+  --flow <mode>            single_agent | multi_agent (routing / run)
+
+Options (run only):
+  --goal <text>            Run goal
+  --skip-gates             Pass --skip-gates to orchestrator
+  --iterations <n>         Max iterations
 
 Options (status):
   --run-id <id>            Task id / trace basename
+  --show-routing           Include resolved models from trace
 
 See docs/orchestrator/runner-tui-contract.md`);
 }
@@ -59,6 +72,8 @@ function parseCommonArgs(argv) {
     else if (a === '--run-id' && argv[i + 1]) out.runId = argv[++i];
     else if (a === '--iterations' && argv[i + 1]) out.maxIterations = argv[++i];
     else if (a === '--skip-gates') out.skipGates = true;
+    else if (a === '--interactive') out.interactive = true;
+    else if (a === '--show-routing') out.showRouting = true;
   }
   return out;
 }
@@ -74,6 +89,17 @@ function parseMaxIterations(value) {
   return n;
 }
 
+/**
+ * @param {Record<string, string | boolean>} opts
+ * @returns {Promise<string | undefined>}
+ */
+async function resolveModelPolicyOption(opts) {
+  if (opts.modelPolicy) return String(opts.modelPolicy);
+  if (opts.interactive !== true) return undefined;
+  const picked = await resolveInteractiveModelPolicy({ interactive: true });
+  return picked ?? undefined;
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   if (!argv.length || argv.includes('-h') || argv.includes('--help')) {
@@ -84,15 +110,48 @@ async function main() {
   const cmd = argv[0];
   const rest = argv.slice(1);
   const opts = parseCommonArgs(rest);
+  const modelPolicy = await resolveModelPolicyOption(opts);
 
   if (cmd === 'preflight') {
     const preflight = await buildRunPreflight({
       cwd: opts.cwd,
-      modelPolicy: opts.modelPolicy,
+      modelPolicy: modelPolicy ?? opts.modelPolicy,
       model: opts.model,
+      interactive: opts.interactive === true,
     });
     console.log(formatPreflightText(preflight));
     process.exit(preflight.ok ? 0 : 2);
+  }
+
+  if (cmd === 'routing') {
+    console.log(formatModelPolicyCatalogText());
+    console.log('');
+
+    let localModel = opts.model ? String(opts.model) : null;
+    const policy = modelPolicy ?? opts.modelPolicy;
+    const needsLocalResolve = (policy == null || String(policy).trim() === '' || policy === 'local_only')
+      && !localModel;
+
+    if (needsLocalResolve) {
+      process.stderr.write('Resolving local model (Ollama preflight)…\n');
+      const pf = await buildRunPreflight({
+        cwd: opts.cwd,
+        modelPolicy: policy ?? 'local_only',
+        model: opts.model,
+        interactive: opts.interactive === true,
+      });
+      if (pf.model_policy === 'local_only' && pf.selected_model) {
+        localModel = pf.selected_model;
+      }
+    }
+
+    const preview = buildRoleRoutingPreview({
+      modelPolicy: policy,
+      localModel,
+      flowMode: opts.flowMode,
+    });
+    console.log(formatRoleRoutingText(preview));
+    process.exit(0);
   }
 
   if (cmd === 'run') {
@@ -110,12 +169,20 @@ async function main() {
         goal: String(opts.goal),
         cwd: opts.cwd,
         flowMode: opts.flowMode,
-        modelPolicy: opts.modelPolicy,
+        modelPolicy: modelPolicy ?? opts.modelPolicy,
         model: opts.model,
         skipStateMcp: opts.skipGates === true,
         maxIterations,
+        interactive: opts.interactive === true,
       });
       console.log(formatPreflightText(launched.preflight));
+      console.log('');
+      const routingPreview = buildRoleRoutingPreview({
+        modelPolicy: launched.preflight.model_policy,
+        localModel: launched.preflight.selected_model,
+        flowMode: opts.flowMode,
+      });
+      console.log(formatRoleRoutingText(routingPreview));
       console.log('');
       console.log(formatRunStatusText({
         task_id: launched.task_id,
@@ -143,6 +210,10 @@ async function main() {
     }
     const status = loadRunStatusFromTrace(String(opts.runId));
     console.log(formatRunStatusText(status));
+    if (opts.showRouting === true && status.role_routing) {
+      console.log('');
+      console.log(formatTraceRoleRoutingText(status.role_routing));
+    }
     process.exit(status.error ? 2 : 0);
   }
 
@@ -151,7 +222,13 @@ async function main() {
   process.exit(1);
 }
 
-module.exports = { printHelp, parseCommonArgs, parseMaxIterations, main };
+module.exports = {
+  printHelp,
+  parseCommonArgs,
+  parseMaxIterations,
+  resolveModelPolicyOption,
+  main,
+};
 
 if (require.main === module) {
   main().catch((err) => {

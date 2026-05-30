@@ -7,9 +7,10 @@
 From `orchestrator/`:
 
 ```bash
-npm run runner:tui -- preflight --model-policy local_only [--cwd DIR] [--model NAME]
-npm run runner:tui -- run --goal "..." [--flow single_agent|multi_agent] [--model-policy local_only|remote_ok] [--skip-gates]
-npm run runner:tui -- status --run-id <task_id>
+npm run runner:tui -- preflight --model-policy local_only [--cwd DIR] [--model NAME] [--interactive]
+npm run runner:tui -- routing [--model-policy local_only|remote_ok] [--model NAME] [--flow single_agent|multi_agent]
+npm run runner:tui -- run --goal "..." [--flow single_agent|multi_agent] [--model-policy local_only|remote_ok] [--interactive] [--skip-gates]
+npm run runner:tui -- status --run-id <task_id> [--show-routing]
 ```
 
 Exit codes:
@@ -40,6 +41,29 @@ Uses `selectLocalModel()` and `discoverLocalModels()` with **`interactive: false
 
 Reads trace JSONL from `ORCH_TRACES_DIR` (default `~/.claude/metrics/traces`) and reports terminal state from `session_end`.
 
+With `--show-routing`, includes models recorded in `session_start` (`local_only_mode`, `selected_model`) and per-agent rows from `context_stats` / `agent_start`.
+
+### `routing`
+
+Prints the model policy catalog and a **per-role routing preview** for the selected policy:
+
+| Policy | Preview behavior |
+|--------|------------------|
+| `local_only` | All roles → same Ollama model (from `--model`, preflight selection, or unresolved placeholder) |
+| `remote_ok` | Per-role models from `resolveModel()` / default routing table |
+
+Does not execute agents. For `local_only` without `--model`, runs the same selection path as `preflight` (including `--interactive` TTY model pick when multiple models are discovered).
+
+## Model policy picker (`MODEL-ROUTING-UX-1`)
+
+| Flag / command | Behavior |
+|----------------|----------|
+| `--model-policy` | Explicit policy (`local_only` default when omitted) |
+| `--interactive` | On TTY: prompt for policy when `--model-policy` omitted; enables interactive local model selection in preflight |
+| `routing` | Operator-facing catalog + role table before/without a run |
+| `run` | After preflight, prints role routing preview before terminal status |
+| `status --show-routing` | Post-run models from trace |
+
 ## Model policy
 
 | Policy | Behavior |
@@ -63,7 +87,7 @@ Aliases: `remote-approved`, `remote_approved` → `remote_ok`. Any other explici
 - Stdout CLI only — no curses/full-screen UI in this slice.
 - No auth, multi-user, or new persistence.
 - No harness adapter parity (`EPIC-HARNESS-ADAPTERS` parked).
-- Interactive goal/flow prompts deferred to `MODEL-ROUTING-UX-1` / future TTY polish.
+- Interactive goal/flow prompts deferred to future TTY polish (`TRACE-VIEWER-TUI-1` lane).
 
 ## Validation
 

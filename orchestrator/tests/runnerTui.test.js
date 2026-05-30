@@ -184,10 +184,78 @@ describe("runner-tui-cli args", () => {
     assert.equal(opts.skipGates, true);
   });
 
+  it("parseCommonArgs extracts interactive and show-routing flags", () => {
+    const opts = parseCommonArgs(["--interactive", "--show-routing"]);
+    assert.equal(opts.interactive, true);
+    assert.equal(opts.showRouting, true);
+  });
+
   it("parseMaxIterations rejects non-numeric values", () => {
     assert.equal(parseMaxIterations(undefined), undefined);
     assert.equal(parseMaxIterations("3"), 3);
     assert.ok(Number.isNaN(parseMaxIterations("nope")));
     assert.ok(Number.isNaN(parseMaxIterations("0")));
+  });
+});
+
+describe("runner-model-routing", () => {
+  const {
+    buildRoleRoutingPreview,
+    formatRoleRoutingText,
+    formatModelPolicyCatalogText,
+    extractRoleRoutingFromTrace,
+    formatTraceRoleRoutingText,
+  } = require("../runner-model-routing");
+
+  it("buildRoleRoutingPreview maps all roles to Ollama in local_only", () => {
+    const preview = buildRoleRoutingPreview({
+      modelPolicy: "local_only",
+      localModel: "qwen2.5-coder:7b",
+      flowMode: "single_agent",
+    });
+    assert.equal(preview.model_policy, "local_only");
+    assert.ok(preview.roles.length >= 5);
+    for (const row of preview.roles) {
+      assert.equal(row.provider, "ollama");
+      assert.equal(row.model, "qwen2.5-coder:7b");
+    }
+    assert.match(formatRoleRoutingText(preview), /dev-backend/);
+  });
+
+  it("buildRoleRoutingPreview uses resolveModel for remote_ok", () => {
+    const preview = buildRoleRoutingPreview({ modelPolicy: "remote_ok" });
+    assert.equal(preview.model_policy, "remote_ok");
+    const cerberus = preview.roles.find((r) => r.role === "cerberus");
+    assert.ok(cerberus);
+    assert.match(cerberus.model, /claude-sonnet/);
+  });
+
+  it("formatModelPolicyCatalogText lists both policies", () => {
+    const text = formatModelPolicyCatalogText();
+    assert.match(text, /local_only/);
+    assert.match(text, /remote_ok/);
+  });
+
+  it("extractRoleRoutingFromTrace reads session_start and context_stats", () => {
+    const rows = [
+      {
+        event: "session_start",
+        local_only_mode: true,
+        selected_model: "qwen2.5-coder:7b",
+        override_source: "cli",
+      },
+      { event: "agent_start", agent: "dev-backend" },
+      {
+        event: "context_stats",
+        agent: "dev-backend",
+        model: "qwen2.5-coder:7b",
+        model_backend: "ollama",
+      },
+    ];
+    const routing = extractRoleRoutingFromTrace(rows);
+    assert.equal(routing.model_policy, "local_only");
+    assert.equal(routing.selected_model, "qwen2.5-coder:7b");
+    assert.equal(routing.roles.length, 1);
+    assert.match(formatTraceRoleRoutingText(routing), /dev-backend/);
   });
 });

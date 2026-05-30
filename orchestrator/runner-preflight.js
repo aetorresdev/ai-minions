@@ -28,6 +28,7 @@ function normalizeModelPolicy(value) {
  *   cwd?: string,
  *   modelPolicy?: string,
  *   model?: string | null,
+ *   interactive?: boolean,
  *   discover?: typeof discoverLocalModels,
  *   selectLocalModel?: typeof selectLocalModel,
  * }} [options]
@@ -88,7 +89,7 @@ async function buildRunPreflight(options = {}) {
     selection = await selectFn({
       cwd,
       cliModel: options.model ?? null,
-      interactive: false,
+      interactive: options.interactive === true,
       discover,
     });
   } catch (err) {
