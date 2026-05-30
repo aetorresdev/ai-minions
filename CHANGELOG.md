@@ -4,6 +4,55 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.2.0-alpha.1] - 2026-05-29
+
+Second alpha pre-release focused on operator UX, local model execution, runner TUI, trace inspection, and cost visibility.
+
+**Release:** https://github.com/aetorresdev/ai-minions/releases/tag/v0.2.0-alpha.1
+
+**Evidence (operator):**
+
+- Unit tests: **699/699** (`cd orchestrator && npm test`)
+- Strict E2E all: **6/6** (`npm run test:e2e:strict:all`; strict **5/5**, strict harness **1/1**)
+- MCP Python env refreshed with `uv sync` in both `mcp-servers/orchestrator-state` and `mcp-servers/compact-handoff`; `ORCH_PYTHON` pointed to `mcp-servers/orchestrator-state/.venv/bin/python`.
+- Hooks tests: **30/30** (`npm run test:hooks`)
+- Harness scope check: **OK** (`bash orchestrator/scripts/ci-check-harness-scope.sh`)
+
+**Alpha limitations (not production):**
+
+- **No production readiness:** no SLA, no hosted control plane, no enterprise packaging — this tag is a **pre-release**.
+- **Release automation:** cutting tags, GitHub Releases, and changelog sections remains a **manual / checklist-driven** process.
+- **Open post-alpha work:** workflow skill registry, worktree isolation, BV/RUN analyst roles, web control plane, and release automation remain outside this cut.
+
+### Added
+
+- Local-only model execution mode.
+- Local model discovery and selection.
+- Runner TUI command surface.
+- Model routing preview and policy picker.
+- Trace viewer command.
+- Cost/budget view command.
+- QA_SPEC before DEV flow.
+- Recovery sweep.
+- Session resume.
+- Review records.
+- Tool evaluation fixtures.
+- Portable project template.
+- Control-plane TUI.
+
+### Changed
+
+- Capability matrix alignment for local-only QA/CERBERUS.
+- Expanded trace schema and permission summaries.
+- Updated harness/product docs.
+- Improved runner/operator documentation.
+
+### Operator / docs
+
+- Backlog updated to mark `COST-BUDGET-VIEW-TUI-1` as resolved.
+- Release notes prepared for the second alpha cut.
+- Remaining P3/P4 work stays explicitly out of scope.
+
 ## [0.1.0-alpha.1] - 2026-05-15
 
 Initial alpha pre-release of ai-minions.
@@ -34,8 +83,9 @@ Initial alpha pre-release of ai-minions.
 
 ### Operator / docs (no runtime contract change)
 
-- **2026-05-15:** OWNER sign-off and preconditions recorded in **`docs/orchestrator/alpha-release-checklist.md`** (readiness closure for this tag; optional live **`run-orchestrator.js`** without Ollama explicitly **post-alpha**).
+- **2026-05-15:** OWNER sign-off and preconditions recorded in **`docs/orchestrator/alpha-release-checklist.md`**.
 - Alpha checklist: CI smoke URL, local clone evidence, first-run path, optional Claude Code MODE smoke; workspace logs refreshed for `npm test` and `test:e2e:strict`.
-- **2026-05-15:** `test:e2e:strict` **5/5** on a **fresh `git clone` under `/tmp`** after `uv sync` (both MCP server dirs) + `npm ci` + `ORCH_PYTHON` pointing at the clone’s `orchestrator-state` venv (Ollama on localhost) — satisfies alpha “strict on clean tree” operator evidence alongside self-hosted GHA.
+- **2026-05-15:** `test:e2e:strict` **5/5** on a **fresh `git clone` under `/tmp`** after `uv sync` (both MCP server dirs) + `npm ci` + `ORCH_PYTHON` pointing at the clone’s `orchestrator-state` venv (Ollama on localhost).
 
+[0.2.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.2.0-alpha.1
 [0.1.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.1.0-alpha.1
