@@ -116,4 +116,16 @@ describe("runner-budget-view", () => {
     assert.equal(result.ok, false);
     assert.equal(result.error, "trace file not found");
   });
+
+  it("findLastSessionEnd prefers latest session_end in concatenated traces", () => {
+    const { findLastSessionEnd } = require("../runner-budget-view");
+    const rows = [
+      { event: "session_end", done: true, iterations: 1, ts_ms: 1 },
+      { event: "session_start", task_id: "task-resume", ts_ms: 2 },
+      { event: "session_end", done: false, iterations: 2, ts_ms: 3 },
+    ];
+    const last = findLastSessionEnd(rows);
+    assert.equal(last?.done, false);
+    assert.equal(last?.iterations, 2);
+  });
 });

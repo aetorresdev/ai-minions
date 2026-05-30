@@ -316,4 +316,14 @@ describe("runner-tui-cli routing policy validation", () => {
     assert.match(`${r.stdout}\n${r.stderr}`, /unknown model policy: banana/);
     assert.doesNotMatch(r.stdout, /Role routing preview/);
   });
+
+  it("budget exits 2 when --file trace is missing", () => {
+    const missing = path.join(os.tmpdir(), `runner-budget-missing-${Date.now()}.jsonl`);
+    const r = cp.spawnSync(process.execPath, [cliPath, "budget", "--file", missing], {
+      encoding: "utf8",
+      cwd: path.join(__dirname, ".."),
+    });
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /trace file not found/);
+  });
 });

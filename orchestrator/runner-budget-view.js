@@ -34,6 +34,18 @@ function sortRowsByTime(rows) {
 
 /**
  * @param {object[]} rows
+ * @returns {object | undefined}
+ */
+function findLastSessionEnd(rows) {
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const r = rows[i];
+    if (r && r.event === 'session_end') return r;
+  }
+  return undefined;
+}
+
+/**
+ * @param {object[]} rows
  * @returns {Array<{
  *   kind: string,
  *   phase: string | null,
@@ -263,7 +275,7 @@ function formatBudgetViewText(rows, meta = {}) {
   const costAccounting = buildRunCostAccountingFromReport(report);
   const roll = rollupStepsCostOutcome(rows);
   const budgetEvents = collectBudgetEvents(rows);
-  const sessionEnd = rows.find((r) => r && r.event === 'session_end');
+  const sessionEnd = findLastSessionEnd(rows);
   const terminalStatus = sessionEnd && sessionEnd.done === true
     ? 'done'
     : sessionEnd && sessionEnd.done === false
@@ -327,6 +339,7 @@ async function runBudgetView(options = {}) {
 
 module.exports = {
   sortRowsByTime,
+  findLastSessionEnd,
   collectBudgetEvents,
   deriveBudgetStatus,
   formatTopStepsByTokensText,
