@@ -14,6 +14,7 @@
 const {
   buildRunPreflight,
   formatPreflightText,
+  resolveModelPolicyInput,
 } = require('./runner-preflight');
 const {
   launchRun,
@@ -124,19 +125,35 @@ async function main() {
   }
 
   if (cmd === 'routing') {
+    const rawPolicy = modelPolicy ?? opts.modelPolicy;
+    const resolvedPolicyInput = resolveModelPolicyInput(rawPolicy);
+    if (!resolvedPolicyInput.ok) {
+      console.error(formatPreflightText({
+        ok: false,
+        model_policy: 'local_only',
+        provider: 'ollama',
+        selected_model: null,
+        override_source: null,
+        selection_reason: null,
+        discovered_models: [],
+        ollama_reachable: null,
+        blockers: [resolvedPolicyInput.blocker],
+      }));
+      process.exit(2);
+    }
+
     console.log(formatModelPolicyCatalogText());
     console.log('');
 
     let localModel = opts.model ? String(opts.model) : null;
-    const policy = modelPolicy ?? opts.modelPolicy;
-    const needsLocalResolve = (policy == null || String(policy).trim() === '' || policy === 'local_only')
-      && !localModel;
+    const policy = resolvedPolicyInput.policy;
+    const needsLocalResolve = policy === 'local_only' && !localModel;
 
     if (needsLocalResolve) {
       process.stderr.write('Resolving local model (Ollama preflight)…\n');
       const pf = await buildRunPreflight({
         cwd: opts.cwd,
-        modelPolicy: policy ?? 'local_only',
+        modelPolicy: policy,
         model: opts.model,
         interactive: opts.interactive === true,
       });

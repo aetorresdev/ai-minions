@@ -28,7 +28,7 @@ Exit codes:
 
 Resolves model policy and (for `local_only`) local model selection + Ollama reachability. **No agents executed.**
 
-Uses `selectLocalModel()` and `discoverLocalModels()` with **`interactive: false`** — same override precedence as the local model lane (CLI → env → YAML → auto-detect ranking). **No TTY prompt** in this slice; unknown `--model-policy` values fail preflight (exit 2), they do not default to `local_only`.
+Uses `selectLocalModel()` and `discoverLocalModels()` with **`interactive: false`** unless `--interactive` — same override precedence as the local model lane (CLI → env → YAML → auto-detect ranking). Unknown `--model-policy` values fail preflight (exit 2); **`routing` rejects unknown explicit policies before preview** (preflight parity).
 
 ### `run`
 
@@ -71,7 +71,7 @@ Does not execute agents. For `local_only` without `--model`, runs the same selec
 | `local_only` (default) | Preflight requires Ollama + resolved local model; run enforces local-only |
 | `remote_ok` | Skips local model preflight; remote providers allowed per existing routing |
 
-Aliases: `remote-approved`, `remote_approved` → `remote_ok`. Any other explicit value is rejected at preflight.
+Aliases: `remote-approved`, `remote_approved` → `remote_ok`. Any other **explicit** value is rejected at preflight and `routing` (exit 2, `unknown model policy: <value>`).
 
 ## Relationship to other surfaces
 

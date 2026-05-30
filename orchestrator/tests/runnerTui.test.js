@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const cp = require("node:child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -10,6 +11,7 @@ const {
   buildRunPreflight,
   formatPreflightText,
   normalizeModelPolicy,
+  resolveModelPolicyInput,
 } = require("../runner-preflight");
 const {
   launchRun,
@@ -63,6 +65,23 @@ describe("runner-preflight", () => {
     const pf = await buildRunPreflight({ modelPolicy: "banana_ops" });
     assert.equal(pf.ok, false);
     assert.ok(pf.blockers.some((b) => /unknown model policy: banana_ops/.test(b)));
+  });
+
+  it("resolveModelPolicyInput rejects unknown explicit policy", () => {
+    const resolved = resolveModelPolicyInput("banana");
+    assert.equal(resolved.ok, false);
+    if (!resolved.ok) {
+      assert.equal(resolved.blocker, "unknown model policy: banana");
+    }
+  });
+
+  it("resolveModelPolicyInput defaults implicit policy to local_only", () => {
+    const resolved = resolveModelPolicyInput(undefined);
+    assert.equal(resolved.ok, true);
+    if (resolved.ok) {
+      assert.equal(resolved.policy, "local_only");
+      assert.equal(resolved.explicit, false);
+    }
   });
 
   it("remote_ok preflight skips local selection", async () => {
@@ -257,5 +276,44 @@ describe("runner-model-routing", () => {
     assert.equal(routing.selected_model, "qwen2.5-coder:7b");
     assert.equal(routing.roles.length, 1);
     assert.match(formatTraceRoleRoutingText(routing), /dev-backend/);
+  });
+
+  it("buildRoleRoutingPreview rejects unknown explicit model policy", () => {
+    assert.throws(
+      () => buildRoleRoutingPreview({ modelPolicy: "banana" }),
+      (err) => err instanceof Error
+        && err.message === "unknown model policy: banana"
+        && err.code === "RUNNER_UNKNOWN_MODEL_POLICY",
+    );
+  });
+
+  it("buildRoleRoutingPreview defaults implicit policy to local_only", () => {
+    const preview = buildRoleRoutingPreview({ localModel: "qwen2.5-coder:7b" });
+    assert.equal(preview.model_policy, "local_only");
+  });
+});
+
+describe("runner-tui-cli routing policy validation", () => {
+  const cliPath = path.join(__dirname, "..", "runner-tui-cli.js");
+
+  it("routing rejects unknown explicit model policy (exit 2)", () => {
+    const r = cp.spawnSync(process.execPath, [cliPath, "routing", "--model-policy", "banana"], {
+      encoding: "utf8",
+      cwd: path.join(__dirname, ".."),
+    });
+    assert.equal(r.status, 2);
+    assert.match(`${r.stdout}\n${r.stderr}`, /unknown model policy: banana/);
+    assert.doesNotMatch(r.stdout, /Role routing preview/);
+  });
+
+  it("routing rejects unknown policy even when --model is set", () => {
+    const r = cp.spawnSync(
+      process.execPath,
+      [cliPath, "routing", "--model-policy", "banana", "--model", "qwen2.5-coder:7b"],
+      { encoding: "utf8", cwd: path.join(__dirname, "..") },
+    );
+    assert.equal(r.status, 2);
+    assert.match(`${r.stdout}\n${r.stderr}`, /unknown model policy: banana/);
+    assert.doesNotMatch(r.stdout, /Role routing preview/);
   });
 });

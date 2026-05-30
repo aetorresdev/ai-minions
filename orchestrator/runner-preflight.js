@@ -24,7 +24,34 @@ function normalizeModelPolicy(value) {
 }
 
 /**
- * @param {{
+ * Resolve CLI/env model policy input with explicit-unknown rejection (preflight parity).
+ * @param {unknown} rawPolicy
+ * @returns {{
+ *   ok: true,
+ *   policy: 'local_only' | 'remote_ok',
+ *   explicit: boolean,
+ * } | {
+ *   ok: false,
+ *   blocker: string,
+ * }}
+ */
+function resolveModelPolicyInput(rawPolicy) {
+  const explicit = rawPolicy != null && String(rawPolicy).trim() !== '';
+  const normalized = normalizeModelPolicy(rawPolicy);
+  if (explicit && normalized == null) {
+    return {
+      ok: false,
+      blocker: `unknown model policy: ${String(rawPolicy).trim()}`,
+    };
+  }
+  return {
+    ok: true,
+    policy: normalized ?? 'local_only',
+    explicit,
+  };
+}
+
+/**
  *   cwd?: string,
  *   modelPolicy?: string,
  *   model?: string | null,
@@ -51,10 +78,9 @@ async function buildRunPreflight(options = {}) {
   /** @type {string[]} */
   const blockers = [];
 
-  const modelPolicy = normalizeModelPolicy(options.modelPolicy);
-  const policyExplicit = options.modelPolicy != null && String(options.modelPolicy).trim() !== '';
-  if (policyExplicit && modelPolicy == null) {
-    blockers.push(`unknown model policy: ${options.modelPolicy}`);
+  const resolvedPolicyInput = resolveModelPolicyInput(options.modelPolicy);
+  if (!resolvedPolicyInput.ok) {
+    blockers.push(resolvedPolicyInput.blocker);
     return {
       ok: false,
       model_policy: 'local_only',
@@ -68,7 +94,7 @@ async function buildRunPreflight(options = {}) {
     };
   }
 
-  const resolvedPolicy = modelPolicy ?? 'local_only';
+  const resolvedPolicy = resolvedPolicyInput.policy;
 
   if (resolvedPolicy === 'remote_ok') {
     return {
@@ -160,6 +186,7 @@ function formatPreflightText(preflight) {
 module.exports = {
   VALID_MODEL_POLICIES,
   normalizeModelPolicy,
+  resolveModelPolicyInput,
   buildRunPreflight,
   formatPreflightText,
 };

@@ -17,7 +17,7 @@ const ROLE_DISPLAY_ORDER = [
   'cerberus',
 ];
 
-const { normalizeModelPolicy } = require('./runner-preflight');
+const { resolveModelPolicyInput, normalizeModelPolicy } = require('./runner-preflight');
 
 /** @typedef {{ id: 'local_only' | 'remote_ok', label: string, description: string }} ModelPolicyOption */
 
@@ -79,8 +79,15 @@ function listRoutingRoleIds() {
  * }}
  */
 function buildRoleRoutingPreview(options = {}) {
+  const resolvedPolicyInput = resolveModelPolicyInput(options.modelPolicy);
+  if (!resolvedPolicyInput.ok) {
+    const err = new Error(resolvedPolicyInput.blocker);
+    err.code = 'RUNNER_UNKNOWN_MODEL_POLICY';
+    throw err;
+  }
+
   const { AGENTS, resolveModel, MODEL_ROUTING } = loadAgentsRouting();
-  const modelPolicy = normalizeModelPolicy(options.modelPolicy) ?? 'local_only';
+  const modelPolicy = resolvedPolicyInput.policy;
   const flowMode = options.flowMode || 'single_agent';
   const localModel = options.localModel != null && String(options.localModel).trim()
     ? String(options.localModel).trim()
