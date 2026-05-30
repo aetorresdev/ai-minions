@@ -7,6 +7,7 @@
  *   node runner-tui-cli.js routing [--model-policy local_only|remote_ok] [--model NAME] [--flow single_agent]
  *   node runner-tui-cli.js run --goal "..." [--flow single_agent|multi_agent] [--model-policy local_only] [--interactive]
  *   node runner-tui-cli.js status --run-id <task_id> [--show-routing]
+ *   node runner-tui-cli.js trace --run-id <task_id> [--follow] [--file <path>]
  */
 
 'use strict';
@@ -28,6 +29,7 @@ const {
   formatRoleRoutingText,
   resolveInteractiveModelPolicy,
 } = require('./runner-model-routing');
+const { runTraceViewer } = require('./runner-trace-viewer');
 
 function printHelp() {
   console.log(`Runner TUI/CLI — launch orchestrator runs
@@ -37,6 +39,7 @@ Commands:
   routing     Show model policy catalog + per-role routing preview
   run         Preflight then execute orchestrator run()
   status      Read terminal status from trace JSONL
+  trace       Step graph + gate blocks from trace JSONL (read-only)
 
 Options (preflight / run / routing):
   --cwd <dir>              Project directory (default: cwd)
@@ -50,9 +53,11 @@ Options (run only):
   --skip-gates             Pass --skip-gates to orchestrator
   --iterations <n>         Max iterations
 
-Options (status):
+Options (status / trace):
   --run-id <id>            Task id / trace basename
-  --show-routing           Include resolved models from trace
+  --show-routing           Include resolved models from trace (status only)
+  --file <path>            Trace JSONL path (trace only; overrides --run-id resolution)
+  --follow                 Poll trace file until session_end (trace only)
 
 See docs/orchestrator/runner-tui-contract.md`);
 }
@@ -71,10 +76,12 @@ function parseCommonArgs(argv) {
     else if (a === '--flow' && argv[i + 1]) out.flowMode = argv[++i];
     else if (a === '--goal' && argv[i + 1]) out.goal = argv[++i];
     else if (a === '--run-id' && argv[i + 1]) out.runId = argv[++i];
+    else if (a === '--file' && argv[i + 1]) out.file = argv[++i];
     else if (a === '--iterations' && argv[i + 1]) out.maxIterations = argv[++i];
     else if (a === '--skip-gates') out.skipGates = true;
     else if (a === '--interactive') out.interactive = true;
     else if (a === '--show-routing') out.showRouting = true;
+    else if (a === '--follow') out.follow = true;
   }
   return out;
 }
@@ -232,6 +239,26 @@ async function main() {
       console.log(formatTraceRoleRoutingText(status.role_routing));
     }
     process.exit(status.error ? 2 : 0);
+  }
+
+  if (cmd === 'trace') {
+    if (!opts.runId && !opts.file) {
+      console.error('trace requires --run-id or --file');
+      process.exit(1);
+    }
+    const result = await runTraceViewer({
+      runId: opts.runId ? String(opts.runId) : undefined,
+      filePath: opts.file ? String(opts.file) : undefined,
+      follow: opts.follow === true,
+    });
+    if (!result.ok) {
+      console.error(result.error || 'trace failed');
+      process.exit(result.error === 'trace file not found' ? 2 : 1);
+    }
+    if (opts.follow !== true && result.text) {
+      console.log(result.text);
+    }
+    process.exit(result.interrupted ? 130 : 0);
   }
 
   console.error(`Unknown command: ${cmd}`);
