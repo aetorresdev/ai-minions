@@ -7,6 +7,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { buildWorktreeHookContext } = require("./worktree-isolation");
 
 /**
  * @param {string} goal
@@ -39,6 +40,7 @@ function writeOrchRunContext(cwd, { taskId, flowMode, goal }) {
     flow_src: "orchestrator_cli",
     transcript_scope: "orchestrator_run",
     ...scopeInfo,
+    ...buildWorktreeHookContext(root),
     written_at: new Date().toISOString(),
   };
 

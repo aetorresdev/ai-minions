@@ -24,6 +24,7 @@
  */
 
 const { deriveRunScope, writeOrchRunContext } = require("./flow-hook-bridge");
+const { buildWorktreeTraceFields } = require("./worktree-isolation");
 const {
   isQaSpecBeforeDevEnabled,
   applyQaSpecBeforeDevPlan,
@@ -1655,6 +1656,7 @@ async function run(goal, options = {}) {
     require_handoff: requireHandoff,
     ...(scenarioId ? { scenario_id: scenarioId } : {}),
     ...localOnlyCtx,
+    ...buildWorktreeTraceFields(cwd),
   });
 
   // ── Degraded mode banner ──────────────────────────────────────────────────────

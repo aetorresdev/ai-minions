@@ -92,6 +92,19 @@ Data sources (read-only, no new enforcement):
 
 Exit codes: missing trace → **2**; usage → **1**.
 
+### `worktree`
+
+Git worktree isolation — one isolated tree per `task_id`. See [worktree-isolation-contract.md](worktree-isolation-contract.md).
+
+| Subcommand | Behavior |
+|------------|----------|
+| `create --run-id <id>` | `git worktree add` + write `.claude/worktree-binding.json` |
+| `remove --run-id <id>` | `git worktree remove` (+ `--force` when dirty) |
+| `list` | Managed worktrees under `ORCH_WORKTREES_DIR` |
+| `status` | Binding for `--run-id` or current `--cwd` |
+
+`run --worktree-isolated` creates/reuses worktree, executes inside it, does **not** auto-remove.
+
 ## Model policy picker (`MODEL-ROUTING-UX-1`)
 
 | Flag / command | Behavior |
@@ -116,7 +129,7 @@ Aliases: `remote-approved`, `remote_approved` → `remote_ok`. Any other **expli
 | Surface | Role |
 |---------|------|
 | `run-orchestrator.js` | Direct CLI entry (goal arg, flags) |
-| **Runner TUI CLI** | Preflight + policy-aware launch + status + trace + budget view |
+| **Runner TUI CLI** | Preflight + policy-aware launch + status + trace + budget + worktree |
 | `control-plane-tui.js` | Read-only inspect of completed runs |
 | `explain-run` | Narrative + JSON export |
 

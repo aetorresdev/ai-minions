@@ -9,6 +9,10 @@
  *   node runner-tui-cli.js status --run-id <task_id> [--show-routing]
  *   node runner-tui-cli.js trace --run-id <task_id> [--follow] [--file <path>]
  *   node runner-tui-cli.js budget --run-id <task_id> [--file <path>]
+ *   node runner-tui-cli.js worktree create --run-id <task_id> [--cwd DIR]
+ *   node runner-tui-cli.js worktree remove --run-id <task_id> [--force]
+ *   node runner-tui-cli.js worktree list [--cwd DIR]
+ *   node runner-tui-cli.js worktree status [--run-id <id>|--cwd DIR]
  */
 
 'use strict';
@@ -32,6 +36,13 @@ const {
 } = require('./runner-model-routing');
 const { runTraceViewer } = require('./runner-trace-viewer');
 const { runBudgetView } = require('./runner-budget-view');
+const {
+  createIsolatedWorktree,
+  removeIsolatedWorktree,
+  listManagedWorktrees,
+  statusWorktree,
+  formatWorktreeListText,
+} = require('./worktree-isolation');
 
 function printHelp() {
   console.log(`Runner TUI/CLI — launch orchestrator runs
@@ -43,6 +54,7 @@ Commands:
   status      Read terminal status from trace JSONL
   trace       Step graph + gate blocks from trace JSONL (read-only)
   budget      Token rollup + USD estimate vs budget limits (read-only)
+  worktree    Create/remove/list isolated git worktrees per task_id
 
 Options (preflight / run / routing):
   --cwd <dir>              Project directory (default: cwd)
@@ -55,6 +67,12 @@ Options (run only):
   --goal <text>            Run goal
   --skip-gates             Pass --skip-gates to orchestrator
   --iterations <n>         Max iterations
+  --worktree-isolated      Create git worktree for this run (does not auto-remove)
+  --run-id <id>            Explicit task id (run / worktree create)
+
+Options (worktree):
+  --force                  Force remove dirty worktree
+  --base-ref <ref>         Base ref for new branch (default HEAD)
 
 Options (status / trace / budget):
   --run-id <id>            Task id / trace basename
@@ -85,6 +103,9 @@ function parseCommonArgs(argv) {
     else if (a === '--interactive') out.interactive = true;
     else if (a === '--show-routing') out.showRouting = true;
     else if (a === '--follow') out.follow = true;
+    else if (a === '--worktree-isolated') out.worktreeIsolated = true;
+    else if (a === '--force') out.force = true;
+    else if (a === '--base-ref' && argv[i + 1]) out.baseRef = argv[++i];
   }
   return out;
 }
@@ -201,8 +222,19 @@ async function main() {
         skipStateMcp: opts.skipGates === true,
         maxIterations,
         interactive: opts.interactive === true,
+        worktreeIsolated: opts.worktreeIsolated === true,
+        taskId: opts.runId ? String(opts.runId) : undefined,
+        worktreeBaseRef: opts.baseRef ? String(opts.baseRef) : undefined,
       });
       console.log(formatPreflightText(launched.preflight));
+      if (launched.worktree) {
+        console.log('');
+        console.log('Worktree isolation');
+        console.log(`  task_id:       ${launched.worktree.task_id}`);
+        console.log(`  worktree_path: ${launched.worktree.worktree_path}`);
+        console.log(`  branch:        ${launched.worktree.branch}`);
+        console.log(`  run_cwd:       ${launched.run_cwd}`);
+      }
       console.log('');
       const routingPreview = buildRoleRoutingPreview({
         modelPolicy: launched.preflight.model_policy,
@@ -223,10 +255,13 @@ async function main() {
     } catch (err) {
       if (err && err.preflight) {
         console.error(formatPreflightText(err.preflight));
+      } else if (err && err.worktree) {
+        console.error(err instanceof Error ? err.message : String(err));
       } else {
         console.error(err instanceof Error ? err.message : String(err));
       }
-      process.exit(err && err.code === 'RUNNER_PREFLIGHT_BLOCKED' ? 2 : 1);
+      const code = err && err.code;
+      process.exit(code === 'RUNNER_PREFLIGHT_BLOCKED' || code === 'RUNNER_WORKTREE_BLOCKED' ? 2 : 1);
     }
   }
 
@@ -281,6 +316,96 @@ async function main() {
       console.log(result.text);
     }
     process.exit(0);
+  }
+
+  if (cmd === 'worktree') {
+    const sub = rest[0];
+    const wopts = parseCommonArgs(rest.slice(1));
+    const repoRoot = wopts.cwd;
+
+    if (sub === 'create') {
+      if (!wopts.runId) {
+        console.error('worktree create requires --run-id');
+        process.exit(1);
+      }
+      const created = createIsolatedWorktree({
+        repoRoot,
+        primaryCwd: repoRoot,
+        taskId: String(wopts.runId),
+        baseRef: wopts.baseRef ? String(wopts.baseRef) : undefined,
+      });
+      if (!created.ok) {
+        console.error(created.error || 'worktree create failed');
+        if (created.detail) console.error(created.detail);
+        process.exit(created.error === 'not_a_git_repository' ? 2 : 1);
+      }
+      console.log('Worktree created');
+      console.log(`  task_id:       ${created.task_id}`);
+      console.log(`  worktree_path: ${created.worktree_path}`);
+      console.log(`  branch:        ${created.branch}`);
+      console.log(`  created:       ${created.created ? 'yes' : 'already_exists'}`);
+      process.exit(0);
+    }
+
+    if (sub === 'remove') {
+      if (!wopts.runId) {
+        console.error('worktree remove requires --run-id');
+        process.exit(1);
+      }
+      const removed = removeIsolatedWorktree({
+        repoRoot,
+        taskId: String(wopts.runId),
+        force: wopts.force === true,
+      });
+      if (!removed.ok) {
+        console.error(removed.error || 'worktree remove failed');
+        if (removed.detail) console.error(removed.detail);
+        process.exit(removed.error === 'worktree_not_found' ? 2 : 1);
+      }
+      console.log(`Removed worktree ${removed.worktree_path}`);
+      process.exit(0);
+    }
+
+    if (sub === 'list') {
+      const listed = listManagedWorktrees({ repoRoot });
+      if (!listed.ok) {
+        console.error(listed.error || 'worktree list failed');
+        process.exit(listed.error === 'not_a_git_repository' ? 2 : 1);
+      }
+      console.log(formatWorktreeListText(listed));
+      console.log(`  dir: ${listed.worktrees_dir}`);
+      process.exit(0);
+    }
+
+    if (sub === 'status') {
+      const st = statusWorktree({
+        repoRoot,
+        taskId: wopts.runId ? String(wopts.runId) : undefined,
+        cwd: wopts.cwd,
+      });
+      if (!st.ok) {
+        console.error(st.error || 'worktree status failed');
+        process.exit(st.error === 'not_a_git_repository' ? 2 : 1);
+      }
+      if (wopts.runId) {
+        console.log(`task_id:       ${String(wopts.runId)}`);
+        console.log(`exists:        ${st.exists}`);
+        console.log(`managed:       ${st.managed}`);
+        console.log(`worktree_path: ${st.worktree_path}`);
+      } else {
+        console.log(`cwd:           ${st.cwd}`);
+        console.log(`managed:       ${st.managed}`);
+        console.log(`git_root:      ${st.git_root ?? '(none)'}`);
+        if (st.binding) {
+          console.log(`task_id:       ${st.binding.task_id}`);
+          console.log(`branch:        ${st.binding.branch}`);
+        }
+      }
+      process.exit(0);
+    }
+
+    console.error('worktree requires create|remove|list|status');
+    process.exit(1);
   }
 
   console.error(`Unknown command: ${cmd}`);
