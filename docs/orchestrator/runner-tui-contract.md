@@ -13,6 +13,8 @@ npm run runner:tui -- run --goal "..." [--flow single_agent|multi_agent] [--mode
 npm run runner:tui -- status --run-id <task_id> [--show-routing]
 npm run runner:tui -- trace --run-id <task_id> [--follow]
 npm run runner:tui -- trace --file <trace.jsonl>
+npm run runner:tui -- budget --run-id <task_id>
+npm run runner:tui -- budget --file <trace.jsonl>
 ```
 
 Exit codes:
@@ -71,6 +73,25 @@ Gate block sources: `contract_fail`, `decide_contract_fail`, `model_policy_block
 
 Exit codes: missing trace → **2**; usage → **1**; Ctrl+C during follow → **130**.
 
+### `budget`
+
+Read-only cost/budget inspect in the runner product surface. Complements `trace` (step timeline), `status` (terminal outcome), and `dashboard:console` (full cost tables).
+
+| Mode | Behavior |
+|------|----------|
+| Snapshot | Load trace JSONL once; print token rollup, USD estimate (when env rates set), budget limit comparison, top steps by tokens, budget timeline |
+
+Resolution: `--run-id` → `$ORCH_TRACES_DIR/<id>.jsonl`; `--file` overrides with explicit path.
+
+Data sources (read-only, no new enforcement):
+
+- `buildRunOutcomeSummary` — token totals + `optionalOllamaUsdEstimate`
+- `buildRunCostAccountingFromReport` — actual env-priced + optional equivalent_cloud benchmark
+- `rollupStepsCostOutcome` — per-step token table
+- Trace events: `budget_warning`, `budget_block`, `budget_exhausted`, `budget_config_invalid`, `iteration_done` with `GUARD_COST_LIMIT`
+
+Exit codes: missing trace → **2**; usage → **1**.
+
 ## Model policy picker (`MODEL-ROUTING-UX-1`)
 
 | Flag / command | Behavior |
@@ -95,7 +116,7 @@ Aliases: `remote-approved`, `remote_approved` → `remote_ok`. Any other **expli
 | Surface | Role |
 |---------|------|
 | `run-orchestrator.js` | Direct CLI entry (goal arg, flags) |
-| **Runner TUI CLI** | Preflight + policy-aware launch + status + trace view |
+| **Runner TUI CLI** | Preflight + policy-aware launch + status + trace + budget view |
 | `control-plane-tui.js` | Read-only inspect of completed runs |
 | `explain-run` | Narrative + JSON export |
 
@@ -105,12 +126,12 @@ Aliases: `remote-approved`, `remote_approved` → `remote_ok`. Any other **expli
 - No auth, multi-user, or new persistence.
 - No harness adapter parity (`EPIC-HARNESS-ADAPTERS` parked).
 - Interactive goal/flow prompts remain out of scope.
-- Cost/token rollup view → `COST-BUDGET-VIEW-TUI-1`.
+- Budget `--follow` polling (trace has follow; budget is snapshot-only in this slice).
 
 ## Validation
 
-- Unit tests: `orchestrator/tests/runnerTui.test.js`, `orchestrator/tests/runnerTraceViewer.test.js`
-- Manual: `trace --run-id` after `run`; `trace --follow --run-id` during active run; `trace --file tests/fixtures/golden-path-clean-v1.jsonl`
+- Unit tests: `orchestrator/tests/runnerTui.test.js`, `orchestrator/tests/runnerTraceViewer.test.js`, `orchestrator/tests/runnerBudgetView.test.js`
+- Manual: `trace --run-id` after `run`; `budget --file tests/fixtures/golden-path-clean-v1.jsonl`; `budget --run-id` on runs with `ORCH_MAX_COST_USD` set
 
 ## Related
 
