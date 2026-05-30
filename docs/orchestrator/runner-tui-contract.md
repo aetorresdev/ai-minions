@@ -11,6 +11,8 @@ npm run runner:tui -- preflight --model-policy local_only [--cwd DIR] [--model N
 npm run runner:tui -- routing [--model-policy local_only|remote_ok] [--model NAME] [--flow single_agent|multi_agent]
 npm run runner:tui -- run --goal "..." [--flow single_agent|multi_agent] [--model-policy local_only|remote_ok] [--interactive] [--skip-gates]
 npm run runner:tui -- status --run-id <task_id> [--show-routing]
+npm run runner:tui -- trace --run-id <task_id> [--follow]
+npm run runner:tui -- trace --file <trace.jsonl>
 ```
 
 Exit codes:
@@ -54,6 +56,21 @@ Prints the model policy catalog and a **per-role routing preview** for the selec
 
 Does not execute agents. For `local_only` without `--model`, runs the same selection path as `preflight` (including `--interactive` TTY model pick when multiple models are discovered).
 
+### `trace`
+
+Read-only trace inspect in the runner product surface (step timeline + gate blocks). Complements `status` (terminal outcome) and `control-plane-tui` (full inspect).
+
+| Mode | Behavior |
+|------|----------|
+| Snapshot (default) | Load trace JSONL once; print outcome header, **step graph**, **gate blocks** |
+| `--follow` | Poll trace file until `session_end` (or Ctrl+C); prints incremental `+ event` lines after initial snapshot |
+
+Resolution: `--run-id` → `$ORCH_TRACES_DIR/<id>.jsonl`; `--file` overrides with explicit path.
+
+Gate block sources: `contract_fail`, `decide_contract_fail`, `model_policy_block`, `permission_check` deny, `review_record` blockers.
+
+Exit codes: missing trace → **2**; usage → **1**; Ctrl+C during follow → **130**.
+
 ## Model policy picker (`MODEL-ROUTING-UX-1`)
 
 | Flag / command | Behavior |
@@ -78,7 +95,7 @@ Aliases: `remote-approved`, `remote_approved` → `remote_ok`. Any other **expli
 | Surface | Role |
 |---------|------|
 | `run-orchestrator.js` | Direct CLI entry (goal arg, flags) |
-| **Runner TUI CLI** | Preflight + policy-aware launch + status |
+| **Runner TUI CLI** | Preflight + policy-aware launch + status + trace view |
 | `control-plane-tui.js` | Read-only inspect of completed runs |
 | `explain-run` | Narrative + JSON export |
 
@@ -87,12 +104,13 @@ Aliases: `remote-approved`, `remote_approved` → `remote_ok`. Any other **expli
 - Stdout CLI only — no curses/full-screen UI in this slice.
 - No auth, multi-user, or new persistence.
 - No harness adapter parity (`EPIC-HARNESS-ADAPTERS` parked).
-- Interactive goal/flow prompts deferred to future TTY polish (`TRACE-VIEWER-TUI-1` lane).
+- Interactive goal/flow prompts remain out of scope.
+- Cost/token rollup view → `COST-BUDGET-VIEW-TUI-1`.
 
 ## Validation
 
-- Unit tests: `orchestrator/tests/runnerTui.test.js` (mocked discovery/selection/run; golden trace status).
-- Manual: `preflight` with Ollama up/down; `run --goal "smoke"` with `--skip-gates`; `status --run-id` after run.
+- Unit tests: `orchestrator/tests/runnerTui.test.js`, `orchestrator/tests/runnerTraceViewer.test.js`
+- Manual: `trace --run-id` after `run`; `trace --follow --run-id` during active run; `trace --file tests/fixtures/golden-path-clean-v1.jsonl`
 
 ## Related
 
