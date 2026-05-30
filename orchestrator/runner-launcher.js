@@ -12,6 +12,10 @@ const { buildRunPreflight, formatPreflightText } = require('./runner-preflight')
 const { configureLocalModelPolicy, resetLocalModelPolicy } = require('./local-model-policy');
 const { parseJsonl } = require('./token-trace-report');
 const { buildRunOutcomeSummary } = require('./run-outcome-summary');
+const {
+  extractRoleRoutingFromTrace,
+  formatTraceRoleRoutingText,
+} = require('./runner-model-routing');
 
 /**
  * @param {string[]} keys
@@ -53,6 +57,7 @@ function terminalStatusFromRunResult(result) {
  *   maxIterations?: number,
  *   taskId?: string,
  *   skipBackendCheck?: boolean,
+ *   interactive?: boolean,
  *   run?: Function,
  *   buildRunPreflight?: typeof buildRunPreflight,
  * }} options
@@ -66,6 +71,7 @@ async function launchRun(options) {
     cwd: options.cwd,
     modelPolicy: options.modelPolicy,
     model: options.model,
+    interactive: options.interactive === true,
   });
 
   if (!preflight.ok) {
@@ -129,6 +135,7 @@ function loadRunStatusFromTrace(taskId, options = {}) {
       trace_file: filePath,
       summary: null,
       error: 'trace file not found',
+      role_routing: null,
     };
   }
 
@@ -141,6 +148,8 @@ function loadRunStatusFromTrace(taskId, options = {}) {
       ? 'failed'
       : 'running';
 
+  const role_routing = extractRoleRoutingFromTrace(rows);
+
   return {
     task_id: taskId,
     terminal_status,
@@ -148,6 +157,7 @@ function loadRunStatusFromTrace(taskId, options = {}) {
     summary: ros,
     done: ros.what?.done,
     iterations: ros.what?.iterations,
+    role_routing,
   };
 }
 
@@ -173,6 +183,7 @@ module.exports = {
   loadRunStatusFromTrace,
   formatRunStatusText,
   formatPreflightText,
+  formatTraceRoleRoutingText,
   terminalStatusFromRunResult,
   saveEnv,
   restoreEnv,
