@@ -63,7 +63,7 @@ Read-only trace inspect in the runner product surface (step timeline + gate bloc
 | Mode | Behavior |
 |------|----------|
 | Snapshot (default) | Load trace JSONL once; print outcome header, **step graph**, **gate blocks** |
-| `--follow` | Poll trace file until `session_end` (or Ctrl+C); prints incremental `+ event` lines after initial snapshot |
+| `--follow` | Poll trace file until `session_end` (or Ctrl+C); prints incremental `+ event` lines after initial snapshot. **Requires trace file to exist** (same exit **2** as snapshot when missing). |
 
 Resolution: `--run-id` → `$ORCH_TRACES_DIR/<id>.jsonl`; `--file` overrides with explicit path.
 

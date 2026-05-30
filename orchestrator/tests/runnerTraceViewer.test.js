@@ -14,6 +14,8 @@ const {
   loadTraceRowsFromFile,
   resolveTraceFilePath,
   runTraceViewer,
+  appendTraceChunk,
+  followTraceFile,
 } = require("../runner-trace-viewer");
 
 const goldenClean = fs.readFileSync(
@@ -89,8 +91,31 @@ describe("runner-trace-viewer", () => {
     assert.match(result.text || "", /terminal_status:\s+done/);
   });
 
+  it("runTraceViewer follow rejects missing trace before polling", async () => {
+    const missing = path.join(os.tmpdir(), `task-missing-follow-${Date.now()}.jsonl`);
+    const result = await runTraceViewer({ filePath: missing, follow: true });
+    assert.equal(result.ok, false);
+    assert.equal(result.error, "trace file not found");
+  });
+
+  it("appendTraceChunk retains partial line until newline completes JSON", () => {
+    const sessionEnd = JSON.stringify({
+      event: "session_end",
+      task_id: "task-split",
+      done: true,
+      iterations: 1,
+    });
+    const mid = Math.floor(sessionEnd.length / 2);
+    const first = appendTraceChunk("", `${sessionEnd.slice(0, mid)}`);
+    assert.equal(first.rows.length, 0);
+    assert.ok(first.carry.length > 0);
+    const second = appendTraceChunk(first.carry, `${sessionEnd.slice(mid)}\n`);
+    assert.equal(second.carry, "");
+    assert.equal(second.rows.length, 1);
+    assert.equal(second.rows[0].event, "session_end");
+  });
+
   it("followTraceFile exits when session_end appended", async () => {
-    const { followTraceFile } = require("../runner-trace-viewer");
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runner-trace-follow-"));
     const filePath = path.join(tmp, "task-follow.jsonl");
     fs.writeFileSync(
@@ -131,6 +156,38 @@ describe("runner-trace-viewer", () => {
     assert.ok(result.rows.some((r) => r.event === "session_end"));
     fs.rmSync(tmp, { recursive: true, force: true });
   });
+
+  it("followTraceFile exits when session_end arrives in two chunks", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runner-trace-split-"));
+    const filePath = path.join(tmp, "task-split-chunk.jsonl");
+    const sessionEnd = JSON.stringify({
+      event: "session_end",
+      task_id: "task-split-chunk",
+      done: true,
+      iterations: 1,
+      summary: "ok",
+      ts_ms: 3,
+    });
+    const mid = Math.floor(sessionEnd.length / 2);
+    fs.writeFileSync(
+      filePath,
+      `${JSON.stringify({ event: "session_start", task_id: "task-split-chunk", ts_ms: 1 })}\n`,
+    );
+
+    const followPromise = followTraceFile(filePath, { pollMs: 50, maxWaitMs: 5000 });
+
+    setTimeout(() => {
+      fs.appendFileSync(filePath, sessionEnd.slice(0, mid));
+    }, 80);
+    setTimeout(() => {
+      fs.appendFileSync(filePath, `${sessionEnd.slice(mid)}\n`);
+    }, 180);
+
+    const result = await followPromise;
+    assert.equal(result.sessionEnded, true);
+    assert.ok(result.rows.some((r) => r.event === "session_end"));
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
 });
 
 describe("runner-tui-cli trace command", () => {
@@ -151,6 +208,20 @@ describe("runner-tui-cli trace command", () => {
     const r = cp.spawnSync(
       process.execPath,
       [cliPath, "trace", "--run-id", "task-does-not-exist-runner-trace"],
+      {
+        encoding: "utf8",
+        cwd: path.join(__dirname, ".."),
+        env: { ...process.env, ORCH_TRACES_DIR: os.tmpdir() },
+      },
+    );
+    assert.equal(r.status, 2);
+    assert.match(`${r.stdout}\n${r.stderr}`, /trace file not found/);
+  });
+
+  it("trace --follow missing file exits 2", () => {
+    const r = cp.spawnSync(
+      process.execPath,
+      [cliPath, "trace", "--follow", "--run-id", "task-does-not-exist-runner-trace-follow"],
       {
         encoding: "utf8",
         cwd: path.join(__dirname, ".."),

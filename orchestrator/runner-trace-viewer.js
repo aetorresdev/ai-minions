@@ -264,6 +264,32 @@ function formatGateBlocksText(blocks) {
 }
 
 /**
+ * Parse newline-delimited JSON from an incremental file chunk (tail -f safe).
+ * Keeps an incomplete trailing line in carry until the next chunk completes it.
+ *
+ * @param {string} carryIn
+ * @param {string} chunk
+ * @returns {{ carry: string, rows: object[] }}
+ */
+function appendTraceChunk(carryIn, chunk) {
+  const combined = carryIn + chunk;
+  const parts = combined.split('\n');
+  const carry = parts.pop() ?? '';
+  /** @type {object[]} */
+  const rows = [];
+  for (const line of parts) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      rows.push(JSON.parse(trimmed));
+    } catch {
+      // skip malformed complete line
+    }
+  }
+  return { carry, rows };
+}
+
+/**
  * @param {object} row
  * @returns {string}
  */
@@ -379,6 +405,7 @@ function followTraceFile(filePath, options = {}) {
   /** @type {object[]} */
   let allRows = [];
   let byteOffset = 0;
+  let carry = '';
   let printedSnapshot = false;
 
   return new Promise((resolve) => {
@@ -406,14 +433,15 @@ function followTraceFile(filePath, options = {}) {
       }
 
       if (!fs.existsSync(filePath)) {
-        if (!printedSnapshot) {
-          process.stderr.write(`waiting for trace file: ${filePath}\n`);
-        }
+        cleanup({ rows: allRows, sessionEnded: false, interrupted: true });
         return;
       }
 
       const stat = fs.statSync(filePath);
-      if (stat.size < byteOffset) byteOffset = 0;
+      if (stat.size < byteOffset) {
+        byteOffset = 0;
+        carry = '';
+      }
 
       if (stat.size === byteOffset) {
         if (allRows.some((r) => r && r.event === 'session_end')) {
@@ -429,18 +457,8 @@ function followTraceFile(filePath, options = {}) {
       fs.closeSync(fd);
       byteOffset = stat.size;
 
-      const chunk = buf.toString('utf8');
-      /** @type {object[]} */
-      const newRows = [];
-      for (const raw of chunk.split('\n')) {
-        const line = raw.trim();
-        if (!line) continue;
-        try {
-          newRows.push(JSON.parse(line));
-        } catch {
-          // skip partial line until next poll
-        }
-      }
+      const { carry: nextCarry, rows: newRows } = appendTraceChunk(carry, buf.toString('utf8'));
+      carry = nextCarry;
 
       if (!newRows.length) return;
 
@@ -484,6 +502,9 @@ async function runTraceViewer(options = {}) {
   }
 
   if (options.follow === true) {
+    if (!fs.existsSync(filePath)) {
+      return { ok: false, error: 'trace file not found', filePath };
+    }
     const result = await followTraceFile(filePath, options);
     return {
       ok: true,
@@ -519,6 +540,7 @@ module.exports = {
   formatGateBlocksText,
   formatTraceViewerText,
   formatTraceFollowLine,
+  appendTraceChunk,
   resolveTraceFilePath,
   loadTraceRowsFromFile,
   followTraceFile,
