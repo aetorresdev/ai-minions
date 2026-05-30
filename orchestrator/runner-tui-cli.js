@@ -8,6 +8,7 @@
  *   node runner-tui-cli.js run --goal "..." [--flow single_agent|multi_agent] [--model-policy local_only] [--interactive]
  *   node runner-tui-cli.js status --run-id <task_id> [--show-routing]
  *   node runner-tui-cli.js trace --run-id <task_id> [--follow] [--file <path>]
+ *   node runner-tui-cli.js budget --run-id <task_id> [--file <path>]
  */
 
 'use strict';
@@ -30,6 +31,7 @@ const {
   resolveInteractiveModelPolicy,
 } = require('./runner-model-routing');
 const { runTraceViewer } = require('./runner-trace-viewer');
+const { runBudgetView } = require('./runner-budget-view');
 
 function printHelp() {
   console.log(`Runner TUI/CLI — launch orchestrator runs
@@ -40,6 +42,7 @@ Commands:
   run         Preflight then execute orchestrator run()
   status      Read terminal status from trace JSONL
   trace       Step graph + gate blocks from trace JSONL (read-only)
+  budget      Token rollup + USD estimate vs budget limits (read-only)
 
 Options (preflight / run / routing):
   --cwd <dir>              Project directory (default: cwd)
@@ -53,10 +56,10 @@ Options (run only):
   --skip-gates             Pass --skip-gates to orchestrator
   --iterations <n>         Max iterations
 
-Options (status / trace):
+Options (status / trace / budget):
   --run-id <id>            Task id / trace basename
   --show-routing           Include resolved models from trace (status only)
-  --file <path>            Trace JSONL path (trace only; overrides --run-id resolution)
+  --file <path>            Trace JSONL path (trace/budget; overrides --run-id resolution)
   --follow                 Poll trace file until session_end (trace only)
 
 See docs/orchestrator/runner-tui-contract.md`);
@@ -259,6 +262,25 @@ async function main() {
       console.log(result.text);
     }
     process.exit(result.interrupted ? 130 : 0);
+  }
+
+  if (cmd === 'budget') {
+    if (!opts.runId && !opts.file) {
+      console.error('budget requires --run-id or --file');
+      process.exit(1);
+    }
+    const result = await runBudgetView({
+      runId: opts.runId ? String(opts.runId) : undefined,
+      filePath: opts.file ? String(opts.file) : undefined,
+    });
+    if (!result.ok) {
+      console.error(result.error || 'budget failed');
+      process.exit(result.error === 'trace file not found' ? 2 : 1);
+    }
+    if (result.text) {
+      console.log(result.text);
+    }
+    process.exit(0);
   }
 
   console.error(`Unknown command: ${cmd}`);
