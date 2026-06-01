@@ -327,3 +327,51 @@ describe("runner-tui-cli routing policy validation", () => {
     assert.match(r.stderr, /trace file not found/);
   });
 });
+
+describe("runner-tui-cli worktree contract", () => {
+  const cliPath = path.join(__dirname, "..", "runner-tui-cli.js");
+  const orchestratorCwd = path.join(__dirname, "..");
+
+  /**
+   * @returns {string}
+   */
+  function initTempGitRepo() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "runner-tui-wt-"));
+    fs.writeFileSync(path.join(dir, "README.md"), "# temp\n", "utf8");
+    const { runGit } = require("../worktree-isolation");
+    runGit(["init"], { cwd: dir });
+    runGit(["config", "user.email", "test@example.com"], { cwd: dir });
+    runGit(["config", "user.name", "test"], { cwd: dir });
+    runGit(["add", "README.md"], { cwd: dir });
+    runGit(["commit", "-m", "init"], { cwd: dir });
+    return dir;
+  }
+
+  it("worktree create and contract print canonical W2 contract (exit 0)", () => {
+    const repo = initTempGitRepo();
+    const create = cp.spawnSync(
+      process.execPath,
+      [cliPath, "worktree", "create", "--run-id", "cli-contract-1", "--cwd", repo],
+      { encoding: "utf8", cwd: orchestratorCwd },
+    );
+    assert.equal(create.status, 0, create.stderr || create.stdout);
+    assert.match(create.stdout, /Run workdir contract/);
+    assert.match(create.stdout, /worktree_isolated:\s+true/);
+
+    const contract = cp.spawnSync(
+      process.execPath,
+      [cliPath, "worktree", "contract", "--run-id", "cli-contract-1", "--cwd", repo],
+      { encoding: "utf8", cwd: orchestratorCwd },
+    );
+    assert.equal(contract.status, 0, contract.stderr || contract.stdout);
+    assert.match(contract.stdout, /Run workdir contract/);
+    assert.match(contract.stdout, /\(source: contract\)/);
+    assert.match(contract.stdout, /execution_state \(mutable\)/);
+
+    try {
+      fs.rmSync(repo, { recursive: true, force: true });
+    } catch {
+      /* ok */
+    }
+  });
+});

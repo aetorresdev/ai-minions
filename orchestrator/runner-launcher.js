@@ -11,6 +11,7 @@ const os = require('os');
 const { buildRunPreflight, formatPreflightText } = require('./runner-preflight');
 const { configureLocalModelPolicy, resetLocalModelPolicy } = require('./local-model-policy');
 const { createIsolatedWorktree } = require('./worktree-isolation');
+const { resolveRunCwdFromContract } = require('./run-workdir-contract');
 const { randomUUID } = require('crypto');
 const { parseJsonl } = require('./token-trace-report');
 const { buildRunOutcomeSummary } = require('./run-outcome-summary');
@@ -104,7 +105,15 @@ async function launchRun(options) {
       err.worktree = created;
       throw err;
     }
-    runCwd = created.worktree_path;
+    runCwd = created.contract
+      ? resolveRunCwdFromContract(created.contract)
+      : created.worktree_path;
+    if (path.resolve(runCwd) === path.resolve(repoCwd)) {
+      const err = new Error('Worktree isolation requires run cwd distinct from repo root');
+      err.code = 'RUNNER_WORKTREE_BLOCKED';
+      err.worktree = created;
+      throw err;
+    }
     worktree = created;
     options.taskId = taskId;
   }
@@ -142,6 +151,7 @@ async function launchRun(options) {
       task_id: result.taskId,
       worktree,
       run_cwd: runCwd,
+      run_workdir_contract: worktree?.contract || null,
     };
   } finally {
     restoreEnv(prevEnv);
