@@ -13,6 +13,7 @@
  *   node runner-tui-cli.js worktree remove --run-id <task_id> [--force]
  *   node runner-tui-cli.js worktree list [--cwd DIR]
  *   node runner-tui-cli.js worktree status [--run-id <id>|--cwd DIR]
+ *   node runner-tui-cli.js worktree contract [--run-id <id>|--cwd DIR]
  */
 
 'use strict';
@@ -43,6 +44,10 @@ const {
   statusWorktree,
   formatWorktreeListText,
 } = require('./worktree-isolation');
+const {
+  readRunWorkdirContract,
+  formatRunWorkdirContractText,
+} = require('./run-workdir-contract');
 
 function printHelp() {
   console.log(`Runner TUI/CLI — launch orchestrator runs
@@ -54,7 +59,7 @@ Commands:
   status      Read terminal status from trace JSONL
   trace       Step graph + gate blocks from trace JSONL (read-only)
   budget      Token rollup + USD estimate vs budget limits (read-only)
-  worktree    Create/remove/list isolated git worktrees per task_id
+  worktree    Create/remove/list/status/contract for isolated git worktrees
 
 Options (preflight / run / routing):
   --cwd <dir>              Project directory (default: cwd)
@@ -234,6 +239,10 @@ async function main() {
         console.log(`  worktree_path: ${launched.worktree.worktree_path}`);
         console.log(`  branch:        ${launched.worktree.branch}`);
         console.log(`  run_cwd:       ${launched.run_cwd}`);
+        if (launched.run_workdir_contract) {
+          console.log('');
+          console.log(formatRunWorkdirContractText(launched.run_workdir_contract));
+        }
       }
       console.log('');
       const routingPreview = buildRoleRoutingPreview({
@@ -344,6 +353,10 @@ async function main() {
       console.log(`  worktree_path: ${created.worktree_path}`);
       console.log(`  branch:        ${created.branch}`);
       console.log(`  created:       ${created.created ? 'yes' : 'already_exists'}`);
+      if (created.contract) {
+        console.log('');
+        console.log(formatRunWorkdirContractText(created.contract));
+      }
       process.exit(0);
     }
 
@@ -392,6 +405,11 @@ async function main() {
         console.log(`exists:        ${st.exists}`);
         console.log(`managed:       ${st.managed}`);
         console.log(`worktree_path: ${st.worktree_path}`);
+        if (st.contract) {
+          console.log('');
+          console.log(formatRunWorkdirContractText(st.contract));
+          if (st.contract_source) console.log(`  (source: ${st.contract_source})`);
+        }
       } else {
         console.log(`cwd:           ${st.cwd}`);
         console.log(`managed:       ${st.managed}`);
@@ -400,11 +418,40 @@ async function main() {
           console.log(`task_id:       ${st.binding.task_id}`);
           console.log(`branch:        ${st.binding.branch}`);
         }
+        if (st.contract) {
+          console.log('');
+          console.log(formatRunWorkdirContractText(st.contract));
+          if (st.contract_source) console.log(`  (source: ${st.contract_source})`);
+        }
       }
       process.exit(0);
     }
 
-    console.error('worktree requires create|remove|list|status');
+    if (sub === 'contract') {
+      let contractCwd = wopts.cwd || process.cwd();
+      if (wopts.runId) {
+        const st = statusWorktree({ repoRoot, taskId: String(wopts.runId) });
+        if (!st.ok) {
+          console.error(st.error || 'worktree status failed');
+          process.exit(st.error === 'not_a_git_repository' ? 2 : 1);
+        }
+        if (!st.exists) {
+          console.error('worktree_not_found');
+          process.exit(2);
+        }
+        contractCwd = st.worktree_path;
+      }
+      const contractRead = readRunWorkdirContract(contractCwd);
+      if (!contractRead.ok) {
+        console.error(contractRead.errors?.join(', ') || 'contract not found');
+        process.exit(2);
+      }
+      console.log(formatRunWorkdirContractText(contractRead.contract));
+      console.log(`  (source: ${contractRead.source})`);
+      process.exit(0);
+    }
+
+    console.error('worktree requires create|remove|list|status|contract');
     process.exit(1);
   }
 

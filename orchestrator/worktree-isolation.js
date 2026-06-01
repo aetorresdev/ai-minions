@@ -8,6 +8,11 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const {
+  buildRunWorkdirContract,
+  writeRunWorkdirContract,
+  readRunWorkdirContract,
+} = require('./run-workdir-contract');
 
 const BINDING_REL_PATH = '.claude/worktree-binding.json';
 const BINDING_SCHEMA_VERSION = '1';
@@ -144,6 +149,7 @@ function branchExists(repoRoot, branch) {
  *   worktreesDir?: string,
  *   primaryCwd?: string,
  *   force?: boolean,
+ *   cleanupPolicy?: string,
  * }} options
  */
 function createIsolatedWorktree(options) {
@@ -165,16 +171,18 @@ function createIsolatedWorktree(options) {
     ? readWorktreeBinding(plan.worktree_path)
     : null;
   if (existingBinding && existingBinding.task_id === plan.task_id) {
+    const existingContract = readRunWorkdirContract(plan.worktree_path);
     return {
       ok: true,
       created: false,
       already_exists: true,
       ...plan,
       binding: existingBinding,
+      contract: existingContract.ok ? existingContract.contract : null,
     };
   }
   if (fs.existsSync(plan.worktree_path) && !options.force) {
-    return { ok: false, error: 'worktree_path_exists', worktree_path: plan.worktree_path };
+    return { ...plan, ok: false, error: 'worktree_path_exists' };
   }
 
   fs.mkdirSync(path.dirname(plan.worktree_path), { recursive: true });
@@ -186,10 +194,10 @@ function createIsolatedWorktree(options) {
   const add = runGit(addArgs, { cwd: repo.gitRoot });
   if (!add.ok) {
     return {
+      ...plan,
       ok: false,
       error: 'git_worktree_add_failed',
       detail: add.stderr || add.stdout,
-      ...plan,
     };
   }
 
@@ -204,12 +212,31 @@ function createIsolatedWorktree(options) {
   };
   writeWorktreeBinding(plan.worktree_path, binding);
 
+  const built = buildRunWorkdirContract({
+    run_id: plan.task_id,
+    repo_root: plan.repo_root,
+    base_ref: baseRef,
+    worktree_path: plan.worktree_path,
+    cleanup_policy: options.cleanupPolicy,
+    worktree_isolated: true,
+    run_cwd: plan.worktree_path,
+  });
+  if (!built.ok) {
+    return { ...plan, ok: false, error: 'run_workdir_contract_invalid', errors: built.errors };
+  }
+  const written = writeRunWorkdirContract(plan.worktree_path, built.contract);
+  if (!written.ok) {
+    return { ...plan, ok: false, error: 'run_workdir_contract_write_failed', errors: written.errors };
+  }
+
   return {
     ok: true,
     created: true,
     already_exists: false,
     ...plan,
     binding,
+    contract: built.contract,
+    contract_path: written.path,
   };
 }
 
@@ -307,17 +334,21 @@ function statusWorktree(options = {}) {
     });
     if (!plan.ok) return { ok: false, error: plan.error };
     const binding = readWorktreeBinding(plan.worktree_path);
+    const contractRead = readRunWorkdirContract(plan.worktree_path);
     return {
       ok: true,
       exists: fs.existsSync(plan.worktree_path),
       managed: Boolean(binding),
       worktree_path: plan.worktree_path,
       binding,
+      contract: contractRead.ok ? contractRead.contract : null,
+      contract_source: contractRead.ok ? contractRead.source : null,
     };
   }
 
   const cwd = path.resolve(options.cwd || process.cwd());
   const binding = readWorktreeBinding(cwd);
+  const contractRead = readRunWorkdirContract(cwd);
   const gitRoot = resolveGitRoot(cwd);
   return {
     ok: true,
@@ -325,6 +356,8 @@ function statusWorktree(options = {}) {
     managed: Boolean(binding),
     git_root: gitRoot.ok ? gitRoot.gitRoot : null,
     binding,
+    contract: contractRead.ok ? contractRead.contract : null,
+    contract_source: contractRead.ok ? contractRead.source : null,
     trace_fields: buildWorktreeTraceFields(cwd),
   };
 }

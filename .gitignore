@@ -49,6 +49,8 @@ metrics/
 .claude/flow-hook-state/
 .claude/worktrees/
 .claude/worktree-binding.json
+.claude/run-workdir-contract.json
+.claude/run-artifacts/
 plugins/
 tasks/
 # MCP server virtualenvs and lock files

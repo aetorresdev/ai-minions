@@ -69,6 +69,9 @@ describe("worktree-isolation", () => {
     const binding = readWorktreeBinding(created.worktree_path);
     assert.equal(binding.task_id, "task-wt-1");
     assert.equal(binding.repo_root, repo);
+    assert.ok(created.contract);
+    assert.equal(created.contract.run_id, "task-wt-1");
+    assert.equal(created.contract.worktree_isolated, true);
 
     const listed = listManagedWorktrees({ repoRoot: repo });
     assert.equal(listed.ok, true);
