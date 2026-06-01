@@ -240,9 +240,7 @@ function removeIsolatedWorktree(options) {
     return { ok: false, error: 'worktree_not_found', worktree_path: plan.worktree_path };
   }
 
-  const binding = readWorktreeBinding(plan.worktree_path);
-  const useForce = options.force === true || Boolean(binding);
-  const removeArgs = useForce
+  const removeArgs = options.force === true
     ? ['worktree', 'remove', '--force', plan.worktree_path]
     : ['worktree', 'remove', plan.worktree_path];
   const rem = runGit(removeArgs, { cwd: repo.gitRoot });

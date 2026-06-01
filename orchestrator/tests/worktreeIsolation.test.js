@@ -98,12 +98,31 @@ describe("worktree-isolation", () => {
     assert.equal(fields.worktree_path, created.worktree_path);
   });
 
-  it("removeIsolatedWorktree deletes managed path", () => {
+  it("removeIsolatedWorktree fails on dirty managed worktree without --force", () => {
     const repo = initTempGitRepo();
     repos.push(repo);
-    const created = createIsolatedWorktree({ repoRoot: repo, taskId: "task-rm" });
+    const created = createIsolatedWorktree({ repoRoot: repo, taskId: "task-dirty-no-force" });
     assert.equal(created.ok, true);
-    const removed = removeIsolatedWorktree({ repoRoot: repo, taskId: "task-rm" });
+    assert.ok(readWorktreeBinding(created.worktree_path));
+
+    const removed = removeIsolatedWorktree({ repoRoot: repo, taskId: "task-dirty-no-force" });
+    assert.equal(removed.ok, false);
+    assert.equal(removed.error, "git_worktree_remove_failed");
+    assert.match(removed.detail || "", /modified or untracked/i);
+    assert.equal(fs.existsSync(created.worktree_path), true);
+  });
+
+  it("removeIsolatedWorktree succeeds on dirty managed worktree with --force", () => {
+    const repo = initTempGitRepo();
+    repos.push(repo);
+    const created = createIsolatedWorktree({ repoRoot: repo, taskId: "task-dirty-force" });
+    assert.equal(created.ok, true);
+
+    const removed = removeIsolatedWorktree({
+      repoRoot: repo,
+      taskId: "task-dirty-force",
+      force: true,
+    });
     assert.equal(removed.ok, true);
     assert.equal(fs.existsSync(created.worktree_path), false);
   });

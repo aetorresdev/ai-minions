@@ -47,6 +47,8 @@ Exit codes:
 | 1 | Usage / git error |
 | 2 | Not a git repo / worktree not found |
 
+`worktree remove` calls `git worktree remove` **without** `--force` unless the operator passes `--force`. Managed worktrees typically have an untracked binding file — removal without `--force` fails until the operator opts in to destructive cleanup.
+
 `run --worktree-isolated` creates (or reuses) the worktree, executes the run inside it, and **does not** auto-remove the worktree afterward.
 
 ## Trace fields (`session_start`)
