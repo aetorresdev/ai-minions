@@ -10,6 +10,8 @@ const os = require('os');
 
 const { buildRunPreflight, formatPreflightText } = require('./runner-preflight');
 const { configureLocalModelPolicy, resetLocalModelPolicy } = require('./local-model-policy');
+const { createIsolatedWorktree } = require('./worktree-isolation');
+const { randomUUID } = require('crypto');
 const { parseJsonl } = require('./token-trace-report');
 const { buildRunOutcomeSummary } = require('./run-outcome-summary');
 const {
@@ -56,6 +58,8 @@ function terminalStatusFromRunResult(result) {
  *   skipStateMcp?: boolean,
  *   maxIterations?: number,
  *   taskId?: string,
+ *   worktreeIsolated?: boolean,
+ *   worktreeBaseRef?: string,
  *   skipBackendCheck?: boolean,
  *   interactive?: boolean,
  *   run?: Function,
@@ -81,6 +85,30 @@ async function launchRun(options) {
     throw err;
   }
 
+  const repoCwd = options.cwd || process.cwd();
+  let runCwd = repoCwd;
+  /** @type {object | null} */
+  let worktree = null;
+
+  if (options.worktreeIsolated === true) {
+    const taskId = options.taskId || `task-${randomUUID().slice(0, 8)}`;
+    const created = createIsolatedWorktree({
+      repoRoot: repoCwd,
+      primaryCwd: repoCwd,
+      taskId,
+      baseRef: options.worktreeBaseRef,
+    });
+    if (!created.ok) {
+      const err = new Error(`Worktree isolation failed: ${created.error}${created.detail ? ` (${created.detail})` : ''}`);
+      err.code = 'RUNNER_WORKTREE_BLOCKED';
+      err.worktree = created;
+      throw err;
+    }
+    runCwd = created.worktree_path;
+    worktree = created;
+    options.taskId = taskId;
+  }
+
   const runFn = options.run ?? require('./orchestrator').run;
   const envKeys = ['ORCH_MODEL_MODE', 'ORCH_ALLOW_REMOTE_MODELS', 'ORCH_NON_INTERACTIVE'];
   const prevEnv = saveEnv(envKeys);
@@ -93,12 +121,12 @@ async function launchRun(options) {
 
     configureLocalModelPolicy({
       cliModel: options.model ?? null,
-      cwd: options.cwd ?? null,
+      cwd: runCwd,
       skipBackendCheck: options.skipBackendCheck === true,
     });
 
     const result = await runFn(goal, {
-      cwd: options.cwd,
+      cwd: runCwd,
       flowMode: options.flowMode || 'single_agent',
       skipStateMcp: options.skipStateMcp === true,
       ...(options.maxIterations != null ? { maxIterations: options.maxIterations } : {}),
@@ -112,6 +140,8 @@ async function launchRun(options) {
       result,
       terminal_status,
       task_id: result.taskId,
+      worktree,
+      run_cwd: runCwd,
     };
   } finally {
     restoreEnv(prevEnv);

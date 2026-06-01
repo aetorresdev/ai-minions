@@ -47,6 +47,8 @@ history.jsonl
 metrics/
 # Per-project flow-metrics hook state (not metrics/ trace authority)
 .claude/flow-hook-state/
+.claude/worktrees/
+.claude/worktree-binding.json
 plugins/
 tasks/
 # MCP server virtualenvs and lock files
