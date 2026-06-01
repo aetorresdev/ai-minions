@@ -15,6 +15,7 @@ const {
 const { summarizeReviewRecordsFromRows } = require("./review-record");
 const { summarizeRecoveryFromRows } = require("./recovery-sweep");
 const { summarizeSessionResumeFromRows } = require("./session-resume");
+const { summarizeWorkspaceLifecycleFromRows } = require("./trace-workspace-lifecycle");
 
 /**
  * @param {object[]} rows — sanitized trace rows (same pipeline as export/dashboard)
@@ -99,6 +100,7 @@ function buildRunOutcomeSummary(rows, meta = {}) {
   const reviewSummary = summarizeReviewRecordsFromRows(rows);
   const recoverySummary = summarizeRecoveryFromRows(rows);
   const resumeSummary = summarizeSessionResumeFromRows(rows);
+  const workspaceSummary = summarizeWorkspaceLifecycleFromRows(rows);
 
   return {
     schema_version: "1",
@@ -181,6 +183,7 @@ function buildRunOutcomeSummary(rows, meta = {}) {
       },
     },
     intent_groups,
+    workspace: workspaceSummary,
   };
 }
 

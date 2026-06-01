@@ -14,6 +14,15 @@ const {
   readRunWorkdirContract,
   isValidCleanupPolicy,
 } = require('./run-workdir-contract');
+const {
+  emitWorkspaceCreated,
+  emitWorkspaceReused,
+  emitWorkspaceRejected,
+  emitWorkspaceArtifactsReady,
+  emitWorkspaceCleanupStarted,
+  emitWorkspaceCleanupCompleted,
+  emitWorkspaceCleanupFailed,
+} = require('./trace-workspace-lifecycle');
 
 const BINDING_REL_PATH = '.claude/worktree-binding.json';
 const BINDING_SCHEMA_VERSION = '1';
@@ -143,6 +152,25 @@ function branchExists(repoRoot, branch) {
 }
 
 /**
+ * @param {object} plan
+ * @param {object} [binding]
+ * @param {object} [contract]
+ * @returns {Parameters<typeof emitWorkspaceCreated>[1]}
+ */
+function workspaceTraceCtx(plan, binding, contract) {
+  return {
+    task_id: plan.task_id,
+    repo_root: plan.repo_root,
+    worktree_path: plan.worktree_path,
+    branch: plan.branch || binding?.branch,
+    base_ref: binding?.base_ref || contract?.base_ref || 'HEAD',
+    run_cwd: contract?.run_cwd || plan.worktree_path,
+    artifact_root: contract?.artifact_root,
+    cleanup_policy: contract?.cleanup_policy,
+  };
+}
+
+/**
  * @param {{
  *   repoRoot?: string,
  *   taskId: string,
@@ -173,21 +201,34 @@ function createIsolatedWorktree(options) {
     : null;
   if (existingBinding && existingBinding.task_id === plan.task_id) {
     const existingContract = readRunWorkdirContract(plan.worktree_path);
+    const contract = existingContract.ok ? existingContract.contract : null;
+    const ctx = workspaceTraceCtx(plan, existingBinding, contract);
+    emitWorkspaceReused(plan.task_id, ctx);
     return {
       ok: true,
       created: false,
       already_exists: true,
       ...plan,
       binding: existingBinding,
-      contract: existingContract.ok ? existingContract.contract : null,
+      contract,
     };
   }
   if (fs.existsSync(plan.worktree_path) && !options.force) {
+    emitWorkspaceRejected(
+      plan.task_id,
+      workspaceTraceCtx(plan, null, null),
+      'worktree_path_exists',
+    );
     return { ...plan, ok: false, error: 'worktree_path_exists' };
   }
 
   const baseRef = options.baseRef || 'HEAD';
   if (options.cleanupPolicy != null && !isValidCleanupPolicy(options.cleanupPolicy)) {
+    emitWorkspaceRejected(
+      plan.task_id,
+      workspaceTraceCtx(plan, { base_ref: baseRef }, null),
+      'invalid_cleanup_policy',
+    );
     return { ...plan, ok: false, error: 'invalid_cleanup_policy' };
   }
 
@@ -216,6 +257,12 @@ function createIsolatedWorktree(options) {
 
   const add = runGit(addArgs, { cwd: repo.gitRoot });
   if (!add.ok) {
+    emitWorkspaceRejected(
+      plan.task_id,
+      workspaceTraceCtx(plan, { base_ref: baseRef }, null),
+      'git_worktree_add_failed',
+      { detail: (add.stderr || add.stdout || '').slice(0, 500) },
+    );
     return {
       ...plan,
       ok: false,
@@ -240,6 +287,10 @@ function createIsolatedWorktree(options) {
   if (!written.ok) {
     return { ...plan, ok: false, error: 'run_workdir_contract_write_failed', errors: written.errors };
   }
+
+  const ctx = workspaceTraceCtx(plan, binding, built.contract);
+  emitWorkspaceCreated(plan.task_id, ctx);
+  emitWorkspaceArtifactsReady(plan.task_id, ctx);
 
   return {
     ok: true,
@@ -279,11 +330,23 @@ function removeIsolatedWorktree(options) {
     return { ok: false, error: 'worktree_not_found', worktree_path: plan.worktree_path };
   }
 
+  const binding = readWorktreeBinding(plan.worktree_path);
+  const contractRead = readRunWorkdirContract(plan.worktree_path);
+  const contract = contractRead.ok ? contractRead.contract : null;
+  const ctx = workspaceTraceCtx(plan, binding, contract);
+  emitWorkspaceCleanupStarted(plan.task_id, ctx);
+
   const removeArgs = options.force === true
     ? ['worktree', 'remove', '--force', plan.worktree_path]
     : ['worktree', 'remove', plan.worktree_path];
   const rem = runGit(removeArgs, { cwd: repo.gitRoot });
   if (!rem.ok) {
+    emitWorkspaceCleanupFailed(
+      plan.task_id,
+      ctx,
+      'git_worktree_remove_failed',
+      { detail: (rem.stderr || rem.stdout || '').slice(0, 500) },
+    );
     return {
       ok: false,
       error: 'git_worktree_remove_failed',
@@ -293,6 +356,7 @@ function removeIsolatedWorktree(options) {
   }
 
   runGit(['worktree', 'prune'], { cwd: repo.gitRoot });
+  emitWorkspaceCleanupCompleted(plan.task_id, ctx);
   return { ok: true, removed: true, worktree_path: plan.worktree_path, task_id: plan.task_id };
 }
 

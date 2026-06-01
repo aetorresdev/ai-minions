@@ -541,6 +541,145 @@
           "summary": { "type": "string", "minLength": 1, "maxLength": 300 }
         }
       }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "workspace_created" } },
+        "required": ["event"]
+      },
+      "then": {
+        "$ref": "#/$defs/workspaceLifecycleBase"
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "workspace_reused" } },
+        "required": ["event"]
+      },
+      "then": {
+        "$ref": "#/$defs/workspaceLifecycleBase"
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "workspace_rejected" } },
+        "required": ["event"]
+      },
+      "then": {
+        "allOf": [
+          { "$ref": "#/$defs/workspaceLifecycleBase" },
+          {
+            "required": ["reason_code"],
+            "properties": {
+              "reason_code": { "type": "string", "minLength": 1, "maxLength": 64 }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "workspace_run_cwd_bound" } },
+        "required": ["event"]
+      },
+      "then": {
+        "allOf": [
+          { "$ref": "#/$defs/workspaceLifecycleBase" },
+          { "required": ["run_cwd"] }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "workspace_artifacts_ready" } },
+        "required": ["event"]
+      },
+      "then": {
+        "allOf": [
+          { "$ref": "#/$defs/workspaceLifecycleBase" },
+          { "required": ["artifact_root"] }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "workspace_cleanup_started" } },
+        "required": ["event"]
+      },
+      "then": {
+        "$ref": "#/$defs/workspaceLifecycleBase"
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "workspace_cleanup_completed" } },
+        "required": ["event"]
+      },
+      "then": {
+        "$ref": "#/$defs/workspaceLifecycleBase"
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "workspace_cleanup_skipped" } },
+        "required": ["event"]
+      },
+      "then": {
+        "allOf": [
+          { "$ref": "#/$defs/workspaceLifecycleBase" },
+          {
+            "required": ["reason_code"],
+            "properties": {
+              "reason_code": { "type": "string", "minLength": 1, "maxLength": 64 }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "workspace_cleanup_failed" } },
+        "required": ["event"]
+      },
+      "then": {
+        "allOf": [
+          { "$ref": "#/$defs/workspaceLifecycleBase" },
+          {
+            "required": ["reason_code", "retained"],
+            "properties": {
+              "reason_code": { "type": "string", "minLength": 1, "maxLength": 64 },
+              "retained": { "type": "boolean" },
+              "detail": { "type": "string", "maxLength": 500 }
+            }
+          }
+        ]
+      }
     }
-  ]
+  ],
+  "$defs": {
+    "workspaceLifecycleBase": {
+      "required": [
+        "execution_actor",
+        "isolation_mode",
+        "worktree_path",
+        "repo_root",
+        "worktree_task_id"
+      ],
+      "properties": {
+        "execution_actor": { "type": "string", "const": "workspace_manager" },
+        "isolation_mode": { "type": "string", "const": "git_worktree" },
+        "worktree_path": { "type": "string", "minLength": 1 },
+        "repo_root": { "type": "string", "minLength": 1 },
+        "worktree_task_id": { "type": "string", "minLength": 1 },
+        "worktree_branch": { "type": "string", "minLength": 1 },
+        "base_ref": { "type": "string", "minLength": 1 },
+        "run_cwd": { "type": "string", "minLength": 1 },
+        "artifact_root": { "type": "string", "minLength": 1 },
+        "cleanup_policy": {
+          "type": "string",
+          "enum": ["retain", "cleanup_on_success", "cleanup_always"]
+        }
+      }
+    }
+  }
 }
