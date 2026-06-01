@@ -11,12 +11,16 @@ const {
   buildRunWorkdirContract,
   contractFromBinding,
   readRunWorkdirContract,
-  writeRunWorkdirContract,
   resolveRunCwdFromContract,
   formatRunWorkdirContractText,
+  readRunWorkdirContractFile,
   CLEANUP_POLICIES,
 } = require("../run-workdir-contract");
-const { createIsolatedWorktree, readWorktreeBinding } = require("../worktree-isolation");
+const {
+  planWorktree,
+  createIsolatedWorktree,
+  readWorktreeBinding,
+} = require("../worktree-isolation");
 
 function initTempGitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-rw-contract-"));
@@ -133,6 +137,52 @@ describe("run-workdir-contract", () => {
     });
     assert.equal(built.ok, true);
     assert.equal(resolveRunCwdFromContract(built.contract), "/repo/wt/t");
+  });
+
+  it("validateRunWorkdirContract rejects contract missing nested execution_state", () => {
+    const built = buildRunWorkdirContract({
+      run_id: "task-1",
+      repo_root: "/repo",
+      worktree_path: "/repo/wt/task-1",
+    });
+    assert.equal(built.ok, true);
+    const malformed = { ...built.contract, execution_state: { run_cwd: "/repo/wt/task-1" } };
+    const v = validateRunWorkdirContract(malformed);
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some((e) => e.includes("execution_state")));
+  });
+
+  it("readRunWorkdirContract rejects malformed on-disk contract file", () => {
+    const repo = initTempGitRepo();
+    repos.push(repo);
+    const created = createIsolatedWorktree({ repoRoot: repo, taskId: "task-bad-file" });
+    assert.equal(created.ok, true);
+    const contractPath = path.join(created.worktree_path, ".claude", "run-workdir-contract.json");
+    fs.writeFileSync(
+      contractPath,
+      `${JSON.stringify({ schema_version: "1", run_id: "task-bad-file" })}\n`,
+      "utf8",
+    );
+    const read = readRunWorkdirContract(created.worktree_path);
+    assert.equal(read.ok, false);
+    assert.ok(read.errors.length > 0);
+    const text = formatRunWorkdirContractText(readRunWorkdirContractFile(created.worktree_path));
+    assert.match(text, /invalid/);
+  });
+
+  it("createIsolatedWorktree rejects invalid cleanupPolicy before git worktree add", () => {
+    const repo = initTempGitRepo();
+    repos.push(repo);
+    const plan = planWorktree({ repoRoot: repo, taskId: "task-bad-policy" });
+    assert.equal(plan.ok, true);
+    const created = createIsolatedWorktree({
+      repoRoot: repo,
+      taskId: "task-bad-policy",
+      cleanupPolicy: "nuke_from_orbit",
+    });
+    assert.equal(created.ok, false);
+    assert.equal(created.error, "invalid_cleanup_policy");
+    assert.equal(fs.existsSync(plan.worktree_path), false);
   });
 
   it("formatRunWorkdirContractText includes execution vs artifact lines", () => {

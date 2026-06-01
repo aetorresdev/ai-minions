@@ -32,7 +32,7 @@ Path: `.claude/worktree-binding.json`
 
 Path: `.claude/run-workdir-contract.json`
 
-Canonical record for **where a run executes** and how artifacts/cleanup are addressed. `readRunWorkdirContract` loads the contract file when present; otherwise synthesizes from the W1 binding (backward compatible).
+Canonical record for **where a run executes** and how artifacts/cleanup are addressed. `readRunWorkdirContract` loads the contract file when present; otherwise synthesizes from the W1 binding (backward compatible). `validateRunWorkdirContract` requires top-level fields plus `run_cwd`, `execution_state`, and `business_artifacts` (including `mutable_paths` / `read_only_paths`) so malformed on-disk JSON fails closed instead of crashing the CLI.
 
 | Field | Purpose |
 |-------|---------|
@@ -77,6 +77,8 @@ Exit codes:
 `worktree remove` calls `git worktree remove` **without** `--force` unless the operator passes `--force`. Managed worktrees typically have an untracked binding file — removal without `--force` fails until the operator opts in to destructive cleanup.
 
 `run --worktree-isolated` creates (or reuses) the worktree, executes the run inside it, and **does not** auto-remove the worktree afterward.
+
+Invalid `cleanup_policy` (when passed programmatically) is rejected **before** `git worktree add`, so git state is not created for a doomed contract.
 
 ## Trace fields (`session_start`)
 

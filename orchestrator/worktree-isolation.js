@@ -12,6 +12,7 @@ const {
   buildRunWorkdirContract,
   writeRunWorkdirContract,
   readRunWorkdirContract,
+  isValidCleanupPolicy,
 } = require('./run-workdir-contract');
 
 const BINDING_REL_PATH = '.claude/worktree-binding.json';
@@ -185,8 +186,30 @@ function createIsolatedWorktree(options) {
     return { ...plan, ok: false, error: 'worktree_path_exists' };
   }
 
-  fs.mkdirSync(path.dirname(plan.worktree_path), { recursive: true });
   const baseRef = options.baseRef || 'HEAD';
+  if (options.cleanupPolicy != null && !isValidCleanupPolicy(options.cleanupPolicy)) {
+    return { ...plan, ok: false, error: 'invalid_cleanup_policy' };
+  }
+
+  const plannedContract = buildRunWorkdirContract({
+    run_id: plan.task_id,
+    repo_root: plan.repo_root,
+    base_ref: baseRef,
+    worktree_path: plan.worktree_path,
+    cleanup_policy: options.cleanupPolicy,
+    worktree_isolated: true,
+    run_cwd: plan.worktree_path,
+  });
+  if (!plannedContract.ok) {
+    return {
+      ...plan,
+      ok: false,
+      error: 'run_workdir_contract_invalid',
+      errors: plannedContract.errors,
+    };
+  }
+
+  fs.mkdirSync(path.dirname(plan.worktree_path), { recursive: true });
   const addArgs = branchExists(repo.gitRoot, plan.branch)
     ? ['worktree', 'add', plan.worktree_path, plan.branch]
     : ['worktree', 'add', '-b', plan.branch, plan.worktree_path, baseRef];
@@ -212,18 +235,7 @@ function createIsolatedWorktree(options) {
   };
   writeWorktreeBinding(plan.worktree_path, binding);
 
-  const built = buildRunWorkdirContract({
-    run_id: plan.task_id,
-    repo_root: plan.repo_root,
-    base_ref: baseRef,
-    worktree_path: plan.worktree_path,
-    cleanup_policy: options.cleanupPolicy,
-    worktree_isolated: true,
-    run_cwd: plan.worktree_path,
-  });
-  if (!built.ok) {
-    return { ...plan, ok: false, error: 'run_workdir_contract_invalid', errors: built.errors };
-  }
+  const built = plannedContract;
   const written = writeRunWorkdirContract(plan.worktree_path, built.contract);
   if (!written.ok) {
     return { ...plan, ok: false, error: 'run_workdir_contract_write_failed', errors: written.errors };

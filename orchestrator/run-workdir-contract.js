@@ -36,6 +36,26 @@ function isValidCleanupPolicy(policy) {
 }
 
 /**
+ * @param {unknown} value
+ * @param {string} label
+ * @param {string[]} errors
+ */
+function requireNonEmptyString(value, label, errors) {
+  if (typeof value !== 'string' || !value.trim()) errors.push(`missing_${label}`);
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} label
+ * @param {string[]} errors
+ */
+function requireStringArray(value, label, errors) {
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || !item.trim())) {
+    errors.push(`invalid_${label}`);
+  }
+}
+
+/**
  * @param {unknown} contract
  * @returns {{ ok: true } | { ok: false, errors: string[] }}
  */
@@ -56,6 +76,9 @@ function validateRunWorkdirContract(contract) {
     'cleanup_policy',
     'created_at',
     'worktree_isolated',
+    'run_cwd',
+    'execution_state',
+    'business_artifacts',
   ];
   for (const key of required) {
     if (c[key] == null || c[key] === '') errors.push(`missing_${key}`);
@@ -64,14 +87,48 @@ function validateRunWorkdirContract(contract) {
   if (c.schema_version !== CONTRACT_SCHEMA_VERSION) {
     errors.push('invalid_schema_version');
   }
+  requireNonEmptyString(c.run_id, 'run_id', errors);
+  requireNonEmptyString(c.repo_root, 'repo_root', errors);
+  requireNonEmptyString(c.worktree_path, 'worktree_path', errors);
+  requireNonEmptyString(c.artifact_root, 'artifact_root', errors);
+  requireNonEmptyString(c.run_cwd, 'run_cwd', errors);
+
   if (typeof c.cleanup_policy === 'string' && !isValidCleanupPolicy(c.cleanup_policy)) {
     errors.push('invalid_cleanup_policy');
+  }
+  if (typeof c.worktree_isolated !== 'boolean') {
+    errors.push('invalid_worktree_isolated');
   }
   if (c.retained_after_failure != null && typeof c.retained_after_failure !== 'boolean') {
     errors.push('invalid_retained_after_failure');
   }
   if (c.trace_refs != null && !Array.isArray(c.trace_refs)) {
     errors.push('invalid_trace_refs');
+  }
+
+  const exec = c.execution_state;
+  if (exec == null || typeof exec !== 'object') {
+    errors.push('invalid_execution_state');
+  } else {
+    const es = /** @type {Record<string, unknown>} */ (exec);
+    requireNonEmptyString(es.run_cwd, 'execution_state_run_cwd', errors);
+    requireNonEmptyString(es.worktree_path, 'execution_state_worktree_path', errors);
+    if (typeof es.cleanup_policy === 'string' && !isValidCleanupPolicy(es.cleanup_policy)) {
+      errors.push('invalid_execution_state_cleanup_policy');
+    }
+    requireStringArray(es.mutable_paths, 'execution_state_mutable_paths', errors);
+  }
+
+  const biz = c.business_artifacts;
+  if (biz == null || typeof biz !== 'object') {
+    errors.push('invalid_business_artifacts');
+  } else {
+    const ba = /** @type {Record<string, unknown>} */ (biz);
+    requireNonEmptyString(ba.artifact_root, 'business_artifacts_artifact_root', errors);
+    if (ba.trace_refs != null && !Array.isArray(ba.trace_refs)) {
+      errors.push('invalid_business_artifacts_trace_refs');
+    }
+    requireStringArray(ba.read_only_paths, 'business_artifacts_read_only_paths', errors);
   }
 
   if (errors.length) return { ok: false, errors };
@@ -98,6 +155,9 @@ function buildRunWorkdirContract(input) {
   const repoRoot = path.resolve(String(input.repo_root || ''));
   const worktreePath = path.resolve(String(input.worktree_path || ''));
   const cleanupPolicy = input.cleanup_policy || 'retain';
+  if (input.cleanup_policy != null && !isValidCleanupPolicy(cleanupPolicy)) {
+    return { ok: false, errors: ['invalid_cleanup_policy'] };
+  }
 
   const contract = {
     schema_version: CONTRACT_SCHEMA_VERSION,
@@ -252,6 +312,12 @@ function resolveRunCwdFromContract(contract) {
  * @returns {string}
  */
 function formatRunWorkdirContractText(contract) {
+  const validated = validateRunWorkdirContract(contract);
+  if (!validated.ok) {
+    return `Run workdir contract (invalid)\n  errors: ${validated.errors.join(', ')}`;
+  }
+  const mutablePaths = contract.execution_state.mutable_paths;
+  const readOnlyPaths = contract.business_artifacts.read_only_paths;
   const lines = [
     'Run workdir contract',
     `  run_id:                 ${contract.run_id}`,
@@ -263,9 +329,9 @@ function formatRunWorkdirContractText(contract) {
     `  cleanup_policy:         ${contract.cleanup_policy}`,
     `  retained_after_failure: ${contract.retained_after_failure}`,
     '  execution_state (mutable):',
-    ...contract.execution_state.mutable_paths.map((p) => `    - ${p}`),
+    ...mutablePaths.map((p) => `    - ${p}`),
     '  business_artifacts (read-only source):',
-    ...contract.business_artifacts.read_only_paths.map((p) => `    - ${p}`),
+    ...readOnlyPaths.map((p) => `    - ${p}`),
   ];
   if (contract.trace_refs?.length) {
     lines.push(`  trace_refs:             ${contract.trace_refs.length} ref(s)`);
