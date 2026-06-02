@@ -11,6 +11,7 @@ const READ = new Set([
   "describe",
   "ls-files",
   "grep",
+  "show-ref",
 ]);
 
 /**

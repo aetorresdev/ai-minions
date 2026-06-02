@@ -16,6 +16,18 @@ const {
   loadToolActionManifest,
 } = require("../security/action-classifiers/load-tool-action-manifest");
 
+function initMiniGitRepo(dir) {
+  delete require.cache[require.resolve("../worktree-isolation")];
+  const { runGit } = require("../worktree-isolation");
+  fs.writeFileSync(path.join(dir, "README.md"), "x\n");
+  runGit(["init"], { cwd: dir, permissionProfileName: "dev-local", traceRole: "ORCHESTRATOR" });
+  runGit(["config", "user.email", "t@example.com"], { cwd: dir, permissionProfileName: "dev-local", traceRole: "ORCHESTRATOR" });
+  runGit(["config", "user.name", "t"], { cwd: dir, permissionProfileName: "dev-local", traceRole: "ORCHESTRATOR" });
+  runGit(["add", "README.md"], { cwd: dir, permissionProfileName: "dev-local", traceRole: "ORCHESTRATOR" });
+  runGit(["commit", "-m", "init"], { cwd: dir, permissionProfileName: "dev-local", traceRole: "ORCHESTRATOR" });
+  return { runGit };
+}
+
 describe("classified spawn coverage — worktree runGit", () => {
   let origSpawn;
   let spawnCalls;
@@ -33,6 +45,37 @@ describe("classified spawn coverage — worktree runGit", () => {
 
   afterEach(() => {
     cp.spawnSync = origSpawn;
+  });
+
+  it("spawnClassifiedSync git push does not spawn under dev-local", () => {
+    const { spawnClassifiedSync } = require("../agents/runtime/run-classified-shell.js");
+    assert.throws(
+      () =>
+        spawnClassifiedSync("git", ["push"], {
+          cwd: process.cwd(),
+          permissionProfileName: "dev-local",
+          traceRole: "ORCHESTRATOR",
+        }),
+      (err) => err.code === "CLASSIFIED_SHELL_DENIED",
+    );
+    assert.equal(spawnCalls, 0);
+  });
+
+  it("runGit show-ref allowed via read classification (not unknown bypass)", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orch-wt-show-ref-"));
+    try {
+      const { runGit } = initMiniGitRepo(tmp);
+      spawnCalls = 0;
+      const r = runGit(["show-ref", "--verify", "--quiet", "refs/heads/main"], {
+        cwd: tmp,
+        permissionProfileName: "dev-local",
+        traceRole: "ORCHESTRATOR",
+      });
+      assert.equal(spawnCalls, 1, "allowed read must spawn once");
+      assert.equal(r.ok, true);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 
   it("runGit denies CERBERUS git domain before spawn", () => {

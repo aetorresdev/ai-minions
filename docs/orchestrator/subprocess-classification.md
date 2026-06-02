@@ -40,10 +40,14 @@ No `spawnSync` / `execFile` / `exec(` usages in tracked `scripts/` at audit time
 | `validate-output.js` `RegExp.exec` | N/A (not subprocess) |
 | `minions-config.js` fence regex `.exec` | N/A |
 
+## Git domain policy (`evaluateGit` + classifier)
+
+`dev-local` `git: read_write` is **not** allow-all: only `read` / `write_local_repo` allow; `external_side_effect` and `unknown` deny; `destructive` denies. Classifier must list production argv (e.g. `show-ref` for `branchExists()`).
+
 ## Regression coverage
 
-- `tests/classifiedInvocationPermissionGate.test.js` — deny does not spawn; `permission_check` trace
-- `tests/classifiedSpawnCoverage.test.js` — worktree `runGit` deny path (matrix + no spawn)
+- `tests/classifiedInvocationPermissionGate.test.js` — git allow/deny matrix; deny does not spawn; `permission_check` trace
+- `tests/classifiedSpawnCoverage.test.js` — worktree `runGit`; `show-ref` read path; `git push` no spawn
 
 ## Bypass (non-production)
 

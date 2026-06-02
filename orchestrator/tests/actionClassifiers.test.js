@@ -34,6 +34,7 @@ describe("action classifiers — adapter modules (exceptions)", () => {
 
   it("git maps groomed examples", () => {
     assert.equal(git.classify(["status"]).action_class, "read");
+    assert.equal(git.classify(["show-ref", "--verify"]).action_class, "read");
     assert.equal(git.classify(["push"]).action_class, "external_side_effect");
   });
 

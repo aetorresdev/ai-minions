@@ -92,6 +92,60 @@ describe("classified-invocation permission gate", () => {
     assert.equal(gate.output.reason_code, "unknown_action_class_denied");
   });
 
+  it("dev-local ORCHESTRATOR: git show-ref allow (read)", () => {
+    const gate = runClassifiedInvocationPermissionGate({
+      repoRoot: process.cwd(),
+      permissionProfileName: "dev-local",
+      executable: "git",
+      args: ["show-ref", "--verify", "--quiet", "refs/heads/main"],
+      role: "ORCHESTRATOR",
+    });
+    assert.equal(gate.input.domain, "git");
+    assert.equal(gate.input.action_class, "read");
+    assert.equal(gate.output.decision, "allow");
+    assert.equal(gate.output.reason_code, "read_or_simulate_allowed");
+  });
+
+  it("dev-local ORCHESTRATOR: git worktree add allow (write_local_repo)", () => {
+    const gate = runClassifiedInvocationPermissionGate({
+      repoRoot: process.cwd(),
+      permissionProfileName: "dev-local",
+      executable: "git",
+      args: ["worktree", "add", "../wt", "main"],
+      role: "ORCHESTRATOR",
+    });
+    assert.equal(gate.input.action_class, "write_local_repo");
+    assert.equal(gate.output.decision, "allow");
+  });
+
+  it("dev-local ORCHESTRATOR: git push deny (external_side_effect)", () => {
+    const gate = runClassifiedInvocationPermissionGate({
+      repoRoot: process.cwd(),
+      permissionProfileName: "dev-local",
+      executable: "git",
+      args: ["push"],
+      role: "ORCHESTRATOR",
+    });
+    assert.equal(gate.input.action_class, "external_side_effect");
+    assert.equal(gate.output.decision, "deny");
+    assert.equal(gate.output.reason_code, "unknown_external_target_denied");
+    assert.equal(gate.output.safe_to_continue, false);
+  });
+
+  it("dev-local ORCHESTRATOR: unknown git subcommand deny", () => {
+    const gate = runClassifiedInvocationPermissionGate({
+      repoRoot: process.cwd(),
+      permissionProfileName: "dev-local",
+      executable: "git",
+      args: ["totally-made-up"],
+      role: "ORCHESTRATOR",
+    });
+    assert.equal(gate.input.action_class, "unknown");
+    assert.equal(gate.output.decision, "deny");
+    assert.equal(gate.output.reason_code, "unknown_action_class_denied");
+    assert.equal(gate.output.safe_to_continue, false);
+  });
+
   it("classified gate: CERBERUS MODE denies git read (no git in matrix)", () => {
     const gate = runClassifiedInvocationPermissionGate({
       repoRoot: process.cwd(),
@@ -151,6 +205,26 @@ describe("spawnClassifiedSync", () => {
           err.code === "CLASSIFIED_SHELL_DENIED"
           && err.permission_decision
           && err.permission_decision.reason_code === "role_capability_domain_denied",
+      );
+    } finally {
+      cp.spawnSync = origSpawn;
+    }
+  });
+
+  it("throws CLASSIFIED_SHELL_DENIED on dev-local git push (no spawn)", () => {
+    cp.spawnSync = () => assert.fail("spawn must not run");
+    try {
+      assert.throws(
+        () =>
+          spawnClassifiedSync("git", ["push"], {
+            cwd: process.cwd(),
+            permissionProfileName: "dev-local",
+            traceRole: "ORCHESTRATOR",
+          }),
+        (err) =>
+          err.code === "CLASSIFIED_SHELL_DENIED"
+          && err.permission_decision
+          && err.permission_decision.reason_code === "unknown_external_target_denied",
       );
     } finally {
       cp.spawnSync = origSpawn;
