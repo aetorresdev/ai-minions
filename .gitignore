@@ -69,9 +69,11 @@ docs/FOLLOW_UPS.md
 # Local-only product backlog / resolved archive — NEVER commit (personal planning)
 AI-Minions*.md
 
-# Groomed backlog exports (local source of truth — do not commit)
+# Groomed backlog (local SoT — do not commit)
 docs/ai-minions-backlog-groomed.md
+docs/backlog-open-specs.md
 docs/archive/ai-minions-backlog-groomed-*.md
+docs/archive/backlog-*.md
 
 # Claude session snapshots (local; not repo content)
 .claude/state/
@@ -83,4 +85,6 @@ mcp-needs-auth-cache.json
 .cursor/*
 scripts/clean-ai-commit-trails.sh
 scripts/sync-trello-backlog.py
+scripts/slim-backlog-groomed.py
+scripts/slim-backlog-groomed-phase2.py
 paste-cache/

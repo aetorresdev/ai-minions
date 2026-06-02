@@ -41,6 +41,8 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [local-model-policy.md](local-model-policy.md) | Local-only run policy (`ORCH_MODEL_MODE=local_only`) |
 | [local-model-discovery.md](local-model-discovery.md) | List local backends/models without inference |
 | [local-model-selection.md](local-model-selection.md) | Model override precedence and trace fields |
+| [worktree-isolation-contract.md](worktree-isolation-contract.md) | Git worktree per run — binding, workdir contract, lifecycle trace, cleanup safety (v0.3 alpha) |
+| [runner-tui-contract.md](runner-tui-contract.md) | Runner TUI CLI — preflight, run, trace, budget, worktree |
 | [role-agent-registry.md](role-agent-registry.md) | Future roles: minimal registry schema (design-time; no runtime wiring) |
 
 **Cursor rule:** `.cursor/rules/orchestrator.mdc` — `scripts/install-orchestrator-rule.sh` to copy it to another repo.

@@ -91,6 +91,39 @@ Remaining gates:
 
 Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestrator/README.md`** § **Claude Code CLI compatibility**: the process **does not** receive **`--max-tokens`** unless **`ORCH_CLAUDE_CLI_MAX_TOKENS=1`** is set (legacy CLIs). Default **Claude Code 2.x** omits the flag so the CLI does not fail with `unknown option`.
 
+## v0.3.0-alpha.1 — Workspace isolation alpha (2026-06)
+
+**Scope:** git worktree isolation per run (four runtime slices), pre-tag security (prompt env context excludes resolved credential values + classified subprocess coverage). **Contract:** [worktree-isolation-contract.md](worktree-isolation-contract.md) § *Release gate*.
+
+### Preconditions
+
+- [x] Worktree slices merged — MVP, workdir contract, lifecycle trace, cleanup safety (PRs **#106**–**#109**).
+- [x] Pre-tag security merged — prompt env context excludes resolved credential values (`buildEnvContext`); classified spawn coverage (PRs **#111**, **#112**).
+- [x] Lifecycle doc + operator playbook in `worktree-isolation-contract.md` (2026-06-02).
+
+### Verification (operator)
+
+- [x] `cd orchestrator && npm test` — **735/735** pass (1 skipped); workspace 2026-06-02.
+- [x] `npm run test:e2e:strict` — **5/5** pass (`tests/e2e.strict.test.js`, ~23.7s); operator 2026-06-02.
+- [x] `npm run test:e2e:strict:harness` — **1/1** pass (optional system-path harness test, ~12.4s); operator 2026-06-02. *(Together: `test:e2e:strict:all` → **6/6**.)*
+- [x] Manual smoke (CLI path): `worktree create` → `status` / `contract` → `list` → `remove --force` → idempotent second remove; task `v03-smoke-20260602-170322`; operator 2026-06-02. *(Full `run --worktree-isolated` optional — not required for this sign-off.)*
+- [ ] CERBERUS sign-off on release claims (no production / Zero Trust / full sandbox claims).
+
+### Release artifact
+
+- [ ] **Version tag:** `v0.3.0-alpha.1`
+- [ ] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) — section **[0.3.0-alpha.1]**
+- [ ] **GitHub pre-release** (manual; automated release workflow out of scope)
+
+#### v0.3 validation log
+
+| Date | Command | Result |
+|------|---------|--------|
+| 2026-06-02 | `cd orchestrator && npm test` | **735/735** pass (1 skipped) |
+| 2026-06-02 | `npm run test:e2e:strict` | **5/5** pass — run() hash chain, mcp-direct chain, compact_handoff, validate_transition guards |
+| 2026-06-02 | `npm run test:e2e:strict:harness` | **1/1** pass — harness path: compact_handoff, goal_alignment_validated, transitions on disk |
+| 2026-06-02 | Manual worktree smoke (CLI) | **pass** — create/contract/trace_refs×2, list, remove+force, second remove `already removed`; `orch/v03-smoke-20260602-170322` |
+
 ## Out of scope for alpha
 
 - Production SLA, hosted SaaS packaging, enterprise SSO — see **alpha exclusions** in the groomed backlog index.
