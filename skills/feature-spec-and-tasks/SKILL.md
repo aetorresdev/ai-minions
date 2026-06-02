@@ -5,7 +5,7 @@ description: "Generate a feature/initiative spec document with requirements (EAR
 
 # Feature Spec and Tasks (Kiro-style)
 
-Turn a natural-language goal (e.g. "add observability to this repo", "migrate to X", "adopt automated detection and runbooks") into a **spec document**: structured **requirements** (EARS), **design** (architecture/constraints), and **discrete tasks** (tickets) with prerequisites and steps — so you know **what to do before executing**. For very large initiatives or when the user uses Kiro, output can be **multi-file** (requirements.md, design.md, tasks.md). Inspired by [Kiro's spec-driven development](https://kiro.dev/docs/).
+Turn a natural-language goal (e.g. "add observability to this repo", "migrate to X", "adopt automated detection and runbooks") into a **spec document**: structured **requirements** (EARS), **design** (architecture/constraints), and **discrete tasks** (tickets) with prerequisites and steps — so you know **what to do before executing**. For very large initiatives or when the user uses Kiro, output can be **multi-file** (requirements.md, design.md, tasks.md). Inspired by [Kiro's spec-driven development](https://kiro.dev/docs/specs/).
 
 In agentic workflows the bottleneck shifts from "how do humans collaborate to build" to **what to build and validating it works**. The spec encodes **intent**; acceptance criteria should support **validation** (did we get the desired outcome?) not only verification (did we follow the steps?). Unclear requirements lead to endless iterations—specs must be explicit and testable.
 

@@ -1,0 +1,6 @@
+# Link Check (CI: .github/workflows/links.yml)
+# kiro.dev returns 403 to GitHub Actions bots; URLs are valid in a browser.
+
+exclude = [
+  "kiro.dev",
+]
