@@ -163,15 +163,17 @@ const AGENTS = buildAgents({ resolveModel, ollamaModel: OLLAMA_MODEL });
 // ROLE_PERMISSION / effectiveMode: ./agents/permissions.js
 
 /**
- * Resolve credential env vars and return a safe object (values, not var names).
+ * Resolve credential env vars at call time (for runtime/broker use — not for model prompt text).
  * Logs a warning for any missing env var — does not throw.
+ * @returns {Array<{ name: string, type: string, aliases: Record<string, string>, resolved: Record<string, string>, missing: string[] }>}
  */
 function resolveCredentials(credentials, agentId) {
   if (!credentials || !credentials.length) return [];
   return credentials.map(({ name, type, vars }) => {
     const resolved = {};
     const missing = [];
-    for (const [key, envVar] of Object.entries(vars)) {
+    const aliases = vars && typeof vars === "object" ? { ...vars } : {};
+    for (const [key, envVar] of Object.entries(aliases)) {
       const val = process.env[envVar];
       if (val) {
         resolved[key] = val;
@@ -182,13 +184,13 @@ function resolveCredentials(credentials, agentId) {
     if (missing.length) {
       console.warn(`[env] credential "${name}" (${agentId}): missing env vars: ${missing.join(", ")}`);
     }
-    return { name, type, resolved, missing };
+    return { name, type, aliases, resolved, missing };
   });
 }
 
 /**
  * Build the ENVIRONMENT context string to inject into an agent's prompt.
- * Only includes credentials with at least one resolved var.
+ * Exposes credential names, types, alias→env_var refs, and availability only — never resolved secret values.
  */
 function buildEnvContext(agentId, sessionEnv) {
   if (!sessionEnv) return "";
@@ -196,21 +198,28 @@ function buildEnvContext(agentId, sessionEnv) {
   if (mode === "none") return "";
 
   const creds = resolveCredentials(sessionEnv.credentials, agentId);
-  const available = creds.filter(c => Object.keys(c.resolved).length > 0);
-  const blockers  = creds.filter(c => c.missing.length > 0);
 
   const lines = [
     `ENVIRONMENT ACCESS: mode=${mode}`,
-    `You MAY${mode === "read" ? " NOT execute writes —" : ""} use the following credentials:`,
+    "Credential values are resolved outside model context — use aliases and env var names only.",
+    `You MAY${mode === "read" ? " NOT execute writes —" : ""} reference the following credentials:`,
   ];
 
-  for (const c of available) {
-    const kvs = Object.entries(c.resolved).map(([k, v]) => `${k}=${v}`).join(", ");
-    lines.push(`  ${c.name} (${c.type}): ${kvs}`);
+  for (const c of creds) {
+    const aliasRefs = Object.entries(c.aliases || {})
+      .map(([alias, envVar]) => `${alias}→${envVar}`)
+      .join(", ");
+    const resolvedCount = Object.keys(c.resolved || {}).length;
+    const totalAliases = Object.keys(c.aliases || {}).length;
+    let availability = "unavailable";
+    if (resolvedCount === totalAliases && totalAliases > 0) availability = "available";
+    else if (resolvedCount > 0) availability = "partial";
+    lines.push(`  ${c.name} (${c.type}): ${availability}; refs ${aliasRefs}`);
   }
 
+  const blockers = creds.filter((c) => c.missing.length > 0);
   if (blockers.length) {
-    lines.push(`BLOCKERS — missing env vars (surface in handoff):`);
+    lines.push("BLOCKERS — missing env vars (names only, surface in handoff):");
     for (const c of blockers) {
       lines.push(`  ${c.name}: ${c.missing.join(", ")}`);
     }

@@ -49,7 +49,7 @@ describe("ENV run scope — credential access", () => {
     assert.deepEqual(resolveCredentials(null, "dev-backend"), []);
   });
 
-  it("ENV-02: declared ENVIRONMENT → credentials resolved for this run", () => {
+  it("ENV-02: declared ENVIRONMENT → credentials resolved at runtime, not in prompt", () => {
     const sessionEnv = parseEnvironment(GOAL_WITH_ENV);
     assert.ok(sessionEnv);
     const creds = resolveCredentials(sessionEnv.credentials, "dev-backend");
@@ -59,6 +59,9 @@ describe("ENV run scope — credential access", () => {
     const ctx = buildEnvContext("dev-backend", sessionEnv);
     assert.match(ctx, /example_api/);
     assert.match(ctx, /ENVIRONMENT ACCESS/);
+    assert.match(ctx, /key→TEST_RUN_SCOPE_TOKEN/);
+    assert.doesNotMatch(ctx, /test-token-value/);
+    assert.doesNotMatch(ctx, /https:\/\/example\.test/);
   });
 
   it("ENV-03: later run without ENVIRONMENT does not inherit prior declaration", () => {

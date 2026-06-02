@@ -12,7 +12,8 @@ Agents working without runtime access operate blind — they edit files but cann
 
 ## Design principle
 
-- Credentials are **never values** — only references to env vars already set in the user's shell.
+- Credentials are **never values** in committed files or the session header — only references to env vars already set in the user's shell.
+- **Model prompt/context** receives credential **names**, **types**, **alias→env_var** refs, and **availability** only. Resolved secret values stay **outside** model context (runtime may read `process.env` for future broker/tool paths — not via `buildEnvContext()` text). See § *Prompt/context contract* below.
 - The user controls access mode — `read` or `write` — regardless of environment (dev, staging, prod).
 - The agent consumes credentials by **name**, not by mechanism. It does not need to know whether auth is an API key, service account, or connection string.
 - Multiple credentials of the same type are allowed (e.g. two n8n instances, two MongoDB collections).
@@ -215,11 +216,26 @@ The **canonical import** for consumers remains `require("./agents")` / `require(
 | `parseEnvironment()` | ✅ | `orchestrator.js` — parses ENVIRONMENT block from session header via regex |
 | `resolveCredentials()` | ✅ | **`agents.js` facade** — reads env vars at call time, warns on missing (logic lives in facade file) |
 | `effectiveMode()` | ✅ | **`agents/permissions.js`** — role matrix vs session ceiling; **re-exported** from `agents.js` |
-| `buildEnvContext()` | ✅ | **`agents.js` facade** — builds ENVIRONMENT block string; calls `effectiveMode()` from permissions module |
+| `buildEnvContext()` | ✅ | **`agents.js` facade** — prompt-safe ENVIRONMENT block (names + env var refs only; **no** resolved values) |
 | `askAgent()` injection | ✅ | **`agents.js` facade** — calls `buildEnvContext` then `runClaude` / `runOllama` from `agents/runtime/*` |
 | CERBERUS hardcoded read | ✅ | `effectiveMode()` in `agents/permissions.js` — returns `"read"` for cerberus regardless of session mode |
 | Missing env var blocker | ✅ | `resolveCredentials()` — missing vars surfaced in agent context as blockers |
 
+### Prompt/context contract (no credential values in model context)
+
+`buildEnvContext()` may include:
+
+- `mode` metadata (`read` / `write` as exposed to the role)
+- credential `name` and `type`
+- alias → env var name references (e.g. `key→N8N_API_KEY`)
+- availability: `available` | `partial` | `unavailable`
+- missing env var **names** only in `BLOCKERS`
+
+It must **not** include resolved tokens, API keys, passwords, bearer tokens, connection strings, or other secret material. Regression tests: `orchestrator/tests/envCredentialPromptLeak.test.js`, `envRunScope.test.js`.
+
+Live credential use for tools is **planned** via broker/wrapper (post-alpha backlog), not prompt injection.
+
 **Pending:**
 - Automated tests verifying that `mode: read` blocks write operations end-to-end
 - Runtime validation in multi-agent sessions with real credentials
+- Brokered credential execution (post-alpha)
