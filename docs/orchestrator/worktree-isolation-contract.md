@@ -192,7 +192,7 @@ Checklist mapping (see [alpha-release-checklist.md](alpha-release-checklist.md) 
 | 11 | No resolved credential values in `buildEnvContext` prompt env context | `envCredentialPromptLeak.test.js` + [environment-access.md](environment-access.md) |
 | 12 | Classified subprocess paths | [subprocess-classification.md](subprocess-classification.md) |
 
-**Not claimed for this tag:** parallel multi-worktree engine, auto-merge, credential broker, explicit worktree result promotion, dynamic workflow runtime.
+**Not claimed for this tag:** parallel multi-worktree engine, auto-merge, credential broker, explicit worktree result promotion, dynamic workflow runtime. Design for workflow proposals: [dynamic-workflow-contract.md](dynamic-workflow-contract.md).
 
 ## Limits (explicit)
 
