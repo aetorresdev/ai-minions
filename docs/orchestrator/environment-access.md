@@ -43,7 +43,7 @@ ENVIRONMENT:
 | `read` | Query, list, describe, read logs, plan/diff, dry-run |
 | `write` | All read operations + execute, apply, insert, update, activate |
 
-The user is responsible for declaring the correct mode. The agent enforces it — it must refuse write operations when `mode: read`.
+The user is responsible for declaring the correct mode. **Prompt-level refusal contract:** the injected ENVIRONMENT block instructs the model to refuse write-class operations when `mode: read`. **Runtime enforcement** (broker/tool deny-before-execute for write under read mode) is **pending** — a prompt line is not a gate.
 
 ---
 
@@ -201,7 +201,7 @@ Each role has a fixed permission level. The session `mode` is the **ceiling** �
 1. **Credentials are env var references only.** No literal values in the session header, CLAUDE.md, or any committed file.
 2. **CERBERUS is always read-only**, regardless of session `mode`.
 3. **Mode cannot change mid-session.** If a different mode is needed, start a new session.
-4. **Agent must refuse write operations in `mode: read`.** This is not a suggestion — it is a hard gate enforced by the agent's system prompt.
+4. **`mode: read` write refusal:** prompt-level contract in `buildEnvContext()` (instruction + blockers text). Not runtime enforcement until broker/tool paths land (post-alpha).
 
 ---
 
@@ -236,6 +236,6 @@ It must **not** include resolved tokens, API keys, passwords, bearer tokens, con
 Live credential use for tools is **planned** via broker/wrapper (post-alpha backlog), not prompt injection.
 
 **Pending:**
-- Automated tests verifying that `mode: read` blocks write operations end-to-end
-- Runtime validation in multi-agent sessions with real credentials
+- Runtime deny-before-execute for write-class ops under `mode: read` (broker/tool — not prompt text)
+- Multi-agent sessions with live credentials under broker contract
 - Brokered credential execution (post-alpha)

@@ -226,7 +226,9 @@ function buildEnvContext(agentId, sessionEnv) {
   }
 
   if (mode === "read") {
-    lines.push("HARD LIMIT: read-only. Do not execute, apply, insert, update, or activate anything.");
+    lines.push(
+      "PROMPT CONTRACT (read-only): refuse execute, apply, insert, update, or activate — runtime enforcement pending.",
+    );
   }
 
   return lines.join("\n");
