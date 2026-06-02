@@ -70,10 +70,17 @@ describe("capability matrix", () => {
 
   it("validatePlanStepRoles rejects requiredDomains not allowed for role", () => {
     const r = validatePlanStepRoles([
-      { agentId: "orchestrator", task: "plan", requiredDomains: ["git"] },
+      { agentId: "orchestrator", task: "plan", requiredDomains: ["shell"] },
     ]);
     assert.equal(r.ok, false);
     assert.ok(r.errors.some((e) => /cannot use domain/.test(e)));
+  });
+
+  it("validatePlanStepRoles allows orchestrator git for worktree lifecycle plans", () => {
+    const r = validatePlanStepRoles([
+      { agentId: "orchestrator", task: "worktree", requiredDomains: ["git"] },
+    ]);
+    assert.equal(r.ok, true);
   });
 
   it("validatePlanStepRoles rejects non-array requiredDomains", () => {

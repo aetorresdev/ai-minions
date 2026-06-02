@@ -22,7 +22,14 @@ function classify(args) {
 
   if (READ.has(sub)) return { action_class: "read", detail: `git_${sub}` };
 
-  if (sub === "add" || sub === "commit" || sub === "stash") {
+  if (
+    sub === "add"
+    || sub === "commit"
+    || sub === "stash"
+    || sub === "init"
+    || sub === "config"
+    || sub === "worktree"
+  ) {
     return { action_class: "write_local_repo", detail: `git_${sub}` };
   }
 
