@@ -42,6 +42,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [local-model-discovery.md](local-model-discovery.md) | List local backends/models without inference |
 | [local-model-selection.md](local-model-selection.md) | Model override precedence and trace fields |
 | [worktree-isolation-contract.md](worktree-isolation-contract.md) | Git worktree per run — binding, workdir contract, lifecycle trace, cleanup safety (v0.3 alpha) |
+| [dynamic-workflow-contract.md](dynamic-workflow-contract.md) | Dynamic workflow proposal vs executable plan — limits, preview, approval (design-first; no runtime) |
 | [runner-tui-contract.md](runner-tui-contract.md) | Runner TUI CLI — preflight, run, trace, budget, worktree |
 | [role-agent-registry.md](role-agent-registry.md) | Future roles: minimal registry schema (design-time; no runtime wiring) |
 
