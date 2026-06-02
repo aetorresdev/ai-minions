@@ -116,7 +116,7 @@ All fields below are **required** on every workflow. Validators reject the docum
 | `max_tokens` | int ≥ 0 | Budget guard input (rollup across legs) |
 | `max_runtime_ms` | int ≥ 0 | Wall-clock ceiling |
 | `allowed_roles` | string[] | Subset of [capability-flow-contract.md](capability-flow-contract.md) roles |
-| `allowed_models` | string[] | Explicit model ids or patterns allowed |
+| `allowed_models` | string[] | Explicit model ids only in this schema version; glob/pattern entries are **reserved** for a future validator (must use **default-deny** + documented pattern grammar — no ad-hoc `qwen-*` wildcards without review) |
 | `allowed_tools` | string[] | Tool/MCP action ids allowed (manifest-aligned) |
 | `worktree_policy` | object | See **Worktree policy** |
 | `approval_policy` | object | See **Approval policy** |
@@ -196,7 +196,7 @@ A validator (future `validateDynamicWorkflow`) must check:
 
 1. Schema version and required top-level fields.
 2. `limits` complete and within operator-configured ceilings.
-3. Every `steps[].role_id` allowed; every tool/model ⊆ limits.
+3. Every `steps[].role_id` allowed; every tool/model ⊆ limits; `allowed_models` entries are exact ids until pattern grammar is specified (then **default-deny** + explicit allow-list expansion only).
 4. **Capability matrix:** each `capabilities_ref` resolves and matches role ([capability-flow-contract.md](capability-flow-contract.md) § plan validation rules).
 5. `worktree_policy` consistent with requested `mode` (e.g. `per_subagent` requires `max_subagents` ≥ 1).
 6. `approval_policy.requires_human_before_run === true` unless explicit experimental flag (off by default).
@@ -252,10 +252,10 @@ Triage only — **no** “Claude Code equivalent” claim. Status for harness pl
 | Generate-and-filter | Governance + permission deny | Partial — no generated-script execution |
 | Tournament / consensus | Not implemented | **Gap** — `stop_condition.type: consensus` design only |
 | Loop until converged | `max_iterations` in task envelope | Partial — workflow-level loop needs runner wiring |
-| Budget-aware orchestration | Budget guard + TUI `budget` | **Implemented** — must reference `limits.max_tokens` |
+| Budget-aware orchestration | Budget guard + TUI `budget` exist **outside** dynamic workflow runtime | **Partial** — workflow integration must reference `limits.max_tokens` |
 | Resumable workflow state | [session-resume-contract.md](session-resume-contract.md) | Partial — workflow checkpoint vs session checkpoint |
 
-Full benchmark triage (apéndice F) remains in **EVAL-BENCHMAP** deliverable; this table is the contract-side minimum.
+Full benchmark triage remains in the future **evaluation benchmark** design deliverable; this table is the contract-side minimum.
 
 ---
 
