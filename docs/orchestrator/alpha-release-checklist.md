@@ -93,12 +93,12 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 
 ## v0.3.0-alpha.1 — Workspace isolation alpha (2026-06)
 
-**Scope:** git worktree isolation per run (four runtime slices), pre-tag security (prompt credential hygiene + classified subprocess coverage). **Contract:** [worktree-isolation-contract.md](worktree-isolation-contract.md) § *Release gate*.
+**Scope:** git worktree isolation per run (four runtime slices), pre-tag security (prompt env context excludes resolved credential values + classified subprocess coverage). **Contract:** [worktree-isolation-contract.md](worktree-isolation-contract.md) § *Release gate*.
 
 ### Preconditions
 
 - [x] Worktree slices merged — MVP, workdir contract, lifecycle trace, cleanup safety (PRs **#106**–**#109**).
-- [x] Pre-tag security merged — no credential values in prompt; classified spawn coverage (PRs **#111**, **#112**).
+- [x] Pre-tag security merged — prompt env context excludes resolved credential values (`buildEnvContext`); classified spawn coverage (PRs **#111**, **#112**).
 - [x] Lifecycle doc + operator playbook in `worktree-isolation-contract.md` (2026-06-02).
 
 ### Verification (operator)

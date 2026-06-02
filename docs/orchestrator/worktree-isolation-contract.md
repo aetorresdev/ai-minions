@@ -189,7 +189,7 @@ Checklist mapping (see [alpha-release-checklist.md](alpha-release-checklist.md) 
 | 8 | Unit tests pass | `npm test` in `orchestrator/` |
 | 9 | Strict E2E | Same bar as prior alpha; document if skipped |
 | 10 | CERBERUS | No production / Zero Trust / “secrets never in prompt” claims |
-| 11 | No credentials in prompt | `envCredentialPromptLeak.test.js` + [environment-access.md](environment-access.md) |
+| 11 | No resolved credential values in `buildEnvContext` prompt env context | `envCredentialPromptLeak.test.js` + [environment-access.md](environment-access.md) |
 | 12 | Classified subprocess paths | [subprocess-classification.md](subprocess-classification.md) |
 
 **Not claimed for this tag:** parallel multi-worktree engine, auto-merge, credential broker, explicit worktree result promotion, dynamic workflow runtime.
