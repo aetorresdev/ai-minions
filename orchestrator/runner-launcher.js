@@ -12,7 +12,7 @@ const { buildRunPreflight, formatPreflightText } = require('./runner-preflight')
 const { configureLocalModelPolicy, resetLocalModelPolicy } = require('./local-model-policy');
 const { createIsolatedWorktree } = require('./worktree-isolation');
 const { emitWorkspaceRunCwdBound } = require('./trace-workspace-lifecycle');
-const { resolveRunCwdFromContract } = require('./run-workdir-contract');
+const { resolveRunCwdFromContract, readRunWorkdirContract } = require('./run-workdir-contract');
 const { randomUUID } = require('crypto');
 const { parseJsonl } = require('./token-trace-report');
 const { buildRunOutcomeSummary } = require('./run-outcome-summary');
@@ -128,6 +128,11 @@ async function launchRun(options) {
         artifact_root: created.contract.artifact_root,
         cleanup_policy: created.contract.cleanup_policy,
       });
+      const refreshed = readRunWorkdirContract(created.worktree_path);
+      if (refreshed.ok) {
+        created.contract = refreshed.contract;
+        worktree = created;
+      }
     }
   }
 

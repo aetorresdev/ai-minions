@@ -116,6 +116,7 @@ test("integration: happy path lifecycle + trace_refs on contract", () => {
     assert.equal(contractRead.ok, true);
     assert.ok(Array.isArray(contractRead.contract.trace_refs));
     assert.ok(contractRead.contract.trace_refs.length >= 2);
+    assert.equal(created.contract.trace_refs.length, contractRead.contract.trace_refs.length);
 
     const removed = removeIsolatedWorktree({ repoRoot: repo, taskId, force: true });
     assert.equal(removed.ok, true);
@@ -185,6 +186,33 @@ test("integration: retain policy skip emitter (fixture)", () => {
   assert.equal(summary.flags.workspace_retained, true);
 
   fs.rmSync(tracesDir, { recursive: true, force: true });
+});
+
+test("ORCH_DISABLE_WORKSPACE_TRACE=1 skips JSONL append and trace_refs mutation", () => {
+  const repo = initTempGitRepo();
+  const tracesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-trace-off-"));
+  const prevTraces = process.env.ORCH_TRACES_DIR;
+  const prevDisable = process.env.ORCH_DISABLE_WORKSPACE_TRACE;
+  process.env.ORCH_TRACES_DIR = tracesDir;
+  process.env.ORCH_DISABLE_WORKSPACE_TRACE = "1";
+
+  try {
+    const taskId = "task-trace-off";
+    const created = createIsolatedWorktree({ repoRoot: repo, taskId });
+    assert.equal(created.ok, true);
+    assert.equal(fs.existsSync(traceFilePath(taskId, tracesDir)), false);
+    assert.deepEqual(created.contract.trace_refs, []);
+    const onDisk = readRunWorkdirContract(created.worktree_path);
+    assert.equal(onDisk.ok, true);
+    assert.deepEqual(onDisk.contract.trace_refs, []);
+  } finally {
+    if (prevTraces === undefined) delete process.env.ORCH_TRACES_DIR;
+    else process.env.ORCH_TRACES_DIR = prevTraces;
+    if (prevDisable === undefined) delete process.env.ORCH_DISABLE_WORKSPACE_TRACE;
+    else process.env.ORCH_DISABLE_WORKSPACE_TRACE = prevDisable;
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(tracesDir, { recursive: true, force: true });
+  }
 });
 
 test("integration: reuse emits workspace_reused", () => {

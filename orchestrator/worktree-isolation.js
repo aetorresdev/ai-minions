@@ -171,6 +171,17 @@ function workspaceTraceCtx(plan, binding, contract) {
 }
 
 /**
+ * Reload contract from disk after lifecycle emission (trace_refs may have been appended).
+ * @param {string} worktreePath
+ * @param {object | null} [fallback]
+ * @returns {object | null}
+ */
+function contractAfterWorkspaceTrace(worktreePath, fallback = null) {
+  const read = readRunWorkdirContract(worktreePath);
+  return read.ok ? read.contract : fallback;
+}
+
+/**
  * @param {{
  *   repoRoot?: string,
  *   taskId: string,
@@ -204,13 +215,14 @@ function createIsolatedWorktree(options) {
     const contract = existingContract.ok ? existingContract.contract : null;
     const ctx = workspaceTraceCtx(plan, existingBinding, contract);
     emitWorkspaceReused(plan.task_id, ctx);
+    const contractAfterTrace = contractAfterWorkspaceTrace(plan.worktree_path, contract);
     return {
       ok: true,
       created: false,
       already_exists: true,
       ...plan,
       binding: existingBinding,
-      contract,
+      contract: contractAfterTrace,
     };
   }
   if (fs.existsSync(plan.worktree_path) && !options.force) {
@@ -291,6 +303,7 @@ function createIsolatedWorktree(options) {
   const ctx = workspaceTraceCtx(plan, binding, built.contract);
   emitWorkspaceCreated(plan.task_id, ctx);
   emitWorkspaceArtifactsReady(plan.task_id, ctx);
+  const contractAfterTrace = contractAfterWorkspaceTrace(plan.worktree_path, built.contract);
 
   return {
     ok: true,
@@ -298,7 +311,7 @@ function createIsolatedWorktree(options) {
     already_exists: false,
     ...plan,
     binding,
-    contract: built.contract,
+    contract: contractAfterTrace,
     contract_path: written.path,
   };
 }
