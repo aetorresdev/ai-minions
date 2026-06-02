@@ -37,6 +37,10 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [portable-project-template-contract.md](portable-project-template-contract.md) | Export/import scrubbed project config bundle; import dry-run only |
 | [skill-security-threatmodel.md](skill-security-threatmodel.md) | Workflow skills threat model — threat → control → gap (no skill sandbox claim) |
 | [workflow-skill-contract.md](workflow-skill-contract.md) | Local `SKILL.md` template, conformance checklist, role ↔ skill loading (doc only) |
+| [local-inference-sizing.md](local-inference-sizing.md) | RAM/VRAM sizing for local inference — single vs multi-agent, context, quant (guidance only) |
+| [local-model-policy.md](local-model-policy.md) | Local-only run policy (`ORCH_MODEL_MODE=local_only`) |
+| [local-model-discovery.md](local-model-discovery.md) | List local backends/models without inference |
+| [local-model-selection.md](local-model-selection.md) | Model override precedence and trace fields |
 | [role-agent-registry.md](role-agent-registry.md) | Future roles: minimal registry schema (design-time; no runtime wiring) |
 
 **Cursor rule:** `.cursor/rules/orchestrator.mdc` — `scripts/install-orchestrator-rule.sh` to copy it to another repo.
