@@ -7,7 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawnClassifiedSync } = require('./agents/runtime/run-classified-shell');
 const {
   buildRunWorkdirContract,
   writeRunWorkdirContract,
@@ -36,10 +36,13 @@ const BRANCH_PREFIX = 'orch/';
  */
 function runGit(args, options = {}) {
   const cwd = path.resolve(options.cwd || process.cwd());
-  const result = spawnSync('git', args, {
+  const result = spawnClassifiedSync('git', args, {
     cwd,
     encoding: 'utf8',
     env: { ...process.env, ...(options.env || {}), GIT_TERMINAL_PROMPT: '0' },
+    traceRole: options.traceRole || 'ORCHESTRATOR',
+    permissionProfileName: options.permissionProfileName,
+    traceAgentId: options.traceAgentId,
   });
   return {
     ok: result.status === 0,

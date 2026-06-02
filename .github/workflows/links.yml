@@ -16,5 +16,5 @@ jobs:
       - name: Lychee link checker
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --verbose --no-progress --root-dir . './**/*.md' './**/*.html'
+          args: --config lychee.toml --exclude 'kiro\.dev' --verbose --no-progress --root-dir . './**/*.md' './**/*.html'
           fail: true

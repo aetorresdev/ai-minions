@@ -117,7 +117,7 @@ The output is a **single spec document** (e.g. `docs/specs/<initiative>.md` or u
 
 - **This format (feature-spec-and-tasks)**: Initiatives, epics, "apply X to repo Y", "plan for adopting Z", bugfix plans. Output: one document with Overview, Glossary (if domain-heavy), Requirements (EARS + numbered criteria), Design, Tasks (with optional subtasks, checkpoints, optional marking), Deployment order, Directory structure, Documentation, Before executing.
 
-- **Multi-file (Kiro-style)**: Use when (1) the user works with [Kiro](https://kiro.dev/docs/) or wants specs in `.kiro/specs/<name>/`, or (2) the initiative is large (e.g. 15+ requirements, 20+ tasks). Output separate `requirements.md` (glossary + EARS + user stories + numbered criteria), `design.md`, and `tasks.md` with requirement traceability. See `references/kiro_spec_format.md` for the exact structure and how it maps to this single-doc format.
+- **Multi-file (Kiro-style)**: Use when (1) the user works with [Kiro](https://kiro.dev/docs/specs/) or wants specs in `.kiro/specs/<name>/`, or (2) the initiative is large (e.g. 15+ requirements, 20+ tasks). Output separate `requirements.md` (glossary + EARS + user stories + numbered criteria), `design.md`, and `tasks.md` with requirement traceability. See `references/kiro_spec_format.md` for the exact structure and how it maps to this single-doc format.
 
 ## Example (condensed, generic)
 

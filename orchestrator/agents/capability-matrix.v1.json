@@ -13,8 +13,8 @@
   ],
   "roles": {
     "orchestrator": {
-      "domains": ["local_model", "network", "mcp", "remote_model"],
-      "notes": "Plan/decide default Ollama (local_model + network); MCP bridge; remote_model when Claude transport is used for plan/decide; no arbitrary workspace shell."
+      "domains": ["local_model", "network", "mcp", "remote_model", "git"],
+      "notes": "Plan/decide default Ollama (local_model + network); MCP bridge; remote_model when Claude transport is used for plan/decide; git for orchestrator-owned worktree lifecycle only (classified shell); no arbitrary workspace shell."
     },
     "owner": {
       "domains": ["remote_model", "filesystem"],

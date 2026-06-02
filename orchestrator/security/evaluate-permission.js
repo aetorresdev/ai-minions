@@ -391,6 +391,30 @@ function evaluateGit(profile, input) {
     });
   }
   if (dom === "read_write") {
+    if (READ_SIMULATE_LIKE.has(ac) || ac === "read") {
+      return baseEnvelope(input, {
+        decision: "allow",
+        reason_code: "read_or_simulate_allowed",
+        requires_approval: false,
+        safe_to_continue: true,
+      });
+    }
+    if (ac === "write_local_repo") {
+      return baseEnvelope(input, {
+        decision: "allow",
+        reason_code: "read_or_simulate_allowed",
+        requires_approval: false,
+        safe_to_continue: true,
+      });
+    }
+    if (ac === "external_side_effect") {
+      return baseEnvelope(input, {
+        decision: "deny",
+        reason_code: "unknown_external_target_denied",
+        requires_approval: false,
+        safe_to_continue: false,
+      });
+    }
     if (ac === "destructive") {
       return baseEnvelope(input, {
         decision: "deny",
@@ -400,10 +424,10 @@ function evaluateGit(profile, input) {
       });
     }
     return baseEnvelope(input, {
-      decision: "allow",
-      reason_code: "read_or_simulate_allowed",
+      decision: "deny",
+      reason_code: "unknown_action_class_denied",
       requires_approval: false,
-      safe_to_continue: true,
+      safe_to_continue: false,
     });
   }
   return baseEnvelope(input, {
