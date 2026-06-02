@@ -4,6 +4,36 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.3.0-alpha.1] - TBD
+
+Third alpha pre-release: **workspace isolation** (git worktree per run) and Alpha 3 security hardening (prompt credential hygiene, classified subprocess coverage).
+
+**Evidence (operator — fill before tag):**
+
+- Unit tests: `cd orchestrator && npm test` → **735/735** pass (1 skipped)
+- Strict E2E: `npm run test:e2e:strict:all` → **6/6** (strict **5/5** + harness **1/1**; operator 2026-06-02)
+- Manual worktree smoke (CLI): create → status/contract → list → remove `--force` → idempotent remove (task `v03-smoke-20260602-170322`)
+- Contract: `docs/orchestrator/worktree-isolation-contract.md`
+
+**Alpha limitations (not production):**
+
+- Worktree isolation is a **filesystem boundary** only — not sandbox, not credential broker, not auto-merge.
+- `run --worktree-isolated` does **not** auto-remove worktrees; default `cleanup_policy` is `retain`.
+- Run-scoped env declaration does **not** mean secrets never reach the model; prompt/context credential hygiene is a separate guarantee (regression tests).
+
+### Added
+
+- Git worktree isolation per `task_id` (create/reuse/remove, binding + run workdir contract).
+- Workspace lifecycle trace events and `run_outcome_summary.workspace` rollup.
+- Safe worktree cleanup validation (reject unsafe paths).
+- Subprocess classification inventory and `spawnClassifiedSync` for orchestrator-owned git spawns.
+- Prompt env context without resolved credential values (regression tests).
+
+### Changed
+
+- `evaluateGit` strict classification; orchestrator `git` capability for worktree operations.
+- Docs: worktree lifecycle operator playbook and v0.3 release gate table.
+
 ## [0.2.0-alpha.1] - 2026-05-29
 
 Second alpha pre-release focused on operator UX, local model execution, runner TUI, trace inspection, and cost visibility.
