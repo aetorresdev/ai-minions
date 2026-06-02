@@ -11,7 +11,8 @@ const os = require('os');
 const { buildRunPreflight, formatPreflightText } = require('./runner-preflight');
 const { configureLocalModelPolicy, resetLocalModelPolicy } = require('./local-model-policy');
 const { createIsolatedWorktree } = require('./worktree-isolation');
-const { resolveRunCwdFromContract } = require('./run-workdir-contract');
+const { emitWorkspaceRunCwdBound } = require('./trace-workspace-lifecycle');
+const { resolveRunCwdFromContract, readRunWorkdirContract } = require('./run-workdir-contract');
 const { randomUUID } = require('crypto');
 const { parseJsonl } = require('./token-trace-report');
 const { buildRunOutcomeSummary } = require('./run-outcome-summary');
@@ -116,6 +117,23 @@ async function launchRun(options) {
     }
     worktree = created;
     options.taskId = taskId;
+    if (created.contract) {
+      emitWorkspaceRunCwdBound(taskId, {
+        task_id: taskId,
+        repo_root: created.repo_root,
+        worktree_path: created.worktree_path,
+        branch: created.branch,
+        base_ref: created.contract.base_ref,
+        run_cwd: runCwd,
+        artifact_root: created.contract.artifact_root,
+        cleanup_policy: created.contract.cleanup_policy,
+      });
+      const refreshed = readRunWorkdirContract(created.worktree_path);
+      if (refreshed.ok) {
+        created.contract = refreshed.contract;
+        worktree = created;
+      }
+    }
   }
 
   const runFn = options.run ?? require('./orchestrator').run;

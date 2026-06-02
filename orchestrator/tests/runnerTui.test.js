@@ -20,6 +20,22 @@ const {
   terminalStatusFromRunResult,
 } = require("../runner-launcher");
 const { parseCommonArgs, parseMaxIterations } = require("../runner-tui-cli");
+const { traceFilePath } = require("../trace-append");
+
+/**
+ * @returns {string}
+ */
+function initTempGitRepoForLauncher() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-runner-wt-"));
+  fs.writeFileSync(path.join(dir, "README.md"), "# temp\n", "utf8");
+  const { runGit } = require("../worktree-isolation");
+  runGit(["init"], { cwd: dir });
+  runGit(["config", "user.email", "test@example.com"], { cwd: dir });
+  runGit(["config", "user.name", "test"], { cwd: dir });
+  runGit(["add", "README.md"], { cwd: dir });
+  runGit(["commit", "-m", "init"], { cwd: dir });
+  return dir;
+}
 
 const fixtureTags = JSON.parse(
   fs.readFileSync(path.join(__dirname, "fixtures", "ollama-tags-sample.json"), "utf8"),
@@ -134,6 +150,58 @@ describe("runner-launcher", () => {
         }),
       (err) => err.code === "RUNNER_PREFLIGHT_BLOCKED",
     );
+  });
+
+  it("launchRun with worktreeIsolated emits workspace_run_cwd_bound and fresh contract", async () => {
+    const repo = initTempGitRepoForLauncher();
+    const tracesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-launcher-wt-"));
+    const prevTraces = process.env.ORCH_TRACES_DIR;
+    process.env.ORCH_TRACES_DIR = tracesDir;
+    const taskId = "task-launcher-bound";
+
+    try {
+      const launched = await launchRun({
+        goal: "isolated goal",
+        cwd: repo,
+        taskId,
+        worktreeIsolated: true,
+        buildRunPreflight: async () => ({
+          ok: true,
+          model_policy: "local_only",
+          blockers: [],
+          provider: "ollama",
+          selected_model: "qwen2.5-coder:7b",
+          override_source: "auto",
+          selection_reason: "auto",
+          discovered_models: [],
+          ollama_reachable: true,
+        }),
+        run: async (_goal, opts) => {
+          assert.notEqual(path.resolve(opts.cwd), path.resolve(repo));
+          return { done: true, taskId, summary: "ok", iterations: 1 };
+        },
+      });
+
+      assert.equal(launched.task_id, taskId);
+      assert.ok(launched.run_workdir_contract);
+      assert.ok(launched.run_workdir_contract.trace_refs.length >= 3);
+
+      const fp = traceFilePath(taskId, tracesDir);
+      assert.ok(fs.existsSync(fp));
+      const rows = fs.readFileSync(fp, "utf8")
+        .split("\n")
+        .filter((l) => l.trim())
+        .map((l) => JSON.parse(l));
+      const bound = rows.find((r) => r.event === "workspace_run_cwd_bound");
+      assert.ok(bound);
+      assert.equal(bound.run_cwd, launched.run_cwd);
+      assert.equal(path.resolve(bound.run_cwd), path.resolve(launched.run_cwd));
+    } finally {
+      if (prevTraces === undefined) delete process.env.ORCH_TRACES_DIR;
+      else process.env.ORCH_TRACES_DIR = prevTraces;
+      fs.rmSync(repo, { recursive: true, force: true });
+      fs.rmSync(tracesDir, { recursive: true, force: true });
+    }
   });
 
   it("launchRun executes run() after successful preflight", async () => {

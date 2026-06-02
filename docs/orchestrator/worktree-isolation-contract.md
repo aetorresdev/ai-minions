@@ -94,6 +94,24 @@ When `cwd` contains a valid binding:
 
 Hook context (`.claude/orch-run-context.json`) mirrors `isolation_mode`, `worktree_path`, `worktree_branch`, `repo_root`.
 
+## Workspace lifecycle trace (W3)
+
+JSONL under `ORCH_TRACES_DIR` / `~/.claude/metrics/traces/<task_id>.jsonl`. Emitted by `trace-workspace-lifecycle.js` from worktree create/remove and runner launch (`workspace_run_cwd_bound`). `execution_actor` is always `workspace_manager` — distinct from agent / compaction events.
+
+| Event | When |
+|-------|------|
+| `workspace_created` | After successful `git worktree add` + contract write |
+| `workspace_reused` | Idempotent create for same `task_id` |
+| `workspace_rejected` | Path conflict, invalid policy, or `git worktree add` failure |
+| `workspace_artifacts_ready` | After contract write (`artifact_root` ensured) |
+| `workspace_run_cwd_bound` | Runner resolved `run_cwd` from contract |
+| `workspace_cleanup_started` | Before `git worktree remove` |
+| `workspace_cleanup_completed` | After successful remove |
+| `workspace_cleanup_failed` | Remove failed; `retained: true` |
+| `workspace_cleanup_skipped` | Policy/safety skip (emitter; W4 may gate remove) |
+
+Each append updates `trace_refs` on the run workdir contract (`{ event, ts_ms, line_index }`). `run_outcome_summary.workspace` rolls up lifecycle flags for export/dashboard. Disable emission with `ORCH_DISABLE_WORKSPACE_TRACE=1`.
+
 ## Session resume
 
 Worktree metadata is **checkpoint context**, not auto-resume permission. Resume still requires `SESSION-RESUME-1` eligibility and side-effect revalidation — see [session-resume-contract.md](session-resume-contract.md).
