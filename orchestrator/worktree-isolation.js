@@ -21,8 +21,10 @@ const {
   emitWorkspaceArtifactsReady,
   emitWorkspaceCleanupStarted,
   emitWorkspaceCleanupCompleted,
+  emitWorkspaceCleanupSkipped,
   emitWorkspaceCleanupFailed,
 } = require('./trace-workspace-lifecycle');
+const { validateCleanupTarget } = require('./worktree-cleanup-safety');
 
 const BINDING_REL_PATH = '.claude/worktree-binding.json';
 const BINDING_SCHEMA_VERSION = '1';
@@ -339,11 +341,42 @@ function removeIsolatedWorktree(options) {
     return { ok: false, error: plan.error };
   }
 
+  const allowedRoot = plan.worktrees_dir || defaultWorktreesDir(plan.repo_root);
+  const bindingEarly = readWorktreeBinding(plan.worktree_path);
+
   if (!fs.existsSync(plan.worktree_path)) {
-    return { ok: false, error: 'worktree_not_found', worktree_path: plan.worktree_path };
+    const ctxMissing = workspaceTraceCtx(plan, bindingEarly, null);
+    emitWorkspaceCleanupSkipped(plan.task_id, ctxMissing, 'already_removed');
+    return {
+      ok: true,
+      already_removed: true,
+      worktree_path: plan.worktree_path,
+      task_id: plan.task_id,
+    };
   }
 
-  const binding = readWorktreeBinding(plan.worktree_path);
+  const safety = validateCleanupTarget(plan.worktree_path, {
+    allowedRoot,
+    repoRoot: plan.repo_root,
+    primaryCwd: bindingEarly?.primary_cwd,
+  });
+  if (!safety.ok) {
+    const ctxUnsafe = workspaceTraceCtx(plan, bindingEarly, null);
+    emitWorkspaceCleanupFailed(
+      plan.task_id,
+      ctxUnsafe,
+      safety.reason_code,
+      { detail: safety.error },
+    );
+    return {
+      ok: false,
+      error: safety.error,
+      reason_code: safety.reason_code,
+      worktree_path: plan.worktree_path,
+    };
+  }
+
+  const binding = bindingEarly;
   const contractRead = readRunWorkdirContract(plan.worktree_path);
   const contract = contractRead.ok ? contractRead.contract : null;
   const ctx = workspaceTraceCtx(plan, binding, contract);

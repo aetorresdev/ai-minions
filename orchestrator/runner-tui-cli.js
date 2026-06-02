@@ -373,9 +373,14 @@ async function main() {
       if (!removed.ok) {
         console.error(removed.error || 'worktree remove failed');
         if (removed.detail) console.error(removed.detail);
+        if (removed.reason_code) console.error(`reason_code: ${removed.reason_code}`);
         process.exit(removed.error === 'worktree_not_found' ? 2 : 1);
       }
-      console.log(`Removed worktree ${removed.worktree_path}`);
+      if (removed.already_removed) {
+        console.log(`Worktree already removed (${removed.worktree_path})`);
+      } else {
+        console.log(`Removed worktree ${removed.worktree_path}`);
+      }
       process.exit(0);
     }
 
