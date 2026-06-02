@@ -76,6 +76,8 @@ Exit codes:
 
 `worktree remove` calls `git worktree remove` **without** `--force` unless the operator passes `--force`. Managed worktrees typically have an untracked binding file — removal without `--force` fails until the operator opts in to destructive cleanup.
 
+**Cleanup safety (W4):** `validateCleanupTarget` runs before `git worktree remove`. Rejects empty paths, `/`, `$HOME`, `repo_root`, `primary_cwd`, the managed worktrees root itself, and any path outside `<repo>/.claude/worktrees` (or `ORCH_WORKTREES_DIR`). Idempotent remove: second call when the worktree is already gone returns `already_removed: true` and emits `workspace_cleanup_skipped` (`reason_code: already_removed`).
+
 `run --worktree-isolated` creates (or reuses) the worktree, executes the run inside it, and **does not** auto-remove the worktree afterward.
 
 Invalid `cleanup_policy` (when passed programmatically) is rejected **before** `git worktree add`, so git state is not created for a doomed contract.
