@@ -41,6 +41,10 @@ When Ollama is unreachable or denied, `models` is empty and `missing_local_backe
 - Unit tests: `orchestrator/tests/localModelDiscovery.test.js` with fixture `tests/fixtures/ollama-tags-sample.json` and mocked `fetchTags`.
 - Optional live probe: set `ORCH_INTEGRATION_OLLAMA=1` on a self-hosted runner with Ollama (skipped by default on GHA hosted).
 
+## Related
+
+- Hardware sizing (guidance only): [local-inference-sizing.md](local-inference-sizing.md)
+
 ## Out of scope (follow-on)
 
 - Auto-selection → `LOCAL-MODEL-SELECTION-1`

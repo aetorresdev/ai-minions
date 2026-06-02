@@ -2,6 +2,8 @@
 
 Human practices for **ai-minions** sessions. This guide does **not** change runtime limits, billing, or model routing — it helps you spend context deliberately and read cost signals after the fact.
 
+For **RAM/VRAM, context length, and multi-agent concurrency** before you start a heavy local run, see [local-inference-sizing.md](local-inference-sizing.md) (guidance only, not enforcement).
+
 ## When to start a new run vs continue
 
 | Situation | Prefer |

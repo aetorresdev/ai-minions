@@ -17,6 +17,11 @@ and what is explicitly **not** claimed.
 [runtime-permission-contract.md](runtime-permission-contract.md),
 [strict-mode.md](strict-mode.md), [capability-flow-contract.md](capability-flow-contract.md).
 
+**Local inference (operator):** [local-model-policy.md](local-model-policy.md),
+[local-model-discovery.md](local-model-discovery.md),
+[local-model-selection.md](local-model-selection.md),
+[local-inference-sizing.md](local-inference-sizing.md) — hardware/context guidance only, not benchmarks.
+
 **Security narrative:** [security-posture.md](security-posture.md).
 
 ---

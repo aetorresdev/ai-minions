@@ -40,6 +40,11 @@ Ollama egress remains constrained by the active permission profile (`network.all
 | `session_start.override_source` | `cli`, `env_orchestr_local_model`, or `env_ollama_model` |
 | `model_policy_block` | Remote provider blocked (`gate_id: model_policy_block`) |
 
+## Related
+
+- Hardware and concurrency planning (guidance only): [local-inference-sizing.md](local-inference-sizing.md)
+- Discovery and selection: [local-model-discovery.md](local-model-discovery.md), [local-model-selection.md](local-model-selection.md)
+
 ## Operator examples
 
 ```bash
