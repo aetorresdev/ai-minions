@@ -10,6 +10,8 @@ const { validateCleanupTarget } = require("../worktree-cleanup-safety");
 const {
   createIsolatedWorktree,
   removeIsolatedWorktree,
+  readWorktreeBinding,
+  writeWorktreeBinding,
 } = require("../worktree-isolation");
 const { traceFilePath } = require("../trace-append");
 
@@ -64,6 +66,47 @@ test("validateCleanupTarget rejects unsafe paths (table)", () => {
   const ok = validateCleanupTarget(safe, { allowedRoot: allowed, repoRoot: repo });
   assert.equal(ok.ok, true);
   assert.equal(ok.resolved_path, path.resolve(safe));
+});
+
+test("removeIsolatedWorktree rejects unsafe cleanup target before git remove", () => {
+  const repo = initTempGitRepo();
+  const tracesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-cleanup-unsafe-int-"));
+  const prev = process.env.ORCH_TRACES_DIR;
+  process.env.ORCH_TRACES_DIR = tracesDir;
+
+  try {
+    const taskId = "task-unsafe-int";
+    const created = createIsolatedWorktree({ repoRoot: repo, taskId });
+    assert.equal(created.ok, true);
+
+    const binding = readWorktreeBinding(created.worktree_path);
+    assert.ok(binding);
+    writeWorktreeBinding(created.worktree_path, {
+      ...binding,
+      primary_cwd: created.worktree_path,
+    });
+
+    const removed = removeIsolatedWorktree({ repoRoot: repo, taskId, force: true });
+    assert.equal(removed.ok, false);
+    assert.equal(removed.error, "unsafe_cleanup_target");
+    assert.equal(removed.reason_code, "primary_cwd");
+    assert.equal(fs.existsSync(created.worktree_path), true);
+
+    const rows = fs.readFileSync(traceFilePath(taskId, tracesDir), "utf8")
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l));
+    const failed = rows.filter((r) => r.event === "workspace_cleanup_failed");
+    assert.equal(failed.length, 1);
+    assert.equal(failed[0].reason_code, "primary_cwd");
+    assert.equal(rows.some((r) => r.event === "workspace_cleanup_started"), false);
+    assert.equal(rows.some((r) => r.event === "workspace_cleanup_completed"), false);
+  } finally {
+    if (prev === undefined) delete process.env.ORCH_TRACES_DIR;
+    else process.env.ORCH_TRACES_DIR = prev;
+    fs.rmSync(repo, { recursive: true, force: true });
+    fs.rmSync(tracesDir, { recursive: true, force: true });
+  }
 });
 
 test("removeIsolatedWorktree is idempotent when worktree already gone", () => {
