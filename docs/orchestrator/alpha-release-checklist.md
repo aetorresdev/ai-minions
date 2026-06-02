@@ -107,13 +107,13 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 - [x] `npm run test:e2e:strict` — **5/5** pass (`tests/e2e.strict.test.js`, ~23.7s); operator 2026-06-02.
 - [x] `npm run test:e2e:strict:harness` — **1/1** pass (optional system-path harness test, ~12.4s); operator 2026-06-02. *(Together: `test:e2e:strict:all` → **6/6**.)*
 - [x] Manual smoke (CLI path): `worktree create` → `status` / `contract` → `list` → `remove --force` → idempotent second remove; task `v03-smoke-20260602-170322`; operator 2026-06-02. *(Full `run --worktree-isolated` optional — not required for this sign-off.)*
-- [ ] CERBERUS sign-off on release claims (no production / Zero Trust / full sandbox claims).
+- [x] CERBERUS sign-off on release claims (no production / Zero Trust / full sandbox claims) — **Approve** (PR **#113**, 2026-05-18).
 
 ### Release artifact
 
-- [ ] **Version tag:** `v0.3.0-alpha.1`
-- [ ] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) — section **[0.3.0-alpha.1]**
-- [ ] **GitHub pre-release** (manual; automated release workflow out of scope)
+- [x] **Version tag:** `v0.3.0-alpha.1` — https://github.com/aetorresdev/ai-minions/releases/tag/v0.3.0-alpha.1
+- [x] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) — section **[0.3.0-alpha.1] - 2026-05-18**
+- [x] **GitHub pre-release** (manual; automated release workflow out of scope) — https://github.com/aetorresdev/ai-minions/releases/tag/v0.3.0-alpha.1
 
 #### v0.3 validation log
 

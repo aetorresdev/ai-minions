@@ -4,11 +4,13 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
-## [0.3.0-alpha.1] - TBD
+## [0.3.0-alpha.1] - 2026-05-18
 
-Third alpha pre-release: **workspace isolation** (git worktree per run) and Alpha 3 security hardening (prompt credential hygiene, classified subprocess coverage).
+Third alpha pre-release: **workspace isolation** (git worktree per run) and Alpha 3 security hardening (prompt env context excludes resolved credential values, classified subprocess coverage).
 
-**Evidence (operator — fill before tag):**
+**Release:** https://github.com/aetorresdev/ai-minions/releases/tag/v0.3.0-alpha.1
+
+**Evidence (operator):**
 
 - Unit tests: `cd orchestrator && npm test` → **735/735** pass (1 skipped)
 - Strict E2E: `npm run test:e2e:strict:all` → **6/6** (strict **5/5** + harness **1/1**; operator 2026-06-02)
@@ -117,5 +119,6 @@ Initial alpha pre-release of ai-minions.
 - Alpha checklist: CI smoke URL, local clone evidence, first-run path, optional Claude Code MODE smoke; workspace logs refreshed for `npm test` and `test:e2e:strict`.
 - **2026-05-15:** `test:e2e:strict` **5/5** on a **fresh `git clone` under `/tmp`** after `uv sync` (both MCP server dirs) + `npm ci` + `ORCH_PYTHON` pointing at the clone’s `orchestrator-state` venv (Ollama on localhost).
 
+[0.3.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.3.0-alpha.1
 [0.2.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.2.0-alpha.1
 [0.1.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.1.0-alpha.1
