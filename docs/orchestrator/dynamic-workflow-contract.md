@@ -2,7 +2,7 @@
 
 A **dynamic workflow** is a **proposed orchestration plan** (steps, fan-out/fan-in, loops, verification passes) that an agent or operator may submit **before** any extra runtime executes it. The plan is **not authority**: it must pass validation, policy, budget, isolation, governance, and human preview/approval gates.
 
-**Status:** **Design-first** (post `v0.3.0-alpha.1`). **No runtime executor** ships with this document. External “dynamic workflow” products are **cross-check inputs only** — no compatibility or equivalence claims.
+**Status:** **Design contract shipped** (PR **#114**, merged; CERBERUS **Approve with non-blocking notes**). **No runtime executor** — validation CLI and runner wiring remain future work. External “dynamic workflow” products are **cross-check inputs only** — no compatibility or equivalence claims.
 
 **Related:** [capability-flow-contract.md](capability-flow-contract.md) · [worktree-isolation-contract.md](worktree-isolation-contract.md) · [governance-gates-contract.md](governance-gates-contract.md) · [session-resume-contract.md](session-resume-contract.md) · [runner-tui-contract.md](runner-tui-contract.md) · [harness-engineering-positioning.md](harness-engineering-positioning.md)
 
