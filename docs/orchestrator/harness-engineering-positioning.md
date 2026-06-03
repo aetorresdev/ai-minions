@@ -37,13 +37,19 @@ scope**—those products win on ecosystem; ai-minions wins on **governance evide
 
 ### Claims matrix (positioning evidence, 2026-06)
 
+Summary for README and release notes. **Expanded tables, pain themes, competitor framing, and SEO phrases:**
+[market-validation-notes.md](market-validation-notes.md) (v0.4 G4 — doc-only, not a market study).
+
 | Allowed | Forbidden |
 |---------|-----------|
 | Control-first AI workflow harness for governed AI-assisted development | Production-ready multi-agent framework for autonomous engineering |
 | Supports **single-agent multi-role** workflows and **supervised multi-agent** execution | Advanced multi-agent framework; swarm orchestration platform; LangGraph alternative |
+| **Validation mandatory**; **human approval policy-driven** before DEV authority | Implicit approval from chat or “the agent said OK” |
 | Contracts, gates, traces, and human approval boundaries | Claude Code / LangGraph / CrewAI equivalent or “drop-in replacement” |
+| Trace-backed CERBERUS review (`review_record`, `doubt_review_*`) | 24/7 automated compliance officer |
 | Cross-checked against emerging dynamic workflow patterns (doc only) | Safe parallel subagents or full sandbox without contract/runtime proof |
-| Alpha / pre-release with honest limitations | Beta or production readiness from positioning reports alone |
+| OpenSpec-style SDD patterns as **design reference only** | OpenSpec-compatible without adapter; `/opsx` as canonical flow |
+| Alpha / pre-release with honest limitations | Beta or production readiness from positioning research alone |
 
 **Technical layer model (non-duplicative):** [agent-harness.md](agent-harness.md)
 lists context, memory/state, control, validation, and observability **layers**. This
