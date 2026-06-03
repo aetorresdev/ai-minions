@@ -3,10 +3,42 @@
 **Location:** `docs/orchestrator/harness-engineering-positioning.md` (repo root). See
 [PATHS.md](PATHS.md) if your workspace root differs.
 
-This document is the **canonical framing** for why ai-minions is an **agent harness**
-(controls, contracts, gates, traces, budgets, permissions) around inference—not a
-generic multi-agent demo. The root [`README.md`](../../README.md) is the **short map**;
-it should **summarize and link here**, not invent parallel claims.
+This document is the **canonical framing** for why ai-minions is a **control-first AI
+workflow harness** (contracts, gates, traces, budgets, permissions, human approval
+boundaries) around inference—not a generic multi-agent framework. The root
+[`README.md`](../../README.md) is the **short map**; it should **summarize and link
+here**, not invent parallel claims.
+
+### Public framing (external)
+
+> **ai-minions** is a **control-first AI workflow harness** for senior engineers using
+> AI coding agents in workflows where mistakes need review, traceability, and approval
+> boundaries.
+
+### Internal / technical framing
+
+**Contract-driven agent harness** · **harness-engineering runtime** (manager-owned
+orchestration, fail-closed gates, JSONL evidence).
+
+### Do not lead with
+
+- multi-agent framework
+- autonomous agents
+- agentic platform
+- generic orchestration framework
+
+Competing on “more powerful orchestration” vs LangGraph / CrewAI / AutoGen is **out of
+scope**—those products win on ecosystem; ai-minions wins on **governance evidence**
+(CERBERUS, approval gates, goal alignment, worktree isolation, cost/token controls).
+
+### Claims matrix (positioning evidence, 2026-06)
+
+| Allowed | Forbidden |
+|---------|-----------|
+| Control-first AI workflow harness for governed AI-assisted development | Production-ready multi-agent framework for autonomous engineering |
+| Contracts, gates, traces, and human approval boundaries | Claude Code / LangGraph / CrewAI equivalent or “drop-in replacement” |
+| Cross-checked against emerging dynamic workflow patterns (doc only) | Safe parallel subagents or full sandbox without contract/runtime proof |
+| Alpha / pre-release with honest limitations | Beta or production readiness from positioning reports alone |
 
 **Technical layer model (non-duplicative):** [agent-harness.md](agent-harness.md)
 lists context, memory/state, control, validation, and observability **layers**. This

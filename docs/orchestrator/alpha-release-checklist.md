@@ -124,6 +124,23 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 | 2026-06-02 | `npm run test:e2e:strict:harness` | **1/1** pass — harness path: compact_handoff, goal_alignment_validated, transitions on disk |
 | 2026-06-02 | Manual worktree smoke (CLI) | **pass** — create/contract/trace_refs×2, list, remove+force, second remove `already removed`; `orch/v03-smoke-20260602-170322` |
 
+## Future alpha / beta gates (positioning)
+
+Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
+
+**Must include one real documented CERBERUS block** (public demo or versioned runbook entry):
+
+| Field | Required content |
+|-------|------------------|
+| Input task | What the operator/agent attempted |
+| Agent output / problem | What triggered review |
+| CERBERUS blocker | Verdict or gate that stopped unsafe advance |
+| Trace reference | `task_id` + JSONL path or line anchor |
+| Human decision | Grant, deny, or revise — recorded |
+| Final outcome | What shipped or what was rejected |
+
+One trace-backed block demo outweighs feature lists without evidence. **No beta promotion** from competitive/positioning reports alone.
+
 ## Out of scope for alpha
 
 - Production SLA, hosted SaaS packaging, enterprise SSO — see **alpha exclusions** in the groomed backlog index.

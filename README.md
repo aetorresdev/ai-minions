@@ -2,9 +2,13 @@
 
 [![License: AI Minions Community](https://img.shields.io/badge/license-AI%20Minions%20Community-blue.svg)](./LICENSE) [![GitHub release](https://img.shields.io/github/v/release/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/releases) [![GitHub issues](https://img.shields.io/badge/issues-GitHub-181717?logo=github)](https://github.com/aetorresdev/ai-minions/issues) [![GitHub pull requests](https://img.shields.io/badge/PRs-GitHub-181717?logo=github)](https://github.com/aetorresdev/ai-minions/pulls) [![GitHub last commit](https://img.shields.io/github/last-commit/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/commits/main) [![Orchestrator CI](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-unit-tests.yml/badge.svg)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-unit-tests.yml) [![Orchestrator E2E](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-e2e.yml/badge.svg)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-e2e.yml)
 
-AI coding workflows fail because they optimize output, not process.
+Most AI coding tools can write code. They do not enforce roles, gates, approvals, or traceable workflow boundaries.
 
-**ai-minions** is a **contract-driven agent harness** for orchestrating AI-assisted software workflows. Positioning matters: it is not defined primarily as “multi-agent orchestrator”—that label undersells the control plane.
+**ai-minions** is a **control-first AI workflow harness** for engineers who want AI-assisted work to be **reviewable before it becomes risky**.
+
+**Your CI/CD governs what ships.** ai-minions governs **how AI helps build it** (contracts, traces, permission gates, CERBERUS review, budget stops—not another editor competing with your pipeline tools).
+
+Technical framing: **contract-driven agent harness** — see [`docs/orchestrator/harness-engineering-positioning.md`](docs/orchestrator/harness-engineering-positioning.md). Do not describe the project primarily as a “multi-agent framework” or “autonomous agent platform.”
 
 It focuses on:
 
@@ -16,8 +20,6 @@ It focuses on:
 - Observable run outcomes
 
 The goal is not to make agents sound autonomous. The goal is to make agent behavior **bounded, auditable, and rejectable** before it damages the workflow.
-
-The goal is not to make AI feel smarter. It is to make it **harder to approve something you do not understand**—because that is exactly how broken systems get shipped.
 
 > ai-minions is not trying to make agents more human. It is building the harness around them so their work becomes bounded, observable, testable, and rejectable.
 > *Si no lo entiendo, no lo apruebo.* — If I don't understand it, I don't approve it.
