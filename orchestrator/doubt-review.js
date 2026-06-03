@@ -44,7 +44,7 @@ function claimRequiresDoubtReview(category) {
 }
 
 /**
- * Best-effort category from claim text (audit hinting, not enforcement).
+ * Best-effort category from claim text — audit/TUI hint only; not an enforcement gate.
  *
  * @param {string} claim
  * @returns {ClaimCategory}
@@ -171,6 +171,8 @@ function claimSummaryForTriple(text, kind) {
 
 /**
  * Build doubt cycle rows from CERBERUS triple-template output (stub-friendly).
+ * Empty output → approve, zero findings. Non-empty without triple → one evidence_gap finding.
+ * claim_count on started row = emitted findings length (post-filter), not raw triple slots.
  *
  * @param {string} output
  * @param {object} opts

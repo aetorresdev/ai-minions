@@ -22,7 +22,7 @@ Make **adversarial claim review** replayable in JSONL: what was challenged, what
 
 | Event | When |
 |-------|------|
-| `doubt_review_started` | Cycle opens; includes `review_id`, `claim_count` |
+| `doubt_review_started` | Cycle opens; includes `review_id`, `claim_count` (see **Semantics**) |
 | `doubt_review_finding` | One challenged claim + `finding_kind` |
 | `doubt_review_verdict` | Cycle closes; `verdict` + `finding_count` |
 
@@ -59,9 +59,19 @@ Helper: `claimRequiresDoubtReview(category)` in `doubt-review.js`.
 
 ## Input (CERBERUS iteration review)
 
-Best-effort derivation from CERBERUS **triple template** output (`blocker:` / `improvement:` / `nice-to-have:`). Missing template → single `evidence_gap` finding on `runtime_contract`.
+Best-effort derivation from CERBERUS **triple template** output (`blocker:` / `improvement:` / `nice-to-have:`).
 
 Optional handoff fields are **not** required for the stub; future work may bind `reviewed_artifact_ids` explicitly.
+
+### Semantics (operator / audit)
+
+**Empty CERBERUS output:** no triple lines and no non-empty body → **zero** `doubt_review_finding` rows, `doubt_review_verdict.verdict: approve`, `claim_count: 0`. This is intentional for contract-fail paths where `review_record` already captured the gate block — doubt cycle does not invent findings.
+
+**Malformed non-empty output:** body present but triple template not parseable → one `evidence_gap` finding on `runtime_contract`, verdict typically `request_changes` (or `block` if paired with blocker text elsewhere).
+
+**`claim_count`:** count of **emitted** reviewable findings after filtering `(none)` lines and `lint_only` categories — **not** raw triple slots before filter. Equals `finding_count` on the closing verdict row.
+
+**`inferClaimCategory`:** audit hint only (rollup / TUI); **not** enforcement. Gate behavior stays in `claimRequiresDoubtReview` and CERBERUS `review_record`.
 
 ---
 
