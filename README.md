@@ -10,6 +10,13 @@ Most AI coding tools can write code. They do not enforce roles, gates, approvals
 
 Technical framing: **contract-driven agent harness** — see [`docs/orchestrator/harness-engineering-positioning.md`](docs/orchestrator/harness-engineering-positioning.md). Do not describe the project primarily as a “multi-agent framework” or “autonomous agent platform.”
 
+**Execution modes** (control-first, not swarm-first):
+
+1. **Single-agent / multi-role** — one session, multiple contractual roles sequentially; default for local runs, cost, and debugging.
+2. **Supervised multi-agent** — bounded agents under an orchestrator-owned run; the orchestrator keeps budget, permissions, trace, approvals, and outcome.
+
+Supports **single-agent multi-role** workflows and **supervised multi-agent** execution. Not a swarm platform, not a LangGraph alternative, not an “advanced multi-agent framework” claim.
+
 It focuses on:
 
 - Explicit role contracts
@@ -30,7 +37,8 @@ The goal is not to make agents sound autonomous. The goal is to make agent behav
 ## What is ai-minions?
 
 - A **human-supervised**, **contract-driven** harness for AI-assisted software work: fixed MODE roles, structured handoffs, and validation gates—not an autonomous team that owns releases.
-- **Manager-owned orchestration:** the orchestrator plans and gates work; **handoffs** are for explicit ownership transfer, not every role switch. See [`docs/orchestrator/harness-engineering-positioning.md`](docs/orchestrator/harness-engineering-positioning.md) (full model) and [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md) (MODE + YAML).
+- **Control-first, not single-agent-only:** multi-agent is an execution mode under governance, not the product category ([`harness-engineering-positioning.md`](docs/orchestrator/harness-engineering-positioning.md) § Execution modes).
+- **Manager-owned orchestration:** the orchestrator plans and gates work; **handoffs** are for explicit ownership transfer, not every role switch. See [`docs/orchestrator/agent-contract.md`](docs/orchestrator/agent-contract.md) (MODE + YAML).
 - **Evidence over chat memory:** traces, `validateOutput`, and optional MCP-backed gates—not “vibes” as the audit trail. Orchestrator product path: [`orchestrator/README.md`](orchestrator/README.md).
 
 ---
