@@ -15,7 +15,9 @@ Technical framing: **contract-driven agent harness** — see [`docs/orchestrator
 1. **Single-agent / multi-role** — one session, multiple contractual roles sequentially; default for local runs, cost, and debugging.
 2. **Supervised multi-agent** — bounded agents under an orchestrator-owned run; the orchestrator keeps budget, permissions, trace, approvals, and outcome.
 
-Supports **single-agent multi-role** workflows and **supervised multi-agent** execution. Not a swarm platform, not a LangGraph alternative, not an “advanced multi-agent framework” claim.
+Supports **single-agent multi-role** workflows and **supervised multi-agent** execution. Multi-agent is an **execution strategy**, not the product category. **ai-minions is control-first, not single-agent-only.** Not a swarm platform, LangGraph alternative, or “advanced multi-agent framework” claim.
+
+**Validation is mandatory. Human approval is configurable.** Risk determines whether human approval is required—a well-defined epic may skip manual PO approval when policy allows, but never skip contractual validation. See [`harness-engineering-positioning.md`](docs/orchestrator/harness-engineering-positioning.md) § Validation vs human approval.
 
 It focuses on:
 

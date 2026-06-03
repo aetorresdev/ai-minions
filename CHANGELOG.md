@@ -4,6 +4,14 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+### Planned — `v0.4.0-alpha.1` (Control-first governance alpha)
+
+**Release claim:** ai-minions strengthens control-first execution by making validation mandatory and human approval policy-driven before DEV authority.
+
+**In scope (backlog):** `APPROVAL-POLICY-GATES-1`, `CERBERUS-DOUBT-CYCLE-1`, `EXT-OPENSPEC-SDD-CHECK-1` (doc), `MARKET-VALIDATION-1` (claims matrix).
+
+**Out of scope:** beta; sandbox runtime; web control plane; swarm/decentralized execution; OpenSpec compatibility; new model serving backend.
+
 ## [0.3.0-alpha.1] - 2026-05-18
 
 Third alpha pre-release: **workspace isolation** (git worktree per run) and Alpha 3 security hardening (prompt env context excludes resolved credential values, classified subprocess coverage).

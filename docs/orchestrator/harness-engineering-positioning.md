@@ -248,6 +248,57 @@ workflow:
 **Do not say yet:** advanced multi-agent framework; swarm orchestration platform;
 LangGraph alternative.
 
+**Summary:** ai-minions supports single-agent/multi-role and supervised multi-agent
+execution. Multi-agent is an **execution strategy**, not the product category.
+**ai-minions is control-first, not single-agent-only.**
+
+---
+
+## Validation vs human approval (policy-driven)
+
+When input is an **idea** or **epic**, OWNER / PO / ARCHITECT roles may **propose**
+scope and plans. Proposals are **not authority** until validated—and only then may
+policy allow skipping **human** approval.
+
+```text
+validation: always
+human_approval: policy-driven
+```
+
+> **Good input can skip human approval.**  
+> **Good input cannot skip validation.**
+
+| Layer | Rule |
+|-------|------|
+| **Validation** | **Mandatory** — product scope and architecture plan completeness always checked before DEV execution |
+| **Human approval** | **Configurable** — `required` · `risk_based` · `preview_only` · `auto` per gate |
+| **Risk** | Determines whether human approval is **required** after validation passes |
+
+A well-defined epic may satisfy product-scope validation and skip manual PO approval
+when policy allows (e.g. low risk, zero unresolved assumptions). It **cannot** skip
+contractual validation. DEV **fail-closed** if validation or policy-required approval
+is missing.
+
+**Implementation ticket:** backlog `APPROVAL-POLICY-GATES-1` (P2-C). **Existing trace
+slice:** [governance-gates-contract.md](governance-gates-contract.md) (human approval
+events—not the full PO/ARCH/DEV policy matrix).
+
+### Spec-driven development (durable artifacts)
+
+External **spec-driven development** references (e.g. OpenSpec — ThoughtWorks-style SDD)
+confirm the problem: **versioned design artifacts**, not ephemeral chat, before code execution.
+ai-minions does **not** adopt external SDD CLIs or command namespaces as canonical flow.
+
+**Target flow (stricter than “plan mode” alone):**
+
+```text
+design_intake → design_contract → cerberus_review → frozen_executable_plan
+→ approved_run → trace_archive
+```
+
+Cross-check ticket (doc only): backlog `EXT-OPENSPEC-SDD-CHECK-1`. **Forbidden claim:**
+“OpenSpec-compatible” without an explicit adapter.
+
 ---
 
 ## Orchestration model: manager-owned, bounded specialists, delegated handoff

@@ -124,6 +124,39 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 | 2026-06-02 | `npm run test:e2e:strict:harness` | **1/1** pass — harness path: compact_handoff, goal_alignment_validated, transitions on disk |
 | 2026-06-02 | Manual worktree smoke (CLI) | **pass** — create/contract/trace_refs×2, list, remove+force, second remove `already removed`; `orch/v03-smoke-20260602-170322` |
 
+## v0.4.0-alpha.1 — Control-first governance alpha (candidate)
+
+**Scope:** policy-driven approval gates (`APPROVAL-POLICY-GATES-1`), CERBERUS doubt cycle (`CERBERUS-DOUBT-CYCLE-1`), OpenSpec SDD cross-check doc (`EXT-OPENSPEC-SDD-CHECK-1`), market validation → claims matrix (`MARKET-VALIDATION-1`). **Prerequisite:** `v0.3.0-alpha.1` + positioning PR **#115**.
+
+**Release claim:** validation mandatory; human approval policy-driven before DEV authority.
+
+### Preconditions
+
+- [ ] `v0.3.0-alpha.1` shipped
+- [ ] `APPROVAL-POLICY-GATES-1` — contract + runtime fail-closed merged
+- [ ] `CERBERUS-DOUBT-CYCLE-1` — doubt review trace contract + evidence
+- [ ] `EXT-OPENSPEC-SDD-CHECK-1` — SDD cross-check doc (no OpenSpec dependency)
+- [ ] `MARKET-VALIDATION-1` — allowed/forbidden matrix integrated in harness positioning
+
+### Verification (operator)
+
+- [ ] `cd orchestrator && npm test` — pass count recorded
+- [ ] `npm run test:e2e:strict:all` — pass count recorded
+- [ ] CERBERUS sign-off (no beta / sandbox / swarm / OpenSpec-compat claims)
+- [ ] Optional: documented CERBERUS block demo (§ *Future alpha / beta gates*)
+
+### Release artifact
+
+- [ ] **Version tag:** `v0.4.0-alpha.1`
+- [ ] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) — section **[0.4.0-alpha.1]**
+- [ ] **GitHub pre-release** (manual)
+
+#### v0.4 validation log
+
+| Date | Command / item | Result |
+|------|----------------|--------|
+| | | |
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.

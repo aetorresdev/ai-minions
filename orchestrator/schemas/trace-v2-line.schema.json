@@ -241,6 +241,54 @@
     },
     {
       "if": {
+        "properties": { "event": { "const": "approval_skipped" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "agent",
+          "iteration",
+          "gate_id",
+          "policy_mode",
+          "reason_code",
+          "approval_id"
+        ],
+        "properties": {
+          "agent": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "iteration": { "type": "integer", "minimum": 0 },
+          "gate_id": {
+            "type": "string",
+            "enum": ["product_scope", "architecture_plan", "dev_execution"]
+          },
+          "policy_mode": {
+            "type": "string",
+            "enum": ["required", "risk_based", "preview_only", "auto"]
+          },
+          "reason_code": {
+            "type": "string",
+            "enum": [
+              "POLICY_EPIC_LOW_RISK",
+              "POLICY_VALIDATION_ONLY",
+              "POLICY_PREVIEW_ACKNOWLEDGED",
+              "POLICY_AUTO_MODE"
+            ]
+          },
+          "approval_id": { "type": "string", "minLength": 8, "maxLength": 64 },
+          "step_id": { "type": "string", "maxLength": 240 },
+          "risk_level": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "artifact_refs": {
+            "type": "array",
+            "maxItems": 8,
+            "items": { "type": "string", "maxLength": 200 }
+          }
+        }
+      }
+    },
+    {
+      "if": {
         "properties": { "event": { "const": "context_hygiene_signal" } },
         "required": ["event"]
       },

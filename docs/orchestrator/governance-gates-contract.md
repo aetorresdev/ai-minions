@@ -11,6 +11,7 @@ represented for audits and for blocking progression).
 (evaluator decisions, `permission_check`, `requires_approval` as policy outcome).
 
 **Related:** [agent-contract.md](agent-contract.md) (MODE, handoffs),
+[approval-policy-gates-contract.md](approval-policy-gates-contract.md) (PO/ARCH/DEV policy gates),
 [security-posture.md](security-posture.md) (threats, gaps).
 
 **Implementation status:** **Shipped (trace + helpers + MCP gate emit, 2026-05-13).**
