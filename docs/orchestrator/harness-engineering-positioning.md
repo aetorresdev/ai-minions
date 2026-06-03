@@ -279,7 +279,7 @@ when policy allows (e.g. low risk, zero unresolved assumptions). It **cannot** s
 contractual validation. DEV **fail-closed** if validation or policy-required approval
 is missing.
 
-**Implementation ticket:** backlog `APPROVAL-POLICY-GATES-1` (P2-C). **Existing trace
+**Implementation:** [approval-policy-gates-contract.md](approval-policy-gates-contract.md). **Existing trace
 slice:** [governance-gates-contract.md](governance-gates-contract.md) (human approval
 events—not the full PO/ARCH/DEV policy matrix).
 
@@ -296,8 +296,8 @@ design_intake → design_contract → cerberus_review → frozen_executable_plan
 → approved_run → trace_archive
 ```
 
-Cross-check ticket (doc only): backlog `EXT-OPENSPEC-SDD-CHECK-1`. **Forbidden claim:**
-“OpenSpec-compatible” without an explicit adapter.
+**Cross-check (doc only):** [openspec-sdd-cross-check.md](openspec-sdd-cross-check.md) — comparison table
+(implemented / partial / planned / rejected). **Forbidden claim:** “OpenSpec-compatible” without an explicit adapter.
 
 ---
 
