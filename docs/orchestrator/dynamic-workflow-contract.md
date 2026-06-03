@@ -92,6 +92,10 @@ Suggested path (implementation TBD): `.claude/dynamic-workflow.json` beside task
 | `fan_out_groups[]` | Optional parallel groups with merge step id |
 | `author` | `role_id` or `operator` |
 | `source` | `human` \| `agent` \| `import` (no product compat field) |
+| `mode` | `controlled` \| `experimental` — release claims require `controlled` |
+| `role_execution_strategy` | `single_agent_multi_role` \| `supervised_multi_agent` \| `decentralized_multi_agent` (future only) — see [harness-engineering-positioning.md](harness-engineering-positioning.md) § Execution modes |
+
+**Release validation:** `decentralized_multi_agent` → **reject**. Default when omitted in operator docs: `single_agent_multi_role`.
 
 ### `executable_plan` object (immutable at approval)
 

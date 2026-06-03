@@ -3,10 +3,47 @@
 **Location:** `docs/orchestrator/harness-engineering-positioning.md` (repo root). See
 [PATHS.md](PATHS.md) if your workspace root differs.
 
-This document is the **canonical framing** for why ai-minions is an **agent harness**
-(controls, contracts, gates, traces, budgets, permissions) around inference—not a
-generic multi-agent demo. The root [`README.md`](../../README.md) is the **short map**;
-it should **summarize and link here**, not invent parallel claims.
+This document is the **canonical framing** for why ai-minions is a **control-first AI
+workflow harness** (contracts, gates, traces, budgets, permissions, human approval
+boundaries) around inference—not a generic multi-agent framework. The root
+[`README.md`](../../README.md) is the **short map**; it should **summarize and link
+here**, not invent parallel claims.
+
+## Positioning and public claims
+
+### Public framing (external)
+
+> **ai-minions** is a **control-first AI workflow harness** for senior engineers using
+> AI coding agents in workflows where mistakes need review, traceability, and approval
+> boundaries.
+
+### Internal / technical framing
+
+**Contract-driven agent harness** · **harness-engineering runtime** (manager-owned
+orchestration, fail-closed gates, JSONL evidence).
+
+### Do not lead with
+
+- multi-agent framework (as product category)
+- autonomous agents
+- agentic platform
+- generic orchestration framework
+- swarm orchestration platform
+- “LangGraph alternative”
+
+Competing on “more powerful orchestration” vs LangGraph / CrewAI / AutoGen is **out of
+scope**—those products win on ecosystem; ai-minions wins on **governance evidence**
+(CERBERUS, approval gates, goal alignment, worktree isolation, cost/token controls).
+
+### Claims matrix (positioning evidence, 2026-06)
+
+| Allowed | Forbidden |
+|---------|-----------|
+| Control-first AI workflow harness for governed AI-assisted development | Production-ready multi-agent framework for autonomous engineering |
+| Supports **single-agent multi-role** workflows and **supervised multi-agent** execution | Advanced multi-agent framework; swarm orchestration platform; LangGraph alternative |
+| Contracts, gates, traces, and human approval boundaries | Claude Code / LangGraph / CrewAI equivalent or “drop-in replacement” |
+| Cross-checked against emerging dynamic workflow patterns (doc only) | Safe parallel subagents or full sandbox without contract/runtime proof |
+| Alpha / pre-release with honest limitations | Beta or production readiness from positioning reports alone |
 
 **Technical layer model (non-duplicative):** [agent-harness.md](agent-harness.md)
 lists context, memory/state, control, validation, and observability **layers**. This
@@ -144,6 +181,72 @@ allowed** in public positioning.
 | **Orchestration** | **Manager-owned by default** (next section). |
 | **Safe autonomy** | **Not** “zero human.” Human supervision + **rejectable** machine steps. |
 | **Runtime control** | Permission evaluation, gates, degraded mode, budget stop—**enforcement**, not vibes. |
+
+---
+
+## Execution modes (not the product category)
+
+**ai-minions is control-first, not single-agent-only.** Multi-agent is an **execution
+strategy** under governance—not the marketing category. The key contract axis is
+**`role_execution_strategy`**, not “agent count.”
+
+### Two supported execution modes
+
+1. **Single-agent / multi-role** (`single_agent_multi_role`)  
+   One model session executes multiple contractual roles **sequentially** (MODE
+   transitions under contract). Best for local runs, lower cost, simpler debugging,
+   and early adoption. Maps to `flow_mode: single_agent` in [agent-contract.md](agent-contract.md).
+
+2. **Supervised multi-agent** (`supervised_multi_agent`)  
+   Multiple **bounded** agents execute role-specific work under an **orchestrator-owned**
+   run. The orchestrator retains ownership of **budget, permissions, trace, approvals,
+   and final outcome**. Maps to `flow_mode: multi_agent` where wired; still not
+   “swarm-first.”
+
+### Not swarm-first
+
+Decentralized or emergent multi-agent coordination is **future research** only. It
+requires stronger **safety, trace, rollback, and conflict-resolution** contracts
+before any release claim. Do not describe ai-minions as a swarm or emergent-coordination
+platform today.
+
+### `role_execution_strategy` (workflow contract axis)
+
+Planned / design alignment with [dynamic-workflow-contract.md](dynamic-workflow-contract.md)
+and task envelopes—**not** a separate runtime product:
+
+```yaml
+workflow:
+  mode: controlled
+  role_execution_strategy: single_agent_multi_role
+```
+
+```yaml
+workflow:
+  mode: controlled
+  role_execution_strategy: supervised_multi_agent
+```
+
+**Future (blocked for release claims):**
+
+```yaml
+workflow:
+  mode: experimental
+  role_execution_strategy: decentralized_multi_agent
+```
+
+| Strategy | Status | Allowed for release claims |
+|----------|--------|----------------------------|
+| `single_agent_multi_role` | **core / default** | Yes |
+| `supervised_multi_agent` | **supported / controlled** | Yes, when gates and trace evidence pass |
+| `decentralized_multi_agent` | **future / experimental** | **No** |
+
+### Public wording (execution)
+
+**Say:** supports single-agent multi-role workflows and supervised multi-agent execution.
+
+**Do not say yet:** advanced multi-agent framework; swarm orchestration platform;
+LangGraph alternative.
 
 ---
 
