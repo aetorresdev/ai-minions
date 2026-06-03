@@ -365,6 +365,107 @@
     },
     {
       "if": {
+        "properties": { "event": { "const": "doubt_review_started" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "doubt_review_schema_version",
+          "agent",
+          "iteration",
+          "review_id",
+          "claim_count"
+        ],
+        "properties": {
+          "doubt_review_schema_version": { "type": "string", "enum": ["1"] },
+          "agent": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "iteration": { "type": "integer", "minimum": 0 },
+          "review_id": { "type": "string", "minLength": 8, "maxLength": 64 },
+          "claim_count": { "type": "integer", "minimum": 0 },
+          "step_id": { "type": "string", "maxLength": 240 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "doubt_review_finding" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "doubt_review_schema_version",
+          "review_id",
+          "claim_id",
+          "claim_category",
+          "claim_summary",
+          "finding_kind",
+          "evidence_required",
+          "iteration"
+        ],
+        "properties": {
+          "doubt_review_schema_version": { "type": "string", "enum": ["1"] },
+          "review_id": { "type": "string", "minLength": 8, "maxLength": 64 },
+          "claim_id": { "type": "string", "minLength": 8, "maxLength": 64 },
+          "claim_category": {
+            "type": "string",
+            "enum": [
+              "runtime_contract",
+              "release_claim",
+              "security_posture",
+              "docs_positioning",
+              "handoff_authority",
+              "lint_only"
+            ]
+          },
+          "claim_summary": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "finding_kind": {
+            "type": "string",
+            "enum": [
+              "blocker",
+              "improvement",
+              "nice_to_have",
+              "overclaim_risk",
+              "evidence_gap"
+            ]
+          },
+          "evidence_required": { "type": "boolean" },
+          "iteration": { "type": "integer", "minimum": 0 },
+          "evidence_refs": {
+            "type": "array",
+            "maxItems": 16,
+            "items": { "type": "string", "maxLength": 240 }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "doubt_review_verdict" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "doubt_review_schema_version",
+          "review_id",
+          "verdict",
+          "finding_count",
+          "iteration"
+        ],
+        "properties": {
+          "doubt_review_schema_version": { "type": "string", "enum": ["1"] },
+          "review_id": { "type": "string", "minLength": 8, "maxLength": 64 },
+          "verdict": {
+            "type": "string",
+            "enum": ["approve", "request_changes", "block"]
+          },
+          "finding_count": { "type": "integer", "minimum": 0 },
+          "iteration": { "type": "integer", "minimum": 0 },
+          "notes": { "type": "string", "maxLength": 300 }
+        }
+      }
+    },
+    {
+      "if": {
         "properties": { "event": { "const": "recovery_detected" } },
         "required": ["event"]
       },
