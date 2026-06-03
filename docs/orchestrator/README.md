@@ -17,6 +17,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [approval-policy-gates-contract.md](approval-policy-gates-contract.md) | Policy-driven PO/ARCH/DEV gates — `validation: always`, `human_approval: policy-driven`, trace `approval_skipped`, DEV pre-check |
 | [cerberus-doubt-cycle-contract.md](cerberus-doubt-cycle-contract.md) | CERBERUS adversarial doubt cycle — trace `doubt_review_*`, claim matrix, pre-merge brief alignment |
 | [openspec-sdd-cross-check.md](openspec-sdd-cross-check.md) | OpenSpec SDD design reference only — mapping table, no runtime dependency |
+| [market-validation-notes.md](market-validation-notes.md) | Control-first positioning research — allowed/forbidden claims, pain themes (doc-only) |
 | [security-posture.md](security-posture.md) | Public security posture + threat model (honest) |
 | [harness-engineering-positioning.md](harness-engineering-positioning.md) | Harness framing, orchestration model, external cross-checks (not authority) |
 | [agent-harness.md](agent-harness.md) | Harness layers: context, memory/state, control, validation, observability |
