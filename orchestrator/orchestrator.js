@@ -86,6 +86,7 @@ const {
 //              agent_done (qa): optional qa_triple_template + qa_blocker_non_vacuous for rollups
 //              approval_required / approval_granted / approval_denied (human governance — see governance-gate.js + trace schema)
 //              approval_skipped (policy-driven PO/ARCH/DEV gates — see approval-policy-gate.js)
+//              doubt_review_started / doubt_review_finding / doubt_review_verdict (CERBERUS doubt cycle)
 // iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".
 //
 // Sensitive field handling:
@@ -113,6 +114,10 @@ const {
   emitContextHygieneSignalsFromStats,
 } = require("./context-hygiene-signals");
 const { buildReviewRecord, traceReviewRecord } = require("./review-record");
+const {
+  buildDoubtReviewCycleFromCerberusOutput,
+  traceDoubtReviewCycle,
+} = require("./doubt-review");
 const { runRecoverySweepAndTrace } = require("./recovery-sweep");
 const { redactSensitivePlaintext } = require("./trace-redact");
 const { runMcpPermissionGate } = require("./security/mcp-permission-gate");
@@ -2425,6 +2430,16 @@ nice-to-have: ...`;
         }),
       );
       cerberusReviewRecordEmitted = true;
+      traceDoubtReviewCycle(
+        traceEvent,
+        taskId,
+        buildDoubtReviewCycleFromCerberusOutput("", {
+          iteration: iterations,
+          reviewed_artifact_ids: artifacts
+            .filter((a) => a.step_id && !a.gateBlocked && a.agentId !== "cerberus")
+            .map((a) => a.step_id),
+        }),
+      );
       artifacts.push({
         agentId: "cerberus",
         task: "(session review) Deliverable review before decide",
@@ -2541,6 +2556,14 @@ nice-to-have: ...`;
           output: cerberusResult,
           iteration: iterations,
           reviewedArtifactIds: reviewedIds,
+        }),
+      );
+      traceDoubtReviewCycle(
+        traceEvent,
+        taskId,
+        buildDoubtReviewCycleFromCerberusOutput(cerberusResult, {
+          iteration: iterations,
+          reviewed_artifact_ids: reviewedIds,
         }),
       );
     }

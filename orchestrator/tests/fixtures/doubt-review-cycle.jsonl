@@ -1,0 +1,3 @@
+{"event":"doubt_review_started","doubt_review_schema_version":"1","agent":"cerberus","iteration":1,"review_id":"dddddddd-dddd-4ddd-dddd-dddddddddddd","claim_count":1}
+{"event":"doubt_review_finding","doubt_review_schema_version":"1","review_id":"dddddddd-dddd-4ddd-dddd-dddddddddddd","claim_id":"eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee","claim_category":"runtime_contract","claim_summary":"blocker: missing npm test evidence","finding_kind":"blocker","evidence_required":true,"iteration":1}
+{"event":"doubt_review_verdict","doubt_review_schema_version":"1","review_id":"dddddddd-dddd-4ddd-dddd-dddddddddddd","verdict":"block","finding_count":1,"iteration":1,"notes":"structured doubt cycle fixture"}
