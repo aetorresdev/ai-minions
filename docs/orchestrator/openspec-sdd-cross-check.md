@@ -58,10 +58,10 @@ design_intake → design_contract → cerberus_review → frozen_executable_plan
 | Tool-agnostic harness | CLI + editors | MODE orchestrator + hooks/skills/MCP (project-configured) | **Partial** | [harness-engineering-positioning.md](harness-engineering-positioning.md) |
 | `/opsx:*` command namespace | Canonical UX | **Not adopted** | **Rejected** | This doc |
 | OpenSpec file layout as SoT | `openspec/` tree | ai-minions contracts under `docs/orchestrator/` | **Rejected** | This doc |
-| Default telemetry to vendor | Opt-out env vars documented by OpenSpec | **Opt-in only** if ever; no new behavior in this slice | **Rejected** | [security-posture.md](security-posture.md) |
+| Telemetry in this harness slice | External product telemetry policies (not evaluated here) | **No telemetry behavior introduced** by this doc; ai-minions remains **opt-in only** if telemetry is ever added | **Rejected** (for OpenSpec adoption) | [security-posture.md](security-posture.md) |
 | “OpenSpec-compatible” product claim | Marketing | **Forbidden** without explicit adapter + evidence | **Rejected** | [harness-engineering-positioning.md](harness-engineering-positioning.md) § Claims matrix |
-| Dynamic workflow runtime engine | Product execution | Schema/contract only; no `validateDynamicWorkflow` runner | **Planned** | Future execution ticket (not v0.4) |
-| Design intent registry (single doc index) | Spec index | Distributed contracts + groomed backlog (local) | **Planned** | `DOC-RUNTIME-DRIFT-CHECK-1` (post-alpha) |
+| Dynamic workflow runtime engine | Product execution | Schema/contract only; no `validateDynamicWorkflow` runner | **Planned** | [dynamic-workflow-contract.md](dynamic-workflow-contract.md) — executor not in v0.4 |
+| Design intent registry (single doc index) | Spec index | Distributed contracts under `docs/orchestrator/` | **Planned** | [README.md](README.md) — no generated SDD index yet |
 
 ---
 
@@ -82,8 +82,8 @@ design_intake → design_contract → cerberus_review → frozen_executable_plan
 
 1. **Single SDD index page** — contracts are modular; no generated index beyond [README.md](README.md).
 2. **Dynamic workflow executor** — validation CLI and runner wiring not shipped (design contract merged).
-3. **Automatic spec ↔ code drift check** — post-alpha (`DOC-RUNTIME-DRIFT-CHECK-1`).
-4. **No adapter** — importing OpenSpec folders or `/opsx` commands is out of scope unless a future adapter ticket defines evidence and gates.
+3. **Automatic spec ↔ code drift check** — post-alpha deterministic checks between versioned contracts and runtime claims (not implemented).
+4. **No adapter** — importing OpenSpec folders or `/opsx` commands is out of scope unless a future adapter design defines evidence and gates.
 
 ---
 
