@@ -821,6 +821,7 @@ const {
   buildApprovalGrantedPayload,
   buildApprovalDeniedPayload,
 } = require("../governance-gate");
+const { buildApprovalSkippedPayload } = require("../approval-policy-gate");
 
 function govEnvelope(overrides) {
   return {
@@ -902,6 +903,20 @@ test("validateTraceLine accepts approval_granted and approval_denied", () => {
     ),
   );
   assert.equal(d.ok, true, (d.errors || []).join(" | "));
+});
+
+test("validateTraceLine accepts approval_skipped for policy gates", () => {
+  const body = buildApprovalSkippedPayload({
+    gate_id: "product_scope",
+    policy_mode: "risk_based",
+    reason_code: "POLICY_EPIC_LOW_RISK",
+    agent: "orchestrator",
+    iteration: 1,
+    risk_level: "low",
+    artifact_refs: ["handoff:owner"],
+  });
+  const v = validateTraceLine(govEnvelope(body));
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
 });
 
 const {

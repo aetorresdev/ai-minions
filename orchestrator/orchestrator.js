@@ -85,6 +85,7 @@ const {
 //              model_fallback_required / model_fallback_started / model_fallback_completed (model fallback lifecycle observability),
 //              agent_done (qa): optional qa_triple_template + qa_blocker_non_vacuous for rollups
 //              approval_required / approval_granted / approval_denied (human governance — see governance-gate.js + trace schema)
+//              approval_skipped (policy-driven PO/ARCH/DEV gates — see approval-policy-gate.js)
 // iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".
 //
 // Sensitive field handling:
@@ -118,6 +119,13 @@ const { runMcpPermissionGate } = require("./security/mcp-permission-gate");
 const { runNetworkPermissionGate } = require("./security/network-permission-gate");
 const { aggregatePermissionCheckRows } = require("./security/permission-check-summary");
 const { buildApprovalRequiredFromPermissionTrace } = require("./governance-gate");
+const {
+  buildGateContextFromArtifacts,
+  loadApprovalPolicyFromEnv,
+  evaluateDevExecutionGate,
+} = require("./approval-policy-gate");
+
+const DEV_AGENT_IDS = new Set(["dev-backend", "dev-frontend", "dev-devops"]);
 
 /** Same as `TRACE_LINE_WRITER_VERSION` in trace-schema.js — single source for writer + schema. */
 const TRACE_SCHEMA_VERSION = TRACE_LINE_WRITER_VERSION;
@@ -1943,6 +1951,61 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       const stepStart = Date.now();
       traceEvent(taskId, { event: "agent_start", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...intentStep, task: step.task.slice(0, 200) });
       setStepRunning(runState, stepId, agentId);
+
+      if (DEV_AGENT_IDS.has(agentId) && !skipStateMcp && !orchTestSystemPathHarnessOn()) {
+        const gateCtx = buildGateContextFromArtifacts(artifacts);
+        const policy = loadApprovalPolicyFromEnv();
+        const devGate = evaluateDevExecutionGate(gateCtx, policy);
+        if (!devGate.allowed) {
+          log("gate", `🟥 DEV blocked (approval policy): ${devGate.reason}`);
+          for (const skipRow of devGate.traceSkips) {
+            traceEvent(taskId, {
+              ...skipRow,
+              iteration: iterations,
+              step_id: stepId,
+              step_index: stepIndex,
+              ...graphMeta,
+              ...intentStep,
+            });
+          }
+          traceEvent(taskId, {
+            event: "gate_result",
+            agent: agentId,
+            iteration: iterations,
+            step_id: stepId,
+            step_index: stepIndex,
+            ...graphMeta,
+            ...intentStep,
+            ...edgeMeta("gate_block"),
+            gate: "approval_policy",
+            passed: false,
+            reason: devGate.reason,
+          });
+          artifacts.push({
+            agentId,
+            task: step.task,
+            result: "",
+            handoffYaml: "",
+            gateBlocked: true,
+            gateReason: `approval_policy: ${devGate.reason}`,
+            step_id: stepId,
+            intent_id: intentId,
+            gate_kind: "approval_policy",
+          });
+          markStepRetryingAfterGate(runState);
+          continue;
+        }
+        for (const skipRow of devGate.traceSkips) {
+          traceEvent(taskId, {
+            ...skipRow,
+            iteration: iterations,
+            step_id: stepId,
+            step_index: stepIndex,
+            ...graphMeta,
+            ...intentStep,
+          });
+        }
+      }
 
       let result, contextStats;
       try {
