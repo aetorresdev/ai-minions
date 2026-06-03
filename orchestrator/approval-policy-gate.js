@@ -45,6 +45,7 @@ const DEFAULT_APPROVAL_POLICY = {
  * @property {boolean} [architecture_validation_passed]
  * @property {boolean} [human_product_scope_granted]
  * @property {boolean} [human_architecture_granted]
+ * @property {boolean} [human_dev_execution_granted]
  * @property {string[]} [affected_areas]
  * @property {boolean} [migration_required]
  * @property {boolean} [rollback_plan_missing]
@@ -76,6 +77,7 @@ function normalizeGateContext(v) {
     architecture_validation_passed: c.architecture_validation_passed === true,
     human_product_scope_granted: c.human_product_scope_granted === true,
     human_architecture_granted: c.human_architecture_granted === true,
+    human_dev_execution_granted: c.human_dev_execution_granted === true,
     affected_areas: Array.isArray(c.affected_areas)
       ? c.affected_areas.map((a) => String(a).toLowerCase()).slice(0, 16)
       : [],
@@ -116,6 +118,7 @@ function parseGateFieldsFromHandoffYaml(yaml) {
   }
   if (/human_product_scope_granted:\s*true/i.test(text)) out.human_product_scope_granted = true;
   if (/human_architecture_granted:\s*true/i.test(text)) out.human_architecture_granted = true;
+  if (/human_dev_execution_granted:\s*true/i.test(text)) out.human_dev_execution_granted = true;
   if (/migration_required:\s*true/i.test(text)) out.migration_required = true;
   if (/rollback_plan_missing:\s*true/i.test(text)) out.rollback_plan_missing = true;
   if (/scope_changes_detected:\s*true/i.test(text)) out.scope_changes_detected = true;
@@ -292,6 +295,17 @@ function buildApprovalSkippedPayload(opts) {
 }
 
 /**
+ * @param {ApprovalGateId} gateId
+ * @param {GateInputContext} ctx
+ */
+function humanGrantForGate(gateId, ctx) {
+  if (gateId === "product_scope") return ctx.human_product_scope_granted === true;
+  if (gateId === "architecture_plan") return ctx.human_architecture_granted === true;
+  if (gateId === "dev_execution") return ctx.human_dev_execution_granted === true;
+  return false;
+}
+
+/**
  * Fail-closed: DEV may run only when validations pass and human gates are satisfied or policy-traced skip applies.
  *
  * @param {GateInputContext} ctx
@@ -324,13 +338,7 @@ function evaluateDevExecutionGate(ctx, policy) {
     }
 
     if (ev.human_required) {
-      const granted =
-        gateId === "product_scope"
-          ? normalized.human_product_scope_granted
-          : gateId === "architecture_plan"
-            ? normalized.human_architecture_granted
-            : false;
-      if (!granted) {
+      if (!humanGrantForGate(gateId, normalized)) {
         return {
           allowed: false,
           reason: `${gateId}: human approval required`,

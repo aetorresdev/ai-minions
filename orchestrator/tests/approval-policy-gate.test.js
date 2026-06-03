@@ -120,3 +120,50 @@ test("cerberusDetectInvalidApprovalBypass flags missing policy traces", () => {
   assert.equal(r.invalid, true);
   assert.ok(r.findings.length > 0);
 });
+
+test("dev_execution required mode allows DEV when human_dev_execution_granted", () => {
+  const ctx = normalizeGateContext({
+    input_type: "epic",
+    required_fields_present: true,
+    unresolved_assumptions: 0,
+    risk_level: "low",
+    scope_validation_passed: true,
+    architecture_validation_passed: true,
+    human_dev_execution_granted: true,
+  });
+  const dev = evaluateDevExecutionGate(ctx, {
+    product_scope: "auto",
+    architecture_plan: "auto",
+    dev_execution: "required",
+  });
+  assert.equal(dev.allowed, true);
+});
+
+test("medium/high-risk dev_execution blocked without human_dev_execution_granted", () => {
+  for (const risk_level of ["medium", "high"]) {
+    const ctx = normalizeGateContext({
+      input_type: "epic",
+      required_fields_present: true,
+      unresolved_assumptions: 0,
+      risk_level,
+      scope_validation_passed: true,
+      architecture_validation_passed: true,
+      human_dev_execution_granted: false,
+    });
+    const dev = evaluateDevExecutionGate(ctx, {
+      product_scope: "auto",
+      architecture_plan: "auto",
+      dev_execution: "risk_based",
+    });
+    assert.equal(dev.allowed, false, `expected block for risk_level=${risk_level}`);
+    assert.match(dev.reason, /dev_execution: human approval required/);
+  }
+});
+
+test("parseGateFieldsFromHandoffYaml extracts human_dev_execution_granted", () => {
+  const partial = parseGateFieldsFromHandoffYaml(
+    "human_dev_execution_granted: true\nscope_validation_passed: true\n",
+  );
+  const ctx = normalizeGateContext(partial);
+  assert.equal(ctx.human_dev_execution_granted, true);
+});

@@ -71,7 +71,7 @@ Compact handoffs may include machine-readable hints (parsed best-effort, **fail 
 - `unresolved_assumptions: 0`
 - `risk_level: low|medium|high`
 - `scope_validation_passed: true` / `architecture_validation_passed: true`
-- `human_product_scope_granted: true` / `human_architecture_granted: true`
+- `human_product_scope_granted: true` / `human_architecture_granted: true` / `human_dev_execution_granted: true`
 
 ---
 
