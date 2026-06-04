@@ -1,6 +1,6 @@
 # AI Minions
 
-[![License: AI Minions Community](https://img.shields.io/badge/license-AI%20Minions%20Community-blue.svg)](./LICENSE) [![GitHub release](https://img.shields.io/github/v/release/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/releases) [![GitHub issues](https://img.shields.io/badge/issues-GitHub-181717?logo=github)](https://github.com/aetorresdev/ai-minions/issues) [![GitHub pull requests](https://img.shields.io/badge/PRs-GitHub-181717?logo=github)](https://github.com/aetorresdev/ai-minions/pulls) [![GitHub last commit](https://img.shields.io/github/last-commit/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/commits/main) [![Orchestrator CI](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-unit-tests.yml/badge.svg)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-unit-tests.yml) [![Orchestrator E2E](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-e2e.yml/badge.svg)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-e2e.yml)
+[![License: AI Minions Community](https://img.shields.io/badge/license-AI%20Minions%20Community-blue.svg)](./LICENSE) [![GitHub release](https://img.shields.io/github/v/release/aetorresdev/ai-minions)](https://github.com/aetorresdev/ai-minions/releases) [![GitHub issues](https://img.shields.io/badge/issues-GitHub-181717?logo=github)](https://github.com/aetorresdev/ai-minions/issues) [![GitHub pull requests](https://img.shields.io/badge/PRs-GitHub-181717?logo=github)](https://github.com/aetorresdev/ai-minions/pulls) [![GitHub last commit](https://img.shields.io/github/last-commit/aetorresdev/ai-minions/master)](https://github.com/aetorresdev/ai-minions/commits/master) [![Orchestrator CI](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-unit-tests.yml/badge.svg)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-unit-tests.yml) [![Orchestrator E2E](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-e2e.yml/badge.svg)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-e2e.yml)
 
 Most AI coding tools can write code. They do not enforce roles, gates, approvals, or traceable workflow boundaries.
 
@@ -172,7 +172,7 @@ Three evidence classes. Same `GOAL`, different `FLOW` → diff the files, not th
 | `FLOW` | State |
 |---|---|
 | `single_agent` | Primary usage — multiple runs. |
-| `multi_agent` | **Incomplete** — 1 run, ended with errors. SA vs MA comparisons are directional only. |
+| `multi_agent` | Supported as a **supervised** execution strategy, but still **alpha/incomplete** for broad comparisons. SA vs MA metrics remain **directional only**. |
 
 ---
 
@@ -194,7 +194,7 @@ The four competency names come from Anthropic's **AI Fluency** framework (© 202
 - Not autonomous AI engineering — humans own scope, risk, and approval.
 - Not a replacement for engineers — a structure for how agents are run and reviewed.
 - Not prompt-engineering magic — wrong contracts fail in the open, not silently.
-- Not a benchmark — SA vs MA evaluation is incomplete; no fabricated tables here.
+- Not a benchmark — SA vs MA metrics are directional only; no fabricated leaderboard tables here.
 
 ---
 
@@ -240,12 +240,18 @@ Full doc index: [`docs/orchestrator/README.md`](docs/orchestrator/README.md).
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"primaryColor": "#1e1e2e", "primaryTextColor": "#cdd6f4", "primaryBorderColor": "#89b4fa", "lineColor": "#89b4fa", "secondaryColor": "#181825", "tertiaryColor": "#313244", "edgeLabelBackground": "#313244", "clusterBkg": "#181825", "clusterBorder": "#45475a", "titleColor": "#cdd6f4", "fontFamily": "monospace"}}}%%
-flowchart LR
-    U[User / session] --> P[MODE protocol + YAML handoffs]
-    P --> G[Gates: alignment + transition + advance]
-    G --> D[(Disk: envelope + events.jsonl)]
-    P --> X[Runner + validateOutput + traces + hooks]
-    G -.->|same task| X
+flowchart TB
+    U[User / session] --> RUN[Orchestrator-owned run\nMODE · GOAL · FLOW]
+    RUN --> VAL[Mandatory validation\nvalidateOutput · contract gates]
+    VAL --> APPR[Policy-driven approval\nPO / ARCH / DEV grants]
+    APPR --> EXEC[Role execution\nhandoffs · permissions]
+    EXEC --> TRACE[(Traces JSONL\npermission_check · review_record)]
+    EXEC --> DOUBT[CERBERUS doubt cycle\ndoubt_review_*]
+    EXEC --> WS[Worktree + artifacts\nisolated workspace per run]
+    TRACE --> RUN
+    DOUBT --> TRACE
+    WS --> TRACE
+    RUN --> HOOKS[Hooks · metrics\nflow-metrics · session state]
 ```
 
 Full wiring diagram: [`docs/orchestrator/system-architecture-diagram.md`](docs/orchestrator/system-architecture-diagram.md).
