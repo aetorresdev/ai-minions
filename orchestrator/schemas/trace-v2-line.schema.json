@@ -150,6 +150,39 @@
     },
     {
       "if": {
+        "properties": { "event": { "const": "credential_broker_used" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "credential_alias",
+          "operation_class",
+          "operation_kind",
+          "decision",
+          "reason_code",
+          "agent_id",
+          "effective_mode"
+        ],
+        "properties": {
+          "credential_alias": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "operation_class": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "operation_kind": {
+            "type": "string",
+            "enum": ["read", "write", "unknown"]
+          },
+          "decision": { "type": "string", "enum": ["allow", "deny"] },
+          "reason_code": { "type": "string", "minLength": 1, "maxLength": 160 },
+          "agent_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "effective_mode": {
+            "type": "string",
+            "enum": ["none", "read", "write"]
+          },
+          "target": { "type": "string", "maxLength": 200 }
+        }
+      }
+    },
+    {
+      "if": {
         "properties": { "event": { "const": "approval_required" } },
         "required": ["event"]
       },

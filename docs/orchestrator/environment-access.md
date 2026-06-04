@@ -43,7 +43,7 @@ ENVIRONMENT:
 | `read` | Query, list, describe, read logs, plan/diff, dry-run |
 | `write` | All read operations + execute, apply, insert, update, activate |
 
-The user is responsible for declaring the correct mode. **Prompt-level refusal contract:** the injected ENVIRONMENT block instructs the model to refuse write-class operations when `mode: read`. **Runtime enforcement** (broker/tool deny-before-execute for write under read mode) is **pending** — a prompt line is not a gate.
+The user is responsible for declaring the correct mode. **Prompt-level refusal contract:** the injected ENVIRONMENT block instructs the model to refuse write-class operations when `mode: read`. **Runtime enforcement:** tools must call `requestCredentialUse()` in [`credential-broker.js`](../../orchestrator/credential-broker.js) before using resolved secrets — see [`credential-broker-contract.md`](credential-broker-contract.md). A prompt line alone is not a gate.
 
 ---
 

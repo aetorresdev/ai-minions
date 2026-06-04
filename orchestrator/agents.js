@@ -227,7 +227,7 @@ function buildEnvContext(agentId, sessionEnv) {
 
   if (mode === "read") {
     lines.push(
-      "PROMPT CONTRACT (read-only): refuse execute, apply, insert, update, or activate — runtime enforcement pending.",
+      "PROMPT CONTRACT (read-only): refuse execute, apply, insert, update, or activate — tools must use requestCredentialUse() before live credential ops.",
     );
   }
 
