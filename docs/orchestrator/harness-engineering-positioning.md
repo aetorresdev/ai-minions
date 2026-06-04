@@ -38,7 +38,8 @@ scope**—those products win on ecosystem; ai-minions wins on **governance evide
 ### Claims matrix (positioning evidence, 2026-06)
 
 Summary for README and release notes. **Expanded tables, pain themes, competitor framing, and SEO phrases:**
-[market-validation-notes.md](market-validation-notes.md) (v0.4 G4 — doc-only, not a market study).
+[market-validation-notes.md](market-validation-notes.md) (v0.4 G4 — doc-only, not a market study). **Benchmark / external harness triage:**
+[eval-benchmark-triage.md](eval-benchmark-triage.md) (`EVAL-BENCHMAP-1` — doc-only; not a leaderboard program).
 
 | Allowed | Forbidden |
 |---------|-----------|

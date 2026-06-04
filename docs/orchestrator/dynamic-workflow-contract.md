@@ -259,7 +259,7 @@ Triage only — **no** “Claude Code equivalent” claim. Status for harness pl
 | Budget-aware orchestration | Budget guard + TUI `budget` exist **outside** dynamic workflow runtime | **Partial** — workflow integration must reference `limits.max_tokens` |
 | Resumable workflow state | [session-resume-contract.md](session-resume-contract.md) | Partial — workflow checkpoint vs session checkpoint |
 
-Full benchmark triage remains in the future **evaluation benchmark** design deliverable; this table is the contract-side minimum.
+Full benchmark triage: [`eval-benchmark-triage.md`](eval-benchmark-triage.md) (Appendix F extends this table); contract-side minimum stays above.
 
 ---
 
