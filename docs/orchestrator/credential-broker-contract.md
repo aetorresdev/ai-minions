@@ -92,5 +92,5 @@ Runtime entry: `requestCredentialUse()` in `orchestrator/credential-broker.js`.
 ## Related
 
 - [`environment-access.md`](environment-access.md) — session header + prompt contract
-- `ENV-READONLY-WRITE-BLOCK-E2E-1` (operator backlog) — E2E proof on top of this broker
+- E2E proof (mocked tool wrapper): `orchestrator/tests/env-readonly-write-block-e2e.test.js` — write-class ops denied under `mode: read`, stable `credential_broker_denied_read_mode` in trace
 - [`eval-benchmark-triage.md`](eval-benchmark-triage.md) — explicit gap closed for broker MVP
