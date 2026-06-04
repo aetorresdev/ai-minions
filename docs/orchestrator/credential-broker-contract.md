@@ -12,14 +12,17 @@
 
 Runtime entry: `requestCredentialUse()` in `orchestrator/credential-broker.js`.
 
-| Field | Type | Notes |
-|-------|------|--------|
-| `credential_alias` | string | Session credential `name` (not env var name) |
-| `operation_class` | string | Normalized op: `query`, `read`, `apply`, `execute`, … |
-| `target` | string | Optional resource hint for trace (no secrets) |
-| `agent_id` | string | Role consuming credential |
-| `session_env` | object | Parsed `ENVIRONMENT` block (`mode`, `credentials`) |
-| `task_id` | string | Optional — emit `credential_broker_used` trace when set |
+**Canonical API (JavaScript):** camelCase parameter names. **Aliases:** the same fields may be passed as snake_case (e.g. `credential_alias`) for compatibility; runtime normalizes before policy.
+
+| Field (canonical) | Type | Notes |
+|-------------------|------|--------|
+| `credentialAlias` | string | Session credential `name` (not env var name) |
+| `operationClass` | string | Normalized op: `query`, `read`, `apply`, `execute`, … |
+| `target` | string | Optional resource hint; **sanitized** before trace (query params, env values, secret-shaped substrings redacted) |
+| `agentId` | string | Role consuming credential |
+| `sessionEnv` | object | Parsed `ENVIRONMENT` block (`mode`, `credentials`) |
+| `taskId` | string | Optional — emit `credential_broker_used` trace when set |
+| `tracesDir` | string | Optional trace output directory |
 
 ---
 
@@ -29,7 +32,7 @@ Runtime entry: `requestCredentialUse()` in `orchestrator/credential-broker.js`.
 2. **Resolve credential** — match `credential_alias` to session credential; resolve `process.env` **only inside broker** (never returned in trace).
 3. **Classify operation** — `read-class` vs `write-class` vs `unknown`.
 4. **Policy** — deny write-class when effective mode is `read`; deny when role is `none`; deny missing/partial env.
-5. **Trace** — `credential_broker_used` with alias, operation class, decision, `reason_code` — **never** secret values or substrings.
+5. **Trace** — `credential_broker_used` with alias, operation class, decision, `reason_code` — **never** secret values or substrings. Optional `target` is passed through `sanitizeBrokerTraceTarget()` (env values from session credential vars, URL query values, and `trace-redact` patterns).
 
 ---
 
@@ -55,7 +58,7 @@ Runtime entry: `requestCredentialUse()` in `orchestrator/credential-broker.js`.
 | `reason_code` | yes | See table below |
 | `agent_id` | yes | |
 | `effective_mode` | yes | `none` \| `read` \| `write` |
-| `target` | no | |
+| `target` | no | Sanitized resource hint only (max 200 chars after redaction) |
 
 ### `reason_code` values
 

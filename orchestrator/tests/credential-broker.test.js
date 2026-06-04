@@ -90,6 +90,17 @@ describe('credential-broker', () => {
     assert.equal(r.reason_code, 'credential_broker_denied_missing_env');
   });
 
+  it('accepts snake_case request keys (doc alias)', () => {
+    const r = requestCredentialUse({
+      credential_alias: 'n8n',
+      operation_class: 'query',
+      agent_id: 'architect',
+      session_env: sessionEnv,
+    });
+    assert.equal(r.allowed, true);
+    assert.equal(r.reason_code, 'credential_broker_allowed');
+  });
+
   it('emits credential_broker_used trace without secret values', () => {
     const taskId = 'cred-broker-trace-1';
     requestCredentialUse({
@@ -107,5 +118,25 @@ describe('credential-broker', () => {
     const v = validateTraceLine(line);
     assert.equal(v.ok, true, v.errors?.join('; '));
     assert.equal(line.reason_code, 'credential_broker_allowed');
+  });
+
+  it('redacts target before trace (env value and query string)', () => {
+    const taskId = 'cred-broker-target-redact';
+    const secret = process.env.N8N_TEST_KEY;
+    requestCredentialUse({
+      credentialAlias: 'n8n',
+      operationClass: 'query',
+      agentId: 'architect',
+      sessionEnv,
+      taskId,
+      tracesDir: TMP,
+      target: `https://n8n.example.test/webhook?api_key=${secret}&token=Bearer sk-test12345678901234567890`,
+    });
+    const raw = fs.readFileSync(path.join(TMP, `${taskId}.jsonl`), 'utf8');
+    assert.ok(!raw.includes(secret), 'trace must not contain env secret value');
+    const line = JSON.parse(raw.trim().split('\n').pop());
+    assert.ok(line.target);
+    assert.ok(line.target.includes('[REDACTED:env]') || line.target.includes('[REDACTED:query]'));
+    assert.ok(!line.target.includes(secret));
   });
 });

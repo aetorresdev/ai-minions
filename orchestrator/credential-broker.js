@@ -8,6 +8,7 @@
 const { resolveCredentials } = require('./agents');
 const { effectiveMode } = require('./agents/permissions');
 const { appendTraceEvent } = require('./trace-append');
+const { redactSensitivePlaintext } = require('./trace-redact');
 
 const READ_OPERATIONS = new Set([
   'query',
@@ -53,7 +54,53 @@ function classifyOperation(operationClass) {
 }
 
 /**
- * @param {object} params
+ * Canonical JS API uses camelCase; snake_case keys are accepted for doc/back-compat.
+ * @param {object} raw
+ */
+function normalizeRequestParams(raw) {
+  const params = raw || {};
+  return {
+    credentialAlias: params.credentialAlias ?? params.credential_alias,
+    operationClass: params.operationClass ?? params.operation_class,
+    target: params.target,
+    agentId: params.agentId ?? params.agent_id,
+    sessionEnv: params.sessionEnv ?? params.session_env ?? null,
+    taskId: params.taskId ?? params.task_id,
+    tracesDir: params.tracesDir ?? params.traces_dir,
+  };
+}
+
+/**
+ * Redact secrets from optional trace target (URLs, query strings, env values).
+ * @param {string|undefined} rawTarget
+ * @param {{ credentials?: Array<{ vars?: Record<string, string> }> }|null} sessionEnv
+ * @returns {string|undefined}
+ */
+function sanitizeBrokerTraceTarget(rawTarget, sessionEnv) {
+  let t = String(rawTarget || '').trim();
+  if (!t) return undefined;
+  t = t.slice(0, 200);
+  t = redactSensitivePlaintext(t);
+  t = t.replace(/([?&][^=]+=)([^&\s#]+)/g, '$1[REDACTED:query]');
+  if (sessionEnv && Array.isArray(sessionEnv.credentials)) {
+    const envNames = new Set();
+    for (const cred of sessionEnv.credentials) {
+      if (!cred || !cred.vars) continue;
+      for (const envName of Object.values(cred.vars)) {
+        if (envName) envNames.add(String(envName));
+      }
+    }
+    for (const envName of envNames) {
+      const val = process.env[envName];
+      if (!val || val.length < 4) continue;
+      if (t.includes(val)) t = t.split(val).join('[REDACTED:env]');
+    }
+  }
+  return t || undefined;
+}
+
+/**
+ * @param {object} params — camelCase preferred; snake_case aliases accepted
  * @param {string} params.credentialAlias
  * @param {string} params.operationClass
  * @param {string} [params.target]
@@ -63,7 +110,8 @@ function classifyOperation(operationClass) {
  * @param {string} [params.tracesDir]
  * @returns {{ allowed: boolean, decision: 'allow'|'deny', reason_code: string, credential_alias: string, operation_class: string, operation_kind: string, effective_mode: string, resolved?: Record<string, string> }}
  */
-function requestCredentialUse(params) {
+function requestCredentialUse(rawParams) {
+  const params = normalizeRequestParams(rawParams);
   const credentialAlias = String(params.credentialAlias || '').trim();
   const operationClass = String(params.operationClass || '').trim();
   const agentId = String(params.agentId || '').trim();
@@ -168,6 +216,7 @@ function requestCredentialUse(params) {
 function finish(result, params) {
   const taskId = params.taskId && String(params.taskId).trim();
   if (taskId) {
+    const safeTarget = sanitizeBrokerTraceTarget(params.target, params.sessionEnv);
     appendTraceEvent(
       taskId,
       {
@@ -179,7 +228,7 @@ function finish(result, params) {
         reason_code: result.reason_code,
         agent_id: result.agent_id,
         effective_mode: result.effective_mode,
-        ...(params.target ? { target: String(params.target).slice(0, 200) } : {}),
+        ...(safeTarget ? { target: safeTarget } : {}),
       },
       { tracesDir: params.tracesDir, throwOnInvalid: true },
     );
@@ -189,6 +238,8 @@ function finish(result, params) {
 
 module.exports = {
   classifyOperation,
+  normalizeRequestParams,
+  sanitizeBrokerTraceTarget,
   requestCredentialUse,
   READ_OPERATIONS,
   WRITE_OPERATIONS,
