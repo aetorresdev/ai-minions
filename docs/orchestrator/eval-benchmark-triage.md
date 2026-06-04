@@ -32,10 +32,10 @@ Map **external** agent and harness benchmarks to **observable** ai-minions behav
 | Benchmark | Primary signal | Harness behavior | Model quality | Permission / gates | Traceability | MCP / tools | Cost overhead | Classification | Required harness support (if adopted) | Cost / risk | **Decision** |
 |-----------|----------------|------------------|---------------|-------------------|--------------|-------------|---------------|----------------|--------------------------------------|-------------|--------------|
 | [SWE-bench Verified](https://www.swebench.com/) | Patch correctness on real issues | Low | **High** | Low | Low (task outcome) | Medium (env tools) | High ($, infra) | **Defer** | Sandboxed repo runner, unrelated to MODE gates | Leaderboard vanity; weak gate/trace signal | **Reject** as harness-primary pilot |
-| [MCP Bench](https://github.com/modelcontextprotocol/mcp-bench) | MCP server/tool reliability | Medium | Medium | Medium | Medium | **High** | Medium | **Defer → pilot candidate** | Stable MCP transport (`ORCH_MCP_TRANSPORT`), permission evaluator, trace refs for tool calls | Suite maintenance; not all tasks map to multi-role flow | **Pilot when** P2-A broker + readonly E2E slice mature |
-| [MCPMark](https://github.com/modelcontextprotocol/mcpmark) | MCP ecosystem marks | Medium | Medium | Low–Medium | Medium | **High** | Medium | **Defer** | Same as MCP Bench + manifest alignment | Overlap with MCP Bench; pick one pilot only | **Defer** (do not dual-pilot) |
+| [MCP-Bench](https://github.com/Accenture/mcp-bench) | MCP server/tool reliability (agent tool-use via MCP) | Medium | Medium | Medium | Medium | **High** | Medium | **Defer → pilot candidate** | Stable MCP transport (`ORCH_MCP_TRANSPORT`), permission evaluator, trace refs for tool calls | Suite maintenance; not all tasks map to multi-role flow | **Pilot when** P2-A broker + readonly E2E slice mature |
+| [MCPBench](https://github.com/modelscope/MCPBench) | MCP server evaluation (latency, accuracy, tokens) | Medium | Medium | Low–Medium | Medium | **High** | Medium | **Defer** | Same as MCP-Bench + manifest alignment | Overlap with MCP-Bench; pick one pilot only | **Defer** (do not dual-pilot) |
 | [OSWorld-MCP](https://github.com/xlang-ai/OSWorld) | Desktop + MCP tool use | Medium | Medium | Medium | Medium | High | **High** (VM) | **Defer** | GUI/desktop sandbox out of alpha scope | Infra heavy; security posture immature | **Reject** for now |
-| [τ²-bench (tau2-bench)](https://github.com/sierra-research/tau2-bench) | Multi-turn tool use in domains | Medium | Medium | Medium | Medium | Medium | Medium | **Defer** | Domain env adapters; trace export | Less MCP-specific than MCP Bench | **Defer** |
+| [τ²-bench (tau2-bench)](https://github.com/sierra-research/tau2-bench) | Multi-turn tool use in domains | Medium | Medium | Medium | Medium | Medium | Medium | **Defer** | Domain env adapters; trace export | Less MCP-specific than MCP-Bench | **Defer** |
 | [Terminal-Bench](https://www.tbench.ai/) / Harbor | Shell/coding in terminal | Medium–High | High | Medium (spawn class) | Medium | Medium (shell) | High | **Defer** | [`subprocess-classification.md`](subprocess-classification.md), classified spawns only | Align after `ENV-READONLY-WRITE-BLOCK-E2E-1` | **Defer** |
 
 ### Pilot recommendation (max one external)
@@ -43,14 +43,14 @@ Map **external** agent and harness benchmarks to **observable** ai-minions behav
 | Choice | Verdict |
 |--------|---------|
 | **Now** | **None** — expand `TOOL-EVAL-1` fixtures and strict E2E |
-| **Next external pilot (when ready)** | **MCP Bench** — best overlap with MCP + tool paths ai-minions already exercises |
-| **Explicitly not piloting** | SWE-bench Verified (model leaderboard), OSWorld-MCP (desktop VM), dual MCP Bench + MCPMark |
+| **Next external pilot (when ready)** | **MCP-Bench** ([Accenture/mcp-bench](https://github.com/Accenture/mcp-bench)) — best overlap with MCP + tool paths ai-minions already exercises |
+| **Explicitly not piloting** | SWE-bench Verified (model leaderboard), OSWorld-MCP (desktop VM), dual MCP-Bench + MCPBench |
 
 ---
 
 ## Appendix A — Mission Control / Aegis
 
-**Source:** [builderz-labs/mission-control](https://github.com/builderz-labs/mission-control) (deferred ref — archive [`backlog-external-cross-checks.md`](../archive/backlog-external-cross-checks.md) § Mission Control).  
+**Source:** [builderz-labs/mission-control](https://github.com/builderz-labs/mission-control) (deferred ref — operator archive `docs/archive/backlog-external-cross-checks.md` § Mission Control; **not** versioned in public tree).  
 **Scope:** Compare **Aegis sign-off / skills scanner** ideas to **CERBERUS + harness contracts** — **no** dashboard adoption, external agent registry, or UI roadmap inflation.
 
 | Aegis / Mission Control idea | ai-minions mechanism | Triage |
@@ -77,7 +77,7 @@ Map categories → existing tickets; **reject** adoption by popularity.
 |-------------------------|-------------------|--------|
 | Orchestration / multi-agent | MODE protocol, `harness-engineering-positioning.md` execution modes | **Already covered** |
 | Context / state / memory | `CTX-HYGIENE-SIGNALS-1`, `memory-store-decision.md`, compact handoff | **Already covered** |
-| Sandbox / credential isolation | `security-posture.md`; post-alpha `ENV-CREDENTIAL-BROKER-1` | **Explicit gap** (broker not shipped) → existing ticket in [`backlog-open-specs.md`](../backlog-open-specs.md) § post-alpha |
+| Sandbox / credential isolation | `security-posture.md`; post-alpha `ENV-CREDENTIAL-BROKER-1` | **Explicit gap** (broker not shipped) → existing ticket in operator backlog `docs/backlog-open-specs.md` § post-alpha (**not** versioned in public tree) |
 | Protocols (MCP, A2A, etc.) | MCP direct transport, tool manifest | **Partial** — MCP yes; A2A not in scope |
 | Evals / benchmarks | This doc + `TOOL-EVAL-1` | **Covered by this deliverable** |
 | Observability | Traces, `run-outcome-consumption.md`, control-plane TUI | **Already covered** |
@@ -96,7 +96,7 @@ Map categories → existing tickets; **reject** adoption by popularity.
 
 ## Appendix C — Swarm patterns (Kimi vs Claude Agent Teams)
 
-**Sources:** Kimi K2.6 Agent Swarm (product/docs); Claude Code Agent Teams (official docs). **Deferred ref** — [`backlog-external-cross-checks.md`](../archive/backlog-external-cross-checks.md) § Kimi Swarm.
+**Sources:** Kimi K2.6 Agent Swarm (product/docs); Claude Code Agent Teams (official docs). **Deferred ref** — operator archive `docs/archive/backlog-external-cross-checks.md` § Kimi Swarm (**not** versioned in public tree).
 
 | Pattern | Description | ai-minions stance | Triage |
 |---------|-------------|-------------------|--------|
@@ -210,7 +210,7 @@ SWE-bench-style **final-patch-only** scoring falls in this bucket for **harness-
 | [`market-validation-notes.md`](market-validation-notes.md) | Market pain / competitor framing — not benchmark execution |
 | [`dynamic-workflow-contract.md`](dynamic-workflow-contract.md) | Runtime-blocked workflow design; Appendix F superset |
 | [`tool-ergonomics-guidelines.md`](tool-ergonomics-guidelines.md) | Internal eval minimum |
-| [`archive/backlog-external-cross-checks.md`](../archive/backlog-external-cross-checks.md) | Frozen deferred references (Mission Control, Picrew, swarm) |
+| Operator archive `docs/archive/backlog-external-cross-checks.md` | Frozen deferred references (Mission Control, Picrew, swarm) — local backlog, not in public tree |
 
 ---
 
