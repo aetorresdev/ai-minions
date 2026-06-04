@@ -143,14 +143,14 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 - [x] `cd orchestrator && npm test` — **757/757** pass (1 skipped); workspace 2026-06-03.
 - [x] `npm run test:e2e:strict:all` — **6/6** (strict **5/5** + harness **1/1**); operator 2026-06-03.
 - [x] CERBERUS sign-off per slice G1–G4 (PRs **#116–#119**); release claims: no beta / sandbox / swarm / OpenSpec-compat / production-ready.
-- [x] CERBERUS **release** brief — **Approve** (PR **#120**, commit `8717ba9`; operator merge pending branch protection).
+- [x] CERBERUS **release** brief — **Approve** (PR **#120** merged).
 - [ ] Optional: documented CERBERUS block demo (§ *Future alpha / beta gates*) — **not** required for `v0.4.0-alpha.1`.
 
 ### Release artifact
 
-- [ ] **Version tag:** `v0.4.0-alpha.1` — *(after release PR merge + CERBERUS release Approve)*
-- [x] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) — section **[0.4.0-alpha.1] - 2026-06-03** (release PR; **no** release URL until tag exists — avoids link-check 404)
-- [ ] **GitHub pre-release** (manual) — then add `**Release:**` URL + `[0.4.0-alpha.1]:` footer in `CHANGELOG.md` (follow-up commit or tag branch)
+- [x] **Version tag:** `v0.4.0-alpha.1` — https://github.com/aetorresdev/ai-minions/releases/tag/v0.4.0-alpha.1 (2026-06-03)
+- [x] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) — section **[0.4.0-alpha.1] - 2026-06-03**; release URL + footer (follow-up PR after tag)
+- [x] **GitHub pre-release** (manual) — https://github.com/aetorresdev/ai-minions/releases/tag/v0.4.0-alpha.1
 
 #### v0.4 validation log
 
@@ -160,6 +160,8 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 | 2026-06-03 | G4 PR **#119** — market validation doc | **Approve** — illustrative quotes; no market-study overclaim |
 | 2026-06-03 | `cd orchestrator && npm test` | **757/757** pass (1 skipped) |
 | 2026-06-03 | `npm run test:e2e:strict:all` | **6/6** pass |
+| 2026-06-03 | PR **#120** merge + CERBERUS release | **Approve** |
+| 2026-06-03 | Tag + GitHub pre-release `v0.4.0-alpha.1` | published |
 
 ## Future alpha / beta gates (positioning)
 

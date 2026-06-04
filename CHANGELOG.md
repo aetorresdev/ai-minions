@@ -12,7 +12,7 @@ Fourth alpha pre-release: **control-first governance** — policy-driven human a
 
 **Prerequisite:** `v0.3.0-alpha.1` + control-first harness positioning (PR **#115**).
 
-**GitHub pre-release:** publish tag `v0.4.0-alpha.1` after merge; then add the release URL here and the footer compare link (CI link-check fails on 404 until the tag exists).
+**Release:** https://github.com/aetorresdev/ai-minions/releases/tag/v0.4.0-alpha.1
 
 **Evidence (operator):**
 
@@ -155,6 +155,7 @@ Initial alpha pre-release of ai-minions.
 - Alpha checklist: CI smoke URL, local clone evidence, first-run path, optional Claude Code MODE smoke; workspace logs refreshed for `npm test` and `test:e2e:strict`.
 - **2026-05-15:** `test:e2e:strict` **5/5** on a **fresh `git clone` under `/tmp`** after `uv sync` (both MCP server dirs) + `npm ci` + `ORCH_PYTHON` pointing at the clone’s `orchestrator-state` venv (Ollama on localhost).
 
+[0.4.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.4.0-alpha.1
 [0.3.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.3.0-alpha.1
 [0.2.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.2.0-alpha.1
 [0.1.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.1.0-alpha.1
