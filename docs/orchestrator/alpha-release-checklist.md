@@ -149,7 +149,7 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 ### Release artifact
 
 - [x] **Version tag:** `v0.4.0-alpha.1` — https://github.com/aetorresdev/ai-minions/releases/tag/v0.4.0-alpha.1 (2026-06-03)
-- [x] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) — section **[0.4.0-alpha.1] - 2026-06-03**; release URL + footer (follow-up PR after tag)
+- [x] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) — section **[0.4.0-alpha.1] - 2026-06-03**; release URL + footer recorded after tag
 - [x] **GitHub pre-release** (manual) — https://github.com/aetorresdev/ai-minions/releases/tag/v0.4.0-alpha.1
 
 #### v0.4 validation log
