@@ -149,8 +149,8 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 ### Release artifact
 
 - [ ] **Version tag:** `v0.4.0-alpha.1` — *(after release PR merge + CERBERUS release Approve)*
-- [x] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) — section **[0.4.0-alpha.1] - 2026-06-03** (release PR)
-- [ ] **GitHub pre-release** (manual)
+- [x] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) — section **[0.4.0-alpha.1] - 2026-06-03** (release PR; **no** release URL until tag exists — avoids link-check 404)
+- [ ] **GitHub pre-release** (manual) — then add `**Release:**` URL + `[0.4.0-alpha.1]:` footer in `CHANGELOG.md` (follow-up commit or tag branch)
 
 #### v0.4 validation log
 
