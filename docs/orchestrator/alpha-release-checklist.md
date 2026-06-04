@@ -143,7 +143,7 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 - [x] `cd orchestrator && npm test` — **757/757** pass (1 skipped); workspace 2026-06-03.
 - [x] `npm run test:e2e:strict:all` — **6/6** (strict **5/5** + harness **1/1**); operator 2026-06-03.
 - [x] CERBERUS sign-off per slice G1–G4 (PRs **#116–#119**); release claims: no beta / sandbox / swarm / OpenSpec-compat / production-ready.
-- [ ] CERBERUS **release** brief (paste after this PR merges; operator gates tag).
+- [x] CERBERUS **release** brief — **Approve** (PR **#120**, commit `8717ba9`; operator merge pending branch protection).
 - [ ] Optional: documented CERBERUS block demo (§ *Future alpha / beta gates*) — **not** required for `v0.4.0-alpha.1`.
 
 ### Release artifact
