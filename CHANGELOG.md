@@ -4,13 +4,41 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
-### Planned — `v0.4.0-alpha.1` (Control-first governance alpha)
+## [0.4.0-alpha.1] - 2026-06-03
 
-**Release claim:** ai-minions strengthens control-first execution by making validation mandatory and human approval policy-driven before DEV authority.
+Fourth alpha pre-release: **control-first governance** — policy-driven human approval before DEV authority, mandatory validation, CERBERUS doubt-cycle trace, positioning and claims matrix docs (no new execution modes or beta promotion).
 
-**In scope (backlog):** `APPROVAL-POLICY-GATES-1`, `CERBERUS-DOUBT-CYCLE-1`, `EXT-OPENSPEC-SDD-CHECK-1` (doc), `MARKET-VALIDATION-1` (claims matrix).
+**Release claim:** validation is mandatory; human approval is policy-driven before DEV authority.
 
-**Out of scope:** beta; sandbox runtime; web control plane; swarm/decentralized execution; OpenSpec compatibility; new model serving backend.
+**Prerequisite:** `v0.3.0-alpha.1` + control-first harness positioning (PR **#115**).
+
+**Release:** https://github.com/aetorresdev/ai-minions/releases/tag/v0.4.0-alpha.1
+
+**Evidence (operator):**
+
+- Unit tests: `cd orchestrator && npm test` → **757/757** pass (1 skipped)
+- Strict E2E: `npm run test:e2e:strict:all` → **6/6** (strict **5/5** + harness **1/1**; operator 2026-06-03)
+- Contracts: `approval-policy-gates-contract.md`, `cerberus-doubt-cycle-contract.md`, `openspec-sdd-cross-check.md`, `market-validation-notes.md`, `harness-engineering-positioning.md` § Claims matrix
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready, beta, sandbox runtime, web control plane, swarm/decentralized multi-agent, or OpenSpec-compatible orchestration.
+- Market validation notes are **illustrative research** — not a representative survey, paid report, or verified customer references.
+- Competitor comparison is **positioning only** — not a feature parity scorecard or drop-in replacement claim.
+- Optional CERBERUS block demo for future beta gates remains **out of scope** for this tag (see `alpha-release-checklist.md` § *Future alpha / beta gates*).
+
+### Added
+
+- Policy-driven approval gates: `approval-policy-gate.js`, `approval_skipped` trace, DEV fail-closed pre-check when human grant required.
+- CERBERUS doubt review cycle: `doubt-review.js`, `doubt_review_*` trace events after `review_record`.
+- Harness positioning SoT: execution modes, `role_execution_strategy`, allowed/forbidden claims matrix.
+- OpenSpec SDD cross-check doc (design reference only; no OpenSpec dependency).
+- Market validation notes + claims matrix integration (doc-only).
+
+### Changed
+
+- Runner/orchestrator trace and governance test registration for approval and doubt-cycle contracts.
+- README and orchestrator doc index links for positioning, SDD cross-check, and market validation.
 
 ## [0.3.0-alpha.1] - 2026-05-18
 
@@ -127,6 +155,7 @@ Initial alpha pre-release of ai-minions.
 - Alpha checklist: CI smoke URL, local clone evidence, first-run path, optional Claude Code MODE smoke; workspace logs refreshed for `npm test` and `test:e2e:strict`.
 - **2026-05-15:** `test:e2e:strict` **5/5** on a **fresh `git clone` under `/tmp`** after `uv sync` (both MCP server dirs) + `npm ci` + `ORCH_PYTHON` pointing at the clone’s `orchestrator-state` venv (Ollama on localhost).
 
+[0.4.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.4.0-alpha.1
 [0.3.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.3.0-alpha.1
 [0.2.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.2.0-alpha.1
 [0.1.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.1.0-alpha.1
