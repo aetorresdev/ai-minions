@@ -2,11 +2,6 @@
 name: orchestrator-state
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - "mcp-servers/orchestrator-state/**"
-      - ".github/workflows/orchestrator-state.yml"
   pull_request:
     branches: [main, master]
     paths:

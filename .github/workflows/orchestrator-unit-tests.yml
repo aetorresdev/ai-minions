@@ -4,14 +4,12 @@
 name: orchestrator-unit-tests
 
 on:
-  push:
+  pull_request:
     branches: [main, master]
     paths:
       - "orchestrator/**"
       - "scripts/hooks/**"
       - ".github/workflows/orchestrator-unit-tests.yml"
-  pull_request:
-    branches: [main, master]
   workflow_dispatch:
 
 jobs:
