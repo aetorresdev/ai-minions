@@ -61,6 +61,24 @@ describe("progressive-disclosure-contract", () => {
     assert.ok(v.errors.some((e) => /hidden requires at least one item_ref/i.test(e)));
   });
 
+  it("rejects non-array item_refs without throwing", () => {
+    const v = validateContextDisclosureTraceLine({
+      event: "context_disclosure",
+      disclosure_schema_version: "1",
+      trace_schema_version: "2",
+      ts_ms: 1,
+      task_id: "t",
+      role_id: "qa",
+      surface: "tools",
+      action: "exposed",
+      item_refs: "shell.exec",
+      reason_code: "role_matrix",
+      rationale: "ok",
+    });
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some((e) => /item_refs must be an array/i.test(e)));
+  });
+
   it("hidden with missing item_refs returns ok false without throwing", () => {
     const v = validateContextDisclosureTraceLine({
       event: "context_disclosure",
