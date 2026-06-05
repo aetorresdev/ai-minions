@@ -1,5 +1,7 @@
 "use strict";
 
+const { flattenGateHandlingDeps } = require("./phase-deps");
+
 /**
  * Gate handling phase: compact handoff → handoff structure → goal alignment →
  * transition validation → advance_mode. Observable boundary ends before step
@@ -39,7 +41,7 @@
  *   orchTestSystemPathHarnessOn: () => boolean,
  *   edgeMeta: (edgeType: string) => object,
  *   markStepRetryingAfterGate: (runState: object) => void,
- * }} deps
+ * } | ReturnType<import("./phase-deps").buildGateHandlingDeps>} deps
  * @returns {Promise<{
  *   action: "continue" | "proceed",
  *   artifact?: object,
@@ -50,6 +52,7 @@
  * }>}
  */
 async function executeGateHandlingPhase(ctx, deps) {
+  const flat = deps.handoffDeps ? flattenGateHandlingDeps(deps) : deps;
   const {
     agentId,
     step,
@@ -83,7 +86,7 @@ async function executeGateHandlingPhase(ctx, deps) {
     orchTestSystemPathHarnessOn,
     edgeMeta,
     markStepRetryingAfterGate,
-  } = deps;
+  } = flat;
 
   let handoffYaml = "";
   /** @type {Record<string, unknown>} */
