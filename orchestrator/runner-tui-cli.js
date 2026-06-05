@@ -14,7 +14,7 @@
  *   node runner-tui-cli.js worktree list [--cwd DIR]
  *   node runner-tui-cli.js worktree status [--run-id <id>|--cwd DIR]
  *   node runner-tui-cli.js worktree contract [--run-id <id>|--cwd DIR]
- *   node runner-tui-cli.js worktree promote --run-id <id> --artifact <rel> [--approve] [--dest-rel <prefix>]
+ *   node runner-tui-cli.js worktree promote --run-id <id> --artifact <rel> [--approve] [--overwrite] [--dest-rel <prefix>]
  *   node runner-tui-cli.js worktree promote-deny --run-id <id> [--reason-code <code>]
  */
 
@@ -89,6 +89,7 @@ Options (worktree):
   --artifact <rel>         Worktree-relative artifact path (repeatable; promote)
   --dest-rel <prefix>      Repo-relative destination prefix (promote)
   --approve                Operator approval required to copy artifacts (promote)
+  --overwrite              Allow replacing existing files at promotion destination (promote)
   --reason-code <code>     Deny reason (promote-deny; default operator_denied)
 
 Options (status / trace / budget):
@@ -138,6 +139,7 @@ function parseWorktreeArgs(argv) {
     const a = argv[i];
     if (a === '--artifact' && argv[i + 1]) artifacts.push(argv[++i]);
     else if (a === '--approve') out.approve = true;
+    else if (a === '--overwrite') out.overwrite = true;
     else if (a === '--dest-rel' && argv[i + 1]) out.destRel = argv[++i];
     else if (a === '--reason-code' && argv[i + 1]) out.reasonCode = argv[++i];
   }
@@ -502,6 +504,7 @@ async function main() {
         artifacts,
         destRelPrefix: wopts.destRel ? String(wopts.destRel) : undefined,
         operatorApproved: wopts.approve === true,
+        allowOverwrite: wopts.overwrite === true,
       });
       if (!result.ok) {
         console.error(result.error || 'worktree promote failed');

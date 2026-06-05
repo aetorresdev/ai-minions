@@ -102,7 +102,7 @@ Git worktree isolation — one isolated tree per `task_id`. See [worktree-isolat
 | `remove --run-id <id>` | `git worktree remove` (+ `--force` when dirty) |
 | `list` | Managed worktrees under `ORCH_WORKTREES_DIR` |
 | `status` | Binding for `--run-id` or current `--cwd` |
-| `promote --run-id <id> --artifact <rel> --approve` | Copy worktree artifacts to `repo_root` (see [worktree-result-promotion-contract.md](worktree-result-promotion-contract.md)) |
+| `promote --run-id <id> --artifact <rel> --approve` | Copy worktree artifacts to `repo_root`; add `--overwrite` to replace existing dest files |
 | `promote-deny --run-id <id>` | Deny promotion without cleanup side effects |
 | `promotion --run-id <id>` | Show on-disk promotion record |
 

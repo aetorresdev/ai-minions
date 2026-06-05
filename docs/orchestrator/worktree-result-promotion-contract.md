@@ -37,6 +37,9 @@ Promotion additionally requires:
 - Each source file under `execution_state.mutable_paths` (typically `run_cwd` + `artifact_root`).
 - Destination under `repo_root`, not inside the worktree path.
 - Explicit operator approval (`--approve` / `operatorApproved: true`).
+- Destination must not exist unless operator passes `--overwrite` / `allowOverwrite: true`.
+
+**Deny uses the same eligibility guards as promote** — managed worktree, valid contract, `workspace_artifacts_ready` in `trace_refs`, and no prior `status: completed` promotion record.
 
 ---
 
@@ -47,7 +50,7 @@ From `orchestrator/`:
 ```bash
 npm run runner:tui -- worktree promote --run-id <task_id> \
   --artifact <worktree-rel-path> [--artifact ...] \
-  [--dest-rel <repo-prefix>] --approve
+  [--dest-rel <repo-prefix>] --approve [--overwrite]
 
 npm run runner:tui -- worktree promote-deny --run-id <task_id> [--reason-code <code>]
 npm run runner:tui -- worktree promotion --run-id <task_id>
@@ -105,6 +108,16 @@ Disable emission: `ORCH_DISABLE_WORKSPACE_TRACE=1`.
 | Reject without deleting tree | `worktree promote-deny` |
 | Audit decision | `worktree promotion --run-id <id>` + trace JSONL |
 | Remove tree later | `worktree remove` (separate step) |
+
+---
+
+## Limits (explicit)
+
+| Limit | Behavior |
+|-------|----------|
+| **Destination overwrite** | Blocked when `dest` already exists; pass `--overwrite` to replace |
+| **Partial copy failure** | Emits `workspace_promotion_failed`; files copied before failure remain on disk (no rollback) |
+| **Terminal promotion record** | `status: completed` cannot be overwritten by promote or promote-deny |
 
 ---
 

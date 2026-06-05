@@ -11,7 +11,6 @@ const {
   planWorktree,
   resolveGitRoot,
   readWorktreeBinding,
-  statusWorktree,
 } = require('./worktree-isolation');
 const { readRunWorkdirContract } = require('./run-workdir-contract');
 const {
@@ -183,32 +182,32 @@ function validatePromotionEligibility(options) {
   }
 
   if (!fs.existsSync(plan.worktree_path)) {
-    return { ok: false, error: 'worktree_not_found', reason_code: 'worktree_missing', ...plan };
+    return { ...plan, ok: false, error: 'worktree_not_found', reason_code: 'worktree_missing' };
   }
 
   const binding = readWorktreeBinding(plan.worktree_path);
   if (!binding) {
-    return { ok: false, error: 'worktree_not_managed', reason_code: 'unmanaged_worktree', ...plan };
+    return { ...plan, ok: false, error: 'worktree_not_managed', reason_code: 'unmanaged_worktree' };
   }
 
   const contractRead = readRunWorkdirContract(plan.worktree_path);
   if (!contractRead.ok) {
     return {
+      ...plan,
       ok: false,
       error: 'run_workdir_contract_invalid',
       reason_code: 'invalid_contract',
       errors: contractRead.errors,
-      ...plan,
     };
   }
 
   const contract = contractRead.contract;
   if (!contractHasArtifactsReadyTrace(contract)) {
     return {
+      ...plan,
       ok: false,
       error: 'artifacts_not_ready',
       reason_code: 'missing_artifacts_ready_trace',
-      ...plan,
       contract,
       binding,
     };
@@ -217,10 +216,10 @@ function validatePromotionEligibility(options) {
   const existing = readPromotionRecord(plan.worktree_path);
   if (existing && existing.status === 'completed') {
     return {
+      ...plan,
       ok: false,
       error: 'promotion_already_completed',
       reason_code: 'already_promoted',
-      ...plan,
       contract,
       binding,
       promotion_record: existing,
@@ -241,8 +240,9 @@ function validatePromotionEligibility(options) {
  * @param {string[]} artifactRels
  * @param {object} contract
  * @param {string} [destRelPrefix]
+ * @param {boolean} [allowOverwrite]
  */
-function validatePromotionArtifacts(artifactRels, contract, destRelPrefix) {
+function validatePromotionArtifacts(artifactRels, contract, destRelPrefix, allowOverwrite = false) {
   if (!Array.isArray(artifactRels) || !artifactRels.length) {
     return { ok: false, error: 'missing_artifacts', reason_code: 'empty_artifact_list' };
   }
@@ -257,6 +257,15 @@ function validatePromotionArtifacts(artifactRels, contract, destRelPrefix) {
     const dest = resolvePromotionDest(src.relFromWorktree, destRelPrefix, contract);
     if (!dest.ok) {
       return { ok: false, error: dest.error, reason_code: dest.reason_code, artifact: rel };
+    }
+    if (fs.existsSync(dest.destAbs) && allowOverwrite !== true) {
+      return {
+        ok: false,
+        error: 'dest_exists',
+        reason_code: 'dest_already_exists',
+        artifact: rel,
+        dest_rel: dest.destRel,
+      };
     }
     resolved.push({
       relPath: src.relFromWorktree,
@@ -275,6 +284,7 @@ function validatePromotionArtifacts(artifactRels, contract, destRelPrefix) {
  *   artifacts: string[],
  *   destRelPrefix?: string,
  *   operatorApproved?: boolean,
+ *   allowOverwrite?: boolean,
  *   repoRoot?: string,
  *   worktreesDir?: string,
  *   tracesDir?: string,
@@ -300,6 +310,7 @@ function promoteWorktreeResults(options) {
     options.artifacts,
     eligibility.contract,
     options.destRelPrefix,
+    options.allowOverwrite === true,
   );
   if (!artifactCheck.ok) {
     emitWorkspacePromotionFailed(
@@ -397,48 +408,31 @@ function promoteWorktreeResults(options) {
  * }} options
  */
 function denyWorktreePromotion(options) {
-  const repo = resolveGitRoot(options.repoRoot || process.cwd());
-  if (!repo.ok) {
-    return { ok: false, error: repo.error, reason_code: 'not_a_git_repository' };
-  }
-
-  const st = statusWorktree({
-    repoRoot: repo.gitRoot,
+  const eligibility = validatePromotionEligibility({
     taskId: options.taskId,
+    repoRoot: options.repoRoot,
     worktreesDir: options.worktreesDir,
   });
-  if (!st.ok) {
-    return { ok: false, error: st.error, reason_code: 'status_failed' };
-  }
-  if (!st.exists) {
-    return { ok: false, error: 'worktree_not_found', reason_code: 'worktree_missing' };
+  if (!eligibility.ok) {
+    return eligibility;
   }
 
-  const contract = st.contract;
-  const binding = st.binding;
-  const plan = planWorktree({
-    repoRoot: repo.gitRoot,
-    taskId: options.taskId,
-    worktreesDir: options.worktreesDir,
-  });
-  const ctx = promotionTraceCtx(plan.ok ? plan : { task_id: options.taskId, repo_root: repo.gitRoot, worktree_path: st.worktree_path }, binding, contract);
   const reasonCode = String(options.reasonCode || 'operator_denied').trim() || 'operator_denied';
-
   const deniedAt = new Date().toISOString();
-  const record = writePromotionRecord(st.worktree_path, {
-    run_id: options.taskId,
-    worktree_path: st.worktree_path,
-    repo_root: contract?.repo_root || binding?.repo_root || repo.gitRoot,
+  const record = writePromotionRecord(eligibility.worktree_path, {
+    run_id: eligibility.task_id,
+    worktree_path: eligibility.worktree_path,
+    repo_root: eligibility.repo_root,
     status: 'denied',
     operator_approved: false,
     deny_reason_code: reasonCode,
     denied_at: deniedAt,
-    trace_refs: contract && Array.isArray(contract.trace_refs) ? [...contract.trace_refs] : [],
+    trace_refs: eligibility.trace_refs,
   });
 
   emitWorkspacePromotionDenied(
-    options.taskId,
-    ctx,
+    eligibility.task_id,
+    eligibility.ctx,
     reasonCode,
     { cleanup_side_effects: false },
     { tracesDir: options.tracesDir },
@@ -447,8 +441,8 @@ function denyWorktreePromotion(options) {
   return {
     ok: true,
     denied: true,
-    task_id: options.taskId,
-    worktree_path: st.worktree_path,
+    task_id: eligibility.task_id,
+    worktree_path: eligibility.worktree_path,
     reason_code: reasonCode,
     promotion_record: record,
     cleanup_side_effects: false,
