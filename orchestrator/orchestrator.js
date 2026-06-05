@@ -23,9 +23,22 @@
  *     `mcp-direct.py` (Python + `mcp-servers` venvs) instead of the claude CLI for state store + compact_handoff.
  */
 
+// ── Node built-ins ────────────────────────────────────────────────────────────
+const { randomUUID } = require("crypto");
+const fs = require("fs");
+
+// ── Session context & environment ─────────────────────────────────────────────
 const { deriveRunScope, writeOrchRunContext } = require("./flow-hook-bridge");
 const { parseEnvironment } = require("./environment-parser");
 const { buildWorktreeTraceFields } = require("./worktree-isolation");
+
+// ── Agents, contracts & capability ────────────────────────────────────────────
+const { askAgent, summarizeHandoff, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
+const { qaAgentDoneTraceExtras } = require("./agents/validate-output");
+const {
+  validatePlanStepsCapability,
+  CAPABILITY_MATRIX_VERSION,
+} = require("./agents/capability-matrix");
 const {
   isQaSpecBeforeDevEnabled,
   applyQaSpecBeforeDevPlan,
@@ -33,16 +46,14 @@ const {
   qaSpecFlowTraceExtras,
   shouldEmitQaReviewRecord,
 } = require("./qa-spec-flow");
-const { askAgent, summarizeHandoff, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
 const {
   configureLocalModelPolicy,
   validateLocalOnlyRunPrerequisites,
   setLocalModelTraceReporter,
 } = require("./local-model-policy");
 const { formatArtifactLine, envInt, truncateForContext } = require("./context-utils");
-const { randomUUID } = require("crypto");
-const fs = require("fs");
-const path = require("path");
+
+// ── Run state & planning decisions ────────────────────────────────────────────
 const {
   createRunState,
   syncRunIteration,
@@ -67,33 +78,8 @@ const {
   planStepsReplayFromGateBlockedArtifacts,
   summaryMaxIterationsGateBlocked,
 } = require("./decision-engine");
-const { qaAgentDoneTraceExtras } = require("./agents/validate-output");
-const {
-  validatePlanStepsCapability,
-  CAPABILITY_MATRIX_VERSION,
-} = require("./agents/capability-matrix");
 
-// ── Execution trace ───────────────────────────────────────────────────────────
-// Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
-// Every line: ts (ISO), ts_ms (epoch ms), trace_schema_version, task_id, …payload.
-// trace_schema_version = TRACE_LINE_WRITER_VERSION from trace-schema.js (today "2").
-// Event types: session_start, agent_start, agent_done, gate_result,
-//              contract_fail, iteration_done, session_end (optional permission_summary rollup), mcp_call, permission_check,
-//              context_stats (ollama_* tokens, compaction attribution, model_fallback_segments),
-//              context_compaction_started / context_compaction_completed (compaction lifecycle observability — not a substitute for context_stats),
-//              model_fallback_required / model_fallback_started / model_fallback_completed (model fallback lifecycle observability),
-//              agent_done (qa): optional qa_triple_template + qa_blocker_non_vacuous for rollups
-//              approval_required / approval_granted / approval_denied (human governance — see governance-gate.js + trace schema)
-//              approval_skipped (policy-driven PO/ARCH/DEV gates — see approval-policy-gate.js)
-//              doubt_review_started / doubt_review_finding / doubt_review_verdict (CERBERUS doubt cycle)
-// iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".
-//
-// Sensitive field handling:
-//   goal  → secret-shaped substrings redacted, then truncated to 80 chars + SHA-256 hash (TRACE_REDACT_GOAL=1 omits text entirely)
-//   task / reason / summary / message / string[] items,reasons,errors → redact then truncate (ORCH_TRACE_SKIP_SECRET_REDACT=1 disables redact)
-//   transition_reason.details → redacted then truncated to 300 chars
-// Trace write failures emit a one-time stderr warning (not silenced).
-
+// ── Trace write path (schema: trace-schema.js; writer: trace-writer.js) ───────
 const {
   traceEvent,
   loadTraceRowsForTask,
@@ -111,17 +97,7 @@ const {
   traceIterationDone,
   composeIterationDonePayload,
 } = require("./trace-writer");
-const {
-  beginMcpAudit,
-  clearMcpAudit,
-  getMcpAuditCalls,
-  getPermissionCheckAuditBuffer,
-  aggregateMcpUsage,
-  emitPermissionCheckTrace,
-  invokeMcpDirect,
-  callStateMcp,
-  callCompactHandoff,
-} = require("./mcp-client");
+const { redactSensitivePlaintext } = require("./trace-redact");
 const {
   emitModelFallbackLifecycleIfNeeded,
   emitContextCompactionStarted,
@@ -137,8 +113,22 @@ const {
   traceDoubtReviewCycle,
 } = require("./doubt-review");
 const { runRecoverySweepAndTrace } = require("./recovery-sweep");
-const { redactSensitivePlaintext } = require("./trace-redact");
+
+// ── MCP invocation & permission audit ─────────────────────────────────────────
+const {
+  beginMcpAudit,
+  clearMcpAudit,
+  getMcpAuditCalls,
+  getPermissionCheckAuditBuffer,
+  aggregateMcpUsage,
+  emitPermissionCheckTrace,
+  invokeMcpDirect,
+  callStateMcp,
+  callCompactHandoff,
+} = require("./mcp-client");
 const { aggregatePermissionCheckRows } = require("./security/permission-check-summary");
+
+// ── Run-loop helpers (env/budget, logging, graph, handoff) ─────────────────────
 const {
   stripLeadingOwnerArchitectForDegradedMultiAgent,
   EDGE_TYPE_CATEGORY,
@@ -167,6 +157,8 @@ const {
   checkOllama,
   AGENT_STATE_FILE,
 } = require("./run-loop-helpers");
+
+// ── Approval & governance gates ───────────────────────────────────────────────
 const {
   buildGateContextFromArtifacts,
   loadApprovalPolicyFromEnv,
@@ -1700,7 +1692,7 @@ Reply with JSON only.`;
   }
 
   // Clear active agent state
-  try { require("fs").unlinkSync(AGENT_STATE_FILE); } catch { /* already gone */ }
+  try { fs.unlinkSync(AGENT_STATE_FILE); } catch { /* already gone */ }
 
   const qaDegraded = degradedInRun.has("qa");
   if (qaDegraded) {
@@ -1744,33 +1736,40 @@ Reply with JSON only.`;
   return { done, summary, artifacts, iterations, taskId, runState: getRunStatePublicView(runState) };
 }
 
+// ── Public facade (require("../orchestrator") — preserve export names) ───────
 module.exports = {
+  // Entrypoint
   run,
-  emitPermissionCheckTrace,
-  resolveMaxIterations,
-  detectBlockers,
-  validateHandoffStructure,
-  _sanitize,
-  redactSensitivePlaintext,
-  _hashGoal,
+
+  // Handoff policy (owned by orchestrator.js)
   resolveRequireHandoff,
   compactHandoffDegradedMeta,
   compactHandoffStrictFailureFields,
-  aggregateMcpUsage,
-  aggregatePermissionCheckRows,
+
+  // Run-loop helpers (re-exported from run-loop-helpers.js)
+  resolveMaxIterations,
+  detectBlockers,
+  validateHandoffStructure,
   stripLeadingOwnerArchitectForDegradedMultiAgent,
-  isQaSpecBeforeDevEnabled,
-  applyQaSpecBeforeDevPlan,
-  resolveHandoffMode,
   edgeMeta,
   EDGE_TYPE_CATEGORY,
   validateStepGraph,
   assertParentStepExists,
+
+  // QA spec flow (re-exported from qa-spec-flow.js)
+  isQaSpecBeforeDevEnabled,
+  applyQaSpecBeforeDevPlan,
+  resolveHandoffMode,
+
+  // Trace sanitization & iteration_done (re-exported from trace-writer.js / trace-redact.js)
+  _sanitize,
+  _hashGoal,
+  redactSensitivePlaintext,
+  TRACE_SCHEMA_VERSION,
   transitionReason,
   TRANSITION_REASON_TYPES,
   TRANSITION_REASON_CODES,
   inferReasonCode,
-  TRACE_SCHEMA_VERSION,
   FAILURE_TYPES,
   FAILURE_AXES,
   failureTypeForIterationDone,
@@ -1778,13 +1777,18 @@ module.exports = {
   traceIterationDone,
   composeIterationDonePayload,
 
-  /** Test-only: MCP path surface for trace parity assertions — not a supported public API. */
+  // MCP & permission audit (re-exported from mcp-client.js / permission-check-summary.js)
+  emitPermissionCheckTrace,
+  aggregateMcpUsage,
+  aggregatePermissionCheckRows,
+
+  // Environment parsing (re-exported from environment-parser.js)
+  parseEnvironment,
+
+  // Test-only MCP surface — not a supported public API
   _test_invokeMcpDirect: invokeMcpDirect,
   _test_callStateMcp: callStateMcp,
   _test_callCompactHandoff: callCompactHandoff,
   _test_beginMcpAudit: beginMcpAudit,
   _test_clearMcpAudit: clearMcpAudit,
-
-  /** Test / doc: parse ENVIRONMENT block from MODE header goal text. */
-  parseEnvironment,
 };
