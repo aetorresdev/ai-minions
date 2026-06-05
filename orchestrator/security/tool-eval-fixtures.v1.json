@@ -116,6 +116,242 @@
       }
     },
     {
+      "id": "aws_s3_ls_dev_allow",
+      "family": "aws",
+      "intent": "correct_tool_and_argv",
+      "description": "aws s3 ls — adapter read, dev-local allows",
+      "executable": "aws",
+      "args": ["s3", "ls"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "aws",
+        "action_class": "read",
+        "domain": "filesystem",
+        "decision": "allow"
+      }
+    },
+    {
+      "id": "aws_lambda_invoke_ci_safe_permission_denied",
+      "family": "aws",
+      "intent": "permission_policy",
+      "description": "aws lambda invoke — external_side_effect denied on ci-safe",
+      "executable": "aws",
+      "args": ["lambda", "invoke", "--function-name", "demo-fn"],
+      "permission_profile": "ci-safe",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "aws",
+        "action_class": "external_side_effect",
+        "domain": "filesystem",
+        "decision": "deny"
+      }
+    },
+    {
+      "id": "n8n_list_workflow_dev_allow",
+      "family": "n8n",
+      "intent": "correct_tool_and_argv",
+      "description": "n8n list:workflow — read, dev-local allows",
+      "executable": "n8n",
+      "args": ["list:workflow"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "n8n",
+        "action_class": "read",
+        "target_class": "automation",
+        "domain": "filesystem",
+        "decision": "allow"
+      }
+    },
+    {
+      "id": "n8n_execute_ci_safe_permission_denied",
+      "family": "n8n",
+      "intent": "permission_policy",
+      "description": "n8n execute — external_side_effect denied on ci-safe",
+      "executable": "n8n",
+      "args": ["execute"],
+      "permission_profile": "ci-safe",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "n8n",
+        "action_class": "external_side_effect",
+        "target_class": "automation",
+        "domain": "filesystem",
+        "decision": "deny"
+      }
+    },
+    {
+      "id": "jenkins_list_jobs_dev_allow",
+      "family": "jenkins",
+      "intent": "correct_tool_and_argv",
+      "description": "jenkins list-jobs — read, dev-local allows",
+      "executable": "jenkins",
+      "args": ["list-jobs"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "jenkins",
+        "action_class": "read",
+        "target_class": "ci_cd",
+        "domain": "filesystem",
+        "decision": "allow"
+      }
+    },
+    {
+      "id": "jenkins_build_ci_safe_permission_denied",
+      "family": "jenkins",
+      "intent": "permission_policy",
+      "description": "jenkins build — external_side_effect denied on ci-safe",
+      "executable": "jenkins",
+      "args": ["build", "myjob"],
+      "permission_profile": "ci-safe",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "jenkins",
+        "action_class": "external_side_effect",
+        "target_class": "ci_cd",
+        "domain": "filesystem",
+        "decision": "deny"
+      }
+    },
+    {
+      "id": "gcloud_config_list_dev_allow",
+      "family": "gcloud",
+      "intent": "correct_tool_and_argv",
+      "description": "gcloud config list — read, dev-local allows",
+      "executable": "gcloud",
+      "args": ["config", "list"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "gcloud",
+        "action_class": "read",
+        "target_class": "gcp",
+        "domain": "filesystem",
+        "decision": "allow"
+      }
+    },
+    {
+      "id": "gcloud_run_deploy_ci_safe_permission_denied",
+      "family": "gcloud",
+      "intent": "permission_policy",
+      "description": "gcloud run deploy — external_side_effect denied on ci-safe",
+      "executable": "gcloud",
+      "args": ["run", "deploy"],
+      "permission_profile": "ci-safe",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "gcloud",
+        "action_class": "external_side_effect",
+        "target_class": "gcp",
+        "domain": "filesystem",
+        "decision": "deny"
+      }
+    },
+    {
+      "id": "gsutil_ls_dev_allow",
+      "family": "gsutil",
+      "intent": "correct_tool_and_argv",
+      "description": "gsutil ls — read, dev-local allows",
+      "executable": "gsutil",
+      "args": ["ls"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "gsutil",
+        "action_class": "read",
+        "target_class": "gcp_storage",
+        "domain": "filesystem",
+        "decision": "allow"
+      }
+    },
+    {
+      "id": "gsutil_cp_ci_safe_permission_denied",
+      "family": "gsutil",
+      "intent": "permission_policy",
+      "description": "gsutil cp — external_side_effect denied on ci-safe",
+      "executable": "gsutil",
+      "args": ["cp", "gs://bucket/a", "gs://bucket/b"],
+      "permission_profile": "ci-safe",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "gsutil",
+        "action_class": "external_side_effect",
+        "target_class": "gcp_storage",
+        "domain": "filesystem",
+        "decision": "deny"
+      }
+    },
+    {
+      "id": "bq_show_dev_allow",
+      "family": "bq",
+      "intent": "correct_tool_and_argv",
+      "description": "bq show — read, dev-local allows",
+      "executable": "bq",
+      "args": ["show"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "bq",
+        "action_class": "read",
+        "target_class": "gcp_bigquery",
+        "domain": "filesystem",
+        "decision": "allow"
+      }
+    },
+    {
+      "id": "bq_query_ci_safe_permission_denied",
+      "family": "bq",
+      "intent": "permission_policy",
+      "description": "bq query — external_side_effect denied on ci-safe",
+      "executable": "bq",
+      "args": ["query", "select 1"],
+      "permission_profile": "ci-safe",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "bq",
+        "action_class": "external_side_effect",
+        "target_class": "gcp_bigquery",
+        "domain": "filesystem",
+        "decision": "deny"
+      }
+    },
+    {
+      "id": "github_actions_pr_list_dev_allow",
+      "family": "github_actions",
+      "intent": "correct_tool_and_argv",
+      "description": "gh pr list — read, dev-local allows",
+      "executable": "gh",
+      "args": ["pr", "list"],
+      "permission_profile": "dev-local",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "github_actions",
+        "action_class": "read",
+        "target_class": "github_platform",
+        "domain": "filesystem",
+        "decision": "allow"
+      }
+    },
+    {
+      "id": "github_actions_workflow_run_ci_safe_permission_denied",
+      "family": "github_actions",
+      "intent": "permission_policy",
+      "description": "gh workflow run — external_side_effect denied on ci-safe",
+      "executable": "gh",
+      "args": ["workflow", "run", "ci.yml"],
+      "permission_profile": "ci-safe",
+      "role": "DEV",
+      "expected": {
+        "tool_id": "github_actions",
+        "action_class": "external_side_effect",
+        "target_class": "github_platform",
+        "domain": "filesystem",
+        "decision": "deny"
+      }
+    },
+    {
       "id": "unknown_executable_tool_selection",
       "family": "unknown",
       "intent": "wrong_tool",
