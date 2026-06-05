@@ -824,20 +824,23 @@ describe("E2E — Orchestrator with Ollama", { concurrency: 1 }, () => {
         }
       );
 
-      // If any artifact was gate-blocked, the run must NOT be done:true
-      const hasGateBlocked = result.artifacts.some(a => a.gateBlocked === true);
-      if (hasGateBlocked) {
-        // The key regression: done must be false when gate-blocked artifacts exist
+      // Only DEV output-contract blocks affect completion — compact_handoff artifacts
+      // may be pushed after decide and must not trigger this regression check.
+      const devContractGateBlocked = result.artifacts.some(
+        (a) => a.gateBlocked === true
+          && a.gate_kind === "output_contract"
+          && String(a.agentId || "").startsWith("dev"),
+      );
+      if (devContractGateBlocked) {
         assert.equal(result.done, false,
-          `Run with gateBlocked artifacts must return done=false. Got done=${result.done}, summary="${result.summary}"`);
+          `Run with DEV output-contract gate blocks must return done=false. Got done=${result.done}, summary="${result.summary}"`);
         assert.ok(
           result.summary?.includes("Manual review") || result.summary?.includes("gate-blocked"),
-          `summary must mention manual review or gate-blocked. Got: "${result.summary}"`
+          `summary must mention manual review or gate-blocked. Got: "${result.summary}"`,
         );
         t.diagnostic(`Gate-blocked enforcement confirmed: done=false, summary="${result.summary?.slice(0, 100)}"`);
       } else {
-        // DEV happened to pass contracts — test is vacuously valid (skip would be misleading)
-        t.diagnostic("DEV passed contracts — gate-blocked path not triggered in this run (non-deterministic model output)");
+        t.diagnostic("DEV output-contract gate-block path not triggered (non-deterministic model output)");
       }
     } finally {
       removeTempDir(cwd);
