@@ -23,6 +23,11 @@ test("run-orchestrator --help exits 0 and documents command groups", () => {
   assert.match(out, /Command groups/);
   assert.match(out, /run\s+node run-orchestrator/);
   assert.match(out, /explain\s+npm run explain-run/);
+  assert.match(out, /launch\s+npm run runner:tui/);
+  assert.match(out, /worktree create\|remove\|list\|status\|contract\|promote/);
+  assert.match(out, /metrics\s+npm run metrics:export-scenarios/);
+  assert.match(out, /dashboard npm run dashboard:console/);
+  assert.match(out, /QA_SPEC \/ QA_EXEC/);
   assert.match(out, /report\s+npm run tokens:report/);
   assert.match(out, /validate\s+npm test/);
   assert.match(out, /resume\s+Not implemented/);
