@@ -10,6 +10,11 @@ const {
   validateTraceLine: validateTraceLineForWrite,
 } = require("./trace-schema");
 
+/**
+ * Resolve trace output directory on each read/write (not at module load).
+ * Intentional: tests reload `orchestrator.js` while changing `ORCH_TRACES_DIR`
+ * per case (`mcpGateTrace`, permission gate tests). Module-load caching caused stale paths.
+ */
 function resolveTracesDir() {
   return process.env.ORCH_TRACES_DIR && String(process.env.ORCH_TRACES_DIR).trim()
     ? path.resolve(String(process.env.ORCH_TRACES_DIR).trim())
