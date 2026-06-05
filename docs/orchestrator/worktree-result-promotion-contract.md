@@ -117,7 +117,7 @@ Disable emission: `ORCH_DISABLE_WORKSPACE_TRACE=1`.
 |-------|----------|
 | **Destination overwrite** | Blocked when `dest` already exists; pass `--overwrite` to replace |
 | **Partial copy failure** | Emits `workspace_promotion_failed`; files copied before failure remain on disk (no rollback) |
-| **Terminal promotion record** | `status: completed` cannot be overwritten by promote or promote-deny |
+| **Terminal promotion record** | `status: completed` and `status: denied` cannot be overwritten by promote or promote-deny |
 
 ---
 
