@@ -225,6 +225,17 @@ function validatePromotionEligibility(options) {
       promotion_record: existing,
     };
   }
+  if (existing && existing.status === 'denied') {
+    return {
+      ...plan,
+      ok: false,
+      error: 'promotion_already_denied',
+      reason_code: 'already_denied',
+      contract,
+      binding,
+      promotion_record: existing,
+    };
+  }
 
   return {
     ok: true,

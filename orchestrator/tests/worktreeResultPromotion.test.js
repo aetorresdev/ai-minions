@@ -213,6 +213,89 @@ describe("worktree-result-promotion", () => {
     assert.equal(readPromotionRecord(created.worktree_path), null);
   });
 
+  it("promote-deny fails after prior deny and preserves record", () => {
+    const repo = initTempGitRepo();
+    repos.push(repo);
+    const tracesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-promo-trace-"));
+    prevTracesDir = process.env.ORCH_TRACES_DIR || "";
+    process.env.ORCH_TRACES_DIR = tracesDir;
+
+    const created = createIsolatedWorktree({ repoRoot: repo, taskId: "promo-deny-twice", primaryCwd: repo });
+    assert.equal(created.ok, true);
+
+    const first = denyWorktreePromotion({
+      repoRoot: repo,
+      taskId: "promo-deny-twice",
+      reasonCode: "operator_denied",
+      tracesDir,
+    });
+    assert.equal(first.ok, true);
+
+    const before = readPromotionRecord(created.worktree_path);
+    assert.equal(before.status, "denied");
+    assert.equal(before.deny_reason_code, "operator_denied");
+    const deniedEventsBefore = loadTraceRows(tracesDir, "promo-deny-twice")
+      .filter((r) => r.event === "workspace_promotion_denied");
+    assert.equal(deniedEventsBefore.length, 1);
+
+    const second = denyWorktreePromotion({
+      repoRoot: repo,
+      taskId: "promo-deny-twice",
+      reasonCode: "retry_denied",
+      tracesDir,
+    });
+    assert.equal(second.ok, false);
+    assert.equal(second.error, "promotion_already_denied");
+    assert.equal(second.reason_code, "already_denied");
+
+    const after = readPromotionRecord(created.worktree_path);
+    assert.deepEqual(after, before);
+
+    const deniedEventsAfter = loadTraceRows(tracesDir, "promo-deny-twice")
+      .filter((r) => r.event === "workspace_promotion_denied");
+    assert.equal(deniedEventsAfter.length, 1);
+  });
+
+  it("promote fails after prior deny and preserves record", () => {
+    const repo = initTempGitRepo();
+    repos.push(repo);
+    const tracesDir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-promo-trace-"));
+    prevTracesDir = process.env.ORCH_TRACES_DIR || "";
+    process.env.ORCH_TRACES_DIR = tracesDir;
+
+    const created = createIsolatedWorktree({ repoRoot: repo, taskId: "promo-after-deny", primaryCwd: repo });
+    assert.equal(created.ok, true);
+    const artifactRel = "after-deny.txt";
+    fs.writeFileSync(path.join(created.worktree_path, artifactRel), "nope\n", "utf8");
+
+    const denied = denyWorktreePromotion({
+      repoRoot: repo,
+      taskId: "promo-after-deny",
+      reasonCode: "operator_denied",
+      tracesDir,
+    });
+    assert.equal(denied.ok, true);
+
+    const before = readPromotionRecord(created.worktree_path);
+    const dest = path.join(repo, artifactRel);
+    assert.equal(fs.existsSync(dest), false);
+
+    const promoted = promoteWorktreeResults({
+      repoRoot: repo,
+      taskId: "promo-after-deny",
+      artifacts: [artifactRel],
+      operatorApproved: true,
+      tracesDir,
+    });
+    assert.equal(promoted.ok, false);
+    assert.equal(promoted.error, "promotion_already_denied");
+    assert.equal(promoted.reason_code, "already_denied");
+    assert.equal(fs.existsSync(dest), false);
+
+    const after = readPromotionRecord(created.worktree_path);
+    assert.deepEqual(after, before);
+  });
+
   it("promote-deny fails after promotion completed and preserves record", () => {
     const repo = initTempGitRepo();
     repos.push(repo);
