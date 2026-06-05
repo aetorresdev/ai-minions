@@ -170,6 +170,7 @@ const { executeSessionStartPhase } = require("./run-phases/session-start");
 const { executePlanResolutionPhase } = require("./run-phases/plan-resolution");
 const { createPhaseContext } = require("./run-phases/phase-context");
 const { executeStepAgentInvocation } = require("./run-phases/step-execution");
+const { executeGateHandlingPhase } = require("./run-phases/gate-handling");
 
 const DEV_AGENT_IDS = new Set(["dev-backend", "dev-frontend", "dev-devops"]);
 
@@ -814,236 +815,48 @@ async function run(goal, options = {}) {
 
       let result = stepExec.result;
 
-      // ── Compact handoff (compact-handoff MCP) ──────────────────────────────
-      let handoffYaml = "";
-      /** @type {Record<string, unknown>} */
-      let handoffCompressionMeta = {};
-      const toMode = resolveHandoffMode(agentId, step, AGENT_TO_MODE[agentId]);
-      const nextStepIdx = steps.indexOf(step) + 1;
-      const nextAgent   = steps[nextStepIdx]?.agentId;
-      const nextMode    = nextAgent ? (AGENT_TO_MODE[nextAgent] || "ORCHESTRATOR") : "ORCHESTRATOR";
-
-      if (AGENTS_REQUIRING_GATE.has(agentId)) {
-        log("gate", `Compacting handoff for ${agentId} → ${nextMode}...`);
-        const compactionMeta = { iteration: iterations, step_id: stepId, step_index: stepIndex, ...graphMeta, ...intentStep };
-        emitContextCompactionStarted(traceEvent, taskId, agentId, compactionMeta);
-        try {
-          const compactRes = callCompactHandoff({
-            text: result,
-            modeCompleted: toMode,
-            nextMode,
-            iteration: iterations,
-            maxIterations,
-            flowMode,
-          }, { cwd });
-          handoffYaml = compactRes.yaml;
-          bumpOllamaFromStats({
-            ollama_prompt_tokens: compactRes.ollama_prompt_tokens,
-            ollama_completion_tokens: compactRes.ollama_completion_tokens,
-          });
-          emitContextCompactionCompleted(traceEvent, taskId, agentId, compactionMeta, compactRes);
-          traceEvent(taskId, {
-            event: "context_stats",
-            agent: "context_compactor",
-            attributed_to_role: agentId,
-            invocation_type: "context_compaction",
-            execution_actor: "context_compactor",
-            trigger_reason: "handoff_policy",
-            iteration: iterations,
-            step_id: stepId,
-            step_index: stepIndex,
-            ...graphMeta,
-            ...intentStep,
-            ollama_prompt_tokens: compactRes.ollama_prompt_tokens,
-            ollama_completion_tokens: compactRes.ollama_completion_tokens,
-          });
-          log("gate", `Handoff YAML ready (${handoffYaml.length} chars)`);
-          traceEvent(taskId, {
-            event: "gate_result",
-            agent: agentId,
-            iteration: iterations,
-            step_id: stepId,
-            ...graphMeta,
-            ...intentStep,
-            ...edgeMeta("success"),
-            gate: "compact_handoff",
-            passed: true,
-            formal_handoff_completed: true,
-          });
-        } catch (err) {
-          const msg = err.message || String(err);
-          if (requireHandoff) {
-            traceEvent(taskId, {
-              event: "compact_handoff_failed",
-              agent: agentId,
-              iteration: iterations,
-              step_id: stepId,
-              ...intentStep,
-              message: msg.slice(0, 400),
-              phase: "worker_step",
-            });
-            log("gate", `🟥 compact_handoff failed (strict — hard fail): ${msg}`);
-            artifacts.push({
-              agentId,
-              task: step.task,
-              result,
-              step_id: stepId,
-              intent_id: intentId,
-              gate_kind: "compact_handoff",
-              ...compactHandoffStrictFailureFields(err),
-            });
-            markStepRetryingAfterGate(runState);
-            continue;
-          }
-          traceEvent(taskId, {
-            event: "compact_handoff_fallback",
-            agent: agentId,
-            iteration: iterations,
-            step_id: stepId,
-            ...intentStep,
-            message: msg.slice(0, 400),
-            phase: "worker_step",
-            handoff_degraded: true,
-          });
-          handoffCompressionMeta = compactHandoffDegradedMeta(err);
-          log("gate", `⚠ compact_handoff unavailable (degraded — continuing without YAML compression): ${msg}`);
-        }
+      const gateOut = await executeGateHandlingPhase(phaseCtx, {
+        agentId,
+        step,
+        stepId,
+        stepIndex,
+        intentId,
+        result,
+        graphMeta,
+        intentStep,
+        steps,
+        currentMode,
+        requireHandoff,
+        skipStateMcp,
+        flowMode,
+        maxIterations,
+        qaSpecFlowEnabledRun,
+        qaSpecSatisfiedThisIteration,
+        runState,
+        AGENTS_REQUIRING_GATE,
+        AGENT_TO_MODE,
+        resolveHandoffMode,
+        callCompactHandoff,
+        bumpOllamaFromStats,
+        emitContextCompactionStarted,
+        emitContextCompactionCompleted,
+        compactHandoffDegradedMeta,
+        compactHandoffStrictFailureFields,
+        validateHandoffStructure,
+        qaSpecFlowTraceExtras,
+        callStateMcp,
+        orchTestSystemPathHarnessOn,
+        edgeMeta,
+        markStepRetryingAfterGate,
+      });
+      if (gateOut.action === "continue") {
+        if (gateOut.artifact) artifacts.push(gateOut.artifact);
+        continue;
       }
-
-      // ── Structural handoff validation (per-MODE key check) ────────────────
-      if (AGENTS_REQUIRING_GATE.has(agentId)) {
-        const requireQaSpecRef = qaSpecFlowEnabledRun && qaSpecSatisfiedThisIteration && toMode === "DEV";
-        const sv = validateHandoffStructure(toMode, handoffYaml, { strict: requireHandoff, requireQaSpecRef });
-        if (!sv.valid) {
-          log("gate", `🟥 Handoff structure invalid (${toMode}): ${sv.reason}`);
-          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("gate_block"), gate: "handoff_structure", passed: false, reason: sv.reason });
-          artifacts.push({
-            agentId,
-            task: step.task,
-            result,
-            handoffYaml,
-            gateBlocked: true,
-            gateReason: `handoff_structure: ${sv.reason}`,
-            step_id: stepId,
-            intent_id: intentId,
-            gate_kind: "handoff_structure",
-          });
-          markStepRetryingAfterGate(runState);
-          continue;
-        }
-        traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("success"), gate: "handoff_structure", passed: true });
-        if (toMode === "QA_SPEC") qaSpecSatisfiedThisIteration = true;
-        const qaFlowTrace = qaSpecFlowTraceExtras(toMode, true, handoffYaml);
-        if (qaFlowTrace.event) {
-          traceEvent(taskId, {
-            ...qaFlowTrace,
-            agent: agentId,
-            iteration: iterations,
-            step_id: stepId,
-            step_index: stepIndex,
-            ...graphMeta,
-            ...intentStep,
-          });
-        }
-      }
-
-      // ── validate_goal_alignment + advance_mode ─────────────────────────────
-      if (!skipStateMcp && AGENTS_REQUIRING_GATE.has(agentId) && handoffYaml) {
-        try {
-          log("gate", `Validating goal alignment for ${agentId}...`);
-          const alignment = callStateMcp("validate_goal_alignment", {
-            task_id: taskId,
-            handoff_yaml: handoffYaml,
-          }, { cwd });
-
-          if (!alignment.ok) {
-            log("gate", `WARNING: validate_goal_alignment failed: ${alignment.error}`);
-          } else if (alignment.aligned === false) {
-            // ORCH_TEST_SYSTEM_PATH_HARNESS: envelope has enforce_goal_alignment=false;
-            // validate_transition still runs; LLM may return aligned=false — Node must not treat that as prod truth.
-            if (orchTestSystemPathHarnessOn()) {
-              log("gate", `⚠ ORCH_TEST_SYSTEM_PATH_HARNESS: goal alignment returned false — continuing (test harness only; not prod semantics)`);
-              traceEvent(taskId, {
-                event: "gate_result",
-                agent: agentId,
-                iteration: iterations,
-                step_id: stepId,
-                ...intentStep,
-                gate: "goal_alignment",
-                passed: true,
-                confidence: alignment.confidence,
-                test_system_path_harness: true,
-                notes: alignment.notes,
-              });
-            } else {
-              log("gate", `🟥 Goal not aligned: ${alignment.notes}. Skipping advance_mode for this step.`);
-              traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("gate_block"), gate: "goal_alignment", passed: false, confidence: alignment.confidence, reason: alignment.notes });
-              artifacts.push({
-                agentId,
-                task: step.task,
-                result,
-                handoffYaml,
-                gateBlocked: true,
-                gateReason: `goal_alignment: ${alignment.notes}`,
-                step_id: stepId,
-                intent_id: intentId,
-                gate_kind: "goal_alignment",
-              });
-              markStepRetryingAfterGate(runState);
-              continue;
-            }
-          } else {
-            log("gate", `🟩 Goal aligned (confidence: ${alignment.confidence ?? "n/a"})`);
-            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("success"), gate: "goal_alignment", passed: true, confidence: alignment.confidence });
-          }
-
-          log("gate", `validate_transition: ${currentMode} → ${nextMode} (iteration ${iterations})`);
-          const vt = callStateMcp("validate_transition", {
-            task_id: taskId,
-            from_mode: currentMode,
-            to_mode: nextMode,
-            handoff_yaml: handoffYaml,
-            iteration: iterations,
-          }, { cwd });
-
-          if (!vt.allowed) {
-            log("gate", `🟥 Transition blocked: ${(vt.errors || []).join("; ")}`);
-            traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("gate_block"), gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: false, reason: (vt.errors || []).join("; ") });
-            artifacts.push({
-              agentId,
-              task: step.task,
-              result,
-              handoffYaml,
-              gateBlocked: true,
-              gateReason: (vt.errors || []).join("; "),
-              step_id: stepId,
-              intent_id: intentId,
-              gate_kind: "transition",
-            });
-            markStepRetryingAfterGate(runState);
-            continue;
-          }
-
-          log("gate", `🟩 Transition allowed — advancing to ${nextMode}`);
-          traceEvent(taskId, { event: "gate_result", agent: agentId, iteration: iterations, step_id: stepId, ...graphMeta, ...intentStep, ...edgeMeta("success"), gate: "transition", from_mode: currentMode, to_mode: nextMode, passed: true });
-          const adv = callStateMcp("advance_mode", {
-            task_id: taskId,
-            to_mode: nextMode,
-            from_mode: currentMode,
-            handoff_yaml: handoffYaml,
-            iteration: iterations,
-          }, { cwd });
-
-          if (adv.ok) {
-            currentMode = nextMode;
-            log("gate", `Mode advanced → ${currentMode}`);
-          } else {
-            log("gate", `WARNING: advance_mode returned ok=false: ${adv.error || JSON.stringify(adv.errors)}`);
-          }
-        } catch (err) {
-          log("gate", `WARNING: State MCP gate error (${err.message}). Continuing without gate.`);
-        }
-      }
+      const handoffYaml = gateOut.handoffYaml ?? "";
+      const handoffCompressionMeta = gateOut.handoffCompressionMeta ?? {};
+      if (gateOut.currentMode) currentMode = gateOut.currentMode;
+      if (gateOut.qaSpecSatisfiedThisIteration) qaSpecSatisfiedThisIteration = true;
 
       // ── Ollama step summary ────────────────────────────────────────────────
       let handoffSummary = "";
