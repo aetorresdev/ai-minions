@@ -165,6 +165,9 @@ const {
   evaluateDevExecutionGate,
 } = require("./approval-policy-gate");
 
+// ── Run loop phases (observable boundaries) ───────────────────────────────────
+const { executeSessionStartPhase } = require("./run-phases/session-start");
+
 const DEV_AGENT_IDS = new Set(["dev-backend", "dev-frontend", "dev-devops"]);
 
 /**
@@ -490,112 +493,39 @@ async function run(goal, options = {}) {
   }
   let currentMode = "ORCHESTRATOR";
   const degradedInRun = new Set(); // agents that ran in fallback at least once this run
-  clearDegradedAgents();
-  configureLocalModelPolicy({ cliModel: options.localModel ?? null, cwd });
-  setLocalModelTraceReporter((payload) => traceEvent(taskId, payload));
-  const localOnlyCtx = await validateLocalOnlyRunPrerequisites({ checkOllama, cwd });
-
-  log("orchestrator", `Working directory: ${cwd}`);
-  log("orchestrator", `task_id: ${taskId} | flow: ${flowMode} | max_iterations: ${maxIterations}`);
-  if (parsedBudgetWarningRatio.invalid) {
-    traceEvent(taskId, {
-      event: "budget_config_invalid",
-      ...parsedBudgetWarningRatio.invalid,
-    });
-  }
-  if (parsedBudgetLimits.invalid) {
-    traceEvent(taskId, {
-      event: "budget_config_invalid",
-      ...parsedBudgetLimits.invalid,
-    });
-  }
-  if (sessionEnv) {
-    const credNames = sessionEnv.credentials.map(c => c.name).join(", ");
-    log("orchestrator", `Environment: mode=${sessionEnv.mode} | credentials: ${credNames || "none"}`);
-  }
-
-  // ── Ollama connectivity check ────────────────────────────────────────────────
-  const ollamaModel = process.env.OLLAMA_MODEL || null;
-  if (localOnlyCtx.local_only_mode) {
-    log(
-      "orchestrator",
-      `Local-only mode — model: ${localOnlyCtx.selected_model} (source: ${localOnlyCtx.override_source}${localOnlyCtx.selection_reason ? `; ${localOnlyCtx.selection_reason}` : ""})`,
-    );
-  } else if (ollamaModel) {
-    const ollamaOk = await checkOllama();
-    if (!ollamaOk) {
-      log("orchestrator", `WARNING: OLLAMA_MODEL=${ollamaModel} set but Ollama unreachable at ${process.env.OLLAMA_HOST || "localhost"}:${process.env.OLLAMA_PORT || "11434"}. orchestrator/summarizer will use claude-haiku fallback.`);
-    } else {
-      log("orchestrator", `Ollama ready — model: ${ollamaModel}`);
-    }
-  } else {
-    log("orchestrator", "Ollama not configured (OLLAMA_MODEL unset) — orchestrator/summarizer using claude-haiku.");
-  }
-  log("orchestrator", `Context: ${stepSummary ? "Ollama handoff between steps" : "no Ollama summary"}; truncation: ${maxContextChars > 0 ? `${maxContextChars} chars/step` : "off"}`);
-  if (maxCostUsd != null) {
-    log("orchestrator", `Guardrail: ORCH_MAX_COST_USD=${maxCostUsd} (Ollama USD estimate from ORCH_USD_PER_MTOK_*)`);
-    if (budgetWarningRatio != null) {
-      log("orchestrator", `Guardrail: ORCH_BUDGET_WARNING_RATIO=${budgetWarningRatio} (trace-only warning threshold)`);
-    }
-  }
-  if (Object.keys(budgetLimits.roles || {}).length || Object.keys(budgetLimits.steps || {}).length || Object.keys(budgetLimits.models || {}).length) {
-    log("orchestrator", "Guardrail: ORCH_BUDGET_LIMITS_JSON active (run/role/step/model actual-token budget limits)");
-  }
-  if (maxStepRetries != null) {
-    log("orchestrator", `Guardrail: ORCH_MAX_RETRIES=${maxStepRetries} (per agentId retry_number cap within one iteration)`);
-  }
-  traceEvent(taskId, {
-    event: "session_start",
-    session_id: taskId,
-    flow_mode: flowMode,
-    flow_src: "orchestrator_cli",
-    scope: runScope.scope,
-    ...(runScope.scope_unknown_reason ? { scope_unknown_reason: runScope.scope_unknown_reason } : {}),
-    max_iterations: maxIterations,
+  await executeSessionStartPhase({
+    taskId,
     cwd,
-    goal: goal.slice(0, 200),
-    require_handoff: requireHandoff,
-    ...(scenarioId ? { scenario_id: scenarioId } : {}),
-    ...localOnlyCtx,
-    ...buildWorktreeTraceFields(cwd),
+    flowMode,
+    goal,
+    maxIterations,
+    runScope,
+    scenarioId,
+    requireHandoff,
+    skipStateMcp,
+    approvedArtifacts,
+    sessionEnv,
+    parsedBudgetWarningRatio,
+    parsedBudgetLimits,
+    maxContextChars,
+    stepSummary,
+    maxCostUsd,
+    budgetWarningRatio,
+    budgetLimits,
+    maxStepRetries,
+    localModel: options.localModel,
+    log,
+    traceEvent,
+    checkOllama,
+    configureLocalModelPolicy,
+    setLocalModelTraceReporter,
+    validateLocalOnlyRunPrerequisites,
+    clearDegradedAgents,
+    buildWorktreeTraceFields,
+    callStateMcp,
+    CONTRACT_VERSION,
+    orchTestSystemPathHarnessOn,
   });
-
-  // ── Degraded mode banner ──────────────────────────────────────────────────────
-  if (skipStateMcp) {
-    const YELLOW = "\x1b[33m", BOLD = "\x1b[1m", RESET = "\x1b[0m";
-    console.log(`\n${YELLOW}${BOLD}⚠  DEGRADED MODE — hard gates DISABLED${RESET}`);
-    console.log(`${YELLOW}   orchestrator-state and compact-handoff MCPs are not active.`);
-    console.log(`   No transitions are recorded. No goal alignment is checked.`);
-    console.log(`   No approved-artifact enforcement. Output contracts still apply.`);
-    console.log(`   Run without --skip-gates to enable strict mode.\n${RESET}`);
-    traceEvent(taskId, { event: "degraded_mode", reason: "skipStateMcp=true" });
-  }
-
-  // ── Register task (state store) ──────────────────────────────────────────────
-  if (!skipStateMcp) {
-    log("gate", `Registering task "${taskId}" in state store...`);
-    try {
-      /** @type {Record<string, unknown>} */
-      const registerPayload = {
-        goal,
-        task_id: taskId,
-        flow_mode: flowMode,
-        max_iterations: maxIterations,
-        approved_artifacts: JSON.stringify(approvedArtifacts),
-        contract_version: CONTRACT_VERSION,
-      };
-      // Test harness only — never enable in real runs (see README § system-path harness)
-      if (orchTestSystemPathHarnessOn()) {
-        registerPayload.enforce_goal_alignment = false;
-      }
-      const reg = callStateMcp("register_task", registerPayload, { cwd });
-      if (!reg.ok) throw new Error(reg.error || "register_task failed");
-      log("gate", `Task registered — envelope: ${reg.envelope_path}`);
-    } catch (err) {
-      log("gate", `\x1b[33m\x1b[1m⚠  DEGRADED MODE — state store unavailable\x1b[0m (${err.message}). Continuing without hard gates.`);
-      traceEvent(taskId, { event: "degraded_mode", reason: err.message });
-    }
-  }
 
   // ── Phase 1: plan ─────────────────────────────────────────────────────────────
   log("orchestrator", "Planning...");
