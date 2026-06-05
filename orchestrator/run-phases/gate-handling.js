@@ -266,7 +266,7 @@ async function executeGateHandlingPhase(ctx, deps) {
         ctx.log("gate", `WARNING: validate_goal_alignment failed: ${alignment.error}`);
       } else if (alignment.aligned === false) {
         if (orchTestSystemPathHarnessOn()) {
-          ctx.log("gate", "⚠ ORCH_TEST_SYSTEM_PATH_HARNESS: goal alignment returned false — continuing (test harness only; not prod semantics)");
+          ctx.log("gate", "⚠ test system-path harness: goal alignment returned false — continuing (test harness only; not prod semantics)");
           ctx.traceEvent(ctx.taskId, {
             event: "gate_result",
             agent: agentId,

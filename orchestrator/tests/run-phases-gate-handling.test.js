@@ -191,6 +191,7 @@ describe("run-phases/gate-handling — executeGateHandlingPhase (integration)", 
 
   it("goal_alignment gate_block returns continue with artifact", async () => {
     const { ctx, traces, deps } = makeGateDeps({
+      orchTestSystemPathHarnessOn: () => false,
       callStateMcp: (tool) => {
         if (tool === "validate_goal_alignment") {
           return { ok: true, aligned: false, confidence: 0.2, notes: "scope drift" };
@@ -198,16 +199,10 @@ describe("run-phases/gate-handling — executeGateHandlingPhase (integration)", 
         return { ok: true };
       },
     });
-    const prev = process.env.ORCH_TEST_SYSTEM_PATH_HARNESS;
-    delete process.env.ORCH_TEST_SYSTEM_PATH_HARNESS;
-    try {
-      const out = await executeGateHandlingPhase(ctx, deps);
-      assert.equal(out.action, "continue");
-      assert.equal(out.artifact.gate_kind, "goal_alignment");
-      assert.equal(gateResults(traces, "goal_alignment")[0].passed, false);
-    } finally {
-      if (prev !== undefined) process.env.ORCH_TEST_SYSTEM_PATH_HARNESS = prev;
-    }
+    const out = await executeGateHandlingPhase(ctx, deps);
+    assert.equal(out.action, "continue");
+    assert.equal(out.artifact.gate_kind, "goal_alignment");
+    assert.equal(gateResults(traces, "goal_alignment")[0].passed, false);
   });
 
   it("transition gate_block returns continue with artifact", async () => {
