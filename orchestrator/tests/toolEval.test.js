@@ -24,9 +24,22 @@ describe("tool-eval — harness fixtures", () => {
   it("loads versioned fixture matrix", () => {
     const fx = loadToolEvalFixtures();
     assert.equal(fx.version, "tool-eval-fixtures.orchestrator.v1");
-    assert.ok(fx.scenarios.length >= 10);
+    assert.ok(fx.scenarios.length >= 25);
     const families = new Set(fx.scenarios.map((s) => s.family));
-    for (const f of ["filesystem", "git", "terraform", "kubectl", "unknown"]) {
+    for (const f of [
+      "filesystem",
+      "git",
+      "terraform",
+      "kubectl",
+      "aws",
+      "n8n",
+      "jenkins",
+      "gcloud",
+      "gsutil",
+      "bq",
+      "github_actions",
+      "unknown",
+    ]) {
       assert.ok(families.has(f), `missing family ${f}`);
     }
   });
@@ -114,12 +127,14 @@ describe("tool-eval — harness fixtures", () => {
     assert.equal(big.recommendation, "progressive_disclosure_or_compact_response");
   });
 
-  it("core manifest tools have fixture coverage for required families", () => {
+  it("every manifest tool has fixture coverage", () => {
     const fx = loadToolEvalFixtures();
     const st = loadToolActionManifest();
     const missing = listToolsMissingFixtureCoverage(st, fx.scenarios);
-    for (const required of ["filesystem", "git", "terraform", "kubectl"]) {
-      assert.ok(!missing.includes(required), `${required} missing fixture coverage`);
-    }
+    assert.deepEqual(
+      missing,
+      [],
+      `manifest tools without fixtures: ${missing.join(", ") || "(none)"}`,
+    );
   });
 });
