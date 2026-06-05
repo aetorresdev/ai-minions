@@ -175,6 +175,7 @@ const {
   finalizeStepArtifact,
   executeIterationFinalizationPhase,
 } = require("./run-phases/iteration-finalization");
+const { executeSessionEndPhase } = require("./run-phases/session-end");
 
 const DEV_AGENT_IDS = new Set(["dev-backend", "dev-frontend", "dev-devops"]);
 
@@ -931,107 +932,52 @@ async function run(goal, options = {}) {
     if (iterFinalOut.plan) plan = iterFinalOut.plan;
   }
 
-  if (!done && !summary) {
-    summary = loopExhaustedDefaultSummary(maxIterations);
-    log("orchestrator", summary);
-    traceIterationDone(
-      taskId,
-      iterations,
-      "loop_limit_stopped",
-      transitionReason("MAX_ITERATIONS", "loop_exhausted_without_done"),
-      { iterations, max_iterations: maxIterations },
-    );
-  }
-
-  finalizeRunState(runState, { done, manualReview });
-
-  // ── Surface degraded compact_handoff fallback in summary (structured data is on artifacts) ──
-  const handoffFallbackArtifacts = artifacts.filter((a) => a.handoff_fallback_used === true);
-  if (handoffFallbackArtifacts.length > 0) {
-    const agents = [...new Set(handoffFallbackArtifacts.map((a) => a.agentId))].join(", ");
-    const err0 = handoffFallbackArtifacts[0].handoff_error || "unknown";
-    const note = `[handoff compression unavailable for ${agents} — continued without compact_handoff; error: ${String(err0).slice(0, 120)}]`;
-    summary = summary ? `${summary}\n${note}` : note;
-  }
-
-  // ── Record session summary artifact before closing ───────────────────────
-  if (!skipStateMcp) {
-    try {
-      const sessionSummary = [
-        `goal: ${goal}`,
-        `iterations: ${iterations}/${maxIterations}`,
-        `agents_run: ${[...new Set(artifacts.map(a => a.agentId))].join(", ")}`,
-        `outcome: ${summary}`,
-        artifacts.length > 0
-          ? `last_artifacts:\n${artifacts.slice(-3).map(a => `  - ${a.agentId}: ${a.task.slice(0, 80)}`).join("\n")}`
-          : "",
-      ].filter(Boolean).join("\n");
-
-      callStateMcp("record_artifact", {
-        task_id: taskId,
-        artifact_id: "session-summary",
-        content: sessionSummary,
-        agent_id: "orchestrator",
-      }, { cwd });
-      log("gate", "Session summary recorded in envelope.");
-    } catch (err) {
-      log("gate", `WARNING: record_artifact failed (${err.message})`);
-    }
-  }
-
-  // ── Close task (state store) ──────────────────────────────────────────────
-  if (!skipStateMcp) {
-    try {
-      callStateMcp("close_task", { task_id: taskId, reason: summary }, { cwd });
-      log("gate", `Task "${taskId}" closed in state store.`);
-    } catch (err) {
-      log("gate", `WARNING: close_task failed (${err.message})`);
-    }
-  }
-
-  // Clear active agent state
-  try { fs.unlinkSync(AGENT_STATE_FILE); } catch { /* already gone */ }
-
-  const qaDegraded = degradedInRun.has("qa");
-  if (qaDegraded) {
-    log("qa", "⚠ QA ran in degraded mode (fallback model) — coverage may be reduced. Manual review recommended.");
-  }
-  const manualReviewRecommended = qaDegraded || manualReview;
-  const handoffFallbackAny = artifacts.some((a) => a.handoff_fallback_used === true);
-  const mcpSummary = aggregateMcpUsage(getMcpAuditCalls());
-  const permission_summary = aggregatePermissionCheckRows(getPermissionCheckAuditBuffer());
-  const traceRows = loadTraceRowsForTask(taskId);
-  runRecoverySweepAndTrace(traceEvent, taskId, traceRows, {
-    lifecycleMode: "live_before_session_end",
+  const sessionEndCtx = createPhaseContext({
+    taskId,
+    cwd,
+    goal,
+    sessionEnv,
+    iterations: () => iterations,
+    traceEvent,
+    log,
+    getLastBudgetMeta: () => lastBudgetMeta,
+    emitContextStatsRows,
+    emitModelFallbackLifecycleIfNeeded,
+    costGuardAbort: () => false,
   });
-  traceEvent(taskId, {
-    event: "session_end",
-    session_id: taskId,
-    flow_src: "orchestrator_cli",
-    scope: runScope.scope,
-    ...(runScope.scope_unknown_reason ? { scope_unknown_reason: runScope.scope_unknown_reason } : {}),
-    iterations,
+
+  const sessionEndOut = executeSessionEndPhase(sessionEndCtx, {
     done,
-    summary: summary.slice(0, 200),
-    agents_run: [...new Set(artifacts.map((a) => a.agentId))],
-    gate_blocks: artifacts.filter((a) => a.gateBlocked).length,
-    run_state_snapshot: getRunStatePublicView(runState),
-    ...(scenarioId ? { scenario_id: scenarioId } : {}),
-    ...mcpSummary,
-    permission_summary,
-    ...(ollamaTokenTotals.prompt > 0 || ollamaTokenTotals.completion > 0
-      ? {
-        ollama_prompt_tokens_total: ollamaTokenTotals.prompt,
-        ollama_completion_tokens_total: ollamaTokenTotals.completion,
-      }
-      : {}),
-    ...(qaDegraded ? { qa_degraded: true } : {}),
-    ...(manualReviewRecommended ? { manual_review_recommended: true } : {}),
-    ...(handoffFallbackAny ? { handoff_fallback_used: true, handoff_degraded: true } : {}),
+    summary,
+    manualReview,
+    iterations,
+    maxIterations,
+    skipStateMcp,
+    runState,
+    artifacts,
+    goal,
+    degradedInRun,
+    runScope,
+    scenarioId,
+    ollamaTokenTotals,
+    loopExhaustedDefaultSummary,
+    traceIterationDone,
+    transitionReason,
+    finalizeRunState,
+    callStateMcp,
+    AGENT_STATE_FILE,
+    fsUnlinkSync: (p) => fs.unlinkSync(p),
+    loadTraceRowsForTask,
+    runRecoverySweepAndTrace,
+    getRunStatePublicView,
+    aggregateMcpUsage,
+    getMcpAuditCalls,
+    aggregatePermissionCheckRows,
+    getPermissionCheckAuditBuffer,
   });
 
   clearMcpAudit();
-  return { done, summary, artifacts, iterations, taskId, runState: getRunStatePublicView(runState) };
+  return sessionEndOut;
 }
 
 // ── Public facade (require("../orchestrator") — preserve export names) ───────
