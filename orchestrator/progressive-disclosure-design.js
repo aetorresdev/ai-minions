@@ -71,10 +71,9 @@ function validateContextDisclosureTraceLine(row) {
       if (typeof ref !== 'string' || !ref.trim()) errors.push('item_refs entries must be non-empty strings');
       else if (ref.length > MAX_ITEM_REF_LEN) errors.push(`item_ref exceeds ${MAX_ITEM_REF_LEN} chars`);
     }
-  }
-
-  if (row.action === 'hidden' && row.item_refs.length === 0) {
-    errors.push('hidden requires at least one item_ref');
+    if (row.action === 'hidden' && row.item_refs.length === 0) {
+      errors.push('hidden requires at least one item_ref');
+    }
   }
 
   for (const keyPath of collectForbiddenContentKeyPaths(row)) {
