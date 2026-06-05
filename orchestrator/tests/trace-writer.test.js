@@ -43,12 +43,28 @@ describe("trace-writer — characterization", () => {
     }
   });
 
-  it("orchestrator re-exports trace writer surface", () => {
+  it("orchestrator re-exports full trace-writer facade surface", () => {
+    const cp = require("child_process");
+    cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
     const orch = require("../orchestrator");
     const tw = require("../trace-writer");
-    assert.equal(orch._sanitize, tw._sanitize);
-    assert.equal(orch._hashGoal, tw._hashGoal);
-    assert.equal(orch.composeIterationDonePayload, tw.composeIterationDonePayload);
-    assert.equal(orch.transitionReason, tw.transitionReason);
+    const TRACE_WRITER_FACADE_KEYS = [
+      "_sanitize",
+      "_hashGoal",
+      "TRACE_SCHEMA_VERSION",
+      "transitionReason",
+      "TRANSITION_REASON_TYPES",
+      "TRANSITION_REASON_CODES",
+      "inferReasonCode",
+      "FAILURE_TYPES",
+      "FAILURE_AXES",
+      "failureTypeForIterationDone",
+      "failureAxisForIterationDone",
+      "traceIterationDone",
+      "composeIterationDonePayload",
+    ];
+    for (const key of TRACE_WRITER_FACADE_KEYS) {
+      assert.equal(orch[key], tw[key], `orchestrator.${key}`);
+    }
   });
 });

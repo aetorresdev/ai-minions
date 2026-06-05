@@ -84,15 +84,23 @@ describe("run-loop-helpers — characterization", () => {
     }
   });
 
-  it("orchestrator re-exports run-loop helper surface", () => {
+  it("orchestrator re-exports full run-loop-helpers facade surface", () => {
+    const cp = require("child_process");
+    cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
     const orch = require("../orchestrator");
     const rl = require("../run-loop-helpers");
-    assert.equal(orch.resolveMaxIterations, rl.resolveMaxIterations);
-    assert.equal(orch.detectBlockers, rl.detectBlockers);
-    assert.equal(orch.validateHandoffStructure, rl.validateHandoffStructure);
-    assert.equal(orch.stripLeadingOwnerArchitectForDegradedMultiAgent, rl.stripLeadingOwnerArchitectForDegradedMultiAgent);
-    assert.equal(orch.validateStepGraph, rl.validateStepGraph);
-    assert.equal(orch.edgeMeta, rl.edgeMeta);
-    assert.equal(orch.EDGE_TYPE_CATEGORY, rl.EDGE_TYPE_CATEGORY);
+    const RUN_LOOP_FACADE_KEYS = [
+      "resolveMaxIterations",
+      "detectBlockers",
+      "validateHandoffStructure",
+      "stripLeadingOwnerArchitectForDegradedMultiAgent",
+      "edgeMeta",
+      "EDGE_TYPE_CATEGORY",
+      "validateStepGraph",
+      "assertParentStepExists",
+    ];
+    for (const key of RUN_LOOP_FACADE_KEYS) {
+      assert.equal(orch[key], rl[key], `orchestrator.${key}`);
+    }
   });
 });
