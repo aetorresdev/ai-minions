@@ -68,16 +68,16 @@ Heuristic scores in trace are **qualitative labels** (`low` \| `medium` \| `high
 |-------|------|--------|
 | `event` | `"value_review"` | |
 | `value_review_schema_version` | `"1"` | |
-| `trace_schema_version` | `"2"` | Envelope when appended to JSONL |
+| `trace_schema_version` | `"2"` | **Required** — envelope when appended to JSONL |
 | `task_id` | string | Run or grooming session id |
-| `ts` / `ts_ms` | ISO / number | Standard trace envelope |
+| `ts` / `ts_ms` | ISO / number | **Required** — at least one (non-empty `ts` or finite `ts_ms`) |
 | `subject_type` | enum | Same as input |
 | `subject_id` | string | |
 | `value_verdict` | `proceed` \| `defer` \| `reject` | |
 | `rationale` | string | Max 500 chars — no secrets |
 | `evidence_refs` | string[] | Paths, PR urls, test commands (max 16 × 200 chars) |
 | `outcome_verifiable` | boolean | |
-| `maturity_fit` | string | Echo input assessment |
+| `maturity_fit` | string | **Required** — non-empty; echoes input assessment |
 | `heuristic_scores` | object | Optional `{ impact, risk, cost, dependency }` qualitative |
 | `requires_human_confirmation` | boolean | **true** when `reject` + `priority_band` in `P0`/`P1`/`alpha_blocker` |
 
@@ -97,7 +97,7 @@ Heuristic scores in trace are **qualitative labels** (`low` \| `medium` \| `high
 
 - [ ] Gate **cannot** expand permissions or bypass CERBERUS pre-merge review.
 - [ ] Gate **cannot** auto-merge PRs or mutate backlog files without human commit.
-- [ ] `value_review` rows contain **no** prompt/response bodies or secrets.
+- [ ] `value_review` rows contain **no** prompt/response bodies or secrets — enforced by `validateValueReviewTraceLine()` rejecting forbidden keys (`prompt`, `response`, `messages`, `input`, `output`, `raw_prompt`, `raw_response`) recursively.
 - [ ] Positioning doc updated if new **claimed** capability — otherwise design-only.
 - [ ] Explicit **not claimed**: autonomous prioritization in production.
 

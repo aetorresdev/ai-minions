@@ -18,6 +18,47 @@ const HIGH_PRIORITY_BANDS = Object.freeze(['P0', 'P1', 'alpha_blocker']);
 const MAX_RATIONALE_LEN = 500;
 const MAX_EVIDENCE_REFS = 16;
 const MAX_EVIDENCE_REF_LEN = 200;
+const TRACE_SCHEMA_VERSION = '2';
+const MAX_FORBIDDEN_KEY_SCAN_DEPTH = 32;
+
+/** Raw prompt/response bodies — must not appear in value_review rows. */
+const FORBIDDEN_CONTENT_KEYS = Object.freeze([
+  'prompt',
+  'response',
+  'messages',
+  'input',
+  'output',
+  'raw_prompt',
+  'raw_response',
+]);
+
+/**
+ * @param {unknown} value
+ * @param {string} [path]
+ * @param {number} [depth]
+ * @returns {string[]}
+ */
+function collectForbiddenContentKeyPaths(value, path = '', depth = 0) {
+  if (depth > MAX_FORBIDDEN_KEY_SCAN_DEPTH) return [];
+  const hits = [];
+  if (!value || typeof value !== 'object') return hits;
+
+  if (Array.isArray(value)) {
+    value.forEach((item, i) => {
+      hits.push(...collectForbiddenContentKeyPaths(item, `${path}[${i}]`, depth + 1));
+    });
+    return hits;
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    const childPath = path ? `${path}.${key}` : key;
+    if (FORBIDDEN_CONTENT_KEYS.includes(key)) {
+      hits.push(childPath);
+    }
+    hits.push(...collectForbiddenContentKeyPaths(child, childPath, depth + 1));
+  }
+  return hits;
+}
 
 /**
  * @param {unknown} row
@@ -33,7 +74,21 @@ function validateValueReviewTraceLine(row) {
   if (row.value_review_schema_version !== VALUE_REVIEW_SCHEMA_VERSION) {
     errors.push(`value_review_schema_version must be "${VALUE_REVIEW_SCHEMA_VERSION}"`);
   }
+  if (row.trace_schema_version !== TRACE_SCHEMA_VERSION) {
+    errors.push(`trace_schema_version must be "${TRACE_SCHEMA_VERSION}"`);
+  }
+
+  const hasTs = typeof row.ts === 'string' && row.ts.trim().length > 0;
+  const hasTsMs = typeof row.ts_ms === 'number' && Number.isFinite(row.ts_ms);
+  if (!hasTs && !hasTsMs) {
+    errors.push('at least one of ts (non-empty string) or ts_ms (finite number) is required');
+  }
+
   if (!row.task_id || typeof row.task_id !== 'string') errors.push('task_id required');
+
+  if (!row.maturity_fit || typeof row.maturity_fit !== 'string' || !row.maturity_fit.trim()) {
+    errors.push('maturity_fit required (non-empty string)');
+  }
 
   if (!SUBJECT_TYPES.includes(row.subject_type)) {
     errors.push(`subject_type must be one of: ${SUBJECT_TYPES.join(', ')}`);
@@ -92,6 +147,11 @@ function validateValueReviewTraceLine(row) {
     errors.push('reject on P0/P1/alpha_blocker requires requires_human_confirmation: true');
   }
 
+  const forbiddenPaths = collectForbiddenContentKeyPaths(row);
+  for (const keyPath of forbiddenPaths) {
+    errors.push(`forbidden content key: ${keyPath}`);
+  }
+
   if (errors.length) return { ok: false, errors };
   return { ok: true, row };
 }
@@ -114,10 +174,13 @@ function validateValueReviewFixtureRows(rows) {
 
 module.exports = {
   VALUE_REVIEW_SCHEMA_VERSION,
+  TRACE_SCHEMA_VERSION,
   VALUE_VERDICTS,
   SUBJECT_TYPES,
   QUALITATIVE_SCORES,
   HIGH_PRIORITY_BANDS,
+  FORBIDDEN_CONTENT_KEYS,
+  collectForbiddenContentKeyPaths,
   validateValueReviewTraceLine,
   validateValueReviewFixtureRows,
 };
