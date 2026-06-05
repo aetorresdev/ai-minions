@@ -135,6 +135,17 @@ function generateScaffoldScenarios(options = {}) {
     return { ok: false, error: 'invalid_manifest', errors: manifestState.errors || [] };
   }
 
+  if (options.toolIds && options.toolIds.length) {
+    const unknownToolIds = options.toolIds.filter((id) => !manifestState.tools[id]);
+    if (unknownToolIds.length) {
+      return {
+        ok: false,
+        error: 'unknown_tool_id',
+        unknown_tool_ids: unknownToolIds.slice().sort(),
+      };
+    }
+  }
+
   const missing = options.toolIds && options.toolIds.length
     ? options.toolIds.slice().sort()
     : listToolsMissingFixtureCoverage(manifestState, fixtures.scenarios);
