@@ -131,6 +131,46 @@ describe("scaffold-tool-eval-fixtures", () => {
     fs.unlinkSync(fixturesPath);
   });
 
+  it("generateScaffoldScenarios fails on unknown --tool-id", () => {
+    const manifestState = syntheticManifest();
+    const fixturesPath = path.join(os.tmpdir(), `tool-eval-empty-${Date.now()}.json`);
+    fs.writeFileSync(fixturesPath, JSON.stringify({
+      version: "tool-eval-fixtures.orchestrator.v1",
+      scenarios: [],
+    }, null, 2));
+
+    const result = generateScaffoldScenarios({
+      fixturesPath,
+      manifestState,
+      toolIds: ["definitely_not_in_manifest"],
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.error, "unknown_tool_id");
+    assert.deepEqual(result.unknown_tool_ids, ["definitely_not_in_manifest"]);
+
+    fs.unlinkSync(fixturesPath);
+  });
+
+  it("generateScaffoldScenarios fails when any explicit tool-id is unknown", () => {
+    const manifestState = syntheticManifest();
+    const fixturesPath = path.join(os.tmpdir(), `tool-eval-empty-${Date.now()}.json`);
+    fs.writeFileSync(fixturesPath, JSON.stringify({
+      version: "tool-eval-fixtures.orchestrator.v1",
+      scenarios: [],
+    }, null, 2));
+
+    const result = generateScaffoldScenarios({
+      fixturesPath,
+      manifestState,
+      toolIds: ["demo_cli", "typo_tool"],
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.error, "unknown_tool_id");
+    assert.deepEqual(result.unknown_tool_ids, ["typo_tool"]);
+
+    fs.unlinkSync(fixturesPath);
+  });
+
   it("scaffoldToolEvalFixtures writes pending file for missing tools", () => {
     const manifestState = syntheticManifest();
     const fixturesPath = path.join(os.tmpdir(), `tool-eval-empty-${Date.now()}.json`);

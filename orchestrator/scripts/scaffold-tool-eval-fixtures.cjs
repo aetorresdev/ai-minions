@@ -61,7 +61,11 @@ function main() {
   });
 
   if (!result.ok) {
-    console.error(result.error || 'scaffold failed');
+    if (result.error === 'unknown_tool_id' && result.unknown_tool_ids?.length) {
+      console.error(`unknown manifest tool_id(s): ${result.unknown_tool_ids.join(', ')}`);
+    } else {
+      console.error(result.error || 'scaffold failed');
+    }
     if (result.errors) console.error(result.errors.join(', '));
     process.exit(1);
   }

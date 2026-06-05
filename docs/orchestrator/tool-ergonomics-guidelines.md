@@ -72,6 +72,8 @@ npm run scaffold:tool-eval-fixtures
 
 Scaffold copies **argv** and manifest **target_class** hints only. **Golden** rows (ambiguous, destructive, regression-sensitive) stay hand-authored.
 
+`--tool-id` must match a `tool_id` in `tool-action-manifest.v1.json`. Unknown ids fail closed (exit **1**, `unknown manifest tool_id(s): …`) — typos must not produce an empty success.
+
 ## Matrix maintenance
 
 Fixtures encode: `tool → scenario → expected classification → expected permission decision`.
