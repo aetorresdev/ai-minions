@@ -16,6 +16,11 @@ stateDiagram-v2
   cwd_bound --> running: orchestrator run in run_cwd
   running --> artifacts_ready: workspace_artifacts_ready
   running --> failed: run error / gate block
+  artifacts_ready --> promotion_pending: outputs in worktree only
+  promotion_pending --> promoted: worktree promote --approve
+  promotion_pending --> promotion_denied: worktree promote-deny
+  promoted --> cleanup_started: operator remove (separate)
+  promotion_denied --> retained: no cleanup side effects
   artifacts_ready --> retained: cleanup_policy retain OR failure
   failed --> retained: retained_after_failure OR default retain
   artifacts_ready --> cleanup_started: operator remove OR policy (future auto)
@@ -30,6 +35,7 @@ stateDiagram-v2
 | Bind | Runner resolves `run_cwd` from contract | `workspace_run_cwd_bound` | `trace_refs[]` updated |
 | Execute | `run-orchestrator` / hooks in worktree cwd | normal agent/trace lines | mutations under worktree only |
 | Outcome | Run completes or fails | `run_outcome_summary.workspace` rollup | `retained_after_failure` when applicable |
+| Promotion | `worktree promote --approve` or `promote-deny` | `workspace_promotion_*` | copies to `repo_root` or explicit deny (no cleanup) |
 | Teardown | `worktree remove [--force]` | `workspace_cleanup_*` | git worktree removed (cleanup safety validates path) |
 
 **Default today:** `run --worktree-isolated` does **not** auto-remove; `cleanup_policy` defaults to **`retain`** on create. Operator removes explicitly or leaves trees for inspection.
@@ -95,6 +101,9 @@ npm run runner:tui -- worktree remove --run-id <task_id> [--force]
 npm run runner:tui -- worktree list [--cwd DIR]
 npm run runner:tui -- worktree status [--run-id <id>|--cwd DIR]
 npm run runner:tui -- worktree contract [--run-id <id>|--cwd DIR]
+npm run runner:tui -- worktree promote --run-id <id> --artifact <rel> [--approve] [--dest-rel <prefix>]
+npm run runner:tui -- worktree promote-deny --run-id <id> [--reason-code <code>]
+npm run runner:tui -- worktree promotion --run-id <id>
 npm run runner:tui -- run --goal "..." --worktree-isolated [--run-id <task_id>]
 ```
 
@@ -143,6 +152,10 @@ JSONL under `ORCH_TRACES_DIR` / `~/.claude/metrics/traces/<task_id>.jsonl`. Emit
 | `workspace_cleanup_completed` | After successful remove |
 | `workspace_cleanup_failed` | Remove failed; `retained: true` |
 | `workspace_cleanup_skipped` | Policy/safety skip (cleanup safety may gate remove) |
+| `workspace_promotion_started` | Operator promotion validated, copy pending |
+| `workspace_promotion_completed` | Artifacts copied to `repo_root` |
+| `workspace_promotion_denied` | Operator denied; `cleanup_side_effects: false` |
+| `workspace_promotion_failed` | Validation or copy failure |
 
 Each append updates `trace_refs` on the run workdir contract (`{ event, ts_ms, line_index }`). `run_outcome_summary.workspace` rolls up lifecycle flags for export/dashboard. Disable emission with `ORCH_DISABLE_WORKSPACE_TRACE=1`.
 
@@ -192,7 +205,7 @@ Checklist mapping (see [alpha-release-checklist.md](alpha-release-checklist.md) 
 | 11 | No resolved credential values in `buildEnvContext` prompt env context | `envCredentialPromptLeak.test.js` + [environment-access.md](environment-access.md) |
 | 12 | Classified subprocess paths | [subprocess-classification.md](subprocess-classification.md) |
 
-**Not claimed for this tag:** parallel multi-worktree engine, auto-merge, credential broker, explicit worktree result promotion, dynamic workflow runtime. Design for workflow proposals: [dynamic-workflow-contract.md](dynamic-workflow-contract.md).
+**Not claimed for this tag:** parallel multi-worktree engine, auto-merge, credential broker, dynamic workflow runtime. **Result promotion:** see [worktree-result-promotion-contract.md](worktree-result-promotion-contract.md). Design for workflow proposals: [dynamic-workflow-contract.md](dynamic-workflow-contract.md).
 
 ## Limits (explicit)
 

@@ -135,7 +135,7 @@ All fields below are **required** on every workflow. Validators reject the docum
 | `cleanup_policy` | `retain` \| `cleanup_on_success` \| `cleanup_always` | Default **`retain`** unless operator opts in |
 | `run_workdir_contract_ref` | path or inline | Each leg must resolve [run workdir contract](worktree-isolation-contract.md#run-workdir-contract) before cwd bind |
 
-**Gap (explicit):** [worktree result promotion](worktree-isolation-contract.md) is **not claimed** — outputs stay in worktree until a future promotion contract exists.
+**Promotion:** [worktree-result-promotion-contract.md](worktree-result-promotion-contract.md) — explicit operator `promote` / `promote-deny`; no auto-merge.
 
 ### Approval policy
 
@@ -240,7 +240,7 @@ Parent traces must include `workflow_id` on spawned legs. Fan-in merge steps mus
 | Resume | [session-resume-contract.md](session-resume-contract.md) | Workflow checkpoint may reference session checkpoint; resume **revalidates** side effects |
 | Capability plan | [capability-flow-contract.md](capability-flow-contract.md) | Steps must align with matrix before run |
 | CERBERUS | [review-record-contract.md](review-record-contract.md) | Optional `cerberus_review` before approve |
-| Result promotion | *(gap)* | Out of scope until promotion contract ships |
+| Result promotion | [worktree-result-promotion-contract.md](worktree-result-promotion-contract.md) | Operator `--approve`; separate from cleanup |
 
 ---
 

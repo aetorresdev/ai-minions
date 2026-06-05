@@ -14,6 +14,8 @@
  *   node runner-tui-cli.js worktree list [--cwd DIR]
  *   node runner-tui-cli.js worktree status [--run-id <id>|--cwd DIR]
  *   node runner-tui-cli.js worktree contract [--run-id <id>|--cwd DIR]
+ *   node runner-tui-cli.js worktree promote --run-id <id> --artifact <rel> [--approve] [--overwrite] [--dest-rel <prefix>]
+ *   node runner-tui-cli.js worktree promote-deny --run-id <id> [--reason-code <code>]
  */
 
 'use strict';
@@ -48,6 +50,12 @@ const {
   readRunWorkdirContract,
   formatRunWorkdirContractText,
 } = require('./run-workdir-contract');
+const {
+  promoteWorktreeResults,
+  denyWorktreePromotion,
+  readPromotionRecord,
+  formatPromotionRecordText,
+} = require('./worktree-result-promotion');
 
 function printHelp() {
   console.log(`Runner TUI/CLI — launch orchestrator runs
@@ -59,7 +67,7 @@ Commands:
   status      Read terminal status from trace JSONL
   trace       Step graph + gate blocks from trace JSONL (read-only)
   budget      Token rollup + USD estimate vs budget limits (read-only)
-  worktree    Create/remove/list/status/contract for isolated git worktrees
+  worktree    Create/remove/list/status/contract/promote for isolated git worktrees
 
 Options (preflight / run / routing):
   --cwd <dir>              Project directory (default: cwd)
@@ -78,6 +86,11 @@ Options (run only):
 Options (worktree):
   --force                  Force remove dirty worktree
   --base-ref <ref>         Base ref for new branch (default HEAD)
+  --artifact <rel>         Worktree-relative artifact path (repeatable; promote)
+  --dest-rel <prefix>      Repo-relative destination prefix (promote)
+  --approve                Operator approval required to copy artifacts (promote)
+  --overwrite              Allow replacing existing files at promotion destination (promote)
+  --reason-code <code>     Deny reason (promote-deny; default operator_denied)
 
 Options (status / trace / budget):
   --run-id <id>            Task id / trace basename
@@ -112,6 +125,25 @@ function parseCommonArgs(argv) {
     else if (a === '--force') out.force = true;
     else if (a === '--base-ref' && argv[i + 1]) out.baseRef = argv[++i];
   }
+  return out;
+}
+
+/**
+ * @param {string[]} argv
+ */
+function parseWorktreeArgs(argv) {
+  const out = parseCommonArgs(argv);
+  /** @type {string[]} */
+  const artifacts = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--artifact' && argv[i + 1]) artifacts.push(argv[++i]);
+    else if (a === '--approve') out.approve = true;
+    else if (a === '--overwrite') out.overwrite = true;
+    else if (a === '--dest-rel' && argv[i + 1]) out.destRel = argv[++i];
+    else if (a === '--reason-code' && argv[i + 1]) out.reasonCode = argv[++i];
+  }
+  if (artifacts.length) out.artifacts = artifacts;
   return out;
 }
 
@@ -329,7 +361,7 @@ async function main() {
 
   if (cmd === 'worktree') {
     const sub = rest[0];
-    const wopts = parseCommonArgs(rest.slice(1));
+    const wopts = parseWorktreeArgs(rest.slice(1));
     const repoRoot = wopts.cwd;
 
     if (sub === 'create') {
@@ -456,7 +488,85 @@ async function main() {
       process.exit(0);
     }
 
-    console.error('worktree requires create|remove|list|status|contract');
+    if (sub === 'promote') {
+      if (!wopts.runId) {
+        console.error('worktree promote requires --run-id');
+        process.exit(1);
+      }
+      const artifacts = Array.isArray(wopts.artifacts) ? wopts.artifacts : [];
+      if (!artifacts.length) {
+        console.error('worktree promote requires at least one --artifact <rel>');
+        process.exit(1);
+      }
+      const result = promoteWorktreeResults({
+        repoRoot,
+        taskId: String(wopts.runId),
+        artifacts,
+        destRelPrefix: wopts.destRel ? String(wopts.destRel) : undefined,
+        operatorApproved: wopts.approve === true,
+        allowOverwrite: wopts.overwrite === true,
+      });
+      if (!result.ok) {
+        console.error(result.error || 'worktree promote failed');
+        if (result.reason_code) console.error(`reason_code: ${result.reason_code}`);
+        process.exit(result.error === 'worktree_not_found' ? 2 : 1);
+      }
+      console.log('Promotion completed');
+      console.log(`  task_id:       ${result.task_id}`);
+      console.log(`  worktree_path: ${result.worktree_path}`);
+      console.log(`  repo_root:     ${result.repo_root}`);
+      for (const a of result.artifacts) {
+        console.log(`  promoted:      ${a.source_rel} → ${a.dest_rel}`);
+      }
+      if (result.promotion_record) {
+        console.log('');
+        console.log(formatPromotionRecordText(result.promotion_record));
+      }
+      process.exit(0);
+    }
+
+    if (sub === 'promote-deny') {
+      if (!wopts.runId) {
+        console.error('worktree promote-deny requires --run-id');
+        process.exit(1);
+      }
+      const result = denyWorktreePromotion({
+        repoRoot,
+        taskId: String(wopts.runId),
+        reasonCode: wopts.reasonCode ? String(wopts.reasonCode) : undefined,
+      });
+      if (!result.ok) {
+        console.error(result.error || 'worktree promote-deny failed');
+        if (result.reason_code) console.error(`reason_code: ${result.reason_code}`);
+        process.exit(result.error === 'worktree_not_found' ? 2 : 1);
+      }
+      console.log('Promotion denied (no cleanup side effects)');
+      console.log(`  task_id:       ${result.task_id}`);
+      console.log(`  worktree_path: ${result.worktree_path}`);
+      console.log(`  reason_code:   ${result.reason_code}`);
+      if (result.promotion_record) {
+        console.log('');
+        console.log(formatPromotionRecordText(result.promotion_record));
+      }
+      process.exit(0);
+    }
+
+    if (sub === 'promotion') {
+      if (!wopts.runId) {
+        console.error('worktree promotion requires --run-id');
+        process.exit(1);
+      }
+      const st = statusWorktree({ repoRoot, taskId: String(wopts.runId) });
+      if (!st.ok || !st.exists) {
+        console.error(st.error || 'worktree_not_found');
+        process.exit(2);
+      }
+      const record = readPromotionRecord(st.worktree_path);
+      console.log(formatPromotionRecordText(record));
+      process.exit(0);
+    }
+
+    console.error('worktree requires create|remove|list|status|contract|promote|promote-deny|promotion');
     process.exit(1);
   }
 
