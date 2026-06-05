@@ -1,5 +1,7 @@
 "use strict";
 
+const { flattenIterationFinalizationDeps } = require("./phase-deps");
+
 /**
  * Iteration finalization (slice 5): per-step summarizer + artifact, then cerberus
  * review → blocker/gate-block decide → iteration_done. Session end stays slice 6.
@@ -143,6 +145,7 @@ async function finalizeStepArtifact(ctx, deps) {
  * }>}
  */
 async function executeIterationFinalizationPhase(ctx, deps) {
+  const flat = deps.loop ? flattenIterationFinalizationDeps(deps) : deps;
   const {
     artifacts,
     goal,
@@ -182,7 +185,7 @@ async function executeIterationFinalizationPhase(ctx, deps) {
     summaryMaxIterationsGateBlocked,
     decideFromOrchestratorDecide,
     mapDecideLoopToPlanOutcome,
-  } = deps;
+  } = flat;
 
   const iterations = ctx.iterations();
   let currentMode = initialMode;

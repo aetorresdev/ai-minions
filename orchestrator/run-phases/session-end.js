@@ -1,5 +1,7 @@
 "use strict";
 
+const { flattenSessionEndDeps } = require("./phase-deps");
+
 /**
  * Session end phase (slice 6): loop-limit stop, run state finalize, session summary
  * artifact, close_task, recovery sweep, session_end trace.
@@ -33,7 +35,7 @@
  *   getMcpAuditCalls: () => unknown[],
  *   aggregatePermissionCheckRows: (buf: unknown[]) => object,
  *   getPermissionCheckAuditBuffer: () => unknown[],
- * }} deps
+ * } | ReturnType<import("./phase-deps").buildSessionEndDeps>} deps
  * @returns {{
  *   done: boolean,
  *   summary: string,
@@ -44,6 +46,7 @@
  * }}
  */
 function executeSessionEndPhase(ctx, deps) {
+  const flat = deps.sessionEndDeps ? flattenSessionEndDeps(deps) : deps;
   const {
     done: initialDone,
     summary: initialSummary,
@@ -72,7 +75,7 @@ function executeSessionEndPhase(ctx, deps) {
     getMcpAuditCalls,
     aggregatePermissionCheckRows,
     getPermissionCheckAuditBuffer,
-  } = deps;
+  } = flat;
 
   let done = initialDone;
   let summary = initialSummary;

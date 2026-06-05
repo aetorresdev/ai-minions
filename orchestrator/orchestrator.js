@@ -176,6 +176,11 @@ const {
   executeIterationFinalizationPhase,
 } = require("./run-phases/iteration-finalization");
 const { executeSessionEndPhase } = require("./run-phases/session-end");
+const {
+  buildGateHandlingDeps,
+  buildIterationFinalizationDeps,
+  buildSessionEndDeps,
+} = require("./run-phases/phase-deps");
 
 const DEV_AGENT_IDS = new Set(["dev-backend", "dev-frontend", "dev-devops"]);
 
@@ -820,7 +825,7 @@ async function run(goal, options = {}) {
 
       let result = stepExec.result;
 
-      const gateOut = await executeGateHandlingPhase(phaseCtx, {
+      const gateOut = await executeGateHandlingPhase(phaseCtx, buildGateHandlingDeps({
         agentId,
         step,
         stepId,
@@ -853,7 +858,7 @@ async function run(goal, options = {}) {
         orchTestSystemPathHarnessOn,
         edgeMeta,
         markStepRetryingAfterGate,
-      });
+      }));
       if (gateOut.action === "continue") {
         if (gateOut.artifact) artifacts.push(gateOut.artifact);
         continue;
@@ -881,7 +886,7 @@ async function run(goal, options = {}) {
       artifacts.push(stepArtifactOut.artifact);
     }
 
-    const iterFinalOut = await executeIterationFinalizationPhase(phaseCtx, {
+    const iterFinalOut = await executeIterationFinalizationPhase(phaseCtx, buildIterationFinalizationDeps({
       artifacts,
       goal,
       maxIterations,
@@ -920,7 +925,7 @@ async function run(goal, options = {}) {
       summaryMaxIterationsGateBlocked,
       decideFromOrchestratorDecide,
       mapDecideLoopToPlanOutcome,
-    });
+    }));
     if (iterFinalOut.artifactsToPush) {
       for (const a of iterFinalOut.artifactsToPush) artifacts.push(a);
     }
@@ -946,7 +951,7 @@ async function run(goal, options = {}) {
     costGuardAbort: () => false,
   });
 
-  const sessionEndOut = executeSessionEndPhase(sessionEndCtx, {
+  const sessionEndOut = executeSessionEndPhase(sessionEndCtx, buildSessionEndDeps({
     done,
     summary,
     manualReview,
@@ -974,7 +979,7 @@ async function run(goal, options = {}) {
     getMcpAuditCalls,
     aggregatePermissionCheckRows,
     getPermissionCheckAuditBuffer,
-  });
+  }));
 
   clearMcpAudit();
   return sessionEndOut;
