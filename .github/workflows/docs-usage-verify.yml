@@ -16,20 +16,6 @@ on:
       - ".github/workflows/docs-usage-verify.yml"
       - ".github/workflows/claude-doc-smoke.yml"
       - "orchestrator/operator-cli-help.js"
-  push:
-    branches: [main, master]
-    paths:
-      - "README.md"
-      - "docs/how-to/**"
-      - "docs/orchestrator/token-hygiene-guide.md"
-      - "docs/orchestrator/context-hygiene-signals.md"
-      - "docs/orchestrator/README.md"
-      - "orchestrator/context-hygiene-signals.js"
-      - "orchestrator/orchestrator.js"
-      - "scripts/verify-usage-docs.mjs"
-      - ".github/workflows/docs-usage-verify.yml"
-      - ".github/workflows/claude-doc-smoke.yml"
-      - "orchestrator/operator-cli-help.js"
   workflow_dispatch:
 
 permissions:

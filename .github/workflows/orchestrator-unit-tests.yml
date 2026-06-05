@@ -1,15 +1,9 @@
 # Lint + unit tests for orchestrator/ (no Claude auth or Ollama required).
-# push: path-filtered to save CI on unrelated commits.
-# pull_request: no path filter — every PR gets lint + unit.
+# pull_request only — gates merge; no push-to-master runs (merge already validated on PR).
+# Manual: workflow_dispatch (e.g. post-merge spot-check).
 name: orchestrator-unit-tests
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - "orchestrator/**"
-      - "scripts/hooks/**"
-      - ".github/workflows/orchestrator-unit-tests.yml"
   pull_request:
     branches: [main, master]
   workflow_dispatch:

@@ -12,7 +12,7 @@
 #   - npm run test:e2e:strict → system-path MCP-on-disk (ORCH_MCP_TRANSPORT=direct + mcp-direct.py)
 #
 # Fork PRs: this job is skipped when head repo ≠ base repo so the workflow does not wait forever
-# for a runner that forks never receive. Same-repo PRs and pushes still run E2E when paths match.
+# for a runner that forks never receive. Same-repo PRs run E2E when paths match (not on push to master).
 #
 name: orchestrator-e2e
 
@@ -30,21 +30,6 @@ on:
         description: "Ollama model to use (default: qwen2.5-coder:7b)"
         required: false
         default: "qwen2.5-coder:7b"
-  push:
-    branches: [main, master]
-    paths:
-      - "orchestrator/orchestrator.js"
-      - "orchestrator/agents.js"
-      - "orchestrator/cli.js"
-      - "orchestrator/run-orchestrator.js"
-      - "orchestrator/mcp-direct.py"
-      - "orchestrator/tests/**"
-      - "orchestrator/scripts/**"
-      - "orchestrator/package.json"
-      - "orchestrator/package-lock.json"
-      - "mcp-servers/orchestrator-state/**"
-      - "mcp-servers/compact-handoff/**"
-      - ".github/workflows/orchestrator-e2e.yml"
   pull_request:
     branches: [main, master]
     paths:

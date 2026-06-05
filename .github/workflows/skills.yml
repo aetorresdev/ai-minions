@@ -2,14 +2,11 @@
 name: Skill structure
 
 on:
-  push:
-    branches: [main, master]
-    paths:
-      - "skills/**"
   pull_request:
     branches: [main, master]
     paths:
       - "skills/**"
+  workflow_dispatch:
 
 jobs:
   skill-structure:
