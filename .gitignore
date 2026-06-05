@@ -44,6 +44,7 @@ secrets/
 # Claude Code runtime data (personal, not repo content)
 projects/
 history.jsonl
+policy-limits.json
 metrics/
 # Per-project flow-metrics hook state (not metrics/ trace authority)
 .claude/flow-hook-state/
