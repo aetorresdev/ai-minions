@@ -17,6 +17,7 @@ excludes=(
   ":(exclude)orchestrator/tests/capability-plan-reject.test.js"
   ":(exclude)orchestrator/agents.js"
   ":(exclude)orchestrator/orchestrator.js"
+  ":(exclude)orchestrator/run-loop-helpers.js"
   ":(exclude)orchestrator/README.md"
   ":(exclude)orchestrator/scripts/ci-check-harness-scope.sh"
   ":(exclude)docs/orchestrator/strict-mode.md"
