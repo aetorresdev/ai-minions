@@ -23,27 +23,37 @@
  *     `mcp-direct.py` (Python + `mcp-servers` venvs) instead of the claude CLI for state store + compact_handoff.
  */
 
+// ── Node built-ins ────────────────────────────────────────────────────────────
+const { randomUUID } = require("crypto");
+const fs = require("fs");
+
+// ── Session context & environment ─────────────────────────────────────────────
 const { deriveRunScope, writeOrchRunContext } = require("./flow-hook-bridge");
+const { parseEnvironment } = require("./environment-parser");
 const { buildWorktreeTraceFields } = require("./worktree-isolation");
+
+// ── Agents, contracts & capability ────────────────────────────────────────────
+const { askAgent, summarizeHandoff, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
+const { qaAgentDoneTraceExtras } = require("./agents/validate-output");
+const {
+  validatePlanStepsCapability,
+  CAPABILITY_MATRIX_VERSION,
+} = require("./agents/capability-matrix");
 const {
   isQaSpecBeforeDevEnabled,
   applyQaSpecBeforeDevPlan,
   resolveHandoffMode,
-  validateHandoffForMode,
   qaSpecFlowTraceExtras,
   shouldEmitQaReviewRecord,
 } = require("./qa-spec-flow");
-const { askAgent, summarizeHandoff, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
 const {
   configureLocalModelPolicy,
   validateLocalOnlyRunPrerequisites,
   setLocalModelTraceReporter,
 } = require("./local-model-policy");
 const { formatArtifactLine, envInt, truncateForContext } = require("./context-utils");
-const { spawnSync } = require("child_process");
-const { randomUUID } = require("crypto");
-const fs = require("fs");
-const path = require("path");
+
+// ── Run state & planning decisions ────────────────────────────────────────────
 const {
   createRunState,
   syncRunIteration,
@@ -68,42 +78,26 @@ const {
   planStepsReplayFromGateBlockedArtifacts,
   summaryMaxIterationsGateBlocked,
 } = require("./decision-engine");
-const { qaAgentDoneTraceExtras } = require("./agents/validate-output");
+
+// ── Trace write path (schema: trace-schema.js; writer: trace-writer.js) ───────
 const {
-  validatePlanStepsCapability,
-  CAPABILITY_MATRIX_VERSION,
-} = require("./agents/capability-matrix");
-
-// ── Execution trace ───────────────────────────────────────────────────────────
-// Writes one JSONL event per step to ~/.claude/metrics/traces/<task_id>.jsonl
-// Every line: ts (ISO), ts_ms (epoch ms), trace_schema_version, task_id, …payload.
-// trace_schema_version = TRACE_LINE_WRITER_VERSION from trace-schema.js (today "2").
-// Event types: session_start, agent_start, agent_done, gate_result,
-//              contract_fail, iteration_done, session_end (optional permission_summary rollup), mcp_call, permission_check,
-//              context_stats (ollama_* tokens, compaction attribution, model_fallback_segments),
-//              context_compaction_started / context_compaction_completed (compaction lifecycle observability — not a substitute for context_stats),
-//              model_fallback_required / model_fallback_started / model_fallback_completed (model fallback lifecycle observability),
-//              agent_done (qa): optional qa_triple_template + qa_blocker_non_vacuous for rollups
-//              approval_required / approval_granted / approval_denied (human governance — see governance-gate.js + trace schema)
-//              approval_skipped (policy-driven PO/ARCH/DEV gates — see approval-policy-gate.js)
-//              doubt_review_started / doubt_review_finding / doubt_review_verdict (CERBERUS doubt cycle)
-// iteration_done: transition_reason { type, reason_code, ... }; failure_type when outcome !== "done".
-//
-// Sensitive field handling:
-//   goal  → secret-shaped substrings redacted, then truncated to 80 chars + SHA-256 hash (TRACE_REDACT_GOAL=1 omits text entirely)
-//   task / reason / summary / message / string[] items,reasons,errors → redact then truncate (ORCH_TRACE_SKIP_SECRET_REDACT=1 disables redact)
-//   transition_reason.details → redacted then truncated to 300 chars
-// Trace write failures emit a one-time stderr warning (not silenced).
-
-const TRACES_DIR = process.env.ORCH_TRACES_DIR && String(process.env.ORCH_TRACES_DIR).trim()
-  ? path.resolve(String(process.env.ORCH_TRACES_DIR).trim())
-  : path.join(require("os").homedir(), ".claude", "metrics", "traces");
-const TRACE_REDACT_GOAL = process.env.TRACE_REDACT_GOAL === "1";
-
-const {
-  TRACE_LINE_WRITER_VERSION,
-  validateTraceLine: validateTraceLineForWrite,
-} = require("./trace-schema");
+  traceEvent,
+  loadTraceRowsForTask,
+  TRACE_SCHEMA_VERSION,
+  _sanitize,
+  _hashGoal,
+  transitionReason,
+  TRANSITION_REASON_TYPES,
+  TRANSITION_REASON_CODES,
+  inferReasonCode,
+  FAILURE_TYPES,
+  FAILURE_AXES,
+  failureTypeForIterationDone,
+  failureAxisForIterationDone,
+  traceIterationDone,
+  composeIterationDonePayload,
+} = require("./trace-writer");
+const { redactSensitivePlaintext } = require("./trace-redact");
 const {
   emitModelFallbackLifecycleIfNeeded,
   emitContextCompactionStarted,
@@ -119,11 +113,52 @@ const {
   traceDoubtReviewCycle,
 } = require("./doubt-review");
 const { runRecoverySweepAndTrace } = require("./recovery-sweep");
-const { redactSensitivePlaintext } = require("./trace-redact");
-const { runMcpPermissionGate } = require("./security/mcp-permission-gate");
-const { runNetworkPermissionGate } = require("./security/network-permission-gate");
+
+// ── MCP invocation & permission audit ─────────────────────────────────────────
+const {
+  beginMcpAudit,
+  clearMcpAudit,
+  getMcpAuditCalls,
+  getPermissionCheckAuditBuffer,
+  aggregateMcpUsage,
+  emitPermissionCheckTrace,
+  invokeMcpDirect,
+  callStateMcp,
+  callCompactHandoff,
+} = require("./mcp-client");
 const { aggregatePermissionCheckRows } = require("./security/permission-check-summary");
-const { buildApprovalRequiredFromPermissionTrace } = require("./governance-gate");
+
+// ── Run-loop helpers (env/budget, logging, graph, handoff) ─────────────────────
+const {
+  stripLeadingOwnerArchitectForDegradedMultiAgent,
+  EDGE_TYPE_CATEGORY,
+  edgeMeta,
+  validateStepGraph,
+  assertParentStepExists,
+  orchTestSystemPathHarnessOn,
+  DEFAULT_MAX_CONTEXT_CHARS,
+  DEFAULT_MAX_REVIEW_CHARS,
+  parseOptionalNonNegativeInt,
+  parseOptionalPositiveFloat,
+  parseOptionalRatioWithInvalid,
+  parseBudgetLimitsJson,
+  loadOllamaUsdRatesMtok,
+  resolveMaxIterations,
+  roundUsd6,
+  log,
+  logRoleSwitch,
+  writeAgentState,
+  extractJson,
+  validateHandoffStructure,
+  detectBlockers,
+  AGENT_TO_MODE,
+  VALID_WORKER_AGENTS,
+  AGENTS_REQUIRING_GATE,
+  checkOllama,
+  AGENT_STATE_FILE,
+} = require("./run-loop-helpers");
+
+// ── Approval & governance gates ───────────────────────────────────────────────
 const {
   buildGateContextFromArtifacts,
   loadApprovalPolicyFromEnv,
@@ -132,938 +167,6 @@ const {
 
 const DEV_AGENT_IDS = new Set(["dev-backend", "dev-frontend", "dev-devops"]);
 
-/** Same as `TRACE_LINE_WRITER_VERSION` in trace-schema.js — single source for writer + schema. */
-const TRACE_SCHEMA_VERSION = TRACE_LINE_WRITER_VERSION;
-
-// ── MCP usage audit (per run) ───────────────────────────────────────────────
-let _mcpAuditTaskId = null;
-/** @type {{ server: string, tool: string, transport: string, duration_ms: number, ok: boolean }[]} */
-let _mcpAuditCalls = [];
-/** @type {{ decision?: string, reason_code?: string, domain?: string, tool?: string }[]} */
-let _permissionCheckAuditBuffer = [];
-
-function beginMcpAudit(taskId) {
-  _mcpAuditTaskId = taskId;
-  _mcpAuditCalls = [];
-  _permissionCheckAuditBuffer = [];
-}
-
-function clearMcpAudit() {
-  _mcpAuditTaskId = null;
-  _mcpAuditCalls = [];
-  _permissionCheckAuditBuffer = [];
-}
-
-/**
- * Roll up MCP invocation rows for session_end / tests.
- * @param {{ server: string, tool: string, transport: string, duration_ms: number, ok: boolean }[]} calls
- */
-function aggregateMcpUsage(calls) {
-  if (!calls.length) {
-    return { mcp_total_calls: 0, mcp_by_tool: {}, mcp_by_transport: {}, mcp_failed_calls: 0 };
-  }
-  const mcp_by_tool = {};
-  const mcp_by_transport = {};
-  let mcp_failed_calls = 0;
-  for (const c of calls) {
-    const key = `${c.server}.${c.tool}`;
-    mcp_by_tool[key] = (mcp_by_tool[key] || 0) + 1;
-    mcp_by_transport[c.transport] = (mcp_by_transport[c.transport] || 0) + 1;
-    if (!c.ok) mcp_failed_calls += 1;
-  }
-  return {
-    mcp_total_calls: calls.length,
-    mcp_by_tool,
-    mcp_by_transport,
-    mcp_failed_calls,
-  };
-}
-
-/**
- * In degraded multi_agent (`skipStateMcp`), planners often prepend owner/architect before DEV;
- * those roles often fail output contracts on local Ollama before any dev-* step runs.
- * Remove only leading owner/architect steps when a dev-* step still exists later.
- * @param {{ agentId?: string, task?: string }[]} steps
- */
-function stripLeadingOwnerArchitectForDegradedMultiAgent(steps) {
-  if (!Array.isArray(steps) || steps.length === 0) return steps;
-  const scope = new Set(["owner", "architect"]);
-  let i = 0;
-  while (i < steps.length) {
-    const id = String(steps[i].agentId || "").toLowerCase();
-    if (!scope.has(id)) break;
-    i += 1;
-  }
-  if (i === 0) return steps;
-  const rest = steps.slice(i);
-  const hasDev = rest.some((s) => String(s.agentId || "").toLowerCase().startsWith("dev"));
-  return hasDev ? rest : steps;
-}
-
-// ── edge_type taxonomy ────────────────────────────────────────────────────────
-// Categorises each edge_type value into a semantic layer so consumers can
-// filter by category without parsing individual type strings.
-//   control_flow — normal execution progression (success, retry)
-//   failure      — hard stops (fail, timeout)
-//   policy       — gate decisions (gate_block)
-const EDGE_TYPE_CATEGORY = Object.freeze({
-  success:    "control_flow",
-  retry:      "control_flow",
-  fail:       "failure",
-  timeout:    "failure",
-  gate_block: "policy",
-});
-
-/**
- * Returns { edge_type, edge_category } for a given edge type string.
- * edge_category defaults to "unknown" for forward-compat with future types.
- * @param {string} edgeType
- * @returns {{ edge_type: string, edge_category: string }}
- */
-function edgeMeta(edgeType) {
-  return { edge_type: edgeType, edge_category: EDGE_TYPE_CATEGORY[edgeType] ?? "unknown" };
-}
-
-// ── graph validation ──────────────────────────────────────────────────────────
-/**
- * Validates the step graph before execution begins.
- * Checks structural issues detectable before run:
- *   - steps must be an array
- *   - each step must have agentId (legacy "agent" on plan rows is not accepted; matches plan capability validation)
- *
- * parent_step_id references are validated at emit time via assertParentStepExists
- * since stepIds are computed dynamically during the loop.
- *
- * @param {{ agentId?: string, task?: string }[]} steps
- * @param {Set<string>} validAgents
- * @returns {{ valid: boolean, errors: string[] }}
- */
-function validateStepGraph(steps, validAgents) {
-  const errors = [];
-  if (!Array.isArray(steps)) {
-    return { valid: false, errors: ["steps must be an array"] };
-  }
-  const seen = new Map(); // agentId → count (for stepId collision detection)
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
-    const agentId = step.agentId != null ? String(step.agentId).trim() : "";
-    if (!agentId) {
-      errors.push(`step[${i}] missing agentId`);
-      continue;
-    }
-    if (!validAgents.has(agentId)) continue; // skipped by loop — not an error
-    seen.set(agentId, (seen.get(agentId) || 0) + 1);
-  }
-  return { valid: errors.length === 0, errors };
-}
-
-/**
- * Validates a parent_step_id reference at emit time.
- * Called before emitting any trace event that carries parent_step_id.
- * Logs a one-time warning per invalid reference — does NOT throw.
- * @param {string|null} parentStepId
- * @param {Set<string>} emittedStepIds
- */
-function assertParentStepExists(parentStepId, emittedStepIds) {
-  if (parentStepId !== null && !emittedStepIds.has(parentStepId)) {
-    process.stderr.write(
-      `[orchestrator] warning: parent_step_id "${parentStepId}" not found in emitted steps\n`
-    );
-  }
-}
-
-function recordMcpInvocation(entry) {
-  if (!_mcpAuditTaskId) return;
-  _mcpAuditCalls.push(entry);
-  traceEvent(_mcpAuditTaskId, { event: "mcp_call", ...entry });
-}
-
-/**
- * Permission evaluator before MCP execution (fail closed).
- * Set `ORCH_SKIP_MCP_PERMISSION_GATE=1` to bypass (tests / emergency only).
- * @param {string} server
- * @param {string} toolName
- * @param {string} [cwd]
- * @param {{ agentId?: string, role?: string, iteration?: number, step_id?: string, ownership_change?: boolean, handoff_contract_ref?: string, source_role?: string, target_role?: string }} [gateOpts] — capability matrix context for MCP (defaults: orchestrator / ORCHESTRATOR); optional fields feed governance trace when policy returns requires_approval
- */
-function gateMcpInvocation(server, toolName, cwd, gateOpts = {}) {
-  if (process.env.ORCH_SKIP_MCP_PERMISSION_GATE === "1") return;
-  const repoRoot = cwd || process.cwd();
-  let result;
-  try {
-    result = runMcpPermissionGate({
-      server,
-      tool: toolName,
-      repoRoot,
-      agentId: gateOpts.agentId,
-      role: gateOpts.role,
-    });
-  } catch (err) {
-    const e = new Error(`MCP permission gate failed: ${err.message}`);
-    e.cause = err;
-    e.code = "MCP_PERMISSION_GATE_ERROR";
-    throw e;
-  }
-  if (_mcpAuditTaskId) {
-    traceEvent(_mcpAuditTaskId, result.tracePayload);
-  }
-  const out = result.output;
-  if (out.decision === "requires_approval" && _mcpAuditTaskId) {
-    traceEvent(
-      _mcpAuditTaskId,
-      buildApprovalRequiredFromPermissionTrace(result.tracePayload, {
-        mcpServer: server,
-        mcpTool: toolName,
-        agent: gateOpts.agentId,
-        iteration: gateOpts.iteration,
-        step_id: gateOpts.step_id,
-        role: gateOpts.role,
-        ownership_change: gateOpts.ownership_change,
-        handoff_contract_ref: gateOpts.handoff_contract_ref,
-        source_role: gateOpts.source_role,
-        target_role: gateOpts.target_role,
-      }),
-    );
-  }
-  if (out.decision === "deny" || out.decision === "requires_approval" || !out.safe_to_continue) {
-    const msg = `MCP invocation denied (${out.reason_code}): ${server}.${toolName}`;
-    const err = new Error(msg);
-    err.code = "MCP_PERMISSION_DENIED";
-    err.permission_decision = out;
-    throw err;
-  }
-}
-
-/**
- * Emit `permission_check` for Claude CLI shell gate when MCP audit task id is active (same window as MCP traces).
- * Used by `agents/runtime/run-claude.js`; optional when orchestrator not loaded.
- */
-function emitPermissionCheckTrace(payload) {
-  if (!_mcpAuditTaskId) return;
-  traceEvent(_mcpAuditTaskId, payload);
-}
-
-/**
- * Test-only harness: exercise real MCP + disk transitions without trusting the alignment LLM
- * (stubs + `enforce_goal_alignment: false` + Node bypass when `aligned === false`).
- * **Not** production-safe; **not** "strict E2E" in the product sense. Set only from `tests/e2e.strict.test.js`.
- */
-function orchTestSystemPathHarnessOn() {
-  return process.env.ORCH_TEST_SYSTEM_PATH_HARNESS === "1";
-}
-let _traceWarnEmitted = false;
-
-function _hashGoal(text) {
-  return require("crypto").createHash("sha256").update(text).digest("hex").slice(0, 12);
-}
-
-/**
- * @param {unknown} v
- * @returns {unknown}
- */
-function _redactStringArray(v) {
-  if (!Array.isArray(v)) return v;
-  return v.map((x) => (typeof x === "string" ? redactSensitivePlaintext(x) : x));
-}
-
-function _sanitize(event) {
-  const out = { ...event };
-  if ("goal" in out) {
-    const cleaned = redactSensitivePlaintext(String(out.goal));
-    const h = _hashGoal(cleaned);
-    out.goal = TRACE_REDACT_GOAL ? `[redacted:${h}]` : `${cleaned.slice(0, 80)}… [sha256:${h}]`;
-  }
-  if ("task" in out) out.task = redactSensitivePlaintext(String(out.task)).slice(0, 120);
-  if ("reason" in out) out.reason = redactSensitivePlaintext(String(out.reason)).slice(0, 300);
-  if ("summary" in out) out.summary = redactSensitivePlaintext(String(out.summary)).slice(0, 300);
-  if (typeof out.message === "string") out.message = redactSensitivePlaintext(out.message).slice(0, 400);
-  if (Array.isArray(out.items)) out.items = _redactStringArray(out.items);
-  if (Array.isArray(out.reasons)) out.reasons = _redactStringArray(out.reasons);
-  if (Array.isArray(out.errors)) out.errors = _redactStringArray(out.errors);
-  if (out.transition_reason && typeof out.transition_reason === "object" && out.transition_reason !== null) {
-    const tr = { ...out.transition_reason };
-    if ("details" in tr && tr.details != null) tr.details = redactSensitivePlaintext(String(tr.details)).slice(0, 300);
-    if ("gate_id" in tr && tr.gate_id != null) tr.gate_id = String(tr.gate_id).slice(0, 120);
-    if ("step_id" in tr && tr.step_id != null) tr.step_id = String(tr.step_id).slice(0, 240);
-    if (out.event === "iteration_done" && tr.type && !tr.reason_code) {
-      tr.reason_code = inferReasonCode(String(tr.type), tr.details);
-    }
-    out.transition_reason = tr;
-  }
-  if ("failure_type" in out && out.failure_type != null) {
-    out.failure_type = String(out.failure_type).slice(0, 64);
-  }
-  if ("failure_axis" in out && out.failure_axis != null) {
-    out.failure_axis = String(out.failure_axis).slice(0, 32);
-  }
-  if (typeof out.intent_id === "string") {
-    out.intent_id = out.intent_id.slice(0, 64);
-  }
-  if (Array.isArray(out.intent_ids)) {
-    out.intent_ids = out.intent_ids
-      .filter((x) => typeof x === "string")
-      .map((x) => x.slice(0, 64))
-      .slice(0, 48);
-  }
-  return out;
-}
-
-/** Closed catalog for `iteration_done.failure_type` (JSON Schema + trace taxonomy). */
-const FAILURE_TYPES = /** @type {const} */ ([
-  "spec_missing",
-  "contract_mismatch",
-  "hallucination",
-  "tool_error",
-  "timeout",
-  "cost_abort",
-  "retry_exceeded",
-]);
-const FAILURE_TYPE_SET = new Set(FAILURE_TYPES);
-
-/** Middle-layer axis for dashboards — pairs with coarse `failure_type`. */
-const FAILURE_AXES = /** @type {const} */ ([
-  "guard",
-  "cerberus",
-  "gate_artifact",
-  "gate_tool",
-  "orchestrate",
-  "loop_cap",
-  "contract",
-  "unknown",
-]);
-const FAILURE_AXIS_SET = new Set(FAILURE_AXES);
-
-/** Allowed values for iteration_done.transition_reason.type. */
-const TRANSITION_REASON_TYPES = new Set([
-  "DONE",
-  "VALIDATION_FAIL",
-  "GATE_BLOCK",
-  "MAX_ITERATIONS",
-  "CONTRACT_FAIL",
-  "ITERATE_FALLBACK",
-  "ITERATE",
-  "GUARD",
-]);
-
-/** Closed catalog for analytics / aggregation (JSON Schema enum in schemas/trace-v2-line.schema.json). */
-const TRANSITION_REASON_CODES = new Set([
-  "RUN_COMPLETED",
-  "CERBERUS_BLOCKERS_ITERATE",
-  "ORCHESTRATOR_NO_CORRECTIONS_JSON",
-  "MAX_ITERATIONS_CERBERUS_BLOCKERS",
-  "GATE_ARTIFACT_OR_HANDOFF",
-  "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS",
-  "ORCHESTRATOR_DECIDE_CORRECTIONS",
-  "CONTRACT_OR_DECIDE_FAILURE",
-  "VALIDATION_FAILURE_GENERIC",
-  "GUARD_COST_LIMIT",
-  "GUARD_STEP_RETRY_LIMIT",
-  "MAX_ITERATIONS_LOOP_EXHAUSTED",
-]);
-
-/**
- * Map orchestrator semantics → coarse `failure_type` on iteration_done.
- *
- * **Design:** `failure_type` is intentionally a small rollup (env guardrails, high-level SLOs).
- * For dashboards and drill-down, pair with **`transition_reason.reason_code`** (stable enum:
- * CERBERUS_BLOCKERS_ITERATE, ORCHESTRATOR_DECIDE_CORRECTIONS, GATE_ARTIFACT_OR_HANDOFF, …) —
- * that is the dimension that distinguishes “cerberus vs decide vs gate” today; do not infer
- * sub-categories from free text alone.
- *
- * **`tool_error` (v1):** emitted when gate-blocked iteration is driven by **`compact_handoff`**
- * MCP failure (`gate_kind`). Other MCP/tool surfaces should get explicit branches here (or
- * new `reason_code` values) before reusing `tool_error`, to avoid silent semantic drift.
- *
- * @param {string} outcome
- * @param {string} reasonCode — transition_reason.reason_code
- * @param {{ gateKinds?: string[] }} [ctx]
- * @returns {string | null} null when outcome is terminal success (`done`)
- */
-function failureTypeForIterationDone(outcome, reasonCode, ctx = {}) {
-  if (outcome === "done") return null;
-  const kinds = ctx.gateKinds || [];
-  if (outcome === "gate_blocked_iterate" && kinds.some((k) => k === "compact_handoff")) {
-    return "tool_error";
-  }
-  if (
-    reasonCode === "MAX_ITERATIONS_CERBERUS_BLOCKERS" ||
-    reasonCode === "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS" ||
-    reasonCode === "MAX_ITERATIONS_LOOP_EXHAUSTED" ||
-    reasonCode === "GUARD_STEP_RETRY_LIMIT"
-  ) {
-    return "retry_exceeded";
-  }
-  if (reasonCode === "GUARD_COST_LIMIT") return "cost_abort";
-  return "contract_mismatch";
-}
-
-/**
- * Analytics axis: use with `failure_type` and `transition_reason.reason_code` in dashboards.
- * @param {string} outcome
- * @param {string} reasonCode
- * @param {{ gateKinds?: string[] }} [ctx]
- * @returns {string}
- */
-function failureAxisForIterationDone(outcome, reasonCode, ctx = {}) {
-  if (outcome === "done") return "unknown";
-  const rc = String(reasonCode || "");
-  const kinds = ctx.gateKinds || [];
-  if (rc === "GUARD_COST_LIMIT" || rc === "GUARD_STEP_RETRY_LIMIT") return "guard";
-  if (outcome === "gate_blocked_iterate" && kinds.some((k) => k === "compact_handoff")) return "gate_tool";
-  if (
-    rc === "CERBERUS_BLOCKERS_ITERATE" ||
-    rc === "MAX_ITERATIONS_CERBERUS_BLOCKERS" ||
-    outcome === "max_iterations_with_blockers"
-  ) {
-    return "cerberus";
-  }
-  if (
-    rc === "GATE_ARTIFACT_OR_HANDOFF" ||
-    rc === "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS" ||
-    outcome === "max_iterations_with_gate_blocks"
-  ) {
-    return "gate_artifact";
-  }
-  if (rc === "ORCHESTRATOR_DECIDE_CORRECTIONS" || rc === "ORCHESTRATOR_NO_CORRECTIONS_JSON") return "orchestrate";
-  if (rc === "MAX_ITERATIONS_LOOP_EXHAUSTED" || outcome === "loop_limit_stopped") return "loop_cap";
-  if (rc === "CONTRACT_OR_DECIDE_FAILURE" || outcome === "stopped") return "contract";
-  return "unknown";
-}
-
-/**
- * Assemble the `iteration_done` trace row (writer contract). Used by `traceIterationDone` and emitter contract tests.
- * @param {number} iteration
- * @param {string} outcome
- * @param {ReturnType<typeof transitionReason>} trSpread
- * @param {Record<string, unknown>} [extra]
- * @param {{ gateKinds?: string[], intent_ids?: string[] }} [ctx]
- * @returns {Record<string, unknown>}
- */
-function composeIterationDonePayload(iteration, outcome, trSpread, extra = {}, ctx = {}) {
-  const reasonCode = trSpread.transition_reason && trSpread.transition_reason.reason_code;
-  const rcs = reasonCode != null ? String(reasonCode) : "";
-  if (!TRANSITION_REASON_CODES.has(rcs)) {
-    throw new Error(`iteration_done: transition_reason.reason_code missing or not in catalog (${JSON.stringify(reasonCode)})`);
-  }
-  const payload = {
-    event: "iteration_done",
-    iteration,
-    outcome,
-    ...trSpread,
-    ...extra,
-  };
-  const ft = failureTypeForIterationDone(outcome, rcs, ctx);
-  if (ft != null) {
-    if (!FAILURE_TYPE_SET.has(ft)) {
-      throw new Error(`internal: invalid failure_type ${ft}`);
-    }
-    payload.failure_type = ft;
-  }
-  if (outcome !== "done") {
-    const axis = failureAxisForIterationDone(outcome, rcs, ctx);
-    if (!FAILURE_AXIS_SET.has(axis)) throw new Error(`internal: invalid failure_axis ${axis}`);
-    payload.failure_axis = axis;
-  }
-  if (ctx.intent_ids && ctx.intent_ids.length) {
-    payload.intent_ids = ctx.intent_ids.slice(0, 48);
-  }
-  return payload;
-}
-
-/**
- * @param {string} taskId
- * @param {number} iteration
- * @param {string} outcome
- * @param {ReturnType<typeof transitionReason>} trSpread
- * @param {Record<string, unknown>} [extra]
- * @param {{ gateKinds?: string[], intent_ids?: string[] }} [ctx]
- */
-function traceIterationDone(taskId, iteration, outcome, trSpread, extra = {}, ctx = {}) {
-  traceEvent(taskId, composeIterationDonePayload(iteration, outcome, trSpread, extra, ctx));
-}
-
-/**
- * Map (type, details) → stable reason_code. Extend when adding new iteration_done paths.
- * @param {string} type
- * @param {string|undefined} details
- */
-function inferReasonCode(type, details) {
-  const d = details == null ? "" : String(details);
-  if (type === "DONE") return "RUN_COMPLETED";
-  if (type === "VALIDATION_FAIL") return "VALIDATION_FAILURE_GENERIC";
-  if (type === "GATE_BLOCK" && d === "cerberus_blockers") return "CERBERUS_BLOCKERS_ITERATE";
-  if (type === "ITERATE_FALLBACK" && d === "orchestrator_no_corrections_json") return "ORCHESTRATOR_NO_CORRECTIONS_JSON";
-  if (type === "MAX_ITERATIONS" && d === "cerberus_blockers_cap") return "MAX_ITERATIONS_CERBERUS_BLOCKERS";
-  if (type === "GATE_BLOCK" && d === "artifact_contract_or_handoff") return "GATE_ARTIFACT_OR_HANDOFF";
-  if (type === "MAX_ITERATIONS" && d === "gate_blocked_artifacts_cap") return "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS";
-  if (type === "ITERATE" && d === "orchestrator_decide_corrections") return "ORCHESTRATOR_DECIDE_CORRECTIONS";
-  if (type === "CONTRACT_FAIL") return "CONTRACT_OR_DECIDE_FAILURE";
-  if (type === "MAX_ITERATIONS" && d === "loop_exhausted_without_done") return "MAX_ITERATIONS_LOOP_EXHAUSTED";
-  throw new Error(`cannot infer reason_code for transition_reason type=${type} details=${d.slice(0, 80)}`);
-}
-
-/**
- * Structured transition reason for iteration_done.
- * @param {string} type — must be in TRANSITION_REASON_TYPES
- * @param {string} [details]
- * @param {{ reason_code?: string, gate_id?: string, step_id?: string }} [meta] — optional overrides / correlation fields
- * @returns {{ transition_reason: { type: string, reason_code: string, details?: string, gate_id?: string, step_id?: string } }}
- */
-function transitionReason(type, details, meta = {}) {
-  if (!TRANSITION_REASON_TYPES.has(type)) {
-    throw new Error(`invalid transition_reason.type: ${type}`);
-  }
-  const reason_code = meta.reason_code != null && String(meta.reason_code).length
-    ? String(meta.reason_code)
-    : inferReasonCode(type, details);
-  if (!TRANSITION_REASON_CODES.has(reason_code)) {
-    throw new Error(`invalid transition_reason.reason_code: ${reason_code}`);
-  }
-  const transition_reason = { type, reason_code };
-  if (details != null && String(details).length > 0) {
-    transition_reason.details = String(details).slice(0, 300);
-  }
-  if (meta.gate_id != null && String(meta.gate_id).length > 0) {
-    transition_reason.gate_id = String(meta.gate_id).slice(0, 120);
-  }
-  if (meta.step_id != null && String(meta.step_id).length > 0) {
-    transition_reason.step_id = String(meta.step_id).slice(0, 240);
-  }
-  return { transition_reason };
-}
-
-function loadTraceRowsForTask(taskId) {
-  const filePath = path.join(TRACES_DIR, `${taskId}.jsonl`);
-  if (!fs.existsSync(filePath)) return [];
-  /** @type {object[]} */
-  const rows = [];
-  for (const line of fs.readFileSync(filePath, "utf8").split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      rows.push(JSON.parse(line));
-    } catch {
-      /* skip malformed */
-    }
-  }
-  return rows;
-}
-
-function traceEvent(taskId, event) {
-  const tsMs = Date.now();
-  const sanitized = _sanitize(event);
-  const record = {
-    ...sanitized,
-    task_id: taskId,
-    trace_schema_version: TRACE_SCHEMA_VERSION,
-    ts: new Date(tsMs).toISOString(),
-    ts_ms: tsMs,
-  };
-  const v = validateTraceLineForWrite(record);
-  if (!v.ok) {
-    throw new Error(`trace line failed JSON Schema: ${v.errors.join("; ")}`);
-  }
-  if (sanitized.event === "permission_check" && taskId === _mcpAuditTaskId) {
-    _permissionCheckAuditBuffer.push({
-      decision: sanitized.decision,
-      reason_code: sanitized.reason_code,
-      domain: sanitized.domain,
-      tool: sanitized.tool,
-    });
-  }
-  try {
-    fs.mkdirSync(TRACES_DIR, { recursive: true });
-    const line = JSON.stringify(record);
-    fs.appendFileSync(path.join(TRACES_DIR, `${taskId}.jsonl`), line + "\n");
-  } catch (err) {
-    if (!_traceWarnEmitted) {
-      process.stderr.write(`[trace] WARNING: could not write trace (${err.message}) — tracing disabled for this session\n`);
-      _traceWarnEmitted = true;
-    }
-  }
-}
-
-const DEFAULT_MAX_ITERATIONS = 3;
-const DEFAULT_MAX_CONTEXT_CHARS = 12000;
-const DEFAULT_MAX_REVIEW_CHARS = 0;
-
-/** @param {string} name @param {number} maxVal */
-function parseOptionalNonNegativeInt(name, maxVal) {
-  const raw = process.env[name];
-  if (raw === undefined || String(raw).trim() === "") return null;
-  const n = parseInt(String(raw).trim(), 10);
-  if (!Number.isFinite(n) || n < 0 || n > maxVal) return null;
-  return n;
-}
-
-/** @param {string} name */
-function parseOptionalPositiveFloat(name) {
-  const raw = process.env[name];
-  if (raw == null || String(raw).trim() === "") return null;
-  const n = Number.parseFloat(String(raw));
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return n;
-}
-
-/** @param {string} name */
-function parseOptionalRatioWithInvalid(name) {
-  const raw = process.env[name];
-  if (raw == null || String(raw).trim() === "") return { value: null, invalid: null };
-  const n = Number.parseFloat(String(raw));
-  if (!Number.isFinite(n)) return { value: null, invalid: { var_name: name, reason: "not_number" } };
-  if (n <= 0 || n > 1) return { value: null, invalid: { var_name: name, reason: "out_of_range", min_exclusive: 0, max_inclusive: 1 } };
-  return { value: n, invalid: null };
-}
-
-function parseBudgetLimitsJson() {
-  const raw = process.env.ORCH_BUDGET_LIMITS_JSON;
-  if (raw == null || String(raw).trim() === "") return { limits: {}, invalid: null };
-  let parsed;
-  try {
-    parsed = JSON.parse(String(raw));
-  } catch (err) {
-    return { limits: {}, invalid: { var_name: "ORCH_BUDGET_LIMITS_JSON", reason: "invalid_json", message: err.message } };
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { limits: {}, invalid: { var_name: "ORCH_BUDGET_LIMITS_JSON", reason: "not_object" } };
-  }
-  /** @type {{ run?: number, roles: Record<string, number>, steps: Record<string, number>, models: Record<string, number> }} */
-  const limits = { roles: {}, steps: {}, models: {} };
-  if (Object.prototype.hasOwnProperty.call(parsed, "run")) {
-    const n = Number(parsed.run);
-    if (Number.isFinite(n) && n > 0) limits.run = n;
-  }
-  for (const [src, dst] of [["roles", limits.roles], ["steps", limits.steps], ["models", limits.models]]) {
-    const o = parsed[src];
-    if (!o || typeof o !== "object" || Array.isArray(o)) continue;
-    for (const [k, v] of Object.entries(o)) {
-      const n = Number(v);
-      if (String(k).trim() && Number.isFinite(n) && n > 0) dst[String(k).trim()] = n;
-    }
-  }
-  return { limits, invalid: null };
-}
-
-/** @param {string} name */
-function parseEnvPositiveFloatOrNull(name) {
-  const raw = process.env[name];
-  if (raw == null || String(raw).trim() === "") return null;
-  const n = Number.parseFloat(String(raw));
-  if (!Number.isFinite(n) || n < 0) return null;
-  return n;
-}
-
-/** USD per 1e6 tokens — same basis as `token-trace-report.js`. */
-function loadOllamaUsdRatesMtok() {
-  const p = parseEnvPositiveFloatOrNull("ORCH_USD_PER_MTOK_PROMPT");
-  const c = parseEnvPositiveFloatOrNull("ORCH_USD_PER_MTOK_COMPLETION");
-  if (p == null || c == null) return null;
-  return { prompt: p, completion: c };
-}
-
-/**
- * @param {{ maxIterations?: number }} options
- * @returns {number}
- */
-function resolveMaxIterations(options) {
-  if (options.maxIterations != null) {
-    const n = Math.floor(Number(options.maxIterations));
-    if (Number.isFinite(n) && n >= 1) return Math.min(500, n);
-  }
-  const raw = process.env.ORCH_MAX_ITERATIONS;
-  if (raw !== undefined && String(raw).trim() !== "") {
-    const n = parseInt(String(raw).trim(), 10);
-    if (Number.isFinite(n) && n >= 1) return Math.min(500, n);
-  }
-  return DEFAULT_MAX_ITERATIONS;
-}
-
-function roundUsd6(x) {
-  return Math.round(x * 1e6) / 1e6;
-}
-
-const AGENT_COLORS = {
-  orchestrator:  "\x1b[90m",  // gray
-  owner:         "\x1b[35m",  // magenta
-  architect:     "\x1b[36m",  // cyan
-  "dev-backend": "\x1b[32m",  // green
-  "dev-frontend":"\x1b[34m",  // blue
-  "dev-devops":  "\x1b[33m",  // yellow
-  qa:            "\x1b[33m",  // yellow
-  cerberus:      "\x1b[31m",  // red
-  summarizer:    "\x1b[96m",  // bright cyan
-  gate:          "\x1b[95m",  // magenta bright
-};
-const RESET = "\x1b[0m";
-const BOLD  = "\x1b[1m";
-const DIM   = "\x1b[2m";
-
-const AGENT_ICONS = {
-  orchestrator:  "◉",
-  owner:         "◆",
-  architect:     "⬢",
-  "dev-backend": "●",
-  "dev-frontend":"●",
-  "dev-devops":  "●",
-  qa:            "▲",
-  cerberus:      "✕",
-  summarizer:    "◈",
-  gate:          "⊙",
-};
-
-function agentLabel(agentId) {
-  const color = AGENT_COLORS[agentId] || "";
-  const icon  = AGENT_ICONS[agentId] || "·";
-  return `${color}${BOLD}${icon} [${agentId.toUpperCase()}]${RESET}`;
-}
-
-function log(agentId, message) {
-  const ts = new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  console.log(`${DIM}${ts}${RESET} ${agentLabel(agentId)} ${message}`);
-}
-
-function logRoleSwitch(fromId, toId) {
-  const fromColor = AGENT_COLORS[fromId] || "";
-  const toColor   = AGENT_COLORS[toId]   || "";
-  const fromIcon  = AGENT_ICONS[fromId]  || "·";
-  const toIcon    = AGENT_ICONS[toId]    || "·";
-  const sep = "─".repeat(52);
-  console.log(`\n${DIM}${sep}${RESET}`);
-  console.log(`${fromColor}${BOLD}${fromIcon} ${fromId.toUpperCase()}${RESET} ${BOLD}→${RESET} ${toColor}${BOLD}${toIcon} ${toId.toUpperCase()}${RESET}`);
-  console.log(`${DIM}${sep}${RESET}\n`);
-}
-
-const AGENT_STATE_FILE = require("os").homedir() + "/.claude/metrics/active-agent.json";
-
-function writeAgentState(agentId, goal) {
-  try {
-    const goalHash = _hashGoal(goal);
-    const goalField = TRACE_REDACT_GOAL
-      ? `[redacted:${goalHash}]`
-      : `${String(goal).slice(0, 80)}… [sha256:${goalHash}]`;
-    require("fs").writeFileSync(AGENT_STATE_FILE, JSON.stringify({
-      flow: "multi_agent",
-      goal: goalField,
-      active_agent: agentId.toUpperCase(),
-      updated_at: new Date().toISOString(),
-    }));
-  } catch { /* non-fatal */ }
-}
-
-function extractJson(text) {
-  const trimmed = text.trim();
-  const block = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const raw = block ? block[1].trim() : trimmed;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
-// ── Handoff structural validation ────────────────────────────────────────────
-
-/**
- * Shallow key-presence / line-shape check on a handoff YAML string per MODE.
- * No semantic parsing — does **not** prove YAML content is true (e.g. a invented
- * `validation_run` can still pass shape checks). Heuristic only; not a substitute
- * for artifact-grounded review.
- *
- * @param {string} mode - ORCHESTRATOR mode (DEV, QA, CERBERUS, ...)
- * @param {string} yaml - handoff YAML produced by compact-handoff MCP
- * @param {{ strict?: boolean }} options
- *   strict=false (default): empty YAML passes — compact-handoff may not be registered
- *   strict=true:            empty YAML fails — compact-handoff is required in strict mode
- *
- * Required keys:
- *   DEV      → files_modified OR validation_run (+ acceptance_criteria|qa_spec_ref after QA_SPEC)
- *   QA_SPEC  → acceptance_criteria, test_strategy|required_tests, validation_commands
- *   QA_EXEC  → verdict AND (findings OR issues)  (legacy mode QA: same as QA_EXEC)
- *   CERBERUS → verdict AND blockers must be empty/absent
- *
- * Returns { valid: boolean, reason: string }
- */
-function validateHandoffStructure(mode, yaml, { strict = false, requireQaSpecRef = false } = {}) {
-  if (mode === "DEV" || mode === "QA_SPEC" || mode === "QA_EXEC" || mode === "QA") {
-    return validateHandoffForMode(mode, yaml, { strict, requireQaSpecRef });
-  }
-
-  if (!yaml || !yaml.trim()) {
-    if (strict) return { valid: false, reason: `${mode} handoff is empty — compact_handoff must be called before advance_mode in strict mode` };
-    return { valid: true, reason: "" };
-  }
-
-  const presentKeys = new Set();
-  for (const line of yaml.split("\n")) {
-    const m = line.match(/^\s{0,2}(\w[\w_-]*):/);
-    if (m) presentKeys.add(m[1]);
-  }
-
-  if (mode === "ARCHITECT") {
-    const archKeys = ["decisions", "pending_for_next_mode", "design_summary", "risks"];
-    const hasTop = archKeys.some((k) => presentKeys.has(k));
-    const hasNested = /(^|\n)\s{1,12}(decisions|pending_for_next_mode|design_summary|risks)\s*:/m.test(yaml);
-    if (!hasTop && !hasNested) {
-      return {
-        valid: false,
-        reason: "ARCHITECT handoff must include decisions, pending_for_next_mode, design_summary, or risks",
-      };
-    }
-  } else if (mode === "CERBERUS") {
-    const hasVerdictTop = presentKeys.has("verdict");
-    const hasVerdictNested = /(^|\n)\s{1,12}verdict\s*:/m.test(yaml);
-    if (!hasVerdictTop && !hasVerdictNested) {
-      return { valid: false, reason: "CERBERUS handoff must include verdict" };
-    }
-    // Block if blockers key is present with a non-empty list
-    if (presentKeys.has("blockers")) {
-      const blockersMatch = yaml.match(/^blockers\s*:\s*\n((?:\s+-[^\n]+\n?)+)/m);
-      if (blockersMatch) {
-        return { valid: false, reason: "CERBERUS handoff has open blockers — resolve before closing" };
-      }
-    }
-  }
-
-  return { valid: true, reason: "" };
-}
-
-// ── MCP gate helpers ──────────────────────────────────────────────────────────
-
-function useMcpDirectTransport() {
-  return process.env.ORCH_MCP_TRANSPORT === "direct";
-}
-
-/** Parse stdout from mcp-direct.py — JSON object, or last JSON line, or raw string (YAML). */
-function parseMcpDirectStdout(raw) {
-  const t = String(raw || "").trim();
-  if (!t) return null;
-  try {
-    return JSON.parse(t);
-  } catch { /* fallthrough */ }
-  const lines = t.split("\n");
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    try {
-      return JSON.parse(line);
-    } catch { /* continue */ }
-  }
-  return t;
-}
-
-/** Drop / rename fields so Python tool signatures match (claude CLI tolerated extras). */
-function sanitizeOrchestratorStateArgs(toolName, args) {
-  if (toolName === "register_task") {
-    const { contract_version, ...rest } = args;
-    void contract_version;
-    return rest;
-  }
-  if (toolName === "record_artifact") {
-    return {
-      task_id: args.task_id,
-      path: args.path ?? args.artifact_id ?? "session-summary",
-      note: String(args.note ?? args.content ?? "").slice(0, 12000),
-    };
-  }
-  return { ...args };
-}
-
-/**
- * Call compact-handoff or orchestrator-state via mcp-direct.py (no claude CLI).
- */
-function invokeMcpDirect(server, toolName, args, { cwd } = {}) {
-  gateMcpInvocation(server, toolName, cwd);
-  const script = path.join(__dirname, "mcp-direct.py");
-  if (!fs.existsSync(script)) {
-    throw new Error(`mcp-direct.py not found at ${script}`);
-  }
-  const py = process.env.ORCH_PYTHON || "python3";
-  const payload = JSON.stringify({ server, tool: toolName, args });
-  const timeoutMs = parseInt(process.env.ORCH_MCP_DIRECT_TIMEOUT_MS, 10) || 180000;
-  const t0 = Date.now();
-  try {
-    const result = spawnSync(py, [script], {
-      input: payload,
-      encoding: "utf8",
-      maxBuffer: 8 * 1024 * 1024,
-      timeout: timeoutMs,
-      windowsHide: true,
-    });
-    if (result.error) throw result.error;
-    if (result.status !== 0) {
-      const msg = (result.stderr || result.stdout || "").trim() || `mcp-direct exited ${result.status}`;
-      throw new Error(msg);
-    }
-    recordMcpInvocation({
-      server,
-      tool: toolName,
-      transport: "direct",
-      duration_ms: Date.now() - t0,
-      ok: true,
-    });
-    return parseMcpDirectStdout(result.stdout);
-  } catch (err) {
-    recordMcpInvocation({
-      server,
-      tool: toolName,
-      transport: "direct",
-      duration_ms: Date.now() - t0,
-      ok: false,
-    });
-    throw err;
-  }
-}
-
-/**
- * Call an orchestrator-state MCP tool via the claude CLI or mcp-direct (ORCH_MCP_TRANSPORT=direct).
- * Returns parsed JSON response or throws on failure.
- */
-function callStateMcp(toolName, args, { cwd } = {}) {
-  if (useMcpDirectTransport()) {
-    const parsed = invokeMcpDirect("orchestrator-state", toolName, sanitizeOrchestratorStateArgs(toolName, args), {
-      cwd,
-    });
-    if (parsed === null || typeof parsed !== "object") {
-      throw new Error(`orchestrator-state.${toolName} returned non-JSON`);
-    }
-    return parsed;
-  }
-  gateMcpInvocation("orchestrator-state", toolName, cwd);
-  const argsStr = Object.entries(args)
-    .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
-    .join(", ");
-  const prompt = `Call the MCP tool orchestrator-state.${toolName} with these arguments and return only the raw JSON response, no other text:\n${toolName}(${argsStr})`;
-  const timeoutMs = parseInt(process.env.CLAUDE_CLI_TIMEOUT, 10) || 60000;
-  const t0 = Date.now();
-  try {
-    const result = spawnSync("claude", ["-p", prompt, "--dangerously-skip-permissions"], {
-      encoding: "utf8",
-      maxBuffer: 2 * 1024 * 1024,
-      timeout: timeoutMs,
-      cwd: cwd || process.cwd(),
-    });
-    if (result.error) throw result.error;
-    if (result.status !== 0) throw new Error(result.stderr || "claude CLI error calling MCP");
-    const parsed = extractJson(result.stdout.trim());
-    if (!parsed) throw new Error(`orchestrator-state.${toolName} returned non-JSON: ${result.stdout.slice(0, 300)}`);
-    recordMcpInvocation({
-      server: "orchestrator-state",
-      tool: toolName,
-      transport: "claude_cli",
-      duration_ms: Date.now() - t0,
-      ok: true,
-    });
-    return parsed;
-  } catch (err) {
-    recordMcpInvocation({
-      server: "orchestrator-state",
-      tool: toolName,
-      transport: "claude_cli",
-      duration_ms: Date.now() - t0,
-      ok: false,
-    });
-    throw err;
-  }
-}
-
-/**
- * Call compact-handoff MCP to compact agent output into handoff YAML.
- */
 /**
  * When true, compact_handoff failure is a hard gate (gateBlocked).
  * When false, failure uses explicit fallback metadata (run continues in degraded mode).
@@ -1095,221 +198,6 @@ function compactHandoffStrictFailureFields(err) {
     handoff_compression: "failed",
     handoff_error: msg,
   };
-}
-
-/**
- * Normalize compact_handoff tool result (YAML string legacy, or structured JSON from mcp-direct).
- * @param {unknown} out
- * @returns {{ yaml: string, ollama_prompt_tokens: number, ollama_completion_tokens: number }}
- */
-function normalizeCompactHandoffResult(out) {
-  if (typeof out === "string") {
-    const yaml = out.trim();
-    if (!yaml) throw new Error("compact_handoff returned empty output");
-    if (yaml.startsWith("error:")) throw new Error(yaml.slice(0, 400));
-    return { yaml, ollama_prompt_tokens: 0, ollama_completion_tokens: 0 };
-  }
-  if (out && typeof out === "object") {
-    const o = /** @type {Record<string, unknown>} */ (out);
-    if (typeof o.handoff_yaml === "string") {
-      const yaml = o.handoff_yaml.trim();
-      if (!yaml) throw new Error("compact_handoff returned empty output");
-      if (yaml.startsWith("error:")) throw new Error(yaml.slice(0, 400));
-      const p = typeof o.ollama_prompt_tokens === "number" && !Number.isNaN(o.ollama_prompt_tokens)
-        ? o.ollama_prompt_tokens : 0;
-      const c = typeof o.ollama_completion_tokens === "number" && !Number.isNaN(o.ollama_completion_tokens)
-        ? o.ollama_completion_tokens : 0;
-      return { yaml, ollama_prompt_tokens: p, ollama_completion_tokens: c };
-    }
-  }
-  throw new Error(`compact_handoff unexpected return shape: ${String(JSON.stringify(out)).slice(0, 200)}`);
-}
-
-function callCompactHandoff({ text, modeCompleted, nextMode, iteration, maxIterations, flowMode }, { cwd } = {}) {
-  if (useMcpDirectTransport()) {
-    const out = invokeMcpDirect(
-      "compact-handoff",
-      "compact_handoff",
-      {
-        text,
-        mode_completed: modeCompleted,
-        next_mode: nextMode,
-        iteration,
-        max_iterations: maxIterations,
-        flow_mode: flowMode,
-      },
-      { cwd }
-    );
-    return normalizeCompactHandoffResult(out);
-  }
-  gateMcpInvocation("compact-handoff", "compact_handoff", cwd);
-  const prompt = `Call the MCP tool compact-handoff.compact_handoff with these arguments and return only the raw YAML string, no other text:
-compact_handoff(
-  text=${JSON.stringify(text)},
-  mode_completed=${JSON.stringify(modeCompleted)},
-  next_mode=${JSON.stringify(nextMode)},
-  iteration=${iteration},
-  max_iterations=${maxIterations},
-  flow_mode=${JSON.stringify(flowMode)}
-)`;
-  const timeoutMs = parseInt(process.env.CLAUDE_CLI_TIMEOUT, 10) || 120000;
-  const t0 = Date.now();
-  try {
-    const result = spawnSync("claude", ["-p", prompt, "--dangerously-skip-permissions"], {
-      encoding: "utf8",
-      maxBuffer: 2 * 1024 * 1024,
-      timeout: timeoutMs,
-      cwd: cwd || process.cwd(),
-    });
-    if (result.error) throw result.error;
-    if (result.status !== 0) throw new Error(result.stderr || "claude CLI error calling compact-handoff");
-    recordMcpInvocation({
-      server: "compact-handoff",
-      tool: "compact_handoff",
-      transport: "claude_cli",
-      duration_ms: Date.now() - t0,
-      ok: true,
-    });
-    return normalizeCompactHandoffResult(result.stdout);
-  } catch (err) {
-    recordMcpInvocation({
-      server: "compact-handoff",
-      tool: "compact_handoff",
-      transport: "claude_cli",
-      duration_ms: Date.now() - t0,
-      ok: false,
-    });
-    throw err;
-  }
-}
-
-// ── Blocker detection (deterministic) ────────────────────────────────────────
-//
-// Parses CERBERUS output for blocker findings without model interpretation.
-// Returns { count, items } where items are the matched lines.
-//
-// Matches lines like:
-//   - blocker: missing validation
-//   **blocker** — no auth check
-//   type: blocker
-//   [blocker] broken flow
-//
-const BLOCKER_LINE_RE = /^.*\bblocker\b.*$/gim;
-
-function detectBlockers(cerberusOutput) {
-  const matches = cerberusOutput.match(BLOCKER_LINE_RE) || [];
-  return { count: matches.length, items: matches.map(l => l.trim()) };
-}
-
-// ── MODE mapping ──────────────────────────────────────────────────────────────
-
-const AGENT_TO_MODE = {
-  owner:         "OWNER",
-  architect:     "ARCHITECT",
-  "dev-backend": "DEV",
-  "dev-frontend":"DEV",
-  "dev-devops":  "DEV",
-  qa:            "QA",
-  cerberus:      "CERBERUS",
-};
-
-const VALID_WORKER_AGENTS = new Set(Object.keys(AGENT_TO_MODE));
-
-// Agents that require compact_handoff + validate_goal_alignment before advancing
-const AGENTS_REQUIRING_GATE = new Set(["architect", "dev-backend", "dev-frontend", "dev-devops", "qa", "cerberus"]);
-
-// ── Ollama connectivity check ─────────────────────────────────────────────────
-
-/**
- * Ping Ollama API to verify it is reachable.
- * Returns true if Ollama responds, false otherwise.
- */
-function checkOllama() {
-  const host = process.env.OLLAMA_HOST || "localhost";
-  const port = parseInt(process.env.OLLAMA_PORT || "11434", 10);
-  return new Promise((resolve) => {
-    if (process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE !== "1") {
-      try {
-        const gate = runNetworkPermissionGate({
-          repoRoot: process.cwd(),
-          role: "ORCHESTRATOR",
-          actor: "orchestrator",
-          hostname: host,
-          port,
-          tool: "ollama_health_check",
-          pathLabel: "/api/tags",
-        });
-        emitPermissionCheckTrace(gate.tracePayload);
-        const out = gate.output;
-        if (out.decision === "deny" || out.decision === "requires_approval" || !out.safe_to_continue) {
-          resolve(false);
-          return;
-        }
-      } catch {
-        resolve(false);
-        return;
-      }
-    }
-    const http = require("http");
-    const req = http.request({ hostname: host, port, path: "/api/tags", method: "GET" }, (res) => {
-      resolve(res.statusCode === 200);
-    });
-    req.setTimeout(3000, () => { req.destroy(); resolve(false); });
-    req.on("error", () => resolve(false));
-    req.end();
-  });
-}
-
-// ── Environment access parsing ────────────────────────────────────────────────
-
-/**
- * Parse the ENVIRONMENT block from a session prompt header.
- * Supports:
- *   ENVIRONMENT:
- *     mode: read | write
- *     credentials:
- *       - name: n8n
- *         type: api_key
- *         vars:
- *           url: N8N_URL
- *           key: N8N_API_KEY
- *
- * Returns null if no ENVIRONMENT block found.
- * Returns { mode: "read"|"write", credentials: [{ name, type, vars: {} }] }
- */
-function parseEnvironment(prompt) {
-  // Extract everything after ENVIRONMENT: until next top-level key or end
-  const envMatch = prompt.match(/^ENVIRONMENT:\s*\n((?:[ \t]+[^\n]*\n?)*)/m);
-  if (!envMatch) return null;
-
-  const block = envMatch[1];
-
-  // Parse mode
-  const modeMatch = block.match(/^\s+mode:\s*(read|write)\s*$/m);
-  const mode = modeMatch ? modeMatch[1] : "read";  // default: read (safe)
-
-  // Parse credentials list — each starts with "- name:"
-  const credentials = [];
-  const credBlocks = block.split(/\n\s+-\s+name:/);
-  for (let i = 1; i < credBlocks.length; i++) {
-    const cb = credBlocks[i];
-    const name = cb.match(/^([^\n]+)/)?.[1]?.trim();
-    const type = cb.match(/\btype:\s*([^\n]+)/)?.[1]?.trim();
-    if (!name || !type) continue;
-
-    // Parse vars block (indented key: ENV_VAR pairs)
-    const vars = {};
-    const varsMatch = cb.match(/\bvars:\s*\n((?:\s{8,}[^\n]+\n?)*)/);
-    if (varsMatch) {
-      for (const line of varsMatch[1].split("\n")) {
-        const kv = line.match(/^\s+(\w+):\s*([^\s#][^\n]*)/);
-        if (kv) vars[kv[1].trim()] = kv[2].trim();
-      }
-    }
-    credentials.push({ name, type, vars });
-  }
-
-  return { mode, credentials };
 }
 
 // ── Main run function ─────────────────────────────────────────────────────────
@@ -2804,7 +1692,7 @@ Reply with JSON only.`;
   }
 
   // Clear active agent state
-  try { require("fs").unlinkSync(AGENT_STATE_FILE); } catch { /* already gone */ }
+  try { fs.unlinkSync(AGENT_STATE_FILE); } catch { /* already gone */ }
 
   const qaDegraded = degradedInRun.has("qa");
   if (qaDegraded) {
@@ -2812,8 +1700,8 @@ Reply with JSON only.`;
   }
   const manualReviewRecommended = qaDegraded || manualReview;
   const handoffFallbackAny = artifacts.some((a) => a.handoff_fallback_used === true);
-  const mcpSummary = aggregateMcpUsage(_mcpAuditCalls);
-  const permission_summary = aggregatePermissionCheckRows(_permissionCheckAuditBuffer);
+  const mcpSummary = aggregateMcpUsage(getMcpAuditCalls());
+  const permission_summary = aggregatePermissionCheckRows(getPermissionCheckAuditBuffer());
   const traceRows = loadTraceRowsForTask(taskId);
   runRecoverySweepAndTrace(traceEvent, taskId, traceRows, {
     lifecycleMode: "live_before_session_end",
@@ -2848,33 +1736,40 @@ Reply with JSON only.`;
   return { done, summary, artifacts, iterations, taskId, runState: getRunStatePublicView(runState) };
 }
 
+// ── Public facade (require("../orchestrator") — preserve export names) ───────
 module.exports = {
+  // Entrypoint
   run,
-  emitPermissionCheckTrace,
-  resolveMaxIterations,
-  detectBlockers,
-  validateHandoffStructure,
-  _sanitize,
-  redactSensitivePlaintext,
-  _hashGoal,
+
+  // Handoff policy (owned by orchestrator.js)
   resolveRequireHandoff,
   compactHandoffDegradedMeta,
   compactHandoffStrictFailureFields,
-  aggregateMcpUsage,
-  aggregatePermissionCheckRows,
+
+  // Run-loop helpers (re-exported from run-loop-helpers.js)
+  resolveMaxIterations,
+  detectBlockers,
+  validateHandoffStructure,
   stripLeadingOwnerArchitectForDegradedMultiAgent,
-  isQaSpecBeforeDevEnabled,
-  applyQaSpecBeforeDevPlan,
-  resolveHandoffMode,
   edgeMeta,
   EDGE_TYPE_CATEGORY,
   validateStepGraph,
   assertParentStepExists,
+
+  // QA spec flow (re-exported from qa-spec-flow.js)
+  isQaSpecBeforeDevEnabled,
+  applyQaSpecBeforeDevPlan,
+  resolveHandoffMode,
+
+  // Trace sanitization & iteration_done (re-exported from trace-writer.js / trace-redact.js)
+  _sanitize,
+  _hashGoal,
+  redactSensitivePlaintext,
+  TRACE_SCHEMA_VERSION,
   transitionReason,
   TRANSITION_REASON_TYPES,
   TRANSITION_REASON_CODES,
   inferReasonCode,
-  TRACE_SCHEMA_VERSION,
   FAILURE_TYPES,
   FAILURE_AXES,
   failureTypeForIterationDone,
@@ -2882,13 +1777,18 @@ module.exports = {
   traceIterationDone,
   composeIterationDonePayload,
 
-  /** Test-only: MCP path surface for trace parity assertions — not a supported public API. */
+  // MCP & permission audit (re-exported from mcp-client.js / permission-check-summary.js)
+  emitPermissionCheckTrace,
+  aggregateMcpUsage,
+  aggregatePermissionCheckRows,
+
+  // Environment parsing (re-exported from environment-parser.js)
+  parseEnvironment,
+
+  // Test-only MCP surface — not a supported public API
   _test_invokeMcpDirect: invokeMcpDirect,
   _test_callStateMcp: callStateMcp,
   _test_callCompactHandoff: callCompactHandoff,
   _test_beginMcpAudit: beginMcpAudit,
   _test_clearMcpAudit: clearMcpAudit,
-
-  /** Test / doc: parse ENVIRONMENT block from MODE header goal text. */
-  parseEnvironment,
 };
