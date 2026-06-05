@@ -168,6 +168,8 @@ const {
 // ── Run loop phases (observable boundaries) ───────────────────────────────────
 const { executeSessionStartPhase } = require("./run-phases/session-start");
 const { executePlanResolutionPhase } = require("./run-phases/plan-resolution");
+const { createPhaseContext } = require("./run-phases/phase-context");
+const { executeStepAgentInvocation } = require("./run-phases/step-execution");
 
 const DEV_AGENT_IDS = new Set(["dev-backend", "dev-frontend", "dev-devops"]);
 
@@ -664,6 +666,19 @@ async function run(goal, options = {}) {
 
     let qaSpecSatisfiedThisIteration = false;
     const qaSpecFlowEnabledRun = isQaSpecBeforeDevEnabled(flowMode);
+    const phaseCtx = createPhaseContext({
+      taskId,
+      cwd,
+      goal,
+      sessionEnv,
+      iterations: () => iterations,
+      traceEvent,
+      log,
+      getLastBudgetMeta: () => lastBudgetMeta,
+      emitContextStatsRows,
+      emitModelFallbackLifecycleIfNeeded,
+      costGuardAbort,
+    });
 
     for (let stepIndex = 0; stepIndex < steps.length; stepIndex++) {
       const step = steps[stepIndex];
@@ -706,152 +721,98 @@ async function run(goal, options = {}) {
       assertParentStepExists(previousStepId, emittedStepIds);
 
       const contextBlock = contextHeader + [goal, ...artifacts.map(contextChunk)].join("\n\n---\n\n");
-      writeAgentState(agentId, goal);
-      log(agentId, `Executing: ${step.task.slice(0, 80)}${step.task.length > 80 ? "..." : ""}`);
-      const stepStart = Date.now();
-      traceEvent(taskId, { event: "agent_start", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...intentStep, task: step.task.slice(0, 200) });
-      setStepRunning(runState, stepId, agentId);
-
-      if (DEV_AGENT_IDS.has(agentId) && !skipStateMcp && !orchTestSystemPathHarnessOn()) {
-        const gateCtx = buildGateContextFromArtifacts(artifacts);
-        const policy = loadApprovalPolicyFromEnv();
-        const devGate = evaluateDevExecutionGate(gateCtx, policy);
-        if (!devGate.allowed) {
-          log("gate", `🟥 DEV blocked (approval policy): ${devGate.reason}`);
-          for (const skipRow of devGate.traceSkips) {
-            traceEvent(taskId, {
-              ...skipRow,
-              iteration: iterations,
-              step_id: stepId,
-              step_index: stepIndex,
-              ...graphMeta,
-              ...intentStep,
-            });
+      const stepExec = await executeStepAgentInvocation(phaseCtx, {
+        agentId,
+        step,
+        stepId,
+        stepIndex,
+        retryNumber,
+        graphMeta,
+        intentStep,
+        contextBlock,
+        writeAgentState,
+        setStepRunning,
+        setStepFailedAndClear,
+        setStepCompleted,
+        runState,
+        askAgent,
+        getDegradedAgents,
+        clearDegradedAgents,
+        degradedInRun,
+        edgeMeta,
+        qaAgentDoneTraceExtras,
+        shouldEmitQaReviewRecord,
+        traceReviewRecord,
+        buildReviewRecord,
+        onAfterAgentStart: async () => {
+          if (DEV_AGENT_IDS.has(agentId) && !skipStateMcp && !orchTestSystemPathHarnessOn()) {
+            const gateCtx = buildGateContextFromArtifacts(artifacts);
+            const policy = loadApprovalPolicyFromEnv();
+            const devGate = evaluateDevExecutionGate(gateCtx, policy);
+            if (!devGate.allowed) {
+              log("gate", `🟥 DEV blocked (approval policy): ${devGate.reason}`);
+              for (const skipRow of devGate.traceSkips) {
+                traceEvent(taskId, {
+                  ...skipRow,
+                  iteration: iterations,
+                  step_id: stepId,
+                  step_index: stepIndex,
+                  ...graphMeta,
+                  ...intentStep,
+                });
+              }
+              traceEvent(taskId, {
+                event: "gate_result",
+                agent: agentId,
+                iteration: iterations,
+                step_id: stepId,
+                step_index: stepIndex,
+                ...graphMeta,
+                ...intentStep,
+                ...edgeMeta("gate_block"),
+                gate: "approval_policy",
+                passed: false,
+                reason: devGate.reason,
+              });
+              artifacts.push({
+                agentId,
+                task: step.task,
+                result: "",
+                handoffYaml: "",
+                gateBlocked: true,
+                gateReason: `approval_policy: ${devGate.reason}`,
+                step_id: stepId,
+                intent_id: intentId,
+                gate_kind: "approval_policy",
+              });
+              markStepRetryingAfterGate(runState);
+              return "skip_step";
+            }
+            for (const skipRow of devGate.traceSkips) {
+              traceEvent(taskId, {
+                ...skipRow,
+                iteration: iterations,
+                step_id: stepId,
+                step_index: stepIndex,
+                ...graphMeta,
+                ...intentStep,
+              });
+            }
           }
-          traceEvent(taskId, {
-            event: "gate_result",
-            agent: agentId,
-            iteration: iterations,
-            step_id: stepId,
-            step_index: stepIndex,
-            ...graphMeta,
-            ...intentStep,
-            ...edgeMeta("gate_block"),
-            gate: "approval_policy",
-            passed: false,
-            reason: devGate.reason,
-          });
-          artifacts.push({
-            agentId,
-            task: step.task,
-            result: "",
-            handoffYaml: "",
-            gateBlocked: true,
-            gateReason: `approval_policy: ${devGate.reason}`,
-            step_id: stepId,
-            intent_id: intentId,
-            gate_kind: "approval_policy",
-          });
-          markStepRetryingAfterGate(runState);
-          continue;
-        }
-        for (const skipRow of devGate.traceSkips) {
-          traceEvent(taskId, {
-            ...skipRow,
-            iteration: iterations,
-            step_id: stepId,
-            step_index: stepIndex,
-            ...graphMeta,
-            ...intentStep,
-          });
-        }
-      }
+          return "proceed";
+        },
+      });
 
-      let result, contextStats;
-      try {
-        const agentResult = await askAgent(
-          agentId,
-          `Working directory: ${cwd}\n\nContext:\n${contextBlock}\n\nYour task:\n${step.task}`,
-          { cwd, sessionEnv, qaPhase: step.qaPhase }
-        );
-        result = agentResult.output;
-        contextStats = agentResult.context_stats || null;
-      } catch (err) {
-        const duration_ms = Date.now() - stepStart;
-        const isCritical = ["architect", "qa", "cerberus"].includes(agentId);
-        const gateId = err.gate_id || null;
-        traceEvent(taskId, { event: "contract_fail", agent: agentId, iteration: iterations, step_id: stepId, step_index: stepIndex, retry_number: retryNumber, ...graphMeta, ...intentStep, ...edgeMeta("fail"), duration_ms, reason: err.message.slice(0, 300), critical: isCritical, ...(gateId ? { gate_id: gateId } : {}) });
-        setStepFailedAndClear(runState);
-        log(agentId, `🟥 Output contract failed: ${err.message}`);
-        artifacts.push({
-          agentId,
-          task: step.task,
-          result: typeof err.rawModelOutput === "string" ? err.rawModelOutput : "",
-          gateBlocked: true,
-          gateReason: err.message,
-          step_id: stepId,
-          intent_id: intentId,
-          gate_kind: gateId || "output_contract",
-        });
-        emittedStepIds.add(stepId);
-        previousStepId = stepId;
-        if (isCritical) {
-          log(agentId, `🟥 Critical role contract fail — stopping iteration (no QA/CERBERUS/ARCHITECT degradation allowed)`);
-          break;
-        }
-        continue;
+      if (stepExec.artifact) artifacts.push(stepExec.artifact);
+      if (stepExec.emittedStepId) {
+        emittedStepIds.add(stepExec.emittedStepId);
+        previousStepId = stepExec.previousStepId ?? stepExec.emittedStepId;
       }
-      // Collect any agents that fell back to a secondary model during this call
-      for (const id of getDegradedAgents()) degradedInRun.add(id);
-      clearDegradedAgents();
-      const stepDegraded = degradedInRun.has(agentId);
-      const edgeType = retryNumber > 0 ? "retry" : "success";
-      /** @type {Record<string, unknown>} */
-      const donePayload = {
-        event: "agent_done",
-        agent: agentId,
-        iteration: iterations,
-        step_id: stepId,
-        step_index: stepIndex,
-        retry_number: retryNumber,
-        ...graphMeta,
-        ...intentStep,
-        ...edgeMeta(edgeType),
-        duration_ms: Date.now() - stepStart,
-        output_chars: result.length,
-        ...(stepDegraded ? { degraded: true } : {}),
-      };
-      if (agentId === "qa") {
-        Object.assign(donePayload, qaAgentDoneTraceExtras(result));
-      }
-      traceEvent(taskId, donePayload);
-      if (shouldEmitQaReviewRecord(agentId, step)) {
-        traceReviewRecord(
-          traceEvent,
-          taskId,
-          buildReviewRecord({
-            reviewerRole: "qa",
-            output: result,
-            iteration: iterations,
-            stepId,
-            reviewedArtifactIds: [stepId],
-          }),
-        );
-      }
-      setStepCompleted(runState);
-      if (contextStats) {
-        emitModelFallbackLifecycleIfNeeded(
-          traceEvent,
-          taskId,
-          agentId,
-          contextStats,
-          { iteration: iterations, step_id: stepId, step_index: stepIndex, ...graphMeta, ...intentStep },
-        );
-        emitContextStatsRows(contextStats, agentId, iterations, graphMeta, intentStep, { step_id: stepId, step_index: stepIndex });
-      }
-      if (costGuardAbort("worker")) break orchestration;
-      emittedStepIds.add(stepId);
-      previousStepId = stepId;
+      if (stepExec.action === "break_orchestration") break orchestration;
+      if (stepExec.action === "break_iteration") break;
+      if (!stepExec.result) continue;
+
+      let result = stepExec.result;
 
       // ── Compact handoff (compact-handoff MCP) ──────────────────────────────
       let handoffYaml = "";
