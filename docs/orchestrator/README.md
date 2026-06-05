@@ -49,6 +49,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [dynamic-workflow-contract.md](dynamic-workflow-contract.md) | Dynamic workflow proposal vs executable plan — limits, preview, approval (design-first; no runtime) |
 | [eval-benchmark-triage.md](eval-benchmark-triage.md) | External harness benchmark triage — core matrix, appendices A–F, pilot/defer/reject (doc-only) |
 | [credential-broker-contract.md](credential-broker-contract.md) | Brokered credentials outside model context — read/write enforcement, `credential_broker_used` trace |
+| [doc-runtime-drift-check.md](doc-runtime-drift-check.md) | Deterministic forbidden overclaim scan for security/runtime docs (`lint:docs-claims`) |
 | [runner-tui-contract.md](runner-tui-contract.md) | Runner TUI CLI — preflight, run, trace, budget, worktree |
 | [role-agent-registry.md](role-agent-registry.md) | Future roles: minimal registry schema (design-time; no runtime wiring) |
 
