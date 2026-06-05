@@ -49,6 +49,44 @@ const CONTENT_KEYS = new Set([
   'messages',
 ]);
 
+const MAX_CONTENT_STRIP_DEPTH = 32;
+
+/**
+ * Precedence: explicit options.captureContent (boolean) overrides env; else
+ * ORCH_OTEL_GENAI_CAPTURE_CONTENT=1 enables capture. Default: false.
+ *
+ * @param {{ captureContent?: boolean }} [options]
+ * @returns {boolean}
+ */
+function resolveCaptureContent(options = {}) {
+  if (options.captureContent === true) return true;
+  if (options.captureContent === false) return false;
+  return process.env.ORCH_OTEL_GENAI_CAPTURE_CONTENT === '1';
+}
+
+/**
+ * Recursively drop CONTENT_KEYS from objects/arrays before span attribute serialization.
+ *
+ * @param {unknown} value
+ * @param {number} [depth]
+ * @returns {unknown}
+ */
+function stripContentKeys(value, depth = 0) {
+  if (depth > MAX_CONTENT_STRIP_DEPTH) return value;
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'object') return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => stripContentKeys(item, depth + 1));
+  }
+  /** @type {Record<string, unknown>} */
+  const out = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (CONTENT_KEYS.has(key)) continue;
+    out[key] = stripContentKeys(child, depth + 1);
+  }
+  return out;
+}
+
 /**
  * @param {string} taskId
  * @returns {string} 32-char hex trace id
@@ -82,8 +120,9 @@ function otelAttributeValue(value) {
  * @returns {Array<{ key: string, value: string | number | boolean }>}
  */
 function rowToSpanAttributes(row, options = {}) {
-  const captureContent = options.captureContent === true;
+  const captureContent = resolveCaptureContent(options);
   const sanitized = /** @type {object} */ (sanitizeTraceValueForRead(row));
+  const exportRow = captureContent ? sanitized : /** @type {object} */ (stripContentKeys(sanitized));
   /** @type {Array<{ key: string, value: string | number | boolean }>} */
   const attrs = [
     { key: 'ai_minions.event', value: String(sanitized.event || 'unknown') },
@@ -92,15 +131,15 @@ function rowToSpanAttributes(row, options = {}) {
     { key: 'otel.gen_ai.semconv.pin', value: OTEL_GENAI_SEMCONV_PIN },
   ];
 
-  for (const [key, value] of Object.entries(sanitized)) {
+  for (const [key, value] of Object.entries(exportRow)) {
     if (key === 'event' || key === 'task_id' || key === 'trace_schema_version') continue;
-    if (!captureContent && CONTENT_KEYS.has(key)) continue;
     if (value === null || value === undefined) continue;
     attrs.push({ key: `ai_minions.${key}`, value: otelAttributeValue(value) });
   }
 
   if (sanitized.event === 'context_stats') {
-    if (sanitized.agent != null) attrs.push({ key: 'gen_ai.request.model', value: String(sanitized.model || sanitized.agent) });
+    const modelName = sanitized.model ?? sanitized.agent;
+    if (modelName != null) attrs.push({ key: 'gen_ai.request.model', value: String(modelName) });
     if (sanitized.ollama_prompt_tokens != null) {
       attrs.push({ key: 'gen_ai.usage.input_tokens', value: Number(sanitized.ollama_prompt_tokens) });
     }
@@ -170,7 +209,7 @@ function mapTraceRowToOtelSpan(row, index, options = {}) {
  */
 function mapTraceRowsToOtelSpans(rows, options = {}) {
   const list = Array.isArray(rows) ? rows : [];
-  const captureContent = options.captureContent === true;
+  const captureContent = resolveCaptureContent(options);
   /** @type {string | null} */
   let taskId = null;
   /** @type {string | undefined} */
@@ -184,7 +223,7 @@ function mapTraceRowsToOtelSpans(rows, options = {}) {
     if (row && row.event === 'session_start') {
       rootSpanId = spanIdForRow(String(row.task_id), i, 'session_start');
     }
-    const span = mapTraceRowToOtelSpan(row, i, { captureContent, rootSpanId });
+    const span = mapTraceRowToOtelSpan(row, i, { ...options, captureContent, rootSpanId });
     if (span) spans.push(span);
   }
 
@@ -199,6 +238,8 @@ module.exports = {
   OTEL_GENAI_SEMCONV_PIN,
   EVENT_SPAN_MAP,
   CONTENT_KEYS,
+  resolveCaptureContent,
+  stripContentKeys,
   traceIdForTask,
   spanIdForRow,
   rowToSpanAttributes,

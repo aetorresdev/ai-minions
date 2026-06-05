@@ -45,10 +45,16 @@ Unmapped events are **omitted** (no span) — JSONL SoT unchanged.
 
 ## Content capture policy
 
-| Env / option | Default | Behavior |
-|--------------|---------|----------|
-| `ORCH_OTEL_GENAI_CAPTURE_CONTENT` | unset / `0` | Strip `goal`, `prompt`, `response`, `handoff_yaml`, and similar content keys from span attributes |
+**Precedence:** `options.captureContent` (boolean, programmatic) **overrides** env when set; otherwise `ORCH_OTEL_GENAI_CAPTURE_CONTENT=1` enables capture. Default: **strip**.
+
+| Control | Default | Behavior |
+|---------|---------|----------|
+| `options.captureContent: false` | — | Force strip (overrides env) |
+| `ORCH_OTEL_GENAI_CAPTURE_CONTENT` unset / not `1` | default | Strip content keys **recursively** (objects + arrays) |
 | `ORCH_OTEL_GENAI_CAPTURE_CONTENT=1` | opt-in | Include content keys (operator risk — not for CI) |
+| `options.captureContent: true` | — | Force include (overrides env) |
+
+Stripped keys (any depth): `goal`, `prompt`, `response`, `handoff_yaml`, `summary`, `output`, `raw_output`, `message`, `messages`.
 
 All string attributes pass through `trace-redact` secret-shaped redaction regardless.
 

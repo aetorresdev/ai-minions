@@ -88,4 +88,84 @@ describe("otel-genai-trace-map", () => {
     );
     assert.ok(attrs.some((a) => a.key === "ai_minions.goal" && a.value === "visible"));
   });
+
+  it("strips nested content keys by default", () => {
+    const attrs = rowToSpanAttributes({
+      event: "permission_check",
+      task_id: "t",
+      trace_schema_version: "2",
+      payload: {
+        prompt: "full user prompt here",
+        response: "model output here",
+        meta: { messages: ["keep structure without content"] },
+      },
+    });
+    const payload = attrs.find((a) => a.key === "ai_minions.payload");
+    assert.ok(payload);
+    const parsed = JSON.parse(String(payload.value));
+    assert.equal(parsed.prompt, undefined);
+    assert.equal(parsed.response, undefined);
+    assert.deepEqual(parsed.meta, {});
+    const blob = JSON.stringify(attrs);
+    assert.ok(!blob.includes("full user prompt here"));
+    assert.ok(!blob.includes("model output here"));
+  });
+
+  it("captureContent opt-in includes nested content and still redacts secrets", () => {
+    const token = `Bearer ${"z".repeat(24)}`;
+    const attrs = rowToSpanAttributes(
+      {
+        event: "permission_check",
+        task_id: "t",
+        payload: { prompt: `ask ${token}`, output: "ok" },
+      },
+      { captureContent: true },
+    );
+    const payload = attrs.find((a) => a.key === "ai_minions.payload");
+    assert.ok(payload);
+    assert.match(String(payload.value), /\[REDACTED:bearer\]/);
+    assert.ok(String(payload.value).includes("output"));
+    assert.ok(!String(payload.value).includes(token));
+  });
+
+  it("resolveCaptureContent reads ORCH_OTEL_GENAI_CAPTURE_CONTENT when option unset", () => {
+    const prev = process.env.ORCH_OTEL_GENAI_CAPTURE_CONTENT;
+    process.env.ORCH_OTEL_GENAI_CAPTURE_CONTENT = "1";
+    try {
+      const attrs = rowToSpanAttributes({ event: "session_start", task_id: "t", goal: "from-env" });
+      assert.ok(attrs.some((a) => a.key === "ai_minions.goal"));
+    } finally {
+      if (prev === undefined) delete process.env.ORCH_OTEL_GENAI_CAPTURE_CONTENT;
+      else process.env.ORCH_OTEL_GENAI_CAPTURE_CONTENT = prev;
+    }
+  });
+
+  it("explicit captureContent false overrides env", () => {
+    const prev = process.env.ORCH_OTEL_GENAI_CAPTURE_CONTENT;
+    process.env.ORCH_OTEL_GENAI_CAPTURE_CONTENT = "1";
+    try {
+      const attrs = rowToSpanAttributes(
+        { event: "session_start", task_id: "t", goal: "hidden" },
+        { captureContent: false },
+      );
+      assert.ok(!attrs.some((a) => a.key === "ai_minions.goal"));
+    } finally {
+      if (prev === undefined) delete process.env.ORCH_OTEL_GENAI_CAPTURE_CONTENT;
+      else process.env.ORCH_OTEL_GENAI_CAPTURE_CONTENT = prev;
+    }
+  });
+
+  it("emits gen_ai.request.model from model when agent is absent", () => {
+    const span = mapTraceRowToOtelSpan({
+      event: "context_stats",
+      task_id: "task-otel-model-only",
+      trace_schema_version: "2",
+      model: "qwen2.5-coder:7b",
+      ollama_prompt_tokens: 1,
+      ollama_completion_tokens: 2,
+    }, 0);
+    assert.ok(span);
+    const byKey = Object.fromEntries(span.attributes.map((a) => [a.key, a.value]));
+    assert.equal(byKey['gen_ai.request.model'], "qwen2.5-coder:7b");
+  });
 });
