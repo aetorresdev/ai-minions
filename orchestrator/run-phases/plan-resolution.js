@@ -38,6 +38,7 @@
  *   CAPABILITY_MATRIX_VERSION: string,
  *   callStateMcp: (tool: string, payload: object, opts: object) => object,
  *   AGENT_TO_MODE: Record<string, string>,
+ *   getLastBudgetMeta: () => object,
  * }} deps
  * @returns {Promise<{
  *   plan: { steps: object[] },
@@ -110,7 +111,7 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
     emitContextStatsRows(planCtxStats, "orchestrator", 0, {}, {}, { phase: "plan" });
   }
   maybeEmitBudgetWarning("plan");
-  const planCost = checkCostGuard("plan", deps.lastBudgetMeta);
+  const planCost = checkCostGuard("plan", deps.getLastBudgetMeta());
   if (!planCost.ok) {
     summary = `Guardrail budget limit (${planCost.budget_scope}) exceeded: estimated spend ${roundUsd6(planCost.estimate)} USD exceeds limit ${planCost.limit} after plan phase.`;
     manualReview = true;

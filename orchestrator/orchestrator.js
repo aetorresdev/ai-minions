@@ -548,7 +548,7 @@ async function run(goal, options = {}) {
     manualReview,
     skipMainOrchestrationLoop,
     currentMode,
-    lastBudgetMeta,
+    getLastBudgetMeta: () => lastBudgetMeta,
     log,
     traceEvent,
     askAgent,

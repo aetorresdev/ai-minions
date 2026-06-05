@@ -33,7 +33,7 @@ function makeDeps(overrides = {}) {
     manualReview: false,
     skipMainOrchestrationLoop: false,
     currentMode: "ORCHESTRATOR",
-    lastBudgetMeta: {},
+    getLastBudgetMeta: () => ({}),
     log: () => {},
     traceEvent: (_taskId, payload) => traces.push(payload),
     askAgent: async () => ({
@@ -77,6 +77,25 @@ describe("run-phases/plan-resolution — executePlanResolutionPhase", () => {
     assert.equal(out.plan.steps.length, 1);
     assert.equal(out.skipMainOrchestrationLoop, false);
     assert.equal(traces.some((t) => t.event === "iteration_done"), false);
+  });
+
+  it("reads live budget meta via getter after plan context_stats accounting", async () => {
+    let meta = {};
+    const { deps } = makeDeps({
+      getLastBudgetMeta: () => meta,
+      emitContextStatsRows: () => {
+        meta = { role: "orchestrator", step_id: "plan-step", model_key: "ollama/unit" };
+      },
+      askAgent: async () => ({
+        output: '{"steps":[{"agentId":"dev-backend","task":"x"}]}',
+        context_stats: { ollama_prompt_tokens: 10, ollama_completion_tokens: 5 },
+      }),
+      checkCostGuard: (_phase, m) => {
+        assert.equal(m.role, "orchestrator");
+        return { ok: true };
+      },
+    });
+    await executePlanResolutionPhase(deps);
   });
 
   it("preserves trace ordering on plan-phase cost guard abort", async () => {
