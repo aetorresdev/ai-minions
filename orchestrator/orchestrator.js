@@ -171,6 +171,10 @@ const { executePlanResolutionPhase } = require("./run-phases/plan-resolution");
 const { createPhaseContext } = require("./run-phases/phase-context");
 const { executeStepAgentInvocation } = require("./run-phases/step-execution");
 const { executeGateHandlingPhase } = require("./run-phases/gate-handling");
+const {
+  finalizeStepArtifact,
+  executeIterationFinalizationPhase,
+} = require("./run-phases/iteration-finalization");
 
 const DEV_AGENT_IDS = new Set(["dev-backend", "dev-frontend", "dev-devops"]);
 
@@ -858,420 +862,73 @@ async function run(goal, options = {}) {
       if (gateOut.currentMode) currentMode = gateOut.currentMode;
       if (gateOut.qaSpecSatisfiedThisIteration) qaSpecSatisfiedThisIteration = true;
 
-      // ── Ollama step summary ────────────────────────────────────────────────
-      let handoffSummary = "";
-      if (stepSummary) {
-        log("summarizer", `Summarizing ${agentId} output (Ollama)...`);
-        try {
-          const summaryResult = await summarizeHandoff({ agentId, task: step.task, result, cwd, priorArtifacts: artifacts });
-          handoffSummary = summaryResult.summary;
-          bumpOllamaFromStats(summaryResult);
-          if (summaryResult.ollama_prompt_tokens != null || summaryResult.ollama_completion_tokens != null) {
-            traceEvent(taskId, {
-              event: "context_stats",
-              agent: "summarizer",
-              target_agent: agentId,
-              iteration: iterations,
-              ...(typeof summaryResult.ollama_prompt_tokens === "number" ? { ollama_prompt_tokens: summaryResult.ollama_prompt_tokens } : {}),
-              ...(typeof summaryResult.ollama_completion_tokens === "number" ? { ollama_completion_tokens: summaryResult.ollama_completion_tokens } : {}),
-            });
-          }
-          if (costGuardAbort("summarizer")) break orchestration;
-          log("summarizer", `Summary ready (${handoffSummary.length} chars)`);
-        } catch (err) {
-          log("summarizer", `Ollama failed (${err.message}); next step uses truncation.`);
-        }
-      }
-
-      artifacts.push({
+      const stepArtifactOut = await finalizeStepArtifact(phaseCtx, {
         agentId,
-        task: step.task,
+        step,
+        stepId,
+        intentId,
         result,
         handoffYaml,
-        gateBlocked: false,
-        step_id: stepId,
-        intent_id: intentId,
-        ...(handoffSummary ? { handoffSummary } : {}),
-        ...(Object.keys(handoffCompressionMeta).length ? handoffCompressionMeta : {}),
+        handoffCompressionMeta,
+        stepSummary,
+        priorArtifacts: artifacts,
+        summarizeHandoff,
+        bumpOllamaFromStats,
+        costGuardAbort,
       });
-      log(agentId, `Done (${result.length} chars)`);
+      if (stepArtifactOut.action === "break_orchestration") break orchestration;
+      artifacts.push(stepArtifactOut.artifact);
     }
 
-    // ── Cerberus review ───────────────────────────────────────────────────────
-    let cerberusReviewRecordEmitted = false;
-    logRoleSwitch(previousAgentId || "orchestrator", "cerberus");
-    log("cerberus", "Reviewing deliverables...");
-    const reviewChunks = artifacts.map((a) => {
-      const { text } = truncateForContext(a.result, maxReviewChars);
-      return `## ${a.agentId} — ${a.task}\n\n${text}`;
-    });
-    const cerberusPrompt = `Working directory: ${cwd}
-
-Original goal: ${goal}
-
-Deliverables from iteration ${iterations}:
-
-${reviewChunks.join("\n\n---\n\n")}
-
-Review the above. Classify each finding as blocker | improvement | nice-to-have.
-Only blockers require another DEV iteration.
-
-Your reply must begin with these three lines in this exact order (use (none) when a category has nothing to report; no preamble before blocker:):
-blocker: ...
-improvement: ...
-nice-to-have: ...`;
-
-    let cerberusResult = "";
-    try {
-      const { output, context_stats: cerbCtx } = await askAgent("cerberus", cerberusPrompt, { cwd, sessionEnv });
-      cerberusResult = output;
-      if (cerbCtx) {
-        emitModelFallbackLifecycleIfNeeded(traceEvent, taskId, "cerberus", cerbCtx, { iteration: iterations, phase: "review" });
-        emitContextStatsRows(cerbCtx, "cerberus", iterations, {}, {}, { phase: "review" });
-      }
-      if (costGuardAbort("cerberus")) break orchestration;
-      log("cerberus", `Review ready (${cerberusResult.length} chars)`);
-    } catch (err) {
-      const gateId = err.gate_id || null;
-      const reason = (err.message || String(err)).slice(0, 300);
-      traceEvent(taskId, {
-        event: "contract_fail",
-        agent: "cerberus",
-        iteration: iterations,
-        duration_ms: 0,
-        reason,
-        critical: true,
-        ...(gateId ? { gate_id: gateId } : {}),
-      });
-      log("cerberus", `🟥 Output contract failed: ${err.message}`);
-      traceReviewRecord(
-        traceEvent,
-        taskId,
-        buildReviewRecord({
-          reviewerRole: "cerberus",
-          output: "",
-          iteration: iterations,
-          gateBlocked: true,
-          gateReason: err.message,
-          reviewedArtifactIds: artifacts
-            .filter((a) => a.step_id && !a.gateBlocked)
-            .map((a) => a.step_id),
-        }),
-      );
-      cerberusReviewRecordEmitted = true;
-      traceDoubtReviewCycle(
-        traceEvent,
-        taskId,
-        buildDoubtReviewCycleFromCerberusOutput("", {
-          iteration: iterations,
-          reviewed_artifact_ids: artifacts
-            .filter((a) => a.step_id && !a.gateBlocked && a.agentId !== "cerberus")
-            .map((a) => a.step_id),
-        }),
-      );
-      artifacts.push({
-        agentId: "cerberus",
-        task: "(session review) Deliverable review before decide",
-        result: "",
-        gateBlocked: true,
-        gateReason: err.message,
-        gate_kind: gateId || "cerberus_output_contract",
-      });
-    }
-
-    // ── Compact cerberus handoff + advance to ORCHESTRATOR ────────────────────
-    if (!skipStateMcp) {
-      let cerberusHandoff = "";
-      const cerbCompactionMeta = { iteration: iterations, phase: "cerberus_advance" };
-      emitContextCompactionStarted(traceEvent, taskId, "cerberus", cerbCompactionMeta);
-      try {
-        const compactRes = callCompactHandoff({
-          text: cerberusResult,
-          modeCompleted: "CERBERUS",
-          nextMode: "ORCHESTRATOR",
-          iteration: iterations,
-          maxIterations,
-          flowMode,
-        }, { cwd });
-        cerberusHandoff = compactRes.yaml;
-        bumpOllamaFromStats({
-          ollama_prompt_tokens: compactRes.ollama_prompt_tokens,
-          ollama_completion_tokens: compactRes.ollama_completion_tokens,
-        });
-        emitContextCompactionCompleted(traceEvent, taskId, "cerberus", cerbCompactionMeta, compactRes);
-        traceEvent(taskId, {
-          event: "context_stats",
-          agent: "context_compactor",
-          attributed_to_role: "cerberus",
-          invocation_type: "context_compaction",
-          execution_actor: "context_compactor",
-          trigger_reason: "handoff_policy",
-          iteration: iterations,
-          phase: "cerberus_advance",
-          ollama_prompt_tokens: compactRes.ollama_prompt_tokens,
-          ollama_completion_tokens: compactRes.ollama_completion_tokens,
-        });
-      } catch (err) {
-        const msg = err.message || String(err);
-        if (requireHandoff) {
-          traceEvent(taskId, {
-            event: "compact_handoff_failed",
-            agent: "cerberus",
-            iteration: iterations,
-            message: msg.slice(0, 400),
-            phase: "cerberus_advance",
-          });
-          log("gate", `🟥 compact_handoff failed (strict — CERBERUS → ORCHESTRATOR): ${msg}`);
-          artifacts.push({
-            agentId: "cerberus",
-            task: "(session review) Deliverable review before decide",
-            result: cerberusResult,
-            gate_kind: "compact_handoff",
-            ...compactHandoffStrictFailureFields(err),
-          });
-        } else {
-          traceEvent(taskId, {
-            event: "compact_handoff_fallback",
-            agent: "cerberus",
-            iteration: iterations,
-            message: msg.slice(0, 400),
-            phase: "cerberus_advance",
-            handoff_degraded: true,
-          });
-          log("gate", `⚠ compact_handoff unavailable (degraded — CERBERUS advance): ${msg}`);
-        }
-      }
-      if (cerberusHandoff) {
-        try {
-          const vt = callStateMcp("validate_transition", {
-            task_id: taskId,
-            from_mode: "CERBERUS",
-            to_mode: "ORCHESTRATOR",
-            handoff_yaml: cerberusHandoff,
-            iteration: iterations,
-          }, { cwd });
-
-          if (vt.allowed) {
-            callStateMcp("advance_mode", {
-              task_id: taskId,
-              to_mode: "ORCHESTRATOR",
-              from_mode: "CERBERUS",
-              handoff_yaml: cerberusHandoff,
-              iteration: iterations,
-            }, { cwd });
-            currentMode = "ORCHESTRATOR";
-          }
-        } catch (err) {
-          log("gate", `WARNING: Cerberus transition gate error (${err.message})`);
-        }
-      }
-    }
-
-    // ── Hard blocker enforcement (deterministic) ──────────────────────────────
-    // Detect blockers from CERBERUS output directly — does not rely on the
-    // orchestrator model to interpret whether iteration is required.
-    // If blockers exist and iterations remain → force iterate.
-    // If no blockers → allow orchestrator to declare done.
-    const cerberusBlockers = detectBlockers(cerberusResult);
-    const reviewedIds = artifacts
-      .filter((a) => a.step_id && !a.gateBlocked && a.agentId !== "cerberus")
-      .map((a) => a.step_id);
-    if (!cerberusReviewRecordEmitted) {
-      traceReviewRecord(
-        traceEvent,
-        taskId,
-        buildReviewRecord({
-          reviewerRole: "cerberus",
-          output: cerberusResult,
-          iteration: iterations,
-          reviewedArtifactIds: reviewedIds,
-        }),
-      );
-      traceDoubtReviewCycle(
-        traceEvent,
-        taskId,
-        buildDoubtReviewCycleFromCerberusOutput(cerberusResult, {
-          iteration: iterations,
-          reviewed_artifact_ids: reviewedIds,
-        }),
-      );
-    }
-    traceEvent(taskId, { event: "cerberus_check", iteration: iterations, blockers: cerberusBlockers.count, items: cerberusBlockers.items.slice(0, 5) });
-
-    const cerbDecision = decideCerberusBlockersBranch({
-      blockerCount: cerberusBlockers.count,
-      iterations,
+    const iterFinalOut = await executeIterationFinalizationPhase(phaseCtx, {
+      artifacts,
+      goal,
       maxIterations,
+      maxReviewChars,
+      sessionEnv,
+      previousAgentId,
+      currentMode,
+      requireHandoff,
+      skipStateMcp,
+      flowMode,
+      askAgent,
+      bumpOllamaFromStats,
+      costGuardAbort,
+      truncateForContext,
+      logRoleSwitch,
+      detectBlockers,
+      callCompactHandoff,
+      emitContextCompactionStarted,
+      emitContextCompactionCompleted,
+      compactHandoffStrictFailureFields,
+      callStateMcp,
+      traceReviewRecord,
+      buildReviewRecord,
+      traceDoubtReviewCycle,
+      buildDoubtReviewCycleFromCerberusOutput,
+      traceIterationDone,
+      transitionReason,
+      iterationDoneCtx,
+      extractJson,
+      decideCerberusBlockersBranch,
+      decideGateBlockedArtifactsBranch,
+      decideCorrectionsPlan,
+      planStepsAfterCorrectionsResponse,
+      formatGateBlockedReasonLines,
+      planStepsReplayFromGateBlockedArtifacts,
+      summaryMaxIterationsGateBlocked,
+      decideFromOrchestratorDecide,
+      mapDecideLoopToPlanOutcome,
     });
-    if (cerbDecision === "iterate") {
-      log("cerberus", `🟥 ${cerberusBlockers.count} blocker(s) detected — forcing iteration (deterministic)`);
-      cerberusBlockers.items.forEach(b => log("cerberus", `  ↳ ${b.slice(0, 120)}`));
-
-      // Ask orchestrator only for corrections — done=true is not an option when blockers exist
-      const artifactsBlob = artifacts
-        .map((a) => {
-          const { text } = truncateForContext(a.result, maxReviewChars);
-          return `## ${a.agentId}\nTask: ${a.task}\n\n${text}`;
-        })
-        .join("\n\n---\n\n");
-
-      const correctPrompt = `Original goal:
-${goal}
-
-Iteration: ${iterations}/${maxIterations}
-
-Deliverables:
-${artifactsBlob}
-
-Cerberus blockers (must be fixed):
-${cerberusBlockers.items.join("\n")}
-
-List the correction steps required. Reply with JSON: { "done": false, "corrections": [{ "agentId": "...", "task": "..." }] }`;
-
-      logRoleSwitch("cerberus", "orchestrator");
-      const { output: correctResponse, context_stats: correctCtx } = await askAgent("orchestrator", correctPrompt, { cwd, sessionEnv, phase: "decide" });
-      if (correctCtx) {
-        emitModelFallbackLifecycleIfNeeded(traceEvent, taskId, "orchestrator", correctCtx, { iteration: iterations, phase: "correct" });
-        emitContextStatsRows(correctCtx, "orchestrator", iterations, {}, {}, { phase: "correct" });
-      }
-      if (costGuardAbort("correct")) break orchestration;
-      const corrections = extractJson(correctResponse);
-      const corrPlan = decideCorrectionsPlan(corrections);
-      const planOut = planStepsAfterCorrectionsResponse({
-        corrPlan,
-        artifacts,
-        blockerItems: cerberusBlockers.items,
-        maxBlockersInTask: 2,
-      });
-      const steps = /** @type {Array<{ agentId?: string, task: string }>} */ (planOut.steps);
-      if (planOut.traceBranch === "iterate_corrections_json") {
-        log("orchestrator", `↻ Correcting — ${steps.length} step(s):`);
-        steps.forEach((c) =>
-          log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
-        );
-        traceIterationDone(taskId, iterations, "iterate", transitionReason("GATE_BLOCK", "cerberus_blockers"), { blockers: cerberusBlockers.count, corrections: steps.length }, iterationDoneCtx());
-        plan = { steps };
-      } else {
-        log("orchestrator", "WARNING: orchestrator returned no corrections — retrying last DEV steps");
-        traceIterationDone(taskId, iterations, "iterate_fallback", transitionReason("ITERATE_FALLBACK", "orchestrator_no_corrections_json"), { blockers: cerberusBlockers.count }, iterationDoneCtx());
-        plan = { steps };
-      }
-      continue;
+    if (iterFinalOut.artifactsToPush) {
+      for (const a of iterFinalOut.artifactsToPush) artifacts.push(a);
     }
-
-    if (cerbDecision === "manual_cap") {
-      done = false;
-      manualReview = true;
-      summary = `Max iterations reached with ${cerberusBlockers.count} gate-blocked CERBERUS finding(s). Manual review required.`;
-      log("orchestrator", `⚠ ${summary}`);
-      traceIterationDone(taskId, iterations, "max_iterations_with_blockers", transitionReason("MAX_ITERATIONS", "cerberus_blockers_cap"), { blockers: cerberusBlockers.count }, iterationDoneCtx());
-      continue;
-    }
-
-    // ── Gate-blocked artifact enforcement ────────────────────────────────────
-    // Any artifact with gateBlocked:true in this iteration is an implicit blocker.
-    // gateBlocked means a hard contract or gate failed — CERBERUS silence does not clear it.
-    // This covers: output contract failures (missing files_read, files_modified,
-    // validation_run), handoff structure failures, and goal alignment failures.
-    const gateBlockedArtifacts = artifacts.filter(a => a.gateBlocked);
-    const gateBlockedDecision = decideGateBlockedArtifactsBranch({
-      artifactCount: gateBlockedArtifacts.length,
-      iterations,
-      maxIterations,
-    });
-    if (gateBlockedDecision === "iterate") {
-      const gateBlockReasons = formatGateBlockedReasonLines(gateBlockedArtifacts);
-      traceEvent(taskId, { event: "gate_blocked_completion", iteration: iterations, count: gateBlockedArtifacts.length, reasons: gateBlockReasons });
-      log("orchestrator", `🟥 ${gateBlockedArtifacts.length} gate-blocked artifact(s) — cannot mark done (forcing iteration):`);
-      gateBlockReasons.forEach(r => log("orchestrator", `  ↳ ${r}`));
-      const _gb0 = gateBlockedArtifacts[0];
-      traceIterationDone(
-        taskId,
-        iterations,
-        "gate_blocked_iterate",
-        transitionReason("GATE_BLOCK", "artifact_contract_or_handoff", {
-          ...( _gb0 && _gb0.step_id ? { step_id: _gb0.step_id } : {}),
-          ...( _gb0 && _gb0.gate_kind ? { gate_id: _gb0.gate_kind } : {}),
-        }),
-        { gate_blocks: gateBlockedArtifacts.length },
-        iterationDoneCtx({ gateKinds: gateBlockedArtifacts.map((a) => a.gate_kind).filter(Boolean) }),
-      );
-      plan = { steps: planStepsReplayFromGateBlockedArtifacts(gateBlockedArtifacts) };
-      continue;
-    }
-    if (gateBlockedDecision === "manual_cap") {
-      const gateBlockReasons = formatGateBlockedReasonLines(gateBlockedArtifacts);
-      done = false;
-      manualReview = true;
-      summary = summaryMaxIterationsGateBlocked({
-        count: gateBlockedArtifacts.length,
-        reasonLines: gateBlockReasons,
-      });
-      log("orchestrator", `⚠ ${summary}`);
-      traceIterationDone(taskId, iterations, "max_iterations_with_gate_blocks", transitionReason("MAX_ITERATIONS", "gate_blocked_artifacts_cap"), { gate_blocks: gateBlockedArtifacts.length }, iterationDoneCtx());
-      continue;
-    }
-
-    // ── ORCHESTRATOR decides (no blockers path) ───────────────────────────────
-    logRoleSwitch("cerberus", "orchestrator");
-    log("orchestrator", "No blockers — evaluating completion...");
-    const artifactsBlob = artifacts
-      .map((a) => {
-        const { text } = truncateForContext(a.result, maxReviewChars);
-        return `## ${a.agentId}\nTask: ${a.task}\n\n${text}`;
-      })
-      .join("\n\n---\n\n");
-
-    const decidePrompt = `Original goal:
-${goal}
-
-Iteration: ${iterations}/${maxIterations}
-
-Deliverables:
-${artifactsBlob}
-
-Cerberus review (no blockers):
-${cerberusResult}
-
-No blockers were found. Confirm completion or list any remaining corrections.
-Reply with JSON only.`;
-
-    let decideResponse = "";
-    try {
-      const { output, context_stats: decideCtx } = await askAgent("orchestrator", decidePrompt, { cwd, sessionEnv, phase: "decide" });
-      decideResponse = output;
-      if (decideCtx) {
-        emitModelFallbackLifecycleIfNeeded(traceEvent, taskId, "orchestrator", decideCtx, { iteration: iterations, phase: "decide" });
-        emitContextStatsRows(decideCtx, "orchestrator", iterations, {}, {}, { phase: "decide" });
-      }
-      if (costGuardAbort("decide")) break orchestration;
-    } catch (decideErr) {
-      log("orchestrator", `⚠ Decide contract failed (${decideErr.message}) — treating as stopped`);
-      traceEvent(taskId, { event: "decide_contract_fail", reason: decideErr.message });
-    }
-    const decide = extractJson(decideResponse);
-    const loopDecision = decideFromOrchestratorDecide(decide);
-    const mapped = mapDecideLoopToPlanOutcome(loopDecision);
-
-    if (mapped.variant === "finish") {
-      done = true;
-      summary = /** @type {string} */ (mapped.summary);
-      log("orchestrator", `✓ Done: ${summary}`);
-      traceIterationDone(taskId, iterations, "done", transitionReason("DONE"), { summary: summary.slice(0, 200) }, iterationDoneCtx());
-    } else if (mapped.variant === "iterate") {
-      const corrections = /** @type {Array<{ agentId?: string, task: string }>} */ (mapped.planSteps);
-      log("orchestrator", `↻ Iterating — ${corrections.length} correction(s):`);
-      corrections.forEach((c) =>
-        log(c.agentId || "?", `Correction: ${c.task.slice(0, 80)}${c.task.length > 80 ? "..." : ""}`)
-      );
-      traceIterationDone(taskId, iterations, "iterate", transitionReason("ITERATE", "orchestrator_decide_corrections"), { corrections: corrections.length }, iterationDoneCtx());
-      plan = { steps: corrections };
-    } else {
-      done = true;
-      summary = /** @type {string} */ (mapped.summary);
-      log("orchestrator", summary);
-      traceIterationDone(taskId, iterations, "stopped", transitionReason("CONTRACT_FAIL", summary), { summary }, iterationDoneCtx());
-    }
+    if (iterFinalOut.currentMode) currentMode = iterFinalOut.currentMode;
+    if (iterFinalOut.action === "break_orchestration") break orchestration;
+    if (typeof iterFinalOut.done === "boolean") done = iterFinalOut.done;
+    if (typeof iterFinalOut.manualReview === "boolean") manualReview = iterFinalOut.manualReview;
+    if (typeof iterFinalOut.summary === "string" && iterFinalOut.summary) summary = iterFinalOut.summary;
+    if (iterFinalOut.plan) plan = iterFinalOut.plan;
   }
 
   if (!done && !summary) {
