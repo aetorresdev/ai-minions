@@ -17,6 +17,10 @@ const WORKSPACE_EVENTS = Object.freeze([
   'workspace_rejected',
   'workspace_run_cwd_bound',
   'workspace_artifacts_ready',
+  'workspace_promotion_started',
+  'workspace_promotion_completed',
+  'workspace_promotion_denied',
+  'workspace_promotion_failed',
   'workspace_cleanup_started',
   'workspace_cleanup_completed',
   'workspace_cleanup_skipped',
@@ -206,6 +210,53 @@ function emitWorkspaceCleanupFailed(taskId, ctx, reasonCode, extra = {}, options
   );
 }
 
+function emitWorkspacePromotionStarted(taskId, ctx, extra = {}, options = {}) {
+  return emitWorkspaceLifecycleEvent(
+    taskId,
+    ctx.worktree_path,
+    { event: 'workspace_promotion_started', ...buildWorkspaceTraceBase(ctx), ...extra },
+    options,
+  );
+}
+
+function emitWorkspacePromotionCompleted(taskId, ctx, extra = {}, options = {}) {
+  return emitWorkspaceLifecycleEvent(
+    taskId,
+    ctx.worktree_path,
+    { event: 'workspace_promotion_completed', ...buildWorkspaceTraceBase(ctx), ...extra },
+    options,
+  );
+}
+
+function emitWorkspacePromotionDenied(taskId, ctx, reasonCode, extra = {}, options = {}) {
+  return emitWorkspaceLifecycleEvent(
+    taskId,
+    ctx.worktree_path,
+    {
+      event: 'workspace_promotion_denied',
+      ...buildWorkspaceTraceBase(ctx),
+      reason_code: reasonCode,
+      cleanup_side_effects: false,
+      ...extra,
+    },
+    options,
+  );
+}
+
+function emitWorkspacePromotionFailed(taskId, ctx, reasonCode, extra = {}, options = {}) {
+  return emitWorkspaceLifecycleEvent(
+    taskId,
+    ctx.worktree_path,
+    {
+      event: 'workspace_promotion_failed',
+      ...buildWorkspaceTraceBase(ctx),
+      reason_code: reasonCode,
+      ...extra,
+    },
+    options,
+  );
+}
+
 /**
  * @param {object[]} rows
  * @returns {object}
@@ -233,6 +284,12 @@ function summarizeWorkspaceLifecycleFromRows(rows) {
     t.event === 'workspace_cleanup_failed'
     || t.event === 'workspace_cleanup_skipped',
   );
+  const promotionAttempted = timeline.some((t) =>
+    t.event === 'workspace_promotion_started'
+    || t.event === 'workspace_promotion_denied',
+  );
+  const promotionCompleted = timeline.some((t) => t.event === 'workspace_promotion_completed');
+  const promotionDenied = timeline.some((t) => t.event === 'workspace_promotion_denied');
 
   return {
     computed_from: 'workspace_lifecycle_events',
@@ -241,6 +298,9 @@ function summarizeWorkspaceLifecycleFromRows(rows) {
     flags: {
       workspace_created: created,
       workspace_reused: reused,
+      promotion_attempted: promotionAttempted,
+      promotion_completed: promotionCompleted,
+      promotion_denied: promotionDenied,
       cleanup_attempted: cleanupAttempted,
       cleanup_completed: cleanupDone,
       workspace_retained: cleanupRetained,
@@ -264,5 +324,9 @@ module.exports = {
   emitWorkspaceCleanupCompleted,
   emitWorkspaceCleanupSkipped,
   emitWorkspaceCleanupFailed,
+  emitWorkspacePromotionStarted,
+  emitWorkspacePromotionCompleted,
+  emitWorkspacePromotionDenied,
+  emitWorkspacePromotionFailed,
   summarizeWorkspaceLifecycleFromRows,
 };

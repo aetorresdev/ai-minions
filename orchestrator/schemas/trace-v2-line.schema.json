@@ -785,6 +785,90 @@
     },
     {
       "if": {
+        "properties": { "event": { "const": "workspace_promotion_started" } },
+        "required": ["event"]
+      },
+      "then": {
+        "allOf": [
+          { "$ref": "#/$defs/workspaceLifecycleBase" },
+          {
+            "required": ["operator_approved"],
+            "properties": {
+              "operator_approved": { "type": "boolean" },
+              "artifact_count": { "type": "integer", "minimum": 0, "maximum": 256 }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "workspace_promotion_completed" } },
+        "required": ["event"]
+      },
+      "then": {
+        "allOf": [
+          { "$ref": "#/$defs/workspaceLifecycleBase" },
+          {
+            "required": ["operator_approved", "promoted_artifacts"],
+            "properties": {
+              "operator_approved": { "type": "boolean", "const": true },
+              "promoted_artifacts": {
+                "type": "array",
+                "maxItems": 256,
+                "items": {
+                  "type": "object",
+                  "required": ["source_rel", "dest_rel"],
+                  "properties": {
+                    "source_rel": { "type": "string", "minLength": 1, "maxLength": 512 },
+                    "dest_rel": { "type": "string", "minLength": 1, "maxLength": 512 },
+                    "promoted_at": { "type": "string", "minLength": 1, "maxLength": 40 }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "workspace_promotion_denied" } },
+        "required": ["event"]
+      },
+      "then": {
+        "allOf": [
+          { "$ref": "#/$defs/workspaceLifecycleBase" },
+          {
+            "required": ["reason_code", "cleanup_side_effects"],
+            "properties": {
+              "reason_code": { "type": "string", "minLength": 1, "maxLength": 64 },
+              "cleanup_side_effects": { "type": "boolean", "const": false }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event": { "const": "workspace_promotion_failed" } },
+        "required": ["event"]
+      },
+      "then": {
+        "allOf": [
+          { "$ref": "#/$defs/workspaceLifecycleBase" },
+          {
+            "required": ["reason_code"],
+            "properties": {
+              "reason_code": { "type": "string", "minLength": 1, "maxLength": 64 },
+              "detail": { "type": "string", "maxLength": 500 }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
         "properties": { "event": { "const": "workspace_cleanup_started" } },
         "required": ["event"]
       },

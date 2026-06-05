@@ -46,6 +46,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [local-model-discovery.md](local-model-discovery.md) | List local backends/models without inference |
 | [local-model-selection.md](local-model-selection.md) | Model override precedence and trace fields |
 | [worktree-isolation-contract.md](worktree-isolation-contract.md) | Git worktree per run — binding, workdir contract, lifecycle trace, cleanup safety (v0.3 alpha) |
+| [worktree-result-promotion-contract.md](worktree-result-promotion-contract.md) | Explicit promotion path for worktree outputs — operator approve, trace, separate from cleanup |
 | [dynamic-workflow-contract.md](dynamic-workflow-contract.md) | Dynamic workflow proposal vs executable plan — limits, preview, approval (design-first; no runtime) |
 | [eval-benchmark-triage.md](eval-benchmark-triage.md) | External harness benchmark triage — core matrix, appendices A–F, pilot/defer/reject (doc-only) |
 | [credential-broker-contract.md](credential-broker-contract.md) | Brokered credentials outside model context — read/write enforcement, `credential_broker_used` trace |

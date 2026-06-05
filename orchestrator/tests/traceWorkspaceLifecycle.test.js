@@ -18,6 +18,10 @@ const {
   emitWorkspaceCleanupFailed,
   emitWorkspaceRunCwdBound,
   emitWorkspaceArtifactsReady,
+  emitWorkspacePromotionStarted,
+  emitWorkspacePromotionCompleted,
+  emitWorkspacePromotionDenied,
+  emitWorkspacePromotionFailed,
   summarizeWorkspaceLifecycleFromRows,
 } = require("../trace-workspace-lifecycle");
 const {
@@ -86,6 +90,13 @@ test("workspace lifecycle emitters validate against trace v2 schema", () => {
     () => emitWorkspaceCleanupCompleted(taskId, ctx, opts),
     () => emitWorkspaceCleanupSkipped(taskId, ctx, "cleanup_policy_retain", opts),
     () => emitWorkspaceCleanupFailed(taskId, ctx, "git_worktree_remove_failed", {}, opts),
+    () => emitWorkspacePromotionStarted(taskId, ctx, { operator_approved: true, artifact_count: 1 }, opts),
+    () => emitWorkspacePromotionCompleted(taskId, ctx, {
+      operator_approved: true,
+      promoted_artifacts: [{ source_rel: "a.txt", dest_rel: "a.txt" }],
+    }, opts),
+    () => emitWorkspacePromotionDenied(taskId, ctx, "operator_denied", {}, opts),
+    () => emitWorkspacePromotionFailed(taskId, ctx, "copy_failed", {}, opts),
   ];
 
   for (const run of emitters) {
