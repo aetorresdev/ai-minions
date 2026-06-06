@@ -34,6 +34,7 @@ flowchart LR
         H2[session-state · agent-metrics\nPostToolUse *]:::hook
         H2B[context-efficiency\nPreToolUse Read · PostToolUse *]:::hook
         H2C[handoff-enforcer · qa-skill-enforcer\nPreToolUse advance_mode]:::hook
+        H2E[skill-registry-enforcer\nPreToolUse Skill · opt-in]:::hook
         H2D[mode-enforcer\nPreToolUse *]:::hook
         H3[flow-metrics · mem0-stop\nStop]:::hook
         HC[gate_logger · constants\nshared modules]:::hook

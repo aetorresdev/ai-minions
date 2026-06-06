@@ -13,7 +13,7 @@
 | Rule | Behavior |
 |------|----------|
 | `default_policy` | `deny_unlisted` — skills not in registry are rejected by evaluator/hook |
-| Paths | Repo-relative `skills/<id>/SKILL.md` must exist at validation time |
+| Paths | Exactly `skills/<id>/SKILL.md` per registry key; validator rejects aliases, traversal, or other existing files |
 | Roles | `allowed_roles` ⊆ orchestrator MODE roles |
 | Disclosure | `index` \| `full` \| `hidden` — metadata for progressive disclosure (runtime filter pending) |
 | Conformant | `conformant: true` only when skill meets [workflow-skill-contract.md](workflow-skill-contract.md) checklist |
@@ -45,6 +45,10 @@ export ORCH_SKILL_REGISTRY_ENFORCE=1
 ```
 
 Without the env var, hook exits 0 (IDE discovery unchanged). Wire in `settings.json.example` under `PreToolUse` → `Skill`.
+
+Hook tests: `cd orchestrator && npm run test:hooks` (`scripts/hooks/tests/test_skill_registry_enforcer.py`). Optional `ORCH_SKILL_REGISTRY_ACTIVE_ROLE` overrides envelope role for tests.
+
+**Operator surfaces:** `node run-orchestrator.js --help` (env summary), [`orchestrator/README.md`](../../orchestrator/README.md) § Skill registry hook, [`.env.example`](../../orchestrator/.env.example), [`settings.json.example`](../../settings.json.example) (`PreToolUse` → `Skill`), [strict-mode.md](strict-mode.md) (`gate_events.jsonl`).
 
 ---
 

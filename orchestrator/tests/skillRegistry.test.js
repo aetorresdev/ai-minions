@@ -78,4 +78,40 @@ describe("skill-registry", () => {
     assert.equal(v.valid, false);
     assert.ok(v.errors.some((e) => e.includes("path not found")));
   });
+
+  it("validation rejects existing file outside skills/<id>/SKILL.md", () => {
+    const { registry } = loadSkillRegistry(undefined, REPO_ROOT);
+    const broken = {
+      ...registry,
+      skills: {
+        ...registry.skills,
+        "readme-skill": {
+          id: "readme-skill",
+          path: "README.md",
+          allowed_roles: ["DEV"],
+          disclosure: "index",
+        },
+      },
+    };
+    const v = validateSkillRegistry(broken, REPO_ROOT);
+    assert.equal(v.valid, false);
+    assert.ok(v.errors.some((e) => e.includes('path must be "skills/readme-skill/SKILL.md"')));
+  });
+
+  it("validation rejects mismatched skill id and path", () => {
+    const { registry } = loadSkillRegistry(undefined, REPO_ROOT);
+    const broken = {
+      ...registry,
+      skills: {
+        ...registry.skills,
+        "audit-patterns": {
+          ...registry.skills["audit-patterns"],
+          path: "skills/git-best-practices/SKILL.md",
+        },
+      },
+    };
+    const v = validateSkillRegistry(broken, REPO_ROOT);
+    assert.equal(v.valid, false);
+    assert.ok(v.errors.some((e) => e.includes('path must be "skills/audit-patterns/SKILL.md"')));
+  });
 });

@@ -6,7 +6,7 @@ Appends one JSON line per gate event to:
 
 Schema:
   ts          ISO-8601 UTC timestamp
-  gate        gate name (handoff-enforcer | qa-skill-enforcer | mode-enforcer)
+  gate        gate name (handoff-enforcer | qa-skill-enforcer | mode-enforcer | skill-registry-enforcer)
   result      "blocked" | "allowed"
   tool        tool name that triggered the gate
   task_id     task_id from envelope (or SESSION_ID fallback)

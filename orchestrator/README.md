@@ -471,8 +471,10 @@ ORCHESTRATOR_STATE_ROOT=/my/custom/path node run-orchestrator.js "goal"
 | `ORCHESTRATOR_STATE_ROOT` | `~/.claude/.state/orchestrator/` | State store root directory |
 | `ORCHESTRATOR_OLLAMA_URL` | `http://localhost:11434/api/generate` | Ollama endpoint for goal alignment |
 | `ORCHESTRATOR_OLLAMA_MODEL` | `qwen2.5-coder:7b` | Model for goal alignment checks |
+| `ORCH_SKILL_REGISTRY_ENFORCE` | unset (off) | Set to `1` to activate **PreToolUse** `Skill` allowlist via `skill-registry-enforcer.py` (Claude Code only) |
+| `ORCH_SKILL_REGISTRY_ACTIVE_ROLE` | unset | Test seam: override envelope role for skill-registry hook (not for production) |
 
-See [`.env.example`](.env.example) for all variables.
+See [`.env.example`](.env.example) for all variables. Skill registry policy: [`skill-registry-contract.md`](../docs/orchestrator/skill-registry-contract.md).
 
 ---
 
@@ -576,6 +578,17 @@ For orchestrator-owned **`spawnSync`** of external CLIs (not MCP, not the Claude
 | **`ORCH_SKIP_ROLE_CAPABILITY_GATE`** | Set to **`1`** to bypass the capability-matrix role/domain precheck before **`evaluatePermission`** (tests / emergency). **Do not** use in production. |
 
 Design reference: `docs/orchestrator/runtime-permission-contract.md` §3–4 (domains), §8.4–§8.5 (trace shape + run rollup). **`permission_check`** field catalog + audit: `docs/orchestrator/permission-check-trace.md`.
+
+### Skill registry hook (Claude Code IDE)
+
+**`scripts/hooks/skill-registry-enforcer.py`** runs on **PreToolUse** when the tool is **`Skill`**. It is wired in [`settings.json.example`](../settings.json.example) but **inactive by default** so IDE skill discovery stays unchanged.
+
+| Variable | Effect |
+|----------|--------|
+| **`ORCH_SKILL_REGISTRY_ENFORCE`** | Set to **`1`** to deny unlisted skills and role mismatches per `orchestrator/security/skill-registry.v1.json`. Without it, the hook exits 0 (allow). |
+| **`ORCH_SKILL_REGISTRY_ACTIVE_ROLE`** | Overrides envelope role for hook tests only — see `scripts/hooks/tests/test_skill_registry_enforcer.py`. |
+
+Gate events append to `~/.claude/metrics/gate_events.jsonl` with `gate: skill-registry-enforcer`. Contract + trace shape: [`skill-registry-contract.md`](../docs/orchestrator/skill-registry-contract.md). Hook tests: `npm run test:hooks`.
 
 ### Test-only: `ORCH_TEST_SYSTEM_PATH_HARNESS` (not a product feature)
 

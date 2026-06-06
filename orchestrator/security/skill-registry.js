@@ -17,6 +17,10 @@ const KNOWN_ROLES = Object.freeze([
 
 const DISCLOSURE_MODES = Object.freeze(["index", "full", "hidden"]);
 
+function expectedSkillRegistryPath(skillId) {
+  return `skills/${skillId}/SKILL.md`;
+}
+
 /**
  * @param {string} [filePath]
  * @param {string} [repoRoot]
@@ -61,8 +65,13 @@ function validateSkillRegistry(registry, repoRoot) {
     if (entry.id !== key) {
       errors.push(`${label}: id must match registry key`);
     }
+    const wantPath = expectedSkillRegistryPath(key);
     if (typeof entry.path !== "string" || !entry.path.trim()) {
       errors.push(`${label}: path required`);
+    } else if (entry.path !== wantPath) {
+      errors.push(`${label}: path must be "${wantPath}"`);
+    } else if (entry.path.includes("..") || path.isAbsolute(entry.path)) {
+      errors.push(`${label}: path must be repo-relative under skills/<id>/`);
     } else {
       const abs = path.join(repoRoot, entry.path);
       if (!fs.existsSync(abs)) {
@@ -202,6 +211,7 @@ module.exports = {
   REGISTRY_VERSION,
   KNOWN_ROLES,
   DISCLOSURE_MODES,
+  expectedSkillRegistryPath,
   loadSkillRegistry,
   validateSkillRegistry,
   evaluateSkillRegistryAccess,
