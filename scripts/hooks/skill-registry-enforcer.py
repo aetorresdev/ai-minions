@@ -35,9 +35,11 @@ def load_registry() -> dict | None:
 
 
 def current_role() -> str:
-    override = os.environ.get("ORCH_SKILL_REGISTRY_ACTIVE_ROLE", "").strip().upper()
-    if override:
-        return override
+    # Test-only seam — never honored in production unless ORCH_SKILL_REGISTRY_TEST_MODE=1.
+    if os.environ.get("ORCH_SKILL_REGISTRY_TEST_MODE", "").strip() == "1":
+        override = os.environ.get("ORCH_SKILL_REGISTRY_ACTIVE_ROLE", "").strip().upper()
+        if override:
+            return override
 
     state_dir = Path.home() / ".claude/.state/orchestrator"
     if not state_dir.is_dir():

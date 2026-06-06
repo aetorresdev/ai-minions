@@ -472,7 +472,6 @@ ORCHESTRATOR_STATE_ROOT=/my/custom/path node run-orchestrator.js "goal"
 | `ORCHESTRATOR_OLLAMA_URL` | `http://localhost:11434/api/generate` | Ollama endpoint for goal alignment |
 | `ORCHESTRATOR_OLLAMA_MODEL` | `qwen2.5-coder:7b` | Model for goal alignment checks |
 | `ORCH_SKILL_REGISTRY_ENFORCE` | unset (off) | Set to `1` to activate **PreToolUse** `Skill` allowlist via `skill-registry-enforcer.py` (Claude Code only) |
-| `ORCH_SKILL_REGISTRY_ACTIVE_ROLE` | unset | Test seam: override envelope role for skill-registry hook (not for production) |
 
 See [`.env.example`](.env.example) for all variables. Skill registry policy: [`skill-registry-contract.md`](../docs/orchestrator/skill-registry-contract.md).
 
@@ -586,9 +585,8 @@ Design reference: `docs/orchestrator/runtime-permission-contract.md` §3–4 (do
 | Variable | Effect |
 |----------|--------|
 | **`ORCH_SKILL_REGISTRY_ENFORCE`** | Set to **`1`** to deny unlisted skills and role mismatches per `orchestrator/security/skill-registry.v1.json`. Without it, the hook exits 0 (allow). |
-| **`ORCH_SKILL_REGISTRY_ACTIVE_ROLE`** | Overrides envelope role for hook tests only — see `scripts/hooks/tests/test_skill_registry_enforcer.py`. |
 
-Gate events append to `~/.claude/metrics/gate_events.jsonl` with `gate: skill-registry-enforcer`. Contract + trace shape: [`skill-registry-contract.md`](../docs/orchestrator/skill-registry-contract.md). Hook tests: `npm run test:hooks`.
+Gate events append to `~/.claude/metrics/gate_events.jsonl` with `gate: skill-registry-enforcer`. Contract + trace shape: [`skill-registry-contract.md`](../docs/orchestrator/skill-registry-contract.md). Hook tests run as part of **`npm test`** (`scripts/hooks/tests/`).
 
 ### Test-only: `ORCH_TEST_SYSTEM_PATH_HARNESS` (not a product feature)
 

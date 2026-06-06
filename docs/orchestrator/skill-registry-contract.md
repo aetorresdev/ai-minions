@@ -46,7 +46,7 @@ export ORCH_SKILL_REGISTRY_ENFORCE=1
 
 Without the env var, hook exits 0 (IDE discovery unchanged). Wire in `settings.json.example` under `PreToolUse` → `Skill`.
 
-Hook tests: `cd orchestrator && npm run test:hooks` (`scripts/hooks/tests/test_skill_registry_enforcer.py`). Optional `ORCH_SKILL_REGISTRY_ACTIVE_ROLE` overrides envelope role for tests.
+Hook tests: `cd orchestrator && npm test` (includes `scripts/hooks/tests/test_skill_registry_enforcer.py` via `npm run test:hooks`).
 
 **Operator surfaces:** `node run-orchestrator.js --help` (env summary), [`orchestrator/README.md`](../../orchestrator/README.md) § Skill registry hook, [`.env.example`](../../orchestrator/.env.example), [`settings.json.example`](../../settings.json.example) (`PreToolUse` → `Skill`), [strict-mode.md](strict-mode.md) (`gate_events.jsonl`).
 

@@ -1,5 +1,9 @@
 """
 skill-registry-enforcer.py — PreToolUse Skill allowlist behavior.
+
+Test seams (not operator-facing):
+  ORCH_SKILL_REGISTRY_TEST_MODE=1 — required to honor ORCH_SKILL_REGISTRY_ACTIVE_ROLE
+  ORCH_SKILL_REGISTRY_ACTIVE_ROLE   — override envelope role for subprocess tests only
 """
 import json
 import os
@@ -60,10 +64,17 @@ class TestSkillRegistryEnforcer(unittest.TestCase):
         env = {
             k: v
             for k, v in os.environ.items()
-            if k not in ("ORCH_SKILL_REGISTRY_ENFORCE", "ORCH_SKILL_REGISTRY_ACTIVE_ROLE", "CLAUDE_PROJECT_DIR")
+            if k
+            not in (
+                "ORCH_SKILL_REGISTRY_ENFORCE",
+                "ORCH_SKILL_REGISTRY_TEST_MODE",
+                "ORCH_SKILL_REGISTRY_ACTIVE_ROLE",
+                "CLAUDE_PROJECT_DIR",
+            )
         }
         env["CLAUDE_HOOK_EVENT"] = "PreToolUse"
         env["CLAUDE_PROJECT_DIR"] = str(self.root)
+        env["ORCH_SKILL_REGISTRY_TEST_MODE"] = "1"
         env["ORCH_SKILL_REGISTRY_ACTIVE_ROLE"] = role
         if enforce is not None:
             env["ORCH_SKILL_REGISTRY_ENFORCE"] = enforce
@@ -96,15 +107,48 @@ class TestSkillRegistryEnforcer(unittest.TestCase):
         out = json.loads(r.stdout)
         self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "deny")
 
+    def test_active_role_override_ignored_without_test_mode(self):
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k
+            not in (
+                "ORCH_SKILL_REGISTRY_ENFORCE",
+                "ORCH_SKILL_REGISTRY_TEST_MODE",
+                "ORCH_SKILL_REGISTRY_ACTIVE_ROLE",
+                "CLAUDE_PROJECT_DIR",
+            )
+        }
+        env["CLAUDE_HOOK_EVENT"] = "PreToolUse"
+        env["CLAUDE_PROJECT_DIR"] = str(self.root)
+        env["HOME"] = str(self.root)
+        env["ORCH_SKILL_REGISTRY_ENFORCE"] = "1"
+        env["ORCH_SKILL_REGISTRY_ACTIVE_ROLE"] = "OWNER"
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT)],
+            input=skill_pre_tool_payload("demo-skill"),
+            text=True,
+            capture_output=True,
+            env=env,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+
     def test_tool_name_camel_case_variant(self):
         env = {
             k: v
             for k, v in os.environ.items()
-            if k not in ("ORCH_SKILL_REGISTRY_ENFORCE", "ORCH_SKILL_REGISTRY_ACTIVE_ROLE", "CLAUDE_PROJECT_DIR")
+            if k
+            not in (
+                "ORCH_SKILL_REGISTRY_ENFORCE",
+                "ORCH_SKILL_REGISTRY_TEST_MODE",
+                "ORCH_SKILL_REGISTRY_ACTIVE_ROLE",
+                "CLAUDE_PROJECT_DIR",
+            )
         }
         env["CLAUDE_HOOK_EVENT"] = "PreToolUse"
         env["CLAUDE_PROJECT_DIR"] = str(self.root)
         env["ORCH_SKILL_REGISTRY_ENFORCE"] = "1"
+        env["ORCH_SKILL_REGISTRY_TEST_MODE"] = "1"
         env["ORCH_SKILL_REGISTRY_ACTIVE_ROLE"] = "ORCHESTRATOR"
         payload = json.dumps(
             {

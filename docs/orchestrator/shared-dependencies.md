@@ -57,7 +57,7 @@ For **metric trust levels**, **warning-flag semantics**, and the **end-of-run va
 | Sanitization | Persisted JSON is normalized: `flow_mode` must be `single_agent` or `multi_agent`; numeric fields coerced with safe defaults. Corrupt files → warning **`state_invalid`**; the Stop hook **does not crash**. |
 | `flow_mode` in JSONL | May be **`unknown`** when neither transcript nor valid persisted state provides `FLOW:` — consumers must not assume only `single_agent`/`multi_agent`. |
 | Emitted fields | `transcript_scope`, `flow_source`, `flow_from_transcript`, **`dev_qa_cycles`** (session monotonic peak), **`dev_qa_cycles_transcript`** (count from current transcript only), `compact_boundary_crossed` (heuristic: line-count drop, not proof of host compact), `warnings` (`flow_ambiguous`, `state_invalid`, `missing_session_id`). |
-| Tests | `python3 -m unittest discover -s scripts/hooks/tests -p 'test_*.py'` or `npm run test:hooks` from `orchestrator/` |
+| Tests | `npm test` from `orchestrator/` (includes `npm run test:hooks` → `scripts/hooks/tests/`) |
 
 ---
 
