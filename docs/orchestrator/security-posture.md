@@ -84,7 +84,8 @@ hosted control plane, or “safe for anonymous internet users.”
 | **Trace redaction** (secret-shaped fields) | **Implemented** | [trace-privacy-contract.md](trace-privacy-contract.md) |
 | **Role / capability matrix precheck** | **Implemented** | `capability-matrix.v1.json`, trace role capability tests |
 | **Human approval / governance gates** | **Partial** | Policy gates + trace; grant/deny UI paths still evolving |
-| **Progressive disclosure** (hide tool/skill surface in context) | **Partial** | [progressive-disclosure-contract.md](progressive-disclosure-contract.md); runtime filter pending skill registry |
+| **Skill registry allowlist** | **Partial** | [skill-registry-contract.md](skill-registry-contract.md); hook opt-in; router runtime pending |
+| **Progressive disclosure** (hide tool/skill surface in context) | **Partial** | [progressive-disclosure-contract.md](progressive-disclosure-contract.md); skill-side runtime filter pending |
 | **Credential broker** (vault/proxy; no raw secret in model context) | **Planned** | [credential-broker-contract.md](credential-broker-contract.md); session modes today are not vaulting |
 | **Sandbox isolation** (kernel/container boundary for tool code) | **Planned** | Design-first only; not shipped in core runner |
 | **Egress control** (beyond Ollama HTTP gate) | **Planned** | See [runtime-permission-contract.md](runtime-permission-contract.md) gaps |

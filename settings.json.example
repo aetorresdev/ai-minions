@@ -67,6 +67,16 @@
             "statusMessage": "Verifying QA skill before CERBERUS..."
           }
         ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_EVENT=PreToolUse python3 ~/.claude/scripts/hooks/skill-registry-enforcer.py",
+            "statusMessage": "Checking skill registry allowlist..."
+          }
+        ]
       }
     ],
     "PostToolUse": [

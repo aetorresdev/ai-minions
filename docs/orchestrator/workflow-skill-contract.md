@@ -47,7 +47,7 @@ Use these headings (order flexible; all must exist):
 | Docs / proposals | proposal-*, feature-spec | No runtime mutation claims |
 | CERBERUS / QA | (none by default) | Review via role contract, not skill text |
 
-Runtime skill router and allowlist are future work; until then skills are loaded by IDE/agent discovery — treat text as untrusted input (see [security-posture.md](security-posture.md) gaps — skills threat model planned).
+Local allowlist: [skill-registry-contract.md](skill-registry-contract.md) (`skill-registry.v1.json`). Hook enforcement is opt-in (`ORCH_SKILL_REGISTRY_ENFORCE=1`). Skill router runtime remains design-only — treat skill text as untrusted input ([skill-security-threatmodel.md](skill-security-threatmodel.md)).
 
 ## Conformance checklist
 
@@ -73,7 +73,7 @@ Before merging a new or updated skill:
 | Risks | ok — gaps section (Claude routes, USD estimates) |
 | Out of scope | ok — no permission bypass claimed |
 
-**Gaps (non-blocking):** explicit **Purpose** / **When to invoke** headings added in skill file for template parity; no runtime registry entry yet.
+**Registry:** `conformant: true` in `skill-registry.v1.json`.
 
 ## Related
 

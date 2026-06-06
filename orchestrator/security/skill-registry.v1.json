@@ -1,0 +1,139 @@
+{
+  "version": "skill-registry.orchestrator.v1",
+  "default_policy": "deny_unlisted",
+  "skills": {
+    "audit-patterns": {
+      "id": "audit-patterns",
+      "path": "skills/audit-patterns/SKILL.md",
+      "allowed_roles": ["ORCHESTRATOR", "QA"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "configuring-observability": {
+      "id": "configuring-observability",
+      "path": "skills/configuring-observability/SKILL.md",
+      "allowed_roles": ["DEV", "ARCHITECT"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "context-budget": {
+      "id": "context-budget",
+      "path": "skills/context-budget/SKILL.md",
+      "allowed_roles": ["ORCHESTRATOR", "DEV"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "contracts-with-llm": {
+      "id": "contracts-with-llm",
+      "path": "skills/contracts-with-llm/SKILL.md",
+      "allowed_roles": ["OWNER", "ARCHITECT", "DEV"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "creating-circleci": {
+      "id": "creating-circleci",
+      "path": "skills/creating-circleci/SKILL.md",
+      "allowed_roles": ["DEV", "ARCHITECT"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "creating-diagrams": {
+      "id": "creating-diagrams",
+      "path": "skills/creating-diagrams/SKILL.md",
+      "allowed_roles": ["DEV", "ARCHITECT"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "creating-terraform": {
+      "id": "creating-terraform",
+      "path": "skills/creating-terraform/SKILL.md",
+      "allowed_roles": ["DEV", "ARCHITECT"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "designing-terraform": {
+      "id": "designing-terraform",
+      "path": "skills/designing-terraform/SKILL.md",
+      "allowed_roles": ["ARCHITECT", "DEV"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "feature-spec-and-tasks": {
+      "id": "feature-spec-and-tasks",
+      "path": "skills/feature-spec-and-tasks/SKILL.md",
+      "allowed_roles": ["OWNER", "ARCHITECT", "DEV"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "git-best-practices": {
+      "id": "git-best-practices",
+      "path": "skills/git-best-practices/SKILL.md",
+      "allowed_roles": ["DEV", "ORCHESTRATOR"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "managing-n8n": {
+      "id": "managing-n8n",
+      "path": "skills/managing-n8n/SKILL.md",
+      "allowed_roles": ["DEV", "ARCHITECT"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "orchestrator-token-report": {
+      "id": "orchestrator-token-report",
+      "path": "skills/orchestrator-token-report/SKILL.md",
+      "allowed_roles": ["ORCHESTRATOR", "DEV", "QA"],
+      "disclosure": "index",
+      "conformant": true
+    },
+    "prepare-context-clear": {
+      "id": "prepare-context-clear",
+      "path": "skills/prepare-context-clear/SKILL.md",
+      "allowed_roles": ["ORCHESTRATOR", "DEV"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "proposal-refine": {
+      "id": "proposal-refine",
+      "path": "skills/proposal-refine/SKILL.md",
+      "allowed_roles": ["DEV", "ARCHITECT"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "proposal-review": {
+      "id": "proposal-review",
+      "path": "skills/proposal-review/SKILL.md",
+      "allowed_roles": ["DEV", "ARCHITECT", "QA"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "proposal-synthesize": {
+      "id": "proposal-synthesize",
+      "path": "skills/proposal-synthesize/SKILL.md",
+      "allowed_roles": ["ARCHITECT", "DEV"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "reviewing-circleci": {
+      "id": "reviewing-circleci",
+      "path": "skills/reviewing-circleci/SKILL.md",
+      "allowed_roles": ["DEV", "QA", "CERBERUS"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "reviewing-docker": {
+      "id": "reviewing-docker",
+      "path": "skills/reviewing-docker/SKILL.md",
+      "allowed_roles": ["DEV", "QA", "CERBERUS"],
+      "disclosure": "index",
+      "conformant": false
+    },
+    "reviewing-terraform": {
+      "id": "reviewing-terraform",
+      "path": "skills/reviewing-terraform/SKILL.md",
+      "allowed_roles": ["DEV", "QA", "CERBERUS"],
+      "disclosure": "index",
+      "conformant": false
+    }
+  }
+}

@@ -37,6 +37,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [progressive-disclosure-contract.md](progressive-disclosure-contract.md) | Tools/skills/context progressive disclosure — gap assessment + `context_disclosure` trace (S5; design-first) |
 | [handoff-contract.md](handoff-contract.md) | Delegated ownership handoff envelope — bounded invocation vs ownership transfer (design-only) |
 | [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) | Sandbox + credential isolation trust boundaries (design-only) |
+| [skill-registry-contract.md](skill-registry-contract.md) | Local skill allowlist (`skill-registry.v1.json`) + opt-in hook enforcement |
 | [skill-router-design.md](skill-router-design.md) | Lifecycle intent → MODE/skills policy (design only; no runtime router) |
 | [recovery-sweep-contract.md](recovery-sweep-contract.md) | Stranded run/step detection (`recovery_*` events); detect/explain only |
 | [session-resume-contract.md](session-resume-contract.md) | Session checkpoint + resume eligibility (`session_*` events); explicit operator resume only |
