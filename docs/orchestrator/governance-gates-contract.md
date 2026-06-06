@@ -105,7 +105,7 @@ Design requirements (for implementers):
 | MCP / shell / network / classified spawn | Respective gate modules |
 | **Human approve / deny / timeout** semantics | **This contract** (trace events + helpers shipped; UI / resume path optional) |
 
-**Out of scope:** approval UI, multi-user auth, external approval SaaS (prioritized separately in the groomed backlog).
+**Out of scope:** approval UI, multi-user auth, external approval SaaS.
 
 ---
 

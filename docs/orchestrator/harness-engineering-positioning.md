@@ -39,7 +39,7 @@ scope**—those products win on ecosystem; ai-minions wins on **governance evide
 
 Summary for README and release notes. **Expanded tables, pain themes, competitor framing, and SEO phrases:**
 [market-validation-notes.md](market-validation-notes.md) (v0.4 G4 — doc-only, not a market study). **Benchmark / external harness triage:**
-[eval-benchmark-triage.md](eval-benchmark-triage.md) (`EVAL-BENCHMAP-1` — doc-only; not a leaderboard program).
+[eval-benchmark-triage.md](eval-benchmark-triage.md) (doc-only; not a leaderboard program).
 
 | Allowed | Forbidden |
 |---------|-----------|
@@ -303,8 +303,8 @@ design_intake → design_contract → cerberus_review → frozen_executable_plan
 → approved_run → trace_archive
 ```
 
-**Cross-check (doc only):** [openspec-sdd-cross-check.md](openspec-sdd-cross-check.md) — comparison table
-(implemented / partial / planned / rejected). **Forbidden claim:** “OpenSpec-compatible” without an explicit adapter.
+**Comparison (reference only):** [openspec-sdd-cross-check.md](openspec-sdd-cross-check.md) — mapping table
+(implemented / partial / planned / rejected). **Not claimed:** “OpenSpec-compatible” without an explicit adapter.
 
 ---
 
@@ -392,7 +392,7 @@ If split only for “org chart aesthetics,” **do not** add specialists.
 
 ---
 
-## External framing (cross-check, **not** roadmap authority)
+## External framing (reference only — **not** roadmap authority)
 
 Industry posts and courses (including Anthropic engineering essays on harness design,
 long-running agents, context engineering, tools, MCP execution, managed agents, and
@@ -420,7 +420,7 @@ agents*. Entry points: [anthropic.com/news](https://www.anthropic.com/news),
 | Managed agents | **Not claimed** as parity—no core vault/sandbox product in runner |
 | Evals | Harness quality via contracts + traces; no leaderboard narrative |
 
-### OpenAI and other vendors (cross-check only)
+### OpenAI and other vendors (reference only)
 
 OpenAI and other providers publish **multi-agent orchestration** and **tool
 orchestration** patterns. Use them to sanity-check **ownership** and **delegation**
@@ -434,7 +434,7 @@ language only. They **do not** set requirements for this repository.
 |--------|--------------------------|
 | **Implemented** | MODE + YAML handoffs; `validateOutput`; JSONL traces + strict schema path; permission evaluator + gates on covered call sites; token/cost hooks; budget hard-stop; role/capability prechecks where wired. |
 | **Partial** | Progressive tool disclosure; some shell/network paths gated; handoff semantics evolving—see contracts for exact coverage. |
-| **Planned** | Durable session/resume story; deeper tool-eval automation; richer dashboard rollups; **governed improvement loop** (proposals only—see backlog `SELF-IMPROVEMENT-LOOP-1`). |
+| **Planned** | Durable session/resume story; deeper tool-eval automation; richer dashboard rollups; governed improvement loop (proposals only, human-approved). |
 | **Not claimed** | Managed-agent parity, kernel/container sandbox as core product, turnkey multi-tenant isolation, production SLA, **autonomous self-modifying harness** (prompt/contract/policy mutation without human approval). |
 
 **Gaps to state plainly:** credential **broker/vault** productization and **OS-level

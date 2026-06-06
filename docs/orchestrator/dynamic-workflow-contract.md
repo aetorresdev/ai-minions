@@ -2,7 +2,7 @@
 
 A **dynamic workflow** is a **proposed orchestration plan** (steps, fan-out/fan-in, loops, verification passes) that an agent or operator may submit **before** any extra runtime executes it. The plan is **not authority**: it must pass validation, policy, budget, isolation, governance, and human preview/approval gates.
 
-**Status:** **Design contract shipped** (PR **#114**, merged; CERBERUS **Approve with non-blocking notes**). **No runtime executor** — validation CLI and runner wiring remain future work. External “dynamic workflow” products are **cross-check inputs only** — no compatibility or equivalence claims.
+**Status:** **Design contract only.** **No runtime executor** — validation CLI and runner wiring remain future work. External dynamic-workflow products are **comparison inputs only** — no compatibility or equivalence claims.
 
 **Related:** [capability-flow-contract.md](capability-flow-contract.md) · [worktree-isolation-contract.md](worktree-isolation-contract.md) · [governance-gates-contract.md](governance-gates-contract.md) · [session-resume-contract.md](session-resume-contract.md) · [runner-tui-contract.md](runner-tui-contract.md) · [harness-engineering-positioning.md](harness-engineering-positioning.md)
 
@@ -244,7 +244,7 @@ Parent traces must include `workflow_id` on spawned legs. Fan-in merge steps mus
 
 ---
 
-## Pattern cross-check (external dynamic workflows)
+## External pattern comparison (dynamic workflows)
 
 Triage only — **no** “Claude Code equivalent” claim. Status for harness planning:
 
@@ -279,10 +279,9 @@ Full benchmark triage: [`eval-benchmark-triage.md`](eval-benchmark-triage.md) (A
 
 Runtime work stays **blocked** until:
 
-1. This contract is CERBERUS-approved as doc-only deliverable.
-2. `validateDynamicWorkflow` exists with tests (fail-closed cases).
-3. Preview + approval trace events are wired in runner/TUI.
-4. A separate ticket scopes **one** execution slice (e.g. validate-only CLI) — no bundled fan-out engine.
+1. `validateDynamicWorkflow` exists with tests (fail-closed cases).
+2. Preview + approval trace events are wired in runner/TUI.
+3. **One** execution slice scoped at a time (e.g. validate-only CLI) — no bundled fan-out engine.
 
 ---
 

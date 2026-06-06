@@ -15,7 +15,7 @@ Use this **before** starting an ai-minions orchestrator run. It does not change 
 | 3 | **Roles needed** | Whether you need full multi-agent flow or a subset; who must run before CERBERUS. | [agent-contract.md](agent-contract.md) roles; `--flow single_agent` vs `multi_agent`. |
 | 4 | **Model and budget** | Planner/summarizer backend (Ollama vs API); worker models; hard budget if any. | [Model strategy by role](model-role-routing-policy.md); `OLLAMA_MODEL`, `OLLAMA_HOST` / `OLLAMA_PORT`; `ORCH_MAX_COST_USD`, `ORCH_USD_PER_MTOK_*`, `ORCH_BUDGET_WARNING_RATIO`, `ORCH_BUDGET_LIMITS_JSON` — [orchestrator README](../../orchestrator/README.md#environment-variables). |
 | 5 | **Expected permissions** | Network, MCP, shell, writes: what should be allowed vs denied for this goal. | `.ai-minions/permissions.yaml`, capability matrix, gates vs `--skip-gates` — [README](../../orchestrator/README.md#configuration-decision-table). |
-| 6 | **Acceptance criteria** | What “done” means for the human (e.g. tests green, doc updated, CERBERUS Approve). | Write them in the goal or a linked spec; QA/CERBERUS phases consume them. |
+| 6 | **Acceptance criteria** | What “done” means for the human (e.g. tests green, doc updated, CERBERUS pass on claims). | Write them in the goal or a linked spec; QA/CERBERUS phases consume them. |
 | 7 | **Expected output** | Artifacts path, trace directory, whether a PR or files on disk are the deliverable. | Trace / export layout in README; `TRACE_*` env vars if redaction matters. |
 | 8 | **Success evidence** | What you will inspect after the run (test log, trace events, `token-trace-report` output). | `cd orchestrator && npm test`; `node token-trace-report.js …` as documented in README; trace JSONL for gates and `session_end`. |
 

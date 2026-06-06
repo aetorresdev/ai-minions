@@ -17,7 +17,7 @@ When adding a tool to `tool-action-manifest.v1.json`:
 3. **`capabilities`** — stable dotted ids (`infra.plan`, `k8s.read`); used for docs and future registry checks.
 4. **`rules`** — prefer explicit `argv_prefix` rules for high-risk subcommands before delegating to adapters.
 5. **`adapter`** — only when `delegate_unmatched_to_adapter: true` or no rules; document why adapter heuristics are needed.
-6. **Every new tool** must add at least one row to `tool-eval-fixtures.v1.json` before merge (CERBERUS can block otherwise). The unit test `every manifest tool has fixture coverage` fails if any `tool_id` is missing.
+6. **Every new tool** must add at least one row to `tool-eval-fixtures.v1.json` before merge. The unit test `every manifest tool has fixture coverage` fails if any `tool_id` is missing.
 
 Run readiness check:
 

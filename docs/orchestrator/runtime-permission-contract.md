@@ -176,7 +176,7 @@ The reference runner (`orchestrator/orchestrator.js`) evaluates **MCP** invocati
 when the per-run MCP audit task id is active, emits a **`permission_check`** trace line **before** the
 corresponding **`mcp_call`**. Payload shape is built by `orchestrator/security/trace-security-decision.js`
 (subset of evaluator input/output: `decision`, `reason_code`, `permission_profile`, `domain`, `action_class`,
-`target_class`, `requires_approval`, etc.). Evaluator codes for MCP trust use the groomed vocabulary
+`target_class`, `requires_approval`, etc.). Evaluator codes for MCP trust use the documented vocabulary
 (e.g. `mcp_trust_allow`, `mcp_ci_configured_allow`, `mcp_trust_warn_deny`) — not necessarily the **`PERM_*`**
 prefixes listed in §9; long-term alignment with **`PERM_*`** remains future consolidation.
 
@@ -239,7 +239,7 @@ Resolution order (recommended):
 
 ---
 
-## 11. Acceptance mapping (groomed checklist)
+## 11. Acceptance mapping
 
 | Requirement | Section |
 |-------------|---------|

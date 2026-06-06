@@ -233,7 +233,7 @@ The **canonical import** for consumers remains `require("./agents")` / `require(
 
 It must **not** include resolved tokens, API keys, passwords, bearer tokens, connection strings, or other secret material. Regression tests: `orchestrator/tests/envCredentialPromptLeak.test.js`, `envRunScope.test.js`.
 
-Live credential use for tools is **planned** via broker/wrapper (post-alpha backlog), not prompt injection.
+Live credential use for tools is **planned** via broker/wrapper — see [credential-broker-contract.md](credential-broker-contract.md) — not prompt injection.
 
 **Pending:**
 - Runtime deny-before-execute for write-class ops under `mode: read` (broker/tool — not prompt text)

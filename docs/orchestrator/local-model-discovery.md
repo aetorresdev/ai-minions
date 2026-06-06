@@ -47,6 +47,6 @@ When Ollama is unreachable or denied, `models` is empty and `missing_local_backe
 
 ## Out of scope (follow-on)
 
-- Auto-selection → `LOCAL-MODEL-SELECTION-1`
+- Auto-selection → [local-model-selection.md](local-model-selection.md)
 - vLLM / llama.cpp backends
 - Inference or benchmarking

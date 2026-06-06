@@ -26,7 +26,7 @@ On **Linux/macOS**, `~` is your home directory. On **Windows** (PowerShell): `$H
 ### Legacy string `examples/orchestrator`
 
 - **Product code and CI** do not use that directory or any workflow path filter on `examples/orchestrator/**`.
-- The string may still appear in **local backlog / archive prose** when describing the migration — not as a runnable path.
+- The string may still appear in **local planning notes** when describing the migration — not as a runnable path.
 - **Workflow file** `.github/workflows/orchestrator-unit-tests.yml` runs lint + unit tests from `orchestrator/`; display `name` in GitHub Actions: **`orchestrator-unit-tests`**. If you use required status checks, update branch protection when this filename changes.
 
 ## Repository root detection (`REPO_ROOT` / `ORCH_REPO_ROOT`)

@@ -2,17 +2,17 @@
 
 **Location:** `docs/orchestrator/bv-reviewer-contract.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design-first (BV-REVIEWER-1).** Trace shape + fixtures + validators only — **no** runtime gate in orchestrator loop, **no** autonomous backlog mutation.
+**Status:** **Design contract** — trace shape + fixtures + validators only. **No** runtime gate in orchestrator loop, **no** autonomous scope mutation.
 
-**Related:** [governance-gates-contract.md](governance-gates-contract.md) (human confirmation philosophy) · [review-record-contract.md](review-record-contract.md) (QA/CERBERUS outcomes) · [market-validation-notes.md](market-validation-notes.md) (buyer pain themes) · [harness-engineering-positioning.md](harness-engineering-positioning.md) § Implemented / partial / planned.
+**Related:** [governance-gates-contract.md](governance-gates-contract.md) · [review-record-contract.md](review-record-contract.md) · [market-validation-notes.md](market-validation-notes.md) · [harness-engineering-positioning.md](harness-engineering-positioning.md) § Implemented / partial / planned.
 
 ---
 
 ## Purpose
 
-Evaluate whether a **unit of work** (backlog ticket, epic slice, PR scope) has a **verifiable outcome** before spending DEV/QA tokens. This is a **prioritization gate**, not a “Business Value Agent” that owns architecture or replaces OWNER/ARCHITECT.
+Evaluate whether a **unit of work** (planned slice, epic scope, or PR scope) has a **verifiable outcome** before spending DEV/QA tokens. This is a **prioritization gate**, not a “Business Value Agent” that owns architecture or replaces OWNER/ARCHITECT.
 
-**Not claimed:** autonomous production prioritization; auto-merge backlog; VSM/finance integration; replacement of CERBERUS pre-merge review.
+**Not claimed:** autonomous production prioritization; auto-merge; VSM/finance integration; replacement of CERBERUS pre-merge review.
 
 ---
 
@@ -20,9 +20,9 @@ Evaluate whether a **unit of work** (backlog ticket, epic slice, PR scope) has a
 
 | Trigger | Example |
 |---------|---------|
-| New ticket promoted from cross-check intake | OTEL vs BV-reordered defer |
-| Slice scope review before branch | “Is this alpha value or mature-product infra?” |
-| Epic / release lane grooming | v0.5 R1–R3 vs observability export |
+| New scope before branch work | “Is this alpha value or mature-product infra?” |
+| Slice review before implementation | Observability export vs operator UX |
+| Release lane grooming | Near-term harness work vs deferred productization |
 
 **Does not replace:** CERBERUS code review, permission gates, or QA acceptance execution.
 
@@ -30,18 +30,18 @@ Evaluate whether a **unit of work** (backlog ticket, epic slice, PR scope) has a
 
 ## Input shape (design)
 
-Normalized object (YAML/JSON or backlog row fields):
+Normalized object (YAML/JSON):
 
 | Field | Required | Notes |
 |-------|----------|--------|
-| `subject_type` | yes | `backlog_ticket` \| `epic_slice` \| `pr_scope` |
-| `subject_id` | yes | Neutral id or title slug — **not** required to match Trello |
+| `subject_type` | yes | `work_item` \| `epic_slice` \| `pr_scope` |
+| `subject_id` | yes | Neutral id or title slug |
 | `title` | yes | Short imperative summary |
 | `outcome_statement` | for `proceed` | Verifiable success — test command, trace proof, operator action |
 | `acceptance_evidence` | recommended | e.g. `npm test`, E2E green, doc contract path |
 | `priority_band` | recommended | `P0`–`P4` or `alpha_blocker` \| `post_alpha` |
 | `estimated_cost` | optional | Token/time qualitative: `low` \| `medium` \| `high` |
-| `dependencies` | optional | Ticket ids or “none” (backlog index only — not shipped in trace) |
+| `dependencies` | optional | Other work items or “none” (not shipped in trace) |
 | `maturity_fit` | recommended | `alpha_harness` \| `mature_product` \| `design_only` |
 
 ---
@@ -54,7 +54,7 @@ Normalized object (YAML/JSON or backlog row fields):
 | **Outcome verifiable** | `npm test`, trace event, CLI behavior | Spec-only closure sufficient | No testable AC |
 | **Maturity fit** | Matches current alpha lane | Post-product observability / enterprise export | Contradicts positioning claims |
 | **Dependency** | Unblocks shipped lane | Blocked on design closure | Depends on unmerged speculative runtime |
-| **Cost** | Small slice, clear ROI | Medium; queue after higher BV | High cost, low near-term outcome |
+| **Cost** | Small slice, clear ROI | Medium; queue after higher value | High cost, low near-term outcome |
 
 Heuristic scores in trace are **qualitative labels** (`low` \| `medium` \| `high` \| `none`) — not ML scores.
 
@@ -62,7 +62,7 @@ Heuristic scores in trace are **qualitative labels** (`low` \| `medium` \| `high
 
 ## Output: `value_review` trace event (proposed)
 
-**Schema version:** `value_review_schema_version: "1"`. **Not yet** in `trace-v2-line.schema.json` — fixtures + `validateValueReviewTraceLine()` only until runtime promotion ticket.
+**Schema version:** `value_review_schema_version: "1"`. **Not yet** in `trace-v2-line.schema.json` — fixtures + `validateValueReviewTraceLine()` only until runtime promotion.
 
 | Field | Type | Notes |
 |-------|------|--------|
@@ -89,17 +89,16 @@ Heuristic scores in trace are **qualitative labels** (`low` \| `medium` \| `high
 | `defer` | Valid later; park with explicit resume trigger |
 | `reject` | No verifiable outcome or wrong maturity; do not spend DEV/QA |
 
-**Human confirmation:** `reject` on `P0` / `P1` / `alpha_blocker` scopes sets `requires_human_confirmation: true` — aligns with [governance-gates-contract.md](governance-gates-contract.md); gate does not auto-close backlog.
+**Human confirmation:** `reject` on `P0` / `P1` / `alpha_blocker` scopes sets `requires_human_confirmation: true` — aligns with [governance-gates-contract.md](governance-gates-contract.md).
 
 ---
 
-## CERBERUS checklist (design gate)
+## Design invariants
 
-- [ ] Gate **cannot** expand permissions or bypass CERBERUS pre-merge review.
-- [ ] Gate **cannot** auto-merge PRs or mutate backlog files without human commit.
-- [ ] `value_review` rows contain **no** prompt/response bodies or secrets — enforced by `validateValueReviewTraceLine()` rejecting forbidden keys (`prompt`, `response`, `messages`, `input`, `output`, `raw_prompt`, `raw_response`) recursively.
-- [ ] Positioning doc updated if new **claimed** capability — otherwise design-only.
-- [ ] Explicit **not claimed**: autonomous prioritization in production.
+- Gate **cannot** expand permissions or bypass CERBERUS pre-merge review.
+- Gate **cannot** auto-merge PRs or mutate repo files without human commit.
+- `value_review` rows contain **no** prompt/response bodies or secrets — enforced by `validateValueReviewTraceLine()` rejecting forbidden keys recursively.
+- **Not claimed:** autonomous prioritization in production.
 
 ---
 
@@ -111,19 +110,10 @@ Validated by `orchestrator/tests/bvReviewerContract.test.js` and `validateValueR
 
 ---
 
-## Runtime promotion (out of scope for BV-REVIEWER-1)
+## Runtime promotion (out of scope for this slice)
 
-Future ticket may:
+Future work may:
 
 - Add `value_review` branch to `trace-v2-line.schema.json`
 - Wire pre-DEV grooming hook or OWNER CLI
 - Correlate with `run_outcome_summary` / `tokens:report`
-
-**Prerequisite:** This design doc + fixtures + CERBERUS Approve.
-
----
-
-## Related backlog
-
-- **Paused (BV):** `OTEL-GENAI-TRACE-1` slice 2, `RUN-ANALYST-1`, `MEMORY-CONTEXT-INFRA-CHECK-1`
-- **Next runtime value lane (after design):** `TOOL-PROGRESSIVE-DISCLOSURE-1`, `SKILL-REGISTRY-1`

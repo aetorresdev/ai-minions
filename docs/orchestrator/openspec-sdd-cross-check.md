@@ -1,10 +1,10 @@
-# OpenSpec SDD cross-check (design reference only)
+# OpenSpec SDD comparison (reference only)
 
 **Location:** `docs/orchestrator/openspec-sdd-cross-check.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Shipped (doc-only, v0.4 G3).** **No runtime dependency** on [OpenSpec](https://openspec.dev/) or `/opsx:*` tooling.
+**Status:** **Reference doc only.** **No runtime dependency** on [OpenSpec](https://openspec.dev/) or `/opsx:*` tooling.
 
-**CERBERUS decision (intake):** **Approve** as **design reference** · **Reject** as workflow engine, canonical CLI, default telemetry, or “OpenSpec-compatible” claims without an explicit adapter.
+**Use:** Compare external SDD patterns to ai-minions contracts. **Not** a workflow engine, canonical CLI, default telemetry layer, or “OpenSpec-compatible” product claim without an explicit adapter.
 
 **Related:** [harness-engineering-positioning.md](harness-engineering-positioning.md) § Spec-driven development · [dynamic-workflow-contract.md](dynamic-workflow-contract.md) · [approval-policy-gates-contract.md](approval-policy-gates-contract.md) · [cerberus-doubt-cycle-contract.md](cerberus-doubt-cycle-contract.md) · [review-record-contract.md](review-record-contract.md) · [agent-contract.md](agent-contract.md).
 
@@ -91,7 +91,7 @@ design_intake → design_contract → cerberus_review → frozen_executable_plan
 
 | Allowed | Forbidden |
 |---------|-----------|
-| “Cross-checked against OpenSpec-style SDD patterns (design reference)” | “OpenSpec-compatible” without adapter |
+| “Compared against OpenSpec-style SDD patterns (design reference)” | “OpenSpec-compatible” without adapter |
 | “Durable contracts before DEV; proposal ≠ authority” | “Drop-in replacement for OpenSpec” |
 | “Trace-backed verify/archive path” | “Uses OpenSpec CLI / `/opsx` as canonical flow” |
 | “Spec-driven development via harness contracts” | “OpenSpec spec framework security guarantees” |

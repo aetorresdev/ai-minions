@@ -97,8 +97,8 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 
 ### Preconditions
 
-- [x] Worktree slices merged — MVP, workdir contract, lifecycle trace, cleanup safety (PRs **#106**–**#109**).
-- [x] Pre-tag security merged — prompt env context excludes resolved credential values (`buildEnvContext`); classified spawn coverage (PRs **#111**, **#112**).
+- [x] Worktree slices merged — MVP, workdir contract, lifecycle trace, cleanup safety.
+- [x] Pre-tag security merged — prompt env context excludes resolved credential values (`buildEnvContext`); classified spawn coverage.
 - [x] Lifecycle doc + operator playbook in `worktree-isolation-contract.md` (2026-06-02).
 
 ### Verification (operator)
@@ -107,7 +107,7 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 - [x] `npm run test:e2e:strict` — **5/5** pass (`tests/e2e.strict.test.js`, ~23.7s); operator 2026-06-02.
 - [x] `npm run test:e2e:strict:harness` — **1/1** pass (optional system-path harness test, ~12.4s); operator 2026-06-02. *(Together: `test:e2e:strict:all` → **6/6**.)*
 - [x] Manual smoke (CLI path): `worktree create` → `status` / `contract` → `list` → `remove --force` → idempotent second remove; task `v03-smoke-20260602-170322`; operator 2026-06-02. *(Full `run --worktree-isolated` optional — not required for this sign-off.)*
-- [x] CERBERUS sign-off on release claims (no production / Zero Trust / full sandbox claims) — **Approve** (PR **#113**, 2026-05-18).
+- [x] CERBERUS review of release claims (no production / Zero Trust / full sandbox claims) — 2026-05-18.
 
 ### Release artifact
 
@@ -126,24 +126,23 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 
 ## v0.4.0-alpha.1 — Control-first governance alpha
 
-**Scope:** policy-driven approval gates (`APPROVAL-POLICY-GATES-1`), CERBERUS doubt cycle (`CERBERUS-DOUBT-CYCLE-1`), OpenSpec SDD cross-check doc (`EXT-OPENSPEC-SDD-CHECK-1`), market validation → claims matrix (`MARKET-VALIDATION-1`). **Prerequisite:** `v0.3.0-alpha.1` + positioning PR **#115**.
+**Scope:** policy-driven approval gates, CERBERUS doubt cycle trace, OpenSpec SDD comparison doc, market validation claims matrix. **Prerequisite:** `v0.3.0-alpha.1` + harness positioning refresh.
 
 **Release claim:** validation mandatory; human approval policy-driven before DEV authority.
 
 ### Preconditions
 
 - [x] `v0.3.0-alpha.1` shipped
-- [x] `APPROVAL-POLICY-GATES-1` — contract + runtime fail-closed merged (**#116**)
-- [x] `CERBERUS-DOUBT-CYCLE-1` — doubt review trace contract + evidence (**#117**)
-- [x] `EXT-OPENSPEC-SDD-CHECK-1` — SDD cross-check doc (no OpenSpec dependency) (**#118**)
-- [x] `MARKET-VALIDATION-1` — allowed/forbidden matrix integrated in harness positioning (**#119**)
+- [x] Approval policy gates — contract + runtime fail-closed merged
+- [x] CERBERUS doubt review trace contract + evidence
+- [x] OpenSpec SDD comparison doc (no OpenSpec dependency)
+- [x] Allowed/forbidden claims matrix in harness positioning
 
 ### Verification (operator)
 
 - [x] `cd orchestrator && npm test` — **757/757** pass (1 skipped); workspace 2026-06-03.
 - [x] `npm run test:e2e:strict:all` — **6/6** (strict **5/5** + harness **1/1**); operator 2026-06-03.
-- [x] CERBERUS sign-off per slice G1–G4 (PRs **#116–#119**); release claims: no beta / sandbox / swarm / OpenSpec-compat / production-ready.
-- [x] CERBERUS **release** brief — **Approve** (PR **#120** merged).
+- [x] CERBERUS review of release claims per slice: no beta / sandbox / swarm / OpenSpec-compat / production-ready.
 - [ ] Optional: documented CERBERUS block demo (§ *Future alpha / beta gates*) — **not** required for `v0.4.0-alpha.1`.
 
 ### Release artifact
@@ -156,11 +155,10 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 
 | Date | Command / item | Result |
 |------|----------------|--------|
-| 2026-06-03 | G1–G4 PRs **#116–#119** + per-slice CERBERUS | **Approve** (G2/G3 w/ non-blocking notes) |
-| 2026-06-03 | G4 PR **#119** — market validation doc | **Approve** — illustrative quotes; no market-study overclaim |
+| 2026-06-03 | Governance slices merged | claims verified |
+| 2026-06-03 | Market validation doc | illustrative quotes only; no market-study overclaim |
 | 2026-06-03 | `cd orchestrator && npm test` | **757/757** pass (1 skipped) |
 | 2026-06-03 | `npm run test:e2e:strict:all` | **6/6** pass |
-| 2026-06-03 | PR **#120** merge + CERBERUS release | **Approve** |
 | 2026-06-03 | Tag + GitHub pre-release `v0.4.0-alpha.1` | published |
 
 ## Future alpha / beta gates (positioning)
@@ -182,4 +180,4 @@ One trace-backed block demo outweighs feature lists without evidence. **No beta 
 
 ## Out of scope for alpha
 
-- Production SLA, hosted SaaS packaging, enterprise SSO — see **alpha exclusions** in the groomed backlog index.
+- Production SLA, hosted SaaS packaging, enterprise SSO — see **alpha exclusions** in [harness-engineering-positioning.md](harness-engineering-positioning.md).

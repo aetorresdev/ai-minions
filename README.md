@@ -151,6 +151,18 @@ ENVIRONMENT:
 
 Watch logs: `tail -f ~/.claude/logs/orchestrator.log`. Gate sequence: [`docs/orchestrator/strict-mode.md`](docs/orchestrator/strict-mode.md). CLI flags and degraded mode: [`orchestrator/README.md`](orchestrator/README.md).
 
+**Operator CLI (discover without reading internals):**
+
+```bash
+cd ~/.claude/orchestrator
+node run-orchestrator.js --help          # run, explain, report, validate, worktree
+npm run runner:tui -- --help             # preflight, trace, budget, worktree panels
+```
+
+Slash-style aliases (documentation only): [`docs/how-to/operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
+
+**Local models (guidance, not an installer):** list backends with [`local-model-discovery.md`](docs/orchestrator/local-model-discovery.md); sizing with [`local-inference-sizing.md`](docs/orchestrator/local-inference-sizing.md). Runner TUI preflight checks Ollama reachability — it does **not** download models or tune GPUs.
+
 **External testers:** full smoke walkthrough (CLI + TUI + env contract + bug template) — [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md). Token and session habits — [`docs/orchestrator/token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
 
 ---
@@ -195,6 +207,7 @@ The four competency names come from Anthropic's **AI Fluency** framework (© 202
 - Not a replacement for engineers — a structure for how agents are run and reviewed.
 - Not prompt-engineering magic — wrong contracts fail in the open, not silently.
 - Not a benchmark — SA vs MA metrics are directional only; no fabricated leaderboard tables here.
+- Not a general **self-hosted AI workspace** or chat-first productivity app — control harness for reviewable agent work only.
 
 ---
 
@@ -202,6 +215,10 @@ The four competency names come from Anthropic's **AI Fluency** framework (© 202
 
 **Full narrative (threats, gaps, layers):**
 [`security-posture.md`](docs/orchestrator/security-posture.md).
+
+**Treat ai-minions as an admin console** — tools, shell, MCP, local models, and
+filesystem access are **privileged**. Do **not** expose the stack to the public
+internet without your own auth, network controls, and secret handling.
 
 - **Shipped controls (see code + contracts):** capability matrix pre-check, MCP /
   shell / network / classified-invocation gates, trace schema, secret-shaped
@@ -211,6 +228,8 @@ The four competency names come from Anthropic's **AI Fluency** framework (© 202
 - **Not a sandbox product:** widening `.ai-minions/permissions.yaml`, skipping gates,
   or ignoring degraded-mode banners can still cause real damage. The harness
   **reduces** risk; it does not **eliminate** operator responsibility.
+- **Not secure-by-default** for casual public deployment — see admin-console section
+  in the security doc.
 - **Contracts stay authoritative** for exact behavior; the link above is the
   readable map.
 
@@ -220,9 +239,9 @@ The four competency names come from Anthropic's **AI Fluency** framework (© 202
 
 | Bucket | What it means here |
 |--------|---------------------|
-| **Implemented** | MODE protocol + YAML handoffs, `validateOutput`, JSONL traces, permission evaluator + runtime gates in the orchestrator, token/cost reporting and run budget hard-stop, hook metrics pipeline. |
-| **Planned** | Durable session/resume semantics; deeper tool-eval and progressive-disclosure work — see planning backlog, not implied here. |
-| **Not claimed** | Production SLA, OSI “open source” license, hosted control plane, turnkey marketplace, multi-tenant isolation — see [`LICENSE`](LICENSE) and [`COMMERCIAL_LICENSE.md`](COMMERCIAL_LICENSE.md). |
+| **Implemented** | MODE protocol + YAML handoffs, `validateOutput`, JSONL traces, permission evaluator + runtime gates, token/cost reporting and run budget hard-stop, hook metrics, worktree isolation (v0.3), CERBERUS doubt cycle + `review_record`, design contracts for BV gate and progressive disclosure (validators/tests). |
+| **Planned** | Durable session/resume semantics; skill registry runtime (S6); sandbox/credential broker; tool-eval on untrusted context; progressive-disclosure **enforcement** in runner — see [`docs/orchestrator/README.md`](docs/orchestrator/README.md), not implied as shipped. |
+| **Not claimed** | Production SLA, OSI “open source” license, hosted control plane, turnkey marketplace, multi-tenant isolation, general AI workspace, fully sandboxed autonomous execution — see [`LICENSE`](LICENSE) and [`COMMERCIAL_LICENSE.md`](COMMERCIAL_LICENSE.md). |
 
 ---
 

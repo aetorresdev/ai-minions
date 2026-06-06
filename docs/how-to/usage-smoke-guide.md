@@ -181,7 +181,7 @@ echo "Smoke: respond with OK" | node run-orchestrator.js --skip-gates --iteratio
 
 **Exit behavior:** missing goal → exit `1`; unhandled exception → exit `1`; normal completion prints `Done`, `Task ID`, and artifact summaries (gate blocks appear inline).
 
-Discover commands: `node run-orchestrator.js --help` (run, explain, report, validate, and manual check pointers). Optional slash-style aliases: [operator-slash-commands.md](operator-slash-commands.md). Flags above match [`run-orchestrator.js`](../../orchestrator/run-orchestrator.js) and [orchestrator README](../../orchestrator/README.md).
+Discover commands: `node run-orchestrator.js --help` (run, explain, report, validate, worktree promote/deny, and manual check pointers). Runner TUI: `npm run runner:tui -- --help` (preflight, trace, budget, worktree panels). Optional slash-style aliases: [operator-slash-commands.md](operator-slash-commands.md). Flags above match [`run-orchestrator.js`](../../orchestrator/run-orchestrator.js) and [orchestrator README](../../orchestrator/README.md).
 
 ### Inspect traces and cost
 

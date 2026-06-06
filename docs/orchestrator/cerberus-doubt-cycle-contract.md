@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/cerberus-doubt-cycle-contract.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Shipped (trace helpers + runner emit stub, v0.4 G2 slice).**
+**Status:** **Shipped** — trace helpers + runner emit stub.
 
 **Related:** [agent-contract.md](agent-contract.md) (CERBERUS output triple) · [review-record-contract.md](review-record-contract.md) (`review_record`) · [approval-policy-gates-contract.md](approval-policy-gates-contract.md) · [governance-gates-contract.md](governance-gates-contract.md) (human MCP holds — **not** duplicated here).
 
@@ -12,9 +12,9 @@
 
 ## Purpose
 
-Make **adversarial claim review** replayable in JSONL: what was challenged, what evidence was required, and the structured verdict — without replacing human operator release sign-off or the pre-merge CERBERUS **paste brief** in `CLAUDE.md`.
+Make **adversarial claim review** replayable in JSONL: what was challenged, what evidence was required, and the structured verdict — without replacing human operator release sign-off.
 
-**Not claimed:** 24/7 automated CERBERUS model; doubt cycle on every doc typo; substitute for `GOVERNANCE-GATES-1` human approval traces.
+**Not claimed:** 24/7 automated CERBERUS model; doubt cycle on every doc typo; substitute for [governance-gates-contract.md](governance-gates-contract.md) human approval traces.
 
 ---
 

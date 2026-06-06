@@ -39,7 +39,7 @@ Same trace resolution as `explain-run` (`--run-id`, `ORCH_TRACES_DIR`).
 | `explain-run` | Narrative + JSON export |
 | `console-dashboard` | Failure taxonomy tables + rollups |
 | **Control plane TUI** | Operator **run inspect** panel (outcome, gates, blockers, recovery, resume) |
-| Future web control plane | Out of scope — see backlog candidate only |
+| Future web control plane | Out of scope |
 
 Storage planes and resume semantics: [memory-store-decision.md](memory-store-decision.md), [session-resume-contract.md](session-resume-contract.md).
 
@@ -48,7 +48,7 @@ Storage planes and resume semantics: [memory-store-decision.md](memory-store-dec
 - No interactive keybindings or curses UI in v0.1.x.
 - No auth, multi-user, or new persistence.
 - No write paths to orchestrator-state, traces, or policy files.
-- Web control plane exploration is a separate backlog item (read-only, future).
+- Web control plane exploration is future work (read-only, if ever).
 
 ## Validation
 

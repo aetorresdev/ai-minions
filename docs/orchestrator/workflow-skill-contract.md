@@ -57,7 +57,7 @@ Before merging a new or updated skill:
 - [ ] All six body sections present
 - [ ] No claim that skill text grants permissions or replaces CERBERUS
 - [ ] Paths point at repo-root-relative or documented env vars (e.g. trace dir)
-- [ ] References orchestrator docs/contracts by **filename**, not backlog ticket ids
+- [ ] References orchestrator docs/contracts by **filename**, not internal planning ids
 
 ## Reference skill: `orchestrator-token-report`
 

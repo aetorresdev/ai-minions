@@ -19,6 +19,9 @@ Slash names are **documentation shortcuts** for humans and IDE assistants. They 
 | `/validate-trace` | `npm run tokens:report -- <task_id> --strict-traces` | Parse trace with schema validation enabled | Invalid lines reported; see `ORCH_TRACE_VALIDATE` in orchestrator README |
 | `/check-health` | Manual: [pre-run-checklist](../orchestrator/pre-run-checklist.md) + [harness health checkpoints](harness-health-checkpoints.md) | Preconditions before a real run | No `doctor` subcommand yet — checklist only |
 | `/show-blockers` | `npm run explain-run -- --run-id <task_id>` (read **Blockers** section) | Surface blockers from last run | Same as explain-run; no separate binary |
+| `/trace` | `npm run runner:tui -- trace --run-id <task_id>` | Read-only trace panel (runner TUI) | Missing trace → TUI error; set `ORCH_TRACES_DIR` if non-default |
+| `/budget` | `npm run runner:tui -- budget --run-id <task_id>` | Token/cost panel for one run | Same prerequisites as `/trace` |
+| `/worktree` | `npm run runner:tui -- worktree --run-id <task_id>` | Worktree binding / promotion status panel | No worktree on run → empty or not-applicable panel |
 
 ## Copy-paste blocks
 
@@ -66,6 +69,17 @@ claude --version
 curl -sS http://127.0.0.1:11434/api/tags
 # Then walk through docs/orchestrator/pre-run-checklist.md
 ```
+
+### `/trace`, `/budget`, `/worktree` (runner TUI)
+
+```bash
+cd REPO_ROOT/orchestrator
+npm run runner:tui -- trace --run-id <task_id>
+npm run runner:tui -- budget --run-id <task_id>
+npm run runner:tui -- worktree --run-id <task_id>
+```
+
+Full TUI contract: [runner-tui-contract.md](../orchestrator/runner-tui-contract.md).
 
 ## Not available as slash aliases
 

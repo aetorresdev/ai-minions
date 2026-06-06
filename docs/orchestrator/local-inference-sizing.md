@@ -10,7 +10,7 @@ This document helps operators choose **single-agent**, **sequential multi-role**
 - [token-hygiene-guide.md](token-hygiene-guide.md) — operator habits after a run
 - [runner-tui-contract.md](runner-tui-contract.md) — preflight and `local_only` runs
 
-**Future / related trace and cost work (not sizing guarantees):** token reports (`npm run tokens:report`), `run_outcome_summary` / [run-outcome-consumption.md](run-outcome-consumption.md), context cost attribution (**CTX-COST-1** — implemented), budget guardrails, **MEMORY-STORE-1** design ([memory-store-decision.md](memory-store-decision.md)).
+**Future / related trace and cost work (not sizing guarantees):** token reports (`npm run tokens:report`), `run_outcome_summary` / [run-outcome-consumption.md](run-outcome-consumption.md), context cost attribution (implemented), budget guardrails, memory store design ([memory-store-decision.md](memory-store-decision.md)).
 
 ---
 
@@ -215,7 +215,7 @@ Do you need two models at once?
 - Tune Ollama / MLX / llama.cpp / vLLM
 - Publish benchmark tables or “production-ready” throughput claims
 
-For enforcement and brokered credentials, see security and env tickets in the backlog — out of scope here.
+For enforcement and brokered credentials, see [security-posture.md](security-posture.md) and [credential-broker-contract.md](credential-broker-contract.md) — out of scope here.
 
 ---
 
