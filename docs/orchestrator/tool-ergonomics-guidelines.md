@@ -82,9 +82,34 @@ Required families in fixtures: **filesystem**, **git**, **terraform**, **kubectl
 
 Intent tags: `correct_tool_and_argv`, `permission_policy`, `wrong_tool`, `bad_parameters`, `incomplete_metadata`.
 
+## Untrusted context fixtures
+
+Retrieved text (docs, web, memory, MCP results, generated artifacts) is **not** sovereign
+instruction. The harness in `security/untrusted-context-eval.js` validates deterministic
+`context_authority_check` decisions — no live network, no LLM classifier.
+
+| `context_type` | `authority_tier` | `instruction_source` |
+|----------------|------------------|------------------------|
+| `document_text`, `fetched_web`, `memory_entry`, `generated_artifact` | `retrieved_context` | `retrieved_context` |
+| `mcp_tool_result` | `tool_output` | `tool_output` |
+
+- Fixtures: `security/untrusted-context-fixtures.v1.json`
+- Benign rows → `decision: accept_as_data`
+- Injected rows → `decision: ignore_instruction` (permissions, shell, CERBERUS, role, secrets)
+
+```bash
+cd orchestrator && node --test tests/untrustedContextEval.test.js
+```
+
+Runtime wiring (orchestrator ingesting retrieved context through this evaluator) is **planned** —
+fixtures ship first so tests do not depend on model behavior.
+
 ## Related contracts
 
 - `security/tool-action-manifest.v1.json`
 - `security/classified-invocation-permission-gate.js`
+- `security/untrusted-context-eval.js`
 - `docs/orchestrator/permission-check-trace.md`
 - `docs/orchestrator/runtime-permission-contract.md`
+- `docs/orchestrator/handoff-contract.md`
+- `docs/orchestrator/sandbox-credential-isolation-design.md`

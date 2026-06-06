@@ -88,7 +88,9 @@ hosted control plane, or “safe for anonymous internet users.”
 | **Credential broker** (vault/proxy; no raw secret in model context) | **Planned** | [credential-broker-contract.md](credential-broker-contract.md); session modes today are not vaulting |
 | **Sandbox isolation** (kernel/container boundary for tool code) | **Planned** | Design-first only; not shipped in core runner |
 | **Egress control** (beyond Ollama HTTP gate) | **Planned** | See [runtime-permission-contract.md](runtime-permission-contract.md) gaps |
-| **Tool misuse evals** (untrusted context fixtures) | **Planned** | Extend [tool-ergonomics-guidelines.md](tool-ergonomics-guidelines.md) fixture harness |
+| **Tool misuse evals** (untrusted context fixtures) | **Partial** | `untrusted-context-eval.js` + fixtures + tests; runtime context authority wiring pending |
+| **Handoff ownership envelope** | **Partial** | [handoff-contract.md](handoff-contract.md) design-only |
+| **Sandbox + credential isolation** | **Partial** | [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) design-only |
 | **Budget hard-stop v2** | **Planned** | Multi-dimensional limits exist; richer policy still evolving |
 | **Production-ready / fully sandboxed / safe autonomous execution** | **Not claimed** | This doc + [doc-runtime-drift-check.md](doc-runtime-drift-check.md) |
 
