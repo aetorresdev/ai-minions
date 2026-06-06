@@ -15,7 +15,8 @@ The **MODE contract** and strict-mode behavior are defined only under `docs/orch
 | **MCP: orchestrator-state** | `mcp-servers/orchestrator-state/` | Authoritative task / transition / artifact state when gates are on | **Strict runs** with `ORCH_MCP_TRANSPORT=direct` (and whenever MCP tools are used via direct transport) | `mcp-direct.py` loads `server.py` after `uv sync`; venv on `sys.path` | E2E strict / system-path failures; direct transport returns MCP errors |
 | **MCP: compact-handoff** | `mcp-servers/compact-handoff/` | Structured handoff YAML when gates require it | Same as orchestrator-state for direct transport | `mcp-direct.py` | Same |
 | **Other MCP trees** | `mcp-servers/*` (excl. above) | Lint surface only today (entire tree checked by ruff) | **Lint / quality** | `lint-py.js` includes full `mcp-servers/` | `lint:py` may fail; runtime unaffected unless you add imports |
-| **Skills** | `skills/` | Cursor / human procedures; optional `@skill` context | **Never** read by the Node orchestrator loop | None in `orchestrator/*.js` | No runtime failure; operators lack guidance if docs not followed |
+| **Skills** | `skills/` | Cursor / human procedures; optional `@skill` context | **Never** read by the Node orchestrator loop | None in `orchestrator/*.js` | No runtime failure; unlisted skills only blocked when `ORCH_SKILL_REGISTRY_ENFORCE=1` (Claude Code hook) |
+| **Skill registry** | `orchestrator/security/skill-registry.v1.json` | Allowlist + `disclosure` metadata for skills | **Hook path only** (opt-in) | `skill-registry.js` for tests/evaluator; hook loads JSON from repo | Without enforce env, hook is no-op; drift fails `skillRegistry.test.js` coverage check |
 | **Subagent prompts (repo root)** | `agents/` | Specs for `mcp_task` / IDE skills | **Never** imported by the orchestrator Node package | None in `orchestrator/*.js` | No runtime failure |
 | **MODE runtime (orchestrator package)** | `orchestrator/agents.js` + `orchestrator/agents/**` | Public entry is **`require("./agents")`** on `agents.js` (facade). Split modules: `routing/model-routing.js`, `permissions.js`, `validate-output.js`, `registry.js` (`buildAgents`), `runtime/*`, `prompts/ollama-appends.js`; **S2+** may add `roles/` as the registry layout evolves | **Yes** for multi-agent runs | `orchestrator.js`, `cli.js`, tests `require("../agents")` | Wrong edits break contracts / CI |
 | **Contract & ops docs** | `docs/orchestrator/` | MODE, traces, PATHS, this file | **Human / review**; comments in code reference by path | Read in editor; not loaded at runtime | Drift vs `validateOutput()` / traces |
@@ -56,7 +57,7 @@ For **metric trust levels**, **warning-flag semantics**, and the **end-of-run va
 | Sanitization | Persisted JSON is normalized: `flow_mode` must be `single_agent` or `multi_agent`; numeric fields coerced with safe defaults. Corrupt files → warning **`state_invalid`**; the Stop hook **does not crash**. |
 | `flow_mode` in JSONL | May be **`unknown`** when neither transcript nor valid persisted state provides `FLOW:` — consumers must not assume only `single_agent`/`multi_agent`. |
 | Emitted fields | `transcript_scope`, `flow_source`, `flow_from_transcript`, **`dev_qa_cycles`** (session monotonic peak), **`dev_qa_cycles_transcript`** (count from current transcript only), `compact_boundary_crossed` (heuristic: line-count drop, not proof of host compact), `warnings` (`flow_ambiguous`, `state_invalid`, `missing_session_id`). |
-| Tests | `python3 -m unittest discover -s scripts/hooks/tests -p 'test_*.py'` or `npm run test:hooks` from `orchestrator/` |
+| Tests | `npm test` from `orchestrator/` (includes `npm run test:hooks` → `scripts/hooks/tests/`) |
 
 ---
 

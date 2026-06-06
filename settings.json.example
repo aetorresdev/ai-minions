@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to ~/.claude/settings.json and replace ~/.claude with your actual home path if needed. Hook commands run as shell commands — ~ is expanded by the shell. Replace /path/to/your/context/ in SessionStart with your actual context directory.",
+  "_comment": "Copy to ~/.claude/settings.json and replace ~/.claude with your actual home path if needed. Hook commands run as shell commands — ~ is expanded by the shell. Replace /path/to/your/context/ in SessionStart with your actual context directory. skill-registry-enforcer.py is wired under PreToolUse Skill but inactive until you export ORCH_SKILL_REGISTRY_ENFORCE=1 before starting Claude Code (see docs/orchestrator/skill-registry-contract.md).",
   "hooks": {
     "SessionStart": [
       {
@@ -65,6 +65,16 @@
             "type": "command",
             "command": "CLAUDE_HOOK_EVENT=PreToolUse python3 ~/.claude/scripts/hooks/qa-skill-enforcer.py",
             "statusMessage": "Verifying QA skill before CERBERUS..."
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_HOOK_EVENT=PreToolUse python3 ~/.claude/scripts/hooks/skill-registry-enforcer.py",
+            "statusMessage": "Checking skill registry allowlist..."
           }
         ]
       }

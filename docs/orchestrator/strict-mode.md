@@ -330,7 +330,7 @@ One JSON line per gate event across all enforcer hooks.
 
 | Field | Description |
 |-------|-------------|
-| `gate` | `handoff-enforcer` \| `qa-skill-enforcer` \| `mode-enforcer` |
+| `gate` | `handoff-enforcer` \| `qa-skill-enforcer` \| `mode-enforcer` \| `skill-registry-enforcer` |
 | `result` | `blocked` \| `allowed` |
 | `tool` | Tool that triggered the gate |
 | `task_id` | Orchestrator task ID (or SESSION_ID fallback) |
@@ -658,7 +658,7 @@ These modules live in `scripts/hooks/` and are imported by the enforcer hooks â€
 
 ### `gate_logger.py` â€” shared gate event writer
 
-Imported by `handoff-enforcer.py`, `qa-skill-enforcer.py`, and `mode-enforcer.py`. Appends one JSON line per gate event to `~/.claude/metrics/gate_events.jsonl`.
+Imported by `handoff-enforcer.py`, `qa-skill-enforcer.py`, `mode-enforcer.py`, and `skill-registry-enforcer.py`. Appends one JSON line per gate event to `~/.claude/metrics/gate_events.jsonl`.
 
 ```python
 from gate_logger import log_gate_event

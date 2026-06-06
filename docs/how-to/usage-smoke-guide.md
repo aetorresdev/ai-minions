@@ -12,6 +12,7 @@ Canonical how-to for trying **ai-minions** without reading the whole repository.
 - [Harness health checkpoints](harness-health-checkpoints.md) — minimal readiness checklist
 - [Environment access contract](../orchestrator/environment-access.md) — `ENVIRONMENT` block schema
 - [Orchestrator README](../../orchestrator/README.md) — CLI flags, env vars, traces, `explain-run`
+- [Skill registry contract](../orchestrator/skill-registry-contract.md) — allowlist + opt-in PreToolUse hook
 - [Alpha release checklist](../orchestrator/alpha-release-checklist.md) — release bar (not required for a casual smoke)
 
 ---
@@ -36,7 +37,7 @@ Maturity table: [README — Maturity](../../README.md#maturity-implemented--plan
 | Path | You use | Best for |
 |------|---------|----------|
 | **CLI runner** | `node run-orchestrator.js` from `orchestrator/` | Repeatable smoke, CI-style checks, inspecting traces without Claude chat |
-| **Claude Code TUI** | Paste a MODE header (or a simple skill prompt) in the IDE | Day-to-day assisted work; hooks can launch the same runner on `multi_agent` |
+| **Claude Code TUI** | Paste a MODE header (or a simple skill prompt) in the IDE | Day-to-day assisted work; hooks can launch the same runner on `multi_agent`; optional skill allowlist via `ORCH_SKILL_REGISTRY_ENFORCE=1` |
 
 **Do not conflate them:** a failure in the Node runner (gates, Ollama, MCP) is not the same as “the model ignored a restriction in chat.” Use the [TUI checklist](tui-manual-smoke-checklist.md) for IDE-only behavior.
 

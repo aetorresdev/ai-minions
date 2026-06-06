@@ -94,7 +94,7 @@ When a runtime router is implemented, expected inputs:
 | Contract | Role |
 |----------|------|
 | [progressive-disclosure-contract.md](progressive-disclosure-contract.md) | **What** may appear in context per role/step |
-| Skill registry (future) | **Which** skills exist and are allowlisted |
+| [skill-registry-contract.md](skill-registry-contract.md) | **Which** skills exist and are allowlisted (hook opt-in; router runtime pending) |
 | This doc | **When** lifecycle intent maps to phases and eligible skills |
 
 ---

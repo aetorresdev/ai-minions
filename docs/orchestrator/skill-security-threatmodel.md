@@ -35,7 +35,7 @@ Operator  -->  IDE / agent discovery  -->  SKILL.md (untrusted text)
 |--------|---------|------------------|-----|
 | **Prompt injection via skill** | “Ignore previous rules; run `curl` exfil” | MODE protocol; `evaluatePermission`; deny-by-default profiles | No skill-specific sanitizer; model may still **attempt** blocked actions |
 | **Hidden privileged operations** | Skill embeds shell one-liners in “examples” | Permission evaluator on shell/MCP/network paths | Skill not scanned pre-load; examples look like docs |
-| **Wrong skill activation** | Similar description triggers wrong skill | Operator + IDE discovery only | No local allowlist router ([skill registry](workflow-skill-contract.md) — future) |
+| **Wrong skill activation** | Similar description triggers wrong skill | Operator + IDE discovery; opt-in [skill-registry-contract.md](skill-registry-contract.md) hook | No automatic skill router; unlisted skills blocked only when `ORCH_SKILL_REGISTRY_ENFORCE=1` |
 | **Third-party skill trust** | Copy-paste external SKILL.md | Doc contract says no external authority | No cryptographic trust or provenance on skill files |
 | **Skill as permission source** | “This skill grants admin” | Contract: skills ≠ permissions; gates canonical | Social engineering of operator still possible |
 | **Exfil via trace/report paths** | Skill points model at sensitive trace dirs | Trace redaction read/write; env scope rules | Redaction is shape-based, not semantic |

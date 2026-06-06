@@ -24,13 +24,13 @@ Do not expose **full** tool catalogs, filesystem surfaces, skill bodies, or cont
 | Role → **domains** | `capability-matrix.v1.json`, `trace-role-capability.js` | Plan-time + runtime domain precheck | — | Domains ≠ per-tool/skill visibility in context |
 | Tool manifest + classifiers | `tool-action-manifest.v1.json`, `tool-eval.js` | Classify shell/git/MCP paths | `progressive_disclosure_or_compact_response` **recommendation** only | No role/step **filter** on manifest exposure |
 | Context package rules | [context-package-contract.md](context-package-contract.md) | Inclusion policy doc | No runtime builder | No assembly/filter enforcement |
-| Skills | [workflow-skill-contract.md](workflow-skill-contract.md), [skill-security-threatmodel.md](skill-security-threatmodel.md) | Local `SKILL.md` template + threats | IDE loads full skill text | No registry allowlist or partial skill disclosure |
-| Skill registry | (future) | — | — | Prerequisite for skill disclosure enforcement |
+| Skills | [workflow-skill-contract.md](workflow-skill-contract.md), [skill-security-threatmodel.md](skill-security-threatmodel.md) | Local `SKILL.md` template + threats | IDE loads full skill text | No runtime partial skill disclosure or prompt-side filter |
+| Skill registry | [skill-registry-contract.md](skill-registry-contract.md), `skill-registry.v1.json` | Allowlist + validator + opt-in hook | Hook deny + `disclosure` metadata | No orchestrator-loop filter; progressive visibility still pending |
 | Trace observability | `context_hygiene_signal` | Token/context signals | — | No `context_disclosure` hide/expose events |
 
 ### Verdict
 
-**Gap exists.** Existing controls **block unsafe execution** but do **not** implement progressive **visibility** (what appears in prompts, tool lists, or skill injection). This contract defines the trace proposal; runtime enforcement follows skill registry work.
+**Gap exists (narrowed).** Permission and skill-registry hooks **block unsafe invocation**, but the harness still does **not** implement progressive **visibility** (what appears in prompts, tool lists, or skill injection). Allowlist metadata (`disclosure: index|full|hidden`) is recorded; runtime filter + `context_disclosure` traces remain follow-on work.
 
 ### Covered by existing controls (no duplicate runtime)
 
@@ -88,7 +88,7 @@ Future work may:
 - Add `context_disclosure` to `trace-v2-line.schema.json`
 - Integrate with context package builder when implemented
 
-**Prerequisite:** skill registry allowlist before skill-side enforcement.
+**Prerequisite (met for allowlist):** [skill-registry-contract.md](skill-registry-contract.md) ships deny-by-default registry + opt-in hook. **Remaining:** orchestrator-loop filter and `context_disclosure` emission on skill load.
 
 ---
 
