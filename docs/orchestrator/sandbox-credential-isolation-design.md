@@ -118,19 +118,19 @@ Existing `permission_check` rows remain authoritative for allow/deny; sandbox ev
 
 ## Policy examples
 
-**Example A — dev-local terraform plan**
+### Example A — dev-local terraform plan
 
 - Evaluator: `allow` (simulate)
 - Sandbox: optional lightweight (repo cwd only)
 - Broker: not required
 
-**Example B — CI-safe kubectl apply**
+### Example B — CI-safe kubectl apply
 
 - Evaluator: `deny` or `requires_approval`
 - Sandbox: would not run until approval + sandbox entered
 - Broker: scoped token if cluster creds needed
 
-**Example C — MCP tool returning injected directive**
+### Example C — MCP tool returning injected directive
 
 - Context authority: `ignore_instruction` (fixture harness)
 - Evaluator: unchanged for actual tool invoke

@@ -6,7 +6,7 @@
 
 **Not claimed:** OpenAI Agents SDK semantics, automatic ownership transfer, runtime resume, UI approval flows, or replacement of existing `compact_handoff` MCP behavior.
 
-**Related:** [harness-engineering-positioning.md](harness-engineering-positioning.md) · [governance-gates-contract.md](governance-gates-contract.md) · [goal-ancestry-contract.md](goal-ancestry-contract.md) · [session-resume-contract.md](session-resume-contract.md) · [security-posture.md](security-posture.md) · [approval-policy-gates-contract.md](approval-policy-gates-contract.md)
+**Related:** [harness-engineering-positioning.md](harness-engineering-positioning.md) · [governance-gates-contract.md](governance-gates-contract.md) · [capability-flow-contract.md](capability-flow-contract.md) · [session-resume-contract.md](session-resume-contract.md) · [security-posture.md](security-posture.md) · [approval-policy-gates-contract.md](approval-policy-gates-contract.md)
 
 ---
 
@@ -151,7 +151,7 @@ Future JSON Schema (not shipped): `orchestrator/schemas/handoff-contract.v1.json
 |----------|--------------|
 | [harness-engineering-positioning.md](harness-engineering-positioning.md) | Defines control-first execution modes; handoff is ownership transfer within those modes |
 | [governance-gates-contract.md](governance-gates-contract.md) | Human approval may block handoff `accepted` → `completed` |
-| [goal-ancestry-contract.md](goal-ancestry-contract.md) | `goal_id` / `parent_goal_id` tie handoff to ancestry graph |
+| [capability-flow-contract.md](capability-flow-contract.md) | Task/goal envelope; `goal_id` / `parent_goal_id` fields reserved for future ancestry doc |
 | [session-resume-contract.md](session-resume-contract.md) | Checkpoint stores `handoff_contract` ref; stale/incomplete handoff blocks resume |
 | [security-posture.md](security-posture.md) | Permission context in envelope must not overclaim sandbox or credential isolation |
 | [approval-policy-gates-contract.md](approval-policy-gates-contract.md) | Policy gates may require human grant before target acts on `branch` scope |

@@ -38,7 +38,7 @@ describe("handoff-contract", () => {
   it("cross-links ancestry, governance, session resume, security", () => {
     const doc = fs.readFileSync(CONTRACT_PATH, "utf8");
     assert.match(doc, /governance-gates-contract\.md/);
-    assert.match(doc, /goal-ancestry-contract\.md/);
+    assert.match(doc, /capability-flow-contract\.md/);
     assert.match(doc, /session-resume-contract\.md/);
     assert.match(doc, /security-posture\.md/);
     assert.match(doc, /harness-engineering-positioning\.md/);
