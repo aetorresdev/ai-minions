@@ -31,7 +31,7 @@ describe("progressive-disclosure-contract", () => {
     assert.match(doc, /Gap exists/i);
     assert.match(doc, /capability-matrix/i);
     assert.match(doc, /context_package/i);
-    assert.match(doc, /SKILL-REGISTRY-1/i);
+    assert.match(doc, /skill registry/i);
   });
 
   it("fixture JSONL validates three surface examples", () => {

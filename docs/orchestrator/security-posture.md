@@ -54,6 +54,46 @@ contain a compromised host, malicious operator, or misconfigured cloud account.
 
 ---
 
+## Admin console threat model (self-hosted framing)
+
+ai-minions is an **operator-controlled admin console** for AI-assisted engineering
+work — not a casual public web app.
+
+| Property | Implication |
+|----------|-------------|
+| **Tools + shell + MCP + local models** | Same blast radius class as a privileged dev workstation or CI agent with secrets nearby. |
+| **Filesystem and network** | Gated paths deny before execute; host policy and egress still matter outside those paths. |
+| **Self-hosted default** | You choose exposure. Binding a runner UI, MCP port, or Ollama endpoint to `0.0.0.0` without auth is **misconfiguration**, not a supported “multi-user SaaS” mode. |
+| **Human approval** | Policy-driven gates reduce risk; they do not remove operator responsibility for `GOAL` and credentials. |
+
+**Do not expose** the harness stack (runner TUI, trace dirs, MCP servers, hook
+logs, local inference) to untrusted networks without your own access controls,
+TLS, network segmentation, and secret handling. Treat exported traces like
+semi-trusted logs — redaction helps; mishandling still leaks.
+
+**Not claimed:** secure-by-default public deployment, multi-tenant isolation,
+hosted control plane, or “safe for anonymous internet users.”
+
+---
+
+## Control layers — implemented / partial / planned / not claimed
+
+| Control | Status | Evidence / follow-up |
+|---------|--------|----------------------|
+| **Permission evaluator** (classify + deny before execute on gated paths) | **Implemented** | `evaluate-permission.js`, MCP/shell/network/classified gates; tests under `orchestrator/tests/` |
+| **Trace redaction** (secret-shaped fields) | **Implemented** | [trace-privacy-contract.md](trace-privacy-contract.md) |
+| **Role / capability matrix precheck** | **Implemented** | `capability-matrix.v1.json`, trace role capability tests |
+| **Human approval / governance gates** | **Partial** | Policy gates + trace; grant/deny UI paths still evolving |
+| **Progressive disclosure** (hide tool/skill surface in context) | **Partial** | [progressive-disclosure-contract.md](progressive-disclosure-contract.md); runtime filter pending skill registry |
+| **Credential broker** (vault/proxy; no raw secret in model context) | **Planned** | [credential-broker-contract.md](credential-broker-contract.md); session modes today are not vaulting |
+| **Sandbox isolation** (kernel/container boundary for tool code) | **Planned** | Design-first only; not shipped in core runner |
+| **Egress control** (beyond Ollama HTTP gate) | **Planned** | See [runtime-permission-contract.md](runtime-permission-contract.md) gaps |
+| **Tool misuse evals** (untrusted context fixtures) | **Planned** | Extend [tool-ergonomics-guidelines.md](tool-ergonomics-guidelines.md) fixture harness |
+| **Budget hard-stop v2** | **Planned** | Multi-dimensional limits exist; richer policy still evolving |
+| **Production-ready / fully sandboxed / safe autonomous execution** | **Not claimed** | This doc + [doc-runtime-drift-check.md](doc-runtime-drift-check.md) |
+
+---
+
 ## Three different layers (do not conflate)
 
 ### Permission enforcement (shipped in gated paths)
@@ -176,7 +216,7 @@ under a malicious goal."
 
 ### Incentive conflict (system vs user goal)
 
-- **Helps:** CERBERUS lane; deeper eval work lives in planning backlog.
+- **Helps:** CERBERUS lane; deeper eval work is planned, not shipped everywhere.
 - **Gaps:** not modeled as automated policy everywhere.
 
 ### Invalid handoff — ownership mismatch
@@ -222,7 +262,7 @@ Planned or post-alpha unless code says otherwise:
 - Sandbox boundary for arbitrary code separate from policy text only.
 - Credential isolation via vault or proxy patterns.
 - Tool misuse evaluations beyond static classification.
-- Progressive disclosure of tool/MCP surface by role and step.
+- Progressive disclosure **runtime** filter (design contract exists; enforcement pending skill registry).
 - Multi-tenant auth and hosted isolation (out of scope for alpha harness).
 
 ---

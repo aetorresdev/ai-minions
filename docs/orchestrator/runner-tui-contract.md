@@ -108,7 +108,7 @@ Git worktree isolation — one isolated tree per `task_id`. See [worktree-isolat
 
 `run --worktree-isolated` creates/reuses worktree, executes inside it, does **not** auto-remove.
 
-## Model policy picker (`MODEL-ROUTING-UX-1`)
+## Model policy picker
 
 | Flag / command | Behavior |
 |----------------|----------|

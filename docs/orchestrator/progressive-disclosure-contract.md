@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/progressive-disclosure-contract.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design-first (S5)** — merges scope of `TOOL-PROGRESSIVE-DISCLOSURE-1` + `CTX-SKILL-DISCLOSURE-1`. Gap assessment + proposed `context_disclosure` trace shape + validators/fixtures only — **no** runtime filtering in orchestrator loop in this slice.
+**Status:** **Design contract** — gap assessment + proposed `context_disclosure` trace shape + validators/fixtures only. **No** runtime filtering in the orchestrator loop in this slice.
 
 **Related:** [context-package-contract.md](context-package-contract.md) · [capability-flow-contract.md](capability-flow-contract.md) · [workflow-skill-contract.md](workflow-skill-contract.md) · [tool-ergonomics-guidelines.md](tool-ergonomics-guidelines.md) · [skill-security-threatmodel.md](skill-security-threatmodel.md)
 
@@ -10,33 +10,33 @@
 
 ## Purpose
 
-Do not expose **full** tool catalogs, filesystem surfaces, skill bodies, or context planes to every role/step. Reduce misuse risk and token waste by disclosing only what the active role and step need — aligned with “Turn Off Burners” / harness engineering cross-checks.
+Do not expose **full** tool catalogs, filesystem surfaces, skill bodies, or context planes to every role/step. Reduce misuse risk and token waste by disclosing only what the active role and step need.
 
 **Not claimed:** dynamic capability negotiation with the model; marketplace skill discovery; automatic context minimization in production without trace evidence.
 
 ---
 
-## Gap assessment (2026-06-05)
+## Gap assessment
 
-| Area | Ticket / artifact | Implemented | Partial | Gap for S5 |
-|------|-------------------|-------------|---------|------------|
-| Permission **deny** at invoke | `SEC-NET-R1-*`, `evaluatePermission` | Per-action allow/deny + trace | — | Does not hide tools from **prompt** surface |
+| Area | Artifact | Implemented | Partial | Remaining gap |
+|------|----------|-------------|---------|---------------|
+| Permission **deny** at invoke | `evaluatePermission`, runtime gates | Per-action allow/deny + trace | — | Does not hide tools from **prompt** surface |
 | Role → **domains** | `capability-matrix.v1.json`, `trace-role-capability.js` | Plan-time + runtime domain precheck | — | Domains ≠ per-tool/skill visibility in context |
 | Tool manifest + classifiers | `tool-action-manifest.v1.json`, `tool-eval.js` | Classify shell/git/MCP paths | `progressive_disclosure_or_compact_response` **recommendation** only | No role/step **filter** on manifest exposure |
-| Context package rules | `CTX-PACK-1` / [context-package-contract.md](context-package-contract.md) | Inclusion policy doc | No runtime builder | No assembly/filter enforcement |
-| Skills | `SKILL-CONTRACT-1`, `skill-security-threatmodel.md` | Local `SKILL.md` template + threats | Cursor loads full skill text | No registry allowlist or partial skill disclosure |
-| Skill registry | `SKILL-REGISTRY-1` (S6) | — | — | Prerequisite for skill disclosure enforcement |
+| Context package rules | [context-package-contract.md](context-package-contract.md) | Inclusion policy doc | No runtime builder | No assembly/filter enforcement |
+| Skills | [workflow-skill-contract.md](workflow-skill-contract.md), [skill-security-threatmodel.md](skill-security-threatmodel.md) | Local `SKILL.md` template + threats | IDE loads full skill text | No registry allowlist or partial skill disclosure |
+| Skill registry | (future) | — | — | Prerequisite for skill disclosure enforcement |
 | Trace observability | `context_hygiene_signal` | Token/context signals | — | No `context_disclosure` hide/expose events |
 
 ### Verdict
 
-**Gap exists.** Existing controls **block unsafe execution** but do **not** implement progressive **visibility** (what appears in prompts, tool lists, or skill injection). S5 delivers the **unified contract** and trace proposal; runtime promotion is a follow-up ticket after `SKILL-REGISTRY-1` (S6) for skills.
+**Gap exists.** Existing controls **block unsafe execution** but do **not** implement progressive **visibility** (what appears in prompts, tool lists, or skill injection). This contract defines the trace proposal; runtime enforcement follows skill registry work.
 
-### Covered-by-existing (no duplicate runtime)
+### Covered by existing controls (no duplicate runtime)
 
-- Permission evaluator outcomes — keep [runtime-permission-contract.md](runtime-permission-contract.md) authoritative.
-- QA_SPEC / QA_EXEC handoff split — [qa-spec-before-dev-contract.md](qa-spec-before-dev-contract.md); not a disclosure mechanism.
-- Cost attribution — `CTX-COST-1` Resolved; orthogonal.
+- Permission evaluator outcomes — [runtime-permission-contract.md](runtime-permission-contract.md) stays authoritative.
+- QA spec / QA exec handoff split — [qa-spec-before-dev-contract.md](qa-spec-before-dev-contract.md); not a disclosure mechanism.
+- Cost attribution traces — orthogonal.
 
 ---
 
@@ -79,25 +79,25 @@ Do not expose **full** tool catalogs, filesystem surfaces, skill bodies, or cont
 
 ---
 
-## Runtime promotion (out of scope for S5)
+## Runtime promotion (out of scope for this slice)
 
-Future ticket may:
+Future work may:
 
 - Filter tool manifest / MCP catalog per `role_id` + `step_id`
 - Wire skill registry loader with `hidden`/`partial` trace emission
 - Add `context_disclosure` to `trace-v2-line.schema.json`
 - Integrate with context package builder when implemented
 
-**Prerequisite:** This design doc + fixtures + CERBERUS Approve; **S6** `SKILL-REGISTRY-1` for skill enforcement.
+**Prerequisite:** skill registry allowlist before skill-side enforcement.
 
 ---
 
-## CERBERUS checklist
+## Design invariants
 
-- [ ] No claim that tools/skills are already filtered in prompts without trace proof.
-- [ ] Permission deny path unchanged — disclosure complements, does not replace evaluator.
-- [ ] Skill text treated as untrusted input per [skill-security-threatmodel.md](skill-security-threatmodel.md).
-- [ ] Explicit **not claimed**: auto context minimization in production.
+- Tools/skills are **not** filtered in prompts without trace proof.
+- Permission deny path unchanged — disclosure complements, does not replace evaluator.
+- Skill text is untrusted input per [skill-security-threatmodel.md](skill-security-threatmodel.md).
+- **Not claimed:** auto context minimization in production.
 
 ---
 

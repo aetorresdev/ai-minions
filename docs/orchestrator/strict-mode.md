@@ -583,7 +583,7 @@ When the evaluator returns **`requires_approval`** for an MCP invocation, the ru
 
 The **`session_end`** event on the same stream adds **`mcp_total_calls`**, **`mcp_by_tool`** (counts keyed as `server.tool`), **`mcp_by_transport`**, and **`mcp_failed_calls`**. Use this to spot duplicate transitions, unexpected `claude_cli` bridging, or retry storms. **`skipStateMcp: true`** runs typically log **`mcp_total_calls: 0`** (state MCPs are not invoked from the runner).
 
-**Not in this scope:** per-call LLM token counts — those belong with token/cost metrics and scenario-level reporting (see backlog).
+**Not in this scope:** per-call LLM token counts — those belong with token/cost metrics and scenario-level reporting (see [token-hygiene-guide.md](token-hygiene-guide.md)).
 
 ### Ollama token counts
 

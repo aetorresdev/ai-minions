@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/market-validation-notes.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Shipped (v0.4 G4 slice).** Research artifact for positioning — **not** a market study, **not** runtime, **not** beta promotion.
+**Status:** **Reference doc** — positioning research artifact. **Not** a market study, **not** runtime, **not** a beta promotion gate.
 
 **Canonical claims:** [harness-engineering-positioning.md](harness-engineering-positioning.md) § Claims matrix · § Execution modes.
 
@@ -15,13 +15,12 @@
 - **Purpose:** Support **allowed / forbidden** public claims for a control-first workflow harness.
 - **Not claimed:** statistically representative survey, paid analyst report, or verified customer references.
 - **Sources:** Operator pain themes (anonymized), public product positioning of competitors (high level), and **repo evidence** (contracts, traces, tests).
-- **Does not block** `v0.4.0-alpha.1` tag by itself — matrix integration is the deliverable.
 
 ---
 
 ## Pain themes (three anonymized illustrations)
 
-Representative operator language — **illustrative**, synthesized from recurring themes in platform/engineering discussions (2026-06). **Not** attributed to named individuals or customers.
+Representative operator language — **illustrative**, synthesized from recurring themes in platform/engineering discussions. **Not** attributed to named individuals or customers.
 
 | # | Theme | Illustrative quote (anonymized) |
 |---|--------|-------------------------------|
@@ -50,8 +49,6 @@ Comparison is **positioning**, not feature parity scoring. Ecosystem breadth fav
 
 ## Searchable phrases (SEO / messaging hints)
 
-Phrases aligned with **control-first** positioning (use in docs, talks, README — not as guaranteed search volume):
-
 | Phrase | ai-minions hook |
 |--------|-----------------|
 | AI agent governance | Approval policy, permission gates, CERBERUS, trace audit |
@@ -65,8 +62,6 @@ Phrases aligned with **control-first** positioning (use in docs, talks, README �
 
 ## Allowed vs forbidden claims (release-oriented)
 
-Use this table for README, release notes, and talks. When in doubt, prefer **narrower** wording + link to repo contracts.
-
 ### Allowed (with evidence path)
 
 | Claim | Evidence / doc anchor |
@@ -74,11 +69,11 @@ Use this table for README, release notes, and talks. When in doubt, prefer **nar
 | Control-first AI workflow harness for governed AI-assisted development | This doc + [harness-engineering-positioning.md](harness-engineering-positioning.md) |
 | Single-agent multi-role and supervised multi-agent **execution strategies** | § Execution modes in harness positioning |
 | Mandatory validation; policy-driven human approval before DEV authority | [approval-policy-gates-contract.md](approval-policy-gates-contract.md) |
-| Structured adversarial review in trace (`doubt_review_*`) | [cerberus-doubt-cycle-contract.md](cerberus-doubt-cycle-contract.md) |
-| Cross-checked OpenSpec-style SDD patterns (**design reference only**) | [openspec-sdd-cross-check.md](openspec-sdd-cross-check.md) |
+| Structured CERBERUS review in trace (`doubt_review_*`) | [cerberus-doubt-cycle-contract.md](cerberus-doubt-cycle-contract.md) |
+| OpenSpec-style SDD patterns as **design reference** | [openspec-sdd-cross-check.md](openspec-sdd-cross-check.md) |
 | Worktree isolation and permission gates (alpha scope) | [worktree-isolation-contract.md](worktree-isolation-contract.md), [runtime-permission-contract.md](runtime-permission-contract.md) |
 | Alpha / pre-release with documented limitations | [alpha-release-checklist.md](alpha-release-checklist.md), [CHANGELOG.md](../../CHANGELOG.md) |
-| Cross-checked against emerging dynamic workflow **patterns** (doc) | [dynamic-workflow-contract.md](dynamic-workflow-contract.md) |
+| Dynamic workflow **patterns** (doc only) | [dynamic-workflow-contract.md](dynamic-workflow-contract.md) |
 
 ### Forbidden (overclaim)
 
@@ -88,19 +83,19 @@ Use this table for README, release notes, and talks. When in doubt, prefer **nar
 | Autonomous / fully autonomous engineering | Manager-owned + gates |
 | LangGraph / CrewAI / AutoGen **equivalent** or alternative | Different category; ecosystem not matched |
 | OpenSpec-compatible (without adapter) | [openspec-sdd-cross-check.md](openspec-sdd-cross-check.md) |
-| Swarm / decentralized multi-agent execution | Out of v0.4 scope |
+| Swarm / decentralized multi-agent execution | Out of current scope |
 | Safe parallel subagents without contract + trace proof | No evidence claim |
 | Full sandbox / credential broker “solved” | [security-posture.md](security-posture.md) honest gaps |
-| Beta or GA from positioning research alone | Requires product checklist + CERBERUS release sign-off |
+| Beta or GA from positioning research alone | Requires product checklist + release evidence |
 
 ---
 
-## v0.4 release claim (operator-facing)
+## Operator-facing summary
 
-> ai-minions strengthens **control-first** execution by making **validation mandatory** and **human approval policy-driven** before DEV authority — with trace-backed review, optional SDD cross-check as **reference only**, and an honest **alpha** scope.
+> ai-minions strengthens **control-first** execution by making **validation mandatory** and **human approval policy-driven** before DEV authority — with trace-backed review, optional SDD comparison as **reference only**, and an honest **alpha** scope.
 
 ---
 
 ## Out of scope for this deliverable
 
-New runtime tickets, competitor feature matrices, paid ads copy, customer logos, or benchmark scores (see evaluation benchmark work separately).
+New runtime features, competitor feature matrices, paid ads copy, customer logos, or benchmark scores (see [eval-benchmark-triage.md](eval-benchmark-triage.md)).

@@ -382,5 +382,5 @@ blockers: []
 improvements:
   - description: Consider rate limiting on the endpoint
 
-summary: No blockers. One improvement logged to backlog.
+summary: No blockers. One improvement logged for follow-up.
 ```

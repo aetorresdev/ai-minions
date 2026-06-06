@@ -83,7 +83,7 @@ Under `ORCHESTRATOR_STATE_ROOT` (default `~/.claude/.state/orchestrator/`):
 
 See `mcp-servers/orchestrator-state/README.md` for env vars and setup.
 
-**MCP usage audit:** The example `orchestrator.js` logs each **`orchestrator-state`** / **`compact-handoff`** invocation to `~/.claude/metrics/traces/<task_id>.jsonl` as `mcp_call` (fields: `server`, `tool`, `transport` (`direct` or `claude_cli`), `duration_ms`, `ok`). When the same run has MCP audit tracing enabled, a **`permission_check`** line may appear **immediately before** each allowed `mcp_call` (permission evaluator + profile — see [runtime-permission-contract.md](runtime-permission-contract.md) §8.4 and `orchestrator/README.md` § *MCP permission gate*). The closing `session_end` event includes rollups: `mcp_total_calls`, `mcp_by_tool`, `mcp_by_transport`, `mcp_failed_calls`. **Token counts per MCP call** are separate from this audit; token/cost metrics are tracked on the backlog.
+**MCP usage audit:** The example `orchestrator.js` logs each **`orchestrator-state`** / **`compact-handoff`** invocation to `~/.claude/metrics/traces/<task_id>.jsonl` as `mcp_call` (fields: `server`, `tool`, `transport` (`direct` or `claude_cli`), `duration_ms`, `ok`). When the same run has MCP audit tracing enabled, a **`permission_check`** line may appear **immediately before** each allowed `mcp_call` (permission evaluator + profile — see [runtime-permission-contract.md](runtime-permission-contract.md) §8.4 and `orchestrator/README.md` § *MCP permission gate*). The closing `session_end` event includes rollups: `mcp_total_calls`, `mcp_by_tool`, `mcp_by_transport`, `mcp_failed_calls`. **Token counts per MCP call** are separate from this audit; token/cost metrics are tracked via hooks (see [token-hygiene-guide.md](token-hygiene-guide.md)).
 
 **QA trace flags (optional):** on successful **`agent_done`** for **`qa`**, the runner may emit **`qa_triple_template`** and **`qa_blocker_non_vacuous`** for **cost-vs-outcome** rollups (`rollupStepsCostOutcome` / **`explain-run`**) — see [strict-mode.md](strict-mode.md) § *Flow-aware trace metadata*. They do **not** change output-contract enforcement.
 
@@ -187,7 +187,7 @@ Then read only those files, only the relevant sections. Summarize what you read 
 **Gate (enforced by `validateOutput()` in both single-agent and multi-agent flows):**
 - `files_read[]` missing → rejected
 - `files_read: []` empty → rejected
-- `files_modified` missing in DEV output → rejected (absence bypasses the cross-check gate)
+- `files_modified` missing in DEV output → rejected (absence bypasses the output validation gate)
 - DEV strict mode: every path in `files_modified` must appear in `files_read` — if not → rejected
 
 **Known limitation:** the gate enforces *consistency* (what you touch, you declared) — not *completeness* (whether you declared enough). An agent that reads `service.js` but misses `config.js` as a dependency will pass the gate. Completeness requires semantic knowledge of the codebase.
@@ -278,11 +278,11 @@ Each role has a minimum output contract. If the output does not meet it, the run
 
 `validateOutput()` for **`qa`**: classified vocabulary only (`blocker` \| `improvement` \| `nice-to-have`). For **`cerberus`**: same, and when the three-line template is detected, **CERBERUS-SIGNAL fase 2 (minimal)** rejects obvious structured garbage (shared denylist, all-vacuous lines). **CERBERUS-SIGNAL-3anchor:** when `blocker` is vacuous, **CERBERUS-SIGNAL fase 3** requires an explicit anchor token in `improvement` or `nice-to-have` (heuristic regexes in `_cerberusFindingHasAnchor`) — rejects long generic prose with no file, test, code span, or observable-ish cue (`cerberus_anchor_required`). This raises the floor against “elegant smoke”; it is **not** “review intelligence”, does not prove a finding is true, aligned with the diff, or free of subtle fabrication.
 
-**Still out of scope (later backlog):** model-graded severity, cross-check against `files_modified` / trace, scoring, **full** artifact-grounded CERBERUS review. **Harness note:** the example runner already has **system-path E2E fase 1** (`skipStateMcp: false` + `ORCH_MCP_TRANSPORT=direct` → `mcp-direct.py`); that validates MCP-on-disk gates without the Claude CLI — **not** the same as trustworthy goal alignment. **Claude-app MCP path** (strict + `claude -p` to invoke tools) remains a separate integration surface if you need parity with desktop MCP registration — see [strict-mode.md](strict-mode.md) § *System-path E2E suite*.
+**Still out of scope (future work):** model-graded severity, automated correlation against `files_modified` / trace, scoring, **full** artifact-grounded CERBERUS review. **Harness note:** the example runner already has **system-path E2E fase 1** (`skipStateMcp: false` + `ORCH_MCP_TRANSPORT=direct` → `mcp-direct.py`); that validates MCP-on-disk gates without the Claude CLI — **not** the same as trustworthy goal alignment. **Claude-app MCP path** (strict + `claude -p` to invoke tools) remains a separate integration surface if you need parity with desktop MCP registration — see [strict-mode.md](strict-mode.md) § *System-path E2E suite*.
 
 **Non–triple-line CERBERUS replies** (e.g. a single `**blocker**: …` paragraph) only pass the token check — same behavior as before the semantic floor.
 
-Implemented in `orchestrator/agents/validate-output.js` (`validateOutput()`), re-exported from the public **facade** `orchestrator/agents.js` (`require("./agents")`). Model routing defaults: `orchestrator/agents/routing/model-routing.js`; role permission matrix: `orchestrator/agents/permissions.js`; MODE prompts / `AGENTS`: `orchestrator/agents/registry.js` (`buildAgents`). Further splits (**S2** per-role files, **S3** `orchestrator/contracts/`) are tracked in the agent registry layout doc without changing this contract surface. Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
+Implemented in `orchestrator/agents/validate-output.js` (`validateOutput()`), re-exported from the public **facade** `orchestrator/agents.js` (`require("./agents")`). Model routing defaults: `orchestrator/agents/routing/model-routing.js`; role permission matrix: `orchestrator/agents/permissions.js`; MODE prompts / `AGENTS`: `orchestrator/agents/registry.js` (`buildAgents`). Further splits (per-role files, `orchestrator/contracts/`) are described in [agent-registry-layout.md](agent-registry-layout.md) without changing this contract surface. Called inside `askAgent()` — identical behavior in single-agent and multi-agent flows (only timing differs). The `phase` parameter (`"plan"` / `"decide"`) selects the orchestrator sub-contract.
 
 #### `done` field semantics
 
@@ -333,8 +333,8 @@ Returns `{"aligned": true/false, "confidence": 0-1, "notes": "...", "missing": [
 
 **Anti-loop (required):**
 
-- **QA** can only return to DEV with `blocker` findings. `improvement` and `nice-to-have` go to the backlog — **they do not block the flow**.
-- If `iteration >= max_iterations`, QA escalates to ORCHESTRATOR. ORCHESTRATOR decides: close, create a follow-up ticket, or escalate to OWNER.
+- **QA** can only return to DEV with `blocker` findings. `improvement` and `nice-to-have` are deferred follow-ups — **they do not block the flow**.
+- If `iteration >= max_iterations`, QA escalates to ORCHESTRATOR. ORCHESTRATOR decides: close, create a follow-up work item, or escalate to OWNER.
 - ORCHESTRATOR sets `max_iterations` in the original ticket (default: 3). If not set, DEV assumes 3.
 
 ---

@@ -2,7 +2,7 @@
 
 Orchestrator-owned subprocess boundaries must be inventoried and either gated (`spawnClassifiedSync` / dedicated gates) or listed as documented exceptions. **Enforcement applies only to call sites that use the gated helpers** — not retroactively to every `child_process` import in tests.
 
-Last audit: alpha 3 pre-tag (`CLASSIFIED-SPAWN-COVERAGE-1`).
+Last audit: alpha 3 pre-tag (classified spawn coverage slice).
 
 ## Classification legend
 

@@ -1,6 +1,8 @@
 # Doc runtime drift check
 
-**Deterministic guard** for forbidden security/runtime overclaims in `docs/orchestrator/*.md`. Complements human CERBERUS review — not an LLM linter.
+**Deterministic guard** for forbidden security/runtime overclaims in `docs/orchestrator/*.md`. Complements CERBERUS claim review — not an LLM linter.
+
+**Doc hygiene (versioned `docs/orchestrator/`):** keep **CERBERUS** when it names the MODE role, review lane, trace events, or pre-merge quality gate. Remove **process metadata** only: backlog ticket ids, PR numbers, tier labels, intake verdicts (`CERBERUS Approve` as merge ritual), and external cross-check matrices that belong in archive.
 
 **Runner:** `orchestrator/scripts/check-doc-runtime-claims.js` (`npm run lint:docs-claims` from `orchestrator/`).
 

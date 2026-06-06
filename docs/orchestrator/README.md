@@ -16,10 +16,10 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [governance-gates-contract.md](governance-gates-contract.md) | Human approval gate — trace schema + helpers + MCP `requires_approval` emit; grant/deny UI + resume path pending |
 | [approval-policy-gates-contract.md](approval-policy-gates-contract.md) | Policy-driven PO/ARCH/DEV gates — `validation: always`, `human_approval: policy-driven`, trace `approval_skipped`, DEV pre-check |
 | [cerberus-doubt-cycle-contract.md](cerberus-doubt-cycle-contract.md) | CERBERUS adversarial doubt cycle — trace `doubt_review_*`, claim matrix, pre-merge brief alignment |
-| [openspec-sdd-cross-check.md](openspec-sdd-cross-check.md) | OpenSpec SDD design reference only — mapping table, no runtime dependency |
+| [openspec-sdd-cross-check.md](openspec-sdd-cross-check.md) | OpenSpec SDD comparison (reference) — mapping table, no runtime dependency |
 | [market-validation-notes.md](market-validation-notes.md) | Control-first positioning research — allowed/forbidden claims, pain themes (doc-only) |
 | [security-posture.md](security-posture.md) | Public security posture + threat model (honest) |
-| [harness-engineering-positioning.md](harness-engineering-positioning.md) | Harness framing, orchestration model, external cross-checks (not authority) |
+| [harness-engineering-positioning.md](harness-engineering-positioning.md) | Harness framing, orchestration model, external references (not authority) |
 | [agent-harness.md](agent-harness.md) | Harness layers: context, memory/state, control, validation, observability |
 | [system-architecture-diagram.md](system-architecture-diagram.md) | Full operational Mermaid (skills, hooks, MCPs, disk, Ollama) |
 | [mcp-task-examples.md](mcp-task-examples.md) | Subagent / `mcp_task` |
@@ -35,6 +35,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [review-record-contract.md](review-record-contract.md) | Durable QA/CERBERUS `review_record` trace events + export consumption |
 | [bv-reviewer-contract.md](bv-reviewer-contract.md) | Business value / outcome gate — `value_review` trace shape (design-first; no runtime gate) |
 | [progressive-disclosure-contract.md](progressive-disclosure-contract.md) | Tools/skills/context progressive disclosure — gap assessment + `context_disclosure` trace (S5; design-first) |
+| [skill-router-design.md](skill-router-design.md) | Lifecycle intent → MODE/skills policy (design only; no runtime router) |
 | [recovery-sweep-contract.md](recovery-sweep-contract.md) | Stranded run/step detection (`recovery_*` events); detect/explain only |
 | [session-resume-contract.md](session-resume-contract.md) | Session checkpoint + resume eligibility (`session_*` events); explicit operator resume only |
 | [memory-store-decision.md](memory-store-decision.md) | Local storage categories, matrix, go/no-go (design-first; trace SoT) |

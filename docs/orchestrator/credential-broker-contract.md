@@ -1,6 +1,6 @@
 # Credential broker contract
 
-**Ticket:** `ENV-CREDENTIAL-BROKER-1` · **Status:** MVP runtime + doc (post-alpha)
+**Status:** MVP runtime + doc (post-alpha)
 
 **Problem:** Removing secret values from prompt/context ([`environment-access.md`](environment-access.md), `buildEnvContext`) is necessary but not sufficient. Tools that need live credentials must resolve env **outside** model context and enforce read/write **before** execution.
 
