@@ -161,6 +161,40 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 | 2026-06-03 | `npm run test:e2e:strict:all` | **6/6** pass |
 | 2026-06-03 | Tag + GitHub pre-release `v0.4.0-alpha.1` | published |
 
+## v0.5.0-alpha.1 — Workflow skills hardening alpha
+
+**Scope:** Skill registry allowlist, opt-in Claude Code hook, hook tests in `npm test`, operator docs. **Prerequisite:** `v0.4.0-alpha.1`.
+
+**Release claim:** deny-by-default local skill allowlist when operators opt in; registry is SoT for paths, roles, and disclosure metadata.
+
+### Preconditions
+
+- [x] `v0.4.0-alpha.1` shipped
+- [x] Skill registry merged on `master` (`a705c8f`)
+- [x] CERBERUS implementation review — Approve with non-blocking notes
+- [x] Skill router runtime and progressive-disclosure prompt filter explicitly **out of scope**
+
+### Verification (operator)
+
+- [x] `cd orchestrator && npm test` — **910/911** pass (1 skipped); hooks **36/36**; workspace 2026-05-18.
+- [ ] `npm run test:e2e:strict:all` — optional for this cut (unit + hooks + docs green).
+- [x] Operator docs: no `ORCH_SKILL_REGISTRY_ACTIVE_ROLE` in runbooks; test seam gated by `ORCH_SKILL_REGISTRY_TEST_MODE=1`.
+
+### Release artifact
+
+- [x] **Version tag:** `v0.5.0-alpha.1` — https://github.com/aetorresdev/ai-minions/releases/tag/v0.5.0-alpha.1 (2026-05-18)
+- [x] **Changelog:** root [`CHANGELOG.md`](../../CHANGELOG.md) — section **[0.5.0-alpha.1] - 2026-05-18**; release URL recorded after tag
+- [x] **GitHub pre-release** (manual) — https://github.com/aetorresdev/ai-minions/releases/tag/v0.5.0-alpha.1
+
+#### v0.5 validation log
+
+| Date | Command / item | Result |
+|------|----------------|--------|
+| 2026-05-18 | Skill registry merged | allowlist + opt-in hook |
+| 2026-05-18 | CERBERUS | Approve w/ non-blocking notes |
+| 2026-05-18 | `cd orchestrator && npm test` | **910/911** pass (1 skipped); hooks **36/36** |
+| 2026-05-18 | Tag + GitHub pre-release `v0.5.0-alpha.1` | published |
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.

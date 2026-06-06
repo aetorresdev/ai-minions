@@ -4,6 +4,52 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.5.0-alpha.1] - 2026-05-18
+
+Fifth alpha pre-release: **workflow skills hardening** — versioned local skill allowlist, registry validator, opt-in Claude Code hook enforcement, and hook tests wired into default `npm test` (no skill router runtime or progressive-disclosure prompt filter).
+
+**Release claim:** local workflow skills are deny-by-default when operators opt in (`ORCH_SKILL_REGISTRY_ENFORCE=1`); registry is the source of truth for allowed skills, paths, roles, and disclosure metadata.
+
+**Prerequisite:** `v0.4.0-alpha.1` — control-first governance alpha.
+
+**Since [0.4.0-alpha.1]:** v0.4 centered on **governance runtime** (policy-driven approval before DEV, CERBERUS doubt-cycle trace, positioning and claims matrix docs). v0.5 adds **workflow skill hardening**: a versioned deny-by-default allowlist, registry validator, and **opt-in** Claude Code PreToolUse hook. Governance gates are unchanged in this cut.
+
+| Area | `v0.4.0-alpha.1` | `v0.5.0-alpha.1` (delta) |
+|------|------------------|---------------------------|
+| Focus | Control-first governance | Workflow skill allowlist + opt-in hook |
+| Human approval / DEV gates | Policy-driven approval + doubt cycle | Unchanged |
+| Workflow skills | Contract, threat model, disclosure **design** | **Allowlist shipped** — `skill-registry.v1.json`, validator, opt-in hook |
+| Skill routing | Design documentation only | Still design-only — no runtime router |
+| Progressive disclosure | Gap assessment + fixtures | Registry metadata shipped; prompt/tool filter still follow-on |
+| Hook validation | Separate `npm run test:hooks` | **`npm test`** runs hook suite (36 Python tests) |
+| Unit tests (evidence) | 757/757 | 910/911 (+ registry + hook coverage) |
+
+**Release:** https://github.com/aetorresdev/ai-minions/releases/tag/v0.5.0-alpha.1
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **910/911** pass (1 skipped); Python hook suite **36/36** via `npm run test:hooks`
+- Contracts: `skill-registry-contract.md`, `workflow-skill-contract.md`, `progressive-disclosure-contract.md` (allowlist shipped; visibility filter pending)
+- Implementation review: Approve with non-blocking notes (hook opt-in + fail-open documented)
+
+**Alpha limitations (not production):**
+
+- Hook enforcement is **opt-in** and **fail-open** when the registry file is missing — not a marketplace or automatic skill scanner.
+- **Not** skill router runtime, progressive-disclosure prompt filtering, external skill import, or production multi-tenant skill governance.
+- Test role override (`ORCH_SKILL_REGISTRY_ACTIVE_ROLE`) requires `ORCH_SKILL_REGISTRY_TEST_MODE=1` — not documented for operators.
+
+### Added
+
+- Skill registry: `orchestrator/security/skill-registry.v1.json`, `skill-registry.js` (load/validate/evaluate + `skill_registry_check` trace).
+- Opt-in PreToolUse hook: `scripts/hooks/skill-registry-enforcer.py` + `settings.json.example` wiring.
+- Contract doc `docs/orchestrator/skill-registry-contract.md`; operator surfaces (`--help`, README, `.env.example`, strict-mode gate list).
+- Hook tests: `test_skill_registry_enforcer.py`; `npm test` invokes `test:hooks`.
+
+### Changed
+
+- Progressive-disclosure gap assessment: allowlist prerequisite met; runtime visibility filter remains follow-on.
+- `gate_events.jsonl` schema docs include `skill-registry-enforcer`.
+
 ## [0.4.0-alpha.1] - 2026-06-03
 
 Fourth alpha pre-release: **control-first governance** — policy-driven human approval before DEV authority, mandatory validation, CERBERUS doubt-cycle trace, positioning and claims matrix docs (no new execution modes or beta promotion).
@@ -155,6 +201,7 @@ Initial alpha pre-release of ai-minions.
 - Alpha checklist: CI smoke URL, local clone evidence, first-run path, optional Claude Code MODE smoke; workspace logs refreshed for `npm test` and `test:e2e:strict`.
 - **2026-05-15:** `test:e2e:strict` **5/5** on a **fresh `git clone` under `/tmp`** after `uv sync` (both MCP server dirs) + `npm ci` + `ORCH_PYTHON` pointing at the clone’s `orchestrator-state` venv (Ollama on localhost).
 
+[0.5.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.5.0-alpha.1
 [0.4.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.4.0-alpha.1
 [0.3.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.3.0-alpha.1
 [0.2.0-alpha.1]: https://github.com/aetorresdev/ai-minions/releases/tag/v0.2.0-alpha.1
