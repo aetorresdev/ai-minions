@@ -67,6 +67,7 @@ grep 'session_' ~/.claude/metrics/traces/<task_id>.jsonl
 
 ## Related
 
+- [handoff-contract.md](handoff-contract.md)
 - [recovery-sweep-contract.md](recovery-sweep-contract.md)
 - [review-record-contract.md](review-record-contract.md)
 - [memory-store-decision.md](memory-store-decision.md)

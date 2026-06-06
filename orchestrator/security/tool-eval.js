@@ -252,6 +252,11 @@ function listToolsMissingFixtureCoverage(manifestState, scenarios) {
   return missing.sort();
 }
 
+const {
+  loadUntrustedContextFixtures,
+  runAllUntrustedContextFixtures,
+} = require("./untrusted-context-eval");
+
 module.exports = {
   DEFAULT_FIXTURES_PATH,
   LARGE_RESPONSE_CHAR_THRESHOLD,
@@ -264,4 +269,6 @@ module.exports = {
   diagnoseFailureKind,
   validateToolManifestEntry,
   listToolsMissingFixtureCoverage,
+  loadUntrustedContextFixtures,
+  runAllUntrustedContextFixtures,
 };
