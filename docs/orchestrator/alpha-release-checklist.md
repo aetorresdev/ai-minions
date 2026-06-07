@@ -204,7 +204,8 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 ### Must-have bundle
 
 - [x] Self-improvement loop design contract + `improvement_proposal` fixtures — merged on `master`
-- [x] Trivy release gate — `uv.lock`, `.trivy.yaml`, `security-trivy-scan`, `release-trivy-gate.sh` — merged PR **#145**
+- [x] Trivy release gate — `uv.lock`, `.trivy.yaml`, `security-trivy-scan`, `release-trivy-gate.sh` — merged on `master` @ `183f05b`
+- [ ] Governance repair doc slice — branch `feature/v0.6-governance-followup` (CERBERUS Approve 2026-06-07; **human merge pending**)
 - [ ] Release hygiene: `CHANGELOG`, checklist sign-off, tag, pre-release, `release` branch (product language only)
 
 ### Bundled design / evidence (release narrative)
@@ -218,17 +219,34 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 
 ### CERBERUS checks (pre-tag)
 
-- [ ] No self-modification claim
-- [ ] Proposals require explicit evidence refs
-- [ ] Human approval before implementation
-- [ ] No unscoped runtime behavior change
-- [ ] No cosmetic reopen of closed grooming scope
+- [x] No self-modification claim — post-merge review 2026-06-07
+- [x] Proposals require explicit evidence refs — contract + fixtures on `master`
+- [x] Human approval before implementation — design contract; no auto-apply
+- [x] No unscoped runtime behavior change — module boundaries slice is doc + contract tests only
+- [x] No cosmetic reopen of closed grooming scope
+
+### Governance exception (post-merge)
+
+**Process violation recorded:** module boundaries design slice (`e8b3ac8` → merge `ef8f347`) landed on `master` **without** pre-merge CERBERUS approval (assistant-controlled merge). **Post-merge CERBERUS verdict (2026-06-07):** **Approve with blocking process note** — content acceptable; merge conduct is a governance failure.
+
+**Operator action:** do **not** treat this as precedent. Pre-merge CERBERUS remains mandatory for **release-bundled slices**, **implementation slices**, and **release-signoff docs** — design-only and doc-only changes included. Follow-up: branch protection + required status checks; no assistant merge without human verdict (tracked in local backlog only).
+
+**Forbidden release claims (v0.6):** “architecture refactor complete” · “modular monolith implemented” · “clean architecture enforced” · “module boundaries enforced in CI” · “production-ready security gate”.
 
 ### Vulnerability gate (pre-tag)
 
 - [x] `bash scripts/release-trivy-gate.sh` — published scope clean (see [security-posture.md](security-posture.md))
-- [x] GitHub Actions **`security-trivy-scan`** — green on merge @ `183f05b`; lock drift check in CI
+- [x] GitHub Actions **`security-trivy-scan`** — green on Trivy gate merge @ `183f05b`; green on latest bundled `master` @ `e8b3ac8`; lock drift check in CI
 - [x] MCP `uv.lock` committed and tracked
+
+#### v0.6 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-07 | `master` @ `e8b3ac8` — GitHub Actions | Docs verify · Link check · Markdown lint · `security-trivy-scan` · `orchestrator-unit-tests` · `orchestrator-e2e` — **green** |
+| 2026-06-07 | Workspace @ `ef8f347` | `cd orchestrator && npm test` → **925/926** pass (1 skipped); hooks **36/36** |
+| 2026-06-07 | Post-merge CERBERUS — module boundaries slice @ `e8b3ac8` | **Approve with blocking process note** (content OK; pre-merge gate skipped) |
+| 2026-06-07 | Pre-merge CERBERUS — governance repair doc slice | **Approve** — doc-only; human merge pending |
 
 ### Release artifact
 
