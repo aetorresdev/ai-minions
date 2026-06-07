@@ -205,6 +205,7 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 
 - [x] Self-improvement loop design contract + `improvement_proposal` fixtures — merged on `master`
 - [x] Trivy release gate — `uv.lock`, `.trivy.yaml`, `security-trivy-scan`, `release-trivy-gate.sh` — merged on `master` @ `183f05b`
+- [ ] Governance repair doc slice — branch `feature/v0.6-governance-followup` (CERBERUS Approve 2026-06-07; **human merge pending**)
 - [ ] Release hygiene: `CHANGELOG`, checklist sign-off, tag, pre-release, `release` branch (product language only)
 
 ### Bundled design / evidence (release narrative)
@@ -243,7 +244,9 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 | Date | Context | Outcome |
 |------|---------|---------|
 | 2026-06-07 | `master` @ `e8b3ac8` — GitHub Actions | Docs verify · Link check · Markdown lint · `security-trivy-scan` · `orchestrator-unit-tests` · `orchestrator-e2e` — **green** |
+| 2026-06-07 | Workspace @ `ef8f347` | `cd orchestrator && npm test` → **925/926** pass (1 skipped); hooks **36/36** |
 | 2026-06-07 | Post-merge CERBERUS — module boundaries slice @ `e8b3ac8` | **Approve with blocking process note** (content OK; pre-merge gate skipped) |
+| 2026-06-07 | Pre-merge CERBERUS — governance repair doc slice | **Approve** — doc-only; human merge pending |
 
 ### Release artifact
 

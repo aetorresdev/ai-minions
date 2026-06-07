@@ -4,7 +4,7 @@
 
 **Status:** **Design-only** — bounded-context map, dependency rules, and current-state inventory. **No** physical `orchestrator/modules/*` tree, **no** import guard in CI, **no** runtime behavior change.
 
-**Related:** [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [security-posture.md](security-posture.md)
+**Related:** [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
 ---
 
@@ -91,7 +91,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | Module | Principal files / dirs |
 |--------|-------------------------|
 | **run-control** | `orchestrator.js`, `run-loop-helpers.js`, `run-phases/*`, `run-state.js`, `qa-spec-flow.js`, `cli.js` (invoke path) |
-| **contracts** | `validate-output.js` (via agents), `*-design.js`, `self-improvement-loop-design.js`, `bv-reviewer-design.js`, `progressive-disclosure-design.js`, `tests/*Contract.test.js` |
+| **contracts** | `validate-output.js` (via agents), `*-design.js`, `self-improvement-loop-design.js`, `bv-reviewer-design.js`, `progressive-disclosure-design.js`, `tests/*Contract.test.js`, `tests/handoffContract.test.js`, `tests/sandboxCredentialIsolationDesign.test.js`, `tests/moduleBoundariesContract.test.js` |
 | **gates** | `governance-gate.js`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
 | **permissions** | `agents/permissions.js`, `agents/capability-matrix.js`, `credential-broker.js`, `environment-parser.js` |
 | **tools** | `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js`, `mcp-client.js` |
@@ -156,4 +156,8 @@ Do **not** create empty `modules/*` directories in design-only slices.
 
 ## Revision
 
-Update when module map or known violations change. Physical refactor tickets must reference this doc version in PR brief (backlog only — not in CHANGELOG product text).
+| Date | Change |
+|------|--------|
+| 2026-06-07 | Initial design map shipped on `master` @ `e8b3ac8`; ticket-free deferred refactor wording; cross-links to handoff/sandbox design contracts |
+
+Update when module map or known violations change. Physical refactor briefs reference this doc (backlog only — not in CHANGELOG product text).
