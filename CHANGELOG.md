@@ -56,7 +56,7 @@ Fourth alpha pre-release: **control-first governance** — policy-driven human a
 
 **Release claim:** validation is mandatory; human approval is policy-driven before DEV authority.
 
-**Prerequisite:** `v0.3.0-alpha.1` + control-first harness positioning (PR **#115**).
+**Prerequisite:** `v0.3.0-alpha.1` + control-first harness positioning.
 
 **Release:** https://github.com/aetorresdev/ai-minions/releases/tag/v0.4.0-alpha.1
 
@@ -163,9 +163,9 @@ Second alpha pre-release focused on operator UX, local model execution, runner T
 
 ### Operator / docs
 
-- Backlog updated to mark `COST-BUDGET-VIEW-TUI-1` as resolved.
+- Cost/budget TUI operator slice documented as shipped in this cut.
 - Release notes prepared for the second alpha cut.
-- Remaining P3/P4 work stays explicitly out of scope.
+- Remaining post-alpha operator and platform work stays explicitly out of scope.
 
 ## [0.1.0-alpha.1] - 2026-05-15
 

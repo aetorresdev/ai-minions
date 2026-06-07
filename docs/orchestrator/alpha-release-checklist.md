@@ -195,6 +195,40 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 | 2026-05-18 | `cd orchestrator && npm test` | **910/911** pass (1 skipped); hooks **36/36** |
 | 2026-05-18 | Tag + GitHub pre-release `v0.5.0-alpha.1` | published |
 
+## v0.6.0-alpha.1 — Governed self-improvement loop alpha *(candidate)*
+
+**Scope:** governed self-improvement loop design contract + post-v0.5 release hygiene. **Prerequisite:** `v0.5.0-alpha.1`.
+
+**Release claim:** governed, human-approved harness improvement loop for **proposing** changes from traces, reviews, blockers, and validation failures — **not** self-modify or auto-apply.
+
+### Must-have
+
+- [x] Self-improvement loop design contract + `improvement_proposal` fixtures (dry-run human approval gate) — `self-improvement-loop-contract.md`, `self-improvement-loop-design.js`, contract tests
+- [ ] Release hygiene: `CHANGELOG`, checklist, tag, pre-release, `release` branch, operator-facing notes (no backlog noise)
+
+### Optional (non-blocking)
+
+- [ ] OTEL GenAI mapper slice 1 in release evidence — only if mapper-only on `master` and CERBERUS-clean (**no** OTLP)
+- [ ] Module boundaries design doc (`module-boundaries.md`) — design-only (no runtime; omitting does **not** block tag)
+
+### Out of scope
+
+Skill router runtime · progressive-disclosure prompt filter · sandbox runtime · OTLP · local model serving · web control plane · autonomous self-improvement claims · modular monolith **code** refactor.
+
+### CERBERUS checks (pre-tag)
+
+- [ ] No self-modification claim
+- [ ] Proposals require explicit evidence refs
+- [ ] Human approval before implementation
+- [ ] No unscoped runtime behavior change
+- [ ] No cosmetic reopen of closed grooming scope
+
+### Release artifact
+
+- [ ] **Version tag:** `v0.6.0-alpha.1`
+- [ ] **Changelog:** section **[0.6.0-alpha.1]**
+- [ ] **GitHub pre-release** (manual)
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
