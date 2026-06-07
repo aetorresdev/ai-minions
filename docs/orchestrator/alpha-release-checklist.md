@@ -228,7 +228,7 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 
 **Process violation recorded:** module boundaries design slice (`e8b3ac8` → merge `ef8f347`) landed on `master` **without** pre-merge CERBERUS approval (assistant-controlled merge). **Post-merge CERBERUS verdict (2026-06-07):** **Approve with blocking process note** — content acceptable; merge conduct is a governance failure.
 
-**Operator action:** do **not** treat this as precedent. Pre-merge CERBERUS remains mandatory for implementation slices. Follow-up: branch protection + required status checks; no assistant merge without human verdict (tracked in local backlog only).
+**Operator action:** do **not** treat this as precedent. Pre-merge CERBERUS remains mandatory for **release-bundled slices**, **implementation slices**, and **release-signoff docs** — design-only and doc-only changes included. Follow-up: branch protection + required status checks; no assistant merge without human verdict (tracked in local backlog only).
 
 **Forbidden release claims (v0.6):** “architecture refactor complete” · “modular monolith implemented” · “clean architecture enforced” · “module boundaries enforced in CI” · “production-ready security gate”.
 
