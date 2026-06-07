@@ -223,6 +223,12 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 - [ ] No unscoped runtime behavior change
 - [ ] No cosmetic reopen of closed grooming scope
 
+### Vulnerability gate (pre-tag)
+
+- [ ] `bash scripts/release-trivy-gate.sh` — **HIGH/CRITICAL** clean in published scope (`orchestrator/package-lock.json`, `mcp-servers/*/uv.lock`; see [security-posture.md](security-posture.md) § Release vulnerability scan)
+- [ ] GitHub Actions **`security-trivy-scan`** (`aquasecurity/trivy-action`) green on release PR; CERBERUS reviews job summary + `trivy-security-report` artifact
+- [ ] MCP locks regenerated after dependency bumps (`uv lock` in each MCP server dir)
+
 ### Release artifact
 
 - [ ] **Version tag:** `v0.6.0-alpha.1`

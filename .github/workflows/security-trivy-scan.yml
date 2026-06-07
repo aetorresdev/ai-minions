@@ -1,0 +1,130 @@
+# Filesystem vulnerability + secret scan (published dependency scope).
+# Uses aquasecurity/trivy-action — reports for CERBERUS + fail gate on HIGH/CRITICAL.
+name: security-trivy-scan
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "mcp-servers/**"
+      - "orchestrator/package.json"
+      - "orchestrator/package-lock.json"
+      - ".trivy.yaml"
+      - ".gitignore"
+      - ".github/workflows/security-trivy-scan.yml"
+  push:
+    branches: [main, master]
+    paths:
+      - "mcp-servers/**"
+      - "orchestrator/package.json"
+      - "orchestrator/package-lock.json"
+      - ".trivy.yaml"
+      - ".gitignore"
+      - ".github/workflows/security-trivy-scan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    env:
+      TRIVY_SKIP_DIRS: plugins,projects,cache,downloads,.state,telemetry,sessions,node_modules,.git,.cursor,debug,backups
+      TRIVY_SKIP_FILES: "**/*.jsonl"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Regenerate MCP lockfiles
+        run: |
+          for dir in mcp-servers/compact-handoff mcp-servers/orchestrator-state; do
+            (cd "$dir" && uv lock)
+          done
+
+      - name: Prepare report directory
+        run: mkdir -p trivy-reports
+
+      - name: Trivy report (JSON)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          trivy-config: .trivy.yaml
+          scanners: vuln,secret
+          ignore-unfixed: true
+          format: json
+          output: trivy-reports/report.json
+          skip-dirs: ${{ env.TRIVY_SKIP_DIRS }}
+          skip-files: ${{ env.TRIVY_SKIP_FILES }}
+          exit-code: "0"
+
+      - name: Trivy report (SARIF)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          trivy-config: .trivy.yaml
+          scanners: vuln,secret
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-reports/report.sarif
+          limit-severities-for-sarif: true
+          severity: HIGH,CRITICAL
+          skip-dirs: ${{ env.TRIVY_SKIP_DIRS }}
+          skip-files: ${{ env.TRIVY_SKIP_FILES }}
+          exit-code: "0"
+          skip-setup-trivy: true
+
+      - name: Trivy report (table)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          trivy-config: .trivy.yaml
+          scanners: vuln,secret
+          ignore-unfixed: true
+          format: table
+          output: trivy-reports/report.txt
+          skip-dirs: ${{ env.TRIVY_SKIP_DIRS }}
+          skip-files: ${{ env.TRIVY_SKIP_FILES }}
+          exit-code: "0"
+          skip-setup-trivy: true
+
+      - name: Job summary for reviewers
+        if: always() && hashFiles('trivy-reports/report.txt') != ''
+        run: |
+          {
+            echo "## Trivy security scan (published scope)"
+            echo ""
+            echo "Workflow: \`security-trivy-scan\` · Action: \`aquasecurity/trivy-action\` · Scanners: vuln, secret"
+            echo ""
+            echo "Artifact: \`trivy-security-report\` (txt / json / sarif)"
+            echo ""
+            cat trivy-reports/report.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail on HIGH/CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          trivy-config: .trivy.yaml
+          scanners: vuln,secret
+          ignore-unfixed: true
+          format: table
+          severity: HIGH,CRITICAL
+          skip-dirs: ${{ env.TRIVY_SKIP_DIRS }}
+          skip-files: ${{ env.TRIVY_SKIP_FILES }}
+          exit-code: "1"
+          skip-setup-trivy: true
+
+      - name: Upload Trivy reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-security-report
+          path: trivy-reports/
+          retention-days: 30
+          if-no-files-found: ignore

@@ -1,0 +1,24 @@
+# Published release dependency scope — see docs/orchestrator/security-posture.md
+# Local: trivy fs --scanners vuln,secret --ignore-unfixed .
+# CI: .github/workflows/security-trivy-scan.yml (aquasecurity/trivy-action)
+
+severity:
+  - HIGH
+  - CRITICAL
+
+scan:
+  skip-dirs:
+    - plugins
+    - projects
+    - cache
+    - downloads
+    - .state
+    - telemetry
+    - sessions
+    - node_modules
+    - .git
+    - .cursor
+    - debug
+    - backups
+  skip-files:
+    - "**/*.jsonl"
