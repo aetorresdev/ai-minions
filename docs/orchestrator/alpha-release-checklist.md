@@ -195,7 +195,7 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 | 2026-05-18 | `cd orchestrator && npm test` | **910/911** pass (1 skipped); hooks **36/36** |
 | 2026-05-18 | Tag + GitHub pre-release `v0.5.0-alpha.1` | published |
 
-## v0.6.0-alpha.1 — Governance & release readiness alpha *(candidate)*
+## v0.6.0-alpha.1 — Governance & release readiness alpha
 
 **Scope:** self-improvement loop contract + Trivy release gate + architecture boundaries map + release hygiene. **Prerequisite:** `v0.5.0-alpha.1`.
 
@@ -205,8 +205,9 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 
 - [x] Self-improvement loop design contract + `improvement_proposal` fixtures — merged on `master`
 - [x] Trivy release gate — `uv.lock`, `.trivy.yaml`, `security-trivy-scan`, `release-trivy-gate.sh` — merged on `master` @ `183f05b`
-- [ ] Governance repair doc slice — branch `feature/v0.6-governance-followup` (CERBERUS Approve 2026-06-07; **human merge pending**)
-- [ ] Release hygiene: `CHANGELOG`, checklist sign-off, tag, pre-release, `release` branch (product language only)
+- [x] Governance repair doc slice — merged on `master` @ `6c05d6f` (2026-06-07)
+- [x] Release hygiene: `CHANGELOG` + checklist sign-off (product language only) — CERBERUS **Approve** 2026-06-07
+- [ ] Tag `v0.6.0-alpha.1`, GitHub pre-release, `release` branch — operator after merge of release hygiene slice
 
 ### Bundled design / evidence (release narrative)
 
@@ -224,6 +225,7 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 - [x] Human approval before implementation — design contract; no auto-apply
 - [x] No unscoped runtime behavior change — module boundaries slice is doc + contract tests only
 - [x] No cosmetic reopen of closed grooming scope
+- [x] Release hygiene CHANGELOG claims — CERBERUS **Approve** 2026-06-07 (doc-only; release-prep commit follows)
 
 ### Governance exception (post-merge)
 
@@ -246,13 +248,16 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 | 2026-06-07 | `master` @ `e8b3ac8` — GitHub Actions | Docs verify · Link check · Markdown lint · `security-trivy-scan` · `orchestrator-unit-tests` · `orchestrator-e2e` — **green** |
 | 2026-06-07 | Workspace @ `ef8f347` | `cd orchestrator && npm test` → **925/926** pass (1 skipped); hooks **36/36** |
 | 2026-06-07 | Post-merge CERBERUS — module boundaries slice @ `e8b3ac8` | **Approve with blocking process note** (content OK; pre-merge gate skipped) |
-| 2026-06-07 | Pre-merge CERBERUS — governance repair doc slice | **Approve** — doc-only; human merge pending |
+| 2026-06-07 | Pre-merge CERBERUS — governance repair doc slice | **Approve** — doc-only; merged @ `6c05d6f` |
+| 2026-06-07 | Workspace @ `6c05d6f` | `bash scripts/release-trivy-gate.sh` → **OK**; `npm test` → **925/926** pass (1 skipped) |
+| 2026-06-07 | Pre-merge CERBERUS — release hygiene doc slice | **Approve** — `CHANGELOG [0.6.0-alpha.1]` + checklist sign-off |
 
 ### Release artifact
 
 - [ ] **Version tag:** `v0.6.0-alpha.1`
-- [ ] **Changelog:** section **[0.6.0-alpha.1]**
-- [ ] **GitHub pre-release** (manual)
+- [x] **Changelog:** section **[0.6.0-alpha.1] - 2026-06-07** (release URL in release-prep commit)
+- [ ] **GitHub pre-release** (manual — after tag)
+- [ ] **`release` branch** aligned to tag
 
 ## Future alpha / beta gates (positioning)
 
