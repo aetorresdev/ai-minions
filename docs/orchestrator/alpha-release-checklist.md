@@ -195,21 +195,22 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 | 2026-05-18 | `cd orchestrator && npm test` | **910/911** pass (1 skipped); hooks **36/36** |
 | 2026-05-18 | Tag + GitHub pre-release `v0.5.0-alpha.1` | published |
 
-## v0.6.0-alpha.1 — Governed self-improvement loop alpha *(candidate)*
+## v0.6.0-alpha.1 — Governance & release readiness alpha *(candidate)*
 
-**Scope:** governed self-improvement loop design contract + post-v0.5 release hygiene. **Prerequisite:** `v0.5.0-alpha.1`.
+**Scope:** self-improvement loop contract + Trivy release gate + architecture boundaries map + release hygiene. **Prerequisite:** `v0.5.0-alpha.1`.
 
-**Release claim:** governed, human-approved harness improvement loop for **proposing** changes from traces, reviews, blockers, and validation failures — **not** self-modify or auto-apply.
+**Release claim:** governed harness improvement **proposals** (human-approved, not auto-apply); reproducible dependency pins with CI/local Trivy gate; modular monolith **design map** for future refactors — **not** autonomous self-modify, **not** completed architecture refactor.
 
-### Must-have
+### Must-have bundle
 
-- [x] Self-improvement loop design contract + `improvement_proposal` fixtures (dry-run human approval gate) — `self-improvement-loop-contract.md`, `self-improvement-loop-design.js`, contract tests
-- [ ] Release hygiene: `CHANGELOG`, checklist, tag, pre-release, `release` branch, operator-facing notes (no backlog noise)
+- [x] Self-improvement loop design contract + `improvement_proposal` fixtures — merged on `master`
+- [x] Trivy release gate — `uv.lock`, `.trivy.yaml`, `security-trivy-scan`, `release-trivy-gate.sh` — merged PR **#145**
+- [ ] Release hygiene: `CHANGELOG`, checklist sign-off, tag, pre-release, `release` branch (product language only)
 
-### Optional (non-blocking)
+### Bundled design / evidence (release narrative)
 
-- [ ] OTEL GenAI mapper slice 1 in release evidence — only if mapper-only on `master` and CERBERUS-clean (**no** OTLP)
-- [ ] Module boundaries design doc (`module-boundaries.md`) — design-only (no runtime; omitting does **not** block tag)
+- [x] Module boundaries design doc — `module-boundaries.md` + contract tests
+- [x] OTEL GenAI mapper slice 1 evidence on `master` — `otel-genai-trace-map.js`, `otel-genai-trace-export-contract.md` (**no** OTLP)
 
 ### Out of scope
 
@@ -225,9 +226,9 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 
 ### Vulnerability gate (pre-tag)
 
-- [ ] `bash scripts/release-trivy-gate.sh` — **HIGH/CRITICAL** clean in published scope (`orchestrator/package-lock.json`, `mcp-servers/*/uv.lock`; see [security-posture.md](security-posture.md) § Release vulnerability scan)
-- [ ] GitHub Actions **`security-trivy-scan`** (`aquasecurity/trivy-action`) green on release PR; CERBERUS reviews job summary + `trivy-security-report` artifact
-- [ ] MCP locks regenerated after dependency bumps (`uv lock` in each MCP server dir)
+- [x] `bash scripts/release-trivy-gate.sh` — published scope clean (see [security-posture.md](security-posture.md))
+- [x] GitHub Actions **`security-trivy-scan`** — green on merge @ `183f05b`; lock drift check in CI
+- [x] MCP `uv.lock` committed and tracked
 
 ### Release artifact
 
