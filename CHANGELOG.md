@@ -4,6 +4,58 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.6.0-alpha.1] - 2026-06-07
+
+Sixth alpha pre-release: **governance & release readiness** — governed harness improvement **proposals** (design contract + fixtures), reproducible dependency pins with a **Trivy release gate**, modular monolith **design map**, and OTEL GenAI mapper slice 1 evidence (no OTLP export, no autonomous self-modify, no architecture refactor complete).
+
+**Release claim:** operators get a documented path to propose harness improvements from traces and reviews (human-approved, not auto-apply); published dependency scope is scannable before tag via local gate script and CI; bounded-context module map guides future refactors without claiming enforcement in CI.
+
+**Prerequisite:** `v0.5.0-alpha.1` — workflow skills hardening alpha.
+
+**Since [0.5.0-alpha.1]:** v0.5 centered on **workflow skill allowlist + opt-in hook**. v0.6 adds **governed improvement-loop design**, **Trivy release gate** (tracked MCP locks, `.trivy.yaml`, `security-trivy-scan` workflow), **module boundaries design map** with contract drift tests, and bundles existing **OTEL GenAI trace mapper** evidence. Skill router runtime and progressive-disclosure prompt filter remain out of scope.
+
+| Area | `v0.5.0-alpha.1` | `v0.6.0-alpha.1` (delta) |
+|------|------------------|---------------------------|
+| Focus | Workflow skill allowlist + opt-in hook | Governance proposals + release vulnerability gate + architecture design map |
+| Self-improvement | Not claimed | **Design contract** — `improvement_proposal` fixtures; dry-run human-approval gate; **no** auto-apply |
+| Dependency security | Locks present; no published Trivy gate | **Trivy gate** — `release-trivy-gate.sh`, CI `security-trivy-scan`, tracked `uv.lock` |
+| Architecture | Agent registry layout docs | **Module boundaries design map** — dependency matrix + file map; **no** `orchestrator/modules/*` refactor |
+| OTEL export | Mapper slice 1 on branch history | **Bundled as release evidence** — mapper + contract doc; **no** OTLP |
+| Unit tests (evidence) | 910/911 | 925/926 (+ module boundaries + improvement loop contract tests) |
+
+**Release:** *(pending tag — see `alpha-release-checklist.md` § v0.6)*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **925/926** pass (1 skipped); Python hook suite **36/36** via `npm run test:hooks`
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
+- Contracts: `self-improvement-loop-contract.md`, `module-boundaries.md`, `otel-genai-trace-export-contract.md`, `security-posture.md` § Release vulnerability scan
+- CI on `master` @ `6c05d6f`: docs verify, link check, markdown lint, `security-trivy-scan`, orchestrator unit tests, orchestrator e2e — green
+
+**Alpha limitations (not production):**
+
+- Improvement loop is **propose-only** — no autonomous self-modify, auto-merge, or production learning loop.
+- Module boundaries are **design-only** — no physical `orchestrator/modules/*` tree, no import guard in CI, no “architecture refactor complete” claim.
+- Trivy gate covers **published** dependency scope only — not a production-ready security gate or full supply-chain program.
+- **Not** skill router runtime, progressive-disclosure prompt filter, sandbox runtime, OTLP export, or module boundaries enforced in CI.
+
+### Added
+
+- Governed self-improvement loop: `docs/orchestrator/self-improvement-loop-contract.md`, `orchestrator/self-improvement-loop-design.js`, `improvement_proposal` fixtures, contract tests.
+- Modular monolith boundaries design map: `docs/orchestrator/module-boundaries.md` and `moduleBoundariesContract.test.js` wired into `npm test`.
+- Trivy release gate: tracked `mcp-servers/*/uv.lock`, root `.trivy.yaml`, `scripts/release-trivy-gate.sh`, GitHub Actions `security-trivy-scan` workflow; checklist + `security-posture.md` documentation.
+- Release checklist governance record: pre-merge CERBERUS gate wording for release-bundled, implementation, and release-signoff docs (design/doc slices included).
+
+### Security
+
+- Confirmed Trivy release gate coverage for published dependency scope (`orchestrator/package-lock.json`, `mcp-servers/*/uv.lock`).
+- Confirmed `security-trivy-scan` workflow green on bundled `master` through governance repair merge @ `6c05d6f`.
+
+### Notes
+
+- OTEL GenAI mapper slice 1 included as **release evidence** only (`otel-genai-trace-map.js`, export contract doc) — **no** OTLP collector/export shipped in this cut.
+- Post-merge governance exception recorded for one design slice merged without pre-merge CERBERUS; content accepted; process violation documented — not precedent.
+
 ## [0.5.0-alpha.1] - 2026-05-18
 
 Fifth alpha pre-release: **workflow skills hardening** — versioned local skill allowlist, registry validator, opt-in Claude Code hook enforcement, and hook tests wired into default `npm test` (no skill router runtime or progressive-disclosure prompt filter).
