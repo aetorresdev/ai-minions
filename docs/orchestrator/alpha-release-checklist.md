@@ -206,8 +206,8 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 - [x] Self-improvement loop design contract + `improvement_proposal` fixtures — merged on `master`
 - [x] Trivy release gate — `uv.lock`, `.trivy.yaml`, `security-trivy-scan`, `release-trivy-gate.sh` — merged on `master` @ `183f05b`
 - [x] Governance repair doc slice — merged on `master` @ `6c05d6f` (2026-06-07)
-- [x] Release hygiene: `CHANGELOG` + checklist sign-off (product language only) — pending merge
-- [ ] Tag `v0.6.0-alpha.1`, GitHub pre-release, `release` branch — **after** M3 CERBERUS Approve + merge
+- [x] Release hygiene: `CHANGELOG` + checklist sign-off (product language only) — CERBERUS **Approve** 2026-06-07
+- [ ] Tag `v0.6.0-alpha.1`, GitHub pre-release, `release` branch — operator after merge of release hygiene slice
 
 ### Bundled design / evidence (release narrative)
 
@@ -225,6 +225,7 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 - [x] Human approval before implementation — design contract; no auto-apply
 - [x] No unscoped runtime behavior change — module boundaries slice is doc + contract tests only
 - [x] No cosmetic reopen of closed grooming scope
+- [x] Release hygiene CHANGELOG claims — CERBERUS **Approve** 2026-06-07 (doc-only; release-prep commit follows)
 
 ### Governance exception (post-merge)
 
@@ -249,12 +250,12 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 | 2026-06-07 | Post-merge CERBERUS — module boundaries slice @ `e8b3ac8` | **Approve with blocking process note** (content OK; pre-merge gate skipped) |
 | 2026-06-07 | Pre-merge CERBERUS — governance repair doc slice | **Approve** — doc-only; merged @ `6c05d6f` |
 | 2026-06-07 | Workspace @ `6c05d6f` | `bash scripts/release-trivy-gate.sh` → **OK**; `npm test` → **925/926** pass (1 skipped) |
-| 2026-06-07 | M3 release hygiene PR | `CHANGELOG [0.6.0-alpha.1]` + checklist sign-off — pending CERBERUS + merge |
+| 2026-06-07 | Pre-merge CERBERUS — release hygiene doc slice | **Approve** — `CHANGELOG [0.6.0-alpha.1]` + checklist sign-off |
 
 ### Release artifact
 
 - [ ] **Version tag:** `v0.6.0-alpha.1`
-- [x] **Changelog:** section **[0.6.0-alpha.1] - 2026-06-07** (pending merge; release URL after tag)
+- [x] **Changelog:** section **[0.6.0-alpha.1] - 2026-06-07** (release URL in release-prep commit)
 - [ ] **GitHub pre-release** (manual — after tag)
 - [ ] **`release` branch** aligned to tag
 
