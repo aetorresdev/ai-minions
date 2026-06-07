@@ -9,6 +9,7 @@ on:
       - "mcp-servers/**"
       - "orchestrator/package.json"
       - "orchestrator/package-lock.json"
+      - "scripts/release-trivy-gate.sh"
       - ".trivy.yaml"
       - ".gitignore"
       - ".github/workflows/security-trivy-scan.yml"
@@ -18,6 +19,7 @@ on:
       - "mcp-servers/**"
       - "orchestrator/package.json"
       - "orchestrator/package-lock.json"
+      - "scripts/release-trivy-gate.sh"
       - ".trivy.yaml"
       - ".gitignore"
       - ".github/workflows/security-trivy-scan.yml"
@@ -42,6 +44,12 @@ jobs:
           for dir in mcp-servers/compact-handoff mcp-servers/orchestrator-state; do
             (cd "$dir" && uv lock)
           done
+
+      - name: Verify MCP lockfiles are committed
+        run: |
+          git diff --exit-code -- \
+            mcp-servers/compact-handoff/uv.lock \
+            mcp-servers/orchestrator-state/uv.lock
 
       - name: Prepare report directory
         run: mkdir -p trivy-reports
