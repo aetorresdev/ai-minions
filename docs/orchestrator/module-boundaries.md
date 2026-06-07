@@ -117,7 +117,7 @@ Every new top-level file should declare target module in PR description until `c
 | Design validators colocated at repo root (`*-design.js`) | Contracts not in `contracts/` folder | Accept until physical move; enforce via review |
 | `otel-genai-trace-map.js` in trace module | Derived export only — OK if no policy | Keep mapper free of gate decisions |
 
-**None of the above block alpha** — they guide refactor ordering for `ARCH-MODULE-REFACTOR-1` (deferred).
+**None of the above block alpha** — they guide refactor ordering for the deferred physical `orchestrator/modules/*` migration (post-v0.6).
 
 ---
 

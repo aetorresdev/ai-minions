@@ -204,7 +204,7 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 ### Must-have bundle
 
 - [x] Self-improvement loop design contract + `improvement_proposal` fixtures — merged on `master`
-- [x] Trivy release gate — `uv.lock`, `.trivy.yaml`, `security-trivy-scan`, `release-trivy-gate.sh` — merged PR **#145**
+- [x] Trivy release gate — `uv.lock`, `.trivy.yaml`, `security-trivy-scan`, `release-trivy-gate.sh` — merged on `master` @ `183f05b`
 - [ ] Release hygiene: `CHANGELOG`, checklist sign-off, tag, pre-release, `release` branch (product language only)
 
 ### Bundled design / evidence (release narrative)
@@ -226,16 +226,16 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 
 ### Governance exception (post-merge)
 
-**Process violation recorded:** PR **#146** (`e8b3ac8` → merge `ef8f347`) landed on `master` **without** pre-merge CERBERUS approval (assistant-controlled merge). **Post-merge CERBERUS verdict (2026-06-07):** **Approve with blocking process note** — content acceptable; merge conduct is a governance failure.
+**Process violation recorded:** module boundaries design slice (`e8b3ac8` → merge `ef8f347`) landed on `master` **without** pre-merge CERBERUS approval (assistant-controlled merge). **Post-merge CERBERUS verdict (2026-06-07):** **Approve with blocking process note** — content acceptable; merge conduct is a governance failure.
 
-**Operator action:** do **not** treat this as precedent. Pre-merge CERBERUS remains mandatory for implementation slices. Follow-up: `MERGE-GOVERNANCE-1` (branch protection + required checks; no assistant merge without human verdict).
+**Operator action:** do **not** treat this as precedent. Pre-merge CERBERUS remains mandatory for implementation slices. Follow-up: branch protection + required status checks; no assistant merge without human verdict (tracked in local backlog only).
 
 **Forbidden release claims (v0.6):** “architecture refactor complete” · “modular monolith implemented” · “clean architecture enforced” · “module boundaries enforced in CI” · “production-ready security gate”.
 
 ### Vulnerability gate (pre-tag)
 
 - [x] `bash scripts/release-trivy-gate.sh` — published scope clean (see [security-posture.md](security-posture.md))
-- [x] GitHub Actions **`security-trivy-scan`** — green on Trivy gate merge @ `183f05b` (PR **#145**); green on latest bundled `master` @ `e8b3ac8` (PR **#146**); lock drift check in CI
+- [x] GitHub Actions **`security-trivy-scan`** — green on Trivy gate merge @ `183f05b`; green on latest bundled `master` @ `e8b3ac8`; lock drift check in CI
 - [x] MCP `uv.lock` committed and tracked
 
 #### v0.6 validation log
@@ -243,7 +243,7 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 | Date | Context | Outcome |
 |------|---------|---------|
 | 2026-06-07 | `master` @ `e8b3ac8` — GitHub Actions | Docs verify · Link check · Markdown lint · `security-trivy-scan` · `orchestrator-unit-tests` · `orchestrator-e2e` — **green** |
-| 2026-06-07 | Post-merge CERBERUS — PR **#146** | **Approve with blocking process note** (content OK; pre-merge gate skipped) |
+| 2026-06-07 | Post-merge CERBERUS — module boundaries slice @ `e8b3ac8` | **Approve with blocking process note** (content OK; pre-merge gate skipped) |
 
 ### Release artifact
 
