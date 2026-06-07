@@ -94,6 +94,24 @@ describe("self-improvement-loop-contract", () => {
     assert.ok(v.errors.some((e) => /cerberus_review_required/i.test(e)));
   });
 
+  it("unbounded_tool_add requires cerberus_review_required", () => {
+    const v = validateImprovementProposalTraceLine(minimalValidProposal({
+      unsafe_flags: ["unbounded_tool_add"],
+      cerberus_review_required: false,
+    }));
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some((e) => /cerberus_review_required/i.test(e)));
+  });
+
+  it("rejects approved approval_status on improvement_proposal emit", () => {
+    const v = validateImprovementProposalTraceLine(minimalValidProposal({
+      approval_status: "approved",
+    }));
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some((e) => /approval_status must be "pending"/i.test(e)));
+    assert.ok(v.errors.some((e) => /improvement_proposal_decision/i.test(e)));
+  });
+
   it("rejects forbidden apply keys (no silent application path)", () => {
     const v = validateImprovementProposalTraceLine(minimalValidProposal({ auto_apply: true }));
     assert.equal(v.ok, false);

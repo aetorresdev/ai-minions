@@ -83,10 +83,10 @@ Classification is **documented heuristics** — not ML. `source_pattern` is a st
 | `validation_plan` | string | Required — e.g. `cd orchestrator && npm test` |
 | `rollback_plan` | string | Required — revert steps |
 | `human_approval_required` | boolean | **Must be `true`** in v1 |
-| `approval_status` | `pending` \| `approved` \| `rejected` | `pending` on emit; final state via decision event |
+| `approval_status` | `"pending"` only | **Required** on emit; `approved` / `rejected` only via `improvement_proposal_decision` |
 | `proposed_by_role` | enum | `planner` \| `architect` \| `qa` \| `owner` \| `dev` — **not** `cerberus` |
 | `unsafe_flags` | string[] | Optional: `permission_loosening`, `unbounded_tool_add`, `security_policy_change`, `bypass_gate` |
-| `cerberus_review_required` | boolean | **Required `true`** when unsafe flags include permission/security/bypass |
+| `cerberus_review_required` | boolean | **Required `true`** when unsafe flags include `permission_loosening`, `unbounded_tool_add`, `security_policy_change`, or `bypass_gate` |
 
 ### Forbidden fields (enforced by validator)
 

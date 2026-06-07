@@ -196,8 +196,8 @@ function validateImprovementProposalTraceLine(row) {
     errors.push('human_approval_required must be true');
   }
 
-  if (!APPROVAL_STATUSES.includes(row.approval_status)) {
-    errors.push(`approval_status must be one of: ${APPROVAL_STATUSES.join(', ')}`);
+  if (row.approval_status !== 'pending') {
+    errors.push('approval_status must be "pending" on improvement_proposal emit — use improvement_proposal_decision for approved/rejected');
   }
 
   if (!PROPOSED_BY_ROLES.includes(row.proposed_by_role)) {
@@ -220,9 +220,15 @@ function validateImprovementProposalTraceLine(row) {
   }
 
   const unsafe = Array.isArray(row.unsafe_flags) ? row.unsafe_flags : [];
-  const needsCerberus = unsafe.some((f) => ['permission_loosening', 'security_policy_change', 'bypass_gate'].includes(f));
+  const CERBERUS_REQUIRED_FLAGS = Object.freeze([
+    'permission_loosening',
+    'unbounded_tool_add',
+    'security_policy_change',
+    'bypass_gate',
+  ]);
+  const needsCerberus = unsafe.some((f) => CERBERUS_REQUIRED_FLAGS.includes(f));
   if (needsCerberus && row.cerberus_review_required !== true) {
-    errors.push('cerberus_review_required must be true when unsafe_flags include permission_loosening, security_policy_change, or bypass_gate');
+    errors.push('cerberus_review_required must be true when unsafe_flags include permission_loosening, unbounded_tool_add, security_policy_change, or bypass_gate');
   }
 
   if (row.cerberus_review_required != null && typeof row.cerberus_review_required !== 'boolean') {
