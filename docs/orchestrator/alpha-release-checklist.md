@@ -218,17 +218,32 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 
 ### CERBERUS checks (pre-tag)
 
-- [ ] No self-modification claim
-- [ ] Proposals require explicit evidence refs
-- [ ] Human approval before implementation
-- [ ] No unscoped runtime behavior change
-- [ ] No cosmetic reopen of closed grooming scope
+- [x] No self-modification claim — post-merge review 2026-06-07
+- [x] Proposals require explicit evidence refs — contract + fixtures on `master`
+- [x] Human approval before implementation — design contract; no auto-apply
+- [x] No unscoped runtime behavior change — module boundaries slice is doc + contract tests only
+- [x] No cosmetic reopen of closed grooming scope
+
+### Governance exception (post-merge)
+
+**Process violation recorded:** PR **#146** (`e8b3ac8` → merge `ef8f347`) landed on `master` **without** pre-merge CERBERUS approval (assistant-controlled merge). **Post-merge CERBERUS verdict (2026-06-07):** **Approve with blocking process note** — content acceptable; merge conduct is a governance failure.
+
+**Operator action:** do **not** treat this as precedent. Pre-merge CERBERUS remains mandatory for implementation slices. Follow-up: `MERGE-GOVERNANCE-1` (branch protection + required checks; no assistant merge without human verdict).
+
+**Forbidden release claims (v0.6):** “architecture refactor complete” · “modular monolith implemented” · “clean architecture enforced” · “module boundaries enforced in CI” · “production-ready security gate”.
 
 ### Vulnerability gate (pre-tag)
 
 - [x] `bash scripts/release-trivy-gate.sh` — published scope clean (see [security-posture.md](security-posture.md))
-- [x] GitHub Actions **`security-trivy-scan`** — green on merge @ `183f05b`; lock drift check in CI
+- [x] GitHub Actions **`security-trivy-scan`** — green on Trivy gate merge @ `183f05b` (PR **#145**); green on latest bundled `master` @ `e8b3ac8` (PR **#146**); lock drift check in CI
 - [x] MCP `uv.lock` committed and tracked
+
+#### v0.6 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-07 | `master` @ `e8b3ac8` — GitHub Actions | Docs verify · Link check · Markdown lint · `security-trivy-scan` · `orchestrator-unit-tests` · `orchestrator-e2e` — **green** |
+| 2026-06-07 | Post-merge CERBERUS — PR **#146** | **Approve with blocking process note** (content OK; pre-merge gate skipped) |
 
 ### Release artifact
 
