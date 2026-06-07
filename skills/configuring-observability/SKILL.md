@@ -16,7 +16,7 @@ Guided creation and validation of OpenTelemetry collector configurations and Gra
 | `yamllint` | YAML syntax validation | `pip install yamllint` |
 | `jq` | JSON manipulation for dashboards | Pre-installed on most systems |
 | `otelcol-contrib` | Collector config validation (optional) | [GitHub releases](https://github.com/open-telemetry/opentelemetry-collector-releases/releases) |
-| `promtool` | PromQL validation (optional) | [Prometheus releases](https://prometheus.io/download/) |
+| `promtool` | PromQL validation (optional) | [Prometheus releases](https://github.com/prometheus/prometheus/releases) |
 
 ### Cursor Command Allowlist
 
