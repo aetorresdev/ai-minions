@@ -54,10 +54,9 @@ metrics/
 .claude/run-artifacts/
 plugins/
 tasks/
-# MCP server virtualenvs and lock files
+# MCP server virtualenvs (lock files are committed for reproducible uv sync + release scan)
 mcp-servers/**/.venv/
 mcp-servers/**/node_modules/
-mcp-servers/**/uv.lock
 
 # Settings (contains local paths and hooks — copy from settings.example.json)
 settings.json

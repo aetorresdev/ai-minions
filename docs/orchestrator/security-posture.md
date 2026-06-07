@@ -279,6 +279,50 @@ Planned or post-alpha unless code says otherwise:
 
 ---
 
+## Release vulnerability scan (operator gate)
+
+Before cutting an alpha/pre-release tag, run the **published dependency scope**
+scan. Scope is defined in root **`.trivy.yaml`**.
+
+**CI:** GitHub Actions workflow **`security-trivy-scan`** uses
+[`aquasecurity/trivy-action`](https://github.com/aquasecurity/trivy-action) —
+job summary + `trivy-security-report` artifact (txt/json/sarif) for CERBERUS.
+
+**Local (operator):**
+
+```bash
+bash scripts/release-trivy-gate.sh
+```
+
+Equivalent:
+
+```bash
+trivy fs --config .trivy.yaml --scanners vuln,secret --ignore-unfixed --exit-code 1 .
+```
+
+**In scope (must be clean):**
+
+| Path | Role |
+|------|------|
+| `orchestrator/package-lock.json` | Node orchestrator runtime |
+| `mcp-servers/*/uv.lock` | MCP Python transitive pins (`uv sync` reproducibility) |
+| `scripts/hooks/` | Python hook sources (secret scanner) |
+
+**Out of scope — reference-only / local cache (excluded via `--skip-dirs`):**
+
+| Path | Rationale |
+|------|-----------|
+| `plugins/` | Claude Code **local marketplace cache** — gitignored, not shipped in `git clone`. Third-party `bun.lock` trees under `external_plugins/` are operator-installed samples; ai-minions does not publish or support those runtimes as release artifacts. Operators who enable channel plugins must patch upstream locks or accept vendor risk separately. |
+| `projects/`, `metrics/`, session trees | Host runtime data — not repository content |
+
+**Remediation when gate fails:**
+
+1. MCP locks: `cd mcp-servers/<server> && uv lock --upgrade-package <pkg>` then re-run the gate.
+2. Orchestrator npm: `cd orchestrator && npm audit fix` (or explicit dependency bump) when `package-lock.json` reports HIGH/CRITICAL **fixed** issues.
+3. Do **not** silence HIGH/CRITICAL in published scope without OWNER rationale recorded in release notes.
+
+---
+
 ## Revision
 
 Update when shipped controls or major gaps change. Prefer **small factual diffs**
