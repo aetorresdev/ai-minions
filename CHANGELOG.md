@@ -23,7 +23,7 @@ Sixth alpha pre-release: **governance & release readiness** — governed harness
 | OTEL export | Mapper slice 1 on branch history | **Bundled as release evidence** — mapper + contract doc; **no** OTLP |
 | Unit tests (evidence) | 910/911 | 925/926 (+ module boundaries + improvement loop contract tests) |
 
-**Release:** *(pending tag — see `alpha-release-checklist.md` § v0.6)*
+**Release:** https://github.com/aetorresdev/ai-minions/releases/tag/v0.6.0-alpha.1 — *URL reserved on release-prep commit; operator: create git tag and publish GitHub pre-release per `alpha-release-checklist.md` § v0.6 release execution plan*
 
 **Evidence (operator):**
 
