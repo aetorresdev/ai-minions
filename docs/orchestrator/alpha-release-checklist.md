@@ -207,7 +207,7 @@ Behavior matches **`orchestrator/agents/runtime/run-claude.js`** and **`orchestr
 - [x] Trivy release gate — `uv.lock`, `.trivy.yaml`, `security-trivy-scan`, `release-trivy-gate.sh` — merged on `master` @ `183f05b`
 - [x] Governance repair doc slice — merged on `master` @ `6c05d6f` (2026-06-07)
 - [x] Release hygiene: `CHANGELOG` + checklist sign-off (product language only) — CERBERUS **Approve** 2026-06-07
-- [ ] Tag `v0.6.0-alpha.1`, GitHub pre-release, `release` branch — operator after merge of release hygiene slice
+- [x] Release execution plan locked — see § *Release execution plan* below (release-prep commit; operator tag/pre-release/branch follow-on)
 
 ### Bundled design / evidence (release narrative)
 
@@ -225,7 +225,7 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 - [x] Human approval before implementation — design contract; no auto-apply
 - [x] No unscoped runtime behavior change — module boundaries slice is doc + contract tests only
 - [x] No cosmetic reopen of closed grooming scope
-- [x] Release hygiene CHANGELOG claims — CERBERUS **Approve** 2026-06-07 (doc-only; release-prep commit follows)
+- [x] Release hygiene CHANGELOG claims — CERBERUS **Approve** 2026-06-07 (doc-only; execution plan locked in release-prep commit)
 
 ### Governance exception (post-merge)
 
@@ -251,13 +251,20 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 | 2026-06-07 | Pre-merge CERBERUS — governance repair doc slice | **Approve** — doc-only; merged @ `6c05d6f` |
 | 2026-06-07 | Workspace @ `6c05d6f` | `bash scripts/release-trivy-gate.sh` → **OK**; `npm test` → **925/926** pass (1 skipped) |
 | 2026-06-07 | Pre-merge CERBERUS — release hygiene doc slice | **Approve** — `CHANGELOG [0.6.0-alpha.1]` + checklist sign-off |
+| 2026-06-07 | Release execution plan locked | Tag target + URL reserved; operator tag/pre-release/branch follow-on |
 
-### Release artifact
+### Release execution plan (locked on release-prep commit)
 
-- [ ] **Version tag:** `v0.6.0-alpha.1`
-- [x] **Changelog:** section **[0.6.0-alpha.1] - 2026-06-07** (release URL in release-prep commit)
-- [ ] **GitHub pre-release** (manual — after tag)
-- [ ] **`release` branch** aligned to tag
+**Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist in the external release system.
+
+- [x] **Tag target:** `v0.6.0-alpha.1` on release-prep commit — operator: `git tag -a v0.6.0-alpha.1` on this tree after merge
+- [x] **Release URL reserved:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.6.0-alpha.1` — operator: publish GitHub pre-release **after** tag exists
+- [x] **`release` branch target:** align to tag commit — operator: `git branch -f release v0.6.0-alpha.1 && git push -f origin release` **after** tag exists
+
+### Release artifact (source snapshot)
+
+- [x] **Changelog:** section **[0.6.0-alpha.1] - 2026-06-07**; release URL reserved (publish confirms externally)
+- [x] **Execution plan locked** — tag / pre-release / `release` branch: operator follow-on per § *Release execution plan*
 
 ## Future alpha / beta gates (positioning)
 
