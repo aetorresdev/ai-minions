@@ -258,7 +258,7 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist in the external release system.
 
 - [x] **Tag target:** `v0.6.0-alpha.1` on release-prep commit — operator: `git tag -a v0.6.0-alpha.1` on this tree after merge
-- [x] **Release URL reserved:** https://github.com/aetorresdev/ai-minions/releases/tag/v0.6.0-alpha.1 — operator: publish GitHub pre-release **after** tag exists
+- [x] **Release URL reserved:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.6.0-alpha.1` — operator: publish GitHub pre-release **after** tag exists
 - [x] **`release` branch target:** align to tag commit — operator: `git branch -f release v0.6.0-alpha.1 && git push -f origin release` **after** tag exists
 
 ### Release artifact (source snapshot)
