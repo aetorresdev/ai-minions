@@ -1,0 +1,21 @@
+merge_governance:
+  mode: agent_as_contributor
+  default_branch: main
+  protected_branches:
+    - main
+    - master
+    - dev
+  production_branches:
+    - main
+  release_branches:
+    - "release/*"
+  tag_sources:
+    - main
+    - "release/*"
+  agent_permissions:
+    allow_direct_merge: false
+    allow_direct_push_protected: false
+    allow_production_tag_create: false
+    allow_release_publish: false
+    allow_bypass_checks: false
+    allow_bypass_reviews: false

@@ -84,7 +84,7 @@ hosted control plane, or “safe for anonymous internet users.”
 | **Permission evaluator** (classify + deny before execute on gated paths) | **Implemented** | `evaluate-permission.js`, MCP/shell/network/classified gates; tests under `orchestrator/tests/` |
 | **Trace redaction** (secret-shaped fields) | **Implemented** | [trace-privacy-contract.md](trace-privacy-contract.md) |
 | **Role / capability matrix precheck** | **Implemented** | `capability-matrix.v1.json`, trace role capability tests |
-| **Production Boundary Guard** (`agent_as_contributor`) | **Partial** | [production-boundary-guard.md](production-boundary-guard.md) — model + trace contract; PR enforcement pending |
+| **Production Boundary Guard** (`agent_as_contributor`) | **Partial** | [production-boundary-guard.md](production-boundary-guard.md) + [merge-governance-contract.md](merge-governance-contract.md) — model + dry-run gate; runner auto-wire pending |
 | **Human approval / governance gates** | **Partial** | Policy gates + trace; grant/deny UI paths still evolving |
 | **Skill registry allowlist** | **Partial** | [skill-registry-contract.md](skill-registry-contract.md); hook opt-in; router runtime pending |
 | **Progressive disclosure** (hide tool/skill surface in context) | **Partial** | [progressive-disclosure-contract.md](progressive-disclosure-contract.md); skill-side runtime filter pending |

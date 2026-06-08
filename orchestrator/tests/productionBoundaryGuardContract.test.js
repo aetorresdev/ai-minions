@@ -50,9 +50,10 @@ describe("production-boundary-guard contract", () => {
     assert.match(doc, /doc-runtime-drift-check\.md/);
   });
 
-  it("states design-only trace emission until PR-boundary governance ships", () => {
+  it("states runner auto-wire is not complete for production_boundary_check", () => {
     const doc = fs.readFileSync(CONTRACT_PATH, "utf8");
-    assert.match(doc, /not emitted/i);
+    assert.match(doc, /not.*wired/i);
+    assert.match(doc, /merge-governance-contract\.md/);
     assert.match(doc, /What this document is not/i);
   });
 });
