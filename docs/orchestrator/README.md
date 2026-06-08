@@ -37,7 +37,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [review-record-contract.md](review-record-contract.md) | Durable QA/CERBERUS `review_record` trace events + export consumption |
 | [bv-reviewer-contract.md](bv-reviewer-contract.md) | Business value / outcome gate — `value_review` trace shape (design-first; no runtime gate) |
 | [self-improvement-loop-contract.md](self-improvement-loop-contract.md) | Governed harness improvement loop — `improvement_proposal` + human approval gate (design-first; no auto-apply) |
-| [module-boundaries.md](module-boundaries.md) | Modular monolith bounded contexts — module map + dependency rules (design-only; no `modules/*` refactor) |
+| [module-boundaries.md](module-boundaries.md) | Modular monolith bounded contexts — module map, `modules/gates/` slice, CI `lint:module-boundaries` |
 | [progressive-disclosure-contract.md](progressive-disclosure-contract.md) | Tools/skills/context progressive disclosure — gap assessment + `context_disclosure` trace (design-first) |
 | [handoff-contract.md](handoff-contract.md) | Delegated ownership handoff envelope — bounded invocation vs ownership transfer (design-only) |
 | [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) | Sandbox + credential isolation trust boundaries (design-only) |

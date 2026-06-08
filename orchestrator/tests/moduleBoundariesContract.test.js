@@ -24,7 +24,7 @@ const CANONICAL_MODULES = [
 describe("module-boundaries-contract", () => {
   it("documents partial migration status and canonical modules", () => {
     const doc = fs.readFileSync(CONTRACT_PATH, "utf8");
-    assert.match(doc, /partial physical migration/i);
+    assert.match(doc, /partial physical migration|CI import guard/i);
     assert.match(doc, /modules\/gates/i);
     assert.match(doc, /Not claimed/i);
     assert.match(doc, /modular monolith refactor complete/i);
@@ -37,7 +37,8 @@ describe("module-boundaries-contract", () => {
     const doc = fs.readFileSync(CONTRACT_PATH, "utf8");
     assert.match(doc, /Allowed \/ forbidden dependencies/i);
     assert.match(doc, /Known import/i);
-    assert.match(doc, /check-module-boundaries/i);
+    assert.match(doc, /check-module-boundaries|lint:module-boundaries/i);
+    assert.match(doc, /module-boundary-allowlist/i);
   });
 
   it("maps principal orchestrator files to modules", () => {
