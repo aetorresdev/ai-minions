@@ -2,7 +2,7 @@
 "use strict";
 
 /**
- * Static import boundary guard — ARCH-MODULE-REFACTOR-1 slice 2 (A2.2).
+ * Static import boundary guard for the modular monolith boundary map.
  * Enforces docs/orchestrator/module-boundaries.md adjacency matrix + hard rules.
  */
 
