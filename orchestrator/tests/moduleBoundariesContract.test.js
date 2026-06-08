@@ -22,10 +22,12 @@ const CANONICAL_MODULES = [
 ];
 
 describe("module-boundaries-contract", () => {
-  it("documents design-only status and canonical modules", () => {
+  it("documents partial migration status and canonical modules", () => {
     const doc = fs.readFileSync(CONTRACT_PATH, "utf8");
-    assert.match(doc, /Design-only/i);
+    assert.match(doc, /partial physical migration/i);
+    assert.match(doc, /modules\/gates/i);
     assert.match(doc, /Not claimed/i);
+    assert.match(doc, /modular monolith refactor complete/i);
     for (const mod of CANONICAL_MODULES) {
       assert.match(doc, new RegExp(`\\*\\*${mod}\\*\\*`));
     }
@@ -42,6 +44,7 @@ describe("module-boundaries-contract", () => {
     const doc = fs.readFileSync(CONTRACT_PATH, "utf8");
     assert.match(doc, /orchestrator\.js/);
     assert.match(doc, /approval-policy-gate\.js/);
+    assert.match(doc, /modules\/gates/);
     assert.match(doc, /otel-genai-trace-map\.js/);
     assert.match(doc, /worktree-\*\.js/);
   });

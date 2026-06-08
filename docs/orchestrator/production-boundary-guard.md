@@ -175,7 +175,7 @@ Layers are **complementary**. Removing GitHub protection while keeping a limited
 
 ## Trace event: `production_boundary_check`
 
-**Status:** Schema + builder shipped (`orchestrator/merge-governance/`). Automatic emission on every PR/git action is **not** wired in the runner yet.
+**Status:** Schema + builder shipped (`orchestrator/modules/gates/merge-governance/`). Automatic emission on every PR/git action is **not** wired in the runner yet.
 
 **Purpose:** Replayable record that the harness evaluated (or attempted to evaluate) production-boundary posture for a governed PR or release-sensitive action — without conflating **ready for human review** with **agent may merge**.
 

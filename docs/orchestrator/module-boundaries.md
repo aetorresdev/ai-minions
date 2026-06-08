@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/module-boundaries.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design-only** — bounded-context map, dependency rules, and current-state inventory. **No** physical `orchestrator/modules/*` tree, **no** import guard in CI, **no** runtime behavior change.
+**Status:** **Design map + partial physical migration (A2.1 slice 1).** `orchestrator/modules/gates/` ships with compat shims at legacy paths. **No** CI import guard yet (A2.2). **No** runtime behavior change.
 
 **Related:** [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
@@ -92,7 +92,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 |--------|-------------------------|
 | **run-control** | `orchestrator.js`, `run-loop-helpers.js`, `run-phases/*`, `run-state.js`, `qa-spec-flow.js`, `cli.js` (invoke path) |
 | **contracts** | `validate-output.js` (via agents), `*-design.js`, `self-improvement-loop-design.js`, `bv-reviewer-design.js`, `progressive-disclosure-design.js`, `tests/*Contract.test.js`, `tests/handoffContract.test.js`, `tests/sandboxCredentialIsolationDesign.test.js`, `tests/moduleBoundariesContract.test.js` |
-| **gates** | `governance-gate.js`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
+| **gates** | `modules/gates/governance-gate.js`, `modules/gates/merge-governance/` (A2.1) · shims: `governance-gate.js`, `merge-governance/` · `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
 | **permissions** | `agents/permissions.js`, `agents/capability-matrix.js`, `credential-broker.js`, `environment-parser.js` |
 | **tools** | `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js`, `mcp-client.js` |
 | **model-runtime** | `agents/runtime/*`, `agents/routing/model-routing.js`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
@@ -141,7 +141,7 @@ Every new top-level file should declare target module in PR description until `c
 2. **Physical tree** `orchestrator/modules/<context>/` — only after bounded imports proven per slice.
 3. **CI gate** — fail on new cross-boundary imports without allowlist entry.
 
-Do **not** create empty `modules/*` directories in design-only slices.
+**A2.1 shipped:** `modules/gates/` only — bounded first slice. Do **not** mass-move other contexts in the same PR.
 
 ---
 
@@ -159,5 +159,6 @@ Do **not** create empty `modules/*` directories in design-only slices.
 | Date | Change |
 |------|--------|
 | 2026-06-07 | Initial design map shipped on `master` @ `e8b3ac8`; ticket-free deferred refactor wording; cross-links to handoff/sandbox design contracts |
+| 2026-06-08 | A2.1 slice 1 — `modules/gates/` physical migration (`governance-gate`, `merge-governance`); root shims; import guards deferred to A2.2 |
 
 Update when module map or known violations change. Physical refactor briefs reference this doc (backlog only — not in CHANGELOG product text).

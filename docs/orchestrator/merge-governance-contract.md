@@ -16,7 +16,7 @@ ai-minions is a **PR producer + evidence reporter + approval requester**, not a 
 |-------|-------|
 | Branch protection / rulesets | GitHub (or host) |
 | Limited PAT | GitHub auth |
-| **PR-boundary gate** | `orchestrator/merge-governance/` |
+| **PR-boundary gate** | `orchestrator/modules/gates/merge-governance/` (shim: `orchestrator/merge-governance/`) |
 | CERBERUS | Review lane |
 | Human | Merge · tag · release |
 
@@ -32,7 +32,7 @@ ai-minions is a **PR producer + evidence reporter + approval requester**, not a 
 | PR-boundary gate | `pr-boundary-governance-gate.js` | `evaluatePrBoundaryGovernance` — decision + trace payload |
 | Trace builder | `build-production-boundary-check.js` | `production_boundary_check` row body |
 
-Public API: `require("./merge-governance")` from `orchestrator/merge-governance/index.js`.
+Public API: `require("./modules/gates/merge-governance")` (preferred) or compat shim `require("./merge-governance")`.
 
 ---
 
