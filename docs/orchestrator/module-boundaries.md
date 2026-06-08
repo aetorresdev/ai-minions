@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/module-boundaries.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design map + partial physical migration (A2.1 slice 1).** `orchestrator/modules/gates/` ships with compat shims at legacy paths. **No** CI import guard yet (A2.2). **No** runtime behavior change.
+**Status:** **Design map + partial physical migration (A2.1) + CI import guard (A2.2).** `orchestrator/modules/gates/` ships with compat shims at legacy paths. **`lint:module-boundaries`** enforces adjacency matrix under `modules/**` and hard rules globally; legacy violations are grandfathered in `module-boundary-allowlist.json`. **No** runtime behavior change. **Modular refactor not complete.**
 
 **Related:** [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
@@ -103,7 +103,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | **disclosure** | `progressive-disclosure-design.js`, `security/skill-registry.js` (metadata only); runtime filter **planned** |
 | **shared/legacy** | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` (facade) |
 
-Every new top-level file should declare target module in PR description until `check-module-boundaries` exists.
+Every new top-level file should declare target module in PR description. New cross-boundary imports fail CI unless added to the allowlist with explicit review justification.
 
 ---
 
@@ -135,11 +135,15 @@ Every new top-level file should declare target module in PR description until `c
 
 ---
 
-## Future enforcement (planned — not implemented)
+## Enforcement (A2.2 — implemented)
 
-1. **`check-module-boundaries`** script — ESLint `import/no-restricted-paths` or custom adjacency matrix from this doc.
-2. **Physical tree** `orchestrator/modules/<context>/` — only after bounded imports proven per slice.
-3. **CI gate** — fail on new cross-boundary imports without allowlist entry.
+| Mechanism | Path | Behavior |
+|-----------|------|----------|
+| **`lint:module-boundaries`** | `orchestrator/scripts/check-module-boundaries.js` | Adjacency matrix from this doc; hard rules: trace ↛ policy, gates ↛ shell, model-runtime ↛ approval |
+| **Allowlist** | `orchestrator/module-boundary-allowlist.json` | Grandfathered legacy violations only — new keys require review |
+| **CI** | `npm test` / `orchestrator-unit-tests.yml` | Fails on unlisted violations |
+
+**Still planned:** ESLint `import/no-restricted-paths` zones (optional); further physical tree `orchestrator/modules/<context>/` slices.
 
 **A2.1 shipped:** `modules/gates/` only — bounded first slice. Do **not** mass-move other contexts in the same PR.
 
@@ -160,5 +164,6 @@ Every new top-level file should declare target module in PR description until `c
 |------|--------|
 | 2026-06-07 | Initial design map shipped on `master` @ `e8b3ac8`; ticket-free deferred refactor wording; cross-links to handoff/sandbox design contracts |
 | 2026-06-08 | A2.1 slice 1 — `modules/gates/` physical migration (`governance-gate`, `merge-governance`); root shims; import guards deferred to A2.2 |
+| 2026-06-08 | A2.2 slice 2 — `check-module-boundaries` + allowlist + `moduleBoundaryGuard.test.js`; wired into `npm test` |
 
 Update when module map or known violations change. Physical refactor briefs reference this doc (backlog only — not in CHANGELOG product text).
