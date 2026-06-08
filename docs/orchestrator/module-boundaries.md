@@ -126,7 +126,7 @@ Every new top-level file should declare target module in PR description until `c
 | Module | Emits (examples) | Consumes |
 |--------|------------------|----------|
 | run-control | `session_*`, `iteration_done`, step graph | gate outcomes |
-| gates | `review_record`, `doubt_review_*`, `approval_*` | contract validation |
+| gates | `review_record`, `doubt_review_*`, `approval_*`, `production_boundary_check` (planned) | contract validation |
 | permissions | `permission_check` | capability matrix |
 | tools | `skill_registry_check`, tool eval fixtures | registry JSON |
 | trace | writer lifecycle, redaction | all modules (append API) |

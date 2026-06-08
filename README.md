@@ -220,6 +220,10 @@ The four competency names come from Anthropic's **AI Fluency** framework (© 202
 filesystem access are **privileged**. Do **not** expose the stack to the public
 internet without your own auth, network controls, and secret handling.
 
+- **Production Boundary Guard:** default mode **`agent_as_contributor`** — agents prepare
+  branches/PRs/evidence; merge/tag/release stay human-controlled unless explicitly
+  exceptional policy. Model and trace contract:
+  [`production-boundary-guard.md`](docs/orchestrator/production-boundary-guard.md).
 - **Shipped controls (see code + contracts):** capability matrix pre-check, MCP /
   shell / network / classified-invocation gates, trace schema, secret-shaped
   redaction — [`runtime-permission-contract.md`](docs/orchestrator/runtime-permission-contract.md),
