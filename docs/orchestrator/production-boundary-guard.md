@@ -150,7 +150,7 @@ When branch protection, rulesets, or actor/token capabilities **cannot be inspec
 | Field / outcome | Value |
 |-----------------|-------|
 | `permission_visibility` | `limited` or `unknown` |
-| `decision` | `requires_manual_policy_input` or `require_human` |
+| `decision` | `requires_manual_policy_input` or `blocked` |
 | Merge-safety narrative | **Must not** be claimed |
 
 ai-minions may still **create or update the PR** and attach validation evidence. Final merge, tag, and release remain **human-controlled**.
