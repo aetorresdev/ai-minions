@@ -274,6 +274,68 @@
     },
     {
       "if": {
+        "properties": { "event": { "const": "production_boundary_check" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "check_schema_version",
+          "mode",
+          "protected_status",
+          "permission_visibility",
+          "decision",
+          "evidence_refs",
+          "gate_id"
+        ],
+        "properties": {
+          "check_schema_version": { "type": "string", "enum": ["1"] },
+          "mode": { "type": "string", "enum": ["agent_as_contributor"] },
+          "repository": { "type": ["string", "null"], "maxLength": 200 },
+          "pr_number": { "type": ["integer", "null"], "minimum": 0 },
+          "source_branch": { "type": ["string", "null"], "maxLength": 200 },
+          "target_branch": { "type": ["string", "null"], "maxLength": 200 },
+          "default_branch": { "type": ["string", "null"], "maxLength": 200 },
+          "protected_status": {
+            "type": "string",
+            "enum": ["known", "unknown", "not_protected"]
+          },
+          "rulesets_visible": { "type": "boolean" },
+          "required_checks_visible": { "type": "boolean" },
+          "required_reviews_visible": { "type": "boolean" },
+          "actor_class": { "type": "string", "maxLength": 64 },
+          "permission_visibility": {
+            "type": "string",
+            "enum": ["full", "limited", "unknown"]
+          },
+          "direct_merge_allowed": { "type": ["boolean", "null"] },
+          "direct_push_protected_allowed": { "type": ["boolean", "null"] },
+          "tag_create_allowed": { "type": ["boolean", "null"] },
+          "release_publish_allowed": { "type": ["boolean", "null"] },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "ready_for_human_review",
+              "blocked",
+              "requires_manual_policy_input"
+            ]
+          },
+          "reason_code": { "type": ["string", "null"], "maxLength": 160 },
+          "evidence_refs": {
+            "type": "array",
+            "maxItems": 16,
+            "items": { "type": "string", "maxLength": 240 }
+          },
+          "gate_id": { "type": "string", "const": "pr_boundary_governance" },
+          "workflow_state": { "type": ["string", "null"], "maxLength": 96 },
+          "attempted_action": { "type": ["string", "null"], "maxLength": 64 },
+          "agent": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "iteration": { "type": "integer", "minimum": 0 },
+          "step_id": { "type": "string", "maxLength": 240 }
+        }
+      }
+    },
+    {
+      "if": {
         "properties": { "event": { "const": "approval_skipped" } },
         "required": ["event"]
       },

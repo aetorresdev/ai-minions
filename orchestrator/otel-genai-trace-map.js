@@ -21,6 +21,7 @@ const EVENT_SPAN_MAP = {
   approval_granted: { name: 'governance.approval', governance: true },
   approval_denied: { name: 'governance.approval', governance: true },
   approval_skipped: { name: 'governance.approval', governance: true },
+  production_boundary_check: { name: 'governance.production_boundary', governance: true },
   doubt_review_started: { name: 'cerberus.doubt_review' },
   doubt_review_finding: { name: 'cerberus.doubt_review' },
   doubt_review_verdict: { name: 'cerberus.doubt_review' },

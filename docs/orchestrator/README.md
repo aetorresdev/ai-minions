@@ -20,6 +20,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [market-validation-notes.md](market-validation-notes.md) | Control-first positioning research — allowed/forbidden claims, pain themes (doc-only) |
 | [security-posture.md](security-posture.md) | Public security posture + threat model (honest) |
 | [production-boundary-guard.md](production-boundary-guard.md) | Production Boundary Guard — `agent_as_contributor`, privileged-op boundary, `production_boundary_check` trace contract |
+| [merge-governance-contract.md](merge-governance-contract.md) | PR-boundary governance — dry-run gate, config fallback, `production_boundary_check` emission library |
 | [harness-engineering-positioning.md](harness-engineering-positioning.md) | Harness framing, orchestration model, external references (not authority) |
 | [agent-harness.md](agent-harness.md) | Harness layers: context, memory/state, control, validation, observability |
 | [system-architecture-diagram.md](system-architecture-diagram.md) | Full operational Mermaid (skills, hooks, MCPs, disk, Ollama) |

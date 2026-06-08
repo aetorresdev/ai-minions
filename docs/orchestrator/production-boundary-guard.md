@@ -12,7 +12,7 @@
 - [review-record-contract.md](review-record-contract.md) — CERBERUS `review_record` outcomes
 - **MERGE-GOVERNANCE-1** — PR-boundary governance (enforcement + `production_boundary_check` emission; depends on this doc; spec lives in operator-local backlog, not versioned in repo)
 
-**Implementation status:** **Design contract (doc-first, v0.7 M0).** Trace event `production_boundary_check` is **specified here**; runner emission and GitHub posture discovery are **not shipped** until PR-boundary governance slices land.
+**Implementation status:** **Security model shipped (v0.7 M0).** Trace event `production_boundary_check` is **specified here** and **validated in schema**; library gate + dry-run: [merge-governance-contract.md](merge-governance-contract.md). Full runner auto-wire on git/PR tools is follow-up.
 
 ---
 
@@ -173,9 +173,9 @@ Layers are **complementary**. Removing GitHub protection while keeping a limited
 
 ---
 
-## Trace event: `production_boundary_check` (design contract)
+## Trace event: `production_boundary_check`
 
-**Status:** Specified here; **not emitted** by the runner until PR-boundary governance implementation.
+**Status:** Schema + builder shipped (`orchestrator/merge-governance/`). Automatic emission on every PR/git action is **not** wired in the runner yet.
 
 **Purpose:** Replayable record that the harness evaluated (or attempted to evaluate) production-boundary posture for a governed PR or release-sensitive action — without conflating **ready for human review** with **agent may merge**.
 
@@ -219,7 +219,7 @@ Layers are **complementary**. Removing GitHub protection while keeping a limited
 - `agent_created_production_tag`
 - `agent_published_production_release`
 
-**JSON Schema:** planned in `orchestrator/schemas/trace-v2-line.schema.json` when G1 ships emission. Until then, treat this table as the contract.
+**JSON Schema:** `orchestrator/schemas/trace-v2-line.schema.json` · builder: `build-production-boundary-check.js`.
 
 ### Consumption (planned)
 

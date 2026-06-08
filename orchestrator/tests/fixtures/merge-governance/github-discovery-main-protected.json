@@ -1,0 +1,9 @@
+{
+  "default_branch": "main",
+  "protected_branches": ["main", "master"],
+  "target_is_protected": true,
+  "target_is_release_sensitive": true,
+  "rulesets_visible": true,
+  "required_checks_visible": true,
+  "required_reviews_visible": true
+}
