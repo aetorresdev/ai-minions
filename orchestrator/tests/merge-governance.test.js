@@ -14,6 +14,7 @@ const {
   branchMatchesPattern,
   PROHIBITED_AGENT_ACTIONS,
 } = require("../merge-governance");
+const { buildReviewRecord } = require("../review-record");
 
 const FIXTURES = path.join(__dirname, "fixtures", "merge-governance");
 
@@ -199,5 +200,119 @@ describe("pr-boundary governance gate", () => {
     );
     const v = validateTraceLine(row);
     assert.equal(v.ok, true, (v.errors || []).join(" | "));
+  });
+});
+
+describe("merge-governance review evidence", () => {
+  function loadConfig() {
+    const yaml = require("js-yaml");
+    const raw = fs.readFileSync(path.join(FIXTURES, "config-fallback.yaml"), "utf8");
+    return validateMergeGovernanceConfig(yaml.load(raw)).config;
+  }
+
+  function reviewTraceRowsFromBuilt(records) {
+    return records.map((record) => ({
+      event: "review_record",
+      review_schema_version: record.schema_version,
+      reviewer_role: record.reviewer_role,
+      verdict: record.verdict,
+      blockers: record.blockers,
+      non_blocking_notes: record.non_blocking_notes,
+      evidence_refs: record.evidence_refs,
+      reviewed_artifact_ids: record.reviewed_artifact_ids,
+      iteration: record.iteration,
+      ...(record.step_id ? { step_id: record.step_id } : {}),
+    }));
+  }
+
+  it("embeds durable review_record summary when review_records supplied", () => {
+    const config = loadConfig();
+    const review_records = JSON.parse(
+      fs.readFileSync(path.join(FIXTURES, "review-records-cerberus-approve.json"), "utf8"),
+    );
+    const result = evaluatePrBoundaryGovernance({
+      repository: "acme/widgets",
+      pr_number: 153,
+      source_branch: "feat/r1",
+      target_branch: "main",
+      actor_class: "agent_pat",
+      attempted_action: "pr_ready",
+      explicit_config: config,
+      review_records,
+      evidence_refs: ["https://github.com/acme/widgets/pull/153"],
+    });
+    assert.equal(result.decision, "ready_for_human_review");
+    assert.equal(result.trace_payload.review_evidence.cerberus_verdict, "approve");
+    assert.equal(result.trace_payload.review_evidence.has_cerberus_record, true);
+    assert.ok(
+      result.trace_payload.evidence_refs.some((r) => r.startsWith("review_record:cerberus:")),
+    );
+    const v = validateTraceLine(traceEnvelope(result.trace_payload));
+    assert.equal(v.ok, true, (v.errors || []).join(" | "));
+  });
+
+  it("blocks pr_ready when cerberus review_record has blockers", () => {
+    const config = loadConfig();
+    const review_records = reviewTraceRowsFromBuilt([
+      buildReviewRecord({
+        reviewerRole: "cerberus",
+        output: "blocker: schema drift in orchestrator/foo.js\nimprovement: none\nnice-to-have: none",
+        iteration: 2,
+      }),
+    ]);
+    const result = evaluatePrBoundaryGovernance({
+      target_branch: "main",
+      attempted_action: "pr_ready",
+      explicit_config: config,
+      review_records,
+    });
+    assert.equal(result.decision, "blocked");
+    assert.equal(result.reason_code, "REVIEW_RECORD_BLOCKERS");
+    assert.equal(result.trace_payload.review_evidence.cerberus_verdict, "block");
+    assert.ok(result.trace_payload.review_evidence.open_blocker_count >= 1);
+  });
+
+  it("blocks pr_ready when cerberus requested changes", () => {
+    const config = loadConfig();
+    const review_records = reviewTraceRowsFromBuilt([
+      buildReviewRecord({
+        reviewerRole: "cerberus",
+        output: "blocker: none\nimprovement: add matrix negative test\nnice-to-have: none",
+        iteration: 1,
+      }),
+    ]);
+    const result = evaluatePrBoundaryGovernance({
+      target_branch: "main",
+      attempted_action: "pr_ready",
+      explicit_config: config,
+      review_records,
+    });
+    assert.equal(result.decision, "blocked");
+    assert.equal(result.reason_code, "REVIEW_CHANGES_PENDING");
+    assert.equal(result.trace_payload.review_evidence.cerberus_verdict, "request_changes");
+  });
+
+  it("requires manual input when review_records is empty on governed target", () => {
+    const config = loadConfig();
+    const result = evaluatePrBoundaryGovernance({
+      target_branch: "main",
+      attempted_action: "pr_ready",
+      explicit_config: config,
+      review_records: [],
+    });
+    assert.equal(result.decision, "requires_manual_policy_input");
+    assert.equal(result.reason_code, "REVIEW_EVIDENCE_MISSING");
+  });
+
+  it("keeps legacy behavior when review_records omitted", () => {
+    const config = loadConfig();
+    const result = evaluatePrBoundaryGovernance({
+      target_branch: "main",
+      attempted_action: "pr_ready",
+      explicit_config: config,
+      evidence_refs: ["https://github.com/acme/widgets/pull/1"],
+    });
+    assert.equal(result.decision, "ready_for_human_review");
+    assert.equal(result.trace_payload.review_evidence, undefined);
   });
 });

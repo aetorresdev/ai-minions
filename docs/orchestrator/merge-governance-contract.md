@@ -4,7 +4,7 @@
 
 **Security model SoT:** [production-boundary-guard.md](production-boundary-guard.md) (`agent_as_contributor`, privileged-op boundary).
 
-**Implementation status:** **Shipped (library + dry-run gate, v0.7 M1 slice).** Runner auto-invocation on every git/PR tool call is **not** wired yet — operators and tests call `evaluatePrBoundaryGovernance` explicitly.
+**Implementation status:** **Shipped (library + dry-run gate).** Durable `review_record` rows wire into `production_boundary_check.review_evidence` when `review_records` is supplied. Runner auto-invocation on every git/PR tool call is **not** wired yet.
 
 ---
 
@@ -30,6 +30,7 @@ ai-minions is a **PR producer + evidence reporter + approval requester**, not a 
 | Branch policy discovery | `branch-policy-discovery.js` | Merge GitHub discovery (when provided) + explicit config; fail closed when unknown |
 | Actor capability check | `actor-capability-check.js` | Tri-state capability flags from config |
 | PR-boundary gate | `pr-boundary-governance-gate.js` | `evaluatePrBoundaryGovernance` — decision + trace payload |
+| Review evidence | `assess-review-evidence.js` | Summarize `review_record` rows; block `pr_ready` on CERBERUS blockers/pending changes |
 | Trace builder | `build-production-boundary-check.js` | `production_boundary_check` row body |
 
 Public API: `require("./modules/gates/merge-governance")` (preferred) or compat shim `require("./merge-governance")`.
@@ -79,6 +80,7 @@ const result = evaluatePrBoundaryGovernance({
   explicit_config: config,
   github_discovery: null, // or injected discovery object when API access exists
   evidence_refs: ["https://github.com/owner/repo/pull/42"],
+  review_records: [], // optional trace rows — when supplied, durable review_record verdicts gate pr_ready
 });
 // result.decision → ready_for_human_review | blocked | requires_manual_policy_input
 // result.trace_payload → production_boundary_check body
@@ -96,8 +98,13 @@ const result = evaluatePrBoundaryGovernance({
 | `direct_merge`, `push_protected`, `create_production_tag`, `publish_production_release`, `bypass_*` | `blocked` · `AGENT_PRIVILEGED_OP_DENIED` |
 | `claim_merge_safe` | `blocked` · `MERGE_SAFETY_CLAIM_DENIED` |
 | *(no config/discovery)* | `requires_manual_policy_input` · `POLICY_VISIBILITY_UNKNOWN` |
+| `pr_ready` + CERBERUS `review_record` blockers | `blocked` · `REVIEW_RECORD_BLOCKERS` |
+| `pr_ready` + CERBERUS `request_changes` | `blocked` · `REVIEW_CHANGES_PENDING` |
+| `pr_ready` + empty `review_records` on release-sensitive target | `requires_manual_policy_input` · `REVIEW_EVIDENCE_MISSING` |
 
 `ready_for_human_review` means **human may review** — not agent merge authority.
+
+When `review_records` is **omitted**, review-evidence rules are skipped (backward-compatible dry-run). When supplied (including `[]` on governed targets), verdicts and blockers are persisted in `production_boundary_check.review_evidence` — not chat-only.
 
 ---
 

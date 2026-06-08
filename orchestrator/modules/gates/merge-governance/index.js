@@ -16,6 +16,10 @@ const {
   evaluatePrBoundaryGovernance,
   isProhibitedAgentAction,
 } = require("./pr-boundary-governance-gate");
+const {
+  assessReviewEvidenceForGovernance,
+  buildReviewEvidencePayload,
+} = require("./assess-review-evidence");
 
 module.exports = {
   ...constants,
@@ -29,4 +33,6 @@ module.exports = {
   buildProductionBoundaryCheckPayload,
   evaluatePrBoundaryGovernance,
   isProhibitedAgentAction,
+  assessReviewEvidenceForGovernance,
+  buildReviewEvidencePayload,
 };

@@ -63,6 +63,49 @@ function buildProductionBoundaryCheckPayload(input) {
     row.step_id = String(input.step_id).slice(0, 240);
   }
 
+  if (input.review_evidence && typeof input.review_evidence === "object") {
+    const re = input.review_evidence;
+    /** @type {Record<string, unknown>} */
+    const review_evidence = {
+      cerberus_verdict:
+        re.cerberus_verdict === "approve" ||
+        re.cerberus_verdict === "request_changes" ||
+        re.cerberus_verdict === "block"
+          ? re.cerberus_verdict
+          : null,
+      qa_verdict:
+        re.qa_verdict === "approve" ||
+        re.qa_verdict === "request_changes" ||
+        re.qa_verdict === "block"
+          ? re.qa_verdict
+          : null,
+      final_verdict:
+        re.final_verdict === "approve" ||
+        re.final_verdict === "request_changes" ||
+        re.final_verdict === "block"
+          ? re.final_verdict
+          : null,
+      open_blocker_count:
+        Number.isFinite(re.open_blocker_count) && re.open_blocker_count >= 0
+          ? Math.min(8, Math.floor(re.open_blocker_count))
+          : 0,
+      review_record_count:
+        Number.isFinite(re.review_record_count) && re.review_record_count >= 0
+          ? Math.min(16, Math.floor(re.review_record_count))
+          : 0,
+      has_cerberus_record: Boolean(re.has_cerberus_record),
+      has_qa_record: Boolean(re.has_qa_record),
+      browser_verification_pending: Boolean(re.browser_verification_pending),
+    };
+    if (Array.isArray(re.open_blockers)) {
+      review_evidence.open_blockers = re.open_blockers
+        .map((b) => String(b).slice(0, 300))
+        .filter(Boolean)
+        .slice(0, 8);
+    }
+    row.review_evidence = review_evidence;
+  }
+
   return row;
 }
 

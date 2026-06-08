@@ -330,7 +330,35 @@
           "attempted_action": { "type": ["string", "null"], "maxLength": 64 },
           "agent": { "type": "string", "minLength": 1, "maxLength": 128 },
           "iteration": { "type": "integer", "minimum": 0 },
-          "step_id": { "type": "string", "maxLength": 240 }
+          "step_id": { "type": "string", "maxLength": 240 },
+          "review_evidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "cerberus_verdict": {
+                "type": ["string", "null"],
+                "enum": ["approve", "request_changes", "block", null]
+              },
+              "qa_verdict": {
+                "type": ["string", "null"],
+                "enum": ["approve", "request_changes", "block", null]
+              },
+              "final_verdict": {
+                "type": ["string", "null"],
+                "enum": ["approve", "request_changes", "block", null]
+              },
+              "open_blocker_count": { "type": "integer", "minimum": 0, "maximum": 8 },
+              "open_blockers": {
+                "type": "array",
+                "maxItems": 8,
+                "items": { "type": "string", "maxLength": 300 }
+              },
+              "review_record_count": { "type": "integer", "minimum": 0, "maximum": 16 },
+              "has_cerberus_record": { "type": "boolean" },
+              "has_qa_record": { "type": "boolean" },
+              "browser_verification_pending": { "type": "boolean" }
+            }
+          }
         }
       }
     },
