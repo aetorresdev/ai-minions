@@ -3,6 +3,7 @@
 const { discoverBranchPolicyPosture } = require("./branch-policy-discovery");
 const { inspectActorCapabilities } = require("./actor-capability-check");
 const { buildProductionBoundaryCheckPayload } = require("./build-production-boundary-check");
+const { assessReviewEvidenceForGovernance } = require("./assess-review-evidence");
 const {
   DEFAULT_MODE,
   PROHIBITED_AGENT_ACTIONS,
@@ -91,10 +92,37 @@ function evaluatePrBoundaryGovernance(input) {
     workflow_state = "ready_for_human_review";
   }
 
+  const reviewAssessment = assessReviewEvidenceForGovernance({
+    attempted_action: attemptedAction,
+    release_sensitive: posture.release_sensitive,
+    review_records: input.review_records,
+    require_review_evidence: input.require_review_evidence,
+  });
+
+  if (
+    reviewAssessment.gate &&
+    (decision === "ready_for_human_review" || decision === "requires_manual_policy_input")
+  ) {
+    decision = reviewAssessment.gate.decision;
+    reason_code = reviewAssessment.gate.reason_code;
+    if (reviewAssessment.gate.workflow_state != null) {
+      workflow_state = reviewAssessment.gate.workflow_state;
+    } else if (decision !== "ready_for_human_review") {
+      workflow_state = null;
+    }
+  }
+
+  const mergedEvidenceRefs = [
+    ...(Array.isArray(input.evidence_refs) ? input.evidence_refs : []),
+    ...reviewAssessment.evidence_refs,
+  ].filter(Boolean);
+
   const merge_safety_claim_allowed =
     posture.permission_visibility === "full" &&
     decision === "ready_for_human_review" &&
-    actor.direct_merge_allowed !== true;
+    actor.direct_merge_allowed !== true &&
+    (reviewAssessment.evidence == null ||
+      reviewAssessment.evidence.cerberus_verdict === "approve");
 
   const trace_payload = buildProductionBoundaryCheckPayload({
     mode,
@@ -115,7 +143,8 @@ function evaluatePrBoundaryGovernance(input) {
     release_publish_allowed: actor.release_publish_allowed,
     decision,
     reason_code,
-    evidence_refs: input.evidence_refs,
+    evidence_refs: mergedEvidenceRefs,
+    review_evidence: reviewAssessment.evidence,
     gate_id: GATE_ID,
     workflow_state,
     attempted_action: attemptedAction,

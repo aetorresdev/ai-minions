@@ -37,6 +37,7 @@ Only one `review_record` per CERBERUS pass per iteration when contract fails (no
 ## Consumption
 
 - **`run_outcome_summary.review`** — `final_verdict`, per-role verdicts, trimmed `records[]`
+- **`production_boundary_check.review_evidence`** — when merge-governance gate receives `review_records` (see [merge-governance-contract.md](merge-governance-contract.md))
 - **`npm run explain-run -- --json`**
 - **`npm run tokens:report -- <task_id> --json`**
 - Scenario export `runs[].run_outcome_summary.review`

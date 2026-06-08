@@ -1,0 +1,24 @@
+[
+  {
+    "event": "review_record",
+    "review_schema_version": "1",
+    "reviewer_role": "qa",
+    "verdict": "approve",
+    "blockers": [],
+    "non_blocking_notes": [],
+    "evidence_refs": ["orchestrator/tests/merge-governance.test.js"],
+    "reviewed_artifact_ids": ["s-qa"],
+    "iteration": 1
+  },
+  {
+    "event": "review_record",
+    "review_schema_version": "1",
+    "reviewer_role": "cerberus",
+    "verdict": "approve",
+    "blockers": [],
+    "non_blocking_notes": [],
+    "evidence_refs": ["docs/orchestrator/merge-governance-contract.md"],
+    "reviewed_artifact_ids": ["s-cerberus"],
+    "iteration": 1
+  }
+]
