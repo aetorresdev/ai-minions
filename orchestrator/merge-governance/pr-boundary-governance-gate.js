@@ -80,12 +80,12 @@ function evaluatePrBoundaryGovernance(input) {
     if (workflow_state && !PROHIBITED_WORKFLOW_STATES.includes(workflow_state)) {
       workflow_state = null;
     }
-  } else if (posture.permission_visibility === "unknown") {
-    decision = "requires_manual_policy_input";
-    reason_code = "POLICY_VISIBILITY_UNKNOWN";
   } else if (attemptedAction === "claim_merge_safe") {
     decision = "blocked";
     reason_code = "MERGE_SAFETY_CLAIM_DENIED";
+  } else if (posture.permission_visibility === "unknown") {
+    decision = "requires_manual_policy_input";
+    reason_code = "POLICY_VISIBILITY_UNKNOWN";
   } else {
     decision = "ready_for_human_review";
     workflow_state = "ready_for_human_review";

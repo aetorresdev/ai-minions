@@ -12,6 +12,7 @@ const {
   evaluatePrBoundaryGovernance,
   buildProductionBoundaryCheckPayload,
   branchMatchesPattern,
+  PROHIBITED_AGENT_ACTIONS,
 } = require("../merge-governance");
 
 const FIXTURES = path.join(__dirname, "fixtures", "merge-governance");
@@ -79,6 +80,16 @@ describe("branch policy discovery", () => {
     assert.equal(posture.protected_status, "unknown");
   });
 
+  it("fail-closed when github discovery is partial", () => {
+    const posture = discoverBranchPolicyPosture({
+      target_branch: "main",
+      github_discovery: { default_branch: "main" },
+    });
+    assert.equal(posture.permission_visibility, "unknown");
+    assert.equal(posture.protected_status, "unknown");
+    assert.equal(posture.policy_source, "github_api");
+  });
+
   it("matches release/* branch patterns", () => {
     assert.equal(branchMatchesPattern("release/v0.7", "release/*"), true);
     assert.equal(branchMatchesPattern("feature/x", "release/*"), false);
@@ -106,19 +117,29 @@ describe("pr-boundary governance gate", () => {
     assert.equal(result.merge_safety_claim_allowed, false);
   });
 
-  it("blocks prohibited direct_merge for agent_as_contributor", () => {
-    const result = evaluatePrBoundaryGovernance({
-      target_branch: "main",
-      actor_class: "agent_pat",
-      attempted_action: "direct_merge",
-      github_discovery: JSON.parse(
-        fs.readFileSync(path.join(FIXTURES, "github-discovery-main-protected.json"), "utf8"),
-      ),
+  for (const attemptedAction of PROHIBITED_AGENT_ACTIONS) {
+    it(`blocks prohibited ${attemptedAction} for agent_as_contributor`, () => {
+      const result = evaluatePrBoundaryGovernance({
+        target_branch: "main",
+        actor_class: "agent_pat",
+        attempted_action: attemptedAction,
+        github_discovery: JSON.parse(
+          fs.readFileSync(path.join(FIXTURES, "github-discovery-main-protected.json"), "utf8"),
+        ),
+      });
+      assert.equal(result.decision, "blocked");
+      assert.equal(result.reason_code, "AGENT_PRIVILEGED_OP_DENIED");
+      if (attemptedAction === "direct_merge") {
+        assert.equal(result.workflow_state, "agent_merged_protected_branch");
+      }
+      if (attemptedAction === "create_production_tag") {
+        assert.equal(result.workflow_state, "agent_created_production_tag");
+      }
+      if (attemptedAction === "publish_production_release") {
+        assert.equal(result.workflow_state, "agent_published_production_release");
+      }
     });
-    assert.equal(result.decision, "blocked");
-    assert.equal(result.reason_code, "AGENT_PRIVILEGED_OP_DENIED");
-    assert.equal(result.workflow_state, "agent_merged_protected_branch");
-  });
+  }
 
   it("requires manual policy input when visibility unknown", () => {
     const result = evaluatePrBoundaryGovernance({
@@ -128,6 +149,27 @@ describe("pr-boundary governance gate", () => {
     assert.equal(result.decision, "requires_manual_policy_input");
     assert.equal(result.reason_code, "POLICY_VISIBILITY_UNKNOWN");
     assert.equal(result.trace_payload.permission_visibility, "unknown");
+  });
+
+  it("fails closed when github discovery is partial at gate", () => {
+    const result = evaluatePrBoundaryGovernance({
+      target_branch: "main",
+      attempted_action: "pr_ready",
+      github_discovery: { default_branch: "main" },
+    });
+    assert.equal(result.decision, "requires_manual_policy_input");
+    assert.equal(result.reason_code, "POLICY_VISIBILITY_UNKNOWN");
+    assert.equal(result.trace_payload.permission_visibility, "unknown");
+    assert.equal(result.trace_payload.protected_status, "unknown");
+  });
+
+  it("blocks claim_merge_safe even when visibility unknown", () => {
+    const result = evaluatePrBoundaryGovernance({
+      target_branch: "main",
+      attempted_action: "claim_merge_safe",
+    });
+    assert.equal(result.decision, "blocked");
+    assert.equal(result.reason_code, "MERGE_SAFETY_CLAIM_DENIED");
   });
 
   it("blocks merge-safety claim attempts", () => {

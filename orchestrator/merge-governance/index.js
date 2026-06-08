@@ -6,7 +6,10 @@ const {
   loadMergeGovernanceConfig,
   validateMergeGovernanceConfig,
 } = require("./load-merge-governance-config");
-const { discoverBranchPolicyPosture } = require("./branch-policy-discovery");
+const {
+  discoverBranchPolicyPosture,
+  isGithubDiscoveryVisibilityComplete,
+} = require("./branch-policy-discovery");
 const { inspectActorCapabilities } = require("./actor-capability-check");
 const { buildProductionBoundaryCheckPayload } = require("./build-production-boundary-check");
 const {
@@ -21,6 +24,7 @@ module.exports = {
   loadMergeGovernanceConfig,
   validateMergeGovernanceConfig,
   discoverBranchPolicyPosture,
+  isGithubDiscoveryVisibilityComplete,
   inspectActorCapabilities,
   buildProductionBoundaryCheckPayload,
   evaluatePrBoundaryGovernance,

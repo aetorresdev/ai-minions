@@ -40,6 +40,21 @@ function isReleaseSensitiveByConfig(targetBranch, explicitConfig) {
 }
 
 /**
+ * @param {object} githubDiscovery
+ * @returns {boolean}
+ */
+function isGithubDiscoveryVisibilityComplete(githubDiscovery) {
+  if (!githubDiscovery || typeof githubDiscovery !== "object") return false;
+  return (
+    githubDiscovery.rulesets_visible === true &&
+    githubDiscovery.required_checks_visible === true &&
+    githubDiscovery.required_reviews_visible === true &&
+    (typeof githubDiscovery.target_is_protected === "boolean" ||
+      Array.isArray(githubDiscovery.protected_branches))
+  );
+}
+
+/**
  * @param {string} targetBranch
  * @param {object | null} githubDiscovery
  * @returns {boolean}
@@ -84,13 +99,20 @@ function discoverBranchPolicyPosture(input) {
   };
 
   if (githubDiscovery && typeof githubDiscovery === "object") {
-    posture.permission_visibility = "full";
     posture.policy_source = "github_api";
     posture.default_branch =
       githubDiscovery.default_branch != null ? String(githubDiscovery.default_branch) : null;
     posture.rulesets_visible = Boolean(githubDiscovery.rulesets_visible);
     posture.required_checks_visible = Boolean(githubDiscovery.required_checks_visible);
     posture.required_reviews_visible = Boolean(githubDiscovery.required_reviews_visible);
+
+    if (!isGithubDiscoveryVisibilityComplete(githubDiscovery)) {
+      posture.permission_visibility = "unknown";
+      posture.protected_status = "unknown";
+      return posture;
+    }
+
+    posture.permission_visibility = "full";
     if (targetBranch) {
       posture.protected_status = isProtectedByGithub(targetBranch, githubDiscovery)
         ? "known"
@@ -125,6 +147,7 @@ function discoverBranchPolicyPosture(input) {
 
 module.exports = {
   discoverBranchPolicyPosture,
+  isGithubDiscoveryVisibilityComplete,
   isProtectedByConfig,
   isReleaseSensitiveByConfig,
 };

@@ -103,7 +103,7 @@ const result = evaluatePrBoundaryGovernance({
 
 ## GitHub discovery (injectable)
 
-When callers supply `github_discovery` (future: GitHub API adapter), branch policy uses `permission_visibility: full`. Shape (illustrative):
+When callers supply **complete** `github_discovery` (future: GitHub API adapter), branch policy uses `permission_visibility: full`. Partial discovery (missing rulesets/checks/reviews visibility or protected-branch proof) → `unknown` + fail-closed. Shape (illustrative):
 
 ```json
 {
