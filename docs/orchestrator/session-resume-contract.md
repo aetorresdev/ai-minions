@@ -28,7 +28,7 @@ Session log ≠ memory store. Memory holds knowledge; checkpoint holds auditable
 1. **Eligible** only when `evaluateResumeEligibility` returns `eligible: true`.
 2. **Block** when any of:
    - `open_review_blockers` — QA/CERBERUS blockers still open
-   - `recovery_not_clean` — recovery sweep findings (except `missing_session_end` on incomplete sessions)
+   - `recovery_not_clean` — recovery sweep findings (except `missing_session_end` and `missing_iteration_done` on incomplete sessions)
    - `stale_handoff_contract` / `incomplete_handoff_contract` — delegated ownership invalid
    - `governance_hold` — approval pending/denied
    - `permission_profile_changed` / `permission_policy_changed` — vs checkpoint when operator supplies current profile
