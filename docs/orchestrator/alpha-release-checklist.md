@@ -266,6 +266,65 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 - [x] **Changelog:** section **[0.6.0-alpha.1] - 2026-06-07**; release URL reserved (publish confirms externally)
 - [x] **Execution plan locked** — tag / pre-release / `release` branch: operator follow-on per § *Release execution plan*
 
+## v0.7.0-alpha.1 — Execution governance & modular enforcement
+
+**Scope:** Production Boundary Guard + PR merge governance + module CI enforcement (A2.1 + A2.2) + review/recovery hardening (R1 + R2). **Prerequisite:** `v0.6.0-alpha.1` @ `ad3d2c4`.
+
+**Release claim:** production-boundary posture with `agent_as_contributor` default, PR merge-readiness evidence, modular CI import guards, and trace-backed review/recovery signals — **not** production-ready, **not** agent-as-maintainer, **not** architecture refactor complete.
+
+### Must-have bundle
+
+- [x] G0 Production Boundary Guard — PR **#150** @ `ad69ac1`
+- [x] G1 PR merge governance — PR **#151** @ `7110175`
+- [x] A2.1 first physical `modules/*` slice — PR **#152** @ `bd9b9ca`
+- [x] A2.2 CI import boundary guards — PR **#153** @ `170e42d`
+- [x] R1 review records in governance chain — PR **#154** @ `30b4532`
+- [x] R2 recovery sweep hardening — PR **#157** @ `9fff652`
+- [x] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep commit; operator tag/pre-release/branch follow-on
+
+### Out of scope
+
+OTLP export · memory/runtime analyst · web control plane · swarm expansion · autonomous self-improvement · agent-as-maintainer default · full modular monolith refactor claim.
+
+### CERBERUS checks (pre-tag)
+
+- [x] No production-ready claim — release claim uses alpha limitations
+- [x] No architecture-refactor-complete claim — first slice + import guards only
+- [x] Recovery sweep detect-and-explain only — no auto-retry/resume/repair
+- [x] Lane PRs CERBERUS-approved through R2 merge
+
+### Forbidden release claims (v0.7)
+
+“production-ready” · “agent-as-maintainer by default” · “architecture refactor complete” · “full modular monolith enforced” · “unknown permissions treated as safe” · “OTLP export shipped”.
+
+### Vulnerability gate (pre-tag)
+
+- [x] `bash scripts/release-trivy-gate.sh` — published scope clean (see [security-posture.md](security-posture.md))
+- [x] GitHub Actions **`security-trivy-scan`** — green on lane merges
+- [x] MCP `uv.lock` committed and tracked
+
+#### v0.7 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-09 | `master` @ `9fff652` — R2 merge CI | lint-and-unit · markdownlint · lychee · orchestrator-e2e — **green** |
+| 2026-06-09 | Workspace @ `9fff652` | `cd orchestrator && npm test` → **970/971** pass (1 skipped) |
+| 2026-06-09 | Release-prep workspace | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-06-09 | Release execution plan locked | Tag target + URL reserved; operator tag/pre-release/branch follow-on |
+
+### Release execution plan (locked on release-prep commit)
+
+**Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist in the external release system.
+
+- [ ] **Tag target:** `v0.7.0-alpha.1` on release-prep commit — operator: `git tag -a v0.7.0-alpha.1` on merged release-prep tree
+- [ ] **Release URL reserved:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.7.0-alpha.1` — operator: publish GitHub pre-release **after** tag exists
+- [ ] **`release` branch target:** align to tag commit — operator: `git branch -f release v0.7.0-alpha.1 && git push -f origin release` **after** tag exists
+
+### Release artifact (source snapshot)
+
+- [x] **Changelog:** section **[0.7.0-alpha.1] - 2026-06-09**; release URL reserved (publish confirms externally)
+- [ ] **Execution plan locked** — tag / pre-release / `release` branch: operator follow-on per § *Release execution plan*
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
