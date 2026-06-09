@@ -42,6 +42,21 @@ describe("module-boundary guard", () => {
     assert.equal(classifyModule("modules/contracts/bv-reviewer-design.js"), "contracts");
   });
 
+  it("classifies recovery paths as recovery module (not trace)", () => {
+    assert.equal(classifyModule("modules/recovery/recovery-sweep.js"), "recovery");
+    assert.equal(classifyModule("modules/recovery/session-resume.js"), "recovery");
+    assert.equal(classifyModule("recovery-sweep.js"), "recovery");
+    assert.equal(classifyModule("session-resume.js"), "recovery");
+  });
+
+  it("allowlist has no grandfathered violations under modules/recovery", () => {
+    const raw = JSON.parse(fs.readFileSync(ALLOWLIST_PATH, "utf8"));
+    const all = [...(raw.matrix || []), ...(raw.hard || [])];
+    for (const key of all) {
+      assert.ok(!key.startsWith("modules/recovery/"), `modules/recovery should be clean: ${key}`);
+    }
+  });
+
   it("detects new hard-rule violations under modules/gates", () => {
     const tmpDir = path.join(ORCH_ROOT, "modules", "gates", "__boundary_probe__");
     fs.mkdirSync(tmpDir, { recursive: true });

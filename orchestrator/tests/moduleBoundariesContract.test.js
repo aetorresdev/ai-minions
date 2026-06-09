@@ -27,6 +27,7 @@ describe("module-boundaries-contract", () => {
     assert.match(doc, /partial physical migration|CI import guard/i);
     assert.match(doc, /modules\/gates/i);
     assert.match(doc, /modules\/contracts/i);
+    assert.match(doc, /modules\/recovery/i);
     assert.match(doc, /Not claimed/i);
     assert.match(doc, /modular monolith refactor complete/i);
     for (const mod of CANONICAL_MODULES) {
