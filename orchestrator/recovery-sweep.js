@@ -134,6 +134,151 @@ function detectHandoffAndGovernance(rows) {
 
 /**
  * @param {object[]} rows
+ * @returns {object[]}
+ */
+function detectOpenReviewBlockers(rows) {
+  /** @type {object[]} */
+  const openRecords = [];
+  for (const r of rows) {
+    if (!r || r.event !== "review_record") continue;
+    if (r.verdict === "block" || r.verdict === "request_changes") {
+      openRecords.push(r);
+    }
+  }
+  if (openRecords.length === 0) return [];
+
+  let hasBlock = false;
+  /** @type {string[]} */
+  const details = [];
+  for (const rec of openRecords) {
+    if (rec.verdict === "block") hasBlock = true;
+    const role = rec.reviewer_role != null ? String(rec.reviewer_role) : "unknown";
+    const blockers = Array.isArray(rec.blockers) ? rec.blockers : [];
+    const detail = blockers.length
+      ? `${role}: ${String(blockers[0]).trim()}`
+      : `${role}: ${rec.verdict}`;
+    if (detail && details.length < 4) details.push(detail);
+  }
+
+  return [{
+    finding_kind: "open_review_blockers",
+    severity: hasBlock ? "error" : "warn",
+    blocks_auto_recovery: true,
+    step_id: null,
+    description: truncateDesc(`Open review blockers: ${details.join("; ")}`),
+  }];
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {object[]}
+ */
+function detectMissingIterationDone(rows) {
+  /** @type {Set<number>} */
+  const iterationsActive = new Set();
+  /** @type {Set<number>} */
+  const iterationsDone = new Set();
+
+  for (const r of rows) {
+    if (!r) continue;
+    if (
+      (r.event === "agent_start" || r.event === "agent_done")
+      && typeof r.iteration === "number"
+    ) {
+      iterationsActive.add(r.iteration);
+    }
+    if (r.event === "iteration_done" && typeof r.iteration === "number") {
+      iterationsDone.add(r.iteration);
+    }
+  }
+
+  /** @type {object[]} */
+  const findings = [];
+  for (const iter of [...iterationsActive].sort((a, b) => a - b)) {
+    if (iterationsDone.has(iter)) continue;
+    findings.push({
+      finding_kind: "missing_iteration_done",
+      severity: "error",
+      blocks_auto_recovery: true,
+      step_id: null,
+      iteration: iter,
+      description: truncateDesc(
+        `Iteration ${iter} has agent activity but no matching iteration_done terminal event`,
+      ),
+    });
+  }
+  return findings;
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {object[]}
+ */
+function detectGovernanceBoundaryIncomplete(rows) {
+  /** @type {object | null} */
+  let lastCheck = null;
+  for (const r of rows) {
+    if (r && r.event === "production_boundary_check") lastCheck = r;
+  }
+  if (!lastCheck || lastCheck.decision === "ready_for_human_review") return [];
+
+  const decision = String(lastCheck.decision || "unknown");
+  const reason = lastCheck.reason_code != null ? String(lastCheck.reason_code) : null;
+  const desc = reason
+    ? `production_boundary_check decision=${decision} (${reason})`
+    : `production_boundary_check decision=${decision}`;
+
+  return [{
+    finding_kind: "governance_boundary_incomplete",
+    severity: decision === "blocked" ? "error" : "warn",
+    blocks_auto_recovery: true,
+    step_id: null,
+    description: truncateDesc(desc),
+  }];
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {object[]}
+ */
+function detectIncompleteHandoff(rows) {
+  let blockedAt = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.event !== "iteration_done" || r.outcome !== "gate_blocked_iterate") continue;
+    const tr = r.transition_reason && typeof r.transition_reason === "object" ? r.transition_reason : {};
+    const code = tr.reason_code != null ? String(tr.reason_code) : "";
+    const gateKinds = Array.isArray(r.gate_kinds) ? r.gate_kinds.map(String) : [];
+    if (
+      gateKinds.includes("compact_handoff")
+      || /handoff|compact_handoff|GATE_ARTIFACT/i.test(code)
+    ) {
+      blockedAt = i;
+    }
+  }
+  if (blockedAt < 0) return [];
+
+  const after = rows.slice(blockedAt + 1);
+  const recovered = after.some((r) => {
+    if (!r) return false;
+    if (r.event === "compact_handoff_fallback") return true;
+    if (r.event === "mcp_call" && r.tool === "compact_handoff") return true;
+    if (r.event === "approval_granted") return true;
+    return false;
+  });
+  if (recovered) return [];
+
+  return [{
+    finding_kind: "incomplete_handoff",
+    severity: "error",
+    blocks_auto_recovery: true,
+    step_id: null,
+    description: "Handoff gate blocked iteration without subsequent compact_handoff or approval_granted",
+  }];
+}
+
+/**
+ * @param {object[]} rows
  * @param {{ lifecycleMode?: "post_hoc" | "live_before_session_end" }} [opts]
  * @returns {{ findings: object[], finding_count: number, blocks_auto_recovery: boolean, clean: boolean, summary: string, lifecycle_mode: string }}
  */
