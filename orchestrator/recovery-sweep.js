@@ -173,7 +173,9 @@ function detectOpenReviewBlockers(rows) {
  * @param {object[]} rows
  * @returns {object[]}
  */
-function detectMissingIterationDone(rows) {
+function detectMissingIterationDone(rows, opts = {}) {
+  if (opts.skipMissingIterationDone) return [];
+
   /** @type {Set<number>} */
   const iterationsActive = new Set();
   /** @type {Set<number>} */
@@ -293,6 +295,12 @@ function analyzeRecoveryFromRows(rows, opts = {}) {
     }),
     ...detectStrandedSteps(safe),
     ...detectHandoffAndGovernance(safe),
+    ...detectOpenReviewBlockers(safe),
+    ...detectMissingIterationDone(safe, {
+      skipMissingIterationDone: lifecycleMode === "live_before_session_end",
+    }),
+    ...detectGovernanceBoundaryIncomplete(safe),
+    ...detectIncompleteHandoff(safe),
   ].slice(0, MAX_FINDINGS);
 
   const blocks_auto_recovery = findings.some((f) => f.blocks_auto_recovery === true);

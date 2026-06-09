@@ -11,6 +11,10 @@ Detect and explain **incomplete or inconsistent runs** from trace JSONL. **Detec
 | `unresolved_ownership_handoff` | `approval_required` with `ownership_change` never `approval_granted` |
 | `pending_governance_approval` | Governance hold (pending/denied approval) |
 | `no_agent_steps` | `session_start` but no `agent_start` events |
+| `open_review_blockers` | `review_record` with verdict `block` or `request_changes` (per role) |
+| `missing_iteration_done` | Agent activity for an iteration without matching `iteration_done` |
+| `governance_boundary_incomplete` | `production_boundary_check` not `ready_for_human_review` |
+| `incomplete_handoff` | `iteration_done` gate-blocked for handoff without subsequent recovery |
 
 ## Trace events
 
@@ -30,7 +34,7 @@ Orchestrator reads the trace file **before** writing `session_end` and runs `run
 
 In this mode:
 
-- **Do not** emit `missing_session_end` (the session is still open by design).
+- **Do not** emit `missing_session_end` or `missing_iteration_done` (the session/iteration may still be open by design).
 - **Do** emit `stranded_step`, governance/handoff findings, and `no_agent_steps` when applicable.
 - Then `session_end` is written.
 

@@ -15,6 +15,13 @@ const COMPLETE_RUN = [
   { event: "session_start", task_id: "t-complete", flow_mode: "single_agent" },
   { event: "agent_start", task_id: "t-complete", step_id: "s1", agent: "dev", iteration: 1 },
   { event: "agent_done", task_id: "t-complete", step_id: "s1", agent: "dev", iteration: 1 },
+  {
+    event: "iteration_done",
+    task_id: "t-complete",
+    iteration: 1,
+    outcome: "done",
+    transition_reason: { type: "success", reason_code: "STEP_OK" },
+  },
   { event: "session_end", task_id: "t-complete", done: true, iterations: 1, gate_blocks: 0 },
 ];
 
@@ -151,7 +158,8 @@ test("summarizeRecoveryFromRows: recompute is SoT; historical sweep kept when pr
   const s = summarizeRecoveryFromRows(rows);
   assert.equal(s.computed_from, "full_trace");
   assert.equal(s.clean, false);
-  assert.equal(s.finding_count, 2);
+  assert.equal(s.finding_count, 3);
+  assert.ok(s.findings.some((f) => f.finding_kind === "missing_iteration_done"));
   assert.ok(s.sweep_event);
   assert.equal(s.sweep_event.clean, false);
 });
@@ -161,6 +169,13 @@ test("summarizeRecoveryFromRows: full trace with session_end overrides false his
     { event: "session_start", task_id: "t-live" },
     { event: "agent_start", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
     { event: "agent_done", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
+    {
+      event: "iteration_done",
+      task_id: "t-live",
+      iteration: 1,
+      outcome: "done",
+      transition_reason: { type: "success", reason_code: "STEP_OK" },
+    },
   ];
   const rows = [
     ...rowsBeforeEnd,
@@ -182,6 +197,13 @@ const ROWS_BEFORE_SESSION_END = [
   { event: "session_start", task_id: "t-live" },
   { event: "agent_start", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
   { event: "agent_done", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
+  {
+    event: "iteration_done",
+    task_id: "t-live",
+    iteration: 1,
+    outcome: "done",
+    transition_reason: { type: "success", reason_code: "STEP_OK" },
+  },
 ];
 
 test("live_before_session_end: healthy run does not false-flag missing_session_end", () => {

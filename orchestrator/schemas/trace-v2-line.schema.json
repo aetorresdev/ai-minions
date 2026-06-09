@@ -609,7 +609,11 @@
               "stranded_step",
               "unresolved_ownership_handoff",
               "pending_governance_approval",
-              "no_agent_steps"
+              "no_agent_steps",
+              "open_review_blockers",
+              "missing_iteration_done",
+              "governance_boundary_incomplete",
+              "incomplete_handoff"
             ]
           },
           "severity": { "type": "string", "enum": ["info", "warn", "error"] },
