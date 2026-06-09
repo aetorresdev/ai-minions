@@ -33,6 +33,15 @@ describe("module-boundary guard", () => {
     assert.equal(classifyModule("governance-gate.js"), "gates");
   });
 
+  it("classifies progressive-disclosure as disclosure before generic contracts patterns", () => {
+    assert.equal(
+      classifyModule("modules/contracts/progressive-disclosure-design.js"),
+      "disclosure",
+    );
+    assert.equal(classifyModule("progressive-disclosure-design.js"), "disclosure");
+    assert.equal(classifyModule("modules/contracts/bv-reviewer-design.js"), "contracts");
+  });
+
   it("detects new hard-rule violations under modules/gates", () => {
     const tmpDir = path.join(ORCH_ROOT, "modules", "gates", "__boundary_probe__");
     fs.mkdirSync(tmpDir, { recursive: true });

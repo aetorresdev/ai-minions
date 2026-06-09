@@ -36,10 +36,18 @@ describe("module refactor slice 2 (contracts)", () => {
     assert.equal(typeof shimSi.validateImprovementProposalTraceLine, "function");
   });
 
-  it("modules/contracts index aggregates exports", () => {
+  it("modules/contracts index aggregates contracts-owned validators only", () => {
     const contracts = require("../modules/contracts");
     assert.equal(typeof contracts.validateValueReviewTraceLine, "function");
-    assert.equal(typeof contracts.validateContextDisclosureTraceLine, "function");
     assert.equal(typeof contracts.validateImprovementProposalTraceLine, "function");
+    assert.equal(contracts.validateContextDisclosureTraceLine, undefined);
+  });
+
+  it("progressive disclosure remains reachable via shim and canonical path", () => {
+    assert.equal(typeof require("../progressive-disclosure-design").validateContextDisclosureTraceLine, "function");
+    assert.equal(
+      typeof require("../modules/contracts/progressive-disclosure-design").validateContextDisclosureTraceLine,
+      "function",
+    );
   });
 });

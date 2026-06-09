@@ -34,8 +34,8 @@ const MODULE_PATTERNS = [
   { id: "budget", patterns: [/^token-usage-summary/, /^token-trace-report/, /^cost-accounting-dimensions/, /^runner-budget-view/] },
   { id: "worktree", patterns: [/^worktree-/, /^run-workdir-contract/, /^trace-workspace-lifecycle/] },
   { id: "operator", patterns: [/^explain-run/, /^control-plane-tui/, /^runner-(?!model-routing)/, /^operator-cli-help/, /^project-template-cli/, /^scenario-metrics-export/, /^console-dashboard/] },
-  { id: "contracts", patterns: [/^modules\/contracts\//, /-design\.js$/, /^agents\/validate-output/] },
   { id: "disclosure", patterns: [/^modules\/contracts\/progressive-disclosure-design/, /^progressive-disclosure-design/] },
+  { id: "contracts", patterns: [/^modules\/contracts\//, /-design\.js$/, /^agents\/validate-output/] },
   { id: "run-control", patterns: [/^orchestrator\.js$/, /^run-loop-helpers/, /^run-phases\//, /^run-state/, /^qa-spec-flow/, /^cli\.js$/, /^run-orchestrator/] },
   { id: "shared", patterns: [/^repo-root/, /^minions-config/, /^decision-engine/, /^agents\.js$/, /^scripts\//] },
 ];

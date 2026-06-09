@@ -100,7 +100,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | **budget** | `token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`, `runner-budget-view.js` |
 | **worktree** | `worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js` |
 | **operator** | `explain-run.js`, `control-plane-tui.js`, `runner-*-cli.js`, `operator-cli-help.js`, `project-template-cli.js`, `scenario-metrics-export.js` |
-| **disclosure** | `modules/contracts/progressive-disclosure-design.js` (shim at root), `security/skill-registry.js` (metadata only); runtime filter **planned** |
+| **disclosure** | `modules/contracts/progressive-disclosure-design.js` (shim at root; classified **disclosure** before generic `contracts` patterns in `module-boundary-rules.js`), `security/skill-registry.js` (metadata only); runtime filter **planned** |
 | **shared/legacy** | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` (facade) |
 
 Every new top-level file should declare target module in PR description. New cross-boundary imports fail CI unless added to the allowlist with explicit review justification.

@@ -11,6 +11,11 @@ const {
   validateValueReviewTraceLine,
 } = require("./modules/contracts/bv-reviewer-design");
 const contracts = require("./modules/contracts");
+const {
+  validateContextDisclosureTraceLine,
+} = require("./modules/contracts/progressive-disclosure-design");
 ```
+
+`modules/contracts/index.js` exports **contracts-owned** validators only. Progressive disclosure is classified as **disclosure** — import it directly (or via root shim), not through the contracts barrel.
 
 See `docs/orchestrator/module-boundaries.md` and `docs/orchestrator/architecture-coherence-audit.md`.
