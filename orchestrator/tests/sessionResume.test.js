@@ -9,6 +9,7 @@ const {
   buildSessionResumeBlockedEvent,
   buildSessionCheckpointCreatedEvent,
 } = require("../session-resume");
+const { summarizeRecoveryFromRows } = require("../recovery-sweep");
 
 const VALID_INTERRUPTED = [
   { event: "session_start", task_id: "t-resume-1", goal: "ship feature", permission_profile: "dev-local" },
@@ -57,6 +58,41 @@ describe("session-resume — checkpoint and eligibility", () => {
     const ev = evaluateResumeEligibility(cp, { require_session_incomplete: true });
     assert.equal(ev.eligible, true);
     assert.equal(ev.side_effects_require_revalidation, true);
+  });
+
+  it("incomplete session: missing_iteration_done does not block resume", () => {
+    const rows = [
+      { event: "session_start", task_id: "t-miss-iter", goal: "ship feature", permission_profile: "dev-local" },
+      { event: "agent_start", step_id: "s1", agent: "DEV", iteration: 1 },
+      { event: "agent_done", step_id: "s1", agent: "DEV", iteration: 1 },
+    ];
+    const recovery = summarizeRecoveryFromRows(rows);
+    assert.equal(recovery.clean, false);
+    assert.ok(recovery.findings.some((f) => f.finding_kind === "missing_iteration_done"));
+
+    const cp = buildSessionCheckpointFromRows(rows);
+    assert.equal(cp.session_complete, false);
+    assert.equal(cp.recovery_clean, true);
+
+    const ev = evaluateResumeEligibility(cp, { require_session_incomplete: true });
+    assert.equal(ev.eligible, true);
+    assert.ok(!ev.block_codes.includes("recovery_not_clean"));
+  });
+
+  it("complete session: missing_iteration_done blocks resume", () => {
+    const rows = [
+      { event: "session_start", task_id: "t-miss-iter-done", goal: "ship feature", permission_profile: "dev-local" },
+      { event: "agent_start", step_id: "s1", agent: "DEV", iteration: 1 },
+      { event: "agent_done", step_id: "s1", agent: "DEV", iteration: 1 },
+      { event: "session_end", task_id: "t-miss-iter-done", done: true, iterations: 1, permission_profile: "dev-local" },
+    ];
+    const cp = buildSessionCheckpointFromRows(rows);
+    assert.equal(cp.session_complete, true);
+    assert.equal(cp.recovery_clean, false);
+
+    const ev = evaluateResumeEligibility(cp);
+    assert.equal(ev.eligible, false);
+    assert.ok(ev.block_codes.includes("recovery_not_clean"));
   });
 
   it("blocked by open review blockers", () => {
