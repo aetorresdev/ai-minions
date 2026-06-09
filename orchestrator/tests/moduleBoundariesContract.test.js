@@ -26,6 +26,7 @@ describe("module-boundaries-contract", () => {
     const doc = fs.readFileSync(CONTRACT_PATH, "utf8");
     assert.match(doc, /partial physical migration|CI import guard/i);
     assert.match(doc, /modules\/gates/i);
+    assert.match(doc, /modules\/contracts/i);
     assert.match(doc, /Not claimed/i);
     assert.match(doc, /modular monolith refactor complete/i);
     for (const mod of CANONICAL_MODULES) {
