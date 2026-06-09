@@ -19,7 +19,7 @@ Seventh alpha pre-release: **execution governance & modular enforcement** — Pr
 | Focus | Governance proposals + Trivy gate + design map | Production boundary + PR merge governance + module CI + review/recovery |
 | Production boundary | Doc-only design map | **Production Boundary Guard** — `production_boundary_check` trace; `agent_as_contributor` default |
 | Merge governance | Not shipped | **PR-boundary gate** — merge-readiness evidence; `review_record` integration |
-| Module boundaries | Design-only | **A2.1 physical slice** + **A2.2 CI import guards** (`lint:module-boundaries`) |
+| Module boundaries | Design-only | **First physical module slice** + **CI import guards** (`lint:module-boundaries`) |
 | Review records | Base `review_record` schema | **Governance chain wiring** — durable QA/CERBERUS evidence in merge flow |
 | Recovery sweep | Base stranded/session findings | **Four new kinds** — `open_review_blockers`, `missing_iteration_done`, `governance_boundary_incomplete`, `incomplete_handoff` |
 | OTEL export | Mapper slice 1 evidence | Unchanged — **no** OTLP |
@@ -32,8 +32,8 @@ Seventh alpha pre-release: **execution governance & modular enforcement** — Pr
 - Unit + hooks: `cd orchestrator && npm test` → **970/971** pass (1 skipped)
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
 - Contracts: `production-boundary-guard.md`, `merge-governance-contract.md`, `module-boundaries.md`, `review-record-contract.md`, `recovery-sweep-contract.md`, `session-resume-contract.md`
-- Lane PRs on `master` @ `9fff652`: **#150** (G0) · **#151** (G1) · **#152** (A2.1) · **#153** (A2.2) · **#154** (R1) · **#157** (R2)
-- CI: lint-and-unit, markdownlint, lychee, orchestrator-e2e — green on R2 merge
+- Lane merged on `master` @ `9fff652`; release-prep @ `268351b`
+- CI: lint-and-unit, markdownlint, lychee, orchestrator-e2e — green on lane merge
 
 **Alpha limitations (not production):**
 
