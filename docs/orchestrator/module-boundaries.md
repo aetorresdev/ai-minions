@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/module-boundaries.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design map + partial physical migration (A2.1) + CI import guard (A2.2).** `orchestrator/modules/gates/` ships with compat shims at legacy paths. **`lint:module-boundaries`** enforces adjacency matrix under `modules/**` and hard rules globally; legacy violations are grandfathered in `module-boundary-allowlist.json`. **No** runtime behavior change. **Modular refactor not complete.**
+**Status:** **Design map + partial physical migration** — `modules/gates/` and `modules/contracts/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **`lint:module-boundaries`** enforces adjacency matrix under `modules/**` and hard rules globally; legacy violations are grandfathered in `module-boundary-allowlist.json`. **No** runtime behavior change. **Modular refactor not complete.**
 
 **Related:** [architecture-coherence-audit.md](architecture-coherence-audit.md) · [module-ownership-map.md](module-ownership-map.md) · [root-file-inventory.md](root-file-inventory.md) · [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
@@ -91,7 +91,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | Module | Principal files / dirs |
 |--------|-------------------------|
 | **run-control** | `orchestrator.js`, `run-loop-helpers.js`, `run-phases/*`, `run-state.js`, `qa-spec-flow.js`, `cli.js` (invoke path) |
-| **contracts** | `validate-output.js` (via agents), `*-design.js`, `self-improvement-loop-design.js`, `bv-reviewer-design.js`, `progressive-disclosure-design.js`, `tests/*Contract.test.js`, `tests/handoffContract.test.js`, `tests/sandboxCredentialIsolationDesign.test.js`, `tests/moduleBoundariesContract.test.js` |
+| **contracts** | `modules/contracts/` (`*-design.js` validators) · shims: `bv-reviewer-design.js`, `progressive-disclosure-design.js`, `self-improvement-loop-design.js` · `validate-output.js` (via agents) · `tests/*Contract.test.js`, `tests/handoffContract.test.js`, `tests/sandboxCredentialIsolationDesign.test.js`, `tests/moduleBoundariesContract.test.js` |
 | **gates** | `modules/gates/governance-gate.js`, `modules/gates/merge-governance/` (A2.1) · shims: `governance-gate.js`, `merge-governance/` · `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
 | **permissions** | `agents/permissions.js`, `agents/capability-matrix.js`, `credential-broker.js`, `environment-parser.js` |
 | **tools** | `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js`, `mcp-client.js` |
@@ -100,7 +100,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | **budget** | `token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`, `runner-budget-view.js` |
 | **worktree** | `worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js` |
 | **operator** | `explain-run.js`, `control-plane-tui.js`, `runner-*-cli.js`, `operator-cli-help.js`, `project-template-cli.js`, `scenario-metrics-export.js` |
-| **disclosure** | `progressive-disclosure-design.js`, `security/skill-registry.js` (metadata only); runtime filter **planned** |
+| **disclosure** | `modules/contracts/progressive-disclosure-design.js` (shim at root), `security/skill-registry.js` (metadata only); runtime filter **planned** |
 | **shared/legacy** | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` (facade) |
 
 Every new top-level file should declare target module in PR description. New cross-boundary imports fail CI unless added to the allowlist with explicit review justification.
@@ -165,5 +165,6 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-07 | Initial design map shipped on `master` @ `e8b3ac8`; ticket-free deferred refactor wording; cross-links to handoff/sandbox design contracts |
 | 2026-06-08 | A2.1 slice 1 — `modules/gates/` physical migration (`governance-gate`, `merge-governance`); root shims; import guards deferred to A2.2 |
 | 2026-06-08 | A2.2 slice 2 — `check-module-boundaries` + allowlist + `moduleBoundaryGuard.test.js`; wired into `npm test` |
+| 2026-06-09 | Physical contracts slice — `modules/contracts/` design validators; root shims; `moduleRefactorSlice2.test.js` |
 
 Update when module map or known violations change. Physical refactor briefs reference this doc (backlog only — not in CHANGELOG product text).
