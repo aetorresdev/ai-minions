@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/module-boundaries.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design map + partial physical migration** — `modules/gates/` and `modules/contracts/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **`lint:module-boundaries`** enforces adjacency matrix under `modules/**` and hard rules globally; legacy violations are grandfathered in `module-boundary-allowlist.json`. **No** runtime behavior change. **Modular refactor not complete.**
+**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, and `modules/recovery/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **`lint:module-boundaries`** enforces adjacency matrix under `modules/**` and hard rules globally; legacy violations are grandfathered in `module-boundary-allowlist.json`. **No** runtime behavior change. **Modular refactor not complete.**
 
 **Related:** [architecture-coherence-audit.md](architecture-coherence-audit.md) · [module-ownership-map.md](module-ownership-map.md) · [root-file-inventory.md](root-file-inventory.md) · [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
@@ -39,7 +39,8 @@ Name **capability boundaries** for the orchestrator modular monolith so refactor
 | **permissions** | Capability matrix, credential ceiling, permission check **decisions** | Executing shell/git; appending trace rows (shell may call trace writer) |
 | **tools** | Tool classification, tool eval fixtures, skill registry policy, untrusted-context eval | Gate verdict parsing; run loop scheduling |
 | **model-runtime** | Local model policy/discovery/selection, agent runtime adapters (Claude/Ollama) | Approval before DEV; trace redaction policy |
-| **trace** | JSONL schema, append/sanitize/redact, lifecycle events, outcome summary, OTel **mapper** (derived) | Policy decisions (what is allowed to run) |
+| **trace** | JSONL schema, append/sanitize/redact, lifecycle events, outcome summary, OTel **mapper** (derived) | Policy decisions (what is allowed to run); recovery/resume eligibility |
+| **recovery** | Stranded run/step detection, session checkpoint eligibility, resume gating explanations | Gate policy tables; live run loop mutation without operator path |
 | **budget** | Token/cost accounting dimensions, budget views, cost rollups | Enforcing spend limits in production SLA sense |
 | **worktree** | Worktree isolation, workdir contract, cleanup safety, result promotion | Permission checks; agent prompts |
 | **operator** | CLI/TUI, explain-run, export, preflight, help surfaces | Domain policy; direct gate bypass |
@@ -53,18 +54,19 @@ Name **capability boundaries** for the orchestrator modular monolith so refactor
 
 Rows = **may import / call** (runtime or `require`). Empty = no direct dependency.
 
-| From ↓ / To → | run-control | contracts | gates | permissions | tools | model-runtime | trace | budget | worktree | operator |
-|---------------|:-----------:|:---------:|:-----:|:-------------:|:-----:|:-------------:|:-----:|:------:|:--------:|:--------:|
-| **run-control** | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
-| **contracts** | ✗ | — | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| **gates** | ✗ | ✓ | — | ✓ | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
-| **permissions** | ✗ | ✓ | ✗ | — | ✓ | ✗ | ✓ | ✗ | ✗ | ✗ |
-| **tools** | ✗ | ✓ | ✗ | ✓ | — | ✗ | ✓ | ✗ | ✗ | ✗ |
-| **model-runtime** | ✗ | ✓ | ✗ | ✓ | ✓ | — | ✓ | ✓ | ✗ | ✗ |
-| **trace** | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | — | ✓ | ✓ | ✗ |
-| **budget** | ✗ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ | — | ✗ | ✗ |
-| **worktree** | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | — | ✗ |
-| **operator** | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ | ✓ | ✓ | — |
+| From ↓ / To → | run-control | contracts | gates | permissions | tools | model-runtime | trace | recovery | budget | worktree | operator |
+|---------------|:-----------:|:---------:|:-----:|:-------------:|:-----:|:-------------:|:-----:|:--------:|:------:|:--------:|:--------:|
+| **run-control** | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
+| **contracts** | ✗ | — | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **gates** | ✗ | ✓ | — | ✓ | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ |
+| **permissions** | ✗ | ✓ | ✗ | — | ✓ | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ |
+| **tools** | ✗ | ✓ | ✗ | ✓ | — | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ |
+| **model-runtime** | ✗ | ✓ | ✗ | ✓ | ✓ | — | ✓ | ✗ | ✓ | ✗ | ✗ |
+| **trace** | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | — | ✓ | ✓ | ✓ | ✗ |
+| **recovery** | ✗ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | — | ✗ | ✗ | ✗ |
+| **budget** | ✗ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ | ✗ | — | ✗ | ✗ |
+| **worktree** | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | — | ✗ |
+| **operator** | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✓ | ✓ | — |
 
 **Global forbidden (any module →):** `agents/prompts/*` content into permission pure functions; trace rows into gate **decisions**; operator CLI mutating gate state without trace + human path.
 
@@ -96,7 +98,8 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | **permissions** | `agents/permissions.js`, `agents/capability-matrix.js`, `credential-broker.js`, `environment-parser.js` |
 | **tools** | `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js`, `mcp-client.js` |
 | **model-runtime** | `agents/runtime/*`, `agents/routing/model-routing.js`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
-| **trace** | `trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js`, `recovery-sweep.js`, `session-resume.js` |
+| **trace** | `trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js` |
+| **recovery** | `modules/recovery/` (`recovery-sweep.js`, `session-resume.js`) · shims: `recovery-sweep.js`, `session-resume.js` |
 | **budget** | `token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`, `runner-budget-view.js` |
 | **worktree** | `worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js` |
 | **operator** | `explain-run.js`, `control-plane-tui.js`, `runner-*-cli.js`, `operator-cli-help.js`, `project-template-cli.js`, `scenario-metrics-export.js` |
@@ -129,7 +132,8 @@ Every new top-level file should declare target module in PR description. New cro
 | gates | `review_record`, `doubt_review_*`, `approval_*`, `production_boundary_check` | contract validation |
 | permissions | `permission_check` | capability matrix |
 | tools | `skill_registry_check`, tool eval fixtures | registry JSON |
-| trace | writer lifecycle, redaction | all modules (append API) |
+| trace | writer lifecycle, redaction | all modules (append API); may call **recovery** for outcome summaries (not gate policy) |
+| recovery | `recovery_*`, `session_resume_*` eligibility | trace rows (read); **gates** / **permissions** readers for blockers |
 | worktree | `workspace_*`, promotion events | run workdir contract |
 | budget | cost dimensions in summaries | trace JSONL |
 
@@ -166,5 +170,6 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-08 | A2.1 slice 1 — `modules/gates/` physical migration (`governance-gate`, `merge-governance`); root shims; import guards deferred to A2.2 |
 | 2026-06-08 | A2.2 slice 2 — `check-module-boundaries` + allowlist + `moduleBoundaryGuard.test.js`; wired into `npm test` |
 | 2026-06-09 | Physical contracts slice — `modules/contracts/` design validators; root shims; `moduleRefactorSlice2.test.js` |
+| 2026-06-09 | Physical recovery slice — `modules/recovery/`; root shims; recovery row/column in dependency matrix; `moduleRefactorSlice3.test.js` |
 
 Update when module map or known violations change. Physical refactor briefs reference this doc (backlog only — not in CHANGELOG product text).

@@ -37,10 +37,6 @@
     "worktree-isolation.js::./agents/runtime/run-classified-shell::agents/runtime/run-classified-shell.js::matrix"
   ],
   "hard": [
-    "recovery-sweep.js::./governance-gate::governance-gate.js::trace-not-policy",
-    "run-outcome-summary.js::./review-record::review-record.js::trace-not-policy",
-    "session-resume.js::./governance-gate::governance-gate.js::trace-not-policy",
-    "session-resume.js::./review-record::review-record.js::trace-not-policy",
-    "session-resume.js::./security/permission-check-summary::security/permission-check-summary.js::trace-not-policy"
+    "run-outcome-summary.js::./review-record::review-record.js::trace-not-policy"
   ]
 }

@@ -4,24 +4,25 @@ const path = require("path");
 
 /** @typedef {import("./module-boundary-rules").ModuleId} ModuleId */
 
-/** @typedef {"run-control"|"contracts"|"gates"|"permissions"|"tools"|"model-runtime"|"trace"|"budget"|"worktree"|"operator"|"disclosure"|"shared"|"external"|"unclassified"} ModuleId */
+/** @typedef {"run-control"|"contracts"|"gates"|"permissions"|"tools"|"model-runtime"|"trace"|"recovery"|"budget"|"worktree"|"operator"|"disclosure"|"shared"|"external"|"unclassified"} ModuleId */
 
 /** Adjacency matrix from docs/orchestrator/module-boundaries.md */
 const ALLOWED_IMPORTS = {
-  "run-control": new Set(["contracts", "gates", "permissions", "tools", "model-runtime", "trace", "budget", "worktree", "shared", "external"]),
+  "run-control": new Set(["contracts", "gates", "permissions", "tools", "model-runtime", "trace", "recovery", "budget", "worktree", "shared", "external"]),
   contracts: new Set(["shared", "external"]),
   gates: new Set(["contracts", "permissions", "trace", "shared", "external"]),
   permissions: new Set(["contracts", "tools", "trace", "shared", "external"]),
   tools: new Set(["contracts", "permissions", "trace", "shared", "external"]),
   "model-runtime": new Set(["contracts", "permissions", "tools", "trace", "budget", "shared", "external"]),
-  trace: new Set(["contracts", "budget", "worktree", "shared", "external"]),
+  trace: new Set(["contracts", "recovery", "budget", "worktree", "shared", "external"]),
+  recovery: new Set(["contracts", "gates", "permissions", "shared", "external"]),
   budget: new Set(["contracts", "model-runtime", "trace", "shared", "external"]),
   worktree: new Set(["contracts", "trace", "shared", "external"]),
   operator: new Set(["run-control", "contracts", "trace", "budget", "worktree", "shared", "external"]),
   disclosure: new Set(["contracts", "tools", "shared", "external"]),
   shared: new Set(["shared", "external", "contracts", "trace", "permissions", "tools", "gates", "budget", "worktree", "model-runtime", "run-control", "operator"]),
   external: new Set(),
-  unclassified: new Set(["shared", "external", "contracts", "trace", "permissions", "tools", "gates", "budget", "worktree", "model-runtime", "run-control", "operator", "unclassified"]),
+  unclassified: new Set(["shared", "external", "contracts", "trace", "recovery", "permissions", "tools", "gates", "budget", "worktree", "model-runtime", "run-control", "operator", "unclassified"]),
 };
 
 /** First match wins — order: specific paths before broad prefixes. */
@@ -30,7 +31,8 @@ const MODULE_PATTERNS = [
   { id: "permissions", patterns: [/^agents\/permissions\.js$/, /^agents\/capability-matrix\.js$/, /^credential-broker\.js$/, /^environment-parser\.js$/, /^security\/(?:.*permission.*|.*-gate\.js|classified|claude-cli|network|mcp|trace-role-capability)/] },
   { id: "tools", patterns: [/^security\/tool-eval/, /^security\/skill-registry/, /^security\/untrusted-context/, /^mcp-client\.js$/] },
   { id: "model-runtime", patterns: [/^agents\/runtime\//, /^agents\/routing\//, /^local-model-/, /^runner-model-routing/, /^flow-hook-bridge/] },
-  { id: "trace", patterns: [/^trace-/, /^run-outcome-summary/, /^otel-genai-trace-map/, /^context-hygiene-signals/, /^recovery-sweep/, /^session-resume/] },
+  { id: "recovery", patterns: [/^modules\/recovery\//, /^recovery-sweep/, /^session-resume/] },
+  { id: "trace", patterns: [/^trace-/, /^run-outcome-summary/, /^otel-genai-trace-map/, /^context-hygiene-signals/] },
   { id: "budget", patterns: [/^token-usage-summary/, /^token-trace-report/, /^cost-accounting-dimensions/, /^runner-budget-view/] },
   { id: "worktree", patterns: [/^worktree-/, /^run-workdir-contract/, /^trace-workspace-lifecycle/] },
   { id: "operator", patterns: [/^explain-run/, /^control-plane-tui/, /^runner-(?!model-routing)/, /^operator-cli-help/, /^project-template-cli/, /^scenario-metrics-export/, /^console-dashboard/] },

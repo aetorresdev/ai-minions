@@ -15,6 +15,7 @@ const CANONICAL_MODULES = [
   "tools",
   "model-runtime",
   "trace",
+  "recovery",
   "budget",
   "worktree",
   "operator",
@@ -27,6 +28,7 @@ describe("module-boundaries-contract", () => {
     assert.match(doc, /partial physical migration|CI import guard/i);
     assert.match(doc, /modules\/gates/i);
     assert.match(doc, /modules\/contracts/i);
+    assert.match(doc, /modules\/recovery/i);
     assert.match(doc, /Not claimed/i);
     assert.match(doc, /modular monolith refactor complete/i);
     for (const mod of CANONICAL_MODULES) {
@@ -37,6 +39,8 @@ describe("module-boundaries-contract", () => {
   it("defines dependency matrix and known violations", () => {
     const doc = fs.readFileSync(CONTRACT_PATH, "utf8");
     assert.match(doc, /Allowed \/ forbidden dependencies/i);
+    assert.match(doc, /\| \*\*recovery\*\* \|/);
+    assert.match(doc, /\| recovery \|/);
     assert.match(doc, /Known import/i);
     assert.match(doc, /check-module-boundaries|lint:module-boundaries/i);
     assert.match(doc, /module-boundary-allowlist/i);
