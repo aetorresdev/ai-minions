@@ -1,15 +1,15 @@
 # Gates module
 
-Bounded context: human approval, policy gates, governance pre-checks, PR-boundary governance.
+Bounded context: human approval, policy gates, governance pre-checks, PR-boundary governance, durable review records.
 
-**Slice 1 (A2.1):** `governance-gate.js` and `merge-governance/` live here. Root-level shims preserve existing `require()` paths.
+**Physical home:** `governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js`. Root-level shims preserve legacy `require()` paths.
 
 **Canonical imports (preferred in new code):**
 
 ```javascript
 const gates = require("./modules/gates");
 const { evaluatePrBoundaryGovernance } = require("./modules/gates/merge-governance");
-const { buildApprovalGrantedPayload } = require("./modules/gates/governance-gate");
+const { buildReviewRecord } = require("./modules/gates/review-record");
 ```
 
 See `docs/orchestrator/module-boundaries.md`.
