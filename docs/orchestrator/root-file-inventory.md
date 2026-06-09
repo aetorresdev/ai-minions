@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/root-file-inventory.md`. See [PATHS.md](PATHS.md).
 
-**Status:** Audit artifact for v0.8 physical cleanup. **No** file moves in this document — classification and A8-2 targets only.
+**Status:** Audit artifact for v0.8 physical cleanup. **No** file moves in this document — classification and proposed module targets only.
 
 **Related:** [module-boundaries.md](module-boundaries.md) · [module-ownership-map.md](module-ownership-map.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md)
 
@@ -15,7 +15,7 @@
 | Class | May stay at `orchestrator/` root |
 |-------|----------------------------------|
 | **Entrypoints** | `cli.js`, `run-orchestrator.js` |
-| **Compat shims** | Explicit re-exports after A8-2 moves (e.g. `governance-gate.js`, `merge-governance/`) |
+| **Compat shims** | Explicit re-exports after physical refactor moves (e.g. `governance-gate.js`, `merge-governance/`) |
 | **Config / tooling** | `package.json`, `package-lock.json`, `eslint.config.js`, `models.json`, `module-boundary-allowlist.json`, `.env.example` |
 | **Docs index** | `README.md`, `CLAUDE.md` |
 | **Allowed dirs** | `schemas/`, `tests/`, `scripts/`, `modules/`, `agents/` (until further slice), `security/` (until tools slice) |
@@ -28,7 +28,7 @@ Everything else that implements runtime or domain behavior should land under `or
 
 | Path | Class | Proposed module / note |
 |------|-------|------------------------|
-| `agents/` | Mixed runtime | **model-runtime** (`runtime/`, `routing/`) + **permissions** (`permissions.js`, `capability-matrix.js`) + prompts — split in later slices; not mass-moved in A8-2 |
+| `agents/` | Mixed runtime | **model-runtime** (`runtime/`, `routing/`) + **permissions** (`permissions.js`, `capability-matrix.js`) + prompts — split in later slices; not mass-moved in first refactor pass |
 | `merge-governance/` | Compat shim | Re-export to `modules/gates/merge-governance/` — keep until importers updated |
 | `modules/` | Physical modules | Today: `gates/` only |
 | `run-phases/` | Runtime | **run-control** → `modules/run-control/run-phases/` |
@@ -43,7 +43,7 @@ Everything else that implements runtime or domain behavior should land under `or
 
 Paths relative to `orchestrator/`.
 
-| File | Class | Proposed bounded context | A8-2 target path (proposed) | Shim after move |
+| File | Class | Proposed bounded context | Target path (proposed) | Shim after move |
 |------|-------|--------------------------|----------------------------|-----------------|
 | `agents.js` | Facade | shared/legacy | `modules/shared/agents-facade.js` (optional late slice) | Yes — high fan-in |
 | `approval-policy-gate.js` | Runtime/domain | gates | `modules/gates/approval-policy-gate.js` | Yes |
@@ -114,7 +114,7 @@ Paths relative to `orchestrator/`.
 | `eslint.config.js` | Config | Stays |
 | `models.json` | Config | Stays |
 | `module-boundary-allowlist.json` | Config / CI | Stays; update keys as paths move |
-| `mcp-direct.py` | Legacy/aux | Classify on use — not in A8-2 min bar |
+| `mcp-direct.py` | Legacy/aux | **tools** (MCP transport adjunct) — not in first refactor min bar; **must** appear in root import guard allowlist (entrypoint/shim/legacy) or move with `modules/tools/` |
 | `package.json` / `package-lock.json` | Config | Stays |
 
 ---
@@ -132,14 +132,14 @@ Paths relative to `orchestrator/`.
 
 ## Weak ownership / boundary pressure (inventory flags)
 
-| File(s) | Issue | A8-2 / follow-up |
+| File(s) | Issue | Refactor / follow-up |
 |---------|-------|------------------|
 | `recovery-sweep.js`, `session-resume.js` | Hard-rule allowlist: import `governance-gate`, `review-record` (trace-not-policy) | Promote **`recovery`** module; narrow imports via gates API |
 | `run-outcome-summary.js` | Hard-rule: imports `review-record` | Move with trace; consume review via exported reader, not gate internals |
 | `orchestrator.js` | God-module — imports across gates, trace, permissions, worktree | Move last; phase facades in `run-phases/` first |
 | `runner-budget-view.js` | Operator UI + budget data | Accept operator ownership; budget pure functions stay in budget module |
 | `trace-workspace-lifecycle.js` | Worktree events + trace writer | Primary owner **worktree**; trace module provides append port |
-| `*-design.js` at root | Contracts not under `modules/contracts/` | Move as low-risk slice early in A8-2 |
+| `*-design.js` at root | Contracts not under `modules/contracts/` | Move as low-risk slice early in physical refactor |
 
 ---
 
@@ -147,6 +147,7 @@ Paths relative to `orchestrator/`.
 
 | Date | Change |
 |------|--------|
-| 2026-05-18 | Initial A8-1 inventory — 55 root `.js` files classified; A8-2 target paths proposed |
+| 2026-06-09 | Initial inventory — 55 root `.js` files classified; module target paths proposed |
+| 2026-06-09 | Pre-merge review follow-up — `mcp-direct.py` flagged for root import guard allowlist |
 
 Update when root files are added, removed, or reclassified. Physical moves reference [architecture-coherence-audit.md](architecture-coherence-audit.md) movement plan.

@@ -31,7 +31,7 @@ describe("architecture-coherence-audit-contract", () => {
 
   it("coherence audit uses only allowed matrix states and movement plan", () => {
     const doc = fs.readFileSync(path.join(DOCS_DIR, "architecture-coherence-audit.md"), "utf8");
-    assert.match(doc, /A8-2 movement plan|Recommended A8-2 movement plan/i);
+    assert.match(doc, /physical refactor movement plan|Recommended physical refactor movement plan/i);
     assert.match(doc, /modules\/recovery/i);
     assert.doesNotMatch(doc, /modular monolith refactor complete/i);
     assert.match(doc, /Not.*claim/i);
@@ -53,5 +53,13 @@ describe("architecture-coherence-audit-contract", () => {
     assert.match(doc, /modules\/gates/i);
     assert.match(doc, /recovery/i);
     assert.match(doc, /Must not own/i);
+  });
+
+  it("audit docs omit backlog ticket ids (DOC-NO-TICKET-SRC-1)", () => {
+    const ticketId = /\b[A-Z][0-9]+-[0-9]+\b/;
+    for (const name of AUDIT_DOCS) {
+      const doc = fs.readFileSync(path.join(DOCS_DIR, name), "utf8");
+      assert.doesNotMatch(doc, ticketId, `${name} must not embed backlog ticket ids`);
+    }
   });
 });

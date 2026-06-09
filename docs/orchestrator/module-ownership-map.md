@@ -12,7 +12,7 @@
 
 1. **One primary owner** per runtime/domain file (see [root-file-inventory.md](root-file-inventory.md)).
 2. **Coordination, not duplication** — cross-cutting behavior uses narrow ports (e.g. trace append API, gate evaluation result types), not copy-paste imports across contexts.
-3. **Shims are explicit** — root re-exports after A8-2 moves are documented and temporary; new code imports from `modules/<context>/`.
+3. **Shims are explicit** — root re-exports after physical refactor moves are documented and temporary; new code imports from `modules/<context>/`.
 4. **Tests mirror modules** — `orchestrator/tests/<context>/` or `*Contract.test.js` colocated until bulk rename.
 5. **Design map wins disputes** — adjacency matrix in [module-boundaries.md](module-boundaries.md); CI via `lint:module-boundaries`.
 
@@ -40,7 +40,7 @@
 | **Current paths** | `*-design.js`, `tests/*Contract.test.js`, validators under `agents/` (validate-output) |
 | **Target paths** | `modules/contracts/` |
 | **Coordinates with** | All modules (read-only validation); no upward imports from contracts |
-| **Physical module** | **Not yet** — low-risk early A8-2 slice |
+| **Physical module** | **Not yet** — low-risk early physical refactor slice |
 
 ### gates
 
@@ -48,7 +48,7 @@
 |--|--|
 | **Owns** | Human approval, policy gates, governance pre-checks, doubt cycle hooks, durable `review_record` emission |
 | **Must not own** | Permission matrix SoT; model routing |
-| **Current paths** | `modules/gates/` (A2.1), shims `governance-gate.js`, `merge-governance/`, root `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
+| **Current paths** | `modules/gates/` (first gates migration), shims `governance-gate.js`, `merge-governance/`, root `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
 | **Target paths** | `modules/gates/` (consolidate all gate logic) |
 | **Coordinates with** | permissions (capability), trace (emit outcomes), contracts (schema) |
 | **Physical module** | **Partial** — merge-governance + governance-gate shipped |
@@ -130,7 +130,7 @@
 | **Coordinates with** | run-control (start runs), trace/budget/worktree (read) |
 | **Physical module** | **Not yet** |
 
-### recovery *(proposed — A8-2)*
+### recovery *(proposed — physical refactor)*
 
 | | |
 |--|--|
@@ -161,13 +161,13 @@
 | **Target paths** | `modules/shared/` or split into true owners |
 | **Physical module** | **Not yet** |
 
-### release-governance *(optional — A8-5)*
+### release-governance *(optional — release discipline slice)*
 
 | | |
 |--|--|
 | **Owns** | Release checklist automation, tag/branch policy helpers (if extracted from scripts) |
 | **Current paths** | Mostly `scripts/` + docs today |
-| **Physical module** | **Not yet** — only if A8-5 consolidates enough logic |
+| **Physical module** | **Not yet** — only if release discipline slice consolidates enough logic |
 
 ---
 
@@ -180,7 +180,7 @@
 | Recovery eligibility | recovery (derive) | gates (source), trace (source) | Recovery reads; does not call governance evaluate |
 | Worktree bind | worktree | run-control | Run-control invokes worktree port at session start |
 | MCP tool call | permissions → tools | trace | `mcp-client` stays in tools; gates never import MCP transport |
-| Outcome summary | trace (aggregate) | operator | `run-outcome-summary` must not embed gate policy — fix `review-record` import in A8-2 |
+| Outcome summary | trace (aggregate) | operator | `run-outcome-summary` must not embed gate policy — fix `review-record` import in physical refactor |
 | Module boundary CI | contracts (doc) | scripts | Allowlist shrinks as violations fixed |
 
 ---
@@ -208,6 +208,6 @@ orchestrator/
 
 | Date | Change |
 |------|--------|
-| 2026-05-18 | Initial A8-1 ownership map — recovery context proposed; current vs target documented |
+| 2026-06-09 | Initial ownership map — recovery context proposed; current vs target documented |
 
 Update when modules are physically created or ownership disputes are resolved in review.

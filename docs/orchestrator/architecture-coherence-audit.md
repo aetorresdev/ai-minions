@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/architecture-coherence-audit.md`. See [PATHS.md](PATHS.md).
 
-**Status:** v0.8 A8-1 audit — **docs only**. No file moves, no runtime behavior change. **Not** a claim of architecture completeness.
+**Status:** v0.8 coherence audit — **docs only**. No file moves, no runtime behavior change. **Not** a claim of architecture completeness.
 
 **Related:** [root-file-inventory.md](root-file-inventory.md) · [module-ownership-map.md](module-ownership-map.md) · [module-boundaries.md](module-boundaries.md)
 
@@ -12,7 +12,7 @@
 
 ## Purpose
 
-Before v0.8 physical cleanup (A8-2), answer:
+Before v0.8 physical module cleanup, answer:
 
 1. Does the **documented** system hang together across lifecycle, roles, contracts, gates, traces, skills, tools, and recovery?
 2. Where are claims **ahead of** implementation?
@@ -98,7 +98,7 @@ From `module-boundary-allowlist.json`:
 | Matrix grandfathered | 33 | `orchestrator.js` ← runtime agents; `mcp-client` → `governance-gate` |
 | Hard-rule grandfathered | 5 | `recovery-sweep` / `session-resume` → gates; `run-outcome-summary` → `review-record` |
 
-**Coherence issue:** trace and recovery files importing gate modules blurs **read aggregation** vs **policy**. A8-2 should introduce narrow reader ports or move files into owning contexts per [module-ownership-map.md](module-ownership-map.md).
+**Coherence issue:** trace and recovery files importing gate modules blurs **read aggregation** vs **policy**. The physical refactor slice should introduce narrow reader ports or move files into owning contexts per [module-ownership-map.md](module-ownership-map.md).
 
 ---
 
@@ -116,7 +116,7 @@ From `module-boundary-allowlist.json`:
 
 ---
 
-## Recommended A8-2 movement plan
+## Recommended physical refactor movement plan
 
 **Constraints:** Zero behavior change · shims for all moved public `require` paths · one PR slice per bounded context when possible · update allowlist keys as imports heal.
 
@@ -126,7 +126,7 @@ From `module-boundary-allowlist.json`:
 |------:|-------|--------------|---------------|------|-------|
 | 1 | Contracts validators | `*-design.js` (3 files) | `modules/contracts/` | Yes | Low fan-in; no runtime |
 | 2 | Recovery | `recovery-sweep.js`, `session-resume.js` | `modules/recovery/` | Yes | New context; fixes ownership ambiguity |
-| 3 | Gates (remainder) | `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` | `modules/gates/` | Yes | Join A2.1 tree; shrink root |
+| 3 | Gates (remainder) | `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` | `modules/gates/` | Yes | Join existing `modules/gates/` tree; shrink root |
 | 4 | Trace core | `trace-*.js`, `run-outcome-summary.js`, `context-hygiene-signals.js`, `otel-genai-trace-map.js` | `modules/trace/` | Yes | Refactor `run-outcome-summary` import of `review-record` |
 | 5 | Budget | `token-*.js`, `cost-accounting-dimensions.js` | `modules/budget/` | Yes | Leave `runner-budget-view` in operator slice |
 | 6 | Worktree | `worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js` | `modules/worktree/` | Yes | |
@@ -138,11 +138,11 @@ From `module-boundary-allowlist.json`:
 | 12 | Shared / legacy | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` | `modules/shared/` | Yes | Optional; can defer |
 | 13 | Hub last | `orchestrator.js` | `modules/run-control/orchestrator.js` | Yes | Highest fan-in; verify export parity tests |
 
-**Do not move in A8-2 min bar:** `cli.js`, `run-orchestrator.js`, `governance-gate.js`, `merge-governance/`, config, `schemas/`, `scripts/`, `tests/`.
+**Do not move in physical refactor min bar:** `cli.js`, `run-orchestrator.js`, `governance-gate.js`, `merge-governance/`, config, `schemas/`, `scripts/`, `tests/`.
 
-### Post-move (A8-3)
+### Post-move (root import guard)
 
-- Extend `check-module-boundaries.js` / root import guard: **fail on new** root-level `*.js` except allowlisted entrypoints/shims.
+- Extend `check-module-boundaries.js` / root import guard: **fail on new** root-level `*.js` except allowlisted entrypoints/shims; include explicit allowlist entries for legacy aux files (e.g. `mcp-direct.py`).
 - Shrink `module-boundary-allowlist.json` as violations are fixed.
 - Add `modules/<context>/README.md` stubs per gates precedent.
 
@@ -155,7 +155,7 @@ From `module-boundary-allowlist.json`:
 
 ---
 
-## Audit verdict (A8-1)
+## Audit verdict
 
 | Criterion | Met |
 |-----------|:---:|
@@ -163,8 +163,8 @@ From `module-boundary-allowlist.json`:
 | Every runtime/domain file has one proposed context | ✓ |
 | Every module has declared ownership | ✓ — see [module-ownership-map.md](module-ownership-map.md) |
 | Matrix uses only five allowed states | ✓ |
-| No file movement in this ticket | ✓ |
-| A8-2 movement plan produced | ✓ — slice table above |
+| No file movement in this audit | ✓ |
+| Physical refactor movement plan produced | ✓ — slice table above |
 
 **System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and partial modular enforcement. Coherence **frays** at physical layout (root sprawl), recovery↔gates imports, and design-only docs that must not be read as shipped runtime. v0.8 should improve **structure and release discipline**, not add features.
 
@@ -174,6 +174,7 @@ From `module-boundary-allowlist.json`:
 
 | Date | Change |
 |------|--------|
-| 2026-05-18 | Initial A8-1 coherence audit + A8-2 movement plan |
+| 2026-06-09 | Initial coherence audit + physical refactor movement plan |
+| 2026-06-09 | Pre-merge review follow-up — companion commit rephrases v0.7 checklist line 273 (`lint:docs-claims` pre-existing on `master`) |
 
-Update after A8-2 slices land or matrix states change.
+Update after physical refactor slices land or matrix states change.
