@@ -94,7 +94,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 |--------|-------------------------|
 | **run-control** | `orchestrator.js`, `run-loop-helpers.js`, `run-phases/*`, `run-state.js`, `qa-spec-flow.js`, `cli.js` (invoke path) |
 | **contracts** | `modules/contracts/` (`*-design.js` validators) · shims: `bv-reviewer-design.js`, `progressive-disclosure-design.js`, `self-improvement-loop-design.js` · `validate-output.js` (via agents) · `tests/*Contract.test.js`, `tests/handoffContract.test.js`, `tests/sandboxCredentialIsolationDesign.test.js`, `tests/moduleBoundariesContract.test.js` |
-| **gates** | `modules/gates/governance-gate.js`, `modules/gates/merge-governance/` (A2.1) · shims: `governance-gate.js`, `merge-governance/` · `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
+| **gates** | `modules/gates/` (`governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js`) · shims: `governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
 | **permissions** | `agents/permissions.js`, `agents/capability-matrix.js`, `credential-broker.js`, `environment-parser.js` |
 | **tools** | `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js`, `mcp-client.js` |
 | **model-runtime** | `agents/runtime/*`, `agents/routing/model-routing.js`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
@@ -171,5 +171,6 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-08 | A2.2 slice 2 — `check-module-boundaries` + allowlist + `moduleBoundaryGuard.test.js`; wired into `npm test` |
 | 2026-06-09 | Physical contracts slice — `modules/contracts/` design validators; root shims; `moduleRefactorSlice2.test.js` |
 | 2026-06-09 | Physical recovery slice — `modules/recovery/`; root shims; recovery row/column in dependency matrix; `moduleRefactorSlice3.test.js` |
+| 2026-06-09 | Gates remainder slice — `approval-policy-gate`, `doubt-review`, `review-record` under `modules/gates/`; `moduleRefactorSlice4.test.js` |
 
 Update when module map or known violations change. Physical refactor briefs reference this doc (backlog only — not in CHANGELOG product text).

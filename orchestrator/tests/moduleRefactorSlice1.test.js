@@ -12,6 +12,9 @@ describe("module refactor slice 1 (gates)", () => {
     for (const rel of [
       "modules/gates/index.js",
       "modules/gates/governance-gate.js",
+      "modules/gates/approval-policy-gate.js",
+      "modules/gates/doubt-review.js",
+      "modules/gates/review-record.js",
       "modules/gates/merge-governance/index.js",
       "modules/gates/merge-governance/pr-boundary-governance-gate.js",
     ]) {

@@ -1,6 +1,6 @@
 "use strict";
 
-const { summarizeReviewRecordsFromRows } = require("../../../review-record");
+const { summarizeReviewRecordsFromRows } = require("../review-record");
 
 const REVIEW_GATED_ACTIONS = new Set(["pr_ready", "attach_evidence"]);
 const MAX_OPEN_BLOCKERS = 8;
