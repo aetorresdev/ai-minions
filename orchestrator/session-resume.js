@@ -40,7 +40,6 @@ function recoveryCleanForResume(recovery, sessionComplete) {
   const findings = Array.isArray(recovery.findings) ? recovery.findings : [];
   const blocking = findings.filter((f) => {
     if (sessionComplete === false && f && f.finding_kind === "missing_session_end") return false;
-    if (sessionComplete === false && f && f.finding_kind === "missing_iteration_done") return false;
     return true;
   });
   return blocking.length === 0;
