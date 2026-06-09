@@ -4,6 +4,62 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.7.0-alpha.1] - 2026-06-09
+
+Seventh alpha pre-release: **execution governance & modular enforcement** — Production Boundary Guard with `agent_as_contributor` default, PR merge governance evidence chain, first physical `orchestrator/modules/*` migration with CI import boundary guards, durable QA/CERBERUS review records wired into merge governance, and recovery sweep hardening (four new finding kinds).
+
+**Release claim:** operators get documented production-boundary posture, PR-boundary merge-readiness evidence, modular CI enforcement on import zones, and trace-backed review/recovery signals — **not** production-ready, **not** agent-as-maintainer, **not** architecture refactor complete.
+
+**Prerequisite:** `v0.6.0-alpha.1` — governance & release readiness alpha @ `ad3d2c4`.
+
+**Since [0.6.0-alpha.1]:** v0.6 centered on **governed improvement proposals**, **Trivy release gate**, and **module boundaries design map**. v0.7 adds **runtime governance enforcement**: production boundary check trace integration, merge-governance gate, physical module slice with `lint:module-boundaries`, review records in the governance evidence chain, and recovery sweep finding kinds for open reviews, missing iteration terminals, governance boundary gaps, and incomplete handoffs. OTLP export remains out of scope.
+
+| Area | `v0.6.0-alpha.1` | `v0.7.0-alpha.1` (delta) |
+|------|------------------|---------------------------|
+| Focus | Governance proposals + Trivy gate + design map | Production boundary + PR merge governance + module CI + review/recovery |
+| Production boundary | Doc-only design map | **Production Boundary Guard** — `production_boundary_check` trace; `agent_as_contributor` default |
+| Merge governance | Not shipped | **PR-boundary gate** — merge-readiness evidence; `review_record` integration |
+| Module boundaries | Design-only | **A2.1 physical slice** + **A2.2 CI import guards** (`lint:module-boundaries`) |
+| Review records | Base `review_record` schema | **Governance chain wiring** — durable QA/CERBERUS evidence in merge flow |
+| Recovery sweep | Base stranded/session findings | **Four new kinds** — `open_review_blockers`, `missing_iteration_done`, `governance_boundary_incomplete`, `incomplete_handoff` |
+| OTEL export | Mapper slice 1 evidence | Unchanged — **no** OTLP |
+| Unit tests (evidence) | 925/926 | 970/971 (+ recovery sweep + module boundaries + merge governance) |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.7.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release); operator steps in `alpha-release-checklist.md` § v0.7 release execution plan*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **970/971** pass (1 skipped)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
+- Contracts: `production-boundary-guard.md`, `merge-governance-contract.md`, `module-boundaries.md`, `review-record-contract.md`, `recovery-sweep-contract.md`, `session-resume-contract.md`
+- Lane PRs on `master` @ `9fff652`: **#150** (G0) · **#151** (G1) · **#152** (A2.1) · **#153** (A2.2) · **#154** (R1) · **#157** (R2)
+- CI: lint-and-unit, markdownlint, lychee, orchestrator-e2e — green on R2 merge
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready security or merge gate — fail-closed on unknown posture; human operator remains authority.
+- **Not** architecture refactor complete — first bounded module slice + import guards only; no repo-wide modular monolith claim.
+- **Not** agent-as-maintainer — direct agent merge/tag/release to protected branches remains exceptional mode only.
+- **Not** OTLP export, autonomous self-improvement, web control plane, or memory/runtime analyst lane.
+
+### Added
+
+- Production Boundary Guard: `docs/orchestrator/production-boundary-guard.md`, `production_boundary_check` trace event, security posture integration.
+- PR merge governance: `merge-governance-contract.md`, merge-readiness evidence chain, `production_boundary_check` + `review_record` integration.
+- Modular enforcement: first `orchestrator/modules/*` physical slice; `lint:module-boundaries` CI guard.
+- Review record hardening: durable QA/CERBERUS records wired into merge-governance evidence chain.
+- Recovery sweep hardening: four new `finding_kind` values; schema enum; session-resume exception for `missing_iteration_done` on incomplete sessions; live sweep skips `missing_iteration_done` (post-hoc SoT).
+
+### Security
+
+- Production boundary and merge governance gates fail closed when permission visibility or required checks are unknown.
+- Trivy release gate unchanged from v0.6 — published dependency scope scan before tag.
+
+### Notes
+
+- Recovery sweep remains **detect and explain first** — no auto-retry, resume, or repair without explicit future policy.
+- Session resume ignores `missing_session_end` and `missing_iteration_done` on incomplete sessions only; complete sessions still block on missing iteration terminals.
+
 ## [0.6.0-alpha.1] - 2026-06-07
 
 Sixth alpha pre-release: **governance & release readiness** — governed harness improvement **proposals** (design contract + fixtures), reproducible dependency pins with a **Trivy release gate**, modular monolith **design map**, and OTEL GenAI mapper slice 1 evidence (no OTLP export, no autonomous self-modify, no architecture refactor complete).
