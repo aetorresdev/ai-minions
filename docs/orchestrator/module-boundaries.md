@@ -54,18 +54,19 @@ Name **capability boundaries** for the orchestrator modular monolith so refactor
 
 Rows = **may import / call** (runtime or `require`). Empty = no direct dependency.
 
-| From ↓ / To → | run-control | contracts | gates | permissions | tools | model-runtime | trace | budget | worktree | operator |
-|---------------|:-----------:|:---------:|:-----:|:-------------:|:-----:|:-------------:|:-----:|:------:|:--------:|:--------:|
-| **run-control** | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
-| **contracts** | ✗ | — | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| **gates** | ✗ | ✓ | — | ✓ | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ |
-| **permissions** | ✗ | ✓ | ✗ | — | ✓ | ✗ | ✓ | ✗ | ✗ | ✗ |
-| **tools** | ✗ | ✓ | ✗ | ✓ | — | ✗ | ✓ | ✗ | ✗ | ✗ |
-| **model-runtime** | ✗ | ✓ | ✗ | ✓ | ✓ | — | ✓ | ✓ | ✗ | ✗ |
-| **trace** | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | — | ✓ | ✓ | ✗ |
-| **budget** | ✗ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ | — | ✗ | ✗ |
-| **worktree** | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | — | ✗ |
-| **operator** | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ | ✓ | ✓ | — |
+| From ↓ / To → | run-control | contracts | gates | permissions | tools | model-runtime | trace | recovery | budget | worktree | operator |
+|---------------|:-----------:|:---------:|:-----:|:-------------:|:-----:|:-------------:|:-----:|:--------:|:------:|:--------:|:--------:|
+| **run-control** | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
+| **contracts** | ✗ | — | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **gates** | ✗ | ✓ | — | ✓ | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ |
+| **permissions** | ✗ | ✓ | ✗ | — | ✓ | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ |
+| **tools** | ✗ | ✓ | ✗ | ✓ | — | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ |
+| **model-runtime** | ✗ | ✓ | ✗ | ✓ | ✓ | — | ✓ | ✗ | ✓ | ✗ | ✗ |
+| **trace** | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | — | ✓ | ✓ | ✓ | ✗ |
+| **recovery** | ✗ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | — | ✗ | ✗ | ✗ |
+| **budget** | ✗ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ | ✗ | — | ✗ | ✗ |
+| **worktree** | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | — | ✗ |
+| **operator** | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✓ | ✓ | — |
 
 **Global forbidden (any module →):** `agents/prompts/*` content into permission pure functions; trace rows into gate **decisions**; operator CLI mutating gate state without trace + human path.
 
@@ -131,7 +132,8 @@ Every new top-level file should declare target module in PR description. New cro
 | gates | `review_record`, `doubt_review_*`, `approval_*`, `production_boundary_check` | contract validation |
 | permissions | `permission_check` | capability matrix |
 | tools | `skill_registry_check`, tool eval fixtures | registry JSON |
-| trace | writer lifecycle, redaction | all modules (append API) |
+| trace | writer lifecycle, redaction | all modules (append API); may call **recovery** for outcome summaries (not gate policy) |
+| recovery | `recovery_*`, `session_resume_*` eligibility | trace rows (read); **gates** / **permissions** readers for blockers |
 | worktree | `workspace_*`, promotion events | run workdir contract |
 | budget | cost dimensions in summaries | trace JSONL |
 
@@ -168,6 +170,6 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-08 | A2.1 slice 1 — `modules/gates/` physical migration (`governance-gate`, `merge-governance`); root shims; import guards deferred to A2.2 |
 | 2026-06-08 | A2.2 slice 2 — `check-module-boundaries` + allowlist + `moduleBoundaryGuard.test.js`; wired into `npm test` |
 | 2026-06-09 | Physical contracts slice — `modules/contracts/` design validators; root shims; `moduleRefactorSlice2.test.js` |
-| 2026-06-09 | Physical recovery slice — `modules/recovery/`; root shims; recovery adjacency in `module-boundary-rules.js`; `moduleRefactorSlice3.test.js` |
+| 2026-06-09 | Physical recovery slice — `modules/recovery/`; root shims; recovery row/column in dependency matrix; `moduleRefactorSlice3.test.js` |
 
 Update when module map or known violations change. Physical refactor briefs reference this doc (backlog only — not in CHANGELOG product text).
