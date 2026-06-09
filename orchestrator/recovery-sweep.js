@@ -14,7 +14,7 @@ const RECOVERY_SCHEMA_VERSION = "1";
 const MAX_FINDINGS = 16;
 const MAX_DESC_LEN = 300;
 
-/** @typedef {"missing_session_end"|"stranded_step"|"unresolved_ownership_handoff"|"pending_governance_approval"|"no_agent_steps"} RecoveryFindingKind */
+/** @typedef {"missing_session_end"|"stranded_step"|"unresolved_ownership_handoff"|"pending_governance_approval"|"no_agent_steps"|"open_review_blockers"|"missing_iteration_done"|"governance_boundary_incomplete"|"incomplete_handoff"} RecoveryFindingKind */
 
 /**
  * @param {string} s
@@ -134,6 +134,148 @@ function detectHandoffAndGovernance(rows) {
 
 /**
  * @param {object[]} rows
+ * @returns {object[]}
+ */
+function detectOpenReviewBlockers(rows) {
+  /** @type {string | null} */
+  let cerberusVerdict = null;
+  /** @type {string | null} */
+  let qaVerdict = null;
+  /** @type {string[]} */
+  const blockers = [];
+
+  for (const r of rows) {
+    if (!r || r.event !== "review_record") continue;
+    if (r.reviewer_role === "cerberus") cerberusVerdict = r.verdict;
+    if (r.reviewer_role === "qa") qaVerdict = r.verdict;
+    if (r.verdict === "block" || r.verdict === "request_changes") {
+      for (const b of r.blockers || []) {
+        const t = String(b || "").trim();
+        if (t && blockers.length < 4) blockers.push(t);
+      }
+    }
+  }
+
+  const verdict = cerberusVerdict ?? qaVerdict;
+  if (verdict !== "block" && verdict !== "request_changes") return [];
+
+  const detail = blockers.length ? blockers[0] : `review_record verdict is ${verdict}`;
+  return [{
+    finding_kind: "open_review_blockers",
+    severity: verdict === "block" ? "error" : "warn",
+    blocks_auto_recovery: true,
+    step_id: null,
+    description: truncateDesc(`Open review blockers: ${detail}`),
+  }];
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {object[]}
+ */
+function detectMissingIterationDone(rows) {
+  let hasAgentActivity = false;
+  let maxIteration = -1;
+  /** @type {Set<number>} */
+  const iterationsDone = new Set();
+
+  for (const r of rows) {
+    if (!r) continue;
+    if (r.event === "agent_start" || r.event === "agent_done") {
+      hasAgentActivity = true;
+      if (typeof r.iteration === "number") {
+        maxIteration = Math.max(maxIteration, r.iteration);
+      }
+    }
+    if (r.event === "iteration_done" && typeof r.iteration === "number") {
+      iterationsDone.add(r.iteration);
+    }
+  }
+
+  if (!hasAgentActivity || maxIteration < 0) return [];
+  if (iterationsDone.has(maxIteration)) return [];
+
+  return [{
+    finding_kind: "missing_iteration_done",
+    severity: "error",
+    blocks_auto_recovery: true,
+    step_id: null,
+    iteration: maxIteration,
+    description: truncateDesc(
+      `Iteration ${maxIteration} has agent activity but no matching iteration_done terminal event`,
+    ),
+  }];
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {object[]}
+ */
+function detectGovernanceBoundaryIncomplete(rows) {
+  /** @type {object | null} */
+  let lastCheck = null;
+  for (const r of rows) {
+    if (r && r.event === "production_boundary_check") lastCheck = r;
+  }
+  if (!lastCheck || lastCheck.decision === "ready_for_human_review") return [];
+
+  const decision = String(lastCheck.decision || "unknown");
+  const reason = lastCheck.reason_code != null ? String(lastCheck.reason_code) : null;
+  const desc = reason
+    ? `production_boundary_check decision=${decision} (${reason})`
+    : `production_boundary_check decision=${decision}`;
+
+  return [{
+    finding_kind: "governance_boundary_incomplete",
+    severity: decision === "blocked" ? "error" : "warn",
+    blocks_auto_recovery: true,
+    step_id: null,
+    description: truncateDesc(desc),
+  }];
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {object[]}
+ */
+function detectIncompleteHandoff(rows) {
+  let blockedAt = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.event !== "iteration_done" || r.outcome !== "gate_blocked_iterate") continue;
+    const tr = r.transition_reason && typeof r.transition_reason === "object" ? r.transition_reason : {};
+    const code = tr.reason_code != null ? String(tr.reason_code) : "";
+    const gateKinds = Array.isArray(r.gate_kinds) ? r.gate_kinds.map(String) : [];
+    if (
+      gateKinds.includes("compact_handoff")
+      || /handoff|compact_handoff|GATE_ARTIFACT/i.test(code)
+    ) {
+      blockedAt = i;
+    }
+  }
+  if (blockedAt < 0) return [];
+
+  const after = rows.slice(blockedAt + 1);
+  const recovered = after.some((r) => {
+    if (!r) return false;
+    if (r.event === "compact_handoff_fallback") return true;
+    if (r.event === "mcp_call" && r.tool === "compact_handoff") return true;
+    if (r.event === "approval_granted") return true;
+    return false;
+  });
+  if (recovered) return [];
+
+  return [{
+    finding_kind: "incomplete_handoff",
+    severity: "error",
+    blocks_auto_recovery: true,
+    step_id: null,
+    description: "Handoff gate blocked iteration without subsequent compact_handoff or approval_granted",
+  }];
+}
+
+/**
+ * @param {object[]} rows
  * @param {{ lifecycleMode?: "post_hoc" | "live_before_session_end" }} [opts]
  * @returns {{ findings: object[], finding_count: number, blocks_auto_recovery: boolean, clean: boolean, summary: string, lifecycle_mode: string }}
  */
@@ -148,6 +290,10 @@ function analyzeRecoveryFromRows(rows, opts = {}) {
     }),
     ...detectStrandedSteps(safe),
     ...detectHandoffAndGovernance(safe),
+    ...detectOpenReviewBlockers(safe),
+    ...detectMissingIterationDone(safe),
+    ...detectGovernanceBoundaryIncomplete(safe),
+    ...detectIncompleteHandoff(safe),
   ].slice(0, MAX_FINDINGS);
 
   const blocks_auto_recovery = findings.some((f) => f.blocks_auto_recovery === true);
