@@ -270,7 +270,7 @@ Skill router runtime · progressive-disclosure prompt filter · sandbox runtime 
 
 **Scope:** Production Boundary Guard + PR merge governance + module CI enforcement + review/recovery hardening. **Prerequisite:** `v0.6.0-alpha.1` @ `ad3d2c4`.
 
-**Release claim:** production-boundary posture with `agent_as_contributor` default, PR merge-readiness evidence, modular CI import guards, and trace-backed review/recovery signals — **not** production-ready, **not** agent-as-maintainer, **not** architecture refactor complete.
+**Release claim:** production-boundary posture with `agent_as_contributor` default, PR merge-readiness evidence, modular CI import guards, and trace-backed review/recovery signals — **not** a production SLA claim, **not** agent-as-maintainer, **not** architecture refactor complete.
 
 ### Must-have bundle
 

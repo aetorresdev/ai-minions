@@ -4,7 +4,7 @@
 
 **Status:** **Design map + partial physical migration (A2.1) + CI import guard (A2.2).** `orchestrator/modules/gates/` ships with compat shims at legacy paths. **`lint:module-boundaries`** enforces adjacency matrix under `modules/**` and hard rules globally; legacy violations are grandfathered in `module-boundary-allowlist.json`. **No** runtime behavior change. **Modular refactor not complete.**
 
-**Related:** [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
+**Related:** [architecture-coherence-audit.md](architecture-coherence-audit.md) · [module-ownership-map.md](module-ownership-map.md) · [root-file-inventory.md](root-file-inventory.md) · [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
 ---
 

@@ -38,6 +38,9 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [bv-reviewer-contract.md](bv-reviewer-contract.md) | Business value / outcome gate — `value_review` trace shape (design-first; no runtime gate) |
 | [self-improvement-loop-contract.md](self-improvement-loop-contract.md) | Governed harness improvement loop — `improvement_proposal` + human approval gate (design-first; no auto-apply) |
 | [module-boundaries.md](module-boundaries.md) | Modular monolith bounded contexts — module map, `modules/gates/` slice, CI `lint:module-boundaries` |
+| [architecture-coherence-audit.md](architecture-coherence-audit.md) | v0.8 system coherence matrix + physical refactor movement plan (audit only) |
+| [module-ownership-map.md](module-ownership-map.md) | Bounded-context ownership — current vs target paths |
+| [root-file-inventory.md](root-file-inventory.md) | `orchestrator/` root file classification |
 | [progressive-disclosure-contract.md](progressive-disclosure-contract.md) | Tools/skills/context progressive disclosure — gap assessment + `context_disclosure` trace (design-first) |
 | [handoff-contract.md](handoff-contract.md) | Delegated ownership handoff envelope — bounded invocation vs ownership transfer (design-only) |
 | [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) | Sandbox + credential isolation trust boundaries (design-only) |
