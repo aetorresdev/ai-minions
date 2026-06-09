@@ -15,13 +15,6 @@ const COMPLETE_RUN = [
   { event: "session_start", task_id: "t-complete", flow_mode: "single_agent" },
   { event: "agent_start", task_id: "t-complete", step_id: "s1", agent: "dev", iteration: 1 },
   { event: "agent_done", task_id: "t-complete", step_id: "s1", agent: "dev", iteration: 1 },
-  {
-    event: "iteration_done",
-    task_id: "t-complete",
-    iteration: 1,
-    outcome: "done",
-    transition_reason: { type: "success", reason_code: "STEP_OK" },
-  },
   { event: "session_end", task_id: "t-complete", done: true, iterations: 1, gate_blocks: 0 },
 ];
 
@@ -50,7 +43,6 @@ test("analyzeRecoveryFromRows: missing session_end and stranded step", () => {
   assert.equal(r.clean, false);
   assert.ok(r.findings.some((f) => f.finding_kind === "missing_session_end"));
   assert.ok(r.findings.some((f) => f.finding_kind === "stranded_step"));
-  assert.ok(r.findings.some((f) => f.finding_kind === "missing_iteration_done"));
   assert.equal(r.blocks_auto_recovery, true);
 });
 
@@ -59,7 +51,6 @@ test("analyzeRecoveryFromRows: stranded step with session_end", () => {
   assert.equal(r.clean, false);
   assert.equal(r.findings.filter((f) => f.finding_kind === "stranded_step").length, 1);
   assert.equal(r.findings.find((f) => f.finding_kind === "stranded_step").step_id, "s2");
-  assert.ok(r.findings.some((f) => f.finding_kind === "missing_iteration_done"));
 });
 
 test("analyzeRecoveryFromRows: unresolved ownership handoff", () => {
@@ -141,7 +132,7 @@ test("buildRunOutcomeSummary includes recovery section", () => {
   const summary = buildRunOutcomeSummary(INCOMPLETE_RUN);
   assert.ok(summary.recovery);
   assert.equal(summary.recovery.clean, false);
-  assert.ok(summary.recovery.findings.length >= 3);
+  assert.ok(summary.recovery.findings.length >= 2);
   assert.equal(summary.recovery.policy, "no_auto_retry");
 });
 
@@ -152,15 +143,15 @@ test("summarizeRecoveryFromRows: recompute is SoT; historical sweep kept when pr
       event: "recovery_completed",
       recovery_schema_version: "1",
       policy: "no_auto_retry",
-      finding_count: 3,
+      finding_count: 2,
       clean: false,
-      summary: "Recovery sweep found 3 issue(s): missing_session_end, stranded_step, missing_iteration_done",
+      summary: "Recovery sweep found 2 issue(s): missing_session_end, stranded_step",
     },
   ];
   const s = summarizeRecoveryFromRows(rows);
   assert.equal(s.computed_from, "full_trace");
   assert.equal(s.clean, false);
-  assert.equal(s.finding_count, 3);
+  assert.equal(s.finding_count, 2);
   assert.ok(s.sweep_event);
   assert.equal(s.sweep_event.clean, false);
 });
@@ -170,13 +161,6 @@ test("summarizeRecoveryFromRows: full trace with session_end overrides false his
     { event: "session_start", task_id: "t-live" },
     { event: "agent_start", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
     { event: "agent_done", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
-    {
-      event: "iteration_done",
-      task_id: "t-live",
-      iteration: 1,
-      outcome: "done",
-      transition_reason: { type: "success", reason_code: "STEP_OK" },
-    },
   ];
   const rows = [
     ...rowsBeforeEnd,
@@ -198,13 +182,6 @@ const ROWS_BEFORE_SESSION_END = [
   { event: "session_start", task_id: "t-live" },
   { event: "agent_start", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
   { event: "agent_done", task_id: "t-live", step_id: "s1", agent: "dev", iteration: 1 },
-  {
-    event: "iteration_done",
-    task_id: "t-live",
-    iteration: 1,
-    outcome: "done",
-    transition_reason: { type: "success", reason_code: "STEP_OK" },
-  },
 ];
 
 test("live_before_session_end: healthy run does not false-flag missing_session_end", () => {
@@ -225,78 +202,6 @@ test("live_before_session_end: healthy run does not false-flag missing_session_e
   assert.ok(completed);
   assert.equal(completed.clean, true);
   assert.equal(completed.finding_count, 0);
-});
-
-test("analyzeRecoveryFromRows: open_review_blockers from review_record", () => {
-  const rows = [
-    ...COMPLETE_RUN.slice(0, -1),
-    {
-      event: "review_record",
-      review_schema_version: "1",
-      reviewer_role: "cerberus",
-      verdict: "block",
-      blockers: ["schema drift in orchestrator/foo.js"],
-      non_blocking_notes: [],
-      evidence_refs: [],
-      reviewed_artifact_ids: [],
-      iteration: 1,
-    },
-    COMPLETE_RUN[COMPLETE_RUN.length - 1],
-  ];
-  const r = analyzeRecoveryFromRows(rows);
-  assert.ok(r.findings.some((f) => f.finding_kind === "open_review_blockers"));
-  assert.equal(r.clean, false);
-});
-
-test("analyzeRecoveryFromRows: missing_iteration_done", () => {
-  const rows = [
-    { event: "session_start", task_id: "t-iter" },
-    { event: "agent_start", task_id: "t-iter", step_id: "s1", agent: "dev", iteration: 2 },
-    { event: "agent_done", task_id: "t-iter", step_id: "s1", agent: "dev", iteration: 2 },
-    { event: "session_end", task_id: "t-iter", done: false, iterations: 2 },
-  ];
-  const r = analyzeRecoveryFromRows(rows);
-  assert.ok(r.findings.some((f) => f.finding_kind === "missing_iteration_done"));
-});
-
-test("analyzeRecoveryFromRows: governance_boundary_incomplete", () => {
-  const rows = [
-    ...COMPLETE_RUN.slice(0, -1),
-    {
-      event: "production_boundary_check",
-      check_schema_version: "1",
-      mode: "agent_as_contributor",
-      protected_status: "known",
-      permission_visibility: "limited",
-      decision: "blocked",
-      reason_code: "REVIEW_RECORD_BLOCKERS",
-      evidence_refs: ["pr:1"],
-      gate_id: "pr_boundary_governance",
-      rulesets_visible: true,
-      required_checks_visible: true,
-      required_reviews_visible: true,
-    },
-    COMPLETE_RUN[COMPLETE_RUN.length - 1],
-  ];
-  const r = analyzeRecoveryFromRows(rows);
-  assert.ok(r.findings.some((f) => f.finding_kind === "governance_boundary_incomplete"));
-});
-
-test("analyzeRecoveryFromRows: incomplete_handoff without recovery", () => {
-  const rows = [
-    { event: "session_start", task_id: "t-handoff" },
-    {
-      event: "iteration_done",
-      task_id: "t-handoff",
-      iteration: 1,
-      outcome: "gate_blocked_iterate",
-      transition_reason: { type: "gate", reason_code: "GATE_ARTIFACT_OR_HANDOFF" },
-      gate_kinds: ["compact_handoff"],
-    },
-    { event: "session_end", task_id: "t-handoff", done: false, iterations: 1 },
-  ];
-  const r = analyzeRecoveryFromRows(rows);
-  assert.ok(r.findings.some((f) => f.finding_kind === "incomplete_handoff"));
 });
 
 test("live_before_session_end: still detects stranded_step", () => {

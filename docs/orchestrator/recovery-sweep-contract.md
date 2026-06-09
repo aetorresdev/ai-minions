@@ -2,8 +2,6 @@
 
 Detect and explain **incomplete or inconsistent runs** from trace JSONL. **Detect and explain first** — no automatic retry, resume, or repair without an explicit future policy.
 
-**Status:** Baseline shipped. **Hardening slice:** additional finding kinds for review blockers, missing `iteration_done`, governance boundary gaps, and incomplete handoffs — surfaced via `run_outcome_summary.recovery` and live sweep.
-
 ## Finding kinds
 
 | `finding_kind` | Meaning |
@@ -13,10 +11,6 @@ Detect and explain **incomplete or inconsistent runs** from trace JSONL. **Detec
 | `unresolved_ownership_handoff` | `approval_required` with `ownership_change` never `approval_granted` |
 | `pending_governance_approval` | Governance hold (pending/denied approval) |
 | `no_agent_steps` | `session_start` but no `agent_start` events |
-| `open_review_blockers` | `review_record` with `block` or `request_changes` verdict |
-| `missing_iteration_done` | Agent activity for an iteration without matching `iteration_done` |
-| `governance_boundary_incomplete` | `production_boundary_check` not `ready_for_human_review` |
-| `incomplete_handoff` | Handoff gate blocked iteration without recovery (`compact_handoff` / `approval_granted`) |
 
 ## Trace events
 
