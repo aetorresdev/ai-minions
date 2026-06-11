@@ -3,7 +3,7 @@
 
 /**
  * Deterministic guard against forbidden security/runtime overclaims in versioned docs.
- * DOC-RUNTIME-DRIFT-CHECK-1 — not LLM-based.
+ * Not LLM-based.
  */
 
 const fs = require('fs');
@@ -23,6 +23,12 @@ const FORBIDDEN_RULES = [
 ];
 
 const DOC_DIR = 'docs/orchestrator';
+
+/** Groomed backlog case ids must not appear in versioned operator docs. */
+const BACKLOG_CASE_ID_RE = /\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+)+-\d+\b/g;
+
+/** Groomed lane shorthand must not appear in versioned operator docs. */
+const LANE_ID_RE = /\bA\d+-\d+\b/g;
 
 /** Section headings where forbidden phrases may appear as explicit negation. */
 const SAFE_SECTION_RE =
@@ -104,6 +110,44 @@ function allowedForbiddenTableLine(line, inAllowedForbiddenTable) {
   return true;
 }
 
+/**
+ * @param {string} content
+ * @param {string} relPath
+ * @returns {{ file: string, line: number, rule: string, text: string }[]}
+ */
+function stripInlineCode(line) {
+  return line.replace(/`[^`]+`/g, '');
+}
+
+function scanBacklogCaseIds(content, relPath) {
+  /** @type {{ file: string, line: number, rule: string, text: string }[]} */
+  const violations = [];
+  let inFence = false;
+  const lines = content.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (/^```/.test(trimmed)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence || !trimmed || trimmed.startsWith('<!--')) continue;
+    const scrubbed = stripInlineCode(line);
+    const caseHits = scrubbed.match(BACKLOG_CASE_ID_RE);
+    const laneHits = scrubbed.match(LANE_ID_RE);
+    const hits = [...new Set([...(caseHits || []), ...(laneHits || [])])];
+    for (const hit of hits) {
+      violations.push({
+        file: relPath,
+        line: i + 1,
+        rule: 'backlog_case_id',
+        text: hit,
+      });
+    }
+  }
+  return violations;
+}
+
 function scanMarkdown(content, relPath) {
   /** @type {{ file: string, line: number, rule: string, text: string }[]} */
   const violations = [];
@@ -183,6 +227,7 @@ function checkDocRuntimeClaims(opts = {}) {
     const rel = path.join(DOC_DIR, name).replace(/\\/g, '/');
     const content = fs.readFileSync(path.join(docRoot, name), 'utf8');
     violations = violations.concat(scanMarkdown(content, rel));
+    violations = violations.concat(scanBacklogCaseIds(content, rel));
   }
 
   for (const req of REQUIRED_DOC_MARKERS) {
@@ -229,7 +274,10 @@ if (require.main === module) {
 
 module.exports = {
   FORBIDDEN_RULES,
+  BACKLOG_CASE_ID_RE,
+  LANE_ID_RE,
   checkDocRuntimeClaims,
   scanMarkdown,
+  scanBacklogCaseIds,
   lineIsNegated,
 };

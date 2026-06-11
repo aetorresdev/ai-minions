@@ -272,7 +272,7 @@ def merge_flow_report(
 ) -> tuple[dict, dict]:
     """
     Merge transcript parse with per-session persisted flow / dev_qa peaks.
-    See module docstring for semantics (post-compact FLOW, TEST-NEG-2 / TEST-NEG-3).
+    See module docstring for semantics (post-compact FLOW peak merge negatives).
 
     ``dev_qa_cycles`` in the merged output is the **session monotonic peak**;
     ``dev_qa_cycles_transcript`` is the count from the current transcript parse only.

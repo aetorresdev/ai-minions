@@ -21,7 +21,7 @@
  * (requires Ollama; asserts `validateOutput` passes on at least one DEV artifact — not in default `npm test`).
  *
  * **Capability matrix / Ollama:** review roles **qa** and **cerberus** declare **`local_model`** and **`network`**
- * (LOCAL-ONLY-CAPABILITY-ALIGN-1) so Ollama HTTP in local-only / setBackend("ollama") paths is not denied at the role gate.
+ * Local-only capability alignment so Ollama HTTP in local-only / setBackend("ollama") paths is not denied at the role gate.
  * Subtests that exercise full QA→CERBERUS over HTTP still depend on Ollama model quality and output contracts.
  */
 

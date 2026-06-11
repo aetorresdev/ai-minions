@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Cross-surface role id parity (ROL-GOV-1): routing, permissions, capability matrix, AGENTS registry.
+ * Cross-surface role id parity: routing, permissions, capability matrix, AGENTS registry.
  */
 
 const { describe, it } = require("node:test");

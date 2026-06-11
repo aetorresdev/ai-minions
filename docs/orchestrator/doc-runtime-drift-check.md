@@ -6,6 +6,12 @@
 
 **Runner:** `orchestrator/scripts/check-doc-runtime-claims.js` (`npm run lint:docs-claims` from `orchestrator/`).
 
+## Forbidden backlog references
+
+Groomed backlog **case ids** (`FOO-BAR-1` shape) and **lane shorthand** (`A8-2`) must not appear in `docs/orchestrator/*.md`. Ticket names and sequencing live in `docs/ai-minions-backlog-groomed.md` and `docs/backlog-open-specs.md` only.
+
+Detected by the same runner (`backlog_case_id` rule).
+
 ## Forbidden overclaims (positive use)
 
 Detected unless line is in an explicit negation context (`Not claimed`, `Out of scope`, Allowed/Forbidden matrix forbidden column, `What this document is not`, etc.):

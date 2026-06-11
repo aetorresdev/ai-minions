@@ -1,5 +1,5 @@
 """
-ensure-snapshot.sh bootstrap must not fail Stop hook on first run (SNAPSHOT-HOOK-BOOTSTRAP-1).
+ensure-snapshot.sh bootstrap must not fail Stop hook on first run.
 """
 import os
 import subprocess

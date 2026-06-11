@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * CLASSIFIED-SPAWN-COVERAGE-1 — worktree git path uses classified shell; deny-before-spawn.
+ * Worktree git path uses classified shell; deny-before-spawn.
  */
 
 const { describe, it, beforeEach, afterEach } = require("node:test");

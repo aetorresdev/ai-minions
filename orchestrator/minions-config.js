@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Optional project-level minions.md contract (OC-MINIONS-1).
+ * Optional project-level minions.md contract.
  * Missing file → no effect. Invalid file → validation error for callers.
  */
 

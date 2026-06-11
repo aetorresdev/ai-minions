@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Mocked E2E: session mode read + broker denies write-class ops (ENV-READONLY-WRITE-BLOCK-E2E-1).
+ * Mocked E2E: session mode read + broker denies write-class ops.
  * Simulates an approved tool wrapper that must call requestCredentialUse() before live ops.
  */
 
