@@ -1,5 +1,5 @@
 /**
- * Capability matrix parity (CAPABILITY-FLOW-1): roles and domains vs routing registry.
+ * Capability matrix parity: roles and domains vs routing registry.
  */
 
 "use strict";

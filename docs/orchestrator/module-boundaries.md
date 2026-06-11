@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/module-boundaries.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, and `modules/recovery/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **`lint:module-boundaries`** enforces adjacency matrix under `modules/**` and hard rules globally; legacy violations are grandfathered in `module-boundary-allowlist.json`. **No** runtime behavior change. **Modular refactor not complete.**
+**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, and `modules/trace/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **`lint:module-boundaries`** enforces adjacency matrix under `modules/**` and hard rules globally; legacy violations are grandfathered in `module-boundary-allowlist.json`. **No** runtime behavior change. **Modular refactor not complete.**
 
 **Related:** [architecture-coherence-audit.md](architecture-coherence-audit.md) · [module-ownership-map.md](module-ownership-map.md) · [root-file-inventory.md](root-file-inventory.md) · [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
@@ -98,7 +98,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | **permissions** | `agents/permissions.js`, `agents/capability-matrix.js`, `credential-broker.js`, `environment-parser.js` |
 | **tools** | `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js`, `mcp-client.js` |
 | **model-runtime** | `agents/runtime/*`, `agents/routing/model-routing.js`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
-| **trace** | `trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js` |
+| **trace** | `modules/trace/` (`trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js`) · shims at legacy root paths · `trace-workspace-lifecycle.js` stays root until worktree slice |
 | **recovery** | `modules/recovery/` (`recovery-sweep.js`, `session-resume.js`) · shims: `recovery-sweep.js`, `session-resume.js` |
 | **budget** | `token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`, `runner-budget-view.js` |
 | **worktree** | `worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js` |
@@ -167,10 +167,13 @@ Every new top-level file should declare target module in PR description. New cro
 | Date | Change |
 |------|--------|
 | 2026-06-07 | Initial design map shipped on `master` @ `e8b3ac8`; ticket-free deferred refactor wording; cross-links to handoff/sandbox design contracts |
-| 2026-06-08 | A2.1 slice 1 — `modules/gates/` physical migration (`governance-gate`, `merge-governance`); root shims; import guards deferred to A2.2 |
-| 2026-06-08 | A2.2 slice 2 — `check-module-boundaries` + allowlist + `moduleBoundaryGuard.test.js`; wired into `npm test` |
+| 2026-06-08 | Gates slice 1 — `modules/gates/` physical migration (`governance-gate`, `merge-governance`); root shims; import guards deferred to slice 2 |
+| 2026-06-08 | Import boundary slice 2 — `check-module-boundaries` + allowlist + `moduleBoundaryGuard.test.js`; wired into `npm test` |
 | 2026-06-09 | Physical contracts slice — `modules/contracts/` design validators; root shims; `moduleRefactorSlice2.test.js` |
 | 2026-06-09 | Physical recovery slice — `modules/recovery/`; root shims; recovery row/column in dependency matrix; `moduleRefactorSlice3.test.js` |
 | 2026-06-09 | Gates remainder slice — `approval-policy-gate`, `doubt-review`, `review-record` under `modules/gates/`; `moduleRefactorSlice4.test.js` |
+| 2026-06-11 | Trace core slice — `modules/trace/`; `moduleRefactorSlice5.test.js` (temporary; consolidate at physical refactor close) |
+
+**Test consolidation (pending):** replace `moduleRefactorSlice*.test.js` with `modulesPhysicalLayout.test.js` before the physical refactor lane closes — spec lives in groomed backlog only.
 
 Update when module map or known violations change. Physical refactor briefs reference this doc (backlog only — not in CHANGELOG product text).

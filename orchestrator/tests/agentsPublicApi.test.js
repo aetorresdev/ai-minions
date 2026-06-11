@@ -1,6 +1,6 @@
 /**
  * Public API parity for require("./agents") / require("../agents").
- * Prevents accidental removal or rename of facade exports (ROLE-REGISTRY-2+).
+ * Prevents accidental removal or rename of facade exports.
  */
 
 "use strict";

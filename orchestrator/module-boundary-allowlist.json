@@ -37,6 +37,6 @@
     "worktree-isolation.js::./agents/runtime/run-classified-shell::agents/runtime/run-classified-shell.js::matrix"
   ],
   "hard": [
-    "run-outcome-summary.js::./review-record::review-record.js::trace-not-policy"
+    "modules/trace/run-outcome-summary.js::../gates/review-record::modules/gates/review-record.js::trace-not-policy"
   ]
 }

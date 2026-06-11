@@ -1,5 +1,5 @@
 """
-Unit tests for compact-handoff integer coercion (BUG-HANDOFF-MCP-TYPE-1).
+Unit tests for compact-handoff integer coercion.
 Loads server.py with lightweight stubs so httpx/mcp are not required in hook CI.
 """
 import importlib.util

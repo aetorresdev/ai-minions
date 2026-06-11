@@ -1,5 +1,5 @@
 /**
- * Runtime regression: unknown plan agentId stops before workers (CAPABILITY-FLOW-1 / CERBERUS gate).
+ * Runtime regression: unknown plan agentId stops before workers (capability flow / CERBERUS gate).
  * Requires ORCH_TEST_SYSTEM_PATH_HARNESS + ORCH_TEST_PLAN_UNKNOWN_ROLE (see agents.js).
  */
 

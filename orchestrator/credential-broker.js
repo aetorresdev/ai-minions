@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Brokered credential resolution outside model context (ENV-CREDENTIAL-BROKER-1).
+ * Brokered credential resolution outside model context.
  * Fail-closed; trace never contains secret values.
  */
 

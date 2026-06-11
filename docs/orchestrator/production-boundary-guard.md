@@ -10,7 +10,7 @@
 - [runtime-permission-contract.md](runtime-permission-contract.md) — tool/shell/MCP/network gates
 - [governance-gates-contract.md](governance-gates-contract.md) — human approval trace semantics
 - [review-record-contract.md](review-record-contract.md) — CERBERUS `review_record` outcomes
-- **MERGE-GOVERNANCE-1** — PR-boundary governance (enforcement + `production_boundary_check` emission; depends on this doc; spec lives in operator-local backlog, not versioned in repo)
+- **PR-boundary merge governance** — enforcement + `production_boundary_check` emission (depends on this doc; detailed spec lives in groomed backlog, not versioned in repo)
 
 **Implementation status:** **Security model shipped (v0.7 M0).** Trace event `production_boundary_check` is **specified here** and **validated in schema**; library gate + dry-run: [merge-governance-contract.md](merge-governance-contract.md). Full runner auto-wire on git/PR tools is follow-up.
 

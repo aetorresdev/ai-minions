@@ -2,7 +2,7 @@
  * System-path E2E (`npm run test:e2e:strict` / `test:e2e:system-path`):
  * `skipStateMcp: false` + `ORCH_MCP_TRANSPORT=direct` — real Ollama + `validate_goal_alignment` where applicable.
  *
- * **Harness-only** `run()` test lives in `e2e.strict.harness.test.js` (`npm run test:e2e:strict:harness`) — not run in default CI strict job (E2E-STRICT-1).
+ * **Harness-only** `run()` test lives in `e2e.strict.harness.test.js` (`npm run test:e2e:strict:harness`) — not run in default CI strict job.
  *
  * After suite: prints **`alignment_failure_rate`** from trace `gate_result` / `goal_alignment` (excludes harness rows).
  *

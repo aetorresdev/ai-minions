@@ -55,11 +55,16 @@ describe("architecture-coherence-audit-contract", () => {
     assert.match(doc, /Must not own/i);
   });
 
-  it("audit docs omit backlog ticket ids (DOC-NO-TICKET-SRC-1)", () => {
-    const ticketId = /\b[A-Z][0-9]+-[0-9]+\b/;
-    for (const name of AUDIT_DOCS) {
-      const doc = fs.readFileSync(path.join(DOCS_DIR, name), "utf8");
-      assert.doesNotMatch(doc, ticketId, `${name} must not embed backlog ticket ids`);
-    }
+  it("audit docs pass backlog ticket id lint via check-doc-runtime-claims", () => {
+    const { checkDocRuntimeClaims } = require("../scripts/check-doc-runtime-claims");
+    const result = checkDocRuntimeClaims();
+    const auditViolations = result.violations.filter(
+      (v) => v.rule === "backlog_case_id" && AUDIT_DOCS.some((name) => v.file.endsWith(`/${name}`)),
+    );
+    assert.deepEqual(
+      auditViolations,
+      [],
+      auditViolations.map((v) => `${v.file}:${v.line} ${v.text}`).join("\n"),
+    );
   });
 });

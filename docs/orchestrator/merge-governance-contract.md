@@ -138,7 +138,7 @@ Fixture: `orchestrator/tests/fixtures/merge-governance/github-discovery-main-pro
 - Automatic hook on every `git` / `gh` shell invocation.
 - Replacing GitHub branch protection.
 - Agent direct merge as alpha default.
-- Release tag governance (`RELEASE-GOVERNANCE-1`).
+- Release tag governance (groomed backlog; not versioned here).
 
 ---
 

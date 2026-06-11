@@ -33,7 +33,7 @@ describe("writeOrchRunContext", () => {
     writeOrchRunContext(root, {
       taskId: "task-bridge-1",
       flowMode: "single_agent",
-      goal: "Resolve TRACE-SESSION-ID-1 for hook consumers",
+      goal: "Resolve session id for hook consumers",
     });
 
     const ctxPath = path.join(root, ".claude", "orch-run-context.json");

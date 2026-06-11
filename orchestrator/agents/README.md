@@ -1,4 +1,4 @@
-# `orchestrator/agents/` — internal layout (ROLE-REGISTRY-2)
+# `orchestrator/agents/` — internal layout
 
 **Public entry (stable):** `require("../agents")` from the orchestrator root — i.e. `orchestrator/agents.js`. Do **not** import this folder as a package entry unless you are extending the registry; external callers and tests should use the facade.
 

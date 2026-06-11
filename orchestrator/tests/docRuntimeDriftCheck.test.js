@@ -9,6 +9,7 @@ const fs = require('fs');
 const {
   checkDocRuntimeClaims,
   scanMarkdown,
+  scanBacklogCaseIds,
   lineIsNegated,
 } = require('../scripts/check-doc-runtime-claims');
 const { getRepoRoot } = require('../repo-root');
@@ -35,6 +36,16 @@ describe('doc-runtime-drift-check', () => {
       'docs/orchestrator/fixture-ok.md',
     );
     assert.deepEqual(ok, []);
+  });
+
+  it('scanBacklogCaseIds flags groomed case ids in operator docs', () => {
+    const hits = scanBacklogCaseIds(
+      '# Contract\n\nSee FOO-BAR-1 in groomed backlog only.\n',
+      'docs/orchestrator/fixture-ticket.md',
+    );
+    assert.equal(hits.length, 1);
+    assert.equal(hits[0].rule, 'backlog_case_id');
+    assert.equal(hits[0].text, 'FOO-BAR-1');
   });
 
   it('versioned orchestrator docs pass drift check', () => {
