@@ -7,38 +7,62 @@ const { describe, it } = require("node:test");
 
 const ORCH = path.join(__dirname, "..");
 
-describe("module refactor slice 4 (gates remainder)", () => {
-  it("physical modules/gates tree includes policy and review gate files", () => {
+describe("module refactor slice 4 (trace core)", () => {
+  it("physical modules/trace tree exists", () => {
     for (const rel of [
-      "modules/gates/approval-policy-gate.js",
-      "modules/gates/doubt-review.js",
-      "modules/gates/review-record.js",
+      "modules/trace/index.js",
+      "modules/trace/trace-schema.js",
+      "modules/trace/trace-writer.js",
+      "modules/trace/trace-append.js",
+      "modules/trace/trace-redact.js",
+      "modules/trace/trace-lifecycle-events.js",
+      "modules/trace/context-hygiene-signals.js",
+      "modules/trace/run-outcome-summary.js",
+      "modules/trace/otel-genai-trace-map.js",
     ]) {
       assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
     }
   });
 
-  it("root shims re-export the same gate APIs", () => {
-    const shimPolicy = require("../approval-policy-gate");
-    const canonPolicy = require("../modules/gates/approval-policy-gate");
-    assert.deepEqual(shimPolicy.APPROVAL_GATE_IDS, canonPolicy.APPROVAL_GATE_IDS);
-    assert.equal(typeof shimPolicy.evaluateApprovalGate, "function");
+  it("root shims re-export the same trace APIs", () => {
+    const shimSchema = require("../trace-schema");
+    const canonSchema = require("../modules/trace/trace-schema");
+    assert.equal(shimSchema.TRACE_LINE_WRITER_VERSION, canonSchema.TRACE_LINE_WRITER_VERSION);
+    assert.equal(typeof shimSchema.validateTraceLine, "function");
 
-    const shimDoubt = require("../doubt-review");
-    const canonDoubt = require("../modules/gates/doubt-review");
-    assert.equal(shimDoubt.DOUBT_REVIEW_SCHEMA_VERSION, canonDoubt.DOUBT_REVIEW_SCHEMA_VERSION);
-    assert.equal(typeof shimDoubt.traceDoubtReviewCycle, "function");
+    const shimWriter = require("../trace-writer");
+    const canonWriter = require("../modules/trace/trace-writer");
+    assert.equal(shimWriter.TRACE_SCHEMA_VERSION, canonWriter.TRACE_SCHEMA_VERSION);
+    assert.equal(typeof shimWriter.traceEvent, "function");
 
-    const shimReview = require("../review-record");
-    const canonReview = require("../modules/gates/review-record");
-    assert.equal(shimReview.REVIEW_SCHEMA_VERSION, canonReview.REVIEW_SCHEMA_VERSION);
-    assert.equal(typeof shimReview.buildReviewRecord, "function");
+    const shimOutcome = require("../run-outcome-summary");
+    const canonOutcome = require("../modules/trace/run-outcome-summary");
+    assert.equal(typeof shimOutcome.buildRunOutcomeSummary, "function");
+    assert.equal(typeof shimOutcome.formatRunOutcomeSummaryLines, "function");
   });
 
-  it("modules/gates index aggregates remainder exports", () => {
-    const gates = require("../modules/gates");
-    assert.equal(typeof gates.evaluateApprovalGate, "function");
-    assert.equal(typeof gates.traceDoubtReviewCycle, "function");
-    assert.equal(typeof gates.buildReviewRecord, "function");
+  it("modules/trace index aggregates core exports", () => {
+    const trace = require("../modules/trace");
+    assert.equal(typeof trace.validateTraceLine, "function");
+    assert.equal(typeof trace.traceEvent, "function");
+    assert.equal(typeof trace.buildRunOutcomeSummary, "function");
+    assert.equal(typeof trace.mapTraceRowsToOtelSpans, "function");
+  });
+
+  it("trace-schema resolves bundled schema from modules/trace", () => {
+    const { validateTraceLine } = require("../modules/trace/trace-schema");
+    const row = {
+      ts: "2026-04-15T12:00:00.000Z",
+      ts_ms: 1713182400000,
+      trace_schema_version: "2",
+      task_id: "slice4-fixture",
+      event: "session_start",
+      flow_mode: "single_agent",
+      max_iterations: 1,
+      cwd: "/tmp",
+      goal: "x",
+    };
+    const result = validateTraceLine(row);
+    assert.equal(result.ok, true, result.errors?.join("; "));
   });
 });
