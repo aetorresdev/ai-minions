@@ -49,6 +49,16 @@ describe("module-boundary guard", () => {
     assert.equal(classifyModule("session-resume.js"), "recovery");
   });
 
+  it("classifies budget paths as budget module (canonical and root shims)", () => {
+    assert.equal(classifyModule("modules/budget/token-trace-report.js"), "budget");
+    assert.equal(classifyModule("modules/budget/token-usage-summary.js"), "budget");
+    assert.equal(classifyModule("modules/budget/cost-accounting-dimensions.js"), "budget");
+    assert.equal(classifyModule("token-trace-report.js"), "budget");
+    assert.equal(classifyModule("token-usage-summary.js"), "budget");
+    assert.equal(classifyModule("cost-accounting-dimensions.js"), "budget");
+    assert.equal(classifyModule("runner-budget-view.js"), "budget");
+  });
+
   it("allowlist has no grandfathered violations under modules/recovery", () => {
     const raw = JSON.parse(fs.readFileSync(ALLOWLIST_PATH, "utf8"));
     const all = [...(raw.matrix || []), ...(raw.hard || [])];

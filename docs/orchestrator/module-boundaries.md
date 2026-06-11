@@ -100,7 +100,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | **model-runtime** | `agents/runtime/*`, `agents/routing/model-routing.js`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
 | **trace** | `modules/trace/` (`trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js`) · shims at legacy root paths · `trace-workspace-lifecycle.js` stays root until worktree slice |
 | **recovery** | `modules/recovery/` (`recovery-sweep.js`, `session-resume.js`) · shims: `recovery-sweep.js`, `session-resume.js` |
-| **budget** | `token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`, `runner-budget-view.js` |
+| **budget** | `modules/budget/` (`token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`) · shims at legacy root paths · `runner-budget-view.js` stays root until operator slice |
 | **worktree** | `worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js` |
 | **operator** | `explain-run.js`, `control-plane-tui.js`, `runner-*-cli.js`, `operator-cli-help.js`, `project-template-cli.js`, `scenario-metrics-export.js` |
 | **disclosure** | `modules/contracts/progressive-disclosure-design.js` (shim at root; classified **disclosure** before generic `contracts` patterns in `module-boundary-rules.js`), `security/skill-registry.js` (metadata only); runtime filter **planned** |
@@ -173,6 +173,7 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-09 | Physical recovery slice — `modules/recovery/`; root shims; recovery row/column in dependency matrix; `moduleRefactorSlice3.test.js` |
 | 2026-06-09 | Gates remainder slice — `approval-policy-gate`, `doubt-review`, `review-record` under `modules/gates/`; `moduleRefactorSlice4.test.js` |
 | 2026-06-11 | Trace core slice — `modules/trace/`; `moduleRefactorSlice5.test.js` (temporary; consolidate at physical refactor close) |
+| 2026-06-12 | Budget slice — `modules/budget/`; `moduleRefactorSlice6.test.js` (temporary; `runner-budget-view` deferred) |
 
 **Test consolidation (pending):** replace `moduleRefactorSlice*.test.js` with `modulesPhysicalLayout.test.js` before the physical refactor lane closes — spec lives in groomed backlog only.
 
