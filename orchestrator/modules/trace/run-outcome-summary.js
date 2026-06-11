@@ -11,7 +11,7 @@ const {
   optionalOllamaUsdEstimate,
   rollupStepsCostOutcome,
   summarizeFailureTaxonomyFromRows,
-} = require("../../token-trace-report");
+} = require("../budget/token-trace-report");
 const { summarizeReviewRecordsFromRows } = require("../gates/review-record");
 const { summarizeRecoveryFromRows } = require("../recovery/recovery-sweep");
 const { summarizeSessionResumeFromRows } = require("../recovery/session-resume");

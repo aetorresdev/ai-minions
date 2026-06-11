@@ -33,7 +33,7 @@ const MODULE_PATTERNS = [
   { id: "model-runtime", patterns: [/^agents\/runtime\//, /^agents\/routing\//, /^local-model-/, /^runner-model-routing/, /^flow-hook-bridge/] },
   { id: "recovery", patterns: [/^modules\/recovery\//, /^recovery-sweep/, /^session-resume/] },
   { id: "trace", patterns: [/^modules\/trace\//, /^trace-/, /^run-outcome-summary/, /^otel-genai-trace-map/, /^context-hygiene-signals/] },
-  { id: "budget", patterns: [/^token-usage-summary/, /^token-trace-report/, /^cost-accounting-dimensions/, /^runner-budget-view/] },
+  { id: "budget", patterns: [/^modules\/budget\//, /^token-usage-summary/, /^token-trace-report/, /^cost-accounting-dimensions/, /^runner-budget-view/] },
   { id: "worktree", patterns: [/^worktree-/, /^run-workdir-contract/, /^trace-workspace-lifecycle/] },
   { id: "operator", patterns: [/^explain-run/, /^control-plane-tui/, /^runner-(?!model-routing)/, /^operator-cli-help/, /^project-template-cli/, /^scenario-metrics-export/, /^console-dashboard/] },
   { id: "disclosure", patterns: [/^modules\/contracts\/progressive-disclosure-design/, /^progressive-disclosure-design/] },
