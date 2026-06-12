@@ -452,8 +452,8 @@ Auto-routing · complexity assessment runtime · per-step latency baseline · OT
 
 | Check | Lane merge @ `47becc6` (PR #176) |
 |-------|----------------------------------|
-| orchestrator-unit-tests | https://github.com/aetorresdev/ai-minions/actions/runs/27445722536 |
-| security-trivy-scan | https://github.com/aetorresdev/ai-minions/actions/runs/27445722536/job/81130107712 |
+| orchestrator-unit-tests | https://github.com/aetorresdev/ai-minions/actions/runs/27445553851/job/81129610652 |
+| security-trivy-scan | https://github.com/aetorresdev/ai-minions/actions/runs/27445553874/job/81129587364 |
 | orchestrator-e2e | https://github.com/aetorresdev/ai-minions/actions/runs/27445553860/job/81129587628 |
 
 ### Release execution plan (locked on release-prep merge — Phase B operator steps)

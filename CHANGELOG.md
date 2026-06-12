@@ -30,7 +30,7 @@ Ninth alpha pre-release: **Model Policy Governance Alpha** — versioned `model_
 **Evidence (operator):**
 
 - Unit + hooks: `cd orchestrator && npm test` → **1377/1378** pass (1 skipped)
-- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → pending operator run on release-prep tree
 - Contracts: `model-selection-trace-contract.md`, `model-policy-config` module, `model-tier-gate` module, `model-cost-outcome-summary` module
 - Lane merged on `master` @ `47becc6`; release-prep on this commit (pending merge)
 - CI: lint-and-unit, security-trivy-scan, orchestrator-e2e — green on lane merge @ `47becc6`
