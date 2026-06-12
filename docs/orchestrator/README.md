@@ -15,6 +15,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [alpha-release-checklist.md](alpha-release-checklist.md) | Alpha release readiness checklist |
 | [release-workflow.md](release-workflow.md) | Human/operator alpha tag workflow — pre-tag vs post-tag evidence |
 | [release-governance-contract.md](release-governance-contract.md) | Release evidence record + fail-closed validator |
+| [changelog-release-format.md](changelog-release-format.md) | Alpha `CHANGELOG.md` section layout — mandatory block order + release-prep template |
 | [governance-gates-contract.md](governance-gates-contract.md) | Human approval gate — trace schema + helpers + MCP `requires_approval` emit; grant/deny UI + resume path pending |
 | [approval-policy-gates-contract.md](approval-policy-gates-contract.md) | Policy-driven PO/ARCH/DEV gates — `validation: always`, `human_approval: policy-driven`, trace `approval_skipped`, DEV pre-check |
 | [cerberus-doubt-cycle-contract.md](cerberus-doubt-cycle-contract.md) | CERBERUS adversarial doubt cycle — trace `doubt_review_*`, claim matrix, pre-merge brief alignment |

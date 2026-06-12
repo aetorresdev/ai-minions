@@ -2,6 +2,8 @@
 
 All notable changes to this repository are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) spirit; versions are tagged when an alpha or release is cut.
 
+**Alpha release sections** (`v0.6.0-alpha.1` and later): mandatory layout in [`docs/orchestrator/changelog-release-format.md`](docs/orchestrator/changelog-release-format.md). Release-prep PRs must match the alpha profile; validated by `changelogReleaseFormat.test.js`.
+
 ## [Unreleased]
 
 ## [0.8.0-alpha.1] - 2026-06-12
