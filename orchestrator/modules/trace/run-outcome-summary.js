@@ -17,6 +17,7 @@ const { summarizeRecoveryFromRows } = require("../recovery/recovery-sweep");
 const { summarizeSessionResumeFromRows } = require("../recovery/session-resume");
 const { summarizeWorkspaceLifecycleFromRows } = require("../worktree/trace-workspace-lifecycle");
 const { summarizeModelTierGateFromRows } = require("./model-tier-gate-summary");
+const { summarizeModelCostOutcomeFromRows } = require("./model-cost-outcome-summary");
 
 /**
  * @param {object[]} rows — sanitized trace rows (same pipeline as export/dashboard)
@@ -103,6 +104,7 @@ function buildRunOutcomeSummary(rows, meta = {}) {
   const resumeSummary = summarizeSessionResumeFromRows(rows);
   const workspaceSummary = summarizeWorkspaceLifecycleFromRows(rows);
   const modelTierGateSummary = summarizeModelTierGateFromRows(rows);
+  const modelCostOutcomeSummary = summarizeModelCostOutcomeFromRows(rows);
 
   return {
     schema_version: "1",
@@ -187,6 +189,7 @@ function buildRunOutcomeSummary(rows, meta = {}) {
     intent_groups,
     workspace: workspaceSummary,
     model_tier_gate: modelTierGateSummary,
+    model_cost_outcome_summary: modelCostOutcomeSummary,
   };
 }
 
@@ -314,6 +317,16 @@ function formatRunOutcomeSummaryLines(summary, opts = {}) {
     const first = mtg.findings[0];
     if (first) {
       lines.push(`  first_denial: ${first.reason_code} — ${first.denial_reason.slice(0, 120)}`);
+    }
+  }
+  if (summary.model_cost_outcome_summary && summary.model_cost_outcome_summary.tiers.length > 0) {
+    const mco = summary.model_cost_outcome_summary;
+    const tierBits = mco.tiers.map(
+      (t) => `${t.model_tier}:${t.steps}st/$${t.cost_usd}/${t.gate_failures}gf/${t.retries}rt`,
+    ).join(" | ");
+    lines.push(`model_cost_outcome: ${tierBits}`);
+    if (mco.missing_tier_metadata_count > 0) {
+      lines.push(`  missing_tier_metadata: ${mco.missing_tier_metadata_count}`);
     }
   }
   return lines;

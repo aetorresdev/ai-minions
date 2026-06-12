@@ -51,3 +51,4 @@ denials emit `model_tier_gate_denied` trace events (fail-closed, no silent downg
 - [model-routing.md](model-routing.md)
 - [local-model-policy.md](local-model-policy.md) (local-only execution — separate from tier policy)
 - Module: `orchestrator/modules/trace/model-selection-trace.js`
+- Tier cost/outcome rollup: `orchestrator/modules/trace/model-cost-outcome-summary.js` → `run_outcome_summary.model_cost_outcome_summary` (per-tier `steps`, `cost_usd`, `gate_failures`, `retries`; derived from trace only — not automatic routing)
