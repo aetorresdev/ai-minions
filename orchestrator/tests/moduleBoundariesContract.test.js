@@ -44,6 +44,7 @@ describe("module-boundaries-contract", () => {
     assert.match(doc, /Known import/i);
     assert.match(doc, /check-module-boundaries|lint:module-boundaries/i);
     assert.match(doc, /module-boundary-allowlist/i);
+    assert.match(doc, /module-boundary-allowlist-shrink/i);
   });
 
   it("maps principal orchestrator files to modules", () => {

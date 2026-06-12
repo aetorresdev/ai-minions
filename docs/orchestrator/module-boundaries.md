@@ -117,7 +117,12 @@ Every new top-level file should declare target module in PR description. New cro
 | Design validators at repo root (`*-design.js`) | Shims only — canonical under `modules/contracts/` | New validators land in `modules/contracts/` |
 | `orchestrator.js` imports across gates, trace, permissions, worktree | God-module pressure | Slice run-control facades per phase — deferred |
 | `mcp-client.js` used from run loop and operator paths | Tool transport bleeds into operator | Keep MCP behind tools module API — tools slice deferred |
-| `recovery` / `trace` gate reader imports | Grandfathered hard-rule allowlist | Follow-on allowlist shrink with evidence |
+| `recovery` / `trace` gate reader imports | Grandfathered hard-rule allowlist (1 entry) | Consumption-only; trace→gates read of `review-record` |
+| Security helper `require()` paths | **Closed** (v0.10) | Classified under permissions/tools — removed from matrix allowlist |
+| `agents.js` → registry/prompts | **Closed** (v0.10) | Classified shared bucket |
+| `context-utils` / portable template | **Closed** (v0.10) | run-control + shared classification |
+
+**Allowlist count:** 34 → 15 (see [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md)).
 
 **None of the above block alpha** — they guide deferred slices (run-control, permissions, tools) and v0.10 allowlist shrink.
 
@@ -179,5 +184,6 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-12 | `modules/model-runtime/` partial — policy config + tier gate (v0.9) |
 | 2026-06-12 | Post-v0.8/v0.9 doc align — status + known violations updated |
 | 2026-06-12 | Per-module `README.md` stubs under each physical `modules/<context>/` (v0.10 coherence closeout) |
+| 2026-06-12 | Allowlist shrink 34→15 — [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md) |
 
 Update when module map or known violations change.

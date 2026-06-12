@@ -88,6 +88,22 @@ describe("module-boundary guard", () => {
     }
   });
 
+  it("classifies security helper paths under permissions or tools", () => {
+    assert.equal(classifyModule("security/load-project-policy.js"), "permissions");
+    assert.equal(classifyModule("security/trace-security-decision.js"), "permissions");
+    assert.equal(classifyModule("security/action-classifiers/classify-action.js"), "permissions");
+    assert.equal(classifyModule("security/load-tool-action-manifest.js"), "tools");
+    assert.equal(classifyModule("portable-project-template.js"), "shared");
+    assert.equal(classifyModule("context-utils.js"), "run-control");
+  });
+
+  it("allowlist shrunk for v0.10 coherence closeout (baseline 34 entries)", () => {
+    const raw = JSON.parse(fs.readFileSync(ALLOWLIST_PATH, "utf8"));
+    const count = (raw.matrix || []).length + (raw.hard || []).length;
+    assert.ok(count <= 15, `expected <= 15 allowlist entries, got ${count}`);
+    assert.ok(count < 34, "allowlist should be smaller than pre-v0.10 baseline");
+  });
+
   it("detects new hard-rule violations under modules/gates", () => {
     const tmpDir = path.join(ORCH_ROOT, "modules", "gates", "__boundary_probe__");
     fs.mkdirSync(tmpDir, { recursive: true });
