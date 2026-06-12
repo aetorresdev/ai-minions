@@ -383,7 +383,7 @@ Auto-routing · model policy file MVP · frontier/expensive gate runtime · OTLP
 | security-trivy-scan | https://github.com/aetorresdev/ai-minions/actions/runs/27389146441/job/80942679015 |
 | orchestrator-e2e | https://github.com/aetorresdev/ai-minions/actions/runs/27389146430/job/80942679227 |
 
-**Supplemental — workflow_dispatch on release-prep head @ `ce190a5`:** unit and trivy **green**; e2e dispatched on branch tip (path filters skip doc-only PR checks).
+**Supplemental — workflow_dispatch on release-prep RC commit @ `ce190a5`:** unit · trivy · e2e **green** (path filters skip doc-only PR checks). Latest doc-only checklist update @ `e70b876`.
 
 | Check | Release-prep head dispatch |
 |-------|---------------------------|
