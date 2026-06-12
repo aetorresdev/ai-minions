@@ -2,7 +2,9 @@
 
 /**
  * Validates CHANGELOG.md alpha release section structure.
- * @see docs/orchestrator/changelog-release-format.md
+ * Enforces mandatory alpha markers (presence + order) and machine-checkable
+ * rules only — not every human guideline in the format doc.
+ * @see docs/orchestrator/changelog-release-format.md § Validator scope (automated)
  */
 
 /** @typedef {"alpha"|"legacy"} ChangelogReleaseProfile */

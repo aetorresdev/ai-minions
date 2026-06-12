@@ -12,12 +12,33 @@
 
 | Profile | Applies to | Enforcement |
 |---------|------------|-------------|
-| **alpha** | `v0.6.0-alpha.1` and later | Required on every new release-prep section; contract tests fail if missing markers |
-| **legacy** | `v0.1.0-alpha.1` … `v0.5.0-alpha.1` | **Frozen historical archive** — keep as-shipped; validator skips them; **no** retroactive normalization in normal release workflow |
+| **alpha** | `v0.6.0-alpha.1` and later | Human release-prep follows full layout below; **automated** checks enforce [mandatory markers](#validator-scope-automated) only |
+| **legacy** | `v0.1.0-alpha.1` … `v0.5.0-alpha.1` | **Frozen historical archive** — keep as-shipped; validator skips them; **no** retroactive normalization in normal release workflow or this PR |
+
+**Legacy hygiene (out of scope):** normalizing v0.1–v0.5 to the alpha profile requires a **dedicated hygiene-only pass** with **no** release-governance behavior changes — not bundled with format contracts or release cuts.
 
 ---
 
-## Alpha profile — mandatory block order
+## Validator scope (automated)
+
+`validateChangelogReleaseFormat()` enforces **mandatory alpha markers** (presence + order) and a small set of machine-checkable rules. It does **not** enforce every human guideline in this doc.
+
+| Check | Enforced in CI |
+|-------|----------------|
+| Header `## [version] - YYYY-MM-DD` | yes |
+| Markers in order: `Release claim` → `Prerequisite` → `Since [` → delta table → `Release` → `Evidence` → `Alpha limitations` → `### Added` | yes |
+| Summary paragraph (min length) | yes |
+| Evidence mentions `npm test` | yes |
+| Evidence mentions Trivy (`release-trivy-gate` or `security-trivy-scan`) | yes (alpha profile) |
+| No ticket/backlog IDs in section body | yes |
+| Delta table includes Focus + Unit tests rows | **no** — CERBERUS / operator review |
+| Every evidence bullet from [Evidence bullets](#evidence-bullets) | **no** — CERBERUS / operator review |
+| Forbidden claim phrases (production-ready, full automation, …) | **no** — CERBERUS / operator review |
+| `### Added` has ≥1 bullet | **no** — CERBERUS / operator review |
+
+---
+
+## Alpha profile — mandatory block order (human + CERBERUS)
 
 Sections use [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) categories at the end. **Do not reorder** the metadata blocks below.
 
@@ -119,6 +140,7 @@ Use a **short** summary (3–5 lines) + link to the CHANGELOG section. Do not du
 
 ## CERBERUS checks
 
-- Reject release-prep if alpha profile markers are missing or out of order
-- Reject claim drift (changelog fields must match shipped contracts)
-- Reject ticket IDs in versioned changelog product text
+- Reject release-prep if **automated markers** are missing or out of order (validator)
+- Reject claim drift (changelog fields must match shipped contracts) — human review
+- Reject ticket IDs in versioned changelog product text (validator + review)
+- Reject missing evidence sub-bullets, weak delta table, or forbidden claims — human review per sections above not in validator scope

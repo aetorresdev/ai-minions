@@ -18,6 +18,14 @@ const FORMAT_DOC_PATH = path.join(__dirname, "..", "..", "docs", "orchestrator",
 const WORKFLOW_PATH = path.join(__dirname, "..", "..", "docs", "orchestrator", "release-workflow.md");
 
 describe("changelog-release-format contract doc", () => {
+  it("documents validator scope separate from full human profile", () => {
+    const doc = fs.readFileSync(FORMAT_DOC_PATH, "utf8");
+    assert.match(doc, /Validator scope \(automated\)/);
+    assert.match(doc, /does \*\*not\*\* enforce every human guideline/);
+    assert.match(doc, /Frozen historical archive/);
+    assert.match(doc, /dedicated hygiene-only pass/);
+  });
+
   it("defines alpha profile markers and template", () => {
     const doc = fs.readFileSync(FORMAT_DOC_PATH, "utf8");
     assert.match(doc, /Alpha profile — mandatory block order/);
