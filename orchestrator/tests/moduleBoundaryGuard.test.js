@@ -49,6 +49,16 @@ describe("module-boundary guard", () => {
     assert.equal(classifyModule("session-resume.js"), "recovery");
   });
 
+  it("classifies worktree paths as worktree module (canonical and root shims)", () => {
+    assert.equal(classifyModule("modules/worktree/worktree-isolation.js"), "worktree");
+    assert.equal(classifyModule("modules/worktree/trace-workspace-lifecycle.js"), "worktree");
+    assert.equal(classifyModule("modules/worktree/run-workdir-contract.js"), "worktree");
+    assert.equal(classifyModule("worktree-isolation.js"), "worktree");
+    assert.equal(classifyModule("trace-workspace-lifecycle.js"), "worktree");
+    assert.equal(classifyModule("run-workdir-contract.js"), "worktree");
+    assert.equal(classifyModule("worktree-result-promotion.js"), "worktree");
+  });
+
   it("classifies budget paths as budget module (canonical and root shims)", () => {
     assert.equal(classifyModule("modules/budget/token-trace-report.js"), "budget");
     assert.equal(classifyModule("modules/budget/token-usage-summary.js"), "budget");
