@@ -166,15 +166,15 @@ Every new top-level file should declare target module in PR description. New cro
 
 | Date | Change |
 |------|--------|
-| 2026-06-07 | Initial design map shipped on `master` @ `e8b3ac8`; ticket-free deferred refactor wording; cross-links to handoff/sandbox design contracts |
-| 2026-06-08 | Gates slice 1 — `modules/gates/` physical migration (`governance-gate`, `merge-governance`); root shims; import guards deferred to slice 2 |
-| 2026-06-08 | Import boundary slice 2 — `check-module-boundaries` + allowlist + `moduleBoundaryGuard.test.js`; wired into `npm test` |
-| 2026-06-09 | Physical contracts slice — `modules/contracts/` design validators; root shims |
-| 2026-06-09 | Physical recovery slice — `modules/recovery/`; root shims; recovery row/column in dependency matrix |
-| 2026-06-09 | Gates remainder slice — `approval-policy-gate`, `doubt-review`, `review-record` under `modules/gates/` |
-| 2026-06-11 | Trace core slice — `modules/trace/` |
-| 2026-06-12 | Budget slice — `modules/budget/` (`runner-budget-view` deferred to operator slice) |
-| 2026-06-12 | Worktree slice — `modules/worktree/` |
-| 2026-06-12 | Physical layout tests consolidated — `tests/modulesPhysicalLayout.test.js` (per bounded context) |
+| 2026-06-07 | Initial design map; cross-links to handoff/sandbox design contracts |
+| 2026-06-08 | `modules/gates/` — `governance-gate`, `merge-governance`; root shims |
+| 2026-06-08 | Import boundary CI — `check-module-boundaries`, allowlist, `moduleBoundaryGuard.test.js` in `npm test` |
+| 2026-06-09 | `modules/contracts/` design validators; root shims |
+| 2026-06-09 | `modules/recovery/`; recovery row/column in dependency matrix |
+| 2026-06-09 | `modules/gates/` — `approval-policy-gate`, `doubt-review`, `review-record` |
+| 2026-06-11 | `modules/trace/` |
+| 2026-06-12 | `modules/budget/`; `runner-budget-view.js` remains at orchestrator root |
+| 2026-06-12 | `modules/worktree/` |
+| 2026-06-12 | Physical layout regression — `tests/modulesPhysicalLayout.test.js` |
 
-Update when module map or known violations change. Physical refactor briefs reference this doc (backlog only — not in CHANGELOG product text).
+Update when module map or known violations change.
