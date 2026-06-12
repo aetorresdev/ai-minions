@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { buildRunCostAccountingFromReport } = require("../cost-accounting-dimensions");
+const { buildRunCostAccountingFromReport } = require("../../cost-accounting-dimensions");
 
 const KEYS = [
   "ORCH_USD_PER_MTOK_PROMPT",

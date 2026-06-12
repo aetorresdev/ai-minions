@@ -10,8 +10,8 @@ const {
   composeIterationDonePayload,
   _sanitize,
   _hashGoal,
-} = require("../trace-writer");
-const { validateTraceLine } = require("../trace-schema");
+} = require("../../trace-writer");
+const { validateTraceLine } = require("../../trace-schema");
 
 describe("trace-writer — characterization", () => {
   it("transitionReason + composeIterationDonePayload produce schema-valid iteration_done", () => {
@@ -46,8 +46,8 @@ describe("trace-writer — characterization", () => {
   it("orchestrator re-exports full trace-writer facade surface", () => {
     const cp = require("child_process");
     cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
-    const orch = require("../orchestrator");
-    const tw = require("../trace-writer");
+    const orch = require("../../orchestrator");
+    const tw = require("../../trace-writer");
     const TRACE_WRITER_FACADE_KEYS = [
       "_sanitize",
       "_hashGoal",

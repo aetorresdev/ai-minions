@@ -6,14 +6,14 @@ const os = require("os");
 const path = require("path");
 const test = require("node:test");
 
-const { validateCleanupTarget } = require("../worktree-cleanup-safety");
+const { validateCleanupTarget } = require("../../worktree-cleanup-safety");
 const {
   createIsolatedWorktree,
   removeIsolatedWorktree,
   readWorktreeBinding,
   writeWorktreeBinding,
-} = require("../worktree-isolation");
-const { traceFilePath } = require("../trace-append");
+} = require("../../worktree-isolation");
+const { traceFilePath } = require("../../trace-append");
 
 /**
  * @returns {string}
@@ -21,7 +21,7 @@ const { traceFilePath } = require("../trace-append");
 function initTempGitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-cleanup-"));
   fs.writeFileSync(path.join(dir, "README.md"), "# temp\n", "utf8");
-  const { runGit } = require("../worktree-isolation");
+  const { runGit } = require("../../worktree-isolation");
   runGit(["init"], { cwd: dir });
   runGit(["config", "user.email", "test@example.com"], { cwd: dir });
   runGit(["config", "user.name", "test"], { cwd: dir });

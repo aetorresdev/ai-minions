@@ -14,7 +14,7 @@ const {
   statusWorktree,
   buildWorktreeTraceFields,
   readWorktreeBinding,
-} = require("../worktree-isolation");
+} = require("../../worktree-isolation");
 
 /**
  * @returns {string}
@@ -22,7 +22,7 @@ const {
 function initTempGitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-worktree-"));
   fs.writeFileSync(path.join(dir, "README.md"), "# temp\n", "utf8");
-  const { runGit } = require("../worktree-isolation");
+  const { runGit } = require("../../worktree-isolation");
   runGit(["init"], { cwd: dir });
   runGit(["config", "user.email", "test@example.com"], { cwd: dir });
   runGit(["config", "user.name", "test"], { cwd: dir });

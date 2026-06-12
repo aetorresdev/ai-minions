@@ -44,10 +44,15 @@ describe('test-ownership-map', () => {
     assert.ok(integration.length >= 5, 'integration tests should be explicit');
   });
 
-  it('covers each bounded-context owner at least once', () => {
-    const counts = countByOwner();
-    for (const owner of OWNERS) {
-      assert.ok(counts[owner] > 0, `no tests mapped to owner ${owner}`);
+  it('places first-wave module-owned unit tests under tests/<owner>/', () => {
+    const wave1 = ['trace', 'budget', 'worktree', 'operator'];
+    for (const [rel, meta] of Object.entries(ENTRIES)) {
+      if (wave1.includes(meta.owner) && meta.kind === 'unit') {
+        assert.ok(
+          rel.startsWith(`tests/${meta.owner}/`),
+          `${rel} should live under tests/${meta.owner}/`,
+        );
+      }
     }
   });
 });

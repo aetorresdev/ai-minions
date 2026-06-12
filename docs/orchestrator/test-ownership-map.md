@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/test-ownership-map.md`. See [PATHS.md](PATHS.md).
 
-**Status:** Governed map of `orchestrator/tests/**/*.test.js` → primary bounded-context owner + test kind. **Not** a claim that tests are physically colocated under `tests/<context>/` yet (see follow-on layout consolidation).
+**Status:** Governed map of `orchestrator/tests/**/*.test.js` → primary bounded-context owner + test kind. **Physical colocation (wave 1):** `tests/trace/`, `tests/budget/`, `tests/worktree/`, and `tests/operator/` hold unit tests for those module contexts. Remaining owners stay flat under `tests/` until a follow-on wave.
 
 **Source of truth (machine):** `orchestrator/scripts/test-ownership-map-data.js` · validated by `orchestrator/tests/testOwnershipMap.test.js`.
 
@@ -50,4 +50,5 @@ cd orchestrator && node -e "const m=require('./scripts/test-ownership-map'); con
 
 | Date | Change |
 |------|--------|
+| 2026-06-12 | Wave-1 layout: trace · budget · worktree · operator unit tests under `tests/<context>/` |
 | 2026-06-12 | Initial test ownership map + validator (v0.10 coherence closeout) |

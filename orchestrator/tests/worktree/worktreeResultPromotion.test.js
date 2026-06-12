@@ -6,17 +6,17 @@ const os = require("os");
 const path = require("path");
 const { describe, it, afterEach } = require("node:test");
 
-const { validateTraceLine } = require("../trace-schema");
-const { traceFilePath } = require("../trace-append");
-const { createIsolatedWorktree } = require("../worktree-isolation");
-const { CONTRACT_REL_PATH } = require("../run-workdir-contract");
+const { validateTraceLine } = require("../../trace-schema");
+const { traceFilePath } = require("../../trace-append");
+const { createIsolatedWorktree } = require("../../worktree-isolation");
+const { CONTRACT_REL_PATH } = require("../../run-workdir-contract");
 const {
   validatePromotionEligibility,
   promoteWorktreeResults,
   denyWorktreePromotion,
   readPromotionRecord,
   isPathUnderRoot,
-} = require("../worktree-result-promotion");
+} = require("../../worktree-result-promotion");
 
 /**
  * @returns {string}
@@ -24,7 +24,7 @@ const {
 function initTempGitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-promo-"));
   fs.writeFileSync(path.join(dir, "README.md"), "# temp\n", "utf8");
-  const { runGit } = require("../worktree-isolation");
+  const { runGit } = require("../../worktree-isolation");
   runGit(["init"], { cwd: dir });
   runGit(["config", "user.email", "test@example.com"], { cwd: dir });
   runGit(["config", "user.name", "test"], { cwd: dir });

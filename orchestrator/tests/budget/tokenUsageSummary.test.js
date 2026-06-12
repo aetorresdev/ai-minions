@@ -2,8 +2,8 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { buildTokenUsageSummary } = require("../token-usage-summary");
-const { buildReport } = require("../token-trace-report");
+const { buildTokenUsageSummary } = require("../../token-usage-summary");
+const { buildReport } = require("../../token-trace-report");
 
 test("buildTokenUsageSummary splits direct vs infra-attributed (role totals)", () => {
   const rows = [

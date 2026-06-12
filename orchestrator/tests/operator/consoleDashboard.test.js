@@ -13,7 +13,7 @@ const {
   sortedEntries,
   resolveConsoleColorMode,
   shouldUseAnsiForStdout,
-} = require("../console-dashboard");
+} = require("../../console-dashboard");
 
 /** @param {string} s */
 function assertAllCharsAscii(s, label) {
@@ -189,8 +189,8 @@ test("buildBatchDashboardText is ASCII-only for empty traces dir", () => {
  * do not replace a manual check against a real trace after a local run.
  */
 test("CLI: node console-dashboard.js --file golden fixture exits 0, ASCII stdout", () => {
-  const bin = path.join(__dirname, "..", "console-dashboard.js");
-  const fixture = path.join(__dirname, "fixtures", "golden-path-clean-v1.jsonl");
+  const bin = path.join(__dirname, "..", "..", "console-dashboard.js");
+  const fixture = path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl");
   const r = spawnSync(process.execPath, [bin, "--file", fixture], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr || "non-zero exit");
   assertAllCharsAscii(r.stdout, "CLI dashboard stdout");
@@ -219,8 +219,8 @@ test("buildDashboardText useColor adds ANSI only to semantic tokens", () => {
 });
 
 test("CLI: --color=always includes escape codes (non-ASCII allowed)", () => {
-  const bin = path.join(__dirname, "..", "console-dashboard.js");
-  const fixture = path.join(__dirname, "fixtures", "golden-path-clean-v1.jsonl");
+  const bin = path.join(__dirname, "..", "..", "console-dashboard.js");
+  const fixture = path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl");
   const env = { ...process.env };
   delete env.NO_COLOR;
   const r = spawnSync(process.execPath, [bin, "--file", fixture, "--color=always"], {

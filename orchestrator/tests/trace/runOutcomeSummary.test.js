@@ -5,11 +5,11 @@ const test = require("node:test");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { collectRunsFromDir } = require("../scenario-metrics-export");
+const { collectRunsFromDir } = require("../../scenario-metrics-export");
 const {
   buildRunOutcomeSummary,
   formatRunOutcomeSummaryLines,
-} = require("../run-outcome-summary");
+} = require("../../run-outcome-summary");
 
 test("buildRunOutcomeSummary: successful run with tokens and taxonomy", () => {
   const rows = [

@@ -15,17 +15,17 @@ const {
   formatRunWorkdirContractText,
   readRunWorkdirContractFile,
   CLEANUP_POLICIES,
-} = require("../run-workdir-contract");
+} = require("../../run-workdir-contract");
 const {
   planWorktree,
   createIsolatedWorktree,
   readWorktreeBinding,
-} = require("../worktree-isolation");
+} = require("../../worktree-isolation");
 
 function initTempGitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-rw-contract-"));
   fs.writeFileSync(path.join(dir, "README.md"), "# temp\n", "utf8");
-  const { runGit } = require("../worktree-isolation");
+  const { runGit } = require("../../worktree-isolation");
   runGit(["init"], { cwd: dir });
   runGit(["config", "user.email", "test@example.com"], { cwd: dir });
   runGit(["config", "user.name", "test"], { cwd: dir });

@@ -67,7 +67,7 @@ Rows = capability areas. Columns use the five allowed states only (one primary s
 | **Budget** | **implemented** | `modules/budget/`, token summaries, cost dimensions | No production spend SLA (**not claimed**) |
 | **Worktree** | **implemented** | `modules/worktree/`, isolation, promotion, lifecycle trace | — |
 | **Operator surfaces** | **implemented** | `modules/operator/`, CLI/TUI/export/preflight | Root shims remain; `runner-model-routing.js` at root |
-| **Modular monolith layout** | **partial** | Eight physical contexts + shims; CI root guard | run-control, permissions, tools deferred; flat test layout |
+| **Modular monolith layout** | **partial** | Eight physical contexts + shims; CI root guard | run-control, permissions, tools deferred; wave-1 test dirs (`trace` · `budget` · `worktree` · `operator`) |
 | **OTLP export** | **planned** | OTel mapper derived | OTLP sink **not claimed** for v0.8 |
 | **Memory store** | **design-only** | `memory-store-decision.md` | No runtime memory SoT |
 | **Swarm / multi-agent scale-out** | **not claimed** | — | Explicitly out of v0.8 lane |
