@@ -2,7 +2,9 @@
 
 **Location:** `docs/orchestrator/module-ownership-map.md`. See [PATHS.md](PATHS.md).
 
-**Status:** Audit artifact extending [module-boundaries.md](module-boundaries.md) with **declared ownership**, coordination rules, and honest current vs target layout. **Not** a claim that physical modules exist beyond `modules/gates/`.
+**Status:** Post-refactor alignment artifact (v0.10 coherence closeout). Extends [module-boundaries.md](module-boundaries.md) with **declared ownership**, coordination rules, and **current vs target** layout after v0.8 physical slices. **Not** architecture complete · **not** full repo modularized.
+
+**Physical modules shipped (v0.8–v0.9):** `gates` · `contracts` · `recovery` · `trace` · `budget` · `worktree` · `operator` · `model-runtime` *(partial — policy + tier gate only)*. Evidence: `orchestrator/tests/modulesPhysicalLayout.test.js`.
 
 **Related:** [root-file-inventory.md](root-file-inventory.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md)
 
@@ -29,7 +31,7 @@
 | **Current paths** | `orchestrator.js`, `run-loop-helpers.js`, `run-state.js`, `qa-spec-flow.js`, `context-utils.js`, `run-phases/*`, `cli.js` (invoke) |
 | **Target paths** | `modules/run-control/` (+ `run-phases/` subtree) |
 | **Coordinates with** | gates (step gates), permissions (capability checks), trace (append), worktree (workdir), model-runtime (agent spawn), operator (never imported by run-control) |
-| **Physical module** | **Not yet** — largest slice; move after smaller contexts |
+| **Physical module** | **Not yet** — largest remaining slice |
 
 ### contracts
 
@@ -37,10 +39,10 @@
 |--|--|
 | **Owns** | Handoff/MODE/output validation helpers, design-first validators, contract drift tests, doc↔runtime claim anchors |
 | **Must not own** | Spawning agents, writing traces, MCP transport |
-| **Current paths** | `*-design.js`, `tests/*Contract.test.js`, validators under `agents/` (validate-output) |
-| **Target paths** | `modules/contracts/` |
+| **Current paths** | `modules/contracts/` (`*-design.js` validators) · root shims · `tests/*Contract.test.js` |
+| **Target paths** | `modules/contracts/` *(achieved for design validators)* |
 | **Coordinates with** | All modules (read-only validation); no upward imports from contracts |
-| **Physical module** | **Not yet** — low-risk early physical refactor slice |
+| **Physical module** | **Implemented** — design validators under `modules/contracts/`; root shims remain |
 
 ### gates
 
@@ -48,10 +50,10 @@
 |--|--|
 | **Owns** | Human approval, policy gates, governance pre-checks, doubt cycle hooks, durable `review_record` emission |
 | **Must not own** | Permission matrix SoT; model routing |
-| **Current paths** | `modules/gates/` (first gates migration), shims `governance-gate.js`, `merge-governance/`, root `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
-| **Target paths** | `modules/gates/` (consolidate all gate logic) |
+| **Current paths** | `modules/gates/` (consolidated) · shims: `governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
+| **Target paths** | `modules/gates/` *(achieved)* |
 | **Coordinates with** | permissions (capability), trace (emit outcomes), contracts (schema) |
-| **Physical module** | **Partial** — merge-governance + governance-gate shipped |
+| **Physical module** | **Implemented** — gate logic consolidated; root shims documented |
 
 ### permissions
 
@@ -81,10 +83,10 @@
 |--|--|
 | **Owns** | Local model discovery/policy/selection, agent runtime adapters (Claude/Ollama), hook bridge |
 | **Must not own** | Approval before DEV; trace redaction policy |
-| **Current paths** | `agents/runtime/*`, `agents/routing/`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
-| **Target paths** | `modules/model-runtime/` |
+| **Current paths** | `modules/model-runtime/` (`model-policy-config.js`, `model-tier-gate.js`) · `agents/runtime/*`, `agents/routing/`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
+| **Target paths** | `modules/model-runtime/` *(partial)* |
 | **Coordinates with** | permissions, trace, budget (token fields) |
-| **Physical module** | **Not yet** |
+| **Physical module** | **Partial** — v0.9 policy loader + tier gate; discovery/selection/adapters still at root/`agents/` |
 
 ### trace
 
@@ -92,10 +94,10 @@
 |--|--|
 | **Owns** | JSONL schema, append/sanitize/redact, lifecycle events, outcome summary (aggregation), OTel mapper (derived only) |
 | **Must not own** | Policy decisions (what may run) |
-| **Current paths** | `trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js`, `schemas/` |
-| **Target paths** | `modules/trace/`; `schemas/` may remain at root or symlink |
+| **Current paths** | `modules/trace/` · root shims (`trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js`) · `schemas/` |
+| **Target paths** | `modules/trace/` *(achieved for core trace)* |
 | **Coordinates with** | All emitters; consumers: operator, budget, recovery (read-only) |
-| **Physical module** | **Not yet** |
+| **Physical module** | **Implemented** — core trace under `modules/trace/`; `run-outcome-summary` → `review-record` import still allowlisted |
 
 ### budget
 
@@ -103,10 +105,10 @@
 |--|--|
 | **Owns** | Token/cost accounting dimensions, rollups, budget views |
 | **Must not own** | Production spend enforcement SLA |
-| **Current paths** | `token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`, `runner-budget-view.js` (UI split: operator renders) |
-| **Target paths** | `modules/budget/` |
+| **Current paths** | `modules/budget/` · root shims (`token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`) |
+| **Target paths** | `modules/budget/` *(achieved)* |
 | **Coordinates with** | trace (read rows), model-runtime (usage fields) |
-| **Physical module** | **Not yet** |
+| **Physical module** | **Implemented** |
 
 ### worktree
 
@@ -114,10 +116,10 @@
 |--|--|
 | **Owns** | Worktree isolation, workdir contract, cleanup safety, result promotion, workspace lifecycle trace |
 | **Must not own** | Permission checks; prompts |
-| **Current paths** | `worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js` |
-| **Target paths** | `modules/worktree/` |
+| **Current paths** | `modules/worktree/` · root shims (`worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js`) |
+| **Target paths** | `modules/worktree/` *(achieved)* |
 | **Coordinates with** | trace (workspace events), run-control (binding) |
-| **Physical module** | **Not yet** |
+| **Physical module** | **Implemented** |
 
 ### operator
 
@@ -125,10 +127,10 @@
 |--|--|
 | **Owns** | CLI/TUI, explain-run, export, preflight, help, templates — **read-mostly** surfaces |
 | **Must not own** | Domain policy; gate bypass |
-| **Current paths** | `explain-run.js`, `control-plane-tui.js`, `runner-*.js`, `operator-cli-help.js`, `project-template-cli.js`, `scenario-metrics-export.js`, `console-dashboard.js`, `portable-project-template.js` |
-| **Target paths** | `modules/operator/` |
+| **Current paths** | `modules/operator/` · root shims (`explain-run.js`, `control-plane-tui.js`, `runner-*.js`, …) · `portable-project-template.js` at root |
+| **Target paths** | `modules/operator/` *(achieved for operator surfaces)* |
 | **Coordinates with** | run-control (start runs), trace/budget/worktree (read) |
-| **Physical module** | **Not yet** |
+| **Physical module** | **Implemented** — `runner-model-routing.js` stays root (model-runtime) |
 
 ### recovery *(proposed — physical refactor)*
 
@@ -136,11 +138,10 @@
 |--|--|
 | **Owns** | Stranded run/step detection (`recovery-sweep`), session checkpoint eligibility (`session-resume`), resume gating explanations |
 | **Must not own** | Gate policy tables; live run loop mutation without operator path |
-| **Current paths** | `recovery-sweep.js`, `session-resume.js` (today listed under trace in design map — **split recommended**) |
-| **Target paths** | `modules/recovery/` |
+| **Current paths** | `modules/recovery/` · root shims (`recovery-sweep.js`, `session-resume.js`) |
+| **Target paths** | `modules/recovery/` *(achieved)* |
 | **Coordinates with** | gates (read review/governance state), trace (read rows, optional emit `recovery_*`) |
-| **Physical module** | **Not yet** — justified by hard-rule violations and distinct operator workflow |
-| **Rationale** | Recovery **consumes** gate/review outcomes but does not **decide** policy; separate context clarifies CI adjacency fixes |
+| **Physical module** | **Implemented** — gate imports still grandfathered in allowlist |
 
 ### disclosure *(planned promotion)*
 
@@ -192,14 +193,19 @@ orchestrator/
 ├── cli.js, run-orchestrator.js          # entry — stay
 ├── governance-gate.js, merge-governance/ # shims — stay until deprecation
 ├── modules/
-│   └── gates/                           # ONLY physical module today
-├── run-phases/                          # → modules/run-control/
-├── recovery-sweep.js, session-resume.js # → modules/recovery/
-├── trace-*.js, …                        # → modules/trace/
-├── … (see root-file-inventory.md)
-├── agents/                              # split later: model-runtime + permissions
-├── security/                            # → modules/tools/ + permissions gates
-├── schemas/, scripts/, tests/           # stay (tests mirror over time)
+│   ├── budget/
+│   ├── contracts/
+│   ├── gates/
+│   ├── model-runtime/                   # partial — policy + tier gate (v0.9)
+│   ├── operator/
+│   ├── recovery/
+│   ├── trace/
+│   └── worktree/
+├── run-phases/                          # → modules/run-control/ (not yet)
+├── agents/                              # → model-runtime + permissions (not yet)
+├── security/                            # → modules/tools/ + permissions (not yet)
+├── schemas/, scripts/, tests/           # stay (tests mirror over time — follow-on)
+└── … root shims for moved modules       # see root-file-inventory.md
 ```
 
 ---
@@ -209,5 +215,4 @@ orchestrator/
 | Date | Change |
 |------|--------|
 | 2026-06-09 | Initial ownership map — recovery context proposed; current vs target documented |
-
-Update when modules are physically created or ownership disputes are resolved in review.
+| 2026-06-12 | Post-v0.8/v0.9 physical align — eight contexts under `modules/*`; model-runtime partial; run-control/permissions/tools deferred |
