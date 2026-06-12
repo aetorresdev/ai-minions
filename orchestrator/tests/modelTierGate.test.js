@@ -117,6 +117,33 @@ describe("model-tier-gate", () => {
     assert.equal(payload.gate_id, GATE_ID);
   });
 
+  it("buildModelTierGateDeniedPayload keeps invariant fields over caller context", () => {
+    const policy = cloneDefaultModelPolicy();
+    const verdict = evaluateModelTierGate(
+      {
+        model: "claude-opus-4",
+        selection_source: "default",
+        selection_reason: "model_routing_primary",
+      },
+      policy,
+    );
+    const payload = buildModelTierGateDeniedPayload(verdict, {
+      event: "override_attempt",
+      gate_id: "wrong_gate",
+      reason_code: "OVERRIDE",
+      denial_reason: "override",
+      role: "DEV",
+      agent: "dev-backend",
+      step_id: "s1",
+      model: "claude-opus-4",
+      selection_source: "default",
+      selection_reason: "model_routing_primary",
+    });
+    assert.equal(payload.event, "model_tier_gate_denied");
+    assert.equal(payload.gate_id, GATE_ID);
+    assert.equal(payload.reason_code, "FRONTIER_UNAUTHORIZED_SOURCE");
+  });
+
   it("summarizeModelTierGateFromRows counts denials and allowed frontier selections", () => {
     const summary = summarizeModelTierGateFromRows([
       {

@@ -14,8 +14,6 @@ const FRONTIER_ALLOWED_SOURCES = /** @type {const} */ (["policy", "manual", "esc
 /** @typedef {typeof MODEL_TIERS[number]} ModelTier */
 /** @typedef {typeof FRONTIER_ALLOWED_SOURCES[number]} FrontierAllowedSource */
 
-/** @typedef {typeof FRONTIER_ALLOWED_SOURCES[number]} FrontierAllowedSource */
-
 /**
  * @param {{
  *   model: string,
@@ -104,13 +102,13 @@ function evaluateModelTierGate(fields, policy) {
  */
 function buildModelTierGateDeniedPayload(verdict, context) {
   return {
+    ...context,
     event: "model_tier_gate_denied",
     gate_id: GATE_ID,
     model_tier: verdict.model_tier,
     reason_code: verdict.reason_code,
     denial_reason: verdict.denial_reason,
     ...(verdict.rule_name ? { rule_name: verdict.rule_name } : {}),
-    ...context,
   };
 }
 
