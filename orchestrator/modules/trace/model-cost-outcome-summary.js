@@ -31,12 +31,14 @@ function tierSortKey(tier) {
  */
 function resolveModelTier(row) {
   const explicit = typeof row.model_tier === "string" ? row.model_tier : null;
-  if (explicit && MODEL_TIERS.includes(/** @type {typeof MODEL_TIERS[number]} */ (explicit))) {
+  const explicitValid = explicit != null
+    && MODEL_TIERS.includes(/** @type {typeof MODEL_TIERS[number]} */ (explicit));
+  if (explicitValid) {
     return { tier: explicit, missingMetadata: false };
   }
   const model = typeof row.model === "string" ? row.model : "";
   if (model) {
-    return { tier: inferModelTier(model), missingMetadata: explicit == null };
+    return { tier: inferModelTier(model), missingMetadata: !explicitValid };
   }
   return { tier: "unknown", missingMetadata: true };
 }

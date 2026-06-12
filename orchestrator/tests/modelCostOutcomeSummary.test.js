@@ -116,6 +116,24 @@ describe("model-cost-outcome-summary", () => {
     assert.equal(unknown.retries, 1);
     assert.equal(unknown.steps, 0);
   });
+
+  it("counts invalid explicit model_tier as missing metadata when inferred from model", () => {
+    const summary = summarizeModelCostOutcomeFromRows([
+      {
+        event: "model_selection",
+        role: "DEV",
+        agent: "dev-backend",
+        step_id: "s-bad-tier",
+        model: "claude-sonnet-4-6",
+        model_tier: "not-a-tier",
+        selection_source: "default",
+        selection_reason: "model_routing_primary",
+        estimated_cost_usd: 0.01,
+      },
+    ]);
+    assert.equal(summary.missing_tier_metadata_count, 1);
+    assert.equal(summary.tiers[0].model_tier, "standard");
+  });
 });
 
 describe("run_outcome_summary integration", () => {
