@@ -55,4 +55,11 @@ describe('test-ownership-map', () => {
       }
     }
   });
+
+  it('covers each bounded-context owner at least once', () => {
+    const counts = countByOwner();
+    for (const owner of OWNERS) {
+      assert.ok(counts[owner] > 0, `no tests mapped to owner ${owner}`);
+    }
+  });
 });
