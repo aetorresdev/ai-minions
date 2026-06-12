@@ -13,7 +13,7 @@
 | Profile | Applies to | Enforcement |
 |---------|------------|-------------|
 | **alpha** | `v0.6.0-alpha.1` and later | Required on every new release-prep section; contract tests fail if missing markers |
-| **legacy** | `v0.1.0-alpha.1` … `v0.5.0-alpha.1` | Historical only — do not rewrite unless doing a dedicated hygiene pass |
+| **legacy** | `v0.1.0-alpha.1` … `v0.5.0-alpha.1` | **Frozen historical archive** — keep as-shipped; validator skips them; **no** retroactive normalization in normal release workflow |
 
 ---
 
