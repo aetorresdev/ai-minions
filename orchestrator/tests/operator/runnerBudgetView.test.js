@@ -11,10 +11,10 @@ const {
   deriveBudgetStatus,
   formatBudgetViewText,
   runBudgetView,
-} = require("../runner-budget-view");
+} = require("../../runner-budget-view");
 
 const goldenClean = fs.readFileSync(
-  path.join(__dirname, "fixtures", "golden-path-clean-v1.jsonl"),
+  path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl"),
   "utf8",
 ).trim().split("\n").map((l) => JSON.parse(l));
 
@@ -103,7 +103,7 @@ describe("runner-budget-view", () => {
   });
 
   it("runBudgetView snapshot reads fixture file", async () => {
-    const fixture = path.join(__dirname, "fixtures", "golden-path-clean-v1.jsonl");
+    const fixture = path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl");
     const result = await runBudgetView({ filePath: fixture });
     assert.equal(result.ok, true);
     assert.match(result.text || "", /Runner budget view/);
@@ -118,7 +118,7 @@ describe("runner-budget-view", () => {
   });
 
   it("findLastSessionEnd prefers latest session_end in concatenated traces", () => {
-    const { findLastSessionEnd } = require("../runner-budget-view");
+    const { findLastSessionEnd } = require("../../runner-budget-view");
     const rows = [
       { event: "session_end", done: true, iterations: 1, ts_ms: 1 },
       { event: "session_start", task_id: "task-resume", ts_ms: 2 },

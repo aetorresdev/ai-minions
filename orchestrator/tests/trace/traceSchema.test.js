@@ -5,8 +5,8 @@ const test = require("node:test");
 const cp = require("child_process");
 cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 
-const { validateTraceLine, parseTraceLine, getValidationMetrics, resetValidationMetrics, REJECTION_REASONS } = require("../trace-schema");
-const { transitionReason, failureTypeForIterationDone, failureAxisForIterationDone } = require("../orchestrator");
+const { validateTraceLine, parseTraceLine, getValidationMetrics, resetValidationMetrics, REJECTION_REASONS } = require("../../trace-schema");
+const { transitionReason, failureTypeForIterationDone, failureAxisForIterationDone } = require("../../orchestrator");
 
 test("validateTraceLine accepts session_start v2 envelope", () => {
   const row = {
@@ -670,7 +670,7 @@ test("FIFO overflow at exactly 50: entry 51 drops entry 1", () => {
 });
 
 // validateTraceRunGraph — run-level graph consistency
-const { validateTraceRunGraph } = require("../trace-schema");
+const { validateTraceRunGraph } = require("../../trace-schema");
 
 test("validateTraceRunGraph passes on empty line array", () => {
   const r = validateTraceRunGraph([]);
@@ -820,8 +820,8 @@ const {
   buildApprovalRequiredFromPermissionTrace,
   buildApprovalGrantedPayload,
   buildApprovalDeniedPayload,
-} = require("../governance-gate");
-const { buildApprovalSkippedPayload } = require("../approval-policy-gate");
+} = require("../../governance-gate");
+const { buildApprovalSkippedPayload } = require("../../approval-policy-gate");
 
 function govEnvelope(overrides) {
   return {
@@ -922,7 +922,7 @@ test("validateTraceLine accepts approval_skipped for policy gates", () => {
 const {
   buildSessionCheckpointCreatedEvent,
   buildSessionResumeBlockedEvent,
-} = require("../session-resume");
+} = require("../../session-resume");
 
 function sessionResumeEnvelope(overrides) {
   return {

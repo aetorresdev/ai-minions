@@ -2,12 +2,12 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { validateTraceLine } = require("../trace-schema");
+const { validateTraceLine } = require("../../trace-schema");
 const {
   createContextHygieneTracker,
   emitContextHygieneSignal,
   DEFAULT_THRESHOLDS,
-} = require("../context-hygiene-signals");
+} = require("../../context-hygiene-signals");
 
 function wrapTrace() {
   /** @type {Array<Record<string, unknown>>} */

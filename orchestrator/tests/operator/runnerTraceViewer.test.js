@@ -16,15 +16,15 @@ const {
   runTraceViewer,
   appendTraceChunk,
   followTraceFile,
-} = require("../runner-trace-viewer");
+} = require("../../runner-trace-viewer");
 
 const goldenClean = fs.readFileSync(
-  path.join(__dirname, "fixtures", "golden-path-clean-v1.jsonl"),
+  path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl"),
   "utf8",
 ).trim().split("\n").map((l) => JSON.parse(l));
 
 const multiRole = fs.readFileSync(
-  path.join(__dirname, "fixtures", "golden-multi-role-chain-v1.jsonl"),
+  path.join(__dirname, "..", "fixtures", "golden-multi-role-chain-v1.jsonl"),
   "utf8",
 ).trim().split("\n").map((l) => JSON.parse(l));
 
@@ -85,7 +85,7 @@ describe("runner-trace-viewer", () => {
   });
 
   it("runTraceViewer snapshot reads fixture file", async () => {
-    const fixture = path.join(__dirname, "fixtures", "golden-path-clean-v1.jsonl");
+    const fixture = path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl");
     const result = await runTraceViewer({ filePath: fixture });
     assert.equal(result.ok, true);
     assert.match(result.text || "", /terminal_status:\s+done/);
@@ -191,13 +191,13 @@ describe("runner-trace-viewer", () => {
 });
 
 describe("runner-tui-cli trace command", () => {
-  const cliPath = path.join(__dirname, "..", "runner-tui-cli.js");
-  const fixture = path.join(__dirname, "fixtures", "golden-path-clean-v1.jsonl");
+  const cliPath = path.join(__dirname, "..", "..", "runner-tui-cli.js");
+  const fixture = path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl");
 
   it("trace --file prints step graph (exit 0)", () => {
     const r = cp.spawnSync(process.execPath, [cliPath, "trace", "--file", fixture], {
       encoding: "utf8",
-      cwd: path.join(__dirname, ".."),
+      cwd: path.join(__dirname, "..", ".."),
     });
     assert.equal(r.status, 0);
     assert.match(r.stdout, /Step graph/);
@@ -210,7 +210,7 @@ describe("runner-tui-cli trace command", () => {
       [cliPath, "trace", "--run-id", "task-does-not-exist-runner-trace"],
       {
         encoding: "utf8",
-        cwd: path.join(__dirname, ".."),
+        cwd: path.join(__dirname, "..", ".."),
         env: { ...process.env, ORCH_TRACES_DIR: os.tmpdir() },
       },
     );
@@ -224,7 +224,7 @@ describe("runner-tui-cli trace command", () => {
       [cliPath, "trace", "--follow", "--run-id", "task-does-not-exist-runner-trace-follow"],
       {
         encoding: "utf8",
-        cwd: path.join(__dirname, ".."),
+        cwd: path.join(__dirname, "..", ".."),
         env: { ...process.env, ORCH_TRACES_DIR: os.tmpdir() },
       },
     );

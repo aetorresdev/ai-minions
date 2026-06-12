@@ -10,8 +10,8 @@ cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { redactSensitivePlaintext, sanitizeTraceRowsForRead } = require("../trace-redact");
-const { _sanitize } = require("../orchestrator");
+const { redactSensitivePlaintext, sanitizeTraceRowsForRead } = require("../../trace-redact");
+const { _sanitize } = require("../../orchestrator");
 
 /** Runtime-built shapes only — GitHub push protection decodes Base64 and flags embedded tokens. */
 function fakeSkOpenAI() {
@@ -109,7 +109,7 @@ test("ORCH_TRACE_SKIP_SECRET_REDACT=1 leaves literals intact (not under CI)", (t
 });
 
 test("CI=true with ORCH_TRACE_SKIP_SECRET_REDACT=1 fails loading trace-redact", () => {
-  const dir = path.join(__dirname, "..");
+  const dir = path.join(__dirname, "..", "..");
   const r = spawnSyncReal(
     process.execPath,
     ["-e", "require('./trace-redact.js')"],
@@ -147,7 +147,7 @@ test("token-trace-report --json omits raw api-token-shaped goal from file", () =
     ].map(JSON.stringify).join("\n");
     const fp = path.join(dir, "tid-tr.jsonl");
     fs.writeFileSync(fp, jsonl, "utf8");
-    const bin = path.join(__dirname, "..", "token-trace-report.js");
+    const bin = path.join(__dirname, "..", "..", "token-trace-report.js");
     const r = spawnSyncReal(process.execPath, [bin, "--file", fp, "--json"], { encoding: "utf8" });
     assert.equal(r.status, 0, r.stderr || r.stdout);
     assert.ok(!r.stdout.includes(sk), "stdout must not contain raw token");
@@ -167,7 +167,7 @@ test("explain-run --json omits raw api-token-shaped goal from file", () => {
     ].map(JSON.stringify).join("\n");
     const fp = path.join(dir, "tid-ex.jsonl");
     fs.writeFileSync(fp, jsonl, "utf8");
-    const bin = path.join(__dirname, "..", "explain-run.js");
+    const bin = path.join(__dirname, "..", "..", "explain-run.js");
     const r = spawnSyncReal(process.execPath, [bin, "--file", fp, "--json"], { encoding: "utf8" });
     assert.equal(r.status, 0, r.stderr || r.stdout);
     assert.ok(!r.stdout.includes(sk));

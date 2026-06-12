@@ -9,7 +9,7 @@ const {
   buildControlPlaneRunText,
   buildControlPlaneBatchText,
   na,
-} = require("../control-plane-tui");
+} = require("../../control-plane-tui");
 
 /** @param {string} s @param {string} label */
 function assertAllCharsAscii(s, label) {
@@ -26,7 +26,7 @@ test("na formats null and empty as (not available)", () => {
 });
 
 const CLEAN_ROWS = fs.readFileSync(
-  path.join(__dirname, "fixtures", "golden-path-clean-v1.jsonl"),
+  path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl"),
   "utf8",
 )
   .trim()
@@ -84,8 +84,8 @@ test("buildControlPlaneBatchText: empty dir yields header", () => {
 });
 
 test("CLI: control-plane-tui.js --file golden fixture exits 0", () => {
-  const bin = path.join(__dirname, "..", "control-plane-tui.js");
-  const fixture = path.join(__dirname, "fixtures", "golden-path-clean-v1.jsonl");
+  const bin = path.join(__dirname, "..", "..", "control-plane-tui.js");
+  const fixture = path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl");
   const r = spawnSync(process.execPath, [bin, "--file", fixture], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr || r.stdout);
   assert.match(r.stdout, /Control plane/);

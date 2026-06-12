@@ -12,7 +12,7 @@ const {
   buildExportBundle,
   dryRunImport,
   containsUnredactedSecretShape,
-} = require("../portable-project-template");
+} = require("../../portable-project-template");
 
 function fakeSkToken() {
   return "sk-" + "m".repeat(21);
@@ -205,7 +205,7 @@ test("CLI export and import dry-run exit 0 on clean fixture", () => {
       ".ai-minions/permissions.yaml": POLICY,
     },
     (dir) => {
-      const cli = path.join(__dirname, "..", "project-template-cli.js");
+      const cli = path.join(__dirname, "..", "..", "project-template-cli.js");
       const outFile = path.join(dir, "bundle.json");
       const exp = spawnSync(process.execPath, [cli, "export", "--cwd", dir, "--out", outFile], {
         encoding: "utf8",

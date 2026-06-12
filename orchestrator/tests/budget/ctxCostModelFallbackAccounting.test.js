@@ -7,7 +7,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { buildTokenUsageSummary } = require("../token-usage-summary");
+const { buildTokenUsageSummary } = require("../../token-usage-summary");
 
 test("context cost chain: direct vs infra-attributed per role; run_total matches sum(context_stats tokens)", () => {
   const rows = [

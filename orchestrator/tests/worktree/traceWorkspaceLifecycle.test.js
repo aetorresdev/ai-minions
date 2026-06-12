@@ -6,8 +6,8 @@ const os = require("os");
 const path = require("path");
 const test = require("node:test");
 
-const { validateTraceLine } = require("../trace-schema");
-const { traceFilePath } = require("../trace-append");
+const { validateTraceLine } = require("../../trace-schema");
+const { traceFilePath } = require("../../trace-append");
 const {
   emitWorkspaceCreated,
   emitWorkspaceReused,
@@ -23,12 +23,12 @@ const {
   emitWorkspacePromotionDenied,
   emitWorkspacePromotionFailed,
   summarizeWorkspaceLifecycleFromRows,
-} = require("../trace-workspace-lifecycle");
+} = require("../../trace-workspace-lifecycle");
 const {
   createIsolatedWorktree,
   removeIsolatedWorktree,
-} = require("../worktree-isolation");
-const { readRunWorkdirContract } = require("../run-workdir-contract");
+} = require("../../worktree-isolation");
+const { readRunWorkdirContract } = require("../../run-workdir-contract");
 
 /**
  * @returns {string}
@@ -36,7 +36,7 @@ const { readRunWorkdirContract } = require("../run-workdir-contract");
 function initTempGitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-ws-trace-"));
   fs.writeFileSync(path.join(dir, "README.md"), "# temp\n", "utf8");
-  const { runGit } = require("../worktree-isolation");
+  const { runGit } = require("../../worktree-isolation");
   runGit(["init"], { cwd: dir });
   runGit(["config", "user.email", "test@example.com"], { cwd: dir });
   runGit(["config", "user.name", "test"], { cwd: dir });

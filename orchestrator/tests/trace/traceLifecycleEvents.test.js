@@ -2,12 +2,12 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { validateTraceLine } = require("../trace-schema");
+const { validateTraceLine } = require("../../trace-schema");
 const {
   emitModelFallbackLifecycleIfNeeded,
   emitContextCompactionStarted,
   emitContextCompactionCompleted,
-} = require("../trace-lifecycle-events");
+} = require("../../trace-lifecycle-events");
 
 function wrapTrace() {
   /** @type {Array<Record<string, unknown>>} */

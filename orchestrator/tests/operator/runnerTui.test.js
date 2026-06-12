@@ -12,15 +12,15 @@ const {
   formatPreflightText,
   normalizeModelPolicy,
   resolveModelPolicyInput,
-} = require("../runner-preflight");
+} = require("../../runner-preflight");
 const {
   launchRun,
   loadRunStatusFromTrace,
   formatRunStatusText,
   terminalStatusFromRunResult,
-} = require("../runner-launcher");
-const { parseCommonArgs, parseMaxIterations } = require("../runner-tui-cli");
-const { traceFilePath } = require("../trace-append");
+} = require("../../runner-launcher");
+const { parseCommonArgs, parseMaxIterations } = require("../../runner-tui-cli");
+const { traceFilePath } = require("../../trace-append");
 
 /**
  * @returns {string}
@@ -28,7 +28,7 @@ const { traceFilePath } = require("../trace-append");
 function initTempGitRepoForLauncher() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-runner-wt-"));
   fs.writeFileSync(path.join(dir, "README.md"), "# temp\n", "utf8");
-  const { runGit } = require("../worktree-isolation");
+  const { runGit } = require("../../worktree-isolation");
   runGit(["init"], { cwd: dir });
   runGit(["config", "user.email", "test@example.com"], { cwd: dir });
   runGit(["config", "user.name", "test"], { cwd: dir });
@@ -38,7 +38,7 @@ function initTempGitRepoForLauncher() {
 }
 
 const fixtureTags = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "fixtures", "ollama-tags-sample.json"), "utf8"),
+  fs.readFileSync(path.join(__dirname, "..", "fixtures", "ollama-tags-sample.json"), "utf8"),
 );
 
 const mockDiscoverOk = async () => ({
@@ -233,7 +233,7 @@ describe("runner-launcher", () => {
   });
 
   it("loadRunStatusFromTrace reads session_end from fixture", () => {
-    const tracePath = path.join(__dirname, "fixtures", "golden-path-clean-v1.jsonl");
+    const tracePath = path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl");
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runner-status-"));
     const tracesDir = path.join(tmp, "traces");
     fs.mkdirSync(tracesDir);
@@ -292,7 +292,7 @@ describe("runner-model-routing", () => {
     formatModelPolicyCatalogText,
     extractRoleRoutingFromTrace,
     formatTraceRoleRoutingText,
-  } = require("../runner-model-routing");
+  } = require("../../runner-model-routing");
 
   it("buildRoleRoutingPreview maps all roles to Ollama in local_only", () => {
     const preview = buildRoleRoutingPreview({
@@ -362,12 +362,12 @@ describe("runner-model-routing", () => {
 });
 
 describe("runner-tui-cli routing policy validation", () => {
-  const cliPath = path.join(__dirname, "..", "runner-tui-cli.js");
+  const cliPath = path.join(__dirname, "..", "..", "runner-tui-cli.js");
 
   it("routing rejects unknown explicit model policy (exit 2)", () => {
     const r = cp.spawnSync(process.execPath, [cliPath, "routing", "--model-policy", "banana"], {
       encoding: "utf8",
-      cwd: path.join(__dirname, ".."),
+      cwd: path.join(__dirname, "..", ".."),
     });
     assert.equal(r.status, 2);
     assert.match(`${r.stdout}\n${r.stderr}`, /unknown model policy: banana/);
@@ -378,7 +378,7 @@ describe("runner-tui-cli routing policy validation", () => {
     const r = cp.spawnSync(
       process.execPath,
       [cliPath, "routing", "--model-policy", "banana", "--model", "qwen2.5-coder:7b"],
-      { encoding: "utf8", cwd: path.join(__dirname, "..") },
+      { encoding: "utf8", cwd: path.join(__dirname, "..", "..") },
     );
     assert.equal(r.status, 2);
     assert.match(`${r.stdout}\n${r.stderr}`, /unknown model policy: banana/);
@@ -389,7 +389,7 @@ describe("runner-tui-cli routing policy validation", () => {
     const missing = path.join(os.tmpdir(), `runner-budget-missing-${Date.now()}.jsonl`);
     const r = cp.spawnSync(process.execPath, [cliPath, "budget", "--file", missing], {
       encoding: "utf8",
-      cwd: path.join(__dirname, ".."),
+      cwd: path.join(__dirname, "..", ".."),
     });
     assert.equal(r.status, 2);
     assert.match(r.stderr, /trace file not found/);
@@ -397,8 +397,8 @@ describe("runner-tui-cli routing policy validation", () => {
 });
 
 describe("runner-tui-cli worktree contract", () => {
-  const cliPath = path.join(__dirname, "..", "runner-tui-cli.js");
-  const orchestratorCwd = path.join(__dirname, "..");
+  const cliPath = path.join(__dirname, "..", "..", "runner-tui-cli.js");
+  const orchestratorCwd = path.join(__dirname, "..", "..");
 
   /**
    * @returns {string}
@@ -406,7 +406,7 @@ describe("runner-tui-cli worktree contract", () => {
   function initTempGitRepo() {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "runner-tui-wt-"));
     fs.writeFileSync(path.join(dir, "README.md"), "# temp\n", "utf8");
-    const { runGit } = require("../worktree-isolation");
+    const { runGit } = require("../../worktree-isolation");
     runGit(["init"], { cwd: dir });
     runGit(["config", "user.email", "test@example.com"], { cwd: dir });
     runGit(["config", "user.name", "test"], { cwd: dir });

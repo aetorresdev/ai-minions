@@ -6,10 +6,10 @@ const {
   isDomainAllowedForCapabilityContext,
   normalizeModeKey,
   isClaudeCliTransportAllowedForRole,
-} = require("../security/trace-role-capability");
-const { runClaudeCliPermissionGate } = require("../security/claude-cli-shell-gate");
-const { runNetworkPermissionGate } = require("../security/network-permission-gate");
-const { runMcpPermissionGate } = require("../security/mcp-permission-gate");
+} = require("../../security/trace-role-capability");
+const { runClaudeCliPermissionGate } = require("../../security/claude-cli-shell-gate");
+const { runNetworkPermissionGate } = require("../../security/network-permission-gate");
+const { runMcpPermissionGate } = require("../../security/mcp-permission-gate");
 
 describe("trace-role-capability (SEC-NET-R3)", () => {
   it("normalizeModeKey defaults empty to ORCHESTRATOR", () => {

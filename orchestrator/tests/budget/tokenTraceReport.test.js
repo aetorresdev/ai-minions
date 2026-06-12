@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { parseJsonl, buildReport, optionalOllamaUsdEstimate, rollupStepsCostOutcome } = require("../token-trace-report");
+const { parseJsonl, buildReport, optionalOllamaUsdEstimate, rollupStepsCostOutcome } = require("../../token-trace-report");
 
 test("parseJsonl skips empty lines and collects errors", () => {
   const { rows, errors } = parseJsonl(`{"a":1}\n\nnot-json\n{"b":2}\n`);
