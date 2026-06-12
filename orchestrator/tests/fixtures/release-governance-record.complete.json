@@ -1,0 +1,10 @@
+{
+  "version": "v0.8.0-alpha.1",
+  "tag": "v0.8.0-alpha.1",
+  "tag_commit": "89a10d8",
+  "changelog_section": "[0.8.0-alpha.1] - 2026-06-12",
+  "pre_release_url": "https://github.com/aetorresdev/ai-minions/releases/tag/v0.8.0-alpha.1",
+  "release_branch_commit": "89a10d8",
+  "evidence_status": "complete",
+  "operator": "human"
+}
