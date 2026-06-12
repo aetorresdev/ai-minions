@@ -233,10 +233,6 @@ describe("modules physical layout", () => {
       assert.equal(typeof budget.parseJsonl, "function");
     });
 
-    it("runner-budget-view remains at root until operator slice", () => {
-      assert.ok(fs.existsSync(path.join(ORCH, "runner-budget-view.js")));
-      assert.equal(fs.existsSync(path.join(ORCH, "modules/budget/runner-budget-view.js")), false);
-    });
   });
 
   describe("worktree", () => {
@@ -292,6 +288,73 @@ describe("modules physical layout", () => {
       assert.equal(typeof worktree.promoteWorktreeResults, "function");
       assert.equal(typeof worktree.validateCleanupTarget, "function");
       assert.equal(typeof worktree.summarizeWorkspaceLifecycleFromRows, "function");
+    });
+  });
+
+  describe("operator", () => {
+    it("physical modules/operator tree exists", () => {
+      for (const rel of [
+        "modules/operator/index.js",
+        "modules/operator/console-dashboard.js",
+        "modules/operator/control-plane-tui.js",
+        "modules/operator/explain-run.js",
+        "modules/operator/operator-cli-help.js",
+        "modules/operator/project-template-cli.js",
+        "modules/operator/runner-budget-view.js",
+        "modules/operator/runner-launcher.js",
+        "modules/operator/runner-preflight.js",
+        "modules/operator/runner-trace-viewer.js",
+        "modules/operator/runner-tui-cli.js",
+        "modules/operator/scenario-metrics-export.js",
+      ]) {
+        assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root shims re-export the same operator APIs", () => {
+      const shimHelp = require("../operator-cli-help");
+      const canonHelp = require("../modules/operator/operator-cli-help");
+      assert.equal(typeof shimHelp.printOperatorCliHelp, "function");
+      assert.equal(shimHelp.printOperatorCliHelp, canonHelp.printOperatorCliHelp);
+
+      const shimPreflight = require("../runner-preflight");
+      const canonPreflight = require("../modules/operator/runner-preflight");
+      assert.equal(typeof shimPreflight.buildRunPreflight, "function");
+      assert.equal(shimPreflight.buildRunPreflight, canonPreflight.buildRunPreflight);
+
+      const shimTrace = require("../runner-trace-viewer");
+      const canonTrace = require("../modules/operator/runner-trace-viewer");
+      assert.equal(typeof shimTrace.runTraceViewer, "function");
+      assert.equal(shimTrace.runTraceViewer, canonTrace.runTraceViewer);
+
+      const shimBudget = require("../runner-budget-view");
+      const canonBudget = require("../modules/operator/runner-budget-view");
+      assert.equal(typeof shimBudget.runBudgetView, "function");
+      assert.equal(shimBudget.runBudgetView, canonBudget.runBudgetView);
+    });
+
+    it("runner-model-routing remains at root (model-runtime)", () => {
+      assert.ok(fs.existsSync(path.join(ORCH, "runner-model-routing.js")));
+      assert.equal(fs.existsSync(path.join(ORCH, "modules/operator/runner-model-routing.js")), false);
+    });
+
+    it("modules/operator index aggregates core exports", () => {
+      const operator = require("../modules/operator");
+      assert.equal(typeof operator.printOperatorCliHelp, "function");
+      assert.equal(typeof operator.buildDashboardText, "function");
+      assert.equal(typeof operator.deriveExplain, "function");
+      assert.equal(typeof operator.collectRunsFromDir, "function");
+      assert.equal(typeof operator.runTraceViewer, "function");
+      assert.equal(typeof operator.main, "function");
+    });
+
+    it("runner-launcher requires root orchestrator.js (not ./orchestrator under operator)", () => {
+      const launcherSource = fs.readFileSync(
+        path.join(ORCH, "modules/operator/runner-launcher.js"),
+        "utf8",
+      );
+      assert.match(launcherSource, /require\(["']\.\.\/\.\.\/orchestrator["']\)/);
+      assert.doesNotMatch(launcherSource, /require\(["']\.\/orchestrator["']\)/);
     });
   });
 });

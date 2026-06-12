@@ -100,9 +100,9 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | **model-runtime** | `agents/runtime/*`, `agents/routing/model-routing.js`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
 | **trace** | `modules/trace/` (`trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js`) · shims at legacy root paths |
 | **recovery** | `modules/recovery/` (`recovery-sweep.js`, `session-resume.js`) · shims: `recovery-sweep.js`, `session-resume.js` |
-| **budget** | `modules/budget/` (`token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`) · shims at legacy root paths · `runner-budget-view.js` stays root until operator slice |
+| **budget** | `modules/budget/` (`token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`) · shims at legacy root paths |
 | **worktree** | `modules/worktree/` (`worktree-isolation.js`, `worktree-result-promotion.js`, `worktree-cleanup-safety.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js`) · shims at legacy root paths |
-| **operator** | `explain-run.js`, `control-plane-tui.js`, `runner-*-cli.js`, `operator-cli-help.js`, `project-template-cli.js`, `scenario-metrics-export.js` |
+| **operator** | `modules/operator/` (`console-dashboard.js`, `control-plane-tui.js`, `explain-run.js`, `operator-cli-help.js`, `project-template-cli.js`, `runner-budget-view.js`, `runner-launcher.js`, `runner-preflight.js`, `runner-trace-viewer.js`, `runner-tui-cli.js`, `scenario-metrics-export.js`) · shims at legacy root paths · `runner-model-routing.js` stays root (model-runtime) |
 | **disclosure** | `modules/contracts/progressive-disclosure-design.js` (shim at root; classified **disclosure** before generic `contracts` patterns in `module-boundary-rules.js`), `security/skill-registry.js` (metadata only); runtime filter **planned** |
 | **shared/legacy** | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` (facade) |
 

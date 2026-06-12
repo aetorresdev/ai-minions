@@ -11,6 +11,4 @@ const { buildReport, parseJsonl } = require("./modules/budget");
 const { buildTokenUsageSummary } = require("./modules/budget/token-usage-summary");
 ```
 
-**Deferred:** `runner-budget-view.js` stays at root until operator slice.
-
 See `docs/orchestrator/module-boundaries.md`.
