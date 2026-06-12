@@ -16,6 +16,7 @@ const { summarizeReviewRecordsFromRows } = require("../gates/review-record");
 const { summarizeRecoveryFromRows } = require("../recovery/recovery-sweep");
 const { summarizeSessionResumeFromRows } = require("../recovery/session-resume");
 const { summarizeWorkspaceLifecycleFromRows } = require("../worktree/trace-workspace-lifecycle");
+const { summarizeModelTierGateFromRows } = require("./model-tier-gate-summary");
 
 /**
  * @param {object[]} rows — sanitized trace rows (same pipeline as export/dashboard)
@@ -101,6 +102,7 @@ function buildRunOutcomeSummary(rows, meta = {}) {
   const recoverySummary = summarizeRecoveryFromRows(rows);
   const resumeSummary = summarizeSessionResumeFromRows(rows);
   const workspaceSummary = summarizeWorkspaceLifecycleFromRows(rows);
+  const modelTierGateSummary = summarizeModelTierGateFromRows(rows);
 
   return {
     schema_version: "1",
@@ -184,6 +186,7 @@ function buildRunOutcomeSummary(rows, meta = {}) {
     },
     intent_groups,
     workspace: workspaceSummary,
+    model_tier_gate: modelTierGateSummary,
   };
 }
 
@@ -303,6 +306,16 @@ function formatRunOutcomeSummaryLines(summary, opts = {}) {
     lines.push(`intent_groups: ${ig}`);
   }
   lines.push("");
+  if (summary.model_tier_gate && summary.model_tier_gate.denied_count > 0) {
+    const mtg = summary.model_tier_gate;
+    lines.push(
+      `model_tier_gate: denied=${mtg.denied_count}  allowed_frontier=${mtg.allowed_frontier_count}`,
+    );
+    const first = mtg.findings[0];
+    if (first) {
+      lines.push(`  first_denial: ${first.reason_code} — ${first.denial_reason.slice(0, 120)}`);
+    }
+  }
   return lines;
 }
 

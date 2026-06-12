@@ -41,8 +41,10 @@ Automatic model routing · cost dashboards · provider pricing sync.
 ## Model tier policy file
 
 Versioned `.ai-minions/model_policy.json` declares allowed tiers per role and tier rules.
-Loader: `orchestrator/modules/model-runtime/model-policy-config.js`. **Does not** change
-selection/routing until frontier gate and tier summary slices ship.
+Loader: `orchestrator/modules/model-runtime/model-policy-config.js`. Gate:
+`orchestrator/modules/model-runtime/model-tier-gate.js` — frontier tier requires
+`selection_source` ∈ `policy|manual|escalation` and substantive `selection_reason`;
+denials emit `model_tier_gate_denied` trace events (fail-closed, no silent downgrade).
 
 ## Related
 

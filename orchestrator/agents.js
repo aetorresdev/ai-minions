@@ -50,6 +50,12 @@ const {
   getEffectiveOllamaModel,
 } = require("./local-model-policy");
 const { buildModelSelectionPayload } = require("./modules/trace/model-selection-trace");
+const { loadModelPolicyConfig } = require("./modules/model-runtime/model-policy-config");
+const {
+  evaluateModelTierGate,
+  buildModelTierGateDeniedPayload,
+  GATE_ID: MODEL_TIER_GATE_ID,
+} = require("./modules/model-runtime/model-tier-gate");
 
 // ── Contract version ──────────────────────────────────────────────────────────
 // Bump when handoff schema, role permissions, or gate sequence change.
@@ -293,10 +299,19 @@ function describeModelSelectionSource(role) {
 /**
  * @param {string} agentId
  * @param {{ mode: string, model: string, provider?: string }} agent
- * @param {{ phase?: string, traceContext?: { step_id?: string, iteration?: number }, forceOllama?: boolean, localOnlyRoute?: boolean }} opts
+ * @param {{ phase?: string, cwd?: string, traceContext?: { step_id?: string, iteration?: number }, forceOllama?: boolean, localOnlyRoute?: boolean }} opts
+ * @returns {{
+ *   role: string,
+ *   agent: string,
+ *   step_id: string,
+ *   model: string,
+ *   selection_source: string,
+ *   selection_reason: string,
+ *   policy_source: string,
+ *   iteration?: number,
+ * }}
  */
-function tryEmitModelSelection(agentId, agent, opts = {}) {
-  if (!_modelSelectionReporter) return;
+function buildModelSelectionFields(agentId, agent, opts = {}) {
   const forceOllama = opts.forceOllama === true;
   const localOnlyRoute = opts.localOnlyRoute === true;
   let model = agent.model;
@@ -307,17 +322,76 @@ function tryEmitModelSelection(agentId, agent, opts = {}) {
   const stepId =
     opts.traceContext?.step_id
     ?? (opts.phase === "plan" ? "phase:plan" : opts.phase === "decide" ? "phase:decide" : `agent:${agentId}`);
+  return {
+    role: agent.mode,
+    agent: agentId,
+    step_id: stepId,
+    model,
+    selection_source,
+    selection_reason,
+    ...(typeof opts.traceContext?.iteration === "number"
+      ? { iteration: opts.traceContext.iteration }
+      : {}),
+  };
+}
+
+/**
+ * Fail-closed frontier tier enforcement — runs on every askAgent() path regardless of trace reporter.
+ * @param {string} agentId
+ * @param {{ mode: string, model: string, provider?: string }} agent
+ * @param {{ phase?: string, cwd?: string, traceContext?: { step_id?: string, iteration?: number }, forceOllama?: boolean, localOnlyRoute?: boolean }} opts
+ */
+function enforceModelTierGate(agentId, agent, opts = {}) {
+  const fields = buildModelSelectionFields(agentId, agent, opts);
+  const policyLoad = loadModelPolicyConfig(opts.cwd || process.cwd());
+  const gateVerdict = evaluateModelTierGate(
+    {
+      model: fields.model,
+      selection_source: fields.selection_source,
+      selection_reason: fields.selection_reason,
+    },
+    policyLoad.policy,
+  );
+  if (!gateVerdict.allowed) {
+    if (_modelSelectionReporter) {
+      _modelSelectionReporter(
+        buildModelTierGateDeniedPayload(gateVerdict, {
+          role: fields.role,
+          agent: agentId,
+          step_id: fields.step_id,
+          model: fields.model,
+          selection_source: fields.selection_source,
+          selection_reason: fields.selection_reason,
+          policy_source: policyLoad.source,
+          ...(typeof fields.iteration === "number" ? { iteration: fields.iteration } : {}),
+        }),
+      );
+    }
+    const err = new Error(`[model-tier-gate] ${gateVerdict.denial_reason}`);
+    err.gate_id = MODEL_TIER_GATE_ID;
+    err.reason_code = gateVerdict.reason_code;
+    throw err;
+  }
+  return { ...fields, policy_source: policyLoad.source };
+}
+
+/**
+ * @param {string} agentId
+ * @param {{ mode: string, model: string, provider?: string }} agent
+ * @param {{ phase?: string, cwd?: string, traceContext?: { step_id?: string, iteration?: number }, forceOllama?: boolean, localOnlyRoute?: boolean }} opts
+ */
+function tryEmitModelSelection(agentId, agent, opts = {}) {
+  const fields = enforceModelTierGate(agentId, agent, opts);
+  if (!_modelSelectionReporter) return;
   _modelSelectionReporter(
     buildModelSelectionPayload({
-      role: agent.mode,
+      role: fields.role,
       agent: agentId,
-      step_id: stepId,
-      model,
-      selection_source,
-      selection_reason,
-      ...(typeof opts.traceContext?.iteration === "number"
-        ? { iteration: opts.traceContext.iteration }
-        : {}),
+      step_id: fields.step_id,
+      model: fields.model,
+      selection_source: fields.selection_source,
+      selection_reason: fields.selection_reason,
+      ...(typeof fields.iteration === "number" ? { iteration: fields.iteration } : {}),
     }),
   );
 }
@@ -330,7 +404,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
 
   const forceOllama = _backendOverride === "ollama" && OLLAMA_MODEL;
   const localOnlyRoute = isLocalOnlyModeEnabled();
-  tryEmitModelSelection(agentId, agent, { phase, traceContext, forceOllama, localOnlyRoute });
+  tryEmitModelSelection(agentId, agent, { phase, traceContext, forceOllama, localOnlyRoute, cwd });
 
   // Deterministic test harness (tests/e2e.strict.test.js). Never set outside that suite.
   if (process.env.ORCH_TEST_SYSTEM_PATH_HARNESS === "1") {

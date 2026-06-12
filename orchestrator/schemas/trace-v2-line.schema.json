@@ -1017,6 +1017,49 @@
     },
     {
       "if": {
+        "properties": { "event": { "const": "model_tier_gate_denied" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": [
+          "gate_id",
+          "role",
+          "step_id",
+          "model",
+          "model_tier",
+          "selection_source",
+          "selection_reason",
+          "reason_code",
+          "denial_reason"
+        ],
+        "properties": {
+          "gate_id": { "type": "string", "const": "model_tier_gate" },
+          "role": {
+            "type": "string",
+            "enum": ["ORCHESTRATOR", "OWNER", "ARCHITECT", "DEV", "QA", "CERBERUS"]
+          },
+          "agent": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "step_id": { "type": "string", "minLength": 1, "maxLength": 240 },
+          "model": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "model_tier": {
+            "type": "string",
+            "enum": ["cheap", "standard", "strong", "frontier"]
+          },
+          "selection_source": {
+            "type": "string",
+            "enum": ["default", "policy", "manual", "escalation"]
+          },
+          "selection_reason": { "type": "string", "maxLength": 300 },
+          "reason_code": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "denial_reason": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "rule_name": { "type": "string", "maxLength": 120 },
+          "policy_source": { "type": "string", "enum": ["default", "file"] },
+          "iteration": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    {
+      "if": {
         "properties": { "event": { "const": "model_selection" } },
         "required": ["event"]
       },

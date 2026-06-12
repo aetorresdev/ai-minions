@@ -22,6 +22,7 @@ const {
   setModelSelectionTraceReporter,
   describeModelSelectionSource,
   clearDegradedAgents,
+  MODEL_ROUTING,
 } = require("../agents");
 
 function traceEnvelopeBase(overrides = {}) {
@@ -152,6 +153,22 @@ describe("model-selection trace", () => {
     const src = describeModelSelectionSource("dev-backend");
     assert.equal(src.selection_source, "default");
     assert.match(src.selection_reason, /model_routing/);
+  });
+
+  it("askAgent enforces frontier gate even without trace reporter", async () => {
+    clearDegradedAgents();
+    const originalPrimary = MODEL_ROUTING["dev-backend"].primary;
+    setModelSelectionTraceReporter(null);
+    MODEL_ROUTING["dev-backend"].primary = "claude-opus-4-20250514";
+    try {
+      await assert.rejects(
+        () => askAgent("dev-backend", "test", { cwd: process.cwd() }),
+        (err) => err && err.gate_id === "model_tier_gate"
+          && /FRONTIER_UNAUTHORIZED_SOURCE|selection_source=default/.test(String(err.message)),
+      );
+    } finally {
+      MODEL_ROUTING["dev-backend"].primary = originalPrimary;
+    }
   });
 
   it("askAgent emits model_selection when reporter is wired", async () => {

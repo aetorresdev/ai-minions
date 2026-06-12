@@ -6,4 +6,5 @@
  */
 module.exports = {
   ...require("./model-policy-config"),
+  ...require("./model-tier-gate"),
 };

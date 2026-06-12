@@ -10,6 +10,20 @@ const fs = require("node:fs");
 
 const { MODEL_TIERS, TRACE_ROLES } = require("../trace/model-selection-trace");
 
+/**
+ * @param {ModelPolicyConfig} policy
+ */
+function assertPolicyTierDefaultsAllowed(policy) {
+  if (policy.default_tier === "frontier") {
+    throw new Error("model_policy.json: default_tier cannot be frontier");
+  }
+  for (const [role, tier] of Object.entries(policy.role_defaults)) {
+    if (tier === "frontier") {
+      throw new Error(`model_policy.json: role_defaults.${role} cannot be frontier`);
+    }
+  }
+}
+
 const SUPPORTED_MODEL_POLICY_VERSION = 1;
 const MODEL_POLICY_FILENAME = "model_policy.json";
 const MODEL_POLICY_REL_PATH = path.join(".ai-minions", MODEL_POLICY_FILENAME);
@@ -215,13 +229,15 @@ function validateModelPolicy(raw) {
     });
   }
 
-  return {
+  const normalized = {
     model_policy_version: SUPPORTED_MODEL_POLICY_VERSION,
     default_tier: policy.default_tier,
     tiers,
     role_defaults: roleDefaults,
     rules,
   };
+  assertPolicyTierDefaultsAllowed(normalized);
+  return normalized;
 }
 
 /**
@@ -318,4 +334,5 @@ module.exports = {
   resolveRoleDefaultTier,
   listAllowedModelsForTier,
   rulesForTier,
+  assertPolicyTierDefaultsAllowed,
 };
