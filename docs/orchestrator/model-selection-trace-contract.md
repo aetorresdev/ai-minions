@@ -36,10 +36,16 @@ Emitted from `askAgent()` before model invocation when a run trace reporter is w
 
 ## Out of scope (v0.8)
 
-Automatic model routing · cost dashboards · provider pricing sync · future policy-file MVP.
+Automatic model routing · cost dashboards · provider pricing sync.
+
+## Model tier policy file
+
+Versioned `.ai-minions/model_policy.json` declares allowed tiers per role and tier rules.
+Loader: `orchestrator/modules/model-runtime/model-policy-config.js`. **Does not** change
+selection/routing until frontier gate and tier summary slices ship.
 
 ## Related
 
 - [model-routing.md](model-routing.md)
-- [local-model-policy.md](local-model-policy.md)
+- [local-model-policy.md](local-model-policy.md) (local-only execution — separate from tier policy)
 - Module: `orchestrator/modules/trace/model-selection-trace.js`
