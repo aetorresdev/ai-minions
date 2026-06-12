@@ -14,6 +14,7 @@ const {
   matrixAllows,
   checkHardRules,
 } = require("./lib/module-boundary-rules");
+const { runRootImportGuard } = require("./check-root-import-guard");
 
 const ORCH_ROOT = path.join(__dirname, "..");
 const ALLOWLIST_PATH = path.join(ORCH_ROOT, "module-boundary-allowlist.json");
@@ -181,9 +182,22 @@ function main() {
     return;
   }
 
-  if (violations.length === 0) {
+  const rootViolations = runRootImportGuard();
+
+  if (violations.length === 0 && rootViolations.length === 0) {
     console.log(`module-boundary check OK (${scanned} files)`);
     return;
+  }
+
+  if (rootViolations.length) {
+    console.error(`root-import-guard FAILED: ${rootViolations.length} violation(s)`);
+    for (const v of rootViolations) {
+      console.error(`  [${v.rule}] ${v.file}: ${v.message}`);
+    }
+  }
+
+  if (violations.length === 0) {
+    process.exit(1);
   }
 
   console.error(`module-boundary check FAILED: ${violations.length} violation(s) in ${scanned} files`);
