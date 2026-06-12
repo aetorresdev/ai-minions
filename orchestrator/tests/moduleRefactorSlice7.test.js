@@ -37,6 +37,20 @@ describe("module refactor slice 7 (worktree)", () => {
     const canonLifecycle = require("../modules/worktree/trace-workspace-lifecycle");
     assert.equal(typeof shimLifecycle.summarizeWorkspaceLifecycleFromRows, "function");
     assert.deepEqual(shimLifecycle.WORKSPACE_EVENTS, canonLifecycle.WORKSPACE_EVENTS);
+    assert.equal(shimLifecycle.summarizeWorkspaceLifecycleFromRows, canonLifecycle.summarizeWorkspaceLifecycleFromRows);
+
+    const shimPromotion = require("../worktree-result-promotion");
+    const canonPromotion = require("../modules/worktree/worktree-result-promotion");
+    assert.equal(shimPromotion.PROMOTION_SCHEMA_VERSION, canonPromotion.PROMOTION_SCHEMA_VERSION);
+    assert.equal(typeof shimPromotion.promoteWorktreeResults, "function");
+    assert.equal(shimPromotion.promoteWorktreeResults, canonPromotion.promoteWorktreeResults);
+    assert.equal(shimPromotion.validatePromotionEligibility, canonPromotion.validatePromotionEligibility);
+
+    const shimCleanup = require("../worktree-cleanup-safety");
+    const canonCleanup = require("../modules/worktree/worktree-cleanup-safety");
+    assert.equal(typeof shimCleanup.validateCleanupTarget, "function");
+    assert.equal(shimCleanup.validateCleanupTarget, canonCleanup.validateCleanupTarget);
+    assert.equal(shimCleanup.isUnderAllowedRoot, canonCleanup.isUnderAllowedRoot);
   });
 
   it("modules/worktree index aggregates core exports", () => {
