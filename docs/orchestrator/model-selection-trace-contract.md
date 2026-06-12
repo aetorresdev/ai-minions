@@ -36,7 +36,7 @@ Emitted from `askAgent()` before model invocation when a run trace reporter is w
 
 ## Out of scope (v0.8)
 
-Automatic model routing · cost dashboards · provider pricing sync · policy file MVP (`MODEL-GOV-2`).
+Automatic model routing · cost dashboards · provider pricing sync · future policy-file MVP.
 
 ## Related
 

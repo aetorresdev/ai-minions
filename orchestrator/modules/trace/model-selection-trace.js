@@ -52,10 +52,15 @@ function isTraceRole(role) {
  */
 function buildModelSelectionPayload(fields) {
   const tier = fields.model_tier ?? inferModelTier(fields.model);
-  const reason =
-    tier === "frontier" && !String(fields.selection_reason ?? "").trim()
-      ? "frontier_tier_requires_explicit_reason"
-      : String(fields.selection_reason ?? "").slice(0, 300);
+  const reason = String(fields.selection_reason ?? "").trim().slice(0, 300);
+  if (!reason) {
+    throw new Error("model_selection: selection_reason is required");
+  }
+  if (tier === "frontier" && reason.length < 8) {
+    throw new Error(
+      "model_selection: frontier tier requires selection_reason of at least 8 characters",
+    );
+  }
 
   return {
     event: "model_selection",

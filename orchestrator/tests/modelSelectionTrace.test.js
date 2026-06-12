@@ -93,6 +93,29 @@ describe("model-selection trace", () => {
     assert.equal(v.ok, true, (v.errors || []).join(" | "));
   });
 
+  it("buildModelSelectionPayload rejects frontier without explicit selection_reason", () => {
+    assert.throws(
+      () => buildModelSelectionPayload({
+        role: "DEV",
+        step_id: "s1",
+        model: "claude-opus-4",
+        selection_source: "default",
+        selection_reason: "",
+      }),
+      /selection_reason is required/,
+    );
+    assert.throws(
+      () => buildModelSelectionPayload({
+        role: "DEV",
+        step_id: "s1",
+        model: "claude-opus-4",
+        selection_source: "default",
+        selection_reason: "short",
+      }),
+      /at least 8 characters/,
+    );
+  });
+
   it("buildModelSelectionPayload supplies default cost estimates as zero", () => {
     const payload = buildModelSelectionPayload({
       role: "QA",
