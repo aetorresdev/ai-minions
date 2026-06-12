@@ -24,14 +24,14 @@ Eighth alpha pre-release: **modular monolith cleanup & release discipline** — 
 | OTEL export | Unchanged — no OTLP | Unchanged — **no** OTLP |
 | Unit tests (evidence) | 970/971 | 1327/1328 (+ module refactor + model gov + release gov contracts) |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.8.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release); operator steps in `alpha-release-checklist.md` § v0.8 release execution plan*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.8.0-alpha.1` — pre-release published @ tag `0200511`
 
 **Evidence (operator):**
 
 - Unit + hooks: `cd orchestrator && npm test` → **1327/1328** pass (1 skipped)
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
 - Contracts: `release-workflow.md`, `release-governance-contract.md`, `model-selection-trace-contract.md`, `module-boundaries.md`, architecture audit docs
-- Lane merged on `master` @ `3b30578`; release-prep doc-only delta (pending merge)
+- Lane merged on `master` @ `3b30578`; release-prep merged @ `0200511`; tag + pre-release + `release` branch @ `0200511`
 - CI (Phase A A3): doc-only release-prep inherits lane-merge CI @ `3b30578` — see checklist § v0.8 validation log (unit · trivy · e2e green on lane tip; orchestrator tree unchanged)
 
 **Alpha limitations (not production):**

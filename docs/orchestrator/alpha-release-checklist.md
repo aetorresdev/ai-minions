@@ -341,7 +341,7 @@ OTLP export · memory/runtime analyst · web control plane · swarm expansion ·
 - [x] Root import guard — merged @ `b89fd49` (PR #168)
 - [x] Model selection trace contract — merged @ `89a10d8` (PR #170)
 - [x] Release workflow + governance contract — merged @ `3b30578` (PR #171)
-- [ ] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep PR; CERBERUS pending
+- [x] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep @ `0200511` (PR #172); CERBERUS Approve
 
 ### Out of scope
 
@@ -350,7 +350,7 @@ Auto-routing · model policy file MVP · frontier/expensive gate runtime · OTLP
 ### CERBERUS checks (pre-tag)
 
 - [x] Lane implementation slices CERBERUS-approved (#168–#171)
-- [ ] Release-prep CHANGELOG + checklist claims — CERBERUS pending
+- [x] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (PR #172)
 - [x] No production-ready claim — release claim uses alpha limitations
 - [x] No architecture-refactor-complete claim — bounded slices + shims only
 - [x] No auto-routing claim — `model_selection` observability only
@@ -374,6 +374,7 @@ Auto-routing · model policy file MVP · frontier/expensive gate runtime · OTLP
 | 2026-06-12 | Workspace @ `3b30578` | `cd orchestrator && npm test` → **1327/1328** pass (1 skipped) |
 | 2026-06-12 | Release-prep workspace (doc-only delta) | `bash scripts/release-trivy-gate.sh` → **OK** |
 | 2026-06-12 | Release execution plan drafted | Post-tag rows **open** until Phase B artifacts exist |
+| 2026-06-12 | Phase B operator cut @ `0200511` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 **Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR #172 changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` is identical to lane tip @ `3b30578`. Path-filtered workflows (`orchestrator-unit-tests`, `security-trivy-scan`, `orchestrator-e2e`) do not re-run on doc-only PRs. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `3b30578` as the required unit · trivy · e2e evidence until tag.
 
@@ -395,14 +396,14 @@ Auto-routing · model policy file MVP · frontier/expensive gate runtime · OTLP
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
 
-- [ ] **Tag target:** `v0.8.0-alpha.1` on release-prep merge commit — operator: `git tag -a v0.8.0-alpha.1` on `master` after release-prep merge
-- [ ] **Release URL reserved:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.8.0-alpha.1` — operator: publish GitHub **pre-release** after tag exists
-- [ ] **`release` branch target:** align to tag commit — operator: `git branch -f release <tag_commit> && git push origin release` **after** tag exists; `release_branch_commit` must match `tag_commit`
+- [x] **Tag target:** `v0.8.0-alpha.1` on release-prep merge commit @ `0200511`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.8.0-alpha.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `0200511` (`release_branch_commit` matches `tag_commit`)
 
 ### Release artifact (source snapshot)
 
-- [x] **Changelog:** section **[0.8.0-alpha.1] - 2026-06-12** drafted (date may adjust at publish)
-- [ ] **Execution plan post-tag** — Phase B: tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+- [x] **Changelog:** section **[0.8.0-alpha.1] - 2026-06-12**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 
