@@ -370,10 +370,18 @@ Auto-routing · model policy file MVP · frontier/expensive gate runtime · OTLP
 
 | Date | Context | Outcome |
 |------|---------|---------|
-| 2026-06-12 | `master` @ `3b30578` — PR #171 CI | lint-and-unit · markdownlint · lychee · security-trivy-scan · orchestrator-e2e — **green** |
+| 2026-06-12 | `master` @ `3b30578` — lane merge CI (PR #171) | lint-and-unit · security-trivy-scan · orchestrator-e2e — **green** (see URLs below) |
 | 2026-06-12 | Workspace @ `3b30578` | `cd orchestrator && npm test` → **1327/1328** pass (1 skipped) |
-| 2026-06-12 | Release-prep workspace @ `3b30578` | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-06-12 | Release-prep workspace (doc-only delta) | `bash scripts/release-trivy-gate.sh` → **OK** |
 | 2026-06-12 | Release execution plan drafted | Post-tag rows **open** until Phase B artifacts exist |
+
+**Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR #172 changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` is identical to lane tip @ `3b30578`. Path-filtered workflows (`orchestrator-unit-tests`, `security-trivy-scan`, `orchestrator-e2e`) do not re-run on doc-only PRs. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `3b30578` as the required unit · trivy · e2e evidence until tag.
+
+| Check | Lane merge @ `3b30578` (PR #171) |
+|-------|----------------------------------|
+| orchestrator-unit-tests | https://github.com/aetorresdev/ai-minions/actions/runs/27389146427/job/80942679014 |
+| security-trivy-scan | https://github.com/aetorresdev/ai-minions/actions/runs/27389146441/job/80942679015 |
+| orchestrator-e2e | https://github.com/aetorresdev/ai-minions/actions/runs/27389146430/job/80942679227 |
 
 ### Release execution plan (locked on release-prep merge — Phase B operator steps)
 

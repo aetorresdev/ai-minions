@@ -12,14 +12,14 @@ Eighth alpha pre-release: **modular monolith cleanup & release discipline** — 
 
 **Prerequisite:** `v0.7.0-alpha.1` — execution governance & modular enforcement @ `8215c6f`.
 
-**Since [0.7.0-alpha.1]:** v0.7 centered on **production boundary**, **merge governance**, and the **first module slice**. v0.8 adds **multi-slice physical refactor** (gates, contracts, recovery, trace, budget, worktree, operator), **root-level import guard** in CI, **`model_selection` trace** with frontier reason enforcement, and **release workflow + governance contract** (`validateReleaseGovernanceRecord`, including `release_branch_commit_mismatch`). Auto-routing, policy-file MVP, and OTLP export remain out of scope.
+**Since [0.7.0-alpha.1]:** v0.7 centered on **production boundary**, **merge governance**, and the **first module slice**. v0.8 adds **multi-slice physical refactor** (gates, contracts, recovery, trace, budget, worktree, operator), **root-level import guard** in CI, **`model_selection` trace** with frontier `selection_reason` fail-closed enforcement, and **release workflow + governance contract** (`validateReleaseGovernanceRecord`, including `release_branch_commit_mismatch`). Auto-routing, policy-file MVP, and OTLP export remain out of scope.
 
 | Area | `v0.7.0-alpha.1` | `v0.8.0-alpha.1` (delta) |
 |------|------------------|---------------------------|
 | Focus | Production boundary + merge governance + first module slice | Physical modular cleanup + import guard + model observability + release discipline |
 | Module layout | First `modules/*` slice + import guards | **Multi-slice refactor** — gates, contracts, recovery, trace, budget, worktree, operator; `modulesPhysicalLayout.test.js` |
 | Root regression guard | Import-zone lint only | **`lint:module-boundaries` root-import guard** — blocks new root runtime/domain files |
-| Model governance | Not shipped | **`model_selection` trace** — tier/model/cost/latency/routing_reason; fail-closed frontier reason |
+| Model governance | Not shipped | **`model_selection` trace** — model/model_tier/selection_source/selection_reason plus estimated token and cost fields; fail-closed frontier `selection_reason` |
 | Release discipline | Checklist + changelog hygiene | **Release workflow** (Phase A/B) + **governance record validator** (fail-closed evidence) |
 | OTEL export | Unchanged — no OTLP | Unchanged — **no** OTLP |
 | Unit tests (evidence) | 970/971 | 1327/1328 (+ module refactor + model gov + release gov contracts) |
@@ -30,9 +30,9 @@ Eighth alpha pre-release: **modular monolith cleanup & release discipline** — 
 
 - Unit + hooks: `cd orchestrator && npm test` → **1327/1328** pass (1 skipped)
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
-- Contracts: `release-workflow.md`, `release-governance-contract.md`, `model-routing.md` (model_selection), `module-boundaries.md`, architecture audit docs
-- Lane merged on `master` @ `3b30578`; release-prep on this commit (pending merge)
-- CI: lint-and-unit, markdownlint, lychee, security-trivy-scan, orchestrator-e2e — green on lane merge @ `3b30578`
+- Contracts: `release-workflow.md`, `release-governance-contract.md`, `model-selection-trace-contract.md`, `module-boundaries.md`, architecture audit docs
+- Lane merged on `master` @ `3b30578`; release-prep doc-only delta (pending merge)
+- CI (Phase A A3): doc-only release-prep inherits lane-merge CI @ `3b30578` — see checklist § v0.8 validation log (unit · trivy · e2e green on lane tip; orchestrator tree unchanged)
 
 **Alpha limitations (not production):**
 
@@ -47,7 +47,7 @@ Eighth alpha pre-release: **modular monolith cleanup & release discipline** — 
 - Architecture coherence audit: inventory, matrix, movement plan (doc-only; no behavior change).
 - Physical module refactor: `modules/gates`, `contracts`, `recovery`, `trace`, `budget`, `worktree`, `operator` with root shims and consolidated physical layout tests.
 - Root import guard: `lint:module-boundaries` blocks new root-level runtime/domain files.
-- Model selection trace: `model_selection` event schema, emission from `askAgent()`, session-start reporter; frontier routing reason fail-closed in helper.
+- Model selection trace: `model_selection` event schema (`model`, `model_tier`, `selection_source`, `selection_reason`, estimated token/cost fields), emission from `askAgent()`, session-start reporter; frontier `selection_reason` fail-closed in helper.
 - Release discipline: `release-workflow.md`, `release-governance-contract.md`, `validateReleaseGovernanceRecord()` with `release_branch_commit_mismatch` check.
 
 ### Security
