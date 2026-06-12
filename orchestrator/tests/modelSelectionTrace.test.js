@@ -158,9 +158,7 @@ describe("model-selection trace", () => {
   it("askAgent enforces frontier gate even without trace reporter", async () => {
     clearDegradedAgents();
     const originalPrimary = MODEL_ROUTING["dev-backend"].primary;
-    const originalHarness = process.env.ORCH_TEST_SYSTEM_PATH_HARNESS;
     setModelSelectionTraceReporter(null);
-    process.env.ORCH_TEST_SYSTEM_PATH_HARNESS = "1";
     MODEL_ROUTING["dev-backend"].primary = "claude-opus-4-20250514";
     try {
       await assert.rejects(
@@ -170,8 +168,6 @@ describe("model-selection trace", () => {
       );
     } finally {
       MODEL_ROUTING["dev-backend"].primary = originalPrimary;
-      if (originalHarness === undefined) delete process.env.ORCH_TEST_SYSTEM_PATH_HARNESS;
-      else process.env.ORCH_TEST_SYSTEM_PATH_HARNESS = originalHarness;
     }
   });
 
