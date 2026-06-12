@@ -383,6 +383,14 @@ Auto-routing · model policy file MVP · frontier/expensive gate runtime · OTLP
 | security-trivy-scan | https://github.com/aetorresdev/ai-minions/actions/runs/27389146441/job/80942679015 |
 | orchestrator-e2e | https://github.com/aetorresdev/ai-minions/actions/runs/27389146430/job/80942679227 |
 
+**Supplemental — workflow_dispatch on release-prep head @ `ce190a5`:** unit and trivy **green**; e2e dispatched on branch tip (path filters skip doc-only PR checks).
+
+| Check | Release-prep head dispatch |
+|-------|---------------------------|
+| orchestrator-unit-tests | https://github.com/aetorresdev/ai-minions/actions/runs/27389515178 |
+| security-trivy-scan | https://github.com/aetorresdev/ai-minions/actions/runs/27389515945 |
+| orchestrator-e2e | https://github.com/aetorresdev/ai-minions/actions/runs/27389516694 |
+
 ### Release execution plan (locked on release-prep merge — Phase B operator steps)
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
