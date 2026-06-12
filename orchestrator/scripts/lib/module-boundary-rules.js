@@ -28,8 +28,8 @@ const ALLOWED_IMPORTS = {
 /** First match wins — order: specific paths before broad prefixes. */
 const MODULE_PATTERNS = [
   { id: "gates", patterns: [/^modules\/gates\//, /^governance-gate\.js$/, /^merge-governance\//, /^approval-policy-gate\.js$/, /^doubt-review\.js$/, /^review-record\.js$/] },
-  { id: "permissions", patterns: [/^agents\/permissions\.js$/, /^agents\/capability-matrix\.js$/, /^credential-broker\.js$/, /^environment-parser\.js$/, /^security\/(?:.*permission.*|.*-gate\.js|classified|claude-cli|network|mcp|trace-role-capability)/] },
-  { id: "tools", patterns: [/^security\/tool-eval/, /^security\/skill-registry/, /^security\/untrusted-context/, /^mcp-client\.js$/] },
+  { id: "permissions", patterns: [/^agents\/permissions\.js$/, /^agents\/capability-matrix\.js$/, /^credential-broker\.js$/, /^environment-parser\.js$/, /^security\/(?:load-project-policy|trace-security-decision|action-classifiers|resolve-mcp-trust-level|classification-reasons|match-manifest-operation|.*permission.*|.*-gate\.js|classified|claude-cli|network|mcp|trace-role-capability)/] },
+  { id: "tools", patterns: [/^security\/tool-eval/, /^security\/skill-registry/, /^security\/untrusted-context/, /^security\/load-tool-action-manifest/, /^mcp-client\.js$/] },
   { id: "model-runtime", patterns: [/^modules\/model-runtime\//, /^agents\/runtime\//, /^agents\/routing\//, /^local-model-/, /^runner-model-routing/, /^flow-hook-bridge/] },
   { id: "recovery", patterns: [/^modules\/recovery\//, /^recovery-sweep/, /^session-resume/] },
   { id: "worktree", patterns: [/^modules\/worktree\//, /^trace-workspace-lifecycle/, /^worktree-/, /^run-workdir-contract/] },
@@ -38,8 +38,8 @@ const MODULE_PATTERNS = [
   { id: "operator", patterns: [/^modules\/operator\//, /^explain-run/, /^control-plane-tui/, /^runner-(?!model-routing)/, /^operator-cli-help/, /^project-template-cli/, /^scenario-metrics-export/, /^console-dashboard/] },
   { id: "disclosure", patterns: [/^modules\/contracts\/progressive-disclosure-design/, /^progressive-disclosure-design/] },
   { id: "contracts", patterns: [/^modules\/contracts\//, /-design\.js$/, /^agents\/validate-output/] },
-  { id: "run-control", patterns: [/^orchestrator\.js$/, /^run-loop-helpers/, /^run-phases\//, /^run-state/, /^qa-spec-flow/, /^cli\.js$/, /^run-orchestrator/] },
-  { id: "shared", patterns: [/^repo-root/, /^minions-config/, /^decision-engine/, /^agents\.js$/, /^scripts\//] },
+  { id: "run-control", patterns: [/^orchestrator\.js$/, /^run-loop-helpers/, /^run-phases\//, /^run-state/, /^qa-spec-flow/, /^context-utils/, /^cli\.js$/, /^run-orchestrator/] },
+  { id: "shared", patterns: [/^repo-root/, /^minions-config/, /^decision-engine/, /^agents\.js$/, /^agents\/registry\.js$/, /^agents\/prompts\//, /^portable-project-template/, /^scripts\//] },
 ];
 
 /** Policy modules trace must not import for decisions. */
