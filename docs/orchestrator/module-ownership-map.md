@@ -6,7 +6,7 @@
 
 **Physical modules shipped (v0.8–v0.9):** `gates` · `contracts` · `recovery` · `trace` · `budget` · `worktree` · `operator` · `model-runtime` *(partial — policy + tier gate only)*. Evidence: `orchestrator/tests/modulesPhysicalLayout.test.js`.
 
-**Related:** [root-file-inventory.md](root-file-inventory.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md)
+**Related:** [root-file-inventory.md](root-file-inventory.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [test-ownership-map.md](test-ownership-map.md)
 
 ---
 
@@ -15,7 +15,7 @@
 1. **One primary owner** per runtime/domain file (see [root-file-inventory.md](root-file-inventory.md)).
 2. **Coordination, not duplication** — cross-cutting behavior uses narrow ports (e.g. trace append API, gate evaluation result types), not copy-paste imports across contexts.
 3. **Shims are explicit** — root re-exports after physical refactor moves are documented and temporary; new code imports from `modules/<context>/`.
-4. **Tests mirror modules** — `orchestrator/tests/<context>/` or `*Contract.test.js` colocated until bulk rename.
+4. **Tests mirror modules** — primary owner declared in [test-ownership-map.md](test-ownership-map.md); physical paths follow in layout consolidation.
 5. **Design map wins disputes** — adjacency matrix in [module-boundaries.md](module-boundaries.md); CI via `lint:module-boundaries`.
 
 ---
@@ -216,3 +216,4 @@ orchestrator/
 |------|--------|
 | 2026-06-09 | Initial ownership map — recovery context proposed; current vs target documented |
 | 2026-06-12 | Post-v0.8/v0.9 physical align — eight contexts under `modules/*`; model-runtime partial; run-control/permissions/tools deferred |
+| 2026-06-12 | Link test ownership map — primary owner declared before physical test layout |
