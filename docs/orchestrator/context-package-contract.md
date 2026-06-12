@@ -69,6 +69,8 @@ Each item in a package SHOULD declare `source_kind` and `source_ref`.
 | Memory facts | Host hook / operator-approved store | **Optional** — advisory only |
 | Cache hits | Ephemeral derived summaries | **Excluded** from truth; **optional** hint only |
 
+**Host mem0 hooks:** `scripts/hooks/mem0-search.py` has **two** host-layer behaviors: (1) existing **FLOW/MODE bootstrap** instructions and `orch-session` flag wiring — strict orchestration/session behavior, outside the memory contract; (2) optional **semantic-memory injection** when OpenMemory returns hits. **Only the semantic-memory payload is advisory-only** — not orchestrator memory SoT; injected hits must be validated against the current task envelope, trace JSONL, and governed contracts; trace wins on conflict. `mem0-stop.sh` is an optional advisory capture reminder only. See also `memory-store-decision.md`.
+
 ---
 
 ## Inclusion policy

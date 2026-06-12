@@ -89,8 +89,8 @@ Skipping step 1 will be blocked by a hook. There are no exceptions.
 
 ## Memory (always)
 
-- Injected memories (via `mem0`) are authoritative context — do not re-ask for information already in memory.
-- On session end: save to mem0 only facts useful in future sessions (decisions, preferences, project patterns). Skip ephemeral task details.
+- Injected memories (via `mem0` host hooks) are **advisory-only** context hints — not authoritative runtime state, not permission to skip validation, gates, or trace evidence. Validate against the current task envelope, trace JSONL, governed contracts, and user input; trace wins on conflict.
+- On session end: save to mem0 only durable, non-secret facts useful in future sessions (decisions, preferences, project patterns). Skip ephemeral task details. Saved memories remain advisory-only and must not override trace or gates.
 
 ## Security
 

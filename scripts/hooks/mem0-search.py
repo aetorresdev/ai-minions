@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 mem0-search.py — UserPromptSubmit hook
-Searches OpenMemory for relevant memories and injects them as context.
-Silent on failure — never blocks the user prompt.
+Searches OpenMemory for relevant memories and injects them as advisory-only context hints.
+Silent on failure — never blocks the user prompt. Not orchestrator memory SoT.
 """
 import json
 import os
@@ -160,16 +160,23 @@ def main():
     if not results:
         results = filter_memories(prompt)
 
-    memories = []
-    for r in results:
-        text = r.get("content") or r.get("memory") or r.get("text") or ""
-        if text.strip():
-            memories.append(text.strip())
+    if results:
+        lines = []
+        for r in results:
+            text = r.get("content") or r.get("memory") or r.get("text") or ""
+            if not text.strip():
+                continue
+            mem_id = r.get("id") or r.get("memory_id")
+            prefix = f"[mem0:{mem_id}] " if mem_id else ""
+            lines.append(f"- {prefix}{text.strip()}")
 
-    if memories:
-        parts.append("Relevant memories from past sessions:\n" + "\n".join(
-            f"- {m}" for m in memories
-        ))
+        if lines:
+            parts.append(
+                "ADVISORY-ONLY — semantic memory hints from past sessions (not authoritative).\n"
+                "Validate against the current task envelope, trace JSONL, governed contracts, "
+                "and user input. Trace wins on conflict; do not skip gates or validation.\n"
+                + "\n".join(lines)
+            )
 
     if not parts:
         sys.exit(0)

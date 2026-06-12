@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to ~/.claude/settings.json and replace ~/.claude with your actual home path if needed. Hook commands run as shell commands — ~ is expanded by the shell. Replace /path/to/your/context/ in SessionStart with your actual context directory. skill-registry-enforcer.py is wired under PreToolUse Skill but inactive until you export ORCH_SKILL_REGISTRY_ENFORCE=1 before starting Claude Code (see docs/orchestrator/skill-registry-contract.md).",
+  "_comment": "Copy to ~/.claude/settings.json and replace ~/.claude with your actual home path if needed. Hook commands run as shell commands — ~ is expanded by the shell. Replace /path/to/your/context/ in SessionStart with your actual context directory. skill-registry-enforcer.py is wired under PreToolUse Skill but inactive until you export ORCH_SKILL_REGISTRY_ENFORCE=1 before starting Claude Code (see docs/orchestrator/skill-registry-contract.md). mem0-search.py has two host-layer behaviors: existing FLOW/MODE bootstrap behavior, and optional semantic-memory injection. Only the semantic-memory payload is advisory-only and never orchestrator memory SoT; trace JSONL and governed contracts win on conflict (see docs/orchestrator/context-package-contract.md). mem0-stop.sh is an optional advisory capture reminder only.",
   "hooks": {
     "SessionStart": [
       {
@@ -27,7 +27,7 @@
           {
             "type": "command",
             "command": "python3 ~/.claude/scripts/hooks/mem0-search.py",
-            "statusMessage": "Searching memories..."
+            "statusMessage": "mem0-search hook (MODE bootstrap + optional memories)..."
           }
         ]
       }
@@ -132,7 +132,7 @@
           {
             "type": "command",
             "command": "bash ~/.claude/scripts/hooks/mem0-stop.sh",
-            "statusMessage": "Checking mem0 for memory capture..."
+            "statusMessage": "Optional advisory mem0 capture reminder..."
           }
         ]
       },
