@@ -1,10 +1,35 @@
 # Operator module
 
-Bounded context: operator-facing CLI/TUI, explain-run, scenario metrics export, runner preflight/launcher/trace/budget views, and CLI help surfaces.
+Bounded context stub for `modules/operator/`. Read-mostly CLI/TUI surfaces. Root shims preserve `node <script>.js` entry behavior.
 
-**Physical slice:** moved from orchestrator root. Root shims preserve existing `require()` paths and `node <script>.js` entry behavior.
+## Ownership
 
-**Canonical imports (preferred in new code):**
+**Owns:** CLI/TUI, explain-run, scenario metrics export, runner preflight/launcher/trace/budget views, console dashboard, control-plane TUI, project template CLI, operator help.
+
+**Must not own:** Domain policy; gate bypass; permission matrix; trace schema authoring.
+
+## Allowed imports
+
+Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adjacency row **`operator`**:
+
+- `run-control` — start/invoke orchestrator runs
+- `contracts` — read validators / shapes
+- `trace` — read traces for viewers/export
+- `budget` — budget view rollups
+- `worktree` — worktree status/contract surfaces
+
+## Forbidden
+
+- Mutating gate state without trace + human path
+- Owning model routing (`runner-model-routing.js` stays root / model-runtime)
+- Permission policy tables
+
+## Related contracts
+
+- [module-ownership-map.md](../../../docs/orchestrator/module-ownership-map.md) — operator row
+- [test-ownership-map.md](../../../docs/orchestrator/test-ownership-map.md) — tests under `tests/operator/`
+
+## Canonical imports
 
 ```javascript
 const { printOperatorCliHelp } = require("./modules/operator");
@@ -12,6 +37,4 @@ const { buildDashboardText } = require("./modules/operator/console-dashboard");
 const { runTraceViewer } = require("./modules/operator/runner-trace-viewer");
 ```
 
-**Stays at root:** `runner-model-routing.js` (model-runtime bounded context).
-
-See `docs/orchestrator/module-boundaries.md`.
+**Stays at root (model-runtime):** `runner-model-routing.js`.

@@ -1,14 +1,35 @@
 # Budget module
 
-Bounded context: token usage summaries, trace JSONL read/report (`tokens:report`), and run-level cost accounting dimensions.
+Bounded context stub for `modules/budget/`. Token/cost accounting from trace rows — not production spend enforcement. Root shims preserve CLI entry (`node token-trace-report.js`).
 
-**Physical slice:** moved from orchestrator root. Root shims preserve existing `require()` paths and CLI entry (`node token-trace-report.js`).
+## Ownership
 
-**Canonical imports (preferred in new code):**
+**Owns:** Token usage summaries, trace JSONL read/report (`tokens:report`), run-level cost accounting dimensions, budget view rollups.
+
+**Must not own:** Production spend SLA enforcement; trace schema authoring; model routing.
+
+## Allowed imports
+
+Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adjacency row **`budget`**:
+
+- `contracts` — validators
+- `model-runtime` — usage field helpers
+- `trace` — read trace rows / schema helpers
+
+## Forbidden
+
+- Enforcing spend limits as production policy
+- Mutating gate or permission state
+- Operator-owned CLI policy
+
+## Related contracts
+
+- [module-ownership-map.md](../../../docs/orchestrator/module-ownership-map.md) — budget row
+- [test-ownership-map.md](../../../docs/orchestrator/test-ownership-map.md) — tests under `tests/budget/`
+
+## Canonical imports
 
 ```javascript
 const { buildReport, parseJsonl } = require("./modules/budget");
 const { buildTokenUsageSummary } = require("./modules/budget/token-usage-summary");
 ```
-
-See `docs/orchestrator/module-boundaries.md`.
