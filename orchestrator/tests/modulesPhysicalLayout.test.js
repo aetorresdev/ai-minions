@@ -1,0 +1,297 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const fs = require("fs");
+const path = require("path");
+const { describe, it } = require("node:test");
+
+const ORCH = path.join(__dirname, "..");
+
+describe("modules physical layout", () => {
+  describe("gates", () => {
+    it("physical modules/gates tree exists", () => {
+      for (const rel of [
+        "modules/gates/index.js",
+        "modules/gates/governance-gate.js",
+        "modules/gates/approval-policy-gate.js",
+        "modules/gates/doubt-review.js",
+        "modules/gates/review-record.js",
+        "modules/gates/merge-governance/index.js",
+        "modules/gates/merge-governance/pr-boundary-governance-gate.js",
+      ]) {
+        assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root shims re-export the same gate APIs", () => {
+      const shimGov = require("../governance-gate");
+      const canonGov = require("../modules/gates/governance-gate");
+      assert.equal(shimGov.GOVERNANCE_GATE_ID, canonGov.GOVERNANCE_GATE_ID);
+      assert.equal(typeof shimGov.buildApprovalGrantedPayload, "function");
+
+      const shimMerge = require("../merge-governance");
+      const canonMerge = require("../modules/gates/merge-governance");
+      assert.equal(shimMerge.GATE_ID, canonMerge.GATE_ID);
+      assert.equal(typeof shimMerge.evaluatePrBoundaryGovernance, "function");
+
+      const shimPolicy = require("../approval-policy-gate");
+      const canonPolicy = require("../modules/gates/approval-policy-gate");
+      assert.deepEqual(shimPolicy.APPROVAL_GATE_IDS, canonPolicy.APPROVAL_GATE_IDS);
+      assert.equal(typeof shimPolicy.evaluateApprovalGate, "function");
+
+      const shimDoubt = require("../doubt-review");
+      const canonDoubt = require("../modules/gates/doubt-review");
+      assert.equal(shimDoubt.DOUBT_REVIEW_SCHEMA_VERSION, canonDoubt.DOUBT_REVIEW_SCHEMA_VERSION);
+      assert.equal(typeof shimDoubt.traceDoubtReviewCycle, "function");
+
+      const shimReview = require("../review-record");
+      const canonReview = require("../modules/gates/review-record");
+      assert.equal(shimReview.REVIEW_SCHEMA_VERSION, canonReview.REVIEW_SCHEMA_VERSION);
+      assert.equal(typeof shimReview.buildReviewRecord, "function");
+    });
+
+    it("modules/gates index aggregates exports", () => {
+      const gates = require("../modules/gates");
+      assert.equal(typeof gates.evaluatePrBoundaryGovernance, "function");
+      assert.equal(typeof gates.governanceRunnerShouldHold, "function");
+      assert.equal(typeof gates.evaluateApprovalGate, "function");
+      assert.equal(typeof gates.traceDoubtReviewCycle, "function");
+      assert.equal(typeof gates.buildReviewRecord, "function");
+    });
+  });
+
+  describe("contracts", () => {
+    it("physical modules/contracts tree exists with design validators", () => {
+      for (const rel of [
+        "modules/contracts/index.js",
+        "modules/contracts/bv-reviewer-design.js",
+        "modules/contracts/progressive-disclosure-design.js",
+        "modules/contracts/self-improvement-loop-design.js",
+      ]) {
+        assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root shims re-export the same contract validator APIs", () => {
+      const shimBv = require("../bv-reviewer-design");
+      const canonBv = require("../modules/contracts/bv-reviewer-design");
+      assert.equal(shimBv.VALUE_REVIEW_SCHEMA_VERSION, canonBv.VALUE_REVIEW_SCHEMA_VERSION);
+      assert.equal(typeof shimBv.validateValueReviewTraceLine, "function");
+
+      const shimPd = require("../progressive-disclosure-design");
+      const canonPd = require("../modules/contracts/progressive-disclosure-design");
+      assert.equal(shimPd.DISCLOSURE_SCHEMA_VERSION, canonPd.DISCLOSURE_SCHEMA_VERSION);
+      assert.equal(typeof shimPd.validateContextDisclosureTraceLine, "function");
+
+      const shimSi = require("../self-improvement-loop-design");
+      const canonSi = require("../modules/contracts/self-improvement-loop-design");
+      assert.equal(shimSi.IMPROVEMENT_PROPOSAL_SCHEMA_VERSION, canonSi.IMPROVEMENT_PROPOSAL_SCHEMA_VERSION);
+      assert.equal(typeof shimSi.validateImprovementProposalTraceLine, "function");
+    });
+
+    it("modules/contracts index aggregates contracts-owned validators only", () => {
+      const contracts = require("../modules/contracts");
+      assert.equal(typeof contracts.validateValueReviewTraceLine, "function");
+      assert.equal(typeof contracts.validateImprovementProposalTraceLine, "function");
+      assert.equal(contracts.validateContextDisclosureTraceLine, undefined);
+    });
+
+    it("progressive disclosure remains reachable via shim and canonical path", () => {
+      assert.equal(typeof require("../progressive-disclosure-design").validateContextDisclosureTraceLine, "function");
+      assert.equal(
+        typeof require("../modules/contracts/progressive-disclosure-design").validateContextDisclosureTraceLine,
+        "function",
+      );
+    });
+  });
+
+  describe("recovery", () => {
+    it("physical modules/recovery tree exists", () => {
+      for (const rel of [
+        "modules/recovery/index.js",
+        "modules/recovery/recovery-sweep.js",
+        "modules/recovery/session-resume.js",
+      ]) {
+        assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root shims re-export the same recovery APIs", () => {
+      const shimSweep = require("../recovery-sweep");
+      const canonSweep = require("../modules/recovery/recovery-sweep");
+      assert.equal(shimSweep.RECOVERY_SCHEMA_VERSION, canonSweep.RECOVERY_SCHEMA_VERSION);
+      assert.equal(typeof shimSweep.summarizeRecoveryFromRows, "function");
+
+      const shimResume = require("../session-resume");
+      const canonResume = require("../modules/recovery/session-resume");
+      assert.equal(shimResume.SESSION_RESUME_SCHEMA_VERSION, canonResume.SESSION_RESUME_SCHEMA_VERSION);
+      assert.equal(typeof shimResume.summarizeSessionResumeFromRows, "function");
+    });
+
+    it("modules/recovery index aggregates exports", () => {
+      const recovery = require("../modules/recovery");
+      assert.equal(typeof recovery.summarizeRecoveryFromRows, "function");
+      assert.equal(typeof recovery.summarizeSessionResumeFromRows, "function");
+    });
+  });
+
+  describe("trace", () => {
+    it("physical modules/trace tree exists", () => {
+      for (const rel of [
+        "modules/trace/index.js",
+        "modules/trace/trace-schema.js",
+        "modules/trace/trace-writer.js",
+        "modules/trace/trace-append.js",
+        "modules/trace/trace-redact.js",
+        "modules/trace/trace-lifecycle-events.js",
+        "modules/trace/context-hygiene-signals.js",
+        "modules/trace/run-outcome-summary.js",
+        "modules/trace/otel-genai-trace-map.js",
+      ]) {
+        assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root shims re-export the same trace APIs", () => {
+      const shimSchema = require("../trace-schema");
+      const canonSchema = require("../modules/trace/trace-schema");
+      assert.equal(shimSchema.TRACE_LINE_WRITER_VERSION, canonSchema.TRACE_LINE_WRITER_VERSION);
+      assert.equal(typeof shimSchema.validateTraceLine, "function");
+
+      const shimWriter = require("../trace-writer");
+      const canonWriter = require("../modules/trace/trace-writer");
+      assert.equal(shimWriter.TRACE_SCHEMA_VERSION, canonWriter.TRACE_SCHEMA_VERSION);
+      assert.equal(typeof shimWriter.traceEvent, "function");
+
+      const shimOutcome = require("../run-outcome-summary");
+      const canonOutcome = require("../modules/trace/run-outcome-summary");
+      assert.equal(typeof shimOutcome.buildRunOutcomeSummary, "function");
+      assert.equal(typeof shimOutcome.formatRunOutcomeSummaryLines, "function");
+    });
+
+    it("modules/trace index aggregates core exports", () => {
+      const trace = require("../modules/trace");
+      assert.equal(typeof trace.validateTraceLine, "function");
+      assert.equal(typeof trace.traceEvent, "function");
+      assert.equal(typeof trace.buildRunOutcomeSummary, "function");
+      assert.equal(typeof trace.mapTraceRowsToOtelSpans, "function");
+    });
+
+    it("trace-schema resolves bundled schema from modules/trace", () => {
+      const { validateTraceLine } = require("../modules/trace/trace-schema");
+      const row = {
+        ts: "2026-04-15T12:00:00.000Z",
+        ts_ms: 1713182400000,
+        trace_schema_version: "2",
+        task_id: "physical-layout-fixture",
+        event: "session_start",
+        flow_mode: "single_agent",
+        max_iterations: 1,
+        cwd: "/tmp",
+        goal: "x",
+      };
+      const result = validateTraceLine(row);
+      assert.equal(result.ok, true, result.errors?.join("; "));
+    });
+  });
+
+  describe("budget", () => {
+    it("physical modules/budget tree exists", () => {
+      for (const rel of [
+        "modules/budget/index.js",
+        "modules/budget/token-usage-summary.js",
+        "modules/budget/token-trace-report.js",
+        "modules/budget/cost-accounting-dimensions.js",
+      ]) {
+        assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root shims re-export the same budget APIs", () => {
+      const shimSummary = require("../token-usage-summary");
+      const canonSummary = require("../modules/budget/token-usage-summary");
+      assert.equal(typeof shimSummary.buildTokenUsageSummary, "function");
+      assert.equal(shimSummary.buildTokenUsageSummary, canonSummary.buildTokenUsageSummary);
+
+      const shimCost = require("../cost-accounting-dimensions");
+      const canonCost = require("../modules/budget/cost-accounting-dimensions");
+      assert.equal(typeof shimCost.buildRunCostAccountingFromReport, "function");
+      assert.equal(shimCost.buildRunCostAccountingFromReport, canonCost.buildRunCostAccountingFromReport);
+
+      const shimReport = require("../token-trace-report");
+      const canonReport = require("../modules/budget/token-trace-report");
+      assert.equal(typeof shimReport.buildReport, "function");
+      assert.equal(typeof shimReport.parseJsonl, "function");
+      assert.equal(shimReport.buildReport, canonReport.buildReport);
+    });
+
+    it("modules/budget index aggregates core exports", () => {
+      const budget = require("../modules/budget");
+      assert.equal(typeof budget.buildTokenUsageSummary, "function");
+      assert.equal(typeof budget.buildRunCostAccountingFromReport, "function");
+      assert.equal(typeof budget.buildReport, "function");
+      assert.equal(typeof budget.parseJsonl, "function");
+    });
+
+    it("runner-budget-view remains at root until operator slice", () => {
+      assert.ok(fs.existsSync(path.join(ORCH, "runner-budget-view.js")));
+      assert.equal(fs.existsSync(path.join(ORCH, "modules/budget/runner-budget-view.js")), false);
+    });
+  });
+
+  describe("worktree", () => {
+    it("physical modules/worktree tree exists", () => {
+      for (const rel of [
+        "modules/worktree/index.js",
+        "modules/worktree/worktree-isolation.js",
+        "modules/worktree/worktree-result-promotion.js",
+        "modules/worktree/worktree-cleanup-safety.js",
+        "modules/worktree/run-workdir-contract.js",
+        "modules/worktree/trace-workspace-lifecycle.js",
+      ]) {
+        assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root shims re-export the same worktree APIs", () => {
+      const shimIso = require("../worktree-isolation");
+      const canonIso = require("../modules/worktree/worktree-isolation");
+      assert.equal(shimIso.BINDING_SCHEMA_VERSION, canonIso.BINDING_SCHEMA_VERSION);
+      assert.equal(typeof shimIso.createIsolatedWorktree, "function");
+      assert.equal(shimIso.planWorktree, canonIso.planWorktree);
+
+      const shimContract = require("../run-workdir-contract");
+      const canonContract = require("../modules/worktree/run-workdir-contract");
+      assert.equal(shimContract.CONTRACT_SCHEMA_VERSION, canonContract.CONTRACT_SCHEMA_VERSION);
+      assert.equal(typeof shimContract.readRunWorkdirContract, "function");
+
+      const shimLifecycle = require("../trace-workspace-lifecycle");
+      const canonLifecycle = require("../modules/worktree/trace-workspace-lifecycle");
+      assert.equal(typeof shimLifecycle.summarizeWorkspaceLifecycleFromRows, "function");
+      assert.deepEqual(shimLifecycle.WORKSPACE_EVENTS, canonLifecycle.WORKSPACE_EVENTS);
+      assert.equal(shimLifecycle.summarizeWorkspaceLifecycleFromRows, canonLifecycle.summarizeWorkspaceLifecycleFromRows);
+
+      const shimPromotion = require("../worktree-result-promotion");
+      const canonPromotion = require("../modules/worktree/worktree-result-promotion");
+      assert.equal(shimPromotion.PROMOTION_SCHEMA_VERSION, canonPromotion.PROMOTION_SCHEMA_VERSION);
+      assert.equal(typeof shimPromotion.promoteWorktreeResults, "function");
+      assert.equal(shimPromotion.promoteWorktreeResults, canonPromotion.promoteWorktreeResults);
+      assert.equal(shimPromotion.validatePromotionEligibility, canonPromotion.validatePromotionEligibility);
+
+      const shimCleanup = require("../worktree-cleanup-safety");
+      const canonCleanup = require("../modules/worktree/worktree-cleanup-safety");
+      assert.equal(typeof shimCleanup.validateCleanupTarget, "function");
+      assert.equal(shimCleanup.validateCleanupTarget, canonCleanup.validateCleanupTarget);
+      assert.equal(shimCleanup.isUnderAllowedRoot, canonCleanup.isUnderAllowedRoot);
+    });
+
+    it("modules/worktree index aggregates core exports", () => {
+      const worktree = require("../modules/worktree");
+      assert.equal(typeof worktree.createIsolatedWorktree, "function");
+      assert.equal(typeof worktree.readRunWorkdirContract, "function");
+      assert.equal(typeof worktree.promoteWorktreeResults, "function");
+      assert.equal(typeof worktree.validateCleanupTarget, "function");
+      assert.equal(typeof worktree.summarizeWorkspaceLifecycleFromRows, "function");
+    });
+  });
+});

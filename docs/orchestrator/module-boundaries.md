@@ -169,13 +169,12 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-07 | Initial design map shipped on `master` @ `e8b3ac8`; ticket-free deferred refactor wording; cross-links to handoff/sandbox design contracts |
 | 2026-06-08 | Gates slice 1 — `modules/gates/` physical migration (`governance-gate`, `merge-governance`); root shims; import guards deferred to slice 2 |
 | 2026-06-08 | Import boundary slice 2 — `check-module-boundaries` + allowlist + `moduleBoundaryGuard.test.js`; wired into `npm test` |
-| 2026-06-09 | Physical contracts slice — `modules/contracts/` design validators; root shims; `moduleRefactorSlice2.test.js` |
-| 2026-06-09 | Physical recovery slice — `modules/recovery/`; root shims; recovery row/column in dependency matrix; `moduleRefactorSlice3.test.js` |
-| 2026-06-09 | Gates remainder slice — `approval-policy-gate`, `doubt-review`, `review-record` under `modules/gates/`; `moduleRefactorSlice4.test.js` |
-| 2026-06-11 | Trace core slice — `modules/trace/`; `moduleRefactorSlice5.test.js` (temporary; consolidate at physical refactor close) |
-| 2026-06-12 | Budget slice — `modules/budget/`; `moduleRefactorSlice6.test.js` (temporary; `runner-budget-view` deferred) |
-| 2026-06-12 | Worktree slice — `modules/worktree/`; `moduleRefactorSlice7.test.js` (temporary) |
-
-**Test consolidation (pending):** replace `moduleRefactorSlice*.test.js` with `modulesPhysicalLayout.test.js` before the physical refactor lane closes — spec lives in groomed backlog only.
+| 2026-06-09 | Physical contracts slice — `modules/contracts/` design validators; root shims |
+| 2026-06-09 | Physical recovery slice — `modules/recovery/`; root shims; recovery row/column in dependency matrix |
+| 2026-06-09 | Gates remainder slice — `approval-policy-gate`, `doubt-review`, `review-record` under `modules/gates/` |
+| 2026-06-11 | Trace core slice — `modules/trace/` |
+| 2026-06-12 | Budget slice — `modules/budget/` (`runner-budget-view` deferred to operator slice) |
+| 2026-06-12 | Worktree slice — `modules/worktree/` |
+| 2026-06-12 | Physical layout tests consolidated — `tests/modulesPhysicalLayout.test.js` (per bounded context) |
 
 Update when module map or known violations change. Physical refactor briefs reference this doc (backlog only — not in CHANGELOG product text).
