@@ -197,7 +197,7 @@ describe("runner-tui-cli trace command", () => {
   it("trace --file prints step graph (exit 0)", () => {
     const r = cp.spawnSync(process.execPath, [cliPath, "trace", "--file", fixture], {
       encoding: "utf8",
-      cwd: path.join(__dirname, "..", "..", ".."),
+      cwd: path.join(__dirname, "..", ".."),
     });
     assert.equal(r.status, 0);
     assert.match(r.stdout, /Step graph/);
@@ -210,7 +210,7 @@ describe("runner-tui-cli trace command", () => {
       [cliPath, "trace", "--run-id", "task-does-not-exist-runner-trace"],
       {
         encoding: "utf8",
-        cwd: path.join(__dirname, "..", "..", ".."),
+        cwd: path.join(__dirname, "..", ".."),
         env: { ...process.env, ORCH_TRACES_DIR: os.tmpdir() },
       },
     );
@@ -224,7 +224,7 @@ describe("runner-tui-cli trace command", () => {
       [cliPath, "trace", "--follow", "--run-id", "task-does-not-exist-runner-trace-follow"],
       {
         encoding: "utf8",
-        cwd: path.join(__dirname, "..", "..", ".."),
+        cwd: path.join(__dirname, "..", ".."),
         env: { ...process.env, ORCH_TRACES_DIR: os.tmpdir() },
       },
     );

@@ -12,7 +12,7 @@ const RUNNER = path.join(__dirname, "..", "..", "run-orchestrator.js");
 function runHelp(extraArgs = []) {
   return spawnSync(process.execPath, [RUNNER, "--help", ...extraArgs], {
     encoding: "utf8",
-    cwd: path.join(__dirname, "..", "..", ".."),
+    cwd: path.join(__dirname, "..", ".."),
   });
 }
 
@@ -41,7 +41,7 @@ test("run-orchestrator --help exits 0 and documents command groups", () => {
 });
 
 test("run-orchestrator -h matches --help", () => {
-  const a = spawnSync(process.execPath, [RUNNER, "-h"], { encoding: "utf8", cwd: path.join(__dirname, "..", "..", "..") });
+  const a = spawnSync(process.execPath, [RUNNER, "-h"], { encoding: "utf8", cwd: path.join(__dirname, "..", "..") });
   const b = runHelp();
   assert.equal(a.status, 0);
   assert.equal(b.status, 0);
@@ -51,7 +51,7 @@ test("run-orchestrator -h matches --help", () => {
 test("run-orchestrator without goal exits 1 and points to --help", () => {
   const r = spawnSync(process.execPath, [RUNNER], {
     encoding: "utf8",
-    cwd: path.join(__dirname, "..", "..", ".."),
+    cwd: path.join(__dirname, "..", ".."),
   });
   assert.equal(r.status, 1);
   assert.match(r.stderr, /--help/);
@@ -63,7 +63,7 @@ test("run-orchestrator exits 2 for invalid minions.md in --cwd", () => {
 
   const r = spawnSync(process.execPath, [RUNNER, "--cwd", tmp, "Smoke"], {
     encoding: "utf8",
-    cwd: path.join(__dirname, "..", "..", ".."),
+    cwd: path.join(__dirname, "..", ".."),
   });
 
   assert.equal(r.status, 2);

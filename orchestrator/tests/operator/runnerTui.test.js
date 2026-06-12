@@ -367,7 +367,7 @@ describe("runner-tui-cli routing policy validation", () => {
   it("routing rejects unknown explicit model policy (exit 2)", () => {
     const r = cp.spawnSync(process.execPath, [cliPath, "routing", "--model-policy", "banana"], {
       encoding: "utf8",
-      cwd: path.join(__dirname, "..", "..", ".."),
+      cwd: path.join(__dirname, "..", ".."),
     });
     assert.equal(r.status, 2);
     assert.match(`${r.stdout}\n${r.stderr}`, /unknown model policy: banana/);
@@ -378,7 +378,7 @@ describe("runner-tui-cli routing policy validation", () => {
     const r = cp.spawnSync(
       process.execPath,
       [cliPath, "routing", "--model-policy", "banana", "--model", "qwen2.5-coder:7b"],
-      { encoding: "utf8", cwd: path.join(__dirname, "..", "..", "..") },
+      { encoding: "utf8", cwd: path.join(__dirname, "..", "..") },
     );
     assert.equal(r.status, 2);
     assert.match(`${r.stdout}\n${r.stderr}`, /unknown model policy: banana/);
@@ -389,7 +389,7 @@ describe("runner-tui-cli routing policy validation", () => {
     const missing = path.join(os.tmpdir(), `runner-budget-missing-${Date.now()}.jsonl`);
     const r = cp.spawnSync(process.execPath, [cliPath, "budget", "--file", missing], {
       encoding: "utf8",
-      cwd: path.join(__dirname, "..", "..", ".."),
+      cwd: path.join(__dirname, "..", ".."),
     });
     assert.equal(r.status, 2);
     assert.match(r.stderr, /trace file not found/);
@@ -398,7 +398,7 @@ describe("runner-tui-cli routing policy validation", () => {
 
 describe("runner-tui-cli worktree contract", () => {
   const cliPath = path.join(__dirname, "..", "..", "runner-tui-cli.js");
-  const orchestratorCwd = path.join(__dirname, "..", "..", "..");
+  const orchestratorCwd = path.join(__dirname, "..", "..");
 
   /**
    * @returns {string}

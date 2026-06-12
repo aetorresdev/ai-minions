@@ -109,7 +109,7 @@ test("ORCH_TRACE_SKIP_SECRET_REDACT=1 leaves literals intact (not under CI)", (t
 });
 
 test("CI=true with ORCH_TRACE_SKIP_SECRET_REDACT=1 fails loading trace-redact", () => {
-  const dir = path.join(__dirname, "..", "..", "..");
+  const dir = path.join(__dirname, "..", "..");
   const r = spawnSyncReal(
     process.execPath,
     ["-e", "require('./trace-redact.js')"],
