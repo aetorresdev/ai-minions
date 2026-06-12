@@ -217,3 +217,4 @@ orchestrator/
 | 2026-06-09 | Initial ownership map — recovery context proposed; current vs target documented |
 | 2026-06-12 | Post-v0.8/v0.9 physical align — eight contexts under `modules/*`; model-runtime partial; run-control/permissions/tools deferred |
 | 2026-06-12 | Link test ownership map — primary owner declared before physical test layout |
+| 2026-06-12 | Per-module README stubs — ownership, allowed imports, forbidden; link to adjacency matrix |

@@ -1,16 +1,39 @@
 # Trace module
 
-Bounded context: JSONL trace schema, writers, redaction, lifecycle/hygiene signals, run outcome summary, OTel GenAI mapper (derived export only).
+Bounded context stub for `modules/trace/`. JSONL trace SoT — schema, writers, redaction, lifecycle signals, derived export mappers. Root shims preserve legacy `require()` paths.
 
-**Physical slice:** moved from orchestrator root. Root shims preserve existing `require()` paths.
+## Ownership
 
-**Canonical imports (preferred in new code):**
+**Owns:** JSONL schema, append/sanitize/redact, lifecycle events, run outcome summary (aggregation), OTel GenAI mapper (derived only), context hygiene signals.
+
+**Must not own:** Policy decisions (what may run); gate verdict parsing; recovery eligibility rules.
+
+## Allowed imports
+
+Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adjacency row **`trace`**:
+
+- `contracts` — schema validators
+- `recovery` — read rows for summaries (consumption)
+- `budget` — cost/token rollups from rows
+- `worktree` — workspace lifecycle consumption
+
+Grandfathered allowlist may permit narrow reads (e.g. `review-record` for outcome summary) — consumption only.
+
+## Forbidden
+
+- Owning permission or approval policy
+- Operator CLI formatting
+- Gate decisions embedded in trace writers
+
+## Related contracts
+
+- Trace contracts under `docs/orchestrator/` (schema, privacy, strict-mode)
+- [module-ownership-map.md](../../../docs/orchestrator/module-ownership-map.md) — trace row
+- [test-ownership-map.md](../../../docs/orchestrator/test-ownership-map.md) — tests under `tests/trace/`
+
+## Canonical imports
 
 ```javascript
 const { validateTraceLine, traceEvent } = require("./modules/trace");
 const { buildRunOutcomeSummary } = require("./modules/trace/run-outcome-summary");
 ```
-
-**Boundary:** trace consumes recovery/worktree/budget rows; `run-outcome-summary` reads `review-record` via grandfathered allowlist (`trace-not-policy`) — consumption only, not gate decisions.
-
-See `docs/orchestrator/module-boundaries.md` and trace contracts under `docs/orchestrator/`.

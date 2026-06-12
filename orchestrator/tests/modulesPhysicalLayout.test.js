@@ -357,4 +357,34 @@ describe("modules physical layout", () => {
       assert.doesNotMatch(launcherSource, /require\(["']\.\/orchestrator["']\)/);
     });
   });
+
+  describe("module README stubs", () => {
+    const PHYSICAL_CONTEXTS = [
+      "gates",
+      "contracts",
+      "recovery",
+      "trace",
+      "budget",
+      "worktree",
+      "operator",
+      "model-runtime",
+    ];
+    const REQUIRED_SECTIONS = [
+      "## Ownership",
+      "Must not own",
+      "## Allowed imports",
+      "module-boundaries.md",
+    ];
+
+    for (const ctx of PHYSICAL_CONTEXTS) {
+      it(`${ctx} README stub links module-boundaries adjacency`, () => {
+        const readme = path.join(ORCH, "modules", ctx, "README.md");
+        assert.ok(fs.existsSync(readme), `missing ${readme}`);
+        const text = fs.readFileSync(readme, "utf8");
+        for (const section of REQUIRED_SECTIONS) {
+          assert.ok(text.includes(section), `${ctx} README missing: ${section}`);
+        }
+      });
+    }
+  });
 });

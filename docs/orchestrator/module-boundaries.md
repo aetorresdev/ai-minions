@@ -178,5 +178,6 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-12 | `modules/operator/` |
 | 2026-06-12 | `modules/model-runtime/` partial — policy config + tier gate (v0.9) |
 | 2026-06-12 | Post-v0.8/v0.9 doc align — status + known violations updated |
+| 2026-06-12 | Per-module `README.md` stubs under each physical `modules/<context>/` (v0.10 coherence closeout) |
 
 Update when module map or known violations change.
