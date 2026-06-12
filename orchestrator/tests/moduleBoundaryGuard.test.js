@@ -66,7 +66,18 @@ describe("module-boundary guard", () => {
     assert.equal(classifyModule("token-trace-report.js"), "budget");
     assert.equal(classifyModule("token-usage-summary.js"), "budget");
     assert.equal(classifyModule("cost-accounting-dimensions.js"), "budget");
-    assert.equal(classifyModule("runner-budget-view.js"), "budget");
+  });
+
+  it("classifies operator paths as operator module (canonical and root shims)", () => {
+    assert.equal(classifyModule("modules/operator/console-dashboard.js"), "operator");
+    assert.equal(classifyModule("modules/operator/runner-tui-cli.js"), "operator");
+    assert.equal(classifyModule("modules/operator/runner-budget-view.js"), "operator");
+    assert.equal(classifyModule("console-dashboard.js"), "operator");
+    assert.equal(classifyModule("runner-tui-cli.js"), "operator");
+    assert.equal(classifyModule("runner-budget-view.js"), "operator");
+    assert.equal(classifyModule("explain-run.js"), "operator");
+    assert.equal(classifyModule("operator-cli-help.js"), "operator");
+    assert.equal(classifyModule("runner-model-routing.js"), "model-runtime");
   });
 
   it("allowlist has no grandfathered violations under modules/recovery", () => {
