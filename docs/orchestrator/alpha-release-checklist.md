@@ -327,6 +327,67 @@ OTLP export · memory/runtime analyst · web control plane · swarm expansion ·
 - [x] **Changelog:** section **[0.7.0-alpha.1] - 2026-06-09**; post-tag doc fix removes backlog ticket IDs from product text
 - [x] **Execution plan locked** — tag / pre-release / `release` branch complete
 
+## v0.8.0-alpha.1 — Modular monolith cleanup & release discipline
+
+**Scope:** architecture coherence audit, multi-slice physical `orchestrator/modules/*` refactor, root import guard, `model_selection` trace observability, release workflow + governance evidence contract. **Prerequisite:** `v0.7.0-alpha.1` @ `8215c6f`.
+
+**Release claim:** bounded-module physical cleanup with CI root-import guard, observable model choice in traces (no auto-routing), and human-owned release prep/tag discipline with fail-closed governance records — **not** production-ready, **not** repo-wide modular monolith complete, **not** automated release pipeline.
+
+### Must-have bundle
+
+- [x] Architecture coherence audit (doc-only) — merged @ `0a5fd05` (PR #160)
+- [x] Physical module refactor slices — merged through @ `e62081a` (PRs #161–#167)
+- [x] Operator module slice — merged @ `6ee2321` (PR #169)
+- [x] Root import guard — merged @ `b89fd49` (PR #168)
+- [x] Model selection trace contract — merged @ `89a10d8` (PR #170)
+- [x] Release workflow + governance contract — merged @ `3b30578` (PR #171)
+- [ ] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep PR; CERBERUS pending
+
+### Out of scope
+
+Auto-routing · model policy file MVP · frontier/expensive gate runtime · OTLP export · memory/runtime analyst · web control plane · swarm expansion · agent-as-maintainer default · full repo-wide modular monolith enforcement claim · automated GitHub tag/release publish.
+
+### CERBERUS checks (pre-tag)
+
+- [x] Lane implementation slices CERBERUS-approved (#168–#171)
+- [ ] Release-prep CHANGELOG + checklist claims — CERBERUS pending
+- [x] No production-ready claim — release claim uses alpha limitations
+- [x] No architecture-refactor-complete claim — bounded slices + shims only
+- [x] No auto-routing claim — `model_selection` observability only
+- [x] No full release automation claim — human workflow + evidence validator only
+
+### Forbidden release claims (v0.8)
+
+“production-ready” · “architecture refactor complete” · “full modular monolith enforced repo-wide” · “auto-routing shipped” · “automated release pipeline” · “agent-owned tags/releases by default” · “unknown permissions treated as safe” · “OTLP export shipped”.
+
+### Vulnerability gate (pre-tag)
+
+- [x] `bash scripts/release-trivy-gate.sh` — published scope clean (see [security-posture.md](security-posture.md))
+- [x] GitHub Actions **`security-trivy-scan`** — green on lane merge @ `3b30578`
+- [x] MCP `uv.lock` committed and tracked
+
+#### v0.8 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-12 | `master` @ `3b30578` — PR #171 CI | lint-and-unit · markdownlint · lychee · security-trivy-scan · orchestrator-e2e — **green** |
+| 2026-06-12 | Workspace @ `3b30578` | `cd orchestrator && npm test` → **1327/1328** pass (1 skipped) |
+| 2026-06-12 | Release-prep workspace @ `3b30578` | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-06-12 | Release execution plan drafted | Post-tag rows **open** until Phase B artifacts exist |
+
+### Release execution plan (locked on release-prep merge — Phase B operator steps)
+
+**Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
+
+- [ ] **Tag target:** `v0.8.0-alpha.1` on release-prep merge commit — operator: `git tag -a v0.8.0-alpha.1` on `master` after release-prep merge
+- [ ] **Release URL reserved:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.8.0-alpha.1` — operator: publish GitHub **pre-release** after tag exists
+- [ ] **`release` branch target:** align to tag commit — operator: `git branch -f release <tag_commit> && git push origin release` **after** tag exists; `release_branch_commit` must match `tag_commit`
+
+### Release artifact (source snapshot)
+
+- [x] **Changelog:** section **[0.8.0-alpha.1] - 2026-06-12** drafted (date may adjust at publish)
+- [ ] **Execution plan post-tag** — Phase B: tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.

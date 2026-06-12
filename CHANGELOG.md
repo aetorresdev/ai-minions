@@ -4,6 +4,62 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.8.0-alpha.1] - 2026-06-12
+
+Eighth alpha pre-release: **modular monolith cleanup & release discipline** — architecture coherence audit and movement plan, physical refactor of bounded `orchestrator/modules/*` slices with root shims and consolidated layout tests, CI root-import guard, observable `model_selection` trace contract, and human-owned release workflow with fail-closed governance evidence validator.
+
+**Release claim:** operators get documented bounded-module physical layout with import-zone guards, observable model choice in traces (no auto-routing), and release prep/tag discipline with fail-closed governance records — **not** production-ready, **not** repo-wide modular monolith enforcement complete, **not** automated release pipeline.
+
+**Prerequisite:** `v0.7.0-alpha.1` — execution governance & modular enforcement @ `8215c6f`.
+
+**Since [0.7.0-alpha.1]:** v0.7 centered on **production boundary**, **merge governance**, and the **first module slice**. v0.8 adds **multi-slice physical refactor** (gates, contracts, recovery, trace, budget, worktree, operator), **root-level import guard** in CI, **`model_selection` trace** with frontier reason enforcement, and **release workflow + governance contract** (`validateReleaseGovernanceRecord`, including `release_branch_commit_mismatch`). Auto-routing, policy-file MVP, and OTLP export remain out of scope.
+
+| Area | `v0.7.0-alpha.1` | `v0.8.0-alpha.1` (delta) |
+|------|------------------|---------------------------|
+| Focus | Production boundary + merge governance + first module slice | Physical modular cleanup + import guard + model observability + release discipline |
+| Module layout | First `modules/*` slice + import guards | **Multi-slice refactor** — gates, contracts, recovery, trace, budget, worktree, operator; `modulesPhysicalLayout.test.js` |
+| Root regression guard | Import-zone lint only | **`lint:module-boundaries` root-import guard** — blocks new root runtime/domain files |
+| Model governance | Not shipped | **`model_selection` trace** — tier/model/cost/latency/routing_reason; fail-closed frontier reason |
+| Release discipline | Checklist + changelog hygiene | **Release workflow** (Phase A/B) + **governance record validator** (fail-closed evidence) |
+| OTEL export | Unchanged — no OTLP | Unchanged — **no** OTLP |
+| Unit tests (evidence) | 970/971 | 1327/1328 (+ module refactor + model gov + release gov contracts) |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.8.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release); operator steps in `alpha-release-checklist.md` § v0.8 release execution plan*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1327/1328** pass (1 skipped)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
+- Contracts: `release-workflow.md`, `release-governance-contract.md`, `model-routing.md` (model_selection), `module-boundaries.md`, architecture audit docs
+- Lane merged on `master` @ `3b30578`; release-prep on this commit (pending merge)
+- CI: lint-and-unit, markdownlint, lychee, security-trivy-scan, orchestrator-e2e — green on lane merge @ `3b30578`
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
+- **Not** architecture refactor complete — bounded slices moved; not every root file migrated; shims remain at root.
+- **Not** auto-routing or model policy enforcement — observability trace only; routing unchanged by default.
+- **Not** full release automation — workflow is human/operator; validator checks evidence, does not publish releases.
+- **Not** OTLP export, web control plane, memory runtime analyst, or swarm expansion.
+
+### Added
+
+- Architecture coherence audit: inventory, matrix, movement plan (doc-only; no behavior change).
+- Physical module refactor: `modules/gates`, `contracts`, `recovery`, `trace`, `budget`, `worktree`, `operator` with root shims and consolidated physical layout tests.
+- Root import guard: `lint:module-boundaries` blocks new root-level runtime/domain files.
+- Model selection trace: `model_selection` event schema, emission from `askAgent()`, session-start reporter; frontier routing reason fail-closed in helper.
+- Release discipline: `release-workflow.md`, `release-governance-contract.md`, `validateReleaseGovernanceRecord()` with `release_branch_commit_mismatch` check.
+
+### Security
+
+- Trivy release gate unchanged — published dependency scope scan before tag.
+- Release governance validator fails closed on missing or mismatched post-tag evidence.
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Optional post-cut follow-ups (`model_policy.json` loader, mem0 hook alignment) are not bundled in this alpha.
+
 ## [0.7.0-alpha.1] - 2026-06-09
 
 Seventh alpha pre-release: **execution governance & modular enforcement** — Production Boundary Guard with `agent_as_contributor` default, PR merge governance evidence chain, first physical `orchestrator/modules/*` migration with CI import boundary guards, durable QA/CERBERUS review records wired into merge governance, and recovery sweep hardening (four new finding kinds).
