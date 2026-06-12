@@ -69,6 +69,8 @@ Each item in a package SHOULD declare `source_kind` and `source_ref`.
 | Memory facts | Host hook / operator-approved store | **Optional** — advisory only |
 | Cache hits | Ephemeral derived summaries | **Excluded** from truth; **optional** hint only |
 
+**Host mem0 hooks (`scripts/hooks/mem0-search.py`, `mem0-stop.sh`):** optional **advisory-only** semantic-memory injection at the IDE/host layer — not orchestrator memory SoT. Injected hits must be validated against the current task envelope, trace JSONL, and governed contracts; trace wins on conflict. See also `memory-store-decision.md`.
+
 ---
 
 ## Inclusion policy
