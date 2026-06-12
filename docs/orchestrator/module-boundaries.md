@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/module-boundaries.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, `modules/trace/`, `modules/budget/`, and `modules/worktree/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **`lint:module-boundaries`** enforces adjacency matrix under `modules/**` and hard rules globally; legacy violations are grandfathered in `module-boundary-allowlist.json`. **No** runtime behavior change. **Modular refactor not complete.**
+**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, `modules/trace/`, `modules/budget/`, `modules/worktree/`, `modules/operator/`, and partial `modules/model-runtime/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **Modular refactor not complete.**
 
 **Related:** [architecture-coherence-audit.md](architecture-coherence-audit.md) · [module-ownership-map.md](module-ownership-map.md) · [root-file-inventory.md](root-file-inventory.md) · [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
@@ -97,7 +97,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | **gates** | `modules/gates/` (`governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js`) · shims: `governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
 | **permissions** | `agents/permissions.js`, `agents/capability-matrix.js`, `credential-broker.js`, `environment-parser.js` |
 | **tools** | `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js`, `mcp-client.js` |
-| **model-runtime** | `agents/runtime/*`, `agents/routing/model-routing.js`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
+| **model-runtime** | `modules/model-runtime/` (`model-policy-config.js`, `model-tier-gate.js`) · `agents/runtime/*`, `agents/routing/model-routing.js`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
 | **trace** | `modules/trace/` (`trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js`) · shims at legacy root paths |
 | **recovery** | `modules/recovery/` (`recovery-sweep.js`, `session-resume.js`) · shims: `recovery-sweep.js`, `session-resume.js` |
 | **budget** | `modules/budget/` (`token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`) · shims at legacy root paths |
@@ -114,13 +114,12 @@ Every new top-level file should declare target module in PR description. New cro
 
 | Observation | Risk | Remediation lane |
 |-------------|------|------------------|
-| `orchestrator.js` imports across gates, trace, permissions, worktree | God-module pressure | Slice run-control facades per phase (post-v0.6 refactor carril) |
-| `agents/permissions.js` ↔ trace writer for gate summaries | Policy + observability coupling | Emit via narrow trace port interface |
-| `mcp-client.js` used from run loop and operator paths | Tool transport bleeds into operator | Keep MCP behind tools module API |
-| Design validators colocated at repo root (`*-design.js`) | Contracts not in `contracts/` folder | Accept until physical move; enforce via review |
-| `otel-genai-trace-map.js` in trace module | Derived export only — OK if no policy | Keep mapper free of gate decisions |
+| Design validators at repo root (`*-design.js`) | Shims only — canonical under `modules/contracts/` | New validators land in `modules/contracts/` |
+| `orchestrator.js` imports across gates, trace, permissions, worktree | God-module pressure | Slice run-control facades per phase — deferred |
+| `mcp-client.js` used from run loop and operator paths | Tool transport bleeds into operator | Keep MCP behind tools module API — tools slice deferred |
+| `recovery` / `trace` gate reader imports | Grandfathered hard-rule allowlist | Follow-on allowlist shrink with evidence |
 
-**None of the above block alpha** — they guide refactor ordering for the deferred physical `orchestrator/modules/*` migration (post-v0.6).
+**None of the above block alpha** — they guide deferred slices (run-control, permissions, tools) and v0.10 allowlist shrink.
 
 ---
 
@@ -147,9 +146,9 @@ Every new top-level file should declare target module in PR description. New cro
 | **Allowlist** | `orchestrator/module-boundary-allowlist.json` | Grandfathered legacy violations only — new keys require review |
 | **CI** | `npm test` / `orchestrator-unit-tests.yml` | Fails on unlisted violations |
 
-**Still planned:** ESLint `import/no-restricted-paths` zones (optional); further physical tree `orchestrator/modules/<context>/` slices.
+**Still planned:** ESLint `import/no-restricted-paths` zones (optional); run-control, permissions, tools physical slices; allowlist shrink (v0.10 coherence closeout).
 
-**A2.1 shipped:** `modules/gates/` only — bounded first slice. Do **not** mass-move other contexts in the same PR.
+**v0.8 physical slices shipped:** contracts · recovery · gates · trace · budget · worktree · operator · partial model-runtime — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
 
 ---
 
@@ -176,6 +175,8 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-12 | `modules/budget/`; `runner-budget-view.js` remains at orchestrator root |
 | 2026-06-12 | `modules/worktree/` |
 | 2026-06-12 | Physical layout regression — `tests/modulesPhysicalLayout.test.js` |
-| 2026-06-12 | Root import guard — `check-root-import-guard.js` wired into `lint:module-boundaries` |
+| 2026-06-12 | `modules/operator/` |
+| 2026-06-12 | `modules/model-runtime/` partial — policy config + tier gate (v0.9) |
+| 2026-06-12 | Post-v0.8/v0.9 doc align — status + known violations updated |
 
 Update when module map or known violations change.

@@ -2,11 +2,11 @@
 
 **Location:** `docs/orchestrator/architecture-coherence-audit.md`. See [PATHS.md](PATHS.md).
 
-**Status:** v0.8 coherence audit — **docs only**. No file moves, no runtime behavior change. **Not** a claim of architecture completeness.
+**Status:** v0.8 coherence audit — **updated post-refactor (v0.10 coherence closeout)**. Docs only. **Not** architecture complete · **not** full repo modularized.
 
 **Related:** [root-file-inventory.md](root-file-inventory.md) · [module-ownership-map.md](module-ownership-map.md) · [module-boundaries.md](module-boundaries.md)
 
-**Baseline:** v0.7.0-alpha.1 @ `8215c6f` · CI: `lint:module-boundaries` + allowlist · Physical modules: `modules/gates/` only.
+**Baseline:** v0.9.0-alpha.1 @ `2519a7d` · CI: `lint:module-boundaries` + root import guard + allowlist · **Physical modules:** `modules/{gates,contracts,recovery,trace,budget,worktree,operator}/` + partial `modules/model-runtime/` · Evidence: `tests/modulesPhysicalLayout.test.js`.
 
 ---
 
@@ -57,17 +57,17 @@ Rows = capability areas. Columns use the five allowed states only (one primary s
 |------|-------|---------------|--------------|
 | **Lifecycle** | **implemented** | Trace events, run-phases tests, worktree binding | God-module `orchestrator.js` concentrates coordination |
 | **Roles (MODE)** | **partial** | `agent-contract.md`, validateOutput hooks, handoff MCP | Not all roles have symmetric gate + contract coverage (e.g. BV reviewer) |
-| **Contracts** | **partial** | Many `*Contract.test.js`, `lint:docs-claims` | Design validators still at root; handoff/sandbox design-only |
-| **Gates** | **partial** | `modules/gates/`, approval/doubt/review trace shapes | Human approval UI/resume path incomplete; root gate files outside `modules/` |
-| **Traces** | **implemented** | Schema v2, writer/redact, graph validation, privacy contract | `run-outcome-summary` imports `review-record` (hard-rule violation) |
+| **Contracts** | **partial** | `modules/contracts/`, `*Contract.test.js`, `lint:docs-claims` | Handoff/sandbox design-only; validate-output still under `agents/` |
+| **Gates** | **partial** | `modules/gates/` consolidated + shims, approval/doubt/review trace shapes | Human approval UI/resume path incomplete |
+| **Traces** | **implemented** | `modules/trace/`, schema v2, writer/redact, graph validation | `run-outcome-summary` → `review-record` import still allowlisted |
 | **Skills** | **partial** | `skill-registry.v1.json`, hook enforcement opt-in | Skill router runtime **planned**; progressive disclosure filter **planned** |
 | **Tools** | **partial** | `tool-eval`, untrusted-context eval, MCP client | `security/` not under `modules/tools/`; MCP bleeds to operator paths |
-| **Recovery** | **partial** | Recovery sweep + session resume contracts, tests | Imports gate modules from recovery files (CI hard allowlist); no `modules/recovery/` |
-| **Permissions** | **implemented** | Capability matrix, permission gates, credential broker | Policy + trace coupling in permission gate shells |
-| **Budget** | **implemented** | Token summaries, cost dimensions, runner budget view | No production spend SLA (**not claimed**) |
-| **Worktree** | **implemented** | Isolation, promotion, lifecycle trace | — |
-| **Operator surfaces** | **implemented** | CLI/TUI/export/preflight | Many root files; no physical `modules/operator/` |
-| **Modular monolith layout** | **partial** | Design map + CI guard + `modules/gates/` | 55 root `.js` domain files; recovery ownership ambiguous in design map |
+| **Recovery** | **partial** | `modules/recovery/`, sweep + session resume contracts | Gate reader imports grandfathered; automatic resume **not claimed** |
+| **Permissions** | **implemented** | Capability matrix, permission gates, credential broker | Policy + trace coupling; not under `modules/permissions/` |
+| **Budget** | **implemented** | `modules/budget/`, token summaries, cost dimensions | No production spend SLA (**not claimed**) |
+| **Worktree** | **implemented** | `modules/worktree/`, isolation, promotion, lifecycle trace | — |
+| **Operator surfaces** | **implemented** | `modules/operator/`, CLI/TUI/export/preflight | Root shims remain; `runner-model-routing.js` at root |
+| **Modular monolith layout** | **partial** | Eight physical contexts + shims; CI root guard | run-control, permissions, tools deferred; flat test layout |
 | **OTLP export** | **planned** | OTel mapper derived | OTLP sink **not claimed** for v0.8 |
 | **Memory store** | **design-only** | `memory-store-decision.md` | No runtime memory SoT |
 | **Swarm / multi-agent scale-out** | **not claimed** | — | Explicitly out of v0.8 lane |
@@ -112,7 +112,27 @@ From `module-boundary-allowlist.json`:
 | self-improvement-loop-contract | design-only | design validator only | Assumes auto-apply |
 | bv-reviewer-contract | design-only | no gate | Assumes value gate blocks merge |
 | memory-store-decision | design-only | trace SoT only | Assumes mem0/local store authority |
-| modular monolith complete | **not claimed** | partial (`gates/` only) | CERBERUS/doc drift |
+| modular monolith complete | **not claimed** | **partial** — 8 contexts physical + shims | CERBERUS/doc drift if claimed complete |
+
+---
+
+## Physical refactor slice status (post-v0.8 / v0.9)
+
+Movement plan slices from below — **status after v0.9.0-alpha.1**:
+
+| Order | Slice | Status | Evidence |
+|------:|-------|--------|----------|
+| 1 | Contracts validators | **Done** | `modules/contracts/` + shims |
+| 2 | Recovery | **Done** | `modules/recovery/` + shims |
+| 3 | Gates (remainder) | **Done** | `modules/gates/` consolidated |
+| 4 | Trace core | **Done** | `modules/trace/` + shims |
+| 5 | Budget | **Done** | `modules/budget/` + shims |
+| 6 | Worktree | **Done** | `modules/worktree/` + shims |
+| 7 | Operator | **Done** | `modules/operator/` + shims |
+| 8 | Model-runtime (root locals) | **Partial** | `modules/model-runtime/` policy + tier gate (v0.9); `local-model-*.js`, `agents/runtime/*` deferred |
+| 9–13 | Permissions, tools, run-control, shared, hub | **Deferred** | Post-v0.10 unless scoped slice |
+
+**Docs/tests debt (v0.10):** test ownership map and flat `tests/*.test.js` layout — follow-on test governance and layout consolidation. Allowlist shrink — follow-on CI guard work.
 
 ---
 
@@ -166,7 +186,7 @@ From `module-boundary-allowlist.json`:
 | No file movement in this audit | ✓ |
 | Physical refactor movement plan produced | ✓ — slice table above |
 
-**System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and partial modular enforcement. Coherence **frays** at physical layout (root sprawl), recovery↔gates imports, and design-only docs that must not be read as shipped runtime. v0.8 should improve **structure and release discipline**, not add features.
+**System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and **partial** physical modular layout (eight bounded contexts under `modules/*` with compat shims). Coherence **frays** at remaining root sprawl (run-control hub, permissions, tools), grandfathered cross-imports, flat test layout vs “tests mirror modules”, and design-only docs that must not be read as shipped runtime. v0.10 closes **documentation/test observability** — not new runtime capability.
 
 ---
 
@@ -176,5 +196,4 @@ From `module-boundary-allowlist.json`:
 |------|--------|
 | 2026-06-09 | Initial coherence audit + physical refactor movement plan |
 | 2026-06-09 | Pre-merge review follow-up — companion commit rephrases v0.7 checklist line 273 (`lint:docs-claims` pre-existing on `master`) |
-
-Update after physical refactor slices land or matrix states change.
+| 2026-06-12 | Post-v0.8/v0.9 physical align — matrix + slice status; eight `modules/*` contexts documented |
