@@ -30,6 +30,7 @@
  *   checkOllama: () => Promise<boolean>,
  *   configureLocalModelPolicy: (opts: object) => void,
  *   setLocalModelTraceReporter: (fn: (payload: object) => void) => void,
+ *   setModelSelectionTraceReporter: (fn: (payload: object) => void) => void,
  *   validateLocalOnlyRunPrerequisites: (opts: object) => Promise<object>,
  *   clearDegradedAgents: () => void,
  *   buildWorktreeTraceFields: (cwd: string) => object,
@@ -66,6 +67,7 @@ async function executeSessionStartPhase(deps) {
     checkOllama,
     configureLocalModelPolicy,
     setLocalModelTraceReporter,
+    setModelSelectionTraceReporter,
     validateLocalOnlyRunPrerequisites,
     clearDegradedAgents,
     buildWorktreeTraceFields,
@@ -77,6 +79,7 @@ async function executeSessionStartPhase(deps) {
   clearDegradedAgents();
   configureLocalModelPolicy({ cliModel: localModel ?? null, cwd });
   setLocalModelTraceReporter((payload) => traceEvent(taskId, payload));
+  setModelSelectionTraceReporter((payload) => traceEvent(taskId, payload));
   const localOnlyCtx = await validateLocalOnlyRunPrerequisites({ checkOllama, cwd });
 
   log("orchestrator", `Working directory: ${cwd}`);

@@ -33,7 +33,14 @@ const { parseEnvironment } = require("./environment-parser");
 const { buildWorktreeTraceFields } = require("./worktree-isolation");
 
 // ── Agents, contracts & capability ────────────────────────────────────────────
-const { askAgent, summarizeHandoff, CONTRACT_VERSION, getDegradedAgents, clearDegradedAgents } = require("./agents");
+const {
+  askAgent,
+  summarizeHandoff,
+  CONTRACT_VERSION,
+  getDegradedAgents,
+  clearDegradedAgents,
+  setModelSelectionTraceReporter,
+} = require("./agents");
 const { qaAgentDoneTraceExtras } = require("./agents/validate-output");
 const {
   validatePlanStepsCapability,
@@ -533,6 +540,7 @@ async function run(goal, options = {}) {
     checkOllama,
     configureLocalModelPolicy,
     setLocalModelTraceReporter,
+    setModelSelectionTraceReporter,
     validateLocalOnlyRunPrerequisites,
     clearDegradedAgents,
     buildWorktreeTraceFields,

@@ -13,4 +13,5 @@ module.exports = {
   ...require("./context-hygiene-signals"),
   ...require("./run-outcome-summary"),
   ...require("./otel-genai-trace-map"),
+  ...require("./model-selection-trace"),
 };

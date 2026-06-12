@@ -93,7 +93,12 @@ async function executeStepAgentInvocation(ctx, step) {
     const agentResult = await askAgent(
       agentId,
       `Working directory: ${ctx.cwd}\n\nContext:\n${contextBlock}\n\nYour task:\n${stepDef.task}`,
-      { cwd: ctx.cwd, sessionEnv: ctx.sessionEnv, qaPhase: stepDef.qaPhase },
+      {
+        cwd: ctx.cwd,
+        sessionEnv: ctx.sessionEnv,
+        qaPhase: stepDef.qaPhase,
+        traceContext: { step_id: stepId, iteration: ctx.iterations() },
+      },
     );
     result = agentResult.output;
     contextStats = agentResult.context_stats || null;

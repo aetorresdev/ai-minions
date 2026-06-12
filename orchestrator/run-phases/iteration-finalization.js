@@ -220,6 +220,7 @@ nice-to-have: ...`;
     const { output, context_stats: cerbCtx } = await askAgent("cerberus", cerberusPrompt, {
       cwd: ctx.cwd,
       sessionEnv,
+      traceContext: { step_id: "phase:cerberus", iteration: iterations },
     });
     cerberusResult = output;
     if (cerbCtx) {
@@ -444,6 +445,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       cwd: ctx.cwd,
       sessionEnv,
       phase: "decide",
+      traceContext: { step_id: "phase:correct", iteration: iterations },
     });
     if (correctCtx) {
       ctx.emitModelFallbackLifecycleIfNeeded(ctx.traceEvent, ctx.taskId, "orchestrator", correctCtx, {
@@ -611,6 +613,7 @@ Reply with JSON only.`;
       cwd: ctx.cwd,
       sessionEnv,
       phase: "decide",
+      traceContext: { step_id: "phase:decide", iteration: iterations },
     });
     decideResponse = output;
     if (decideCtx) {
