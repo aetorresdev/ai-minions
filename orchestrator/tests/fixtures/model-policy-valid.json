@@ -1,0 +1,24 @@
+{
+  "model_policy_version": 1,
+  "default_tier": "standard",
+  "tiers": {
+    "cheap": ["local-small", "haiku"],
+    "standard": ["sonnet"],
+    "strong": ["opus"],
+    "frontier": ["claude-opus-4"]
+  },
+  "role_defaults": {
+    "OWNER": "standard",
+    "ARCHITECT": "strong",
+    "DEV": "standard",
+    "QA": "standard",
+    "CERBERUS": "strong"
+  },
+  "rules": [
+    {
+      "name": "frontier_requires_reason",
+      "when": { "model_tier": "frontier" },
+      "requires": ["selection_reason"]
+    }
+  ]
+}
