@@ -416,7 +416,7 @@ Auto-routing · model policy file MVP · frontier/expensive gate runtime · OTLP
 - [x] Model policy config loader — merged @ `4cf450c` (PR #174)
 - [x] Frontier tier gate — merged @ `71ac370` (PR #175)
 - [x] Tier cost/outcome summary — merged @ `47becc6` (PR #176)
-- [ ] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep (pending CERBERUS)
+- [x] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep @ `2519a7d` (PR #177); CERBERUS Approve
 
 ### Out of scope
 
@@ -425,7 +425,7 @@ Auto-routing · complexity assessment runtime · per-step latency baseline · OT
 ### CERBERUS checks (pre-tag)
 
 - [x] Lane implementation slices CERBERUS-approved (#174–#176)
-- [ ] Release-prep CHANGELOG + checklist claims — pending CERBERUS
+- [x] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (PR #177)
 - [x] No production-ready claim — release claim uses alpha limitations
 - [x] No auto-routing claim — policy gate + trace summary only
 - [x] No adaptive optimization or dashboard claim
@@ -436,7 +436,7 @@ Auto-routing · complexity assessment runtime · per-step latency baseline · OT
 
 ### Vulnerability gate (pre-tag)
 
-- [ ] `bash scripts/release-trivy-gate.sh` — published scope clean (see [security-posture.md](security-posture.md))
+- [x] `bash scripts/release-trivy-gate.sh` — published scope clean (see [security-posture.md](security-posture.md))
 - [x] GitHub Actions **`security-trivy-scan`** — green on lane merge @ `47becc6`
 - [x] MCP `uv.lock` committed and tracked
 
@@ -446,7 +446,8 @@ Auto-routing · complexity assessment runtime · per-step latency baseline · OT
 |------|---------|---------|
 | 2026-06-12 | `master` @ `47becc6` — lane merge (PR #176) | lint-and-unit · security-trivy-scan · orchestrator-e2e — **green** |
 | 2026-06-12 | Workspace @ `47becc6` | `cd orchestrator && npm test` → **1377/1378** pass (1 skipped) |
-| 2026-06-12 | Release-prep workspace (doc-only delta) | `bash scripts/release-trivy-gate.sh` — pending operator run on prep tree |
+| 2026-06-12 | Release-prep workspace @ `2519a7d` | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-06-12 | Phase B operator cut @ `2519a7d` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 **Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` is identical to lane tip @ `47becc6`. Path-filtered workflows may not re-run on doc-only PRs. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `47becc6` as the required unit · trivy · e2e evidence until tag.
 
@@ -460,14 +461,14 @@ Auto-routing · complexity assessment runtime · per-step latency baseline · OT
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
 
-- [ ] **Tag target:** `v0.9.0-alpha.1` on release-prep merge commit
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.9.0-alpha.1` — pending pre-release publish
-- [ ] **`release` branch:** align to tag commit (`release_branch_commit` matches `tag_commit`)
+- [x] **Tag target:** `v0.9.0-alpha.1` on release-prep merge commit @ `2519a7d`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.9.0-alpha.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `2519a7d` (`release_branch_commit` matches `tag_commit`)
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.9.0-alpha.1] - 2026-06-12** — pending release-prep merge
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+- [x] **Changelog:** section **[0.9.0-alpha.1] - 2026-06-12**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 

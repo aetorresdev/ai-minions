@@ -25,14 +25,14 @@ Ninth alpha pre-release: **Model Policy Governance Alpha** — versioned `model_
 | Auto-routing | Not shipped | Unchanged — **not** shipped |
 | Unit tests (evidence) | 1327/1328 | 1377/1378 (+ policy loader + tier gate + tier summary) |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.9.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.9.0-alpha.1` — pre-release published @ tag `2519a7d`
 
 **Evidence (operator):**
 
 - Unit + hooks: `cd orchestrator && npm test` → **1377/1378** pass (1 skipped)
-- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → pending operator run on release-prep tree
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
 - Contracts: `model-selection-trace-contract.md`, `model-policy-config` module, `model-tier-gate` module, `model-cost-outcome-summary` module
-- Lane merged on `master` @ `47becc6`; release-prep on this commit (pending merge)
+- Lane merged on `master` @ `47becc6`; release-prep merged @ `2519a7d`; tag + pre-release + `release` branch @ `2519a7d`
 - CI: lint-and-unit, security-trivy-scan, orchestrator-e2e — green on lane merge @ `47becc6`
 
 **Alpha limitations (not production):**
