@@ -347,5 +347,14 @@ describe("modules physical layout", () => {
       assert.equal(typeof operator.runTraceViewer, "function");
       assert.equal(typeof operator.main, "function");
     });
+
+    it("runner-launcher requires root orchestrator.js (not ./orchestrator under operator)", () => {
+      const launcherSource = fs.readFileSync(
+        path.join(ORCH, "modules/operator/runner-launcher.js"),
+        "utf8",
+      );
+      assert.match(launcherSource, /require\(["']\.\.\/\.\.\/orchestrator["']\)/);
+      assert.doesNotMatch(launcherSource, /require\(["']\.\/orchestrator["']\)/);
+    });
   });
 });

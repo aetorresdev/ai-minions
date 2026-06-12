@@ -136,7 +136,8 @@ async function launchRun(options) {
     }
   }
 
-  const runFn = options.run ?? require('./orchestrator').run;
+  // Root path until run-control physical slice moves orchestrator.js.
+  const runFn = options.run ?? require("../../orchestrator").run;
   const envKeys = ['ORCH_MODEL_MODE', 'ORCH_ALLOW_REMOTE_MODELS', 'ORCH_NON_INTERACTIVE'];
   const prevEnv = saveEnv(envKeys);
 
