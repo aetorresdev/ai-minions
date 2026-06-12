@@ -29,7 +29,7 @@ Checklist items and governance fields are **phase-bound**. Do not mark post-tag 
 |------|----------------------|----------------|
 | A1 | Lane PRs merged; `master` at intended commit | Must-have bundle rows checked with merge SHAs |
 | A2 | `cd orchestrator && npm test` green on release-prep tree | Workspace validation log row |
-| A3 | CI green: unit · trivy · e2e on release-prep head | Link to Actions run URLs |
+| A3 | CI green: unit · trivy · e2e on **release-prep head**, **or** inherited from lane tip when release-prep is **doc-only** (`CHANGELOG.md` / `docs/**` only vs lane merge SHA) and path-filtered workflows did not re-run | Link to Actions run URLs on prep head **or** lane merge SHA with checklist note |
 | A4 | `bash scripts/release-trivy-gate.sh` OK locally (optional duplicate of CI trivy) | Vulnerability gate row |
 | A5 | Root `CHANGELOG.md` section drafted for target version | Changelog section id recorded — **draft OK pre-tag** |
 | A6 | `alpha-release-checklist.md` version section: must-haves + forbidden claims | No `[x]` on tag / URL / branch until Phase B |
