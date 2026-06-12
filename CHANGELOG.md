@@ -6,6 +6,60 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.9.0-alpha.1] - 2026-06-12
+
+Ninth alpha pre-release: **Model Policy Governance Alpha** — versioned `model_policy.json` loader with fail-closed validation, frontier tier gate enforced on every `askAgent()` path, and per-tier cost/outcome summary in `run_outcome_summary`.
+
+**Release claim:** operators get policy-file governance for model tiers, fail-closed frontier gate with trace evidence (independent of trace reporter wiring), and tier-level cost/outcome rollup derived from trace — **not** production-ready, **not** automatic model routing, **not** adaptive optimization or cost dashboard.
+
+**Prerequisite:** `v0.8.0-alpha.1` — modular monolith cleanup & release discipline @ `0200511`.
+
+**Since [0.8.0-alpha.1]:** v0.8 centered on **physical module cleanup**, **root import guard**, and **observable `model_selection` trace** (no enforcement). v0.9 adds **governable model policy**: `.ai-minions/model_policy.json` loader, frontier tier gate fail-closed before model invocation, `model_tier_gate_denied` trace events, and `model_cost_outcome_summary` grouped by tier. Auto-routing, complexity assessment runtime, OTLP export, and per-step latency baseline remain out of scope.
+
+| Area | `v0.8.0-alpha.1` | `v0.9.0-alpha.1` (delta) |
+|------|------------------|---------------------------|
+| Focus | Module cleanup + model observability trace | Model policy governance — config + gate + tier summary |
+| Policy config | Not shipped | **`model_policy.json` loader** — fail-closed validation; defaults when absent |
+| Frontier gate | Observability only | **Fail-closed `model_tier_gate`** — enforced on every `askAgent()`; denial throws without reporter |
+| Tier summary | Token totals only | **`model_cost_outcome_summary`** — per-tier steps, cost_usd, gate_failures, retries |
+| Auto-routing | Not shipped | Unchanged — **not** shipped |
+| Unit tests (evidence) | 1327/1328 | 1377/1378 (+ policy loader + tier gate + tier summary) |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.9.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1377/1378** pass (1 skipped)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → pending operator run on release-prep tree
+- Contracts: `model-selection-trace-contract.md`, `model-policy-config` module, `model-tier-gate` module, `model-cost-outcome-summary` module
+- Lane merged on `master` @ `47becc6`; release-prep on this commit (pending merge)
+- CI: lint-and-unit, security-trivy-scan, orchestrator-e2e — green on lane merge @ `47becc6`
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
+- **Not** automatic model routing — policy constrains tiers; routing table unchanged by default.
+- **Not** adaptive optimization, cost dashboard, or per-step latency baseline — tier rollup from trace evidence only.
+- **Not** complexity assessment runtime or MODEL-CTRL adaptive layer.
+- **Not** OTLP export, web control plane, memory runtime analyst, or swarm expansion.
+
+### Added
+
+- Model policy config: `.ai-minions/model_policy.json` schema + loader (`model-policy-config.js`) with fail-closed validation when malformed.
+- Frontier tier gate: `model-tier-gate.js` evaluator; `enforceModelTierGate()` on every `askAgent()` before model execution; `model_tier_gate_denied` trace schema and `run_outcome_summary.model_tier_gate`.
+- Tier cost/outcome summary: `model-cost-outcome-summary.js` → `run_outcome_summary.model_cost_outcome_summary` (per-tier steps, cost_usd, gate_failures, retries).
+
+### Security
+
+- Frontier tier gate fails closed — no silent downgrade when policy denies frontier/default combinations.
+- Gate enforcement does not depend on trace reporter presence.
+- Trivy release gate unchanged — published dependency scope scan before tag.
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Per-step cost/latency baseline (`MODEL-COST-LATENCY-BASELINE-1`) deferred — not absorbed into v0.9 cut.
+
 ## [0.8.0-alpha.1] - 2026-06-12
 
 Eighth alpha pre-release: **modular monolith cleanup & release discipline** — architecture coherence audit and movement plan, physical refactor of bounded `orchestrator/modules/*` slices with root shims and consolidated layout tests, CI root-import guard, observable `model_selection` trace contract, and human-owned release workflow with fail-closed governance evidence validator.
