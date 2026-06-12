@@ -4,7 +4,7 @@
 
 **Per-run preparation (operator):** see [pre-run checklist](pre-run-checklist.md).
 
-**Release discipline (v0.8+):** human-owned tag workflow — [release-workflow.md](release-workflow.md). Post-tag evidence bundle and fail-closed validator — [release-governance-contract.md](release-governance-contract.md). **Pre-tag** checklist rows may reference draft changelog and merge SHAs; **post-tag** rows (git tag, GitHub pre-release URL, `release` branch) must not be marked `[x]` until artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+**Release discipline (v0.8+):** human-owned tag workflow — [release-workflow.md](release-workflow.md). Post-tag evidence bundle and fail-closed validator — [release-governance-contract.md](release-governance-contract.md). Changelog section layout — [changelog-release-format.md](changelog-release-format.md). **Pre-tag** checklist rows may reference draft changelog and merge SHAs; **post-tag** rows (git tag, GitHub pre-release URL, `release` branch) must not be marked `[x]` until artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
 
 ## Preconditions
 
