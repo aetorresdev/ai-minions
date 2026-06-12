@@ -105,7 +105,12 @@ Working directory: ${cwd}
 Decompose this goal into ordered execution steps following the MODE protocol.
 Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
-  const { output: planResponse, context_stats: planCtxStats } = await askAgent("orchestrator", planPrompt, { cwd, sessionEnv, phase: "plan" });
+  const { output: planResponse, context_stats: planCtxStats } = await askAgent("orchestrator", planPrompt, {
+    cwd,
+    sessionEnv,
+    phase: "plan",
+    traceContext: { step_id: "phase:plan", iteration: 0 },
+  });
   if (planCtxStats) {
     emitModelFallbackLifecycleIfNeeded(traceEvent, taskId, "orchestrator", planCtxStats, { iteration: 0, phase: "plan" });
     emitContextStatsRows(planCtxStats, "orchestrator", 0, {}, {}, { phase: "plan" });

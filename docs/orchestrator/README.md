@@ -35,6 +35,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [token-hygiene-guide.md](token-hygiene-guide.md) | Operator habits: new run vs continue, handoffs, scope splits, reading token reports (no runtime enforcement) |
 | [context-hygiene-signals.md](context-hygiene-signals.md) | Trace `context_hygiene_signal` events — observability only |
 | [review-record-contract.md](review-record-contract.md) | Durable QA/CERBERUS `review_record` trace events + export consumption |
+| [model-selection-trace-contract.md](model-selection-trace-contract.md) | Observable `model_selection` trace — tier and provenance (not auto-routing) |
 | [bv-reviewer-contract.md](bv-reviewer-contract.md) | Business value / outcome gate — `value_review` trace shape (design-first; no runtime gate) |
 | [self-improvement-loop-contract.md](self-improvement-loop-contract.md) | Governed harness improvement loop — `improvement_proposal` + human approval gate (design-first; no auto-apply) |
 | [module-boundaries.md](module-boundaries.md) | Modular monolith bounded contexts — module map, `modules/gates/` slice, CI `lint:module-boundaries` |

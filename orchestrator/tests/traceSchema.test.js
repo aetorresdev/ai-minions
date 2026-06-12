@@ -994,3 +994,43 @@ test("validateTraceLine rejects session_checkpoint_created without task_id on en
   });
   assert.equal(v.ok, false);
 });
+
+test("validateTraceLine accepts model_selection envelope", () => {
+  const v = validateTraceLine({
+    ts: "2026-05-18T12:00:00.000Z",
+    ts_ms: 1747574400000,
+    trace_schema_version: "2",
+    task_id: "task-model-sel",
+    event: "model_selection",
+    role: "DEV",
+    step_id: "s1",
+    model: "claude-sonnet-4-6",
+    model_tier: "standard",
+    selection_source: "default",
+    selection_reason: "model_routing_primary",
+    estimated_input_tokens: 0,
+    estimated_output_tokens: 0,
+    estimated_cost_usd: 0,
+  });
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
+test("validateTraceLine rejects model_selection with invalid selection_source", () => {
+  const v = validateTraceLine({
+    ts: "2026-05-18T12:00:00.000Z",
+    ts_ms: 1747574400000,
+    trace_schema_version: "2",
+    task_id: "task-model-sel",
+    event: "model_selection",
+    role: "DEV",
+    step_id: "s1",
+    model: "claude-sonnet-4-6",
+    model_tier: "standard",
+    selection_source: "auto_routing",
+    selection_reason: "model_routing_primary",
+    estimated_input_tokens: 0,
+    estimated_output_tokens: 0,
+    estimated_cost_usd: 0,
+  });
+  assert.equal(v.ok, false);
+});

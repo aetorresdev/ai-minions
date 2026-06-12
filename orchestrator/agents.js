@@ -49,6 +49,7 @@ const {
   assertRemoteProviderBlocked,
   getEffectiveOllamaModel,
 } = require("./local-model-policy");
+const { buildModelSelectionPayload } = require("./modules/trace/model-selection-trace");
 
 // ── Contract version ──────────────────────────────────────────────────────────
 // Bump when handoff schema, role permissions, or gate sequence change.
@@ -240,11 +241,96 @@ function buildEnvContext(agentId, sessionEnv) {
 let _backendOverride = null;
 function setBackend(name) { _backendOverride = (name === "ollama") ? "ollama" : null; }
 
+/** @type {((payload: Record<string, unknown>) => void) | null} */
+let _modelSelectionReporter = null;
+
+/**
+ * @param {(payload: Record<string, unknown>) => void} fn
+ */
+function setModelSelectionTraceReporter(fn) {
+  _modelSelectionReporter = typeof fn === "function" ? fn : null;
+}
+
+/**
+ * @param {string} role
+ * @returns {{ selection_source: "default"|"policy"|"manual", selection_reason: string }}
+ */
+function describeModelSelectionSource(role) {
+  const envKey = `MODEL_OVERRIDE_${role.toUpperCase().replace(/-/g, "_")}`;
+  if (process.env[envKey]) {
+    return { selection_source: "manual", selection_reason: `env:${envKey}` };
+  }
+  if (_activeProfile && _modelsConfig) {
+    const prof = _modelsConfig.profiles?.[_activeProfile];
+    if (prof) {
+      const overrideKey = role.toUpperCase().replace(/-/g, "_");
+      if (prof.overrides?.[overrideKey]) {
+        return {
+          selection_source: "policy",
+          selection_reason: `profile:${_activeProfile}.overrides.${overrideKey}`,
+        };
+      }
+      if (prof.default) {
+        return {
+          selection_source: "policy",
+          selection_reason: `profile:${_activeProfile}.default`,
+        };
+      }
+    }
+  }
+  if (isLocalOnlyModeEnabled()) {
+    const local = resolveLocalModelOverride();
+    if (local?.model) {
+      return {
+        selection_source: "policy",
+        selection_reason: local.selection_reason || local.override_source || "local_only_policy",
+      };
+    }
+  }
+  return { selection_source: "default", selection_reason: "model_routing_primary" };
+}
+
+/**
+ * @param {string} agentId
+ * @param {{ mode: string, model: string, provider?: string }} agent
+ * @param {{ phase?: string, traceContext?: { step_id?: string, iteration?: number }, forceOllama?: boolean, localOnlyRoute?: boolean }} opts
+ */
+function tryEmitModelSelection(agentId, agent, opts = {}) {
+  if (!_modelSelectionReporter) return;
+  const forceOllama = opts.forceOllama === true;
+  const localOnlyRoute = opts.localOnlyRoute === true;
+  let model = agent.model;
+  if (agent.provider === "ollama" || forceOllama || localOnlyRoute) {
+    model = getEffectiveOllamaModel({ forceOllama, agentModel: agent.model }) || agent.model;
+  }
+  const { selection_source, selection_reason } = describeModelSelectionSource(agentId);
+  const stepId =
+    opts.traceContext?.step_id
+    ?? (opts.phase === "plan" ? "phase:plan" : opts.phase === "decide" ? "phase:decide" : `agent:${agentId}`);
+  _modelSelectionReporter(
+    buildModelSelectionPayload({
+      role: agent.mode,
+      agent: agentId,
+      step_id: stepId,
+      model,
+      selection_source,
+      selection_reason,
+      ...(typeof opts.traceContext?.iteration === "number"
+        ? { iteration: opts.traceContext.iteration }
+        : {}),
+    }),
+  );
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
-async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase } = {}) {
+async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase, traceContext } = {}) {
   const agent = AGENTS[agentId];
   if (!agent) throw new Error(`Unknown agent "${agentId}". Available: ${Object.keys(AGENTS).join(", ")}`);
+
+  const forceOllama = _backendOverride === "ollama" && OLLAMA_MODEL;
+  const localOnlyRoute = isLocalOnlyModeEnabled();
+  tryEmitModelSelection(agentId, agent, { phase, traceContext, forceOllama, localOnlyRoute });
 
   // Deterministic test harness (tests/e2e.strict.test.js). Never set outside that suite.
   if (process.env.ORCH_TEST_SYSTEM_PATH_HARNESS === "1") {
@@ -312,8 +398,6 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase 
     }
   }
 
-  const forceOllama = _backendOverride === "ollama" && OLLAMA_MODEL;
-  const localOnlyRoute = isLocalOnlyModeEnabled();
   if (localOnlyRoute) {
     const resolved = resolveLocalModelOverride();
     if (!resolved?.model) {
@@ -499,4 +583,8 @@ module.exports = {
   clearDegradedAgents,
   setModelProfile,
   setBackend,
+  setModelSelectionTraceReporter,
+  describeModelSelectionSource,
+  inferModelTier: require("./modules/trace/model-selection-trace").inferModelTier,
+  buildModelSelectionPayload,
 };

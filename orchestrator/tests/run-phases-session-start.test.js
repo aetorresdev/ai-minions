@@ -34,6 +34,7 @@ function makeDeps(overrides = {}) {
     checkOllama: async () => true,
     configureLocalModelPolicy: () => {},
     setLocalModelTraceReporter: () => {},
+    setModelSelectionTraceReporter: () => {},
     validateLocalOnlyRunPrerequisites: async () => ({
       local_only_mode: false,
       selected_model: "claude-haiku",
