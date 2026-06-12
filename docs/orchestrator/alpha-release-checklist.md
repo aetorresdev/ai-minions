@@ -405,6 +405,70 @@ Auto-routing · model policy file MVP · frontier/expensive gate runtime · OTLP
 - [x] **Changelog:** section **[0.8.0-alpha.1] - 2026-06-12**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.9.0-alpha.1 — Model Policy Governance Alpha
+
+**Scope:** `model_policy.json` loader, frontier tier gate fail-closed on `askAgent()`, tier cost/outcome summary in `run_outcome_summary`. **Prerequisite:** `v0.8.0-alpha.1` @ `0200511`.
+
+**Release claim:** policy-constrained model tiers with fail-closed frontier gate and tier-level cost/outcome rollup from trace — **not** production-ready, **not** automatic model routing, **not** adaptive optimization or cost dashboard.
+
+### Must-have bundle
+
+- [x] Model policy config loader — merged @ `4cf450c` (PR #174)
+- [x] Frontier tier gate — merged @ `71ac370` (PR #175)
+- [x] Tier cost/outcome summary — merged @ `47becc6` (PR #176)
+- [ ] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep (pending CERBERUS)
+
+### Out of scope
+
+Auto-routing · complexity assessment runtime · per-step latency baseline · OTLP export · memory/runtime analyst · web control plane · swarm expansion · adaptive MODEL-CTRL layer · cost dashboard · agent-as-maintainer default.
+
+### CERBERUS checks (pre-tag)
+
+- [x] Lane implementation slices CERBERUS-approved (#174–#176)
+- [ ] Release-prep CHANGELOG + checklist claims — pending CERBERUS
+- [x] No production-ready claim — release claim uses alpha limitations
+- [x] No auto-routing claim — policy gate + trace summary only
+- [x] No adaptive optimization or dashboard claim
+
+### Forbidden release claims (v0.9)
+
+"production-ready" · "automatic model routing" · "routing complete" · "adaptive optimization shipped" · "cost dashboard" · "per-step latency baseline shipped" · "complexity assessment runtime" · "OTLP export shipped" · "agent-owned tags/releases by default".
+
+### Vulnerability gate (pre-tag)
+
+- [ ] `bash scripts/release-trivy-gate.sh` — published scope clean (see [security-posture.md](security-posture.md))
+- [x] GitHub Actions **`security-trivy-scan`** — green on lane merge @ `47becc6`
+- [x] MCP `uv.lock` committed and tracked
+
+#### v0.9 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-12 | `master` @ `47becc6` — lane merge (PR #176) | lint-and-unit · security-trivy-scan · orchestrator-e2e — **green** |
+| 2026-06-12 | Workspace @ `47becc6` | `cd orchestrator && npm test` → **1377/1378** pass (1 skipped) |
+| 2026-06-12 | Release-prep workspace (doc-only delta) | `bash scripts/release-trivy-gate.sh` — pending operator run on prep tree |
+
+**Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` is identical to lane tip @ `47becc6`. Path-filtered workflows may not re-run on doc-only PRs. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `47becc6` as the required unit · trivy · e2e evidence until tag.
+
+| Check | Lane merge @ `47becc6` (PR #176) |
+|-------|----------------------------------|
+| orchestrator-unit-tests | https://github.com/aetorresdev/ai-minions/actions/runs/27445722536 |
+| security-trivy-scan | https://github.com/aetorresdev/ai-minions/actions/runs/27445722536/job/81130107712 |
+| orchestrator-e2e | https://github.com/aetorresdev/ai-minions/actions/runs/27445553860/job/81129587628 |
+
+### Release execution plan (locked on release-prep merge — Phase B operator steps)
+
+**Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
+
+- [ ] **Tag target:** `v0.9.0-alpha.1` on release-prep merge commit
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.9.0-alpha.1` — pending pre-release publish
+- [ ] **`release` branch:** align to tag commit (`release_branch_commit` matches `tag_commit`)
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.9.0-alpha.1] - 2026-06-12** — pending release-prep merge
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
