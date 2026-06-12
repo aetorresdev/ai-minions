@@ -60,6 +60,16 @@ function validateReleaseGovernanceRecord(record) {
     errors.push("tag_version_mismatch");
   }
 
+  if (
+    typeof rec.release_branch_commit === "string"
+    && typeof rec.tag_commit === "string"
+    && rec.release_branch_commit.trim()
+    && rec.tag_commit.trim()
+    && rec.release_branch_commit.trim() !== rec.tag_commit.trim()
+  ) {
+    errors.push("release_branch_commit_mismatch");
+  }
+
   return {
     ok: errors.length === 0,
     errors,

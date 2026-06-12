@@ -57,7 +57,7 @@ const result = validateReleaseGovernanceRecord({
 | `decision` | Meaning |
 |------------|---------|
 | `allow_tag_publish` | All required fields present · `evidence_status === "complete"` · URL scheme valid |
-| `block` | Missing field · incomplete evidence · unknown status · invalid URL |
+| `block` | Missing field · incomplete evidence · unknown status · invalid URL · `tag_version_mismatch` · `release_branch_commit_mismatch` |
 
 **Invariant:** Unknown or partial evidence is **never** upgraded to safe. Operators must not mark checklist tag/URL/branch rows `[x]` until the validator passes with a post-tag record.
 

@@ -107,4 +107,13 @@ describe("validateReleaseGovernanceRecord", () => {
     assert.equal(result.ok, false);
     assert.ok(result.errors.includes("tag_version_mismatch"));
   });
+
+  it("blocks release branch commit mismatch", () => {
+    const record = JSON.parse(fs.readFileSync(FIXTURE_COMPLETE, "utf8"));
+    record.release_branch_commit = "deadbeef";
+    const result = validateReleaseGovernanceRecord(record);
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.includes("release_branch_commit_mismatch"));
+    assert.equal(result.decision, "block");
+  });
 });
