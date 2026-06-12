@@ -995,6 +995,27 @@ test("validateTraceLine rejects session_checkpoint_created without task_id on en
   assert.equal(v.ok, false);
 });
 
+test("validateTraceLine accepts model_tier_gate_denied envelope", () => {
+  const v = validateTraceLine({
+    ts: "2026-05-18T12:00:00.000Z",
+    ts_ms: 1747574400000,
+    trace_schema_version: "2",
+    task_id: "task-tier-gate",
+    event: "model_tier_gate_denied",
+    gate_id: "model_tier_gate",
+    role: "DEV",
+    agent: "dev-backend",
+    step_id: "s1",
+    model: "claude-opus-4",
+    model_tier: "frontier",
+    selection_source: "default",
+    selection_reason: "model_routing_primary",
+    reason_code: "FRONTIER_UNAUTHORIZED_SOURCE",
+    denial_reason: "Frontier tier cannot use selection_source=default.",
+  });
+  assert.equal(v.ok, true, (v.errors || []).join(" | "));
+});
+
 test("validateTraceLine accepts model_selection envelope", () => {
   const v = validateTraceLine({
     ts: "2026-05-18T12:00:00.000Z",

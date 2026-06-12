@@ -86,6 +86,44 @@ test("buildRunOutcomeSummary: blocked / not done with gate_blocks", () => {
   assert.ok(s.why.top_reason_codes.some((x) => x.reason_code === "CERBERUS_BLOCKERS_ITERATE"));
 });
 
+test("buildRunOutcomeSummary: model_tier_gate findings from trace", () => {
+  const rows = [
+    {
+      event: "session_start",
+      task_id: "ts-gate",
+      flow_mode: "single_agent",
+      max_iterations: 1,
+    },
+    {
+      event: "model_tier_gate_denied",
+      task_id: "ts-gate",
+      gate_id: "model_tier_gate",
+      role: "DEV",
+      agent: "dev-backend",
+      step_id: "s1",
+      model: "claude-opus-4",
+      model_tier: "frontier",
+      selection_source: "default",
+      selection_reason: "model_routing_primary",
+      reason_code: "FRONTIER_UNAUTHORIZED_SOURCE",
+      denial_reason: "Frontier tier cannot use selection_source=default.",
+    },
+    {
+      event: "session_end",
+      task_id: "ts-gate",
+      done: false,
+      iterations: 1,
+      gate_blocks: 1,
+      summary: "blocked by model tier gate",
+    },
+  ];
+  const s = buildRunOutcomeSummary(rows, {});
+  assert.equal(s.model_tier_gate.denied_count, 1);
+  assert.equal(s.model_tier_gate.findings[0].reason_code, "FRONTIER_UNAUTHORIZED_SOURCE");
+  const text = formatRunOutcomeSummaryLines(s).join("\n");
+  assert.match(text, /model_tier_gate: denied=1/);
+});
+
 test("buildRunOutcomeSummary: intent_groups from multi-intent rollup", () => {
   const rows = [
     {

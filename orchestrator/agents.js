@@ -50,6 +50,12 @@ const {
   getEffectiveOllamaModel,
 } = require("./local-model-policy");
 const { buildModelSelectionPayload } = require("./modules/trace/model-selection-trace");
+const { loadModelPolicyConfig } = require("./modules/model-runtime/model-policy-config");
+const {
+  evaluateModelTierGate,
+  buildModelTierGateDeniedPayload,
+  GATE_ID: MODEL_TIER_GATE_ID,
+} = require("./modules/model-runtime/model-tier-gate");
 
 // ── Contract version ──────────────────────────────────────────────────────────
 // Bump when handoff schema, role permissions, or gate sequence change.
@@ -307,6 +313,32 @@ function tryEmitModelSelection(agentId, agent, opts = {}) {
   const stepId =
     opts.traceContext?.step_id
     ?? (opts.phase === "plan" ? "phase:plan" : opts.phase === "decide" ? "phase:decide" : `agent:${agentId}`);
+  const policyLoad = loadModelPolicyConfig(opts.cwd || process.cwd());
+  const gateVerdict = evaluateModelTierGate(
+    { model, selection_source, selection_reason },
+    policyLoad.policy,
+  );
+  const selectionContext = {
+    role: agent.mode,
+    agent: agentId,
+    step_id: stepId,
+    model,
+    selection_source,
+    selection_reason,
+    policy_source: policyLoad.source,
+    ...(typeof opts.traceContext?.iteration === "number"
+      ? { iteration: opts.traceContext.iteration }
+      : {}),
+  };
+  if (!gateVerdict.allowed) {
+    _modelSelectionReporter(
+      buildModelTierGateDeniedPayload(gateVerdict, selectionContext),
+    );
+    const err = new Error(`[model-tier-gate] ${gateVerdict.denial_reason}`);
+    err.gate_id = MODEL_TIER_GATE_ID;
+    err.reason_code = gateVerdict.reason_code;
+    throw err;
+  }
   _modelSelectionReporter(
     buildModelSelectionPayload({
       role: agent.mode,
@@ -330,7 +362,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
 
   const forceOllama = _backendOverride === "ollama" && OLLAMA_MODEL;
   const localOnlyRoute = isLocalOnlyModeEnabled();
-  tryEmitModelSelection(agentId, agent, { phase, traceContext, forceOllama, localOnlyRoute });
+  tryEmitModelSelection(agentId, agent, { phase, traceContext, forceOllama, localOnlyRoute, cwd });
 
   // Deterministic test harness (tests/e2e.strict.test.js). Never set outside that suite.
   if (process.env.ORCH_TEST_SYSTEM_PATH_HARNESS === "1") {

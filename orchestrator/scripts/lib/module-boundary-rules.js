@@ -30,7 +30,7 @@ const MODULE_PATTERNS = [
   { id: "gates", patterns: [/^modules\/gates\//, /^governance-gate\.js$/, /^merge-governance\//, /^approval-policy-gate\.js$/, /^doubt-review\.js$/, /^review-record\.js$/] },
   { id: "permissions", patterns: [/^agents\/permissions\.js$/, /^agents\/capability-matrix\.js$/, /^credential-broker\.js$/, /^environment-parser\.js$/, /^security\/(?:.*permission.*|.*-gate\.js|classified|claude-cli|network|mcp|trace-role-capability)/] },
   { id: "tools", patterns: [/^security\/tool-eval/, /^security\/skill-registry/, /^security\/untrusted-context/, /^mcp-client\.js$/] },
-  { id: "model-runtime", patterns: [/^agents\/runtime\//, /^agents\/routing\//, /^local-model-/, /^runner-model-routing/, /^flow-hook-bridge/] },
+  { id: "model-runtime", patterns: [/^modules\/model-runtime\//, /^agents\/runtime\//, /^agents\/routing\//, /^local-model-/, /^runner-model-routing/, /^flow-hook-bridge/] },
   { id: "recovery", patterns: [/^modules\/recovery\//, /^recovery-sweep/, /^session-resume/] },
   { id: "worktree", patterns: [/^modules\/worktree\//, /^trace-workspace-lifecycle/, /^worktree-/, /^run-workdir-contract/] },
   { id: "trace", patterns: [/^modules\/trace\//, /^trace-/, /^run-outcome-summary/, /^otel-genai-trace-map/, /^context-hygiene-signals/] },

@@ -133,4 +133,10 @@ describe("model-policy-config", () => {
     assert.deepEqual(frontierRules[0].requires, ["selection_reason"]);
     assert.equal(rulesForTier(policy, "cheap").length, 0);
   });
+
+  it("validateModelPolicy rejects frontier as default_tier", () => {
+    const base = cloneDefaultModelPolicy();
+    base.default_tier = "frontier";
+    assert.throws(() => validateModelPolicy(base), /default_tier cannot be frontier/);
+  });
 });
