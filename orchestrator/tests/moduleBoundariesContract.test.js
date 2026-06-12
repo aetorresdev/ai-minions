@@ -52,7 +52,8 @@ describe("module-boundaries-contract", () => {
     assert.match(doc, /approval-policy-gate\.js/);
     assert.match(doc, /modules\/gates/);
     assert.match(doc, /otel-genai-trace-map\.js/);
-    assert.match(doc, /worktree-\*\.js/);
+    assert.match(doc, /modules\/worktree/);
+    assert.match(doc, /worktree-isolation\.js/);
   });
 
   it("documents functional core vs imperative shell", () => {

@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/module-boundaries.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, and `modules/trace/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **`lint:module-boundaries`** enforces adjacency matrix under `modules/**` and hard rules globally; legacy violations are grandfathered in `module-boundary-allowlist.json`. **No** runtime behavior change. **Modular refactor not complete.**
+**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, `modules/trace/`, `modules/budget/`, and `modules/worktree/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **`lint:module-boundaries`** enforces adjacency matrix under `modules/**` and hard rules globally; legacy violations are grandfathered in `module-boundary-allowlist.json`. **No** runtime behavior change. **Modular refactor not complete.**
 
 **Related:** [architecture-coherence-audit.md](architecture-coherence-audit.md) · [module-ownership-map.md](module-ownership-map.md) · [root-file-inventory.md](root-file-inventory.md) · [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
@@ -98,10 +98,10 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | **permissions** | `agents/permissions.js`, `agents/capability-matrix.js`, `credential-broker.js`, `environment-parser.js` |
 | **tools** | `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js`, `mcp-client.js` |
 | **model-runtime** | `agents/runtime/*`, `agents/routing/model-routing.js`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
-| **trace** | `modules/trace/` (`trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js`) · shims at legacy root paths · `trace-workspace-lifecycle.js` stays root until worktree slice |
+| **trace** | `modules/trace/` (`trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js`) · shims at legacy root paths |
 | **recovery** | `modules/recovery/` (`recovery-sweep.js`, `session-resume.js`) · shims: `recovery-sweep.js`, `session-resume.js` |
 | **budget** | `modules/budget/` (`token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`) · shims at legacy root paths · `runner-budget-view.js` stays root until operator slice |
-| **worktree** | `worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js` |
+| **worktree** | `modules/worktree/` (`worktree-isolation.js`, `worktree-result-promotion.js`, `worktree-cleanup-safety.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js`) · shims at legacy root paths |
 | **operator** | `explain-run.js`, `control-plane-tui.js`, `runner-*-cli.js`, `operator-cli-help.js`, `project-template-cli.js`, `scenario-metrics-export.js` |
 | **disclosure** | `modules/contracts/progressive-disclosure-design.js` (shim at root; classified **disclosure** before generic `contracts` patterns in `module-boundary-rules.js`), `security/skill-registry.js` (metadata only); runtime filter **planned** |
 | **shared/legacy** | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` (facade) |
@@ -174,6 +174,7 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-09 | Gates remainder slice — `approval-policy-gate`, `doubt-review`, `review-record` under `modules/gates/`; `moduleRefactorSlice4.test.js` |
 | 2026-06-11 | Trace core slice — `modules/trace/`; `moduleRefactorSlice5.test.js` (temporary; consolidate at physical refactor close) |
 | 2026-06-12 | Budget slice — `modules/budget/`; `moduleRefactorSlice6.test.js` (temporary; `runner-budget-view` deferred) |
+| 2026-06-12 | Worktree slice — `modules/worktree/`; `moduleRefactorSlice7.test.js` (temporary) |
 
 **Test consolidation (pending):** replace `moduleRefactorSlice*.test.js` with `modulesPhysicalLayout.test.js` before the physical refactor lane closes — spec lives in groomed backlog only.
 

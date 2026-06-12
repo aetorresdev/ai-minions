@@ -15,7 +15,7 @@ const {
 const { summarizeReviewRecordsFromRows } = require("../gates/review-record");
 const { summarizeRecoveryFromRows } = require("../recovery/recovery-sweep");
 const { summarizeSessionResumeFromRows } = require("../recovery/session-resume");
-const { summarizeWorkspaceLifecycleFromRows } = require("../../trace-workspace-lifecycle");
+const { summarizeWorkspaceLifecycleFromRows } = require("../worktree/trace-workspace-lifecycle");
 
 /**
  * @param {object[]} rows — sanitized trace rows (same pipeline as export/dashboard)

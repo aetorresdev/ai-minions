@@ -34,7 +34,7 @@
     "security/tool-eval.js::./load-tool-action-manifest::security/load-tool-action-manifest.js::matrix",
     "security/tool-eval.js::./trace-security-decision::security/trace-security-decision.js::matrix",
     "modules/budget/token-trace-report.js::../../security/permission-check-summary::security/permission-check-summary.js::matrix",
-    "worktree-isolation.js::./agents/runtime/run-classified-shell::agents/runtime/run-classified-shell.js::matrix"
+    "modules/worktree/worktree-isolation.js::../../agents/runtime/run-classified-shell::agents/runtime/run-classified-shell.js::matrix"
   ],
   "hard": [
     "modules/trace/run-outcome-summary.js::../gates/review-record::modules/gates/review-record.js::trace-not-policy"
