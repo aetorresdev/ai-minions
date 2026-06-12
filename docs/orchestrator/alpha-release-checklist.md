@@ -409,7 +409,7 @@ Auto-routing · model policy file MVP · frontier/expensive gate runtime · OTLP
 
 **Scope:** `model_policy.json` loader, frontier tier gate fail-closed on `askAgent()`, tier cost/outcome summary in `run_outcome_summary`. **Prerequisite:** `v0.8.0-alpha.1` @ `0200511`.
 
-**Release claim:** policy-constrained model tiers with fail-closed frontier gate and tier-level cost/outcome rollup from trace — **not** production-ready, **not** automatic model routing, **not** adaptive optimization or cost dashboard.
+**Release claim:** policy-constrained model tiers with fail-closed frontier gate and tier-level cost/outcome rollup from trace — not production-ready, not automatic model routing, not adaptive optimization or cost dashboard.
 
 ### Must-have bundle
 
