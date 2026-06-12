@@ -143,7 +143,7 @@ Every new top-level file should declare target module in PR description. New cro
 
 | Mechanism | Path | Behavior |
 |-----------|------|----------|
-| **`lint:module-boundaries`** | `orchestrator/scripts/check-module-boundaries.js` | Adjacency matrix from this doc; hard rules: trace ↛ policy, gates ↛ shell, model-runtime ↛ approval |
+| **`lint:module-boundaries`** | `orchestrator/scripts/check-module-boundaries.js` | Adjacency matrix + **root import guard** (`root-import-allowlist.json` freezes `orchestrator/*.js`; shims require compat header) |
 | **Allowlist** | `orchestrator/module-boundary-allowlist.json` | Grandfathered legacy violations only — new keys require review |
 | **CI** | `npm test` / `orchestrator-unit-tests.yml` | Fails on unlisted violations |
 
@@ -176,5 +176,6 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-12 | `modules/budget/`; `runner-budget-view.js` remains at orchestrator root |
 | 2026-06-12 | `modules/worktree/` |
 | 2026-06-12 | Physical layout regression — `tests/modulesPhysicalLayout.test.js` |
+| 2026-06-12 | Root import guard — `check-root-import-guard.js` wired into `lint:module-boundaries` |
 
 Update when module map or known violations change.
