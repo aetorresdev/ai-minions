@@ -374,6 +374,8 @@ describe("modules physical layout", () => {
       "Must not own",
       "## Allowed imports",
       "module-boundaries.md",
+      "## Forbidden",
+      "## Related contracts",
     ];
 
     for (const ctx of PHYSICAL_CONTEXTS) {
