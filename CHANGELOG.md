@@ -25,14 +25,14 @@ Tenth alpha pre-release: **Modular Coherence Closeout** — post-refactor archit
 | Model governance | Policy + tier gate shipped | Unchanged — **not** adaptive layer |
 | Unit tests (evidence) | 1377/1378 | 1395/1396 (+ ownership/layout/README/allowlist guards) |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.10.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release); operator steps in `alpha-release-checklist.md` § v0.10 release execution plan*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.10.0-alpha.1` — pre-release published @ tag `2bc74dd`
 
 **Evidence (operator):**
 
 - Unit + hooks: `cd orchestrator && npm test` → **1395/1396** pass (1 skipped)
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
 - Contracts: `test-ownership-map.md`, `module-boundaries.md`, `module-boundary-allowlist-shrink.md`, module README stubs under `orchestrator/modules/*/README.md`
-- Lane merged on `master` @ `661f5f4`; release-prep on this commit (pending merge)
+- Lane merged on `master` @ `661f5f4`; release-prep merged @ `2bc74dd`; tag + pre-release + `release` branch @ `2bc74dd`
 - CI: lint-and-unit, E2E + system-path — green on lane merge @ `661f5f4` (PR #183)
 
 **Alpha limitations (not production):**

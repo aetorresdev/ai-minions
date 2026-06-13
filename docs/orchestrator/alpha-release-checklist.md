@@ -484,7 +484,7 @@ Auto-routing · complexity assessment runtime · per-step latency baseline · OT
 - [x] Test layout wave-1 — merged @ `21bb9f1` (PR #181)
 - [x] Module README stubs — merged @ `a31ea24` (PR #182)
 - [x] Allowlist shrink — merged @ `661f5f4` (PR #183)
-- [ ] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep (pending PR); CERBERUS review
+- [x] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep @ `2bc74dd` (PR #184); CERBERUS Approve
 
 ### Out of scope
 
@@ -493,7 +493,7 @@ Adaptive MODEL-CTRL layer · automatic model routing · full root-file migration
 ### CERBERUS checks (pre-tag)
 
 - [x] Lane implementation slices CERBERUS-approved (#178–#183)
-- [ ] Release-prep CHANGELOG + checklist claims — CERBERUS pending
+- [x] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (PR #184)
 - [x] No production-ready claim — release claim uses alpha limitations
 - [x] No architecture-complete claim — coherence closeout only
 - [x] No adaptive model behavior claim
@@ -514,6 +514,7 @@ Adaptive MODEL-CTRL layer · automatic model routing · full root-file migration
 | 2026-06-12 | `master` @ `661f5f4` — lane merge (PR #183) | lint-and-unit · E2E + system-path · lychee · markdownlint — **green** |
 | 2026-06-12 | Workspace @ `661f5f4` | `cd orchestrator && npm test` → **1395/1396** pass (1 skipped) |
 | 2026-06-12 | Release-prep workspace @ `661f5f4` | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-06-13 | Phase B operator cut @ `2bc74dd` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 **Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` is identical to lane tip @ `661f5f4`. Path-filtered workflows may not re-run on doc-only PRs. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `661f5f4` as the required unit · e2e evidence until tag.
 
@@ -528,14 +529,14 @@ Adaptive MODEL-CTRL layer · automatic model routing · full root-file migration
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
 
-- [ ] **Tag target:** `v0.10.0-alpha.1` on release-prep merge commit
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.10.0-alpha.1` — pre-release to publish
-- [ ] **`release` branch:** align to tag commit (`release_branch_commit` must match `tag_commit`)
+- [x] **Tag target:** `v0.10.0-alpha.1` on release-prep merge commit @ `2bc74dd`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.10.0-alpha.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `2bc74dd` (`release_branch_commit` matches `tag_commit`)
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.10.0-alpha.1] - 2026-06-12**
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+- [x] **Changelog:** section **[0.10.0-alpha.1] - 2026-06-12**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 
