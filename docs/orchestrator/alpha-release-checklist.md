@@ -470,6 +470,73 @@ Auto-routing · complexity assessment runtime · per-step latency baseline · OT
 - [x] **Changelog:** section **[0.9.0-alpha.1] - 2026-06-12**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.10.0-alpha.1 — Modular Coherence Closeout
+
+**Scope:** post-v0.8 coherence gap — architecture doc alignment, test ownership map, test layout wave-1, module README stubs, allowlist shrink. **Prerequisite:** `v0.9.0-alpha.1` @ `2519a7d`.
+
+**Release claim:** aligned modular docs, test ownership/layout guards, module README boundary stubs, and reduced allowlist with evidence — not production-ready, not architecture refactor complete, not adaptive model behavior.
+
+### Must-have bundle
+
+- [x] Mem0 hook contract alignment — merged @ `a0c22d4` (PR #178)
+- [x] Post-refactor architecture docs align — merged @ `0c6606f` (PR #179)
+- [x] Test ownership map — merged @ `d3114e4` (PR #180)
+- [x] Test layout wave-1 — merged @ `21bb9f1` (PR #181)
+- [x] Module README stubs — merged @ `a31ea24` (PR #182)
+- [x] Allowlist shrink — merged @ `661f5f4` (PR #183)
+- [ ] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep (pending PR); CERBERUS review
+
+### Out of scope
+
+Adaptive MODEL-CTRL layer · automatic model routing · full root-file migration · zero cross-boundary debt · OTLP export · memory runtime analyst · web control plane · swarm expansion · cost dashboard · per-step latency baseline.
+
+### CERBERUS checks (pre-tag)
+
+- [x] Lane implementation slices CERBERUS-approved (#178–#183)
+- [ ] Release-prep CHANGELOG + checklist claims — CERBERUS pending
+- [x] No production-ready claim — release claim uses alpha limitations
+- [x] No architecture-complete claim — coherence closeout only
+- [x] No adaptive model behavior claim
+
+### Forbidden release claims (v0.10)
+
+"production-ready" · "architecture refactor complete" · "zero cross-boundary debt" · "automatic model routing" · "adaptive optimization shipped" · "MODEL-CTRL shipped" · "OTLP export shipped" · "agent-owned tags/releases by default".
+
+### Vulnerability gate (pre-tag)
+
+- [x] `bash scripts/release-trivy-gate.sh` — published scope clean (see [security-posture.md](security-posture.md))
+- [x] MCP `uv.lock` committed and tracked
+
+#### v0.10 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-12 | `master` @ `661f5f4` — lane merge (PR #183) | lint-and-unit · E2E + system-path · lychee · markdownlint — **green** |
+| 2026-06-12 | Workspace @ `661f5f4` | `cd orchestrator && npm test` → **1395/1396** pass (1 skipped) |
+| 2026-06-12 | Release-prep workspace @ `661f5f4` | `bash scripts/release-trivy-gate.sh` → **OK** |
+
+**Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` is identical to lane tip @ `661f5f4`. Path-filtered workflows may not re-run on doc-only PRs. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `661f5f4` as the required unit · e2e evidence until tag.
+
+| Check | Lane merge @ `661f5f4` (PR #183) |
+|-------|----------------------------------|
+| lint-and-unit | https://github.com/aetorresdev/ai-minions/actions/runs/27449858399/job/81142651475 |
+| E2E + system-path | https://github.com/aetorresdev/ai-minions/actions/runs/27449858396/job/81142651572 |
+| lychee | https://github.com/aetorresdev/ai-minions/actions/runs/27449858388/job/81142651451 |
+| markdownlint | https://github.com/aetorresdev/ai-minions/actions/runs/27449858381/job/81142651484 |
+
+### Release execution plan (locked on release-prep merge — Phase B operator steps)
+
+**Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
+
+- [ ] **Tag target:** `v0.10.0-alpha.1` on release-prep merge commit
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.10.0-alpha.1` — pre-release to publish
+- [ ] **`release` branch:** align to tag commit (`release_branch_commit` must match `tag_commit`)
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.10.0-alpha.1] - 2026-06-12**
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
