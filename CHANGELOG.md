@@ -6,6 +6,62 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.10.0-alpha.1] - 2026-06-12
+
+Tenth alpha pre-release: **Modular Coherence Closeout** — post-refactor architecture doc alignment, test-to-module ownership map, test layout wave-1 consolidation, module README boundary stubs, and module-boundary allowlist shrink via tighter classification.
+
+**Release claim:** operators get aligned post-v0.8 modular documentation, enforced test ownership and layout guards, module README boundary stubs, and a reduced cross-boundary allowlist with evidence artifacts — **not** production-ready, **not** architecture refactor complete, **not** adaptive model behavior or automatic routing.
+
+**Prerequisite:** `v0.9.0-alpha.1` — Model Policy Governance Alpha @ `2519a7d`.
+
+**Since [0.9.0-alpha.1]:** v0.9 centered on **model policy governance** (config loader, frontier tier gate, tier cost/outcome summary). v0.10 closes the **post-v0.8 coherence gap**: mem0 hook contract alignment, architecture docs aligned to physical module layout, test ownership map + wave-1 layout moves, module README stubs with boundary guards, and allowlist shrink 34→15 via `classifyModule()` tightening. Adaptive model layer, auto-routing, and full physical migration of remaining root files remain out of scope.
+
+| Area | `v0.9.0-alpha.1` | `v0.10.0-alpha.1` (delta) |
+|------|------------------|----------------------------|
+| Focus | Model policy governance — config + gate + tier summary | Modular coherence — docs · test ownership · layout · boundary evidence |
+| Architecture docs | Policy/gate contracts | **Post-refactor alignment** — module layout, ownership map, boundary docs |
+| Test hygiene | Policy/gate unit tests | **Ownership map** + **wave-1 layout** — trace/budget/worktree/operator dirs |
+| Boundary evidence | Root import guard + allowlist | **README stubs** (8 modules) + **allowlist 34→15** (classification tighten) |
+| Model governance | Policy + tier gate shipped | Unchanged — **not** adaptive layer |
+| Unit tests (evidence) | 1377/1378 | 1395/1396 (+ ownership/layout/README/allowlist guards) |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.10.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release); operator steps in `alpha-release-checklist.md` § v0.10 release execution plan*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1395/1396** pass (1 skipped)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
+- Contracts: `test-ownership-map.md`, `module-boundaries.md`, `module-boundary-allowlist-shrink.md`, module README stubs under `orchestrator/modules/*/README.md`
+- Lane merged on `master` @ `661f5f4`; release-prep on this commit (pending merge)
+- CI: lint-and-unit, E2E + system-path — green on lane merge @ `661f5f4` (PR #183)
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
+- **Not** architecture refactor complete — bounded slices and shims remain; coherence is docs/tests/boundary evidence, not full migration.
+- **Not** adaptive model behavior, automatic routing, or MODEL-CTRL layer — model policy from v0.9 unchanged.
+- **Not** zero cross-boundary debt — 15 grandfathered allowlist entries remain with documented rationale.
+- **Not** OTLP export, web control plane, memory runtime analyst, or swarm expansion.
+
+### Added
+
+- Mem0 hook contract alignment: governed memory hook behavior aligned with versioned memory contracts (hygiene patch).
+- Post-refactor architecture docs: module layout, ownership map, and boundary documentation aligned to physical `orchestrator/modules/*` structure.
+- Test ownership map: `test-ownership-map.md` + guard tests mapping tests to module/context owners.
+- Test layout wave-1: 26 tests consolidated under `tests/{trace,budget,worktree,operator}/` with ownership guard.
+- Module README stubs: eight `orchestrator/modules/*/README.md` files (Ownership, Must not own, Allowed imports, Forbidden, Related contracts).
+- Allowlist shrink: `module-boundary-allowlist.json` 34→15 via tighter `classifyModule()` — no import graph edits.
+
+### Security
+
+- Module boundary guards unchanged in enforcement posture — allowlist shrink removes false positives, not security relaxations.
+- Trivy release gate unchanged — published dependency scope scan before tag.
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Adaptive model governance and control lanes unlock after v0.10 cut — deferred until post-v0.10.
+
 ## [0.9.0-alpha.1] - 2026-06-12
 
 Ninth alpha pre-release: **Model Policy Governance Alpha** — versioned `model_policy.json` loader with fail-closed validation, frontier tier gate enforced on every `askAgent()` path, and per-tier cost/outcome summary in `run_outcome_summary`.
