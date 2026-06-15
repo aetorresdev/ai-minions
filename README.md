@@ -185,7 +185,7 @@ Slash-style aliases (doc only): [`docs/how-to/operator-slash-commands.md`](docs/
 - **Degraded mode** — missing MCPs or `--skip-gates` = less protection; banner must be visible.
 - **No global installer / doctor CLI** in this release — bootstrap is manual clone + `npm ci` (preflight/doctor documented separately).
 
-More: [`orchestrator/README.md`](orchestrator/README.md) § Known limitations · [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
+More: [`orchestrator/README.md`](orchestrator/README.md) § Known limitations · [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) · [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md) (session/token habits).
 
 ---
 
