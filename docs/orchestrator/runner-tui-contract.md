@@ -151,6 +151,7 @@ Aliases: `remote-approved`, `remote_approved` → `remote_ok`. Any other **expli
 
 ## Related
 
+- [operator-guided-run.md](../how-to/operator-guided-run.md) — `runner:tui` guided run (v0.12 operator surface)
 - [local-model-policy.md](local-model-policy.md)
 - [local-model-selection.md](local-model-selection.md)
 - [control-plane-tui-contract.md](control-plane-tui-contract.md)
