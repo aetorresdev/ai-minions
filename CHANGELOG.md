@@ -24,14 +24,14 @@ Eleventh alpha pre-release: **External Entry Path Readiness** — README and sta
 | Claim hygiene | Module boundary guards | **Shared operator-doc-claims** + deterministic claim audit in CI |
 | Unit tests (evidence) | 1395/1396 | 1395/1396 (orchestrator unchanged; entry-path tests in root `tests/` via Docs usage verify) |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.11.0-alpha.1` — reserved for Phase B pre-release publish @ tag on release-prep merge commit
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.11.0-alpha.1` — pre-release published @ tag `c515643`
 
 **Evidence (operator):**
 
 - Unit + hooks: `cd orchestrator && npm test` → **1395/1396** pass (1 skipped) on workspace @ lane tip `ead8fca`
-- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → operator-run before Phase B (inherit `security-trivy-scan` from last orchestrator-touching merge @ `2bc74dd` for doc-only lane)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
 - Contracts: `usage-smoke-guide.md`, `bootstrap-preflight.md`, `primary-smoke.md`, `fresh-clone-evidence.md`, `operator-doc-claims.mjs`
-- Lane merged on `master` @ `ead8fca` (E11-1..5); release-prep targets merge SHA after CERBERUS Approve
+- Lane merged on `master` @ `ead8fca` (E11-1..5); release-prep merged @ `c515643` (PR #190); tag + pre-release + `release` branch @ `c515643`
 - CI: Docs usage verify — green on E11-5 PR #189 (`verify-usage-docs`, claim audit, fresh-clone evidence tests)
 
 **Alpha limitations (not production):**

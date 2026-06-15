@@ -551,7 +551,7 @@ Adaptive MODEL-CTRL layer · automatic model routing · full root-file migration
 - [x] Bootstrap preflight + reason codes — merged @ `701ae7a` (PR #187)
 - [x] Primary smoke command + trace path — merged @ `5f1ae0e` (PR #188)
 - [x] Fresh-clone evidence + claim audit — merged @ `ead8fca` (PR #189)
-- [ ] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep @ `{prep_sha}`; CERBERUS Approve
+- [x] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep @ `c515643` (PR #190); CERBERUS Approve
 
 ### Out of scope
 
@@ -560,7 +560,7 @@ Production TUI polish · packaged global installer · live smoke as PR gate · f
 ### CERBERUS checks (pre-tag)
 
 - [x] E11-1..E11-5 implementation slices CERBERUS-approved (#185–#189)
-- [ ] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (release-prep PR)
+- [x] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (PR #190)
 - [x] No production-ready claim — release claim uses alpha limitations
 - [x] No global installer / production TUI claim
 - [x] No live smoke CI-gated claim
@@ -571,7 +571,7 @@ Production TUI polish · packaged global installer · live smoke as PR gate · f
 
 ### Vulnerability gate (pre-tag)
 
-- [ ] `bash scripts/release-trivy-gate.sh` — operator-run before Phase B (inherit `security-trivy-scan` @ `2bc74dd` for doc-only lane)
+- [x] `bash scripts/release-trivy-gate.sh` — published scope clean (Phase B @ `c515643`)
 - [x] MCP `uv.lock` committed and tracked (unchanged since v0.10)
 
 #### v0.11 validation log
@@ -581,6 +581,7 @@ Production TUI polish · packaged global installer · live smoke as PR gate · f
 | 2026-06-15 | `master` @ `ead8fca` — lane merge (E11-5 / PR #189) | Docs usage verify · lychee · markdownlint — **green** |
 | 2026-06-15 | Workspace @ `ead8fca` | `cd orchestrator && npm test` → **1395/1396** pass (1 skipped) |
 | 2026-06-15 | Workspace @ `ead8fca` | `node scripts/run-fresh-clone-evidence.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK** |
+| 2026-06-15 | Phase B operator cut @ `c515643` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 **Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` unchanged since v0.10 @ `2bc74dd`. Path-filtered orchestrator workflows may not re-run. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `ead8fca` (docs) plus orchestrator unit baseline @ `2bc74dd` until tag.
 
@@ -595,14 +596,14 @@ Production TUI polish · packaged global installer · live smoke as PR gate · f
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
 
-- [ ] **Tag target:** `v0.11.0-alpha.1` on release-prep merge commit @ `{prep_sha}`
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.11.0-alpha.1` — pre-release published
-- [ ] **`release` branch:** aligned to tag commit (`release_branch_commit` matches `tag_commit`)
+- [x] **Tag target:** `v0.11.0-alpha.1` on release-prep merge commit @ `c515643`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.11.0-alpha.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `c515643` (`release_branch_commit` matches `tag_commit`)
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.11.0-alpha.1] - 2026-06-15**
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+- [x] **Changelog:** section **[0.11.0-alpha.1] - 2026-06-15**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 
