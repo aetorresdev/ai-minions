@@ -19,6 +19,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Optional MCP / tool integrations | [Stage 4: MCP setup](#stage-4-mcp-setup-optional) |
 | Alpha boundaries and caveats | [Known limitations (alpha)](#known-limitations-alpha) |
 | Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) |
+| **Runner TUI guided run** (preflight → launch → status) | [`docs/how-to/operator-guided-run.md`](docs/how-to/operator-guided-run.md) |
 | End-to-end runbook (step-by-step) | [Happy path](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) |
 | Something failed during smoke | [Troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) |
 

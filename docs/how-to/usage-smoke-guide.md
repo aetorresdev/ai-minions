@@ -15,6 +15,7 @@ Canonical **end-to-end happy path** for trying **ai-minions** without tribal kno
 - [Bootstrap and preflight](bootstrap-preflight.md) — clean-clone checks + stable reason codes
 - [Primary smoke command and trace path](primary-smoke.md) — stable CLI smoke + evidence path
 - [Fresh-clone evidence and claim audit](fresh-clone-evidence.md) — v0.11 entry-path evidence + claim audit
+- [Operator guided run (`runner:tui`)](operator-guided-run.md) — terminal preflight → launch → status (not a v0.11 happy-path remix)
 - [Environment access contract](../orchestrator/environment-access.md) — `ENVIRONMENT` block schema
 - [Orchestrator README](../../orchestrator/README.md) — CLI flags, env vars, traces, `explain-run`
 - [Skill registry contract](../orchestrator/skill-registry-contract.md) — allowlist + opt-in PreToolUse hook
