@@ -13,12 +13,14 @@ on:
       - "orchestrator/context-hygiene-signals.js"
       - "orchestrator/orchestrator.js"
       - "scripts/bootstrap-preflight.mjs"
+      - "scripts/operator-preflight.mjs"
       - "scripts/run-primary-smoke.mjs"
       - "scripts/audit-product-claims.mjs"
       - "scripts/run-fresh-clone-evidence.mjs"
       - "scripts/lib/operator-doc-claims.mjs"
       - "scripts/verify-usage-docs.mjs"
       - "tests/bootstrap-preflight.test.mjs"
+      - "tests/operator-preflight.test.mjs"
       - "tests/primary-smoke.test.mjs"
       - "tests/audit-product-claims.test.mjs"
       - "tests/fresh-clone-evidence.test.mjs"
@@ -46,6 +48,9 @@ jobs:
 
       - name: Bootstrap preflight unit tests
         run: node --test tests/bootstrap-preflight.test.mjs
+
+      - name: Operator preflight bridge unit tests
+        run: node --test tests/operator-preflight.test.mjs
 
       - name: Primary smoke unit tests
         run: node --test tests/primary-smoke.test.mjs

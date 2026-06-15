@@ -81,10 +81,11 @@ Use these in issues and smoke reports — not free-form paraphrase.
 
 | Tool | Scope |
 |------|--------|
-| **`scripts/bootstrap-preflight.mjs`** | Clean-clone bootstrap: Node, npm deps, trace dir, optional Claude CLI |
+| **`scripts/bootstrap-preflight.mjs`** | Clean-clone bootstrap: Node, npm deps, trace dir, optional Claude CLI (`PREFLIGHT_*`) |
+| **`scripts/operator-preflight.mjs`** | Bridge: bootstrap then `runner:tui` preflight — see [operator-preflight-bridge](operator-preflight-bridge.md) |
 | **`npm run runner:tui -- preflight`** | Model policy + Ollama reachability before a **launch** ([runner-preflight](../../orchestrator/modules/operator/runner-preflight.js)) |
 
-Run bootstrap-preflight first on a new machine; use runner preflight before a gated local planner run.
+Run bootstrap-preflight first on a new machine; use the bridge or runner preflight before a gated local planner run.
 
 ---
 
