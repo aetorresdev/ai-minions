@@ -113,7 +113,7 @@ npm run runner:tui -- budget --run-id <task_id>
 
 Slash aliases: [operator-slash-commands](operator-slash-commands.md) (`/trace`, `/budget`). Narrative export: `npm run explain-run -- --run-id <task_id>`.
 
-Full inspect/report-bundle workflow is **out of E12-1** — see [runner-tui-contract](../orchestrator/runner-tui-contract.md) and upcoming v0.12 operator slices.
+Full inspect/report-bundle workflow is **out of scope for this guide** — see [runner-tui-contract](../orchestrator/runner-tui-contract.md) and upcoming v0.12 operator slices.
 
 ## Help and discovery
 
