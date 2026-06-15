@@ -30,7 +30,7 @@ Follow **in order**. You do not need prior chat context or maintainer hints. If 
 | **3** | Paste a minimal orchestration header | Session accepts `MODE` / `FLOW` / `GOAL` |
 | **4** | Run one CLI smoke command | Terminal prints `Done` and a **Task ID** |
 | **5** | Inspect the trace | `explain-run` or `tokens:report` reads the JSONL |
-| **6** *(optional)* | Wire secrets correctly | `.env.local` has values; header lists **names** only |
+| **6** *(optional)* | Wire secrets correctly | Vars in shell for the orchestrator process; header lists **names** only |
 | **7** *(optional)* | MCP + gates | Understand `DEGRADED MODE` vs strict gates |
 | **8** *(optional)* | TUI depth check | Eight cases in [TUI checklist](tui-manual-smoke-checklist.md) |
 
@@ -97,7 +97,9 @@ Pass: JSONL exists and `explain-run` summarizes the run without errors.
 
 ### Step 6 — Secrets and `.env` *(optional)*
 
-**Values** live in gitignored files or shell/CI env. **Permission** is declared in the header.
+**Values** must be in **`process.env`** for the shell that starts the runner (`resolveCredentials()` reads `process.env[envVar]`). **Permission** is declared in the header (`ENVIRONMENT`).
+
+`.env.local` is only local storage — the runner does **not** auto-load it. Create the file, then **export** into the shell before the run:
 
 ```bash
 cd ai-minions
@@ -105,9 +107,15 @@ cat > .env.local <<'EOF'
 EXAMPLE_API_URL=https://api.example.com
 EXAMPLE_API_TOKEN=<your-token>
 EOF
+
+set -a
+source .env.local
+set +a
+
+cd orchestrator
 ```
 
-Append to the orchestration header (names only):
+Append to the orchestration header (names only — never secret values):
 
 ```text
 ENVIRONMENT:
@@ -146,7 +154,7 @@ Symptom-first reference. Stable reason codes and preflight detail expand in E11-
 | No trace file / wrong path | Wrong Task ID or custom `ORCH_TRACES_DIR` | Copy Task ID from run output; `ls ~/.claude/metrics/traces/` or your `ORCH_TRACES_DIR` |
 | `compact_handoff failed` (strict) | Ollama unreachable with gates on | Start Ollama or run degraded (`--skip-gates`) while learning |
 | Gate blocked / `gateBlocked: true` | Handoff contract, goal alignment, or permission gate | `npm run explain-run -- --run-id <task_id>`; inspect `gate_result`, `contract_fail` events |
-| Credential “not available” | Vars unset or names mismatch | Ensure `EXAMPLE_*` exist in shell/`.env.local`; header `vars` must match **exact** env var names |
+| Credential “not available” | Vars unset in the orchestrator shell or names mismatch | Ensure `EXAMPLE_*` exist in the **shell running** `run-orchestrator.js` / Claude session. If using `.env.local`, `source`/`export` it before the run; header `vars` must match **exact** env var names |
 | Agent used API without permission | No `ENVIRONMENT` block in header | Add `ENVIRONMENT` with names only — `.env` alone does **not** grant permission |
 | `multi_agent` hooks silent | Wrong `CWD` or hooks not installed | `CWD` must be absolute real path; check `logs/orchestrator.log` under clone if hooks enabled |
 | TUI ignores MODE header | Header not at **start** of chat or paraphrased | Paste exact block from [Step 3](#step-3--orchestration-header-claude-code) |
@@ -282,10 +290,14 @@ cat > .env.local <<'EOF'
 EXAMPLE_API_URL=https://api.example.com
 EXAMPLE_API_TOKEN=<your-token>
 EOF
+
+set -a
+source .env.local
+set +a
 # Keep .env.local gitignored — never commit secret values
 ```
 
-In the header, reference only `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `vars`, as in the block above.
+The runner does **not** load `.env.local` automatically. Values must be in `process.env` before you start the orchestrator. In the header, reference only `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `vars`.
 
 **GitHub Actions pattern:** map `secrets` → job `env` → declare the same **names** in `ENVIRONMENT` in the prompt/header — never echo secret values in logs or docs.
 

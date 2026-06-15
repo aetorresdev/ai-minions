@@ -234,7 +234,7 @@ Two layers — do not mix them:
 
 | Layer | You put here | Grants permission? |
 |-------|----------------|----------------------|
-| **`.env` / shell / CI `env`** | Secret **values** (`export VAR=…`, gitignored `.env.local`, GitHub `secrets` → `env`) | **No** — only makes values available to the process |
+| **`.env` / shell / CI `env`** | Secret **values** in `process.env` (`export`, `source` a gitignored file, GitHub `secrets` → `env`) | **No** — only makes values available to the process |
 | **`ENVIRONMENT` in the header** | **Names** of env vars + access `mode` (`read` / `write`) | **Yes** — declares what this run may use |
 
 **Rules:**
@@ -246,13 +246,18 @@ Two layers — do not mix them:
 
 **Local values file (illustrative):**
 
+`.env.local` is storage only — load into the shell before running the orchestrator:
+
 ```bash
 cd ai-minions
 cat > .env.local <<'EOF'
 EXAMPLE_API_URL=https://api.example.com
 EXAMPLE_API_TOKEN=<your-token>
 EOF
-# Keep .env.local gitignored — never commit secret values
+
+set -a
+source .env.local
+set +a
 ```
 
 The header references `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `vars` — not the values.
