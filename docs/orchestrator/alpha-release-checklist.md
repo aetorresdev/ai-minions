@@ -538,6 +538,72 @@ Adaptive MODEL-CTRL layer · automatic model routing · full root-file migration
 - [x] **Changelog:** section **[0.10.0-alpha.1] - 2026-06-12**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.11.0-alpha.1 — External Entry Path Readiness
+
+**Scope:** external entry path for new users — README/quickstart, happy-path runbook, bootstrap preflight, primary smoke command + trace path, fresh-clone evidence + claim audit. **Prerequisite:** `v0.10.0-alpha.1` @ `2bc74dd`.
+
+**Release claim:** documented clone-to-smoke entry path with stable reason codes and CI-safe evidence chain — not production-ready, not global installer, not production TUI, not live smoke CI-gated, not external beta.
+
+### Must-have bundle
+
+- [x] README + quickstart + limitations — merged @ `7aeeef8` (PR #185)
+- [x] Happy path runbook + troubleshooting — merged @ `2b1cac9` (PR #186)
+- [x] Bootstrap preflight + reason codes — merged @ `701ae7a` (PR #187)
+- [x] Primary smoke command + trace path — merged @ `5f1ae0e` (PR #188)
+- [x] Fresh-clone evidence + claim audit — merged @ `ead8fca` (PR #189)
+- [ ] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep @ `{prep_sha}`; CERBERUS Approve
+
+### Out of scope
+
+Production TUI polish · packaged global installer · live smoke as PR gate · feedback templates · external beta · operator UX hardening (v0.12) · beta dry-run (v0.13) · architecture refactor complete · adaptive model layer.
+
+### CERBERUS checks (pre-tag)
+
+- [x] E11-1..E11-5 implementation slices CERBERUS-approved (#185–#189)
+- [ ] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (release-prep PR)
+- [x] No production-ready claim — release claim uses alpha limitations
+- [x] No global installer / production TUI claim
+- [x] No live smoke CI-gated claim
+
+### Forbidden release claims (v0.11)
+
+"production-ready" · "global installer" · "packaged installer shipped" · "production TUI shipped" · "live smoke CI-gated" · "external beta ready" · "operator UX complete" · "architecture refactor complete" · "agent-owned tags/releases by default".
+
+### Vulnerability gate (pre-tag)
+
+- [ ] `bash scripts/release-trivy-gate.sh` — operator-run before Phase B (inherit `security-trivy-scan` @ `2bc74dd` for doc-only lane)
+- [x] MCP `uv.lock` committed and tracked (unchanged since v0.10)
+
+#### v0.11 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-05-18 | `master` @ `ead8fca` — lane merge (E11-5 / PR #189) | Docs usage verify · lychee · markdownlint — **green** |
+| 2026-05-18 | Workspace @ `ead8fca` | `cd orchestrator && npm test` → **1395/1396** pass (1 skipped) |
+| 2026-05-18 | Workspace @ `ead8fca` | `node scripts/run-fresh-clone-evidence.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK** |
+
+**Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` unchanged since v0.10 @ `2bc74dd`. Path-filtered orchestrator workflows may not re-run. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `ead8fca` (docs) plus orchestrator unit baseline @ `2bc74dd` until tag.
+
+| Check | Lane / baseline |
+|-------|-----------------|
+| Docs usage verify | https://github.com/aetorresdev/ai-minions/actions/runs/27582510216/job/81545757580 (PR #189) |
+| lychee | https://github.com/aetorresdev/ai-minions/actions/runs/27582510210/job/81545757328 |
+| markdownlint | https://github.com/aetorresdev/ai-minions/actions/runs/27582510200/job/81545757400 |
+| lint-and-unit (inherited) | https://github.com/aetorresdev/ai-minions/actions/runs/27449858399/job/81142651475 (@ `661f5f4` / v0.10 lane) |
+
+### Release execution plan (locked on release-prep merge — Phase B operator steps)
+
+**Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
+
+- [ ] **Tag target:** `v0.11.0-alpha.1` on release-prep merge commit @ `{prep_sha}`
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.11.0-alpha.1` — pre-release published
+- [ ] **`release` branch:** aligned to tag commit (`release_branch_commit` matches `tag_commit`)
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.11.0-alpha.1] - 2026-05-18**
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
