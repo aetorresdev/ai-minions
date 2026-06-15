@@ -2,7 +2,7 @@
 
 Minimal checks that show whether a clone is **ready for agent-assisted work** with ai-minions. Maps to real components — not a generic demo harness checklist.
 
-**Documentation + script** — `node scripts/bootstrap-preflight.mjs` automates checks **1**, **5**, and trace dir (**3**). See [bootstrap-preflight.md](bootstrap-preflight.md). Runner TUI `preflight` covers Ollama/model policy separately.
+**Documentation + script** — `node scripts/bootstrap-preflight.mjs` automates checks **1**, **5**, and trace dir (**3**). `node scripts/run-primary-smoke.mjs` documents the stable CLI smoke + trace path (**3**, **6**). See [bootstrap-preflight.md](bootstrap-preflight.md) and [primary-smoke.md](primary-smoke.md). Runner TUI `preflight` covers Ollama/model policy separately.
 
 ## Demo harness vs ai-minions runtime
 
@@ -23,7 +23,7 @@ ai-minions adds **permission gates**, **CERBERUS review**, and **contract valida
 |---|--------|----------------|----------------|
 | 1 | **Bootstrap passes** | `orchestrator/package.json` → `npm ci` + `npm test` | Fix install/test before orchestration |
 | 2 | **Task source explicit** | MODE header `GOAL` or `minions.md` | Agent scope drifts — write a bounded GOAL |
-| 3 | **Session state visible** | `explain-run`, trace path, optional `state/project_state.md` | Cannot resume/debug — note `task_id` after each run |
+| 3 | **Session state visible** | `run-primary-smoke.mjs --inspect`, `explain-run`, trace path, optional `state/project_state.md` | Cannot resume/debug — note `task_id` after each run |
 | 4 | **Role rules documented** | `docs/orchestrator/agent-contract.md`, hooks in `scripts/hooks/` | MODE violations — read contract before multi_agent |
 | 4b | **Skill allowlist (optional)** | `skill-registry.v1.json` + `ORCH_SKILL_REGISTRY_ENFORCE=1` for Claude Code `Skill` | Unlisted skills load freely when hook is off — see [skill-registry-contract.md](../orchestrator/skill-registry-contract.md) |
 | 5 | **Validation executable** | `npm test`; strict E2E optional ([orchestrator README](../../orchestrator/README.md)) | No evidence for merge — run at least unit suite |
@@ -34,6 +34,7 @@ ai-minions adds **permission gates**, **CERBERUS review**, and **contract valida
 ```bash
 cd ai-minions
 node scripts/bootstrap-preflight.mjs --install
+node scripts/run-primary-smoke.mjs
 cd orchestrator
 npm test
 node run-orchestrator.js --help
@@ -44,6 +45,8 @@ node scripts/verify-usage-docs.mjs
 After a smoke run:
 
 ```bash
+node scripts/run-primary-smoke.mjs --inspect <task_id>
+cd orchestrator
 npm run explain-run -- --run-id <task_id>
 npm run tokens:report -- <task_id>
 ```
@@ -55,5 +58,6 @@ npm run tokens:report -- <task_id>
 ## Related
 
 - [Usage smoke guide](usage-smoke-guide.md)
+- [Primary smoke command and trace path](primary-smoke.md)
 - [Token hygiene guide](../orchestrator/token-hygiene-guide.md)
 - [Context hygiene signals](../orchestrator/context-hygiene-signals.md)

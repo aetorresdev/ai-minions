@@ -11,6 +11,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Full staged path | [Quickstart](#quickstart) |
 | Clone + install + unit tests | [Stage 1: Install and validate locally](#stage-1-install-and-validate-locally) |
 | Bootstrap + preflight (reason codes) | [Bootstrap and preflight](docs/how-to/bootstrap-preflight.md) |
+| Primary CLI smoke + trace path | [Primary smoke](docs/how-to/primary-smoke.md) · `node scripts/run-primary-smoke.mjs` |
 | Try a skill (no MODE header) | [Stage 2: Run a simple skill](#stage-2-run-a-simple-skill) |
 | Run the orchestrator in Claude Code | [Stage 3: Run orchestration](#stage-3-run-orchestration) |
 | Secrets, `.env`, and `ENVIRONMENT` | [Values vs permission](#values-vs-permission-env-and-secrets) |
@@ -276,6 +277,17 @@ npm run runner:tui -- --help
 
 Slash aliases (doc only): [`operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
 
+**3d — CLI smoke (Node runner)** — repeatable degraded run + trace path (no Claude chat):
+
+```bash
+cd ai-minions
+node scripts/run-primary-smoke.mjs          # smoke note: command + trace path
+node scripts/run-primary-smoke.mjs --run    # live run (requires claude CLI)
+node scripts/run-primary-smoke.mjs --inspect <task_id>
+```
+
+Full contract: [`primary-smoke.md`](docs/how-to/primary-smoke.md).
+
 ---
 
 ### Stage 4: MCP setup (optional)
@@ -291,7 +303,7 @@ MCPs add tools and stronger on-disk gate enforcement. Without them: **degraded m
 
 After Stages 1–4: follow the [happy path runbook](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) (steps 1–8) and [troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) if blocked.
 
-Canonical reference: [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md). Token/session habits: [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
+Canonical reference: [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md). Primary CLI smoke: [`primary-smoke.md`](docs/how-to/primary-smoke.md). Token/session habits: [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
 
 ---
 

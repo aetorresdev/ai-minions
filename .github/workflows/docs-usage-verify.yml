@@ -13,8 +13,10 @@ on:
       - "orchestrator/context-hygiene-signals.js"
       - "orchestrator/orchestrator.js"
       - "scripts/bootstrap-preflight.mjs"
+      - "scripts/run-primary-smoke.mjs"
       - "scripts/verify-usage-docs.mjs"
       - "tests/bootstrap-preflight.test.mjs"
+      - "tests/primary-smoke.test.mjs"
       - ".github/workflows/docs-usage-verify.yml"
       - ".github/workflows/claude-doc-smoke.yml"
       - "orchestrator/operator-cli-help.js"
@@ -39,3 +41,6 @@ jobs:
 
       - name: Bootstrap preflight unit tests
         run: node --test tests/bootstrap-preflight.test.mjs
+
+      - name: Primary smoke unit tests
+        run: node --test tests/primary-smoke.test.mjs
