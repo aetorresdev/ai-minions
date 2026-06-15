@@ -13,6 +13,7 @@ Canonical **end-to-end happy path** for trying **ai-minions** without tribal kno
 - [Token hygiene guide](../orchestrator/token-hygiene-guide.md) — session habits and reading cost traces
 - [Harness health checkpoints](harness-health-checkpoints.md) — minimal readiness checklist
 - [Bootstrap and preflight](bootstrap-preflight.md) — clean-clone checks + stable reason codes
+- [Primary smoke command and trace path](primary-smoke.md) — stable CLI smoke + evidence path
 - [Environment access contract](../orchestrator/environment-access.md) — `ENVIRONMENT` block schema
 - [Orchestrator README](../../orchestrator/README.md) — CLI flags, env vars, traces, `explain-run`
 - [Skill registry contract](../orchestrator/skill-registry-contract.md) — allowlist + opt-in PreToolUse hook
@@ -29,7 +30,7 @@ Follow **in order**. You do not need prior chat context or maintainer hints. If 
 | **1** | Clone and validate the Node harness | `npm test` exits 0 |
 | **2** | Try a simple skill in Claude Code | Model responds using a repo skill |
 | **3** | Paste a minimal orchestration header | Session accepts `MODE` / `FLOW` / `GOAL` |
-| **4** | Run one CLI smoke command | Terminal prints `Done` and a **Task ID** |
+| **4** | Run one CLI smoke command | Terminal prints `Done` and a **Task ID**; trace JSONL on known path |
 | **5** | Inspect the trace | `explain-run` or `tokens:report` reads the JSONL |
 | **6** *(optional)* | Wire secrets correctly | Vars in shell for the orchestrator process; header lists **names** only |
 | **7** *(optional)* | MCP + gates | Understand `DEGRADED MODE` vs strict gates |
@@ -74,19 +75,37 @@ Pass: the session runs under the MODE contract (not vague “act as orchestrator
 
 ### Step 4 — CLI smoke run
 
+**Smoke note** (prints canonical command + trace path — no live run):
+
 ```bash
-cd ai-minions/orchestrator
-node run-orchestrator.js --skip-gates --iterations 1 "List repo root files in one sentence and stop"
+cd ai-minions
+node scripts/run-primary-smoke.mjs
 ```
 
-Pass: exit `0`, console shows `Done`, **Task ID**, and step snippets. `--skip-gates` is **degraded mode** (banner visible) — fine for first contact.
+**Live run** (same stable command the wrapper documents):
+
+```bash
+cd ai-minions
+node scripts/run-primary-smoke.mjs --run
+```
+
+Underlying command (from `orchestrator/`):
+
+```bash
+cd ai-minions/orchestrator
+node run-orchestrator.js --skip-gates --iterations 1 "Smoke: list three files under orchestrator/ and stop"
+```
+
+Pass: exit `0`, console shows `Done`, **Task ID**, and step snippets. `--skip-gates` is **degraded mode** (banner visible) — fine for first contact. Full contract: [primary-smoke.md](primary-smoke.md).
 
 ### Step 5 — Inspect trace
 
 Note the **Task ID** from Step 4, then:
 
 ```bash
-cd ai-minions/orchestrator
+cd ai-minions
+node scripts/run-primary-smoke.mjs --inspect <task_id>
+cd orchestrator
 npm run explain-run -- --run-id <task_id>
 npm run tokens:report -- <task_id>
 ```
@@ -155,7 +174,7 @@ Symptom-first reference. Stable `reason_code` values and full check list: [boots
 | `Ollama` / planner errors | Ollama not running or model missing | `curl -sS http://127.0.0.1:11434/api/tags`; `ollama list`; start Ollama or use `--skip-gates` for a degraded learning run |
 | **⚠ DEGRADED MODE** banner | `--skip-gates` and/or MCPs not registered | **Expected** for Steps 4–5; install MCPs + remove `--skip-gates` for strict gates — [strict-mode](../orchestrator/strict-mode.md) |
 | Exit `1` — no goal | Empty argv and empty stdin | Pass goal as argument or pipe: `echo "Smoke: OK" \| node run-orchestrator.js --skip-gates --iterations 1` |
-| No trace file / wrong path | Wrong Task ID or custom `ORCH_TRACES_DIR` | Copy Task ID from run output; `ls ~/.claude/metrics/traces/` or your `ORCH_TRACES_DIR` |
+| No trace file / wrong path | Wrong Task ID or custom `ORCH_TRACES_DIR` | Copy Task ID from run output; `node scripts/run-primary-smoke.mjs --inspect <task_id>`; see [primary-smoke.md](primary-smoke.md) |
 | `compact_handoff failed` (strict) | Ollama unreachable with gates on | Start Ollama or run degraded (`--skip-gates`) while learning |
 | Gate blocked / `gateBlocked: true` | Handoff contract, goal alignment, or permission gate | `npm run explain-run -- --run-id <task_id>`; inspect `gate_result`, `contract_fail` events |
 | Credential “not available” | Vars unset in the orchestrator shell or names mismatch | Ensure `EXAMPLE_*` exist in the **shell running** `run-orchestrator.js` / Claude session. If using `.env.local`, `source`/`export` it before the run; header `vars` must match **exact** env var names |
@@ -170,6 +189,7 @@ Symptom-first reference. Stable `reason_code` values and full check list: [boots
 cd ai-minions
 node scripts/bootstrap-preflight.mjs
 node scripts/bootstrap-preflight.mjs --live   # before worker-agent runs
+node scripts/run-primary-smoke.mjs            # smoke note + trace path
 ```
 
 ### When to file an issue

@@ -22,6 +22,8 @@ const CONTEXT_HYGIENE = path.join(REPO_ROOT, "docs/orchestrator/context-hygiene-
 const HARNESS_CHECKPOINTS = path.join(REPO_ROOT, "docs/how-to/harness-health-checkpoints.md");
 const BOOTSTRAP_PREFLIGHT = path.join(REPO_ROOT, "docs/how-to/bootstrap-preflight.md");
 const BOOTSTRAP_SCRIPT = path.join(REPO_ROOT, "scripts/bootstrap-preflight.mjs");
+const PRIMARY_SMOKE = path.join(REPO_ROOT, "docs/how-to/primary-smoke.md");
+const PRIMARY_SMOKE_SCRIPT = path.join(REPO_ROOT, "scripts/run-primary-smoke.mjs");
 const README = path.join(REPO_ROOT, "README.md");
 
 /** @type {string[]} */
@@ -136,6 +138,8 @@ function checkGuide(guideText) {
   mustInclude(guideText, "claude-gha-doc-smoke-spike.md", "optional GHA doc spike link", rel);
   mustInclude(guideText, "operator-slash-commands.md", "slash command alias link", rel);
   mustInclude(guideText, "bootstrap-preflight.md", "bootstrap preflight link", rel);
+  mustInclude(guideText, "primary-smoke.md", "primary smoke link", rel);
+  mustInclude(guideText, "run-primary-smoke.mjs", "primary smoke script reference", rel);
 
   checkForbiddenClaims(guideText, rel);
   mustNotHaveBacklogCaseIds(guideText, rel);
@@ -158,6 +162,19 @@ function checkBootstrapPreflightDoc(docText) {
   mustInclude(docText, "PREFLIGHT_REPO_LAYOUT", "repo layout reason code", rel);
   mustInclude(docText, "PREFLIGHT_TRACE_DIR_NOT_WRITABLE", "trace dir reason code", rel);
   mustInclude(docText, "bootstrap-preflight.mjs", "bootstrap script reference", rel);
+  mustNotHaveBacklogCaseIds(docText, rel);
+  checkForbiddenClaims(docText, rel);
+}
+
+function checkPrimarySmokeDoc(docText) {
+  const rel = "docs/how-to/primary-smoke.md";
+  if (!docText) return;
+  mustInclude(docText, "SMOKE_REPO_LAYOUT", "smoke repo layout reason code", rel);
+  mustInclude(docText, "SMOKE_TRACE_NOT_FOUND", "smoke trace reason code", rel);
+  mustInclude(docText, "run-primary-smoke.mjs", "primary smoke script reference", rel);
+  mustInclude(docText, "run-orchestrator.js", "underlying runner reference", rel);
+  mustInclude(docText, "Task ID", "expected Task ID output", rel);
+  mustInclude(docText, "metrics/traces", "default trace path", rel);
   mustNotHaveBacklogCaseIds(docText, rel);
   checkForbiddenClaims(docText, rel);
 }
@@ -234,6 +251,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "usage-smoke-guide.md", "link to canonical how-to", rel);
   mustInclude(readmeText, "token-hygiene-guide.md", "link to token hygiene guide", rel);
   mustInclude(readmeText, "bootstrap-preflight.md", "link to bootstrap preflight doc", rel);
+  mustInclude(readmeText, "primary-smoke.md", "link to primary smoke doc", rel);
 
   checkForbiddenClaims(readmeText, rel);
 
@@ -255,10 +273,14 @@ function main() {
   const contextHygieneText = readUtf8(CONTEXT_HYGIENE);
   const harnessText = readUtf8(HARNESS_CHECKPOINTS);
   const bootstrapText = readUtf8(BOOTSTRAP_PREFLIGHT);
+  const primarySmokeText = readUtf8(PRIMARY_SMOKE);
   const readmeText = readUtf8(README);
 
   if (!fs.existsSync(BOOTSTRAP_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, BOOTSTRAP_SCRIPT)}`);
+  }
+  if (!fs.existsSync(PRIMARY_SMOKE_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, PRIMARY_SMOKE_SCRIPT)}`);
   }
 
   if (guideText) checkGuide(guideText);
@@ -269,6 +291,7 @@ function main() {
   if (contextHygieneText) checkContextHygieneDoc(contextHygieneText);
   if (harnessText) checkHarnessCheckpoints(harnessText);
   if (bootstrapText) checkBootstrapPreflightDoc(bootstrapText);
+  if (primarySmokeText) checkPrimarySmokeDoc(primarySmokeText);
   if (readmeText) checkReadmeAlignment(readmeText, guideText);
 
   if (failures.length) {

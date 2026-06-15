@@ -13,7 +13,7 @@ Slash names are **documentation shortcuts** for humans and IDE assistants. They 
 | Slash alias | Canonical command | Purpose | On failure |
 |-------------|-------------------|---------|------------|
 | `/validate` | `npm test` | Harness lint + unit/integration suite | Fix reported test/lint; see CI logs |
-| `/run-smoke` | `node run-orchestrator.js --skip-gates --iterations 1 "<goal>"` | One degraded CLI iteration (alpha smoke) | Exit `1` / inline gate blocks; check goal and `minions.md` in `--cwd` |
+| `/run-smoke` | `node scripts/run-primary-smoke.mjs --run` (or `node run-orchestrator.js --skip-gates --iterations 1 "<goal>"`) | One degraded CLI iteration (alpha smoke) | Exit `1` / `SMOKE_*` blockers; see [primary-smoke.md](primary-smoke.md) |
 | `/explain-run` | `npm run explain-run -- --run-id <task_id>` | Human summary of a completed trace | Missing trace file → not found message; pass `--file` if needed |
 | `/report-cost` | `npm run tokens:report -- <task_id>` | Token/cost rollups for one trace | Missing JSONL → script error; try `--strict-traces` if schema warnings |
 | `/validate-trace` | `npm run tokens:report -- <task_id> --strict-traces` | Parse trace with schema validation enabled | Invalid lines reported; see `ORCH_TRACE_VALIDATE` in orchestrator README |
@@ -35,9 +35,11 @@ npm test
 ### `/run-smoke`
 
 ```bash
-cd REPO_ROOT/orchestrator
-node run-orchestrator.js --skip-gates --iterations 1 "Smoke: list three files under orchestrator/ and stop"
+cd REPO_ROOT
+node scripts/run-primary-smoke.mjs --run
 ```
+
+Smoke note only (no live run): `node scripts/run-primary-smoke.mjs`
 
 ### `/explain-run` and `/show-blockers`
 
@@ -96,5 +98,6 @@ Paste the **canonical command** from the table when the tool does not understand
 ## Related
 
 - [Usage smoke guide](usage-smoke-guide.md)
+- [Primary smoke command and trace path](primary-smoke.md)
 - [Orchestrator README](../../orchestrator/README.md)
 - [Claude GHA doc smoke spike](claude-gha-doc-smoke-spike.md) — separate optional workflow
