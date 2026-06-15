@@ -96,7 +96,7 @@ See [Usage smoke guide — Troubleshooting](usage-smoke-guide.md#troubleshooting
 
 ## Out of scope (this script)
 
-- Packaged global installer / brew / npm `-g`
+- No packaged global installer / brew / npm `-g`
 - MCP registration or gate enforcement
 - Ollama model download
 - Printing env var values or tokens

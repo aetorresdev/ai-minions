@@ -12,6 +12,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Clone + install + unit tests | [Stage 1: Install and validate locally](#stage-1-install-and-validate-locally) |
 | Bootstrap + preflight (reason codes) | [Bootstrap and preflight](docs/how-to/bootstrap-preflight.md) |
 | Primary CLI smoke + trace path | [Primary smoke](docs/how-to/primary-smoke.md) · `node scripts/run-primary-smoke.mjs` |
+| Fresh-clone evidence + claim audit | [Fresh-clone evidence](docs/how-to/fresh-clone-evidence.md) · `node scripts/run-fresh-clone-evidence.mjs` |
 | Try a skill (no MODE header) | [Stage 2: Run a simple skill](#stage-2-run-a-simple-skill) |
 | Run the orchestrator in Claude Code | [Stage 3: Run orchestration](#stage-3-run-orchestration) |
 | Secrets, `.env`, and `ENVIRONMENT` | [Values vs permission](#values-vs-permission-env-and-secrets) |
@@ -303,7 +304,7 @@ MCPs add tools and stronger on-disk gate enforcement. Without them: **degraded m
 
 After Stages 1–4: follow the [happy path runbook](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) (steps 1–8) and [troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) if blocked.
 
-Canonical reference: [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md). Primary CLI smoke: [`primary-smoke.md`](docs/how-to/primary-smoke.md). Token/session habits: [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
+Canonical reference: [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md). Primary CLI smoke: [`primary-smoke.md`](docs/how-to/primary-smoke.md). Fresh-clone evidence: [`fresh-clone-evidence.md`](docs/how-to/fresh-clone-evidence.md). Token/session habits: [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
 
 ---
 

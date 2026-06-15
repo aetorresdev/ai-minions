@@ -14,9 +14,14 @@ on:
       - "orchestrator/orchestrator.js"
       - "scripts/bootstrap-preflight.mjs"
       - "scripts/run-primary-smoke.mjs"
+      - "scripts/audit-product-claims.mjs"
+      - "scripts/run-fresh-clone-evidence.mjs"
+      - "scripts/lib/operator-doc-claims.mjs"
       - "scripts/verify-usage-docs.mjs"
       - "tests/bootstrap-preflight.test.mjs"
       - "tests/primary-smoke.test.mjs"
+      - "tests/audit-product-claims.test.mjs"
+      - "tests/fresh-clone-evidence.test.mjs"
       - ".github/workflows/docs-usage-verify.yml"
       - ".github/workflows/claude-doc-smoke.yml"
       - "orchestrator/operator-cli-help.js"
@@ -44,3 +49,15 @@ jobs:
 
       - name: Primary smoke unit tests
         run: node --test tests/primary-smoke.test.mjs
+
+      - name: Product claim audit
+        run: node scripts/audit-product-claims.mjs
+
+      - name: Claim audit unit tests
+        run: node --test tests/audit-product-claims.test.mjs
+
+      - name: Fresh-clone evidence chain
+        run: node scripts/run-fresh-clone-evidence.mjs
+
+      - name: Fresh-clone evidence unit tests
+        run: node --test tests/fresh-clone-evidence.test.mjs

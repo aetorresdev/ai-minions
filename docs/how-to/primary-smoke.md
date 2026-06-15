@@ -107,5 +107,5 @@ Use in issues and smoke reports — not free-form paraphrase.
 
 - Strict gate enforcement (remove `--skip-gates` manually for gate smoke)
 - MCP registration
-- Packaged global installer
+- No packaged global installer
 - Printing env var values or tokens
