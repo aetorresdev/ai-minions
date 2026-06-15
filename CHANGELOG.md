@@ -6,6 +6,60 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.11.0-alpha.1] - 2026-06-15
+
+Eleventh alpha pre-release: **External Entry Path Readiness** — README and staged quickstart for new users, canonical happy-path runbook, bootstrap preflight with stable reason codes, primary CLI smoke command with trace path, and fresh-clone evidence plus deterministic product-claim audit.
+
+**Release claim:** a new external user can **read and attempt** the documented entry path — README/quickstart, runbook, bootstrap preflight, primary smoke wrapper, trace inspectability, and CI-safe fresh-clone evidence with claim audit — **not** production-ready, **not** a global installer or production TUI, **not** live orchestration CI-gated, **not** external usability beta.
+
+**Prerequisite:** `v0.10.0-alpha.1` — Modular Coherence Closeout @ `2bc74dd`.
+
+**Since [0.10.0-alpha.1]:** v0.10 centered on **modular coherence** (docs, test ownership, boundary evidence). v0.11 adds **external entry path readiness**: operator docs and scripts for clone → preflight → smoke note → trace path → evidence chain, without tribal `~/.claude` ritual. Operator UX hardening, beta dry-run, and external beta remain later roadmap lanes.
+
+| Area | `v0.10.0-alpha.1` | `v0.11.0-alpha.1` (delta) |
+|------|-------------------|---------------------------|
+| Focus | Modular coherence — docs · tests · boundaries | External entry path — README · runbook · bootstrap · smoke · evidence |
+| Operator docs | Architecture/test ownership artifacts | **usage-smoke-guide**, **bootstrap-preflight**, **primary-smoke**, **fresh-clone-evidence** |
+| Entry scripts | — | **bootstrap-preflight**, **run-primary-smoke**, **run-fresh-clone-evidence**, **audit-product-claims** |
+| Claim hygiene | Module boundary guards | **Shared operator-doc-claims** + deterministic claim audit in CI |
+| Unit tests (evidence) | 1395/1396 | 1395/1396 (orchestrator unchanged; entry-path tests in root `tests/` via Docs usage verify) |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.11.0-alpha.1` — reserved for Phase B pre-release publish @ tag on release-prep merge commit
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1395/1396** pass (1 skipped) on workspace @ lane tip `ead8fca`
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → operator-run before Phase B (inherit `security-trivy-scan` from last orchestrator-touching merge @ `2bc74dd` for doc-only lane)
+- Contracts: `usage-smoke-guide.md`, `bootstrap-preflight.md`, `primary-smoke.md`, `fresh-clone-evidence.md`, `operator-doc-claims.mjs`
+- Lane merged on `master` @ `ead8fca` (E11-1..5); release-prep targets merge SHA after CERBERUS Approve
+- CI: Docs usage verify — green on E11-5 PR #189 (`verify-usage-docs`, claim audit, fresh-clone evidence tests)
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
+- **Not** a packaged global installer, brew recipe, or production TUI — manual clone + documented scripts only.
+- **Not** live `claude` orchestration as an automatic PR merge gate — live smoke remains operator-attested.
+- **Not** external usability beta, feedback templates, or operator UX hardening — v0.12–v0.14 roadmap.
+- **Not** architecture refactor complete or adaptive model layer — v0.10 coherence baseline unchanged in orchestrator runtime.
+
+### Added
+
+- External entry README: Start here table, staged quickstart, runtime reality, known limitations, secrets/.env guidance.
+- Canonical happy-path runbook and troubleshooting in `docs/how-to/usage-smoke-guide.md`.
+- `scripts/bootstrap-preflight.mjs` with stable `PREFLIGHT_*` reason codes and operator doc.
+- `scripts/run-primary-smoke.mjs` with stable `SMOKE_*` reason codes, smoke-note default mode, and trace inspect path.
+- `scripts/run-fresh-clone-evidence.mjs`, `scripts/audit-product-claims.mjs`, shared `operator-doc-claims` rules, and `fresh-clone-evidence.md`.
+
+### Security
+
+- Product-claim audit blocks inflated claims and backlog IDs in operator-facing docs — no runtime permission change.
+- Entry-path scripts emit reason codes only — no secrets in stdout/stderr.
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Next roadmap lane after cut: **v0.12 Operator UX Hardening** — not part of this release claim.
+
 ## [0.10.0-alpha.1] - 2026-06-12
 
 Tenth alpha pre-release: **Modular Coherence Closeout** — post-refactor architecture doc alignment, test-to-module ownership map, test layout wave-1 consolidation, module README boundary stubs, and module-boundary allowlist shrink via tighter classification.
