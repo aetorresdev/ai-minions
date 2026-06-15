@@ -16,6 +16,8 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Optional MCP / tool integrations | [Stage 4: MCP setup](#stage-4-mcp-setup-optional) |
 | Alpha boundaries and caveats | [Known limitations (alpha)](#known-limitations-alpha) |
 | Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) |
+| End-to-end runbook (step-by-step) | [Happy path](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) |
+| Something failed during smoke | [Troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) |
 
 ---
 
@@ -278,9 +280,9 @@ MCPs add tools and stronger on-disk gate enforcement. Without them: **degraded m
 
 ### Stage 5: Full smoke guide
 
-After Stages 1–4: canonical CLI + TUI + env contract + bug template — [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
+After Stages 1–4: follow the [happy path runbook](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) (steps 1–8) and [troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) if blocked.
 
-Token/session habits: [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
+Canonical reference: [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md). Token/session habits: [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
 
 ---
 
