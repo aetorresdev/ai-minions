@@ -155,11 +155,11 @@ Contract detail: [`orchestrator/README.md`](orchestrator/README.md).
 
 ### Stage 1: Install and validate locally
 
-Clone to **any path** (`REPO_ROOT`). Do not assume `~/.claude` unless you want the maintainer layout.
+Clone anywhere; the commands below use the default folder name `ai-minions`. Do not assume `~/.claude` unless you want the maintainer layout.
 
 ```bash
-git clone https://github.com/aetorresdev/ai-minions.git REPO_ROOT
-cd REPO_ROOT/orchestrator
+git clone https://github.com/aetorresdev/ai-minions.git
+cd ai-minions/orchestrator
 npm ci
 npm test
 ```
@@ -245,10 +245,12 @@ Two layers — do not mix them:
 **Local values file (illustrative):**
 
 ```bash
-cd REPO_ROOT
-cp .env.example .env.local    # if present; otherwise create — must stay gitignored
-# EXAMPLE_API_URL=https://api.example.com
-# EXAMPLE_API_TOKEN=<your-token>   # never commit
+cd ai-minions
+cat > .env.local <<'EOF'
+EXAMPLE_API_URL=https://api.example.com
+EXAMPLE_API_TOKEN=<your-token>
+EOF
+# Keep .env.local gitignored — never commit secret values
 ```
 
 The header references `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `vars` — not the values.
@@ -256,7 +258,7 @@ The header references `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `vars` —
 **Operator CLI** (discover flags — not a polished product UI):
 
 ```bash
-cd REPO_ROOT/orchestrator
+cd ai-minions/orchestrator
 node run-orchestrator.js --help
 npm run runner:tui -- --help
 ```
