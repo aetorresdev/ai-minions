@@ -1,12 +1,25 @@
 # Operator slash commands — UX aliases (not a new runtime)
 
-Slash names are **documentation shortcuts** for humans and IDE assistants. They map **1:1** to existing CLI/npm commands documented in [`usage-smoke-guide.md`](usage-smoke-guide.md) and `node run-orchestrator.js --help`. Nothing in this file registers a parser, hook, or marketplace command.
+Slash names are **documentation shortcuts** for humans and IDE assistants. They map **1:1** to existing CLI/npm commands documented in [`usage-smoke-guide.md`](usage-smoke-guide.md), [`operator-guided-run.md`](operator-guided-run.md), and `node run-orchestrator.js --help`. Nothing in this file registers a parser, hook, or marketplace command.
 
 ## How to use
 
 1. Run commands from `REPO_ROOT/orchestrator` unless noted.
 2. Replace placeholders (`<task_id>`, `REPO_ROOT`) before paste.
 3. High-risk actions (real orchestration with gates, credential-bearing runs) still follow permission and MODE rules — slashes do not bypass them.
+
+## Guided `runner:tui` flow (launch / status / result)
+
+Canonical walkthrough: [operator-guided-run.md](operator-guided-run.md). Discover full flags: `npm run runner:tui -- --help`.
+
+| Slash alias | Canonical command | Purpose | On failure |
+|-------------|-------------------|---------|------------|
+| `/operator-preflight` | `node scripts/operator-preflight.mjs --install --live` | Bootstrap (`PREFLIGHT_*`) + runner preflight (`OPERATOR_*`) | Exit `1` — see [operator-preflight-bridge.md](operator-preflight-bridge.md) |
+| `/runner-preflight` | `npm run runner:tui -- preflight --model-policy local_only` | Launch-layer preflight only | Exit `2` — read `blockers:` in output |
+| `/launch` | `npm run runner:tui -- run --goal "..." --skip-gates --iterations 1` | Launch orchestrator run (`run` subcommand) | Exit `2` preflight blocked · `3` done:false |
+| `/run-status` | `npm run runner:tui -- status --run-id <task_id>` | Re-read terminal result from trace | Exit `2` — missing trace / bad `task_id` |
+
+**Runner exit codes:** `0` ok · `1` usage/runtime · `2` preflight or trace missing · `3` run finished `done:false`. See `npm run runner:tui -- --help`.
 
 ## Catalog
 
@@ -24,6 +37,19 @@ Slash names are **documentation shortcuts** for humans and IDE assistants. They 
 | `/worktree` | `npm run runner:tui -- worktree --run-id <task_id>` | Worktree binding / promotion status panel | No worktree on run → empty or not-applicable panel |
 
 ## Copy-paste blocks
+
+### Guided flow (`/operator-preflight`, `/runner-preflight`, `/launch`, `/run-status`)
+
+```bash
+cd REPO_ROOT
+node scripts/operator-preflight.mjs --install --live
+
+cd REPO_ROOT/orchestrator
+npm run runner:tui -- preflight --model-policy local_only
+npm run runner:tui -- run --goal "Smoke: list three files in the repo root and stop" \
+  --flow single_agent --model-policy local_only --skip-gates --iterations 1
+npm run runner:tui -- status --run-id <task_id>
+```
 
 ### `/validate`
 
@@ -97,6 +123,8 @@ Paste the **canonical command** from the table when the tool does not understand
 
 ## Related
 
+- [Operator guided run](operator-guided-run.md)
+- [Operator preflight bridge](operator-preflight-bridge.md)
 - [Usage smoke guide](usage-smoke-guide.md)
 - [Primary smoke command and trace path](primary-smoke.md)
 - [Orchestrator README](../../orchestrator/README.md)

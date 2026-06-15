@@ -138,6 +138,8 @@ function checkOperatorGuidedRunDoc(docText) {
   if (!docText) return;
   mustInclude(docText, "runner:tui", "runner tui reference", rel);
   mustInclude(docText, "bootstrap-preflight", "bootstrap delegation link", rel);
+  mustInclude(docText, "--help", "help discovery", rel);
+  mustInclude(docText, "operator-slash-commands", "slash discoverability", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -189,8 +191,11 @@ function checkSlashCommands(slashText) {
   const rel = "docs/how-to/operator-slash-commands.md";
   if (!slashText) return;
   mustInclude(slashText, "/validate", "validate alias", rel);
+  mustInclude(slashText, "/launch", "launch alias", rel);
+  mustInclude(slashText, "/run-status", "run-status alias", rel);
+  mustInclude(slashText, "/runner-preflight", "runner-preflight alias", rel);
+  mustInclude(slashText, "operator-guided-run.md", "guided run link", rel);
   mustInclude(slashText, "npm test", "validate maps to npm test", rel);
-  mustInclude(slashText, "/explain-run", "explain-run alias", rel);
   mustInclude(slashText, "not a new runtime", "no new runtime disclaimer", rel);
   mustNotHaveBacklogCaseIdsForDoc(slashText, rel);
   checkForbiddenClaimsForDoc(slashText, rel);
@@ -242,6 +247,8 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "primary-smoke.md", "link to primary smoke doc", rel);
   mustInclude(readmeText, "fresh-clone-evidence.md", "link to fresh-clone evidence doc", rel);
   mustInclude(readmeText, "operator-preflight-bridge.md", "link to operator preflight bridge doc", rel);
+  mustInclude(readmeText, "operator-guided-run.md", "link to guided run doc", rel);
+  mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
 
   checkForbiddenClaimsForDoc(readmeText, rel);
 

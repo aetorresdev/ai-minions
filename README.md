@@ -278,7 +278,13 @@ node run-orchestrator.js --help
 npm run runner:tui -- --help
 ```
 
-Slash aliases (doc only): [`operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
+| Step | Command | Exit signal |
+|------|---------|-------------|
+| Preflight | `npm run runner:tui -- preflight --model-policy local_only` | `0` + `ok: true` |
+| Launch | `npm run runner:tui -- run --goal "..." --skip-gates --iterations 1` | `0` + `done: true` · record `task_id` |
+| Result | `npm run runner:tui -- status --run-id <task_id>` | `0` + `terminal_status` |
+
+Guided walkthrough: [`operator-guided-run.md`](docs/how-to/operator-guided-run.md). Slash aliases (doc only): [`operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
 
 **3d — CLI smoke (Node runner)** — repeatable degraded run + trace path (no Claude chat):
 
