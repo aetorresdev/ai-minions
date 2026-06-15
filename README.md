@@ -105,65 +105,87 @@ Full wiring: [`docs/orchestrator/system-architecture-diagram.md`](docs/orchestra
 
 ## Quickstart
 
-**Prerequisites:** Cursor or Warp with Claude Code. Node.js ≥ 18 for the strict runner (optional). MCP servers and CLI tools per the skill you use—see [`docs/mcp-installation.md`](docs/mcp-installation.md).
+### Runtime reality (read first)
 
-**Install:**
+| Layer | What runs | Required for smoke? |
+|-------|-----------|---------------------|
+| **Node runner** | `orchestrator/` — planning loop, gates, traces (`node run-orchestrator.js`) | **Yes** — `npm ci` + `npm test` |
+| **Worker agents** | **`claude` CLI** — DEV/QA/CERBERUS/etc. spawn fresh CLI calls ([`orchestrator/README.md`](orchestrator/README.md) § Runtime dependency on the claude CLI) | **Yes** for real orchestrator runs; **not** for unit tests alone |
+| **Local planner** | **Ollama** — orchestrator + handoff summarizer (optional locally; E2E may require it) | No for `npm test` |
+
+**This is not:**
+
+- A **packaged global installer** (no brew/npm `-g` product — clone + bootstrap only).
+- A **production TUI product** — `npm run runner:tui` is a **CLI MVP** for tests/operators, not an external-ready app (v0.12 polish).
+- **Provider-agnostic execution** — workers are Claude CLI-backed today; bring-your-own runner is documented, not shipped as alternate backend.
+
+Detail: [`orchestrator/README.md`](orchestrator/README.md) · full smoke walkthrough: [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
+
+### New clone (external testers)
+
+Use any directory — **do not** assume `~/.claude` unless you want the maintainer layout.
+
+```bash
+git clone https://github.com/aetorresdev/ai-minions.git REPO_ROOT
+cd REPO_ROOT/orchestrator
+npm ci
+npm test
+```
+
+Expect unit tests to pass (see CI badge). That validates the Node harness only — **not** a full agent run (needs `claude` CLI + optional Ollama for live orchestration).
+
+**Optional maintainer layout** (hooks/skills paths some docs reference):
 
 ```bash
 git clone https://github.com/aetorresdev/ai-minions.git ~/.claude
 ```
 
-**Orchestrator (Node) smoke** — from clone root:
+### Prerequisites
 
-```bash
-cd ~/.claude/orchestrator && npm ci && npm test
-# Optional strict path (Ollama + uv venvs + ORCH_PYTHON — see orchestrator/README.md § Tests):
-# ORCH_PYTHON=../mcp-servers/orchestrator-state/.venv/bin/python npm run test:e2e:strict
-```
+| Check | Notes |
+|-------|--------|
+| **Node.js ≥ 18** | `node --version` |
+| **Claude Code + `claude` CLI** | Worker agents; `claude --version` / `claude auth status` before live runs |
+| **Cursor or Warp** (typical) | Paste MODE headers in chat; hooks optional |
+| **Ollama** (optional) | Planner/summarizer + strict E2E — [`local-model-discovery.md`](docs/orchestrator/local-model-discovery.md) |
+| **MCP servers** (optional) | Without them, runner uses **degraded mode** (visible banner) — [`strict-mode.md`](docs/orchestrator/strict-mode.md) |
 
-**Test a skill** (no header needed):
+MCP install reference: [`docs/mcp-installation.md`](docs/mcp-installation.md).
 
-```
-Review this Dockerfile
-```
+### Try orchestration (Claude Code)
 
-**Run orchestrated work** (paste at the start of any chat):
+Paste at the **start** of a chat:
 
-```
+```text
 MODE: ORCHESTRATOR
 FLOW: single_agent
 GOAL: <your goal here>
 MAX_ITERATIONS: 3
 ```
 
-Add `FLOW: multi_agent` + `CWD: /path/to/project` for the hook-driven background runner. Add an optional `ENVIRONMENT` block when agents need live service access—credentials as **env var names only**, never values. Full schema: [`docs/orchestrator/environment-access.md`](docs/orchestrator/environment-access.md).
+Add `FLOW: multi_agent` + `CWD: /absolute/path/to/project` for the hook-driven background runner. Optional `ENVIRONMENT` block — **credential names only**, never values: [`environment-access.md`](docs/orchestrator/environment-access.md).
 
-```
-ENVIRONMENT:
-  mode: write
-  credentials:
-    - name: n8n
-      type: api_key
-      vars:
-        url: N8N_API_URL
-        key: N8N_API_TOKEN
-```
+**Simple skill** (no header): e.g. `Review this Dockerfile`.
 
-Watch logs: `tail -f ~/.claude/logs/orchestrator.log`. Gate sequence: [`docs/orchestrator/strict-mode.md`](docs/orchestrator/strict-mode.md). CLI flags and degraded mode: [`orchestrator/README.md`](orchestrator/README.md).
-
-**Operator CLI (discover without reading internals):**
+**Operator CLI** (discover flags — not a polished product UI):
 
 ```bash
-cd ~/.claude/orchestrator
-node run-orchestrator.js --help          # run, explain, report, validate, worktree
-npm run runner:tui -- --help             # preflight, trace, budget, worktree panels
+cd REPO_ROOT/orchestrator
+node run-orchestrator.js --help
+npm run runner:tui -- --help    # CLI MVP panels — not external product TUI
 ```
 
-Slash-style aliases (documentation only): [`docs/how-to/operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
+Slash-style aliases (doc only): [`docs/how-to/operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
 
-**Local models (guidance, not an installer):** list backends with [`local-model-discovery.md`](docs/orchestrator/local-model-discovery.md); sizing with [`local-inference-sizing.md`](docs/orchestrator/local-inference-sizing.md). Runner TUI preflight checks Ollama reachability — it does **not** download models or tune GPUs.
+### Known limitations (alpha)
 
-**External testers:** full smoke walkthrough (CLI + TUI + env contract + bug template) — [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md). Token and session habits — [`docs/orchestrator/token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
+- **Alpha ≠ production** — no SLA, no multi-tenant isolation; see [Maturity](#maturity-implemented--planned--not-claimed) below.
+- **`npm test` ≠ full agent smoke** — unit suite does not prove Claude CLI orchestration end-to-end.
+- **`FLOW: multi_agent`** — still incomplete for some comparisons; metrics are directional only.
+- **Degraded mode** — missing MCPs or `--skip-gates` = less protection; banner must be visible.
+- **No global installer / doctor CLI** in this release — bootstrap is manual clone + `npm ci` (preflight/doctor documented separately).
+
+More: [`orchestrator/README.md`](orchestrator/README.md) § Known limitations · [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
 
 ---
 
