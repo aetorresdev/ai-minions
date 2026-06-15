@@ -2,7 +2,7 @@
 
 Minimal checks that show whether a clone is **ready for agent-assisted work** with ai-minions. Maps to real components — not a generic demo harness checklist.
 
-**Documentation + script** — `node scripts/bootstrap-preflight.mjs` automates checks **1**, **5**, and trace dir (**3**). `node scripts/run-primary-smoke.mjs` documents the stable CLI smoke + trace path (**3**, **6**). See [bootstrap-preflight.md](bootstrap-preflight.md) and [primary-smoke.md](primary-smoke.md). Runner TUI `preflight` covers Ollama/model policy separately.
+**Documentation + script** — `node scripts/bootstrap-preflight.mjs` automates checks **1**, **5**, and trace dir (**3**). `node scripts/run-primary-smoke.mjs` documents stable CLI smoke + trace path (**3**, **6**). `node scripts/run-fresh-clone-evidence.mjs` runs entry-path evidence + claim audit. See [bootstrap-preflight.md](bootstrap-preflight.md), [primary-smoke.md](primary-smoke.md), and [fresh-clone-evidence.md](fresh-clone-evidence.md). Runner TUI `preflight` covers Ollama/model policy separately.
 
 ## Demo harness vs ai-minions runtime
 
@@ -35,6 +35,7 @@ ai-minions adds **permission gates**, **CERBERUS review**, and **contract valida
 cd ai-minions
 node scripts/bootstrap-preflight.mjs --install
 node scripts/run-primary-smoke.mjs
+node scripts/run-fresh-clone-evidence.mjs
 cd orchestrator
 npm test
 node run-orchestrator.js --help
@@ -59,5 +60,6 @@ npm run tokens:report -- <task_id>
 
 - [Usage smoke guide](usage-smoke-guide.md)
 - [Primary smoke command and trace path](primary-smoke.md)
+- [Fresh-clone evidence and claim audit](fresh-clone-evidence.md)
 - [Token hygiene guide](../orchestrator/token-hygiene-guide.md)
 - [Context hygiene signals](../orchestrator/context-hygiene-signals.md)

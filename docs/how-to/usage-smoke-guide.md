@@ -14,6 +14,7 @@ Canonical **end-to-end happy path** for trying **ai-minions** without tribal kno
 - [Harness health checkpoints](harness-health-checkpoints.md) — minimal readiness checklist
 - [Bootstrap and preflight](bootstrap-preflight.md) — clean-clone checks + stable reason codes
 - [Primary smoke command and trace path](primary-smoke.md) — stable CLI smoke + evidence path
+- [Fresh-clone evidence and claim audit](fresh-clone-evidence.md) — v0.11 entry-path evidence + claim audit
 - [Environment access contract](../orchestrator/environment-access.md) — `ENVIRONMENT` block schema
 - [Orchestrator README](../../orchestrator/README.md) — CLI flags, env vars, traces, `explain-run`
 - [Skill registry contract](../orchestrator/skill-registry-contract.md) — allowlist + opt-in PreToolUse hook
@@ -190,6 +191,7 @@ cd ai-minions
 node scripts/bootstrap-preflight.mjs
 node scripts/bootstrap-preflight.mjs --live   # before worker-agent runs
 node scripts/run-primary-smoke.mjs            # smoke note + trace path
+node scripts/run-fresh-clone-evidence.mjs     # entry-path evidence + claim audit
 ```
 
 ### When to file an issue

@@ -11,6 +11,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  checkForbiddenClaims,
+  mustNotHaveBacklogCaseIds,
+} from "./lib/operator-doc-claims.mjs";
+
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const CANONICAL_GUIDE = path.join(REPO_ROOT, "docs/how-to/usage-smoke-guide.md");
@@ -24,6 +29,9 @@ const BOOTSTRAP_PREFLIGHT = path.join(REPO_ROOT, "docs/how-to/bootstrap-prefligh
 const BOOTSTRAP_SCRIPT = path.join(REPO_ROOT, "scripts/bootstrap-preflight.mjs");
 const PRIMARY_SMOKE = path.join(REPO_ROOT, "docs/how-to/primary-smoke.md");
 const PRIMARY_SMOKE_SCRIPT = path.join(REPO_ROOT, "scripts/run-primary-smoke.mjs");
+const FRESH_CLONE_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/fresh-clone-evidence.md");
+const CLAIM_AUDIT_SCRIPT = path.join(REPO_ROOT, "scripts/audit-product-claims.mjs");
+const EVIDENCE_SCRIPT = path.join(REPO_ROOT, "scripts/run-fresh-clone-evidence.mjs");
 const README = path.join(REPO_ROOT, "README.md");
 
 /** @type {string[]} */
@@ -31,6 +39,14 @@ const failures = [];
 
 function fail(msg) {
   failures.push(msg);
+}
+
+function checkForbiddenClaimsForDoc(text, fileRel) {
+  checkForbiddenClaims(text, fileRel, fail);
+}
+
+function mustNotHaveBacklogCaseIdsForDoc(text, fileRel) {
+  mustNotHaveBacklogCaseIds(text, fileRel, fail);
 }
 
 function readUtf8(filePath) {
@@ -47,76 +63,12 @@ function mustInclude(text, needle, label, fileRel) {
   }
 }
 
-/** Remove fenced code and inline backticks so examples/lists do not trip claim checks. */
-function stripCodeSpans(text) {
-  return text
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/`[^`]+`/g, "");
-}
-
-/** Drop the "prohibited wording" teaching section (lists forbidden phrases on purpose). */
-function stripProhibitedWordingSection(text) {
-  const marker = "## Prohibited wording";
-  const idx = text.indexOf(marker);
-  if (idx === -1) return text;
-  return text.slice(0, idx);
-}
-
 function mustNotMatch(text, pattern, label, fileRel) {
   const re = pattern instanceof RegExp ? pattern : new RegExp(pattern, "i");
   if (re.test(text)) {
     fail(`${fileRel}: forbidden content — ${label} (matched ${re})`);
   }
 }
-
-function lineNegatesClaim(line) {
-  return /\b(not|never|without|do\s+not|don't|no)\b/i.test(line);
-}
-
-function checkForbiddenClaims(text, fileRel) {
-  const scrubbed = stripCodeSpans(stripProhibitedWordingSection(text));
-  for (const line of scrubbed.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const negated = lineNegatesClaim(trimmed);
-    for (const { re, label } of FORBIDDEN_CLAIMS) {
-      if (re.test(trimmed) && !negated) {
-        fail(`${fileRel}: forbidden content — ${label} (line: ${trimmed.slice(0, 120)}…)`);
-      }
-    }
-  }
-  for (const { re, label } of SECRET_PATTERNS) {
-    mustNotMatch(text, re, label, fileRel);
-  }
-}
-
-/** Backlog-style ticket IDs must not appear in versioned operator docs. */
-function mustNotHaveBacklogCaseIds(text, fileRel) {
-  const hits = text.match(/\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+)+-\d+\b/g);
-  if (hits?.length) {
-    const unique = [...new Set(hits)];
-    fail(`${fileRel}: backlog-style case IDs not allowed in operator docs: ${unique.join(", ")}`);
-  }
-}
-
-const FORBIDDEN_CLAIMS = [
-  { re: /production[- ]ready/i, label: "production-ready claim" },
-  { re: /autonomous\s+(engineering\s+)?team/i, label: "autonomous team claim" },
-  { re: /24\s*\/\s*7\s+dev\s+team/i, label: "24/7 dev team claim" },
-  { re: /fully\s+secure/i, label: "fully secure claim" },
-  { re: /inherited\s+credentials?/i, label: "inherited credentials claim" },
-  { re: /credenciales\s+heredadas/i, label: "credenciales heredadas claim" },
-  { re: /multi[- ]tenant\s+isolation\s+implemented/i, label: "multi-tenant implemented claim" },
-];
-
-const SECRET_PATTERNS = [
-  { re: /\bsk-ant-[a-zA-Z0-9_-]{10,}\b/, label: "Anthropic API key-shaped value" },
-  { re: /\bsk-proj-[a-zA-Z0-9_-]{10,}\b/, label: "OpenAI project key-shaped value" },
-  { re: /\bAKIA[0-9A-Z]{16}\b/, label: "AWS access key id-shaped value" },
-  { re: /\bghp_[a-zA-Z0-9]{20,}\b/, label: "GitHub PAT-shaped value" },
-  { re: /\bBearer\s+[a-zA-Z0-9._-]{20,}\b/, label: "Bearer token value" },
-  { re: /(?:password|api[_-]?key|secret)\s*[:=]\s*['"]?[a-zA-Z0-9+/=_-]{12,}/i, label: "inline secret assignment" },
-];
 
 function checkGuide(guideText) {
   const rel = "docs/how-to/usage-smoke-guide.md";
@@ -140,9 +92,10 @@ function checkGuide(guideText) {
   mustInclude(guideText, "bootstrap-preflight.md", "bootstrap preflight link", rel);
   mustInclude(guideText, "primary-smoke.md", "primary smoke link", rel);
   mustInclude(guideText, "run-primary-smoke.mjs", "primary smoke script reference", rel);
+  mustInclude(guideText, "fresh-clone-evidence.md", "fresh-clone evidence link", rel);
 
-  checkForbiddenClaims(guideText, rel);
-  mustNotHaveBacklogCaseIds(guideText, rel);
+  checkForbiddenClaimsForDoc(guideText, rel);
+  mustNotHaveBacklogCaseIdsForDoc(guideText, rel);
 }
 
 function checkContextHygieneDoc(docText) {
@@ -152,8 +105,8 @@ function checkContextHygieneDoc(docText) {
   mustInclude(docText, "context_growth_rate", "growth rate signal", rel);
   mustInclude(docText, "compaction_recommended", "compaction signal", rel);
   mustInclude(docText, "Observability only", "no enforcement disclaimer", rel);
-  mustNotHaveBacklogCaseIds(docText, rel);
-  checkForbiddenClaims(docText, rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
 }
 
 function checkBootstrapPreflightDoc(docText) {
@@ -162,8 +115,8 @@ function checkBootstrapPreflightDoc(docText) {
   mustInclude(docText, "PREFLIGHT_REPO_LAYOUT", "repo layout reason code", rel);
   mustInclude(docText, "PREFLIGHT_TRACE_DIR_NOT_WRITABLE", "trace dir reason code", rel);
   mustInclude(docText, "bootstrap-preflight.mjs", "bootstrap script reference", rel);
-  mustNotHaveBacklogCaseIds(docText, rel);
-  checkForbiddenClaims(docText, rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
 }
 
 function checkPrimarySmokeDoc(docText) {
@@ -175,8 +128,8 @@ function checkPrimarySmokeDoc(docText) {
   mustInclude(docText, "run-orchestrator.js", "underlying runner reference", rel);
   mustInclude(docText, "Task ID", "expected Task ID output", rel);
   mustInclude(docText, "metrics/traces", "default trace path", rel);
-  mustNotHaveBacklogCaseIds(docText, rel);
-  checkForbiddenClaims(docText, rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
 }
 
 function checkHarnessCheckpoints(docText) {
@@ -186,8 +139,8 @@ function checkHarnessCheckpoints(docText) {
   mustInclude(docText, "npm test", "validation checkpoint", rel);
   mustInclude(docText, "Demo harness vs ai-minions", "demo comparison section", rel);
   mustInclude(docText, "doctor", "future doctor note", rel);
-  mustNotHaveBacklogCaseIds(docText, rel);
-  checkForbiddenClaims(docText, rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
 }
 
 function checkTokenHygieneGuide(hygieneText) {
@@ -205,8 +158,8 @@ function checkTokenHygieneGuide(hygieneText) {
     mustInclude(hygieneText, title, `section: ${title}`, rel);
   }
   mustInclude(hygieneText, "tokens:report", "token trace report CLI", rel);
-  mustNotHaveBacklogCaseIds(hygieneText, rel);
-  checkForbiddenClaims(hygieneText, rel);
+  mustNotHaveBacklogCaseIdsForDoc(hygieneText, rel);
+  checkForbiddenClaimsForDoc(hygieneText, rel);
 }
 
 function checkSlashCommands(slashText) {
@@ -216,8 +169,8 @@ function checkSlashCommands(slashText) {
   mustInclude(slashText, "npm test", "validate maps to npm test", rel);
   mustInclude(slashText, "/explain-run", "explain-run alias", rel);
   mustInclude(slashText, "not a new runtime", "no new runtime disclaimer", rel);
-  mustNotHaveBacklogCaseIds(slashText, rel);
-  checkForbiddenClaims(slashText, rel);
+  mustNotHaveBacklogCaseIdsForDoc(slashText, rel);
+  checkForbiddenClaimsForDoc(slashText, rel);
 }
 
 function checkGhaDocSpike(spikeText) {
@@ -226,8 +179,8 @@ function checkGhaDocSpike(spikeText) {
   mustInclude(spikeText, "workflow_dispatch", "manual dispatch only", rel);
   mustInclude(spikeText, "ANTHROPIC_API_KEY", "secret prerequisite", rel);
   mustInclude(spikeText, "claude-doc-smoke.yml", "workflow file reference", rel);
-  mustNotHaveBacklogCaseIds(spikeText, rel);
-  checkForbiddenClaims(spikeText, rel);
+  mustNotHaveBacklogCaseIdsForDoc(spikeText, rel);
+  checkForbiddenClaimsForDoc(spikeText, rel);
 }
 
 function checkTuiChecklist(tuiText) {
@@ -240,8 +193,20 @@ function checkTuiChecklist(tuiText) {
   for (let n = 1; n <= 8; n += 1) {
     mustInclude(tuiText, `## ${n}.`, `checklist case ${n}`, rel);
   }
-  mustNotHaveBacklogCaseIds(tuiText, rel);
-  checkForbiddenClaims(tuiText, rel);
+  mustNotHaveBacklogCaseIdsForDoc(tuiText, rel);
+  checkForbiddenClaimsForDoc(tuiText, rel);
+}
+
+function checkFreshCloneEvidenceDoc(docText) {
+  const rel = "docs/how-to/fresh-clone-evidence.md";
+  if (!docText) return;
+  mustInclude(docText, "EVIDENCE_OK", "evidence reason code", rel);
+  mustInclude(docText, "CLAIM_FORBIDDEN_PHRASE", "claim audit reason code", rel);
+  mustInclude(docText, "run-fresh-clone-evidence.mjs", "evidence script reference", rel);
+  mustInclude(docText, "audit-product-claims.mjs", "claim audit script reference", rel);
+  mustInclude(docText, "not a merge gate", "live smoke not CI-gated disclaimer", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
 }
 
 function checkReadmeAlignment(readmeText, guideText) {
@@ -252,8 +217,9 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "token-hygiene-guide.md", "link to token hygiene guide", rel);
   mustInclude(readmeText, "bootstrap-preflight.md", "link to bootstrap preflight doc", rel);
   mustInclude(readmeText, "primary-smoke.md", "link to primary smoke doc", rel);
+  mustInclude(readmeText, "fresh-clone-evidence.md", "link to fresh-clone evidence doc", rel);
 
-  checkForbiddenClaims(readmeText, rel);
+  checkForbiddenClaimsForDoc(readmeText, rel);
 
   if (guideText && readmeText) {
     const readmeHasMulti = readmeText.includes("multi_agent");
@@ -274,6 +240,7 @@ function main() {
   const harnessText = readUtf8(HARNESS_CHECKPOINTS);
   const bootstrapText = readUtf8(BOOTSTRAP_PREFLIGHT);
   const primarySmokeText = readUtf8(PRIMARY_SMOKE);
+  const freshCloneText = readUtf8(FRESH_CLONE_EVIDENCE);
   const readmeText = readUtf8(README);
 
   if (!fs.existsSync(BOOTSTRAP_SCRIPT)) {
@@ -281,6 +248,12 @@ function main() {
   }
   if (!fs.existsSync(PRIMARY_SMOKE_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, PRIMARY_SMOKE_SCRIPT)}`);
+  }
+  if (!fs.existsSync(CLAIM_AUDIT_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, CLAIM_AUDIT_SCRIPT)}`);
+  }
+  if (!fs.existsSync(EVIDENCE_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, EVIDENCE_SCRIPT)}`);
   }
 
   if (guideText) checkGuide(guideText);
@@ -292,6 +265,7 @@ function main() {
   if (harnessText) checkHarnessCheckpoints(harnessText);
   if (bootstrapText) checkBootstrapPreflightDoc(bootstrapText);
   if (primarySmokeText) checkPrimarySmokeDoc(primarySmokeText);
+  if (freshCloneText) checkFreshCloneEvidenceDoc(freshCloneText);
   if (readmeText) checkReadmeAlignment(readmeText, guideText);
 
   if (failures.length) {
