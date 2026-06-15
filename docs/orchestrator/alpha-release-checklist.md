@@ -578,9 +578,9 @@ Production TUI polish · packaged global installer · live smoke as PR gate · f
 
 | Date | Context | Outcome |
 |------|---------|---------|
-| 2026-05-18 | `master` @ `ead8fca` — lane merge (E11-5 / PR #189) | Docs usage verify · lychee · markdownlint — **green** |
-| 2026-05-18 | Workspace @ `ead8fca` | `cd orchestrator && npm test` → **1395/1396** pass (1 skipped) |
-| 2026-05-18 | Workspace @ `ead8fca` | `node scripts/run-fresh-clone-evidence.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK** |
+| 2026-06-15 | `master` @ `ead8fca` — lane merge (E11-5 / PR #189) | Docs usage verify · lychee · markdownlint — **green** |
+| 2026-06-15 | Workspace @ `ead8fca` | `cd orchestrator && npm test` → **1395/1396** pass (1 skipped) |
+| 2026-06-15 | Workspace @ `ead8fca` | `node scripts/run-fresh-clone-evidence.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK** |
 
 **Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` unchanged since v0.10 @ `2bc74dd`. Path-filtered orchestrator workflows may not re-run. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `ead8fca` (docs) plus orchestrator unit baseline @ `2bc74dd` until tag.
 
@@ -601,7 +601,7 @@ Production TUI polish · packaged global installer · live smoke as PR gate · f
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.11.0-alpha.1] - 2026-05-18**
+- [ ] **Changelog:** section **[0.11.0-alpha.1] - 2026-06-15**
 - [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)

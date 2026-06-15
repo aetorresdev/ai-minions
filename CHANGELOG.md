@@ -6,7 +6,7 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
-## [0.11.0-alpha.1] - 2026-05-18
+## [0.11.0-alpha.1] - 2026-06-15
 
 Eleventh alpha pre-release: **External Entry Path Readiness** — README and staged quickstart for new users, canonical happy-path runbook, bootstrap preflight with stable reason codes, primary CLI smoke command with trace path, and fresh-clone evidence plus deterministic product-claim audit.
 
