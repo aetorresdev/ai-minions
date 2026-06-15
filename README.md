@@ -12,6 +12,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Clone + install + unit tests | [Stage 1: Install and validate locally](#stage-1-install-and-validate-locally) |
 | Try a skill (no MODE header) | [Stage 2: Run a simple skill](#stage-2-run-a-simple-skill) |
 | Run the orchestrator in Claude Code | [Stage 3: Run orchestration](#stage-3-run-orchestration) |
+| Secrets, `.env`, and `ENVIRONMENT` | [Values vs permission](#values-vs-permission-env-and-secrets) |
 | Optional MCP / tool integrations | [Stage 4: MCP setup](#stage-4-mcp-setup-optional) |
 | Alpha boundaries and caveats | [Known limitations (alpha)](#known-limitations-alpha) |
 | Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) |
@@ -121,33 +122,40 @@ Full wiring: [`docs/orchestrator/system-architecture-diagram.md`](docs/orchestra
 
 ## Quickstart
 
-Five stages — stop when you have enough signal for your goal. Details and troubleshooting: [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
+**Goal:** install → validate → try a skill → run orchestration → (optional) wire secrets and MCPs.
 
-### Runtime reality (read first)
+Full walkthrough and troubleshooting: [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
 
-| Layer | What runs | Required for smoke? |
-|-------|-----------|---------------------|
-| **Node runner** | `orchestrator/` — planning loop, gates, traces (`node run-orchestrator.js`) | **Yes** — `npm ci` + `npm test` |
-| **Worker agents** | **`claude` CLI** — DEV/QA/CERBERUS/etc. spawn fresh CLI calls ([`orchestrator/README.md`](orchestrator/README.md) § Runtime dependency on the claude CLI) | **Yes** for real orchestrator runs; **not** for unit tests alone |
-| **Local planner** | **Ollama** — orchestrator + handoff summarizer (optional locally; E2E may require it) | No for `npm test` |
+### Before you start
 
-**Runtime concepts (short):**
+| Check | Command / note |
+|-------|----------------|
+| Node.js ≥ 18 | `node --version` |
+| Claude Code + `claude` CLI | `claude --version` · `claude auth status` (required for live orchestration) |
+| Editor (typical) | Cursor or Warp — paste MODE headers in chat |
+| Ollama (optional) | Planner/summarizer — [`local-model-discovery.md`](docs/orchestrator/local-model-discovery.md) |
 
-- **Skills** — prompt/workflow instructions under `skills/`; they guide behavior in chat but **do not** run side effects or spawn agents by themselves.
-- **MCP servers** — optional tool and state integrations (gates, handoff, orchestrator-state); missing MCPs put the runner in **degraded mode** (visible banner, fewer protections).
-- **`claude` CLI** — required for real worker-agent orchestration runs; unit tests do not substitute for it.
-- **Ollama** — optional local planner/summarizer path; strict E2E may require it — [`local-model-discovery.md`](docs/orchestrator/local-model-discovery.md).
-- **`npm test`** — validates the **Node harness only** (contracts, gates, trace schema); it does **not** prove full live orchestration with worker agents.
+### What runs (runtime map)
 
-**This is not:**
+| Piece | Role | Needed for `npm test`? |
+|-------|------|------------------------|
+| **Node runner** (`orchestrator/`) | Planning loop, gates, traces | **Yes** — `npm ci` + `npm test` |
+| **`claude` CLI** | Worker agents (DEV/QA/CERBERUS) | No (yes for live orchestration) |
+| **Ollama** | Local planner / handoff summarizer | No |
+| **Skills** (`skills/`) | Prompt/workflow instructions in chat; no side effects by themselves | No |
+| **MCP servers** | Optional tools + on-disk gates; missing → **degraded mode** (banner) | No |
 
-- A **packaged global installer** (no brew/npm `-g` product — clone + bootstrap only).
-- A **production TUI product** — `npm run runner:tui` is a **CLI MVP** for tests/operators, not a polished product UI (v0.12 polish).
-- **Provider-agnostic execution** — workers are Claude CLI-backed today; bring-your-own runner is documented, not shipped as alternate backend.
+`npm test` validates the **Node harness only** — not full live orchestration with worker agents.
+
+**Not claimed in this release:** packaged global installer · production TUI (`runner:tui` = CLI MVP) · provider-agnostic worker backend.
+
+Contract detail: [`orchestrator/README.md`](orchestrator/README.md).
+
+---
 
 ### Stage 1: Install and validate locally
 
-Use any directory — **do not** assume `~/.claude` unless you want the maintainer layout.
+Clone to **any path** (`REPO_ROOT`). Do not assume `~/.claude` unless you want the maintainer layout.
 
 ```bash
 git clone https://github.com/aetorresdev/ai-minions.git REPO_ROOT
@@ -156,36 +164,35 @@ npm ci
 npm test
 ```
 
-Expect unit tests to pass (see CI badge). That validates the Node harness only — **not** a full agent run (needs `claude` CLI + optional Ollama for live orchestration).
+Passing unit tests means the harness is wired; it does **not** prove Claude CLI orchestration end-to-end.
 
-**Prerequisites before live runs:**
-
-| Check | Notes |
-|-------|--------|
-| **Node.js ≥ 18** | `node --version` |
-| **Claude Code + `claude` CLI** | Worker agents; `claude --version` / `claude auth status` before live runs |
-| **Cursor or Warp** (typical) | Paste MODE headers in chat; hooks optional |
-| **Ollama** (optional) | Planner/summarizer + strict E2E — [`local-model-discovery.md`](docs/orchestrator/local-model-discovery.md) |
-
-**Optional maintainer layout** (hooks/skills paths some docs reference):
+<details>
+<summary>Optional: maintainer layout (<code>~/.claude</code>)</summary>
 
 ```bash
 git clone https://github.com/aetorresdev/ai-minions.git ~/.claude
 ```
 
+Some hooks/skills docs assume this path.
+</details>
+
+---
+
 ### Stage 2: Run a simple skill
 
-In Claude Code (or compatible chat), try a skill **without** a MODE header — e.g.:
+In Claude Code, send a skill prompt **without** a MODE header:
 
 ```text
 Review this Dockerfile
 ```
 
-Skills load instructions from `skills/`; they are a lightweight smoke that you have Claude Code wired to the repo. They do **not** exercise orchestrator gates, traces, or multi-role contracts.
+Confirms the editor loads repo skills. Does **not** exercise orchestrator gates, traces, or multi-role contracts.
+
+---
 
 ### Stage 3: Run orchestration
 
-Paste at the **start** of a chat:
+**3a — Minimal run** (files/specs only, no live APIs):
 
 ```text
 MODE: ORCHESTRATOR
@@ -194,37 +201,98 @@ GOAL: <your goal here>
 MAX_ITERATIONS: 3
 ```
 
-Add `FLOW: multi_agent` + `CWD: /absolute/path/to/project` for the hook-driven background runner. Optional `ENVIRONMENT` block — **credential names only**, never values: [`environment-access.md`](docs/orchestrator/environment-access.md).
+**3b — Background / other repo** — add `FLOW: multi_agent` and absolute `CWD`:
+
+```text
+MODE: ORCHESTRATOR
+FLOW: multi_agent
+GOAL: <your goal here>
+MAX_ITERATIONS: 3
+CWD: /absolute/path/to/target/project
+```
+
+**3c — Live APIs** — append `ENVIRONMENT` with **env var names only** (never secret values):
+
+```text
+ENVIRONMENT:
+  mode: read
+  credentials:
+    - name: example_api
+      type: api_key
+      vars:
+        url: EXAMPLE_API_URL
+        key: EXAMPLE_API_TOKEN
+```
+
+Full schema: [`environment-access.md`](docs/orchestrator/environment-access.md).
+
+#### Values vs permission (`.env` and secrets)
+
+Two layers — do not mix them:
+
+| Layer | You put here | Grants permission? |
+|-------|----------------|----------------------|
+| **`.env` / shell / CI `env`** | Secret **values** (`export VAR=…`, gitignored `.env.local`, GitHub `secrets` → `env`) | **No** — only makes values available to the process |
+| **`ENVIRONMENT` in the header** | **Names** of env vars + access `mode` (`read` / `write`) | **Yes** — declares what this run may use |
+
+**Rules:**
+
+1. Never paste tokens, passwords, or connection strings into chat, README, or the `ENVIRONMENT` block.
+2. No `ENVIRONMENT` block → intent is **no credential access** for that run.
+3. Prior runs, traces, or snapshots do **not** carry permission into a new run.
+4. In CI: map `secrets` → job `env` → reference the same **names** in `ENVIRONMENT`.
+
+**Local values file (illustrative):**
+
+```bash
+cd REPO_ROOT
+cp .env.example .env.local    # if present; otherwise create — must stay gitignored
+# EXAMPLE_API_URL=https://api.example.com
+# EXAMPLE_API_TOKEN=<your-token>   # never commit
+```
+
+The header references `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `vars` — not the values.
 
 **Operator CLI** (discover flags — not a polished product UI):
 
 ```bash
 cd REPO_ROOT/orchestrator
 node run-orchestrator.js --help
-npm run runner:tui -- --help    # CLI MVP panels — not production TUI
+npm run runner:tui -- --help
 ```
 
-Slash-style aliases (doc only): [`docs/how-to/operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
+Slash aliases (doc only): [`operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
+
+---
 
 ### Stage 4: MCP setup (optional)
 
-MCP servers extend tool access and on-disk gate enforcement. Without them, the runner stays in **degraded mode** — usable for exploration, weaker on transition enforcement.
+MCPs add tools and stronger on-disk gate enforcement. Without them: **degraded mode** — explore OK, weaker transition enforcement.
 
-Install and wire MCPs per skill and orchestrator needs: [`docs/mcp-installation.md`](docs/mcp-installation.md). Gate sequence and degraded banner: [`strict-mode.md`](docs/orchestrator/strict-mode.md).
+- Install: [`docs/mcp-installation.md`](docs/mcp-installation.md)
+- Gates / banner: [`strict-mode.md`](docs/orchestrator/strict-mode.md)
+
+---
 
 ### Stage 5: Full smoke guide
 
-When Stages 1–4 pass, run the canonical walkthrough (CLI + TUI panels + env contract + bug template): [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md). Token and session habits: [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
+After Stages 1–4: canonical CLI + TUI + env contract + bug template — [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
+
+Token/session habits: [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
+
+---
 
 ### Known limitations (alpha)
 
-- **Alpha ≠ production** — no SLA, no multi-tenant isolation; see [Maturity](#maturity-implemented--planned--not-claimed) below.
-- **`npm test` ≠ full agent smoke** — unit suite does not prove Claude CLI orchestration end-to-end.
-- **`FLOW: multi_agent`** — still incomplete for some comparisons; metrics are directional only.
-- **Degraded mode** — missing MCPs or `--skip-gates` = less protection; banner must be visible.
-- **No global installer / doctor CLI** in this release — bootstrap is manual clone + `npm ci` (preflight/doctor documented separately).
+| Topic | Reality |
+|-------|---------|
+| Production readiness | Alpha — no SLA; see [Maturity](#maturity-implemented--planned--not-claimed) |
+| `npm test` | Harness only — not full agent smoke |
+| `FLOW: multi_agent` | Incomplete for some comparisons; metrics directional |
+| Degraded mode | Missing MCPs or `--skip-gates` = less protection; banner must show |
+| Bootstrap | No global installer/doctor CLI — manual clone + `npm ci` |
 
-More: [`orchestrator/README.md`](orchestrator/README.md) § Known limitations · [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) · [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
+More: [`orchestrator/README.md`](orchestrator/README.md) § Known limitations.
 
 ---
 
