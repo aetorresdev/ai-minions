@@ -2,7 +2,7 @@
 
 Minimal checks that show whether a clone is **ready for agent-assisted work** with ai-minions. Maps to real components — not a generic demo harness checklist.
 
-**Documentation only** — no `doctor` subcommand yet. Use `/check-health` from [operator slash commands](operator-slash-commands.md) for the manual pre-run path.
+**Documentation + script** — `node scripts/bootstrap-preflight.mjs` automates checks **1**, **5**, and trace dir (**3**). See [bootstrap-preflight.md](bootstrap-preflight.md). Runner TUI `preflight` covers Ollama/model policy separately.
 
 ## Demo harness vs ai-minions runtime
 
@@ -32,12 +32,12 @@ ai-minions adds **permission gates**, **CERBERUS review**, and **contract valida
 ## Quick commands
 
 ```bash
-cd REPO_ROOT/orchestrator
-npm ci
+cd ai-minions
+node scripts/bootstrap-preflight.mjs --install
+cd orchestrator
 npm test
 node run-orchestrator.js --help
 
-cd REPO_ROOT
 node scripts/verify-usage-docs.mjs
 ```
 
@@ -50,7 +50,7 @@ npm run tokens:report -- <task_id>
 
 ## Future `doctor` / `check`
 
-When a CLI subcommand exists, it should automate checks **1**, **5**, and parts of **3** (trace dir readable). Until then, this doc and [pre-run-checklist.md](../orchestrator/pre-run-checklist.md) are authoritative.
+`scripts/bootstrap-preflight.mjs` is the **v0.11 bootstrap/preflight** entry (stable reason codes). A future `doctor` subcommand may wrap the same checks. Until then: [bootstrap-preflight.md](bootstrap-preflight.md) and [pre-run-checklist.md](../orchestrator/pre-run-checklist.md).
 
 ## Related
 

@@ -20,6 +20,8 @@ const SLASH_COMMANDS = path.join(REPO_ROOT, "docs/how-to/operator-slash-commands
 const TOKEN_HYGIENE = path.join(REPO_ROOT, "docs/orchestrator/token-hygiene-guide.md");
 const CONTEXT_HYGIENE = path.join(REPO_ROOT, "docs/orchestrator/context-hygiene-signals.md");
 const HARNESS_CHECKPOINTS = path.join(REPO_ROOT, "docs/how-to/harness-health-checkpoints.md");
+const BOOTSTRAP_PREFLIGHT = path.join(REPO_ROOT, "docs/how-to/bootstrap-preflight.md");
+const BOOTSTRAP_SCRIPT = path.join(REPO_ROOT, "scripts/bootstrap-preflight.mjs");
 const README = path.join(REPO_ROOT, "README.md");
 
 /** @type {string[]} */
@@ -133,7 +135,7 @@ function checkGuide(guideText) {
   mustInclude(guideText, "tui-manual-smoke-checklist.md", "TUI checklist link", rel);
   mustInclude(guideText, "claude-gha-doc-smoke-spike.md", "optional GHA doc spike link", rel);
   mustInclude(guideText, "operator-slash-commands.md", "slash command alias link", rel);
-  mustInclude(guideText, "harness-health-checkpoints.md", "harness checkpoints link", rel);
+  mustInclude(guideText, "bootstrap-preflight.md", "bootstrap preflight link", rel);
 
   checkForbiddenClaims(guideText, rel);
   mustNotHaveBacklogCaseIds(guideText, rel);
@@ -146,6 +148,16 @@ function checkContextHygieneDoc(docText) {
   mustInclude(docText, "context_growth_rate", "growth rate signal", rel);
   mustInclude(docText, "compaction_recommended", "compaction signal", rel);
   mustInclude(docText, "Observability only", "no enforcement disclaimer", rel);
+  mustNotHaveBacklogCaseIds(docText, rel);
+  checkForbiddenClaims(docText, rel);
+}
+
+function checkBootstrapPreflightDoc(docText) {
+  const rel = "docs/how-to/bootstrap-preflight.md";
+  if (!docText) return;
+  mustInclude(docText, "PREFLIGHT_REPO_LAYOUT", "repo layout reason code", rel);
+  mustInclude(docText, "PREFLIGHT_TRACE_DIR_NOT_WRITABLE", "trace dir reason code", rel);
+  mustInclude(docText, "bootstrap-preflight.mjs", "bootstrap script reference", rel);
   mustNotHaveBacklogCaseIds(docText, rel);
   checkForbiddenClaims(docText, rel);
 }
@@ -221,6 +233,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "FLOW: single_agent", "Quickstart single_agent", rel);
   mustInclude(readmeText, "usage-smoke-guide.md", "link to canonical how-to", rel);
   mustInclude(readmeText, "token-hygiene-guide.md", "link to token hygiene guide", rel);
+  mustInclude(readmeText, "bootstrap-preflight.md", "link to bootstrap preflight doc", rel);
 
   checkForbiddenClaims(readmeText, rel);
 
@@ -241,7 +254,12 @@ function main() {
   const hygieneText = readUtf8(TOKEN_HYGIENE);
   const contextHygieneText = readUtf8(CONTEXT_HYGIENE);
   const harnessText = readUtf8(HARNESS_CHECKPOINTS);
+  const bootstrapText = readUtf8(BOOTSTRAP_PREFLIGHT);
   const readmeText = readUtf8(README);
+
+  if (!fs.existsSync(BOOTSTRAP_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, BOOTSTRAP_SCRIPT)}`);
+  }
 
   if (guideText) checkGuide(guideText);
   if (tuiText) checkTuiChecklist(tuiText);
@@ -250,6 +268,7 @@ function main() {
   if (hygieneText) checkTokenHygieneGuide(hygieneText);
   if (contextHygieneText) checkContextHygieneDoc(contextHygieneText);
   if (harnessText) checkHarnessCheckpoints(harnessText);
+  if (bootstrapText) checkBootstrapPreflightDoc(bootstrapText);
   if (readmeText) checkReadmeAlignment(readmeText, guideText);
 
   if (failures.length) {

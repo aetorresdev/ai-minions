@@ -12,6 +12,7 @@ Canonical **end-to-end happy path** for trying **ai-minions** without tribal kno
 - [Operator slash commands](operator-slash-commands.md) — UX aliases to documented CLI (not a new runtime)
 - [Token hygiene guide](../orchestrator/token-hygiene-guide.md) — session habits and reading cost traces
 - [Harness health checkpoints](harness-health-checkpoints.md) — minimal readiness checklist
+- [Bootstrap and preflight](bootstrap-preflight.md) — clean-clone checks + stable reason codes
 - [Environment access contract](../orchestrator/environment-access.md) — `ENVIRONMENT` block schema
 - [Orchestrator README](../../orchestrator/README.md) — CLI flags, env vars, traces, `explain-run`
 - [Skill registry contract](../orchestrator/skill-registry-contract.md) — allowlist + opt-in PreToolUse hook
@@ -38,10 +39,13 @@ Follow **in order**. You do not need prior chat context or maintainer hints. If 
 
 ```bash
 git clone https://github.com/aetorresdev/ai-minions.git
-cd ai-minions/orchestrator
-npm ci
+cd ai-minions
+node scripts/bootstrap-preflight.mjs --install
+cd orchestrator
 npm test
 ```
+
+`bootstrap-preflight` checks layout, Node, deps, and trace dir with stable `reason_code` values — see [bootstrap-preflight.md](bootstrap-preflight.md). Add `--live` before worker-agent runs (requires `claude` CLI).
 
 `npm test` validates the **Node harness only** — not full live orchestration with worker agents.
 
@@ -142,11 +146,11 @@ Run the eight manual cases in [tui-manual-smoke-checklist.md](tui-manual-smoke-c
 
 ## Troubleshooting
 
-Symptom-first reference. Stable reason codes and preflight detail expand in E11-3; this section covers the happy-path blockers.
+Symptom-first reference. Stable `reason_code` values and full check list: [bootstrap-preflight.md](bootstrap-preflight.md).
 
 | Symptom | Likely cause | What to do |
 |---------|--------------|------------|
-| `npm test` fails on clone | Node under 18, stale `node_modules`, network during `npm ci` | `node --version` (need ≥ 18); `rm -rf node_modules && npm ci` |
+| `npm test` fails on clone | Node under 18, stale `node_modules`, network during `npm ci` | `node scripts/bootstrap-preflight.mjs --install` → `PREFLIGHT_NPM_CI` / `PREFLIGHT_NPM_TEST`; or `node --version` (≥ 18) |
 | `npm test` passes but CLI run hangs/fails | `claude` CLI missing or not authenticated | `claude --version`; `claude auth status`; install/login per Anthropic docs |
 | `Ollama` / planner errors | Ollama not running or model missing | `curl -sS http://127.0.0.1:11434/api/tags`; `ollama list`; start Ollama or use `--skip-gates` for a degraded learning run |
 | **⚠ DEGRADED MODE** banner | `--skip-gates` and/or MCPs not registered | **Expected** for Steps 4–5; install MCPs + remove `--skip-gates` for strict gates — [strict-mode](../orchestrator/strict-mode.md) |
@@ -163,10 +167,9 @@ Symptom-first reference. Stable reason codes and preflight detail expand in E11-
 ### Quick diagnostic commands
 
 ```bash
-node --version
-claude --version && claude auth status
-curl -sS http://127.0.0.1:11434/api/tags   # if using Ollama
-cd ai-minions/orchestrator && npm test
+cd ai-minions
+node scripts/bootstrap-preflight.mjs
+node scripts/bootstrap-preflight.mjs --live   # before worker-agent runs
 ```
 
 ### When to file an issue

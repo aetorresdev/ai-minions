@@ -1,0 +1,53 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { describe, it } from "node:test";
+import {
+  REASON_CODES,
+  formatReportText,
+  isTraceDirWritable,
+  runBootstrapPreflight,
+} from "../scripts/bootstrap-preflight.mjs";
+
+describe("bootstrap-preflight", () => {
+  it("fails when orchestrator package.json is missing", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orch-preflight-"));
+    const report = await runBootstrapPreflight({ repoRoot: tmp });
+    assert.equal(report.ok, false);
+    const layout = report.checks.find((c) => c.id === "repo_layout");
+    assert.equal(layout?.reason_code, REASON_CODES.REPO_LAYOUT);
+  });
+
+  it("passes layout and node when orchestrator package exists", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orch-preflight-"));
+    const orch = path.join(tmp, "orchestrator");
+    fs.mkdirSync(orch, { recursive: true });
+    fs.writeFileSync(path.join(orch, "package.json"), '{"name":"test"}\n');
+    fs.mkdirSync(path.join(orch, "node_modules"), { recursive: true });
+
+    const report = await runBootstrapPreflight({ repoRoot: tmp });
+    const layout = report.checks.find((c) => c.id === "repo_layout");
+    const node = report.checks.find((c) => c.id === "node_version");
+    assert.equal(layout?.status, "pass");
+    assert.equal(node?.status, "pass");
+  });
+
+  it("detects non-writable trace dir", () => {
+    const fileAsDir = path.join(os.tmpdir(), `not-a-dir-${process.pid}`);
+    fs.writeFileSync(fileAsDir, "x");
+    try {
+      assert.equal(isTraceDirWritable(fileAsDir), false);
+    } finally {
+      fs.unlinkSync(fileAsDir);
+    }
+  });
+
+  it("formatReportText includes ok flag and reason codes", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orch-preflight-"));
+    const report = await runBootstrapPreflight({ repoRoot: tmp });
+    const text = formatReportText(report);
+    assert.match(text, /bootstrap-preflight/);
+    assert.match(text, /PREFLIGHT_REPO_LAYOUT/);
+  });
+});

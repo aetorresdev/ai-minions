@@ -10,6 +10,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 |------|--------|
 | Full staged path | [Quickstart](#quickstart) |
 | Clone + install + unit tests | [Stage 1: Install and validate locally](#stage-1-install-and-validate-locally) |
+| Bootstrap + preflight (reason codes) | [Bootstrap and preflight](docs/how-to/bootstrap-preflight.md) |
 | Try a skill (no MODE header) | [Stage 2: Run a simple skill](#stage-2-run-a-simple-skill) |
 | Run the orchestrator in Claude Code | [Stage 3: Run orchestration](#stage-3-run-orchestration) |
 | Secrets, `.env`, and `ENVIRONMENT` | [Values vs permission](#values-vs-permission-env-and-secrets) |
@@ -161,10 +162,13 @@ Clone anywhere; the commands below use the default folder name `ai-minions`. Do 
 
 ```bash
 git clone https://github.com/aetorresdev/ai-minions.git
-cd ai-minions/orchestrator
-npm ci
+cd ai-minions
+node scripts/bootstrap-preflight.mjs --install
+cd orchestrator
 npm test
 ```
+
+Preflight uses stable `reason_code` values (layout, Node, deps, trace dir) — [`bootstrap-preflight.md`](docs/how-to/bootstrap-preflight.md). Add `--live` before worker-agent runs.
 
 Passing unit tests means the harness is wired; it does **not** prove Claude CLI orchestration end-to-end.
 
@@ -299,7 +303,7 @@ Canonical reference: [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
 | `npm test` | Harness only — not full agent smoke |
 | `FLOW: multi_agent` | Incomplete for some comparisons; metrics directional |
 | Degraded mode | Missing MCPs or `--skip-gates` = less protection; banner must show |
-| Bootstrap | No global installer/doctor CLI — manual clone + `npm ci` |
+| Bootstrap | No global installer — `scripts/bootstrap-preflight.mjs` + manual clone |
 
 More: [`orchestrator/README.md`](orchestrator/README.md) § Known limitations.
 
