@@ -12,7 +12,8 @@ on:
       - "docs/orchestrator/README.md"
       - "orchestrator/context-hygiene-signals.js"
       - "orchestrator/orchestrator.js"
-      - "scripts/verify-usage-docs.mjs"
+      - "scripts/bootstrap-preflight.mjs"
+      - "tests/bootstrap-preflight.test.mjs"
       - ".github/workflows/docs-usage-verify.yml"
       - ".github/workflows/claude-doc-smoke.yml"
       - "orchestrator/operator-cli-help.js"
@@ -34,3 +35,6 @@ jobs:
 
       - name: Verify usage how-to and README alignment
         run: node scripts/verify-usage-docs.mjs
+
+      - name: Bootstrap preflight unit tests
+        run: node --test tests/bootstrap-preflight.test.mjs
