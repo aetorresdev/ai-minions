@@ -36,6 +36,8 @@ Run phases **in order**. Each phase has a single pass signal — no multi-step s
 
 ### Phase 1 — Runner preflight (launch layer)
 
+Optional **full bridge** (bootstrap `PREFLIGHT_*` then runner preflight `OPERATOR_*`): [operator-preflight-bridge](operator-preflight-bridge.md) · `node scripts/operator-preflight.mjs --install --live`
+
 Checks model policy and (for `local_only`) Ollama + local model selection. **Does not** run agents.
 
 ```bash

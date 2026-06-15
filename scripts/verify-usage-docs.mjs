@@ -27,6 +27,9 @@ const CONTEXT_HYGIENE = path.join(REPO_ROOT, "docs/orchestrator/context-hygiene-
 const HARNESS_CHECKPOINTS = path.join(REPO_ROOT, "docs/how-to/harness-health-checkpoints.md");
 const BOOTSTRAP_PREFLIGHT = path.join(REPO_ROOT, "docs/how-to/bootstrap-preflight.md");
 const BOOTSTRAP_SCRIPT = path.join(REPO_ROOT, "scripts/bootstrap-preflight.mjs");
+const OPERATOR_PREFLIGHT_SCRIPT = path.join(REPO_ROOT, "scripts/operator-preflight.mjs");
+const OPERATOR_PREFLIGHT_BRIDGE = path.join(REPO_ROOT, "docs/how-to/operator-preflight-bridge.md");
+const OPERATOR_GUIDED_RUN = path.join(REPO_ROOT, "docs/how-to/operator-guided-run.md");
 const PRIMARY_SMOKE = path.join(REPO_ROOT, "docs/how-to/primary-smoke.md");
 const PRIMARY_SMOKE_SCRIPT = path.join(REPO_ROOT, "scripts/run-primary-smoke.mjs");
 const FRESH_CLONE_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/fresh-clone-evidence.md");
@@ -115,6 +118,26 @@ function checkBootstrapPreflightDoc(docText) {
   mustInclude(docText, "PREFLIGHT_REPO_LAYOUT", "repo layout reason code", rel);
   mustInclude(docText, "PREFLIGHT_TRACE_DIR_NOT_WRITABLE", "trace dir reason code", rel);
   mustInclude(docText, "bootstrap-preflight.mjs", "bootstrap script reference", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
+function checkOperatorPreflightBridgeDoc(docText) {
+  const rel = "docs/how-to/operator-preflight-bridge.md";
+  if (!docText) return;
+  mustInclude(docText, "PREFLIGHT_", "bootstrap reason code family", rel);
+  mustInclude(docText, "OPERATOR_", "operator reason code family", rel);
+  mustInclude(docText, "operator-preflight.mjs", "bridge script reference", rel);
+  mustInclude(docText, "rename or replace", "PREFLIGHT preservation note", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
+function checkOperatorGuidedRunDoc(docText) {
+  const rel = "docs/how-to/operator-guided-run.md";
+  if (!docText) return;
+  mustInclude(docText, "runner:tui", "runner tui reference", rel);
+  mustInclude(docText, "bootstrap-preflight", "bootstrap delegation link", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -218,6 +241,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "bootstrap-preflight.md", "link to bootstrap preflight doc", rel);
   mustInclude(readmeText, "primary-smoke.md", "link to primary smoke doc", rel);
   mustInclude(readmeText, "fresh-clone-evidence.md", "link to fresh-clone evidence doc", rel);
+  mustInclude(readmeText, "operator-preflight-bridge.md", "link to operator preflight bridge doc", rel);
 
   checkForbiddenClaimsForDoc(readmeText, rel);
 
@@ -241,10 +265,15 @@ function main() {
   const bootstrapText = readUtf8(BOOTSTRAP_PREFLIGHT);
   const primarySmokeText = readUtf8(PRIMARY_SMOKE);
   const freshCloneText = readUtf8(FRESH_CLONE_EVIDENCE);
+  const operatorBridgeText = readUtf8(OPERATOR_PREFLIGHT_BRIDGE);
+  const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
   const readmeText = readUtf8(README);
 
   if (!fs.existsSync(BOOTSTRAP_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, BOOTSTRAP_SCRIPT)}`);
+  }
+  if (!fs.existsSync(OPERATOR_PREFLIGHT_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, OPERATOR_PREFLIGHT_SCRIPT)}`);
   }
   if (!fs.existsSync(PRIMARY_SMOKE_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, PRIMARY_SMOKE_SCRIPT)}`);
@@ -266,6 +295,8 @@ function main() {
   if (bootstrapText) checkBootstrapPreflightDoc(bootstrapText);
   if (primarySmokeText) checkPrimarySmokeDoc(primarySmokeText);
   if (freshCloneText) checkFreshCloneEvidenceDoc(freshCloneText);
+  if (operatorBridgeText) checkOperatorPreflightBridgeDoc(operatorBridgeText);
+  if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
   if (readmeText) checkReadmeAlignment(readmeText, guideText);
 
   if (failures.length) {
