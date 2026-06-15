@@ -2,6 +2,22 @@
 
 [![License: AI Minions Community](https://img.shields.io/badge/license-AI%20Minions%20Community-blue.svg)](./LICENSE) [![GitHub release](https://img.shields.io/github/v/release/aetorresdev/ai-minions?include_prereleases)](https://github.com/aetorresdev/ai-minions/releases) [![GitHub issues](https://img.shields.io/badge/issues-GitHub-181717?logo=github)](https://github.com/aetorresdev/ai-minions/issues) [![GitHub pull requests](https://img.shields.io/badge/PRs-GitHub-181717?logo=github)](https://github.com/aetorresdev/ai-minions/pulls) [![GitHub last commit](https://img.shields.io/github/last-commit/aetorresdev/ai-minions/master)](https://github.com/aetorresdev/ai-minions/commits/master) [![Orchestrator CI](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-unit-tests.yml/badge.svg)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-unit-tests.yml) [![Orchestrator E2E](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-e2e.yml/badge.svg)](https://github.com/aetorresdev/ai-minions/actions/workflows/orchestrator-e2e.yml)
 
+## Start here
+
+Trying to **install, run, and validate** without reading this whole page? Jump directly:
+
+| Goal | Where |
+|------|--------|
+| Full staged path | [Quickstart](#quickstart) |
+| Clone + install + unit tests | [Stage 1: Install and validate locally](#stage-1-install-and-validate-locally) |
+| Try a skill (no MODE header) | [Stage 2: Run a simple skill](#stage-2-run-a-simple-skill) |
+| Run the orchestrator in Claude Code | [Stage 3: Run orchestration](#stage-3-run-orchestration) |
+| Optional MCP / tool integrations | [Stage 4: MCP setup](#stage-4-mcp-setup-optional) |
+| Alpha boundaries and caveats | [Known limitations (alpha)](#known-limitations-alpha) |
+| Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) |
+
+---
+
 Most AI coding tools can write code. They do not enforce roles, gates, approvals, or traceable workflow boundaries.
 
 **ai-minions** is a **control-first AI workflow harness** for engineers who want AI-assisted work to be **reviewable before it becomes risky**.
@@ -105,6 +121,8 @@ Full wiring: [`docs/orchestrator/system-architecture-diagram.md`](docs/orchestra
 
 ## Quickstart
 
+Five stages — stop when you have enough signal for your goal. Details and troubleshooting: [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
+
 ### Runtime reality (read first)
 
 | Layer | What runs | Required for smoke? |
@@ -113,15 +131,21 @@ Full wiring: [`docs/orchestrator/system-architecture-diagram.md`](docs/orchestra
 | **Worker agents** | **`claude` CLI** — DEV/QA/CERBERUS/etc. spawn fresh CLI calls ([`orchestrator/README.md`](orchestrator/README.md) § Runtime dependency on the claude CLI) | **Yes** for real orchestrator runs; **not** for unit tests alone |
 | **Local planner** | **Ollama** — orchestrator + handoff summarizer (optional locally; E2E may require it) | No for `npm test` |
 
+**Runtime concepts (short):**
+
+- **Skills** — prompt/workflow instructions under `skills/`; they guide behavior in chat but **do not** run side effects or spawn agents by themselves.
+- **MCP servers** — optional tool and state integrations (gates, handoff, orchestrator-state); missing MCPs put the runner in **degraded mode** (visible banner, fewer protections).
+- **`claude` CLI** — required for real worker-agent orchestration runs; unit tests do not substitute for it.
+- **Ollama** — optional local planner/summarizer path; strict E2E may require it — [`local-model-discovery.md`](docs/orchestrator/local-model-discovery.md).
+- **`npm test`** — validates the **Node harness only** (contracts, gates, trace schema); it does **not** prove full live orchestration with worker agents.
+
 **This is not:**
 
 - A **packaged global installer** (no brew/npm `-g` product — clone + bootstrap only).
-- A **production TUI product** — `npm run runner:tui` is a **CLI MVP** for tests/operators, not an external-ready app (v0.12 polish).
+- A **production TUI product** — `npm run runner:tui` is a **CLI MVP** for tests/operators, not a polished product UI (v0.12 polish).
 - **Provider-agnostic execution** — workers are Claude CLI-backed today; bring-your-own runner is documented, not shipped as alternate backend.
 
-Detail: [`orchestrator/README.md`](orchestrator/README.md) · full smoke walkthrough: [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
-
-### New clone (external testers)
+### Stage 1: Install and validate locally
 
 Use any directory — **do not** assume `~/.claude` unless you want the maintainer layout.
 
@@ -134,13 +158,7 @@ npm test
 
 Expect unit tests to pass (see CI badge). That validates the Node harness only — **not** a full agent run (needs `claude` CLI + optional Ollama for live orchestration).
 
-**Optional maintainer layout** (hooks/skills paths some docs reference):
-
-```bash
-git clone https://github.com/aetorresdev/ai-minions.git ~/.claude
-```
-
-### Prerequisites
+**Prerequisites before live runs:**
 
 | Check | Notes |
 |-------|--------|
@@ -148,11 +166,24 @@ git clone https://github.com/aetorresdev/ai-minions.git ~/.claude
 | **Claude Code + `claude` CLI** | Worker agents; `claude --version` / `claude auth status` before live runs |
 | **Cursor or Warp** (typical) | Paste MODE headers in chat; hooks optional |
 | **Ollama** (optional) | Planner/summarizer + strict E2E — [`local-model-discovery.md`](docs/orchestrator/local-model-discovery.md) |
-| **MCP servers** (optional) | Without them, runner uses **degraded mode** (visible banner) — [`strict-mode.md`](docs/orchestrator/strict-mode.md) |
 
-MCP install reference: [`docs/mcp-installation.md`](docs/mcp-installation.md).
+**Optional maintainer layout** (hooks/skills paths some docs reference):
 
-### Try orchestration (Claude Code)
+```bash
+git clone https://github.com/aetorresdev/ai-minions.git ~/.claude
+```
+
+### Stage 2: Run a simple skill
+
+In Claude Code (or compatible chat), try a skill **without** a MODE header — e.g.:
+
+```text
+Review this Dockerfile
+```
+
+Skills load instructions from `skills/`; they are a lightweight smoke that you have Claude Code wired to the repo. They do **not** exercise orchestrator gates, traces, or multi-role contracts.
+
+### Stage 3: Run orchestration
 
 Paste at the **start** of a chat:
 
@@ -165,17 +196,25 @@ MAX_ITERATIONS: 3
 
 Add `FLOW: multi_agent` + `CWD: /absolute/path/to/project` for the hook-driven background runner. Optional `ENVIRONMENT` block — **credential names only**, never values: [`environment-access.md`](docs/orchestrator/environment-access.md).
 
-**Simple skill** (no header): e.g. `Review this Dockerfile`.
-
 **Operator CLI** (discover flags — not a polished product UI):
 
 ```bash
 cd REPO_ROOT/orchestrator
 node run-orchestrator.js --help
-npm run runner:tui -- --help    # CLI MVP panels — not external product TUI
+npm run runner:tui -- --help    # CLI MVP panels — not production TUI
 ```
 
 Slash-style aliases (doc only): [`docs/how-to/operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
+
+### Stage 4: MCP setup (optional)
+
+MCP servers extend tool access and on-disk gate enforcement. Without them, the runner stays in **degraded mode** — usable for exploration, weaker on transition enforcement.
+
+Install and wire MCPs per skill and orchestrator needs: [`docs/mcp-installation.md`](docs/mcp-installation.md). Gate sequence and degraded banner: [`strict-mode.md`](docs/orchestrator/strict-mode.md).
+
+### Stage 5: Full smoke guide
+
+When Stages 1–4 pass, run the canonical walkthrough (CLI + TUI panels + env contract + bug template): [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md). Token and session habits: [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
 
 ### Known limitations (alpha)
 
@@ -185,7 +224,7 @@ Slash-style aliases (doc only): [`docs/how-to/operator-slash-commands.md`](docs/
 - **Degraded mode** — missing MCPs or `--skip-gates` = less protection; banner must be visible.
 - **No global installer / doctor CLI** in this release — bootstrap is manual clone + `npm ci` (preflight/doctor documented separately).
 
-More: [`orchestrator/README.md`](orchestrator/README.md) § Known limitations · [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) · [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md) (session/token habits).
+More: [`orchestrator/README.md`](orchestrator/README.md) § Known limitations · [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) · [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
 
 ---
 
