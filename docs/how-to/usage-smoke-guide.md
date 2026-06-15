@@ -1,6 +1,8 @@
-# Usage smoke guide — operator and external testers
+# Usage smoke guide — operator runbook
 
-Canonical how-to for trying **ai-minions** without reading the whole repository. Technical contracts stay in [`docs/orchestrator/`](../orchestrator/README.md); this page is the **single source of truth** for smoke usage (CLI runner + Claude Code TUI).
+Canonical **end-to-end happy path** for trying **ai-minions** without tribal knowledge or maintainer chat. Technical contracts stay in [`docs/orchestrator/`](../orchestrator/README.md); this page is the **single source of truth** for smoke usage (CLI runner + Claude Code).
+
+**Entry from README:** [Start here](../../README.md#start-here) · staged Quickstart in [README](../../README.md#quickstart).
 
 ## Related
 
@@ -17,7 +19,161 @@ Canonical how-to for trying **ai-minions** without reading the whole repository.
 
 ---
 
-## What ai-minions is (and is not)
+## Happy path (end-to-end runbook)
+
+Follow **in order**. You do not need prior chat context or maintainer hints. If a step fails, jump to [Troubleshooting](#troubleshooting).
+
+| Step | What to do | Pass signal |
+|------|------------|-------------|
+| **1** | Clone and validate the Node harness | `npm test` exits 0 |
+| **2** | Try a simple skill in Claude Code | Model responds using a repo skill |
+| **3** | Paste a minimal orchestration header | Session accepts `MODE` / `FLOW` / `GOAL` |
+| **4** | Run one CLI smoke command | Terminal prints `Done` and a **Task ID** |
+| **5** | Inspect the trace | `explain-run` or `tokens:report` reads the JSONL |
+| **6** *(optional)* | Wire secrets correctly | Vars in shell for the orchestrator process; header lists **names** only |
+| **7** *(optional)* | MCP + gates | Understand `DEGRADED MODE` vs strict gates |
+| **8** *(optional)* | TUI depth check | Eight cases in [TUI checklist](tui-manual-smoke-checklist.md) |
+
+### Step 1 — Clone and validate
+
+```bash
+git clone https://github.com/aetorresdev/ai-minions.git
+cd ai-minions/orchestrator
+npm ci
+npm test
+```
+
+`npm test` validates the **Node harness only** — not full live orchestration with worker agents.
+
+### Step 2 — Simple skill (no MODE header)
+
+In Claude Code, with the repo open:
+
+```text
+Review this Dockerfile
+```
+
+Pass: the model follows a skill from `skills/`. This does **not** exercise orchestrator gates or traces.
+
+### Step 3 — Orchestration header (Claude Code)
+
+Paste at the **start** of a new chat:
+
+```text
+MODE: ORCHESTRATOR
+FLOW: single_agent
+GOAL: Smoke test — list three files in the repo root and stop
+MAX_ITERATIONS: 1
+```
+
+Pass: the session runs under the MODE contract (not vague “act as orchestrator” prose). For background/multi-repo runs, add `FLOW: multi_agent` and absolute `CWD` — see [Canonical orchestration header](#canonical-orchestration-header).
+
+### Step 4 — CLI smoke run
+
+```bash
+cd ai-minions/orchestrator
+node run-orchestrator.js --skip-gates --iterations 1 "List repo root files in one sentence and stop"
+```
+
+Pass: exit `0`, console shows `Done`, **Task ID**, and step snippets. `--skip-gates` is **degraded mode** (banner visible) — fine for first contact.
+
+### Step 5 — Inspect trace
+
+Note the **Task ID** from Step 4, then:
+
+```bash
+cd ai-minions/orchestrator
+npm run explain-run -- --run-id <task_id>
+npm run tokens:report -- <task_id>
+```
+
+Default trace path (override with `ORCH_TRACES_DIR`):
+
+```text
+~/.claude/metrics/traces/<task_id>.jsonl
+```
+
+Pass: JSONL exists and `explain-run` summarizes the run without errors.
+
+### Step 6 — Secrets and `.env` *(optional)*
+
+**Values** must be in **`process.env`** for the shell that starts the runner (`resolveCredentials()` reads `process.env[envVar]`). **Permission** is declared in the header (`ENVIRONMENT`).
+
+`.env.local` is only local storage — the runner does **not** auto-load it. Create the file, then **export** into the shell before the run:
+
+```bash
+cd ai-minions
+cat > .env.local <<'EOF'
+EXAMPLE_API_URL=https://api.example.com
+EXAMPLE_API_TOKEN=<your-token>
+EOF
+
+set -a
+source .env.local
+set +a
+
+cd orchestrator
+```
+
+Append to the orchestration header (names only — never secret values):
+
+```text
+ENVIRONMENT:
+  mode: read
+  credentials:
+    - name: example_api
+      type: api_key
+      vars:
+        url: EXAMPLE_API_URL
+        key: EXAMPLE_API_TOKEN
+```
+
+Rules: [Environment contract](#environment-contract-values-vs-permission) · full schema: [`environment-access.md`](../orchestrator/environment-access.md).
+
+### Step 7 — MCP and gates *(optional)*
+
+Without MCPs or with `--skip-gates`, the runner prints **⚠ DEGRADED MODE** — transitions are not recorded on disk. For gate smoke, configure MCPs per [orchestrator README — With hard gates](../../orchestrator/README.md).
+
+### Step 8 — TUI checklist *(optional)*
+
+Run the eight manual cases in [tui-manual-smoke-checklist.md](tui-manual-smoke-checklist.md) when validating IDE-only behavior.
+
+---
+
+## Troubleshooting
+
+Symptom-first reference. Stable reason codes and preflight detail expand in E11-3; this section covers the happy-path blockers.
+
+| Symptom | Likely cause | What to do |
+|---------|--------------|------------|
+| `npm test` fails on clone | Node under 18, stale `node_modules`, network during `npm ci` | `node --version` (need ≥ 18); `rm -rf node_modules && npm ci` |
+| `npm test` passes but CLI run hangs/fails | `claude` CLI missing or not authenticated | `claude --version`; `claude auth status`; install/login per Anthropic docs |
+| `Ollama` / planner errors | Ollama not running or model missing | `curl -sS http://127.0.0.1:11434/api/tags`; `ollama list`; start Ollama or use `--skip-gates` for a degraded learning run |
+| **⚠ DEGRADED MODE** banner | `--skip-gates` and/or MCPs not registered | **Expected** for Steps 4–5; install MCPs + remove `--skip-gates` for strict gates — [strict-mode](../orchestrator/strict-mode.md) |
+| Exit `1` — no goal | Empty argv and empty stdin | Pass goal as argument or pipe: `echo "Smoke: OK" \| node run-orchestrator.js --skip-gates --iterations 1` |
+| No trace file / wrong path | Wrong Task ID or custom `ORCH_TRACES_DIR` | Copy Task ID from run output; `ls ~/.claude/metrics/traces/` or your `ORCH_TRACES_DIR` |
+| `compact_handoff failed` (strict) | Ollama unreachable with gates on | Start Ollama or run degraded (`--skip-gates`) while learning |
+| Gate blocked / `gateBlocked: true` | Handoff contract, goal alignment, or permission gate | `npm run explain-run -- --run-id <task_id>`; inspect `gate_result`, `contract_fail` events |
+| Credential “not available” | Vars unset in the orchestrator shell or names mismatch | Ensure `EXAMPLE_*` exist in the **shell running** `run-orchestrator.js` / Claude session. If using `.env.local`, `source`/`export` it before the run; header `vars` must match **exact** env var names |
+| Agent used API without permission | No `ENVIRONMENT` block in header | Add `ENVIRONMENT` with names only — `.env` alone does **not** grant permission |
+| `multi_agent` hooks silent | Wrong `CWD` or hooks not installed | `CWD` must be absolute real path; check `logs/orchestrator.log` under clone if hooks enabled |
+| TUI ignores MODE header | Header not at **start** of chat or paraphrased | Paste exact block from [Step 3](#step-3--orchestration-header-claude-code) |
+| Overclaim confusion | README vs runbook mismatch | Use **implemented / planned / not claimed** — [README maturity](../../README.md#maturity-implemented--planned--not-claimed) |
+
+### Quick diagnostic commands
+
+```bash
+node --version
+claude --version && claude auth status
+curl -sS http://127.0.0.1:11434/api/tags   # if using Ollama
+cd ai-minions/orchestrator && npm test
+```
+
+### When to file an issue
+
+Use the [bug report template](#bug-report-template) below. Classify **DOCS** vs **BUG** vs **USABILITY** — do not file alpha blockers for items listed in [What not to test](#what-to-test-vs-what-not-to-test-alpha).
+
+---
 
 **ai-minions** is a **contract-driven agent harness**: fixed MODE roles, structured handoffs, validation gates, permission-aware execution, and JSONL traces. It is **human-supervised** — not an autonomous 24/7 dev team, not production multi-tenant SaaS, and not a substitute for your judgment on risk and merge.
 
@@ -52,20 +208,9 @@ Orchestration **must not** be replaced by vague natural language alone; the harn
 
 ---
 
-## Setup (clone smoke)
+## Setup (reference)
 
-Replace `REPO_ROOT` with your clone path (avoid hardcoding another machine’s home directory).
-
-```bash
-git clone https://github.com/aetorresdev/ai-minions.git REPO_ROOT
-cd REPO_ROOT/orchestrator
-npm ci
-npm test
-```
-
-Expect the unit suite to pass (count changes over time; check CI badge on the repo). Optional strict E2E needs Ollama, Python venvs, and extra env — see [orchestrator README — Tests](../../orchestrator/README.md).
-
-### Prerequisites for a real orchestrator run (not just `npm test`)
+The [happy path](#happy-path-end-to-end-runbook) Step 1 is the canonical clone flow. Prerequisites for live orchestration (beyond `npm test`):
 
 | Check | Command |
 |-------|---------|
@@ -140,12 +285,19 @@ Prompt/context enforcement exists per `environment-access.md` (`parseEnvironment
 ### Local example (illustrative)
 
 ```bash
-# In REPO_ROOT — gitignored
-cp .env.example .env.local   # if provided; otherwise create locally
-# Set EXAMPLE_API_URL and EXAMPLE_API_TOKEN in .env.local — never commit values
+cd ai-minions
+cat > .env.local <<'EOF'
+EXAMPLE_API_URL=https://api.example.com
+EXAMPLE_API_TOKEN=<your-token>
+EOF
+
+set -a
+source .env.local
+set +a
+# Keep .env.local gitignored — never commit secret values
 ```
 
-In the header, reference only `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `vars`, as in the block above.
+The runner does **not** load `.env.local` automatically. Values must be in `process.env` before you start the orchestrator. In the header, reference only `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `vars`.
 
 **GitHub Actions pattern:** map `secrets` → job `env` → declare the same **names** in `ENVIRONMENT` in the prompt/header — never echo secret values in logs or docs.
 
@@ -153,14 +305,14 @@ In the header, reference only `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `v
 
 ## CLI runner smoke
 
-From `REPO_ROOT/orchestrator`:
+From `ai-minions/orchestrator`:
 
 ### Minimal run (degraded / no gates)
 
 Use a tiny goal and low iterations while learning the runner:
 
 ```bash
-cd REPO_ROOT/orchestrator
+cd ai-minions/orchestrator
 node run-orchestrator.js --skip-gates --iterations 1 "List repo root files in one sentence and stop"
 ```
 
@@ -195,7 +347,7 @@ Default trace directory (override with `ORCH_TRACES_DIR`):
 After a run, note the printed **Task ID**, then:
 
 ```bash
-cd REPO_ROOT/orchestrator
+cd ai-minions/orchestrator
 npm run explain-run -- --run-id <task_id>
 # or
 npm run explain-run -- --file ~/.claude/metrics/traces/<task_id>.jsonl
@@ -212,10 +364,10 @@ Requires MCP registration and is slower — follow [With hard gates](../../orche
 
 ## Claude Code TUI smoke
 
-1. Open **REPO_ROOT** (or the target `CWD` project) in Claude Code.
+1. Open **ai-minions** (or the target `CWD` project) in Claude Code.
 2. Run the eight cases in [tui-manual-smoke-checklist.md](tui-manual-smoke-checklist.md).
 3. For orchestration, always use the **canonical header** — not paraphrased “please act as orchestrator.”
-4. Watch `tail -f REPO_ROOT/logs/orchestrator.log` when using `multi_agent` (path may vary; see README).
+4. Watch `tail -f ai-minions/logs/orchestrator.log` when using `multi_agent` (path may vary; see README).
 
 ---
 

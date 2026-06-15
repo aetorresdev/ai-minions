@@ -16,6 +16,8 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Optional MCP / tool integrations | [Stage 4: MCP setup](#stage-4-mcp-setup-optional) |
 | Alpha boundaries and caveats | [Known limitations (alpha)](#known-limitations-alpha) |
 | Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) |
+| End-to-end runbook (step-by-step) | [Happy path](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) |
+| Something failed during smoke | [Troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) |
 
 ---
 
@@ -232,7 +234,7 @@ Two layers — do not mix them:
 
 | Layer | You put here | Grants permission? |
 |-------|----------------|----------------------|
-| **`.env` / shell / CI `env`** | Secret **values** (`export VAR=…`, gitignored `.env.local`, GitHub `secrets` → `env`) | **No** — only makes values available to the process |
+| **`.env` / shell / CI `env`** | Secret **values** in `process.env` (`export`, `source` a gitignored file, GitHub `secrets` → `env`) | **No** — only makes values available to the process |
 | **`ENVIRONMENT` in the header** | **Names** of env vars + access `mode` (`read` / `write`) | **Yes** — declares what this run may use |
 
 **Rules:**
@@ -244,13 +246,18 @@ Two layers — do not mix them:
 
 **Local values file (illustrative):**
 
+`.env.local` is storage only — load into the shell before running the orchestrator:
+
 ```bash
 cd ai-minions
 cat > .env.local <<'EOF'
 EXAMPLE_API_URL=https://api.example.com
 EXAMPLE_API_TOKEN=<your-token>
 EOF
-# Keep .env.local gitignored — never commit secret values
+
+set -a
+source .env.local
+set +a
 ```
 
 The header references `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `vars` — not the values.
@@ -278,9 +285,9 @@ MCPs add tools and stronger on-disk gate enforcement. Without them: **degraded m
 
 ### Stage 5: Full smoke guide
 
-After Stages 1–4: canonical CLI + TUI + env contract + bug template — [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
+After Stages 1–4: follow the [happy path runbook](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) (steps 1–8) and [troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) if blocked.
 
-Token/session habits: [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
+Canonical reference: [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md). Token/session habits: [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
 
 ---
 
