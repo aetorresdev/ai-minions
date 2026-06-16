@@ -6,6 +6,60 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.13.0-alpha.1] - 2026-06-16
+
+Thirteenth alpha pre-release: **Beta Readiness Dry Run** — known limitations doc for beta candidate, GitHub operator-feedback issue template, `ATTACH.md` / bundle alignment with the form, internal beta tester runbook, scorable dry-run checklist, and synthetic sample issue evidence proving bundle → actionable feedback without maintainer rewrite.
+
+**Release claim:** an internal operator can follow the documented beta dry-run loop — limitations → entry + `runner:tui` path → inspect + report bundle → GitHub operator-feedback issue with checklist evidence — **not** production-ready, **not** external usability beta, **not** automatic issue upload from bundle scripts, **not** a packaged global installer or production TUI.
+
+**Prerequisite:** `v0.12.0-alpha.1` — Operator UX Hardening @ `e4350f1`.
+
+**Since [0.12.0-alpha.1]:** v0.12 centered on **operator UX** (`runner:tui` guided flow, preflight bridge, inspect, local report bundle). v0.13 adds **beta readiness dry-run** artifacts: honesty boundaries, feedback template + `ATTACH.md` alignment, internal tester runbook, checklist, and sample issue evidence — without opening an external tester cohort.
+
+| Area | `v0.12.0-alpha.1` | `v0.13.0-alpha.1` (delta) |
+|------|-------------------|---------------------------|
+| Focus | Operator UX — `runner:tui` guided flow · inspect · report bundle | Beta dry-run — limitations · feedback loop · checklist · sample evidence |
+| Operator docs | operator-guided-run, operator-preflight-bridge, inspect-run-evidence, collect-run-report | **beta-known-limitations**, **operator-feedback-issue**, **beta-tester-guide**, **beta-dry-run-checklist**, sample issue evidence |
+| Feedback loop | Local bundle + `ATTACH.md` skeleton | **GitHub issue template** + aligned `ATTACH.md` fields + synthetic sample issue |
+| Reason codes | `OPERATOR_*`, `INSPECT_*`, `BUNDLE_*` | Same layers preserved; dry-run docs reference all three families |
+| Unit tests (evidence) | 1396/1397 | 1396/1397 (orchestrator unchanged; root operator-script tests via Docs usage verify) |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.13.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1396/1397** pass (1 skipped) on workspace @ lane tip `1cb3d68`
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
+- Contracts: `beta-known-limitations.md`, `operator-feedback-issue.md`, `beta-tester-guide.md`, `beta-dry-run-checklist.md`, `operator-doc-claims.mjs`, `collect-run-report.mjs`
+- Lane merged on `master` @ `1cb3d68` (E13-1..5); release-prep on this commit (pending merge)
+- CI: Docs usage verify · Link Check · Markdown Lint — green on lane PRs (#197–#201)
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
+- **Not** external usability beta — internal dry-run only until v0.14 gate; no external tester cohort claim.
+- **Not** automatic GitHub upload from bundle collector — manual issue form copy remains required.
+- **Not** a packaged global installer, brew recipe, or production TUI — manual clone + documented scripts only.
+- **Not** architecture refactor complete or adaptive model layer — v0.12 operator surface unchanged in orchestrator runtime scope.
+
+### Added
+
+- Beta known limitations doc consolidating v0.11 entry + v0.12 operator surface (`docs/how-to/beta-known-limitations.md`).
+- GitHub operator-feedback issue template and field guide (`operator-feedback.yml`, `operator-feedback-issue.md`).
+- `ATTACH.md` / `collect-run-report` alignment with official issue form fields.
+- Internal beta tester runbook chaining entry → operator → bundle → issue (`beta-tester-guide.md`).
+- Scorable dry-run checklist and synthetic sample issue evidence (`beta-dry-run-checklist.md`, `evidence/beta-dry-run-sample-issue.md`).
+
+### Security
+
+- Operator-facing docs and issue template defaults contain no secrets; claim audit covers new dry-run docs.
+- No runtime permission or gate changes in this lane.
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Next roadmap lane after cut: **v0.14 First External Usability Beta** — not part of this release claim.
+
 ## [0.12.0-alpha.1] - 2026-06-16
 
 Twelfth alpha pre-release: **Operator UX Hardening** — guided `runner:tui` runbook, preflight UX bridge with stable reason codes, launch/status/result discoverability, trace/evidence inspect path, and local report bundle collector for operator feedback attachment.
