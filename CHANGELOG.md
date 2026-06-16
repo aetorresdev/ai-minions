@@ -6,6 +6,60 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.12.0-alpha.1] - 2026-06-16
+
+Twelfth alpha pre-release: **Operator UX Hardening** — guided `runner:tui` runbook, preflight UX bridge with stable reason codes, launch/status/result discoverability, trace/evidence inspect path, and local report bundle collector for operator feedback attachment.
+
+**Release claim:** operators can follow a documented `runner:tui` path — preflight → launch → status → result → inspect evidence → collect attachable report bundle — with stable `OPERATOR_*`, `INSPECT_*`, and `BUNDLE_*` reason codes and CI-verified operator docs — **not** production-ready, **not** a packaged global installer or production TUI, **not** GitHub feedback templates or external beta, **not** live smoke as an automatic PR merge gate.
+
+**Prerequisite:** `v0.11.0-alpha.1` — External Entry Path Readiness @ `c515643`.
+
+**Since [0.11.0-alpha.1]:** v0.11 centered on **external entry path** (README, runbook, bootstrap, primary smoke, fresh-clone evidence). v0.12 adds **operator UX hardening** on the existing `runner:tui` CLI MVP: guided run, preflight bridge, help/slash discoverability, chained inspect, and local report bundle — without redoing v0.11 entry docs or claiming hosted control plane. Beta dry-run and feedback templates remain v0.13 roadmap.
+
+| Area | `v0.11.0-alpha.1` | `v0.12.0-alpha.1` (delta) |
+|------|-------------------|---------------------------|
+| Focus | External entry path — README · bootstrap · primary smoke | Operator UX — `runner:tui` guided flow · inspect · report bundle |
+| Operator docs | usage-smoke, bootstrap-preflight, primary-smoke, fresh-clone-evidence | **operator-guided-run**, **operator-preflight-bridge**, **inspect-run-evidence**, **collect-run-report**, slash aliases |
+| Reason codes | `PREFLIGHT_*`, `SMOKE_*`, `EVIDENCE_*`, `CLAIM_*` | **`OPERATOR_*`**, **`INSPECT_*`**, **`BUNDLE_*`** (layers preserved — no rename of `PREFLIGHT_*`) |
+| Entry scripts | bootstrap-preflight, run-primary-smoke, run-fresh-clone-evidence | **operator-preflight**, **inspect-run-evidence**, **collect-run-report** |
+| Unit tests (evidence) | 1395/1396 | 1396/1397 (+ operator help tests; root operator-script tests via Docs usage verify) |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.12.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1396/1397** pass (1 skipped) on workspace @ lane tip `0b53a74`
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean; MCP `uv.lock` bumped @ E12-5)
+- Contracts: `operator-guided-run.md`, `operator-preflight-bridge.md`, `inspect-run-evidence.md`, `collect-run-report.md`, `runner-tui-contract.md`, `operator-doc-claims.mjs`
+- Lane merged on `master` @ `0b53a74` (E12-1..5); release-prep on this commit (pending merge)
+- CI: lint-and-unit · security-trivy-scan · orchestrator-e2e · Docs usage verify — green on lane PRs (#191–#195)
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
+- **Not** a packaged global installer, brew recipe, or production TUI — manual clone + documented scripts only.
+- **Not** GitHub issue templates, feedback forms, or external usability beta — v0.13–v0.14 roadmap.
+- **Not** hosted web control plane or MODE-chat-free autonomous runs — guided docs reduce chat dependency; harness gates unchanged.
+- **Not** architecture refactor complete or adaptive model layer — v0.10/v0.11 baselines unchanged in orchestrator runtime scope.
+
+### Added
+
+- Operator guided run runbook for `runner:tui` preflight → launch → status → result (`docs/how-to/operator-guided-run.md`).
+- `scripts/operator-preflight.mjs` bridging bootstrap `PREFLIGHT_*` and runner `OPERATOR_*` preflight layers.
+- `runner:tui --help` discoverability, slash aliases (`/launch`, `/run-status`, `/inspect-run`, `/collect-report`), README Start here rows.
+- `scripts/inspect-run-evidence.mjs` with `INSPECT_*` codes and real JSONL validation before panels.
+- `scripts/collect-run-report.mjs` with `BUNDLE_*` codes, attachable bundle dir, and dynamic `ATTACH.md` file table.
+
+### Security
+
+- Operator UX scripts emit reason codes only — no secrets in stdout/stderr.
+- MCP `uv.lock` remediation for Trivy HIGH advisories (`cryptography`, `pyjwt`, `starlette`) — no runtime permission change.
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Next roadmap lane after cut: **v0.13 Beta Readiness Dry Run** — not part of this release claim.
+
 ## [0.11.0-alpha.1] - 2026-06-15
 
 Eleventh alpha pre-release: **External Entry Path Readiness** — README and staged quickstart for new users, canonical happy-path runbook, bootstrap preflight with stable reason codes, primary CLI smoke command with trace path, and fresh-clone evidence plus deterministic product-claim audit.
