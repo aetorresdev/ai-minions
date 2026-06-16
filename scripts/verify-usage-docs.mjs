@@ -148,6 +148,8 @@ function checkCollectRunReportDoc(docText) {
   if (!docText) return;
   mustInclude(docText, "BUNDLE_", "bundle reason code family", rel);
   mustInclude(docText, "collect-run-report.mjs", "collect script reference", rel);
+  mustInclude(docText, "operator-feedback-issue", "issue form guide link", rel);
+  mustInclude(docText, "ATTACH.md", "attach field alignment", rel);
   mustInclude(docText, "manifest.json", "bundle manifest", rel);
   mustInclude(docText, "inspect-run-evidence", "inspect chain link", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
@@ -184,6 +186,7 @@ function checkOperatorFeedbackIssueDoc(docText) {
   if (!docText) return;
   mustInclude(docText, "operator-feedback.yml", "issue template file reference", rel);
   mustInclude(docText, "collect-run-report", "bundle collector link", rel);
+  mustInclude(docText, "collect-run-report.mjs", "attach generator script", rel);
   mustInclude(docText, "ATTACH.md", "attach skeleton reference", rel);
   mustInclude(docText, "INSPECT_*", "inspect reason codes", rel);
   mustInclude(docText, "BLOCKER", "severity guide", rel);

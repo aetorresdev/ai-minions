@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 import {
   REASON_CODES,
   buildAttachTemplate,
+  formatInspectBlockersForForm,
   formatReportText,
   runCollectRunReport,
   validateTraceForBundle,
@@ -87,7 +88,7 @@ describe("collect-run-report", () => {
     assert.ok(fs.existsSync(path.join(out, "manifest.json")));
   });
 
-  it("buildAttachTemplate includes task id and inspect blockers", () => {
+  it("buildAttachTemplate aligns with operator feedback issue form fields", () => {
     const text = buildAttachTemplate({
       taskId: "task-1",
       bundleDir: "/tmp/bundle",
@@ -110,7 +111,17 @@ describe("collect-run-report", () => {
     });
     assert.match(text, /task-1/);
     assert.match(text, /INSPECT_STATUS_TRACE_MISSING/);
+    assert.match(text, /operator-feedback-issue\.md/);
+    assert.match(text, /Operator path/);
+    assert.match(text, /Inspect verdict/);
+    assert.match(text, /Report bundle path/);
+    assert.match(text, /Severity/);
+    assert.doesNotMatch(text, /planned for a later release/);
     assert.doesNotMatch(text, /trace-panel/);
+  });
+
+  it("formatInspectBlockersForForm returns (none) when inspect passed", () => {
+    assert.equal(formatInspectBlockersForForm([]), "(none)");
   });
 
   it("ATTACH.md only lists existing files when skipPanels is true", async () => {

@@ -51,7 +51,7 @@ These match the **actual shipped surface** — not a roadmap wish list.
 | Not production-ready · not a global installer · not a production TUI | Alpha harness; manual clone + documented scripts only |
 | Not a hosted control plane · not a turnkey marketplace | Control harness for reviewable agent work — not a chat-first workspace product |
 | Not multi-tenant isolation · not fully sandboxed autonomous runs | See root [What this is NOT](../../README.md#what-this-is-not) |
-| Full feedback automation / bundle parity not shipped yet | Use [operator-feedback-issue](operator-feedback-issue.md) issue form + `ATTACH.md`; full bundle-field alignment lands later |
+| Automatic GitHub upload from bundle script | `ATTACH.md` pre-fills issue form fields; operator copies manually |
 | External usability beta not open | Internal dry-run must prove bundle → actionable issue first |
 | Architecture refactor / adaptive model layer not shipped | Post-beta roadmap; v0.11–v0.12 runtime scope unchanged |
 
@@ -80,7 +80,7 @@ Renaming or merging prefixes breaks CI doc contracts — report mismatches as do
 2. Capture `task_id` from run output.
 3. Run `node scripts/collect-run-report.mjs <task_id>` from repo root.
 4. Review `ATTACH.md` in the bundle — redact secrets before any upload.
-5. File a GitHub issue using [operator-feedback-issue](operator-feedback-issue.md) (form **Operator feedback (runner:tui)**) or paste `ATTACH.md` until bundle alignment lands in a follow-on slice.
+5. File a GitHub issue via [operator-feedback-issue](operator-feedback-issue.md) — copy values from bundle `ATTACH.md`.
 
 **Do not** paste API keys, PATs, or `.env` contents into issues.
 

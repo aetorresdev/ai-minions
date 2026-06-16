@@ -75,7 +75,7 @@ Manual equivalents and slash aliases: [operator-slash-commands.md](operator-slas
 
 ## Out of scope
 
-- GitHub issue templates / feedback forms — use [collect run report](collect-run-report.md) for local bundle attachment
+- GitHub issue filing — use [collect run report](collect-run-report.md) + [operator feedback issue](operator-feedback-issue.md)
 - No packaged installer · no production TUI claim
 
 ---

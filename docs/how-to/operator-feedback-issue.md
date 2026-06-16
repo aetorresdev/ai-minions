@@ -44,7 +44,7 @@ Official GitHub issue form for **operator-path feedback** after v0.11 entry + v0
 | Inspect blockers | `ATTACH.md` § Inspect blockers · `INSPECT_*` / `BUNDLE_*` codes |
 | Severity | BLOCKER · BUG · USABILITY · DOCS |
 
-Alignment with dynamic `ATTACH.md` file tables is refined in a follow-on slice; this template matches the **copy-paste skeleton** in `ATTACH.md` today.
+Alignment with dynamic `ATTACH.md` file tables is maintained by `collect-run-report.mjs` — field values pre-fill the GitHub issue form.
 
 ---
 

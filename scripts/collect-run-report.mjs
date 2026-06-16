@@ -225,6 +225,16 @@ export function writeBundleFiles(input) {
 }
 
 /**
+ * @param {{ reason_code: string, status: string, message: string }[]} checks
+ * @returns {string}
+ */
+export function formatInspectBlockersForForm(checks) {
+  const failed = checks.filter((c) => c.status === "fail");
+  if (failed.length === 0) return "(none)";
+  return failed.map((c) => `${c.reason_code} — ${c.message}`).join("\n");
+}
+
+/**
  * @param {{
  *   taskId: string,
  *   bundleDir: string,
@@ -232,6 +242,7 @@ export function writeBundleFiles(input) {
  *   inspectOk: boolean,
  *   inspectChecks: { reason_code: string, status: string, message: string }[],
  *   files: string[],
+ *   operatorPath?: string,
  * }} ctx
  * @returns {string}
  */
@@ -242,6 +253,9 @@ export function buildAttachTemplate(ctx) {
       ? failed.map((c) => `- \`${c.reason_code}\` — ${c.message}`).join("\n")
       : "- (none — inspect passed)";
   const fileRows = buildFilesTableRows(ctx.files, ctx.taskId);
+  const inspectVerdict = ctx.inspectOk ? "PASS" : "FAIL";
+  const operatorPath = ctx.operatorPath ?? "runner:tui guided run";
+  const inspectBlockersForm = formatInspectBlockersForForm(ctx.inspectChecks);
 
   return `# Operator report bundle
 
@@ -250,7 +264,7 @@ Attach this directory (or zip it) to a GitHub issue. Redact secrets before uploa
 - **Task ID:** \`${ctx.taskId}\`
 - **Bundle dir:** \`${ctx.bundleDir}\`
 - **Repo commit:** \`${ctx.repoCommit ?? "unknown"}\`
-- **Inspect verdict:** ${ctx.inspectOk ? "PASS" : "FAIL"}
+- **Inspect verdict:** ${inspectVerdict}
 
 ## Inspect blockers
 
@@ -262,39 +276,35 @@ ${blockerLines}
 |------|---------|
 ${fileRows}
 
-## GitHub issue template (copy below)
+## GitHub issue form (Operator feedback)
 
-\`\`\`markdown
-## Smoke report
+Open **New issue → Operator feedback (runner:tui)**. Field guide: \`docs/how-to/operator-feedback-issue.md\`.
 
-- **Date:** ${new Date().toISOString().slice(0, 10)}
-- **Path:** runner:tui guided run
-- **Repo commit:** ${ctx.repoCommit ?? "unknown"}
-- **Task ID:** ${ctx.taskId}
-- **Verdict:** ${ctx.inspectOk ? "PASS" : "BLOCK"}
+Copy the values below into the matching form fields:
 
-### Steps
+| Form field | Value |
+|------------|-------|
+| Task ID | \`${ctx.taskId}\` |
+| Repo commit (short SHA) | \`${ctx.repoCommit ?? "unknown"}\` |
+| Operator path | ${operatorPath} |
+| Inspect verdict | ${inspectVerdict} |
+| Report bundle path (local) | \`${ctx.bundleDir}\` |
+| Inspect blockers | see block below |
+| Severity | choose one: BLOCKER · BUG · USABILITY · DOCS |
 
-1. (what you ran)
+**Inspect blockers** (paste into form):
 
-### Expected
-
-### Actual
-
-### Evidence
-
-- Report bundle: \`${ctx.bundleDir}\`
-- Inspect blockers: see ATTACH.md
-
-### Severity
-
-- [ ] BLOCKER
-- [ ] BUG
-- [ ] USABILITY
-- [ ] DOCS
+\`\`\`text
+${inspectBlockersForm}
 \`\`\`
 
-Feedback templates (GitHub issue forms) are planned for a later release — this bundle is the v0.12 local attachment path.
+**Steps to reproduce** — fill in numbered commands you ran.
+
+**Expected** — fill in what you expected.
+
+**Actual** — fill in what happened.
+
+Automatic GitHub upload from this script is **not** shipped — copy fields manually or attach redacted bundle files.
 `;
 }
 
