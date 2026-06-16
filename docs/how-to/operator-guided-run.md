@@ -36,8 +36,9 @@ cd ai-minions/orchestrator
 |---------|----------------|
 | `npm run runner:tui -- --help` | Guided flow, commands, exit codes, doc links |
 | `node run-orchestrator.js --help` | `launch` group → `runner:tui` subcommands |
-| [operator-slash-commands](operator-slash-commands.md) | `/operator-preflight`, `/runner-preflight`, `/launch`, `/run-status`, `/inspect-run` copy-paste aliases |
+| [operator-slash-commands](operator-slash-commands.md) | `/operator-preflight`, `/runner-preflight`, `/launch`, `/run-status`, `/inspect-run`, `/collect-report` copy-paste aliases |
 | [inspect-run-evidence](inspect-run-evidence.md) | `node scripts/inspect-run-evidence.mjs <task_id>` chained inspect |
+| [collect-run-report](collect-run-report.md) | `node scripts/collect-run-report.mjs <task_id>` local attachment bundle |
 
 ---
 
@@ -127,6 +128,8 @@ npm run runner:tui -- budget --run-id <task_id>
 Slash aliases: [operator-slash-commands](operator-slash-commands.md) (`/trace`, `/budget`, `/inspect-run`). Narrative export: `npm run explain-run -- --run-id <task_id>`.
 
 Chained inspect (all layers): `node scripts/inspect-run-evidence.mjs <task_id>` — see [inspect-run-evidence](inspect-run-evidence.md).
+
+Collect attachable bundle: `node scripts/collect-run-report.mjs <task_id>` — see [collect-run-report](collect-run-report.md).
 
 ## Help and discovery
 

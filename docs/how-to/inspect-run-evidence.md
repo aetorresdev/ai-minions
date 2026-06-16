@@ -75,7 +75,7 @@ Manual equivalents and slash aliases: [operator-slash-commands.md](operator-slas
 
 ## Out of scope
 
-- Local report bundle / attachment zip (next operator slice)
+- GitHub issue templates / feedback forms — use [collect run report](collect-run-report.md) for local bundle attachment
 - No packaged installer · no production TUI claim
 
 ---

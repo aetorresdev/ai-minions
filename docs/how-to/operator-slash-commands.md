@@ -19,6 +19,7 @@ Canonical walkthrough: [operator-guided-run.md](operator-guided-run.md). Discove
 | `/launch` | `npm run runner:tui -- run --goal "..." --skip-gates --iterations 1` | Launch orchestrator run (`run` subcommand) | Exit `2` preflight blocked · `3` done:false |
 | `/run-status` | `npm run runner:tui -- status --run-id <task_id>` | Re-read terminal result from trace | Exit `2` — missing trace / bad `task_id` |
 | `/inspect-run` | `node scripts/inspect-run-evidence.mjs <task_id>` | Chained trace + status + trace/budget panels + explain-run | Exit `1` / `INSPECT_*` blockers; see [inspect-run-evidence.md](inspect-run-evidence.md) |
+| `/collect-report` | `node scripts/collect-run-report.mjs <task_id>` | Local report bundle for GitHub attachment | Exit `1` / `BUNDLE_*` + `INSPECT_*`; see [collect-run-report.md](collect-run-report.md) |
 
 **Runner exit codes:** `0` ok · `1` usage/runtime · `2` preflight or trace missing · `3` run finished `done:false`. See `npm run runner:tui -- --help`.
 
@@ -57,6 +58,13 @@ npm run runner:tui -- status --run-id <task_id>
 ```bash
 cd REPO_ROOT
 node scripts/inspect-run-evidence.mjs <task_id>
+```
+
+### `/collect-report`
+
+```bash
+cd REPO_ROOT
+node scripts/collect-run-report.mjs <task_id>
 ```
 
 ### `/validate`
