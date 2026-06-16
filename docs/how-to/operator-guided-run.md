@@ -11,7 +11,7 @@ Terminal-only guide for **launching and reading back** an orchestrator run via `
 | `preflight` → `run` → `status` → interpret result | Clone, `npm ci`, harness layout — [bootstrap-preflight](bootstrap-preflight.md) (`PREFLIGHT_*` reason codes) |
 | Copy-paste from `orchestrator/` | Full happy path (skills, MODE header, troubleshooting tables) — [usage-smoke-guide](usage-smoke-guide.md) |
 | `task_id` + terminal status | Primary smoke via `run-orchestrator.js` — [primary-smoke](primary-smoke.md) |
-| Pointers to trace/budget panels | Deep inspect scripts / report bundle — later v0.12 slices |
+| Pointers to trace/budget panels | [Inspect run evidence](inspect-run-evidence.md) — chained inspect script |
 
 **Not claimed:** packaged installer · production TUI · new entry path. `runner:tui` is a **CLI MVP** (stdout panels, not a shipped product UI).
 
@@ -36,7 +36,8 @@ cd ai-minions/orchestrator
 |---------|----------------|
 | `npm run runner:tui -- --help` | Guided flow, commands, exit codes, doc links |
 | `node run-orchestrator.js --help` | `launch` group → `runner:tui` subcommands |
-| [operator-slash-commands](operator-slash-commands.md) | `/operator-preflight`, `/runner-preflight`, `/launch`, `/run-status` copy-paste aliases |
+| [operator-slash-commands](operator-slash-commands.md) | `/operator-preflight`, `/runner-preflight`, `/launch`, `/run-status`, `/inspect-run` copy-paste aliases |
+| [inspect-run-evidence](inspect-run-evidence.md) | `node scripts/inspect-run-evidence.mjs <task_id>` chained inspect |
 
 ---
 
@@ -123,9 +124,9 @@ npm run runner:tui -- trace --run-id <task_id>
 npm run runner:tui -- budget --run-id <task_id>
 ```
 
-Slash aliases: [operator-slash-commands](operator-slash-commands.md) (`/trace`, `/budget`). Narrative export: `npm run explain-run -- --run-id <task_id>`.
+Slash aliases: [operator-slash-commands](operator-slash-commands.md) (`/trace`, `/budget`, `/inspect-run`). Narrative export: `npm run explain-run -- --run-id <task_id>`.
 
-Full inspect/report-bundle workflow is **out of scope for this guide** — see [runner-tui-contract](../orchestrator/runner-tui-contract.md) and upcoming v0.12 operator slices.
+Chained inspect (all layers): `node scripts/inspect-run-evidence.mjs <task_id>` — see [inspect-run-evidence](inspect-run-evidence.md).
 
 ## Help and discovery
 

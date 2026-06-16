@@ -18,6 +18,7 @@ Canonical walkthrough: [operator-guided-run.md](operator-guided-run.md). Discove
 | `/runner-preflight` | `npm run runner:tui -- preflight --model-policy local_only` | Launch-layer preflight only | Exit `2` — read `blockers:` in output |
 | `/launch` | `npm run runner:tui -- run --goal "..." --skip-gates --iterations 1` | Launch orchestrator run (`run` subcommand) | Exit `2` preflight blocked · `3` done:false |
 | `/run-status` | `npm run runner:tui -- status --run-id <task_id>` | Re-read terminal result from trace | Exit `2` — missing trace / bad `task_id` |
+| `/inspect-run` | `node scripts/inspect-run-evidence.mjs <task_id>` | Chained trace + status + trace/budget panels + explain-run | Exit `1` / `INSPECT_*` blockers; see [inspect-run-evidence.md](inspect-run-evidence.md) |
 
 **Runner exit codes:** `0` ok · `1` usage/runtime · `2` preflight or trace missing · `3` run finished `done:false`. See `npm run runner:tui -- --help`.
 
@@ -49,6 +50,13 @@ npm run runner:tui -- preflight --model-policy local_only
 npm run runner:tui -- run --goal "Smoke: list three files in the repo root and stop" \
   --flow single_agent --model-policy local_only --skip-gates --iterations 1
 npm run runner:tui -- status --run-id <task_id>
+```
+
+### `/inspect-run`
+
+```bash
+cd REPO_ROOT
+node scripts/inspect-run-evidence.mjs <task_id>
 ```
 
 ### `/validate`
@@ -123,6 +131,7 @@ Paste the **canonical command** from the table when the tool does not understand
 
 ## Related
 
+- [Inspect run evidence](inspect-run-evidence.md)
 - [Operator guided run](operator-guided-run.md)
 - [Operator preflight bridge](operator-preflight-bridge.md)
 - [Usage smoke guide](usage-smoke-guide.md)
