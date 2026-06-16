@@ -50,6 +50,12 @@ const {
   readRunWorkdirContract,
   formatRunWorkdirContractText,
 } = require('../worktree/run-workdir-contract');
+const {
+  promoteWorktreeResults,
+  denyWorktreePromotion,
+  readPromotionRecord,
+  formatPromotionRecordText,
+} = require('../worktree/worktree-result-promotion');
 const { printRunnerTuiHelp } = require('./operator-cli-help');
 
 function printHelp() {
