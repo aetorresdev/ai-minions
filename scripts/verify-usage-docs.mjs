@@ -34,6 +34,7 @@ const INSPECT_RUN_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/inspect-run-evide
 const INSPECT_RUN_SCRIPT = path.join(REPO_ROOT, "scripts/inspect-run-evidence.mjs");
 const COLLECT_RUN_REPORT = path.join(REPO_ROOT, "docs/how-to/collect-run-report.md");
 const BETA_KNOWN_LIMITATIONS = path.join(REPO_ROOT, "docs/how-to/beta-known-limitations.md");
+const BETA_TESTER_GUIDE = path.join(REPO_ROOT, "docs/how-to/beta-tester-guide.md");
 const OPERATOR_FEEDBACK_ISSUE = path.join(REPO_ROOT, "docs/how-to/operator-feedback-issue.md");
 const OPERATOR_FEEDBACK_TEMPLATE = path.join(
   REPO_ROOT,
@@ -188,6 +189,7 @@ function checkOperatorFeedbackIssueDoc(docText) {
   mustInclude(docText, "collect-run-report", "bundle collector link", rel);
   mustInclude(docText, "collect-run-report.mjs", "attach generator script", rel);
   mustInclude(docText, "ATTACH.md", "attach skeleton reference", rel);
+  mustInclude(docText, "beta-tester-guide", "beta tester guide link", rel);
   mustInclude(docText, "INSPECT_*", "inspect reason codes", rel);
   mustInclude(docText, "BLOCKER", "severity guide", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
@@ -215,7 +217,25 @@ function checkBetaKnownLimitationsDoc(docText) {
   mustInclude(docText, "OPERATOR_*", "operator layer", rel);
   mustInclude(docText, "BUNDLE_*", "bundle layer", rel);
   mustInclude(docText, "operator-feedback-issue", "feedback issue doc link", rel);
+  mustInclude(docText, "beta-tester-guide", "beta tester guide link", rel);
   mustInclude(docText, "audit-product-claims.mjs", "claim audit reference", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
+function checkBetaTesterGuideDoc(docText) {
+  const rel = "docs/how-to/beta-tester-guide.md";
+  if (!docText) return;
+  mustInclude(docText, "beta-known-limitations", "limitations prerequisite link", rel);
+  mustInclude(docText, "bootstrap-preflight", "entry path link", rel);
+  mustInclude(docText, "operator-guided-run", "operator path link", rel);
+  mustInclude(docText, "operator-feedback-issue", "feedback issue link", rel);
+  mustInclude(docText, "collect-run-report.mjs", "bundle collector script", rel);
+  mustInclude(docText, "inspect-run-evidence.mjs", "inspect script", rel);
+  mustInclude(docText, "ATTACH.md", "attach skeleton reference", rel);
+  mustInclude(docText, "runner:tui", "runner tui commands", rel);
+  mustInclude(docText, "Not claimed", "not claimed section", rel);
+  mustInclude(docText, "internal", "internal dry-run audience", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -328,6 +348,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "collect-run-report.md", "link to collect run report doc", rel);
   mustInclude(readmeText, "beta-known-limitations.md", "link to beta known limitations doc", rel);
   mustInclude(readmeText, "operator-feedback-issue.md", "link to operator feedback issue doc", rel);
+  mustInclude(readmeText, "beta-tester-guide.md", "link to beta tester guide doc", rel);
   mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
 
   checkForbiddenClaimsForDoc(readmeText, rel);
@@ -357,6 +378,7 @@ function main() {
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
   const collectReportText = readUtf8(COLLECT_RUN_REPORT);
   const betaLimitationsText = readUtf8(BETA_KNOWN_LIMITATIONS);
+  const betaTesterGuideText = readUtf8(BETA_TESTER_GUIDE);
   const operatorFeedbackText = readUtf8(OPERATOR_FEEDBACK_ISSUE);
   const operatorFeedbackTemplateText = readUtf8(OPERATOR_FEEDBACK_TEMPLATE);
   const readmeText = readUtf8(README);
@@ -398,6 +420,7 @@ function main() {
   if (inspectEvidenceText) checkInspectRunEvidenceDoc(inspectEvidenceText);
   if (collectReportText) checkCollectRunReportDoc(collectReportText);
   if (betaLimitationsText) checkBetaKnownLimitationsDoc(betaLimitationsText);
+  if (betaTesterGuideText) checkBetaTesterGuideDoc(betaTesterGuideText);
   if (operatorFeedbackText) checkOperatorFeedbackIssueDoc(operatorFeedbackText);
   if (operatorFeedbackTemplateText) checkOperatorFeedbackTemplate(operatorFeedbackTemplateText);
   if (readmeText) checkReadmeAlignment(readmeText, guideText);

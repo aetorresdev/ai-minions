@@ -38,7 +38,7 @@ These match the **actual shipped surface** — not a roadmap wish list.
 | Degraded mode | Missing MCPs or `--skip-gates` = weaker protection; banner must be visible | [strict-mode](../orchestrator/strict-mode.md) |
 | Live smoke in CI | Fresh-clone / primary smoke are **documented evidence paths**, not automatic PR merge gates | [fresh-clone-evidence](fresh-clone-evidence.md) |
 | Feedback loop | Report bundle + GitHub issue form | [operator-feedback-issue](operator-feedback-issue.md) · [collect-run-report](collect-run-report.md) |
-| External beta | **No** external tester cohort yet — internal dry-run only until beta gate satisfied | This doc + future beta tester guide |
+| External beta | **No** external tester cohort yet — internal dry-run only until beta gate satisfied | This doc + [beta-tester-guide](beta-tester-guide.md) |
 | Secrets in attachments | Redact before upload — **never** attach `.env`, tokens, or credential files | [collect-run-report](collect-run-report.md) · [trace-privacy](../orchestrator/trace-privacy-contract.md) |
 | Sandbox / isolation | Harness **reduces** risk; widening permissions or skipping gates can still cause real damage | [security-posture](../orchestrator/security-posture.md) |
 
@@ -80,7 +80,7 @@ Renaming or merging prefixes breaks CI doc contracts — report mismatches as do
 2. Capture `task_id` from run output.
 3. Run `node scripts/collect-run-report.mjs <task_id>` from repo root.
 4. Review `ATTACH.md` in the bundle — redact secrets before any upload.
-5. File a GitHub issue via [operator-feedback-issue](operator-feedback-issue.md) — copy values from bundle `ATTACH.md`.
+5. File a GitHub issue via [operator-feedback-issue](operator-feedback-issue.md) — copy values from bundle `ATTACH.md`. Full chain: [beta-tester-guide](beta-tester-guide.md).
 
 **Do not** paste API keys, PATs, or `.env` contents into issues.
 
