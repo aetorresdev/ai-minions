@@ -140,6 +140,7 @@ function checkOperatorGuidedRunDoc(docText) {
   mustInclude(docText, "bootstrap-preflight", "bootstrap delegation link", rel);
   mustInclude(docText, "--help", "help discovery", rel);
   mustInclude(docText, "operator-slash-commands", "slash discoverability", rel);
+  mustInclude(docText, "/operator-preflight", "operator-preflight slash alias", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }

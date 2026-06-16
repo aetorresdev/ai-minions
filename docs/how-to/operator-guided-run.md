@@ -36,7 +36,7 @@ cd ai-minions/orchestrator
 |---------|----------------|
 | `npm run runner:tui -- --help` | Guided flow, commands, exit codes, doc links |
 | `node run-orchestrator.js --help` | `launch` group → `runner:tui` subcommands |
-| [operator-slash-commands](operator-slash-commands.md) | `/runner-preflight`, `/launch`, `/run-status` copy-paste aliases |
+| [operator-slash-commands](operator-slash-commands.md) | `/operator-preflight`, `/runner-preflight`, `/launch`, `/run-status` copy-paste aliases |
 
 ---
 
