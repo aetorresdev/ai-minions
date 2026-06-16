@@ -30,6 +30,16 @@ Working directory for all commands below:
 cd ai-minions/orchestrator
 ```
 
+## Discoverability
+
+| Surface | What you get |
+|---------|----------------|
+| `npm run runner:tui -- --help` | Guided flow, commands, exit codes, doc links |
+| `node run-orchestrator.js --help` | `launch` group → `runner:tui` subcommands |
+| [operator-slash-commands](operator-slash-commands.md) | `/operator-preflight`, `/runner-preflight`, `/launch`, `/run-status` copy-paste aliases |
+
+---
+
 ## Guided flow (four phases)
 
 Run phases **in order**. Each phase has a single pass signal — no multi-step smoke table.

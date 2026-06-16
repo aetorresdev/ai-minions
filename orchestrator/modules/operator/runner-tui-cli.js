@@ -56,49 +56,10 @@ const {
   readPromotionRecord,
   formatPromotionRecordText,
 } = require('../worktree/worktree-result-promotion');
+const { printRunnerTuiHelp } = require('./operator-cli-help');
 
 function printHelp() {
-  console.log(`Runner TUI/CLI — launch orchestrator runs
-
-Commands:
-  preflight   Resolve model policy + Ollama reachability (no agents executed)
-  routing     Show model policy catalog + per-role routing preview
-  run         Preflight then execute orchestrator run()
-  status      Read terminal status from trace JSONL
-  trace       Step graph + gate blocks from trace JSONL (read-only)
-  budget      Token rollup + USD estimate vs budget limits (read-only)
-  worktree    Create/remove/list/status/contract/promote for isolated git worktrees
-
-Options (preflight / run / routing):
-  --cwd <dir>              Project directory (default: cwd)
-  --model-policy <name>    local_only | remote_ok (default: local_only)
-  --model <name>           Explicit local model override
-  --interactive            TTY: prompt for policy (and model when ambiguous)
-  --flow <mode>            single_agent | multi_agent (routing / run)
-
-Options (run only):
-  --goal <text>            Run goal
-  --skip-gates             Pass --skip-gates to orchestrator
-  --iterations <n>         Max iterations
-  --worktree-isolated      Create git worktree for this run (does not auto-remove)
-  --run-id <id>            Explicit task id (run / worktree create)
-
-Options (worktree):
-  --force                  Force remove dirty worktree
-  --base-ref <ref>         Base ref for new branch (default HEAD)
-  --artifact <rel>         Worktree-relative artifact path (repeatable; promote)
-  --dest-rel <prefix>      Repo-relative destination prefix (promote)
-  --approve                Operator approval required to copy artifacts (promote)
-  --overwrite              Allow replacing existing files at promotion destination (promote)
-  --reason-code <code>     Deny reason (promote-deny; default operator_denied)
-
-Options (status / trace / budget):
-  --run-id <id>            Task id / trace basename
-  --show-routing           Include resolved models from trace (status only)
-  --file <path>            Trace JSONL path (trace/budget; overrides --run-id resolution)
-  --follow                 Poll trace file until session_end (trace only)
-
-See docs/orchestrator/runner-tui-contract.md`);
+  printRunnerTuiHelp();
 }
 
 /**

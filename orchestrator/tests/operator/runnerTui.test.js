@@ -254,6 +254,26 @@ describe("runner-launcher", () => {
   });
 });
 
+describe("runner-tui-cli help", () => {
+  const cliPath = path.join(__dirname, "..", "..", "runner-tui-cli.js");
+
+  it("--help documents guided flow, exit codes, and doc links", () => {
+    const r = cp.spawnSync(process.execPath, [cliPath, "--help"], {
+      encoding: "utf8",
+      cwd: path.join(__dirname, "..", ".."),
+    });
+    assert.equal(r.status, 0, r.stderr || r.stdout);
+    const out = r.stdout;
+    assert.match(out, /Guided operator flow/);
+    assert.match(out, /preflight/);
+    assert.match(out, /status/);
+    assert.match(out, /Exit codes/);
+    assert.match(out, /operator-guided-run\.md/);
+    assert.match(out, /operator-slash-commands\.md/);
+    assert.doesNotMatch(out, /production-ready/i);
+  });
+});
+
 describe("runner-tui-cli args", () => {
   it("parseCommonArgs extracts run options", () => {
     const opts = parseCommonArgs([
