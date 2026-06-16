@@ -100,9 +100,42 @@ describe("collect-run-report", () => {
           message: "missing",
         },
       ],
+      files: [
+        "manifest.json",
+        "trace/task-1.jsonl",
+        "inspect-report.json",
+        "artifacts/status.txt",
+        "artifacts/explain-run.txt",
+      ],
     });
     assert.match(text, /task-1/);
     assert.match(text, /INSPECT_STATUS_TRACE_MISSING/);
+    assert.doesNotMatch(text, /trace-panel/);
+  });
+
+  it("ATTACH.md only lists existing files when skipPanels is true", async () => {
+    const traces = fs.mkdtempSync(path.join(os.tmpdir(), "collect-traces-"));
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), "collect-out-"));
+    fs.writeFileSync(path.join(traces, "task-skip.jsonl"), '{"event":"session_start"}\n');
+
+    const mockInvoke = () => ({ exitCode: 0, stdout: "ok\n", stderr: "" });
+
+    await runCollectRunReport({
+      taskId: "task-skip",
+      tracesDir: traces,
+      outDir: out,
+      skipPanels: true,
+      invokeStatus: mockInvoke,
+      invokeExplain: mockInvoke,
+    });
+
+    const attach = fs.readFileSync(path.join(out, "ATTACH.md"), "utf8");
+    assert.doesNotMatch(attach, /artifacts\/trace-panel\.txt/);
+    assert.doesNotMatch(attach, /artifacts\/budget-panel\.txt/);
+    assert.match(attach, /artifacts\/status\.txt/);
+    assert.match(attach, /artifacts\/explain-run\.txt/);
+    assert.equal(fs.existsSync(path.join(out, "artifacts", "trace-panel.txt")), false);
+    assert.equal(fs.existsSync(path.join(out, "artifacts", "budget-panel.txt")), false);
   });
 
   it("writeBundleFiles lists manifest and trace copy", () => {

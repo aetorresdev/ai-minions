@@ -115,6 +115,40 @@ export function defaultBundleDir(taskId, repoRoot = REPO_ROOT) {
   return path.join(repoRoot, "report-bundles", `${taskId}-${stamp}`);
 }
 
+/** @type {Record<string, string>} */
+const BUNDLE_FILE_PURPOSES = {
+  "manifest.json": "Machine-readable index",
+  "inspect-report.json": "Full `INSPECT_*` check report",
+  "artifacts/status.txt": "`runner:tui status` capture",
+  "artifacts/trace-panel.txt": "`runner:tui trace` capture",
+  "artifacts/budget-panel.txt": "`runner:tui budget` capture",
+  "artifacts/explain-run.txt": "`explain-run` capture",
+};
+
+/**
+ * @param {string} relPath
+ * @param {string} taskId
+ * @returns {string}
+ */
+export function describeBundleFile(relPath, taskId) {
+  if (relPath.startsWith("trace/") && relPath.endsWith(".jsonl")) {
+    return `Trace copy for \`${taskId}\``;
+  }
+  return BUNDLE_FILE_PURPOSES[relPath] ?? "Bundle artifact";
+}
+
+/**
+ * @param {string[]} files
+ * @param {string} taskId
+ * @returns {string}
+ */
+export function buildFilesTableRows(files, taskId) {
+  return files
+    .filter((f) => f !== "ATTACH.md")
+    .map((f) => `| \`${f}\` | ${describeBundleFile(f, taskId)} |`)
+    .join("\n");
+}
+
 /**
  * @param {{
  *   taskId: string,
@@ -159,6 +193,8 @@ export function writeBundleFiles(input) {
     files.push(rel);
   }
 
+  const manifestPath = path.join(bundleDir, "manifest.json");
+  const bundleFiles = ["manifest.json", ...files];
   const manifest = {
     bundle_version: "1",
     task_id: taskId,
@@ -167,13 +203,11 @@ export function writeBundleFiles(input) {
     traces_dir: tracesDir ?? resolveTracesDir(),
     bundle_dir: bundleDir,
     inspect_ok: inspectReport.ok,
-    files,
+    files: bundleFiles,
     inspect_reason_codes: inspectReport.checks.map((c) => c.reason_code),
   };
 
-  const manifestPath = path.join(bundleDir, "manifest.json");
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-  files.unshift("manifest.json");
 
   const attachPath = path.join(bundleDir, "ATTACH.md");
   const attachBody = buildAttachTemplate({
@@ -182,11 +216,12 @@ export function writeBundleFiles(input) {
     repoCommit: repoCommit ?? null,
     inspectOk: inspectReport.ok,
     inspectChecks: inspectReport.checks,
+    files: bundleFiles,
   });
   fs.writeFileSync(attachPath, attachBody, "utf8");
-  files.push("ATTACH.md");
+  bundleFiles.push("ATTACH.md");
 
-  return { manifestPath, attachPath, files };
+  return { manifestPath, attachPath, files: bundleFiles };
 }
 
 /**
@@ -196,6 +231,7 @@ export function writeBundleFiles(input) {
  *   repoCommit: string | null,
  *   inspectOk: boolean,
  *   inspectChecks: { reason_code: string, status: string, message: string }[],
+ *   files: string[],
  * }} ctx
  * @returns {string}
  */
@@ -205,6 +241,7 @@ export function buildAttachTemplate(ctx) {
     failed.length > 0
       ? failed.map((c) => `- \`${c.reason_code}\` — ${c.message}`).join("\n")
       : "- (none — inspect passed)";
+  const fileRows = buildFilesTableRows(ctx.files, ctx.taskId);
 
   return `# Operator report bundle
 
@@ -223,13 +260,7 @@ ${blockerLines}
 
 | File | Purpose |
 |------|---------|
-| \`manifest.json\` | Machine-readable index |
-| \`trace/<task_id>.jsonl\` | Trace copy |
-| \`inspect-report.json\` | Full \`INSPECT_*\` check report |
-| \`artifacts/status.txt\` | \`runner:tui status\` capture |
-| \`artifacts/trace-panel.txt\` | \`runner:tui trace\` capture |
-| \`artifacts/budget-panel.txt\` | \`runner:tui budget\` capture |
-| \`artifacts/explain-run.txt\` | \`explain-run\` capture |
+${fileRows}
 
 ## GitHub issue template (copy below)
 
