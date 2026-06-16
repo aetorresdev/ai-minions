@@ -37,7 +37,7 @@ These match the **actual shipped surface** — not a roadmap wish list.
 | `FLOW: multi_agent` | Incomplete for broad comparisons; metrics **directional only** | Root [Status — SA vs MA](../../README.md#status--sa-vs-ma) |
 | Degraded mode | Missing MCPs or `--skip-gates` = weaker protection; banner must be visible | [strict-mode](../orchestrator/strict-mode.md) |
 | Live smoke in CI | Fresh-clone / primary smoke are **documented evidence paths**, not automatic PR merge gates | [fresh-clone-evidence](fresh-clone-evidence.md) |
-| Feedback loop | Report bundle + `ATTACH.md` skeleton exist; **official GitHub issue templates** land in a follow-on slice | [collect-run-report](collect-run-report.md) |
+| Feedback loop | Report bundle + GitHub issue form — [operator-feedback-issue](operator-feedback-issue.md) · [collect-run-report](collect-run-report.md) |
 | External beta | **No** external tester cohort yet — internal dry-run only until beta gate satisfied | This doc + future beta tester guide |
 | Secrets in attachments | Redact before upload — **never** attach `.env`, tokens, or credential files | [collect-run-report](collect-run-report.md) · [trace-privacy](../orchestrator/trace-privacy-contract.md) |
 | Sandbox / isolation | Harness **reduces** risk; widening permissions or skipping gates can still cause real damage | [security-posture](../orchestrator/security-posture.md) |
@@ -51,7 +51,7 @@ These match the **actual shipped surface** — not a roadmap wish list.
 | Not production-ready · not a global installer · not a production TUI | Alpha harness; manual clone + documented scripts only |
 | Not a hosted control plane · not a turnkey marketplace | Control harness for reviewable agent work — not a chat-first workspace product |
 | Not multi-tenant isolation · not fully sandboxed autonomous runs | See root [What this is NOT](../../README.md#what-this-is-not) |
-| GitHub feedback templates not shipped yet | Use `ATTACH.md` until official templates land |
+| GitHub feedback templates not shipped yet | Use [operator-feedback-issue](operator-feedback-issue.md) issue form + `ATTACH.md` until bundle alignment lands |
 | External usability beta not open | Internal dry-run must prove bundle → actionable issue first |
 | Architecture refactor / adaptive model layer not shipped | Post-beta roadmap; v0.11–v0.12 runtime scope unchanged |
 
@@ -80,7 +80,7 @@ Renaming or merging prefixes breaks CI doc contracts — report mismatches as do
 2. Capture `task_id` from run output.
 3. Run `node scripts/collect-run-report.mjs <task_id>` from repo root.
 4. Review `ATTACH.md` in the bundle — redact secrets before any upload.
-5. File a GitHub issue using the template when available; until then, paste the `ATTACH.md` skeleton and attach redacted bundle files.
+5. File a GitHub issue using [operator-feedback-issue](operator-feedback-issue.md) (form **Operator feedback (runner:tui)**) or paste `ATTACH.md` until bundle alignment lands in a follow-on slice.
 
 **Do not** paste API keys, PATs, or `.env` contents into issues.
 
