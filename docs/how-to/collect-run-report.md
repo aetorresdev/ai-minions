@@ -43,7 +43,7 @@ Default output: `report-bundles/<task_id>-<timestamp>/` under repo root (gitigno
 | Path | Contents |
 |------|----------|
 | `manifest.json` | Index: task id, commit, file list, inspect verdict |
-| `ATTACH.md` | Human checklist + copy-paste GitHub issue skeleton |
+| `ATTACH.md` | Field values aligned with [operator feedback issue form](operator-feedback-issue.md) |
 | `trace/<task_id>.jsonl` | Trace copy (validate JSONL before collect) |
 | `inspect-report.json` | Full `INSPECT_*` report from [inspect-run-evidence.mjs](../../scripts/inspect-run-evidence.mjs) |
 | `artifacts/status.txt` | `runner:tui status` stdout/stderr |
@@ -95,10 +95,19 @@ Inspect detail codes remain `INSPECT_*` inside `inspect-report.json`.
 
 ---
 
+## Filing feedback
+
+1. Run `node scripts/collect-run-report.mjs <task_id>`.
+2. Open `ATTACH.md` in the bundle directory.
+3. Copy pre-filled values into **New issue → Operator feedback (runner:tui)** — see [operator-feedback-issue](operator-feedback-issue.md).
+
+`ATTACH.md` field names match the GitHub issue form (`task_id`, `repo_commit`, `operator_path`, `inspect_verdict`, `bundle_path`, `inspect_blockers`, `severity`).
+
+---
+
 ## Out of scope
 
 - Automatic zip upload or GitHub API post from this script
-- Full `ATTACH.md` ↔ issue-form field parity (follow-on slice)
 - No packaged installer · no production TUI claim
 
 ---
