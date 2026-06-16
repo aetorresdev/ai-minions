@@ -17,7 +17,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Run the orchestrator in Claude Code | [Stage 3: Run orchestration](#stage-3-run-orchestration) |
 | Secrets, `.env`, and `ENVIRONMENT` | [Values vs permission](#values-vs-permission-env-and-secrets) |
 | Optional MCP / tool integrations | [Stage 4: MCP setup](#stage-4-mcp-setup-optional) |
-| Alpha boundaries and caveats | [Known limitations (alpha)](#known-limitations-alpha) |
+| Alpha boundaries and caveats | [Known limitations (alpha)](#known-limitations-alpha) · [Beta limitations (candidate)](docs/how-to/beta-known-limitations.md) |
 | Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) |
 | **Runner TUI guided run** (preflight → launch → status) | [`docs/how-to/operator-guided-run.md`](docs/how-to/operator-guided-run.md) |
 | Operator preflight bridge (`PREFLIGHT_*` + `OPERATOR_*`) | [`docs/how-to/operator-preflight-bridge.md`](docs/how-to/operator-preflight-bridge.md) |
@@ -328,7 +328,7 @@ Canonical reference: [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
 | Degraded mode | Missing MCPs or `--skip-gates` = less protection; banner must show |
 | Bootstrap | No global installer — `scripts/bootstrap-preflight.mjs` + manual clone |
 
-More: [`orchestrator/README.md`](orchestrator/README.md) § Known limitations.
+More: [`orchestrator/README.md`](orchestrator/README.md) § Known limitations · beta dry-run consolidation: [`beta-known-limitations.md`](docs/how-to/beta-known-limitations.md).
 
 ---
 

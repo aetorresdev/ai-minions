@@ -1,6 +1,6 @@
 # Collect run report bundle
 
-Local report bundle for operator feedback — copies trace, inspect report, and runner panel captures into one attachable directory. Complements [inspect run evidence](inspect-run-evidence.md) for GitHub issue attachment (v0.13 feedback templates are out of scope).
+Local report bundle for operator feedback — copies trace, inspect report, and runner panel captures into one attachable directory. Complements [inspect run evidence](inspect-run-evidence.md) for GitHub issue attachment. Known limitations for beta dry-run: [beta-known-limitations](beta-known-limitations.md).
 
 **Script:** `node scripts/collect-run-report.mjs <task_id>`
 

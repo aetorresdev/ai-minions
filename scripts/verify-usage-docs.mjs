@@ -33,6 +33,7 @@ const OPERATOR_GUIDED_RUN = path.join(REPO_ROOT, "docs/how-to/operator-guided-ru
 const INSPECT_RUN_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/inspect-run-evidence.md");
 const INSPECT_RUN_SCRIPT = path.join(REPO_ROOT, "scripts/inspect-run-evidence.mjs");
 const COLLECT_RUN_REPORT = path.join(REPO_ROOT, "docs/how-to/collect-run-report.md");
+const BETA_KNOWN_LIMITATIONS = path.join(REPO_ROOT, "docs/how-to/beta-known-limitations.md");
 const COLLECT_RUN_SCRIPT = path.join(REPO_ROOT, "scripts/collect-run-report.mjs");
 const PRIMARY_SMOKE = path.join(REPO_ROOT, "docs/how-to/primary-smoke.md");
 const PRIMARY_SMOKE_SCRIPT = path.join(REPO_ROOT, "scripts/run-primary-smoke.mjs");
@@ -173,6 +174,21 @@ function checkOperatorGuidedRunDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkBetaKnownLimitationsDoc(docText) {
+  const rel = "docs/how-to/beta-known-limitations.md";
+  if (!docText) return;
+  mustInclude(docText, "CLI MVP", "runner tui CLI MVP wording", rel);
+  mustInclude(docText, "Not claimed", "not claimed section", rel);
+  mustInclude(docText, "operator-guided-run", "operator guided run link", rel);
+  mustInclude(docText, "collect-run-report", "collect report link", rel);
+  mustInclude(docText, "PREFLIGHT_*", "preflight layer", rel);
+  mustInclude(docText, "OPERATOR_*", "operator layer", rel);
+  mustInclude(docText, "BUNDLE_*", "bundle layer", rel);
+  mustInclude(docText, "audit-product-claims.mjs", "claim audit reference", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkPrimarySmokeDoc(docText) {
   const rel = "docs/how-to/primary-smoke.md";
   if (!docText) return;
@@ -279,6 +295,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "operator-preflight-bridge.md", "link to operator preflight bridge doc", rel);
   mustInclude(readmeText, "inspect-run-evidence.md", "link to inspect run evidence doc", rel);
   mustInclude(readmeText, "collect-run-report.md", "link to collect run report doc", rel);
+  mustInclude(readmeText, "beta-known-limitations.md", "link to beta known limitations doc", rel);
   mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
 
   checkForbiddenClaimsForDoc(readmeText, rel);
@@ -307,6 +324,7 @@ function main() {
   const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
   const collectReportText = readUtf8(COLLECT_RUN_REPORT);
+  const betaLimitationsText = readUtf8(BETA_KNOWN_LIMITATIONS);
   const readmeText = readUtf8(README);
 
   if (!fs.existsSync(BOOTSTRAP_SCRIPT)) {
@@ -345,6 +363,7 @@ function main() {
   if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
   if (inspectEvidenceText) checkInspectRunEvidenceDoc(inspectEvidenceText);
   if (collectReportText) checkCollectRunReportDoc(collectReportText);
+  if (betaLimitationsText) checkBetaKnownLimitationsDoc(betaLimitationsText);
   if (readmeText) checkReadmeAlignment(readmeText, guideText);
 
   if (failures.length) {
