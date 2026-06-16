@@ -44,6 +44,7 @@ export const CLAIM_AUDIT_PATHS = [
   "docs/how-to/inspect-run-evidence.md",
   "docs/how-to/collect-run-report.md",
   "docs/how-to/beta-known-limitations.md",
+  "docs/how-to/beta-tester-guide.md",
   "docs/how-to/operator-feedback-issue.md",
 ];
 

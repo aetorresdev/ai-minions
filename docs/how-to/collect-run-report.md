@@ -114,6 +114,7 @@ Inspect detail codes remain `INSPECT_*` inside `inspect-report.json`.
 
 ## Related
 
+- [Beta tester guide](beta-tester-guide.md) — internal dry-run (Phases A–D)
 - [Operator feedback issue template](operator-feedback-issue.md)
 
 - [Inspect run evidence](inspect-run-evidence.md)
