@@ -32,6 +32,8 @@ const OPERATOR_PREFLIGHT_BRIDGE = path.join(REPO_ROOT, "docs/how-to/operator-pre
 const OPERATOR_GUIDED_RUN = path.join(REPO_ROOT, "docs/how-to/operator-guided-run.md");
 const INSPECT_RUN_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/inspect-run-evidence.md");
 const INSPECT_RUN_SCRIPT = path.join(REPO_ROOT, "scripts/inspect-run-evidence.mjs");
+const COLLECT_RUN_REPORT = path.join(REPO_ROOT, "docs/how-to/collect-run-report.md");
+const COLLECT_RUN_SCRIPT = path.join(REPO_ROOT, "scripts/collect-run-report.mjs");
 const PRIMARY_SMOKE = path.join(REPO_ROOT, "docs/how-to/primary-smoke.md");
 const PRIMARY_SMOKE_SCRIPT = path.join(REPO_ROOT, "scripts/run-primary-smoke.mjs");
 const FRESH_CLONE_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/fresh-clone-evidence.md");
@@ -135,6 +137,17 @@ function checkOperatorPreflightBridgeDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkCollectRunReportDoc(docText) {
+  const rel = "docs/how-to/collect-run-report.md";
+  if (!docText) return;
+  mustInclude(docText, "BUNDLE_", "bundle reason code family", rel);
+  mustInclude(docText, "collect-run-report.mjs", "collect script reference", rel);
+  mustInclude(docText, "manifest.json", "bundle manifest", rel);
+  mustInclude(docText, "inspect-run-evidence", "inspect chain link", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkInspectRunEvidenceDoc(docText) {
   const rel = "docs/how-to/inspect-run-evidence.md";
   if (!docText) return;
@@ -155,6 +168,7 @@ function checkOperatorGuidedRunDoc(docText) {
   mustInclude(docText, "operator-slash-commands", "slash discoverability", rel);
   mustInclude(docText, "/operator-preflight", "operator-preflight slash alias", rel);
   mustInclude(docText, "inspect-run-evidence", "inspect evidence link", rel);
+  mustInclude(docText, "collect-run-report", "collect report link", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -264,6 +278,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "fresh-clone-evidence.md", "link to fresh-clone evidence doc", rel);
   mustInclude(readmeText, "operator-preflight-bridge.md", "link to operator preflight bridge doc", rel);
   mustInclude(readmeText, "inspect-run-evidence.md", "link to inspect run evidence doc", rel);
+  mustInclude(readmeText, "collect-run-report.md", "link to collect run report doc", rel);
   mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
 
   checkForbiddenClaimsForDoc(readmeText, rel);
@@ -291,6 +306,7 @@ function main() {
   const operatorBridgeText = readUtf8(OPERATOR_PREFLIGHT_BRIDGE);
   const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
+  const collectReportText = readUtf8(COLLECT_RUN_REPORT);
   const readmeText = readUtf8(README);
 
   if (!fs.existsSync(BOOTSTRAP_SCRIPT)) {
@@ -301,6 +317,9 @@ function main() {
   }
   if (!fs.existsSync(INSPECT_RUN_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, INSPECT_RUN_SCRIPT)}`);
+  }
+  if (!fs.existsSync(COLLECT_RUN_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, COLLECT_RUN_SCRIPT)}`);
   }
   if (!fs.existsSync(PRIMARY_SMOKE_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, PRIMARY_SMOKE_SCRIPT)}`);
@@ -325,6 +344,7 @@ function main() {
   if (operatorBridgeText) checkOperatorPreflightBridgeDoc(operatorBridgeText);
   if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
   if (inspectEvidenceText) checkInspectRunEvidenceDoc(inspectEvidenceText);
+  if (collectReportText) checkCollectRunReportDoc(collectReportText);
   if (readmeText) checkReadmeAlignment(readmeText, guideText);
 
   if (failures.length) {

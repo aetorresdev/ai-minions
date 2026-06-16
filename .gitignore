@@ -46,6 +46,7 @@ projects/
 history.jsonl
 policy-limits.json
 metrics/
+report-bundles/
 # Per-project flow-metrics hook state (not metrics/ trace authority)
 .claude/flow-hook-state/
 .claude/worktrees/

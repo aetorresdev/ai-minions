@@ -15,6 +15,7 @@ on:
       - "scripts/bootstrap-preflight.mjs"
       - "scripts/operator-preflight.mjs"
       - "scripts/inspect-run-evidence.mjs"
+      - "scripts/collect-run-report.mjs"
       - "scripts/run-primary-smoke.mjs"
       - "scripts/audit-product-claims.mjs"
       - "scripts/run-fresh-clone-evidence.mjs"
@@ -23,6 +24,7 @@ on:
       - "tests/bootstrap-preflight.test.mjs"
       - "tests/operator-preflight.test.mjs"
       - "tests/inspect-run-evidence.test.mjs"
+      - "tests/collect-run-report.test.mjs"
       - "tests/primary-smoke.test.mjs"
       - "tests/audit-product-claims.test.mjs"
       - "tests/fresh-clone-evidence.test.mjs"
@@ -56,6 +58,9 @@ jobs:
 
       - name: Inspect run evidence unit tests
         run: node --test tests/inspect-run-evidence.test.mjs
+
+      - name: Collect run report unit tests
+        run: node --test tests/collect-run-report.test.mjs
 
       - name: Primary smoke unit tests
         run: node --test tests/primary-smoke.test.mjs

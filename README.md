@@ -22,6 +22,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | **Runner TUI guided run** (preflight → launch → status) | [`docs/how-to/operator-guided-run.md`](docs/how-to/operator-guided-run.md) |
 | Operator preflight bridge (`PREFLIGHT_*` + `OPERATOR_*`) | [`docs/how-to/operator-preflight-bridge.md`](docs/how-to/operator-preflight-bridge.md) |
 | Inspect run evidence (`INSPECT_*`) | [`docs/how-to/inspect-run-evidence.md`](docs/how-to/inspect-run-evidence.md) · `node scripts/inspect-run-evidence.mjs <task_id>` |
+| Collect run report bundle (`BUNDLE_*`) | [`docs/how-to/collect-run-report.md`](docs/how-to/collect-run-report.md) · `node scripts/collect-run-report.mjs <task_id>` |
 | End-to-end runbook (step-by-step) | [Happy path](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) |
 | Something failed during smoke | [Troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) |
 

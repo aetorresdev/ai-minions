@@ -152,6 +152,7 @@ Aliases: `remote-approved`, `remote_approved` → `remote_ok`. Any other **expli
 ## Related
 
 - [inspect-run-evidence.md](../how-to/inspect-run-evidence.md) — chained trace/evidence inspect (`INSPECT_*`)
+- [collect-run-report.md](../how-to/collect-run-report.md) — local report bundle collector (`BUNDLE_*`)
 - [operator-guided-run.md](../how-to/operator-guided-run.md) — `runner:tui` guided run (v0.12 operator surface)
 - [local-model-policy.md](local-model-policy.md)
 - [local-model-selection.md](local-model-selection.md)
