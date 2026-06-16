@@ -1,0 +1,96 @@
+name: Operator feedback (runner:tui)
+description: Actionable feedback from the operator path — attach a redacted report bundle when possible.
+title: "[operator] "
+labels:
+  - operator-feedback
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Alpha harness** — not production support. Redact secrets; do not paste `.env`, API keys, or tokens.
+
+        - [Beta known limitations](https://github.com/aetorresdev/ai-minions/blob/master/docs/how-to/beta-known-limitations.md)
+        - Report bundle: `node scripts/collect-run-report.mjs <task_id>` — [collect-run-report](https://github.com/aetorresdev/ai-minions/blob/master/docs/how-to/collect-run-report.md)
+        - Field guide: [operator-feedback-issue](https://github.com/aetorresdev/ai-minions/blob/master/docs/how-to/operator-feedback-issue.md)
+
+  - type: input
+    id: task_id
+    attributes:
+      label: Task ID
+      description: From `runner:tui status`, trace filename, or run output.
+    validations:
+      required: true
+
+  - type: input
+    id: repo_commit
+    attributes:
+      label: Repo commit (short SHA)
+      description: From bundle `manifest.json` or `git rev-parse --short HEAD`.
+
+  - type: dropdown
+    id: operator_path
+    attributes:
+      label: Operator path
+      options:
+        - runner:tui guided run
+        - bootstrap / preflight
+        - primary smoke
+        - inspect evidence only
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: inspect_verdict
+    attributes:
+      label: Inspect verdict
+      options:
+        - PASS
+        - FAIL
+        - not run
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered commands from repo root / `orchestrator/` as applicable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+    validations:
+      required: true
+
+  - type: input
+    id: bundle_path
+    attributes:
+      label: Report bundle path (local)
+      description: Output dir from `collect-run-report.mjs` — attach redacted files to the issue.
+
+  - type: textarea
+    id: inspect_blockers
+    attributes:
+      label: Inspect blockers (`INSPECT_*` / `BUNDLE_*`)
+      description: From bundle `ATTACH.md` or `inspect-report.json`. Use `(none)` if inspect passed.
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - BLOCKER
+        - BUG
+        - USABILITY
+        - DOCS
+    validations:
+      required: true

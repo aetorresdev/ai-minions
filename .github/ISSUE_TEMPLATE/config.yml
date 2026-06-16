@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Beta known limitations
+    url: https://github.com/aetorresdev/ai-minions/blob/master/docs/how-to/beta-known-limitations.md
+    about: Alpha/beta boundaries before filing operator feedback.
+  - name: Operator guided run
+    url: https://github.com/aetorresdev/ai-minions/blob/master/docs/how-to/operator-guided-run.md
+    about: Canonical runner:tui path (preflight → launch → status → result).

@@ -97,13 +97,15 @@ Inspect detail codes remain `INSPECT_*` inside `inspect-report.json`.
 
 ## Out of scope
 
-- GitHub issue templates / feedback forms (later release)
-- Automatic zip upload
+- Automatic zip upload or GitHub API post from this script
+- Full `ATTACH.md` ↔ issue-form field parity (follow-on slice)
 - No packaged installer · no production TUI claim
 
 ---
 
 ## Related
+
+- [Operator feedback issue template](operator-feedback-issue.md)
 
 - [Inspect run evidence](inspect-run-evidence.md)
 - [Operator guided run](operator-guided-run.md)
