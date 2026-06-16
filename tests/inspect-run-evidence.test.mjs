@@ -78,4 +78,21 @@ describe("inspect-run-evidence", () => {
     assert.equal(report.ok, false);
     assert.ok(report.checks.some((c) => c.reason_code === REASON_CODES.STATUS_TRACE_MISSING));
   });
+
+  it("fails malformed JSONL as INSPECT_TRACE_NOT_READABLE before panels", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "inspect-evidence-"));
+    fs.writeFileSync(path.join(tmp, "task-bad.jsonl"), "{ bad json\n");
+
+    const report = await runInspectRunEvidence({
+      taskId: "task-bad",
+      tracesDir: tmp,
+      invokeStatus: () => {
+        throw new Error("status should not run");
+      },
+    });
+
+    assert.equal(report.ok, false);
+    assert.ok(report.checks.some((c) => c.reason_code === REASON_CODES.TRACE_NOT_READABLE));
+    assert.equal(report.panels, null);
+  });
 });

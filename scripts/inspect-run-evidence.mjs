@@ -9,6 +9,7 @@
  */
 
 import path from "node:path";
+import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ORCHESTRATOR_DIR, resolveTracesDir } from "./bootstrap-preflight.mjs";
@@ -51,6 +52,28 @@ export function mapTraceCheck(check, layer = "trace_file") {
     status: check.status,
     message: check.message,
   };
+}
+
+/**
+ * @param {string} traceFile
+ * @returns {{ ok: true } | { ok: false, line?: number }}
+ */
+export function validateTraceJsonl(traceFile) {
+  const text = fs.readFileSync(traceFile, "utf8");
+  const lines = text.split("\n").filter((line) => line.trim());
+  if (!lines.length) {
+    return { ok: false };
+  }
+
+  for (const [i, line] of lines.entries()) {
+    try {
+      JSON.parse(line);
+    } catch {
+      return { ok: false, line: i + 1 };
+    }
+  }
+
+  return { ok: true };
 }
 
 /**
@@ -141,6 +164,25 @@ export async function runInspectRunEvidence(options = {}) {
   }
 
   if (!traceReport.ok) {
+    return {
+      ok: false,
+      task_id: taskId,
+      traces_dir: tracesDir,
+      trace_file: traceFile,
+      checks,
+      panels: null,
+    };
+  }
+
+  const jsonlValidation = validateTraceJsonl(traceFile);
+  if (!jsonlValidation.ok) {
+    checks.push({
+      id: "trace_file",
+      layer: "trace_file",
+      reason_code: REASON_CODES.TRACE_NOT_READABLE,
+      status: "fail",
+      message: `trace file is not valid JSONL: ${traceFile}`,
+    });
     return {
       ok: false,
       task_id: taskId,
