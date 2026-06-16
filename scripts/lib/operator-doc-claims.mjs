@@ -41,6 +41,7 @@ export const CLAIM_AUDIT_PATHS = [
   "docs/how-to/fresh-clone-evidence.md",
   "docs/how-to/operator-guided-run.md",
   "docs/how-to/operator-preflight-bridge.md",
+  "docs/how-to/inspect-run-evidence.md",
 ];
 
 /** Required README anchors for v0.11 claim hygiene. */

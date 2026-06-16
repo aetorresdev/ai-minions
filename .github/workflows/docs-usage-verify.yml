@@ -14,6 +14,7 @@ on:
       - "orchestrator/orchestrator.js"
       - "scripts/bootstrap-preflight.mjs"
       - "scripts/operator-preflight.mjs"
+      - "scripts/inspect-run-evidence.mjs"
       - "scripts/run-primary-smoke.mjs"
       - "scripts/audit-product-claims.mjs"
       - "scripts/run-fresh-clone-evidence.mjs"
@@ -21,6 +22,7 @@ on:
       - "scripts/verify-usage-docs.mjs"
       - "tests/bootstrap-preflight.test.mjs"
       - "tests/operator-preflight.test.mjs"
+      - "tests/inspect-run-evidence.test.mjs"
       - "tests/primary-smoke.test.mjs"
       - "tests/audit-product-claims.test.mjs"
       - "tests/fresh-clone-evidence.test.mjs"
@@ -51,6 +53,9 @@ jobs:
 
       - name: Operator preflight bridge unit tests
         run: node --test tests/operator-preflight.test.mjs
+
+      - name: Inspect run evidence unit tests
+        run: node --test tests/inspect-run-evidence.test.mjs
 
       - name: Primary smoke unit tests
         run: node --test tests/primary-smoke.test.mjs
