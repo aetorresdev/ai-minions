@@ -63,7 +63,7 @@ Alignment with dynamic `ATTACH.md` file tables is refined in a follow-on slice; 
 
 - Automatic zip upload or GitHub API attachment from `collect-run-report.mjs`
 - External tester onboarding (internal dry-run only until beta gate)
-- `MODEL-GOV-*` / architecture refactor requests
+- Model governance / architecture refactor requests
 
 ---
 
