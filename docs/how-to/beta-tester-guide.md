@@ -17,7 +17,7 @@ End-to-end runbook for an **internal operator** playing beta tester: entry path 
 | Evidence chain works | Inspect + bundle scripts exit `0`; `ATTACH.md` fields are copyable |
 | Feedback loop works | GitHub issue filed from bundle skeleton — **actionable without maintainer rewrite** |
 
-Formal checklist + sample issue evidence: next slice (dry-run checklist doc).
+Formal checklist + sample issue evidence: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample issue](evidence/beta-dry-run-sample-issue.md).
 
 ---
 
@@ -199,4 +199,5 @@ node scripts/collect-run-report.mjs <task_id>
 | [beta-known-limitations](beta-known-limitations.md) | Honesty boundaries before you start |
 | [operator-guided-run](operator-guided-run.md) | `runner:tui` phase detail |
 | [operator-feedback-issue](operator-feedback-issue.md) | Form field map |
+| [beta-dry-run-checklist](beta-dry-run-checklist.md) | Scorable checklist + exit bar |
 | [usage-smoke-guide](usage-smoke-guide.md) | Full happy path + troubleshooting tables |

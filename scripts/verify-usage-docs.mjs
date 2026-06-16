@@ -35,6 +35,11 @@ const INSPECT_RUN_SCRIPT = path.join(REPO_ROOT, "scripts/inspect-run-evidence.mj
 const COLLECT_RUN_REPORT = path.join(REPO_ROOT, "docs/how-to/collect-run-report.md");
 const BETA_KNOWN_LIMITATIONS = path.join(REPO_ROOT, "docs/how-to/beta-known-limitations.md");
 const BETA_TESTER_GUIDE = path.join(REPO_ROOT, "docs/how-to/beta-tester-guide.md");
+const BETA_DRY_RUN_CHECKLIST = path.join(REPO_ROOT, "docs/how-to/beta-dry-run-checklist.md");
+const BETA_DRY_RUN_SAMPLE_ISSUE = path.join(
+  REPO_ROOT,
+  "docs/how-to/evidence/beta-dry-run-sample-issue.md",
+);
 const OPERATOR_FEEDBACK_ISSUE = path.join(REPO_ROOT, "docs/how-to/operator-feedback-issue.md");
 const OPERATOR_FEEDBACK_TEMPLATE = path.join(
   REPO_ROOT,
@@ -218,6 +223,7 @@ function checkBetaKnownLimitationsDoc(docText) {
   mustInclude(docText, "BUNDLE_*", "bundle layer", rel);
   mustInclude(docText, "operator-feedback-issue", "feedback issue doc link", rel);
   mustInclude(docText, "beta-tester-guide", "beta tester guide link", rel);
+  mustInclude(docText, "beta-dry-run-checklist", "dry-run checklist link", rel);
   mustInclude(docText, "audit-product-claims.mjs", "claim audit reference", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
@@ -236,6 +242,40 @@ function checkBetaTesterGuideDoc(docText) {
   mustInclude(docText, "runner:tui", "runner tui commands", rel);
   mustInclude(docText, "Not claimed", "not claimed section", rel);
   mustInclude(docText, "internal", "internal dry-run audience", rel);
+  mustInclude(docText, "beta-dry-run-checklist", "dry-run checklist link", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
+function checkBetaDryRunChecklistDoc(docText) {
+  const rel = "docs/how-to/beta-dry-run-checklist.md";
+  if (!docText) return;
+  mustInclude(docText, "beta-tester-guide", "tester guide link", rel);
+  mustInclude(docText, "ATTACH.md", "attach skeleton reference", rel);
+  mustInclude(docText, "operator-feedback-issue", "feedback issue link", rel);
+  mustInclude(docText, "beta-dry-run-sample-issue", "sample issue evidence link", rel);
+  mustInclude(docText, "Phase A", "entry path phase", rel);
+  mustInclude(docText, "Phase B", "operator path phase", rel);
+  mustInclude(docText, "Phase C", "evidence phase", rel);
+  mustInclude(docText, "Phase D", "feedback phase", rel);
+  mustInclude(docText, "PASS", "scoring semantics", rel);
+  mustInclude(docText, "without re-running", "triage exit bar", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
+function checkBetaDryRunSampleIssueDoc(docText) {
+  const rel = "docs/how-to/evidence/beta-dry-run-sample-issue.md";
+  if (!docText) return;
+  mustInclude(docText, "ATTACH.md", "attach source reference", rel);
+  mustInclude(docText, "operator-feedback", "issue label reference", rel);
+  mustInclude(docText, "Task ID", "task id field", rel);
+  mustInclude(docText, "Inspect verdict", "inspect verdict field", rel);
+  mustInclude(docText, "Inspect blockers", "inspect blockers field", rel);
+  mustInclude(docText, "Steps to reproduce", "steps field", rel);
+  mustInclude(docText, "Severity", "severity field", rel);
+  mustInclude(docText, "synthetic", "synthetic disclaimer", rel);
+  mustInclude(docText, "without maintainer rewrite", "triage sufficiency claim", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -349,6 +389,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "beta-known-limitations.md", "link to beta known limitations doc", rel);
   mustInclude(readmeText, "operator-feedback-issue.md", "link to operator feedback issue doc", rel);
   mustInclude(readmeText, "beta-tester-guide.md", "link to beta tester guide doc", rel);
+  mustInclude(readmeText, "beta-dry-run-checklist.md", "link to beta dry-run checklist doc", rel);
   mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
 
   checkForbiddenClaimsForDoc(readmeText, rel);
@@ -379,6 +420,8 @@ function main() {
   const collectReportText = readUtf8(COLLECT_RUN_REPORT);
   const betaLimitationsText = readUtf8(BETA_KNOWN_LIMITATIONS);
   const betaTesterGuideText = readUtf8(BETA_TESTER_GUIDE);
+  const betaDryRunChecklistText = readUtf8(BETA_DRY_RUN_CHECKLIST);
+  const betaDryRunSampleIssueText = readUtf8(BETA_DRY_RUN_SAMPLE_ISSUE);
   const operatorFeedbackText = readUtf8(OPERATOR_FEEDBACK_ISSUE);
   const operatorFeedbackTemplateText = readUtf8(OPERATOR_FEEDBACK_TEMPLATE);
   const readmeText = readUtf8(README);
@@ -421,6 +464,8 @@ function main() {
   if (collectReportText) checkCollectRunReportDoc(collectReportText);
   if (betaLimitationsText) checkBetaKnownLimitationsDoc(betaLimitationsText);
   if (betaTesterGuideText) checkBetaTesterGuideDoc(betaTesterGuideText);
+  if (betaDryRunChecklistText) checkBetaDryRunChecklistDoc(betaDryRunChecklistText);
+  if (betaDryRunSampleIssueText) checkBetaDryRunSampleIssueDoc(betaDryRunSampleIssueText);
   if (operatorFeedbackText) checkOperatorFeedbackIssueDoc(operatorFeedbackText);
   if (operatorFeedbackTemplateText) checkOperatorFeedbackTemplate(operatorFeedbackTemplateText);
   if (readmeText) checkReadmeAlignment(readmeText, guideText);
