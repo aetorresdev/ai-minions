@@ -24,15 +24,15 @@ Thirteenth alpha pre-release: **Beta Readiness Dry Run** — known limitations d
 | Reason codes | `OPERATOR_*`, `INSPECT_*`, `BUNDLE_*` | Same layers preserved; dry-run docs reference all three families |
 | Unit tests (evidence) | 1396/1397 | 1396/1397 (orchestrator unchanged; root operator-script tests via Docs usage verify) |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.13.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.13.0-alpha.1` — pre-release published @ tag `fd532f2`
 
 **Evidence (operator):**
 
 - Unit + hooks: `cd orchestrator && npm test` → **1396/1397** pass (1 skipped) on workspace @ lane tip `1cb3d68`
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean)
 - Contracts: `beta-known-limitations.md`, `operator-feedback-issue.md`, `beta-tester-guide.md`, `beta-dry-run-checklist.md`, `operator-doc-claims.mjs`, `collect-run-report.mjs`
-- Lane merged on `master` @ `1cb3d68` (E13-1..5); release-prep on this commit (pending merge)
-- CI: Docs usage verify · Link Check · Markdown Lint — green on lane PRs (#197–#201)
+- Lane merged on `master` @ `1cb3d68` (beta readiness dry-run docs + scripts); release-prep merged @ `fd532f2`; tag + pre-release @ `fd532f2`
+- CI: Docs usage verify · Link Check · Markdown Lint — green through lane tip `1cb3d68`
 
 **Alpha limitations (not production):**
 

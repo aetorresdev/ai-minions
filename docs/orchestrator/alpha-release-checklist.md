@@ -687,7 +687,7 @@ Hosted web UI · packaged global installer · GitHub feedback templates · exter
 - [x] `ATTACH.md` / collect-run-report alignment — merged @ `03354c2` (PR #199)
 - [x] Beta tester guide (internal dry-run) — merged @ `4041d9a` (PR #200)
 - [x] Dry-run checklist + sample issue evidence — merged @ `1cb3d68` (PR #201)
-- [ ] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep (pending); CERBERUS Approve
+- [x] Release hygiene: `CHANGELOG` + checklist sign-off — merged @ `fd532f2` (PR #202); CERBERUS Approve
 
 ### Out of scope
 
@@ -695,8 +695,8 @@ External usability beta (v0.14) · real external tester cohort · `MODEL-GOV-5` 
 
 ### CERBERUS checks (pre-tag)
 
-- [x] E13-1..E13-5 implementation slices CERBERUS-approved (#197–#201)
-- [ ] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (pending)
+- [x] Implementation slices (limitations through checklist) — CERBERUS-approved; merges through `1cb3d68`
+- [x] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (PR #202)
 - [x] No production-ready claim — release claim uses alpha limitations
 - [x] No external-beta / performative-beta claim
 - [x] No automatic issue-upload claim
@@ -713,13 +713,14 @@ External usability beta (v0.14) · real external tester cohort · `MODEL-GOV-5` 
 
 | Date | Context | Outcome |
 |------|---------|---------|
-| 2026-06-16 | `master` @ `1cb3d68` — lane merge (E13-5 / PR #201) | Docs usage verify · lychee · markdownlint — **green** |
+| 2026-06-16 | `master` @ `1cb3d68` — lane merge (dry-run checklist) | Docs usage verify · lychee · markdownlint — **green** |
 | 2026-06-16 | PR #201 | Docs usage verify · collect-run-report tests — **green** |
 | 2026-06-16 | Workspace @ `1cb3d68` | `cd orchestrator && npm test` → **1396/1397** pass (1 skipped) |
 | 2026-06-16 | Workspace @ `1cb3d68` | `bash scripts/release-trivy-gate.sh` → **OK** |
 | 2026-06-16 | Workspace @ `1cb3d68` | `node scripts/verify-usage-docs.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK** |
+| 2026-06-16 | Phase B operator cut @ `fd532f2` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
-**Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` unchanged since E13-5 @ `1cb3d68`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `1cb3d68` (docs/scripts) until tag.
+**Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` unchanged since lane tip @ `1cb3d68`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `1cb3d68` (docs/scripts) until tag.
 
 | Check | Lane / baseline |
 |-------|-----------------|
@@ -731,14 +732,14 @@ External usability beta (v0.14) · real external tester cohort · `MODEL-GOV-5` 
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
 
-- [ ] **Tag target:** `v0.13.0-alpha.1` on release-prep merge commit @ `{prep_sha}`
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.13.0-alpha.1` — pre-release to publish
-- [ ] **`release` branch:** align to tag commit (`release_branch_commit` matches `tag_commit`)
+- [x] **Tag target:** `v0.13.0-alpha.1` on release-prep merge commit @ `fd532f2`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.13.0-alpha.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `fd532f2` (`release_branch_commit` matches `tag_commit`)
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.13.0-alpha.1] - 2026-06-16** (draft on release-prep)
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+- [x] **Changelog:** section **[0.13.0-alpha.1] - 2026-06-16**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 
