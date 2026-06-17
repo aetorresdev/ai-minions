@@ -674,6 +674,72 @@ Hosted web UI · packaged global installer · GitHub feedback templates · exter
 - [ ] **Changelog:** section **[0.12.0-alpha.1] - 2026-06-16** (draft on release-prep)
 - [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.13.0-alpha.1 — Beta Readiness Dry Run
+
+**Scope:** internal beta dry-run — known limitations, GitHub operator-feedback template, `ATTACH.md` alignment, beta tester runbook, dry-run checklist, and sample issue evidence. **Prerequisite:** `v0.12.0-alpha.1` @ `e4350f1`.
+
+**Release claim:** documented internal dry-run loop from limitations through report bundle to actionable GitHub operator feedback — not production-ready, not external beta, not automatic issue upload, not global installer.
+
+### Must-have bundle
+
+- [x] Known limitations doc (beta candidate) — merged @ `251f382` (PR #197)
+- [x] GitHub operator-feedback issue template — merged @ `06e27cc` (PR #198)
+- [x] `ATTACH.md` / collect-run-report alignment — merged @ `03354c2` (PR #199)
+- [x] Beta tester guide (internal dry-run) — merged @ `4041d9a` (PR #200)
+- [x] Dry-run checklist + sample issue evidence — merged @ `1cb3d68` (PR #201)
+- [ ] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep (pending); CERBERUS Approve
+
+### Out of scope
+
+External usability beta (v0.14) · real external tester cohort · `MODEL-GOV-5` / `MODEL-CTRL-*` · memory runtime SoT · packaged global installer · production TUI claim · architecture refactor complete · adaptive model layer · redoing v0.11/v0.12 lanes as mega-PR.
+
+### CERBERUS checks (pre-tag)
+
+- [x] E13-1..E13-5 implementation slices CERBERUS-approved (#197–#201)
+- [ ] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (pending)
+- [x] No production-ready claim — release claim uses alpha limitations
+- [x] No external-beta / performative-beta claim
+- [x] No automatic issue-upload claim
+
+### Forbidden release claims (v0.13)
+
+"production-ready" · "global installer" · "packaged installer shipped" · "production TUI shipped" · "external beta open" · "external usability beta ready" · "automatic issue upload" · "hosted control plane included" · "architecture refactor complete" · "agent-owned tags/releases by default".
+
+### Vulnerability gate (pre-tag)
+
+- [x] `bash scripts/release-trivy-gate.sh` — published scope clean on lane tip @ `1cb3d68`
+
+#### v0.13 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-16 | `master` @ `1cb3d68` — lane merge (E13-5 / PR #201) | Docs usage verify · lychee · markdownlint — **green** |
+| 2026-06-16 | PR #201 | Docs usage verify · collect-run-report tests — **green** |
+| 2026-06-16 | Workspace @ `1cb3d68` | `cd orchestrator && npm test` → **1396/1397** pass (1 skipped) |
+| 2026-06-16 | Workspace @ `1cb3d68` | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-06-16 | Workspace @ `1cb3d68` | `node scripts/verify-usage-docs.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK** |
+
+**Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` unchanged since E13-5 @ `1cb3d68`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `1cb3d68` (docs/scripts) until tag.
+
+| Check | Lane / baseline |
+|-------|-----------------|
+| Docs usage verify | PR #201 merge @ `1cb3d68` |
+| Link Check | PR #201 merge @ `1cb3d68` |
+| Markdown Lint | PR #201 merge @ `1cb3d68` |
+
+### Release execution plan (locked on release-prep merge — Phase B operator steps)
+
+**Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
+
+- [ ] **Tag target:** `v0.13.0-alpha.1` on release-prep merge commit @ `{prep_sha}`
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.13.0-alpha.1` — pre-release to publish
+- [ ] **`release` branch:** align to tag commit (`release_branch_commit` matches `tag_commit`)
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.13.0-alpha.1] - 2026-06-16** (draft on release-prep)
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
