@@ -718,7 +718,7 @@ External usability beta (v0.14) · real external tester cohort · `MODEL-GOV-5` 
 | 2026-06-16 | Workspace @ `1cb3d68` | `cd orchestrator && npm test` → **1396/1397** pass (1 skipped) |
 | 2026-06-16 | Workspace @ `1cb3d68` | `bash scripts/release-trivy-gate.sh` → **OK** |
 | 2026-06-16 | Workspace @ `1cb3d68` | `node scripts/verify-usage-docs.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK** |
-| 2026-06-16 | Phase B operator cut @ `fd532f2` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
+| 2026-06-16 | Phase B operator cut @ `9c615f3` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 **Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` unchanged since lane tip @ `1cb3d68`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `1cb3d68` (docs/scripts) until tag.
 
@@ -732,9 +732,9 @@ External usability beta (v0.14) · real external tester cohort · `MODEL-GOV-5` 
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
 
-- [x] **Tag target:** `v0.13.0-alpha.1` on release-prep merge commit @ `fd532f2`
+- [x] **Tag target:** `v0.13.0-alpha.1` on post-tag hygiene commit @ `9c615f3`
 - [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.13.0-alpha.1` — pre-release published
-- [x] **`release` branch:** aligned to tag commit @ `fd532f2` (`release_branch_commit` matches `tag_commit`)
+- [x] **`release` branch:** aligned to tag commit @ `9c615f3` (`release_branch_commit` matches `tag_commit`)
 
 ### Release artifact (source snapshot)
 
