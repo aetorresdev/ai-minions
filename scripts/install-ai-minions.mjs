@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Repo install entrypoint — host/container prereqs (E14-1 slice).
+ * Repo install entrypoint — host/container prereqs (current installer phase).
  * Fail-closed with stable INSTALL_* reason codes — no secrets in output.
  *
- * E14-1: --model-policy is declarative only (recorded in install report as intent).
+ * Current installer phase: --model-policy is declarative only (recorded in install report as intent).
  * No discovery, no config writes, no remote token collect/validate/print (separate credential slice).
- * E14-2: discovery; local_only vs remote_ok enforcement for missing local models begins.
- * E14-3: writes .ai-minions model config from discovered capabilities.
+ * Later installer phase: discovery; local_only vs remote_ok enforcement for missing local models begins.
+ * Later installer phase: writes .ai-minions model config from discovered capabilities.
  *
  * Usage:
  *   node scripts/install-ai-minions.mjs [--json] [--install] [--model-policy local_only|remote_ok]
@@ -22,7 +22,7 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
 export const ORCHESTRATOR_DIR = path.join(REPO_ROOT, "orchestrator");
 
-/** E14-1 host-prereq codes only — discovery/config codes ship in E14-2/E14-3. */
+/** Host-prereq codes only in current installer phase — discovery/config codes ship in later installer phases. */
 export const REASON_CODES = {
   OK: "INSTALL_OK",
   NODE_MISSING: "INSTALL_NODE_MISSING",
@@ -34,7 +34,7 @@ export const REASON_CODES = {
 export const MIN_NODE_MAJOR = 18;
 export const MODEL_POLICIES = new Set(["local_only", "remote_ok"]);
 
-/** E14-1: policy flag is recorded only — enforcement begins E14-2/E14-3. */
+/** Current installer phase: policy flag is recorded only — enforcement begins in later installer phases. */
 export const MODEL_POLICY_MODE = "declarative";
 
 /** @typedef {'pass' | 'fail'} CheckStatus */
@@ -238,7 +238,7 @@ export function formatReportText(report) {
     `  phase: ${report.phase}`,
     `  repo_root: ${report.repo_root}`,
     `  model_policy: ${report.model_policy ?? "(not set)"}`,
-    `  model_policy_mode: ${report.model_policy_mode} (intent only in E14-1 — enforcement in E14-2/E14-3)`,
+    `  model_policy_mode: ${report.model_policy_mode} (declarative intent in current installer phase — enforcement in later installer phases)`,
     `  ok: ${report.ok}`,
   ];
   for (const c of report.checks) {
@@ -287,16 +287,16 @@ async function main() {
 
 Options:
   --install              Run npm ci when orchestrator/node_modules is missing
-  --model-policy <mode>  local_only | remote_ok — declarative intent only in E14-1
-                         (E14-2+: local_only fail / remote_ok warn when no local models;
+  --model-policy <mode>  local_only | remote_ok — declarative intent only in current installer phase
+                         (later phases: local_only fail / remote_ok warn when no local models;
                           remote_ok = do not block on missing local inventory — not remote provider setup)
   --json                 Machine-readable report on stdout
   -h, --help             Show this help
 
 Exit codes: 0 = pass, 1 = blocker(s)
 
-E14-1 scope: host prereqs only (Node, ruff, uv, npm ci). No discovery · no .ai-minions writes ·
-no remote token collect/validate/print. Model behavior enforcement ships in E14-2/E14-3.
+Current installer phase scope: host prereqs only (Node, ruff, uv, npm ci). No discovery · no .ai-minions writes ·
+no remote token collect/validate/print. Model behavior enforcement ships in later installer phases.
 `);
     process.exit(0);
   }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ai-minions install — delegates to scripts/install-ai-minions.mjs (single source of truth).
-# E14-1: host prereqs only; --model-policy is declarative intent (enforcement in E14-2/E14-3).
+# Current phase: host prereqs only; --model-policy is declarative intent (enforcement in later installer phases).
 #
 # Usage (from clone root):
 #   ./install.sh [--install] [--json] [--model-policy local_only|remote_ok]

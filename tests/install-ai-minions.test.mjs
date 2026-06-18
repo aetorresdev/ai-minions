@@ -129,7 +129,7 @@ describe("install-ai-minions", () => {
     assert.equal(npmCi?.reason_code, REASON_CODES.OK);
   });
 
-  it("records model_policy as declarative install intent only (E14-1)", async () => {
+  it("records model_policy as declarative install intent only (current installer phase)", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "install-ai-minions-"));
     const orch = path.join(tmp, "orchestrator");
     fs.mkdirSync(orch, { recursive: true });
