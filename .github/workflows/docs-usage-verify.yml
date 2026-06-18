@@ -13,6 +13,8 @@ on:
       - "orchestrator/context-hygiene-signals.js"
       - "orchestrator/orchestrator.js"
       - "scripts/bootstrap-preflight.mjs"
+      - "install.sh"
+      - "scripts/install-ai-minions.mjs"
       - "scripts/operator-preflight.mjs"
       - "scripts/inspect-run-evidence.mjs"
       - "scripts/collect-run-report.mjs"
@@ -22,6 +24,7 @@ on:
       - "scripts/lib/operator-doc-claims.mjs"
       - "scripts/verify-usage-docs.mjs"
       - "tests/bootstrap-preflight.test.mjs"
+      - "tests/install-ai-minions.test.mjs"
       - "tests/operator-preflight.test.mjs"
       - "tests/inspect-run-evidence.test.mjs"
       - "tests/collect-run-report.test.mjs"
@@ -52,6 +55,9 @@ jobs:
 
       - name: Bootstrap preflight unit tests
         run: node --test tests/bootstrap-preflight.test.mjs
+
+      - name: Install ai-minions unit tests
+        run: node --test tests/install-ai-minions.test.mjs
 
       - name: Operator preflight bridge unit tests
         run: node --test tests/operator-preflight.test.mjs
