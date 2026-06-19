@@ -20,7 +20,7 @@
 
 ## Quick commands
 
-**From repo root** (always — do not run claim audit from `orchestrator/`):
+**From repo root** (canonical paths under `scripts/`):
 
 ```bash
 cd ai-minions
@@ -90,19 +90,15 @@ Exit codes: **0** = all required steps pass · **1** = blocker (`stderr` lists `
 
 ---
 
-## Common mistake
+## Running from `orchestrator/`
 
-After `cd orchestrator && npm test`, `node scripts/…` resolves under **`orchestrator/scripts/`**. Use any of:
+After `cd orchestrator && npm test`, bare `node scripts/…` resolves under **`orchestrator/scripts/`**. Either:
 
-```bash
-cd ..
-node scripts/run-install-evidence.mjs --json
-```
+| Context | Command |
+|---------|---------|
+| Repo root | `node scripts/run-install-evidence.mjs --json` |
+| `orchestrator/` (shim) | `node scripts/run-install-evidence.mjs --json` |
+| `orchestrator/` (npm) | `npm run evidence:install -- --json` |
+| Claim audit from `orchestrator/` | `npm run evidence:claims` or shim `node scripts/audit-product-claims.mjs` |
 
-```bash
-# still inside orchestrator/
-node scripts/run-install-evidence.mjs --json
-npm run evidence:install -- --json
-```
-
-Repo-root scripts live in **`scripts/`** at the clone root; `orchestrator/scripts/run-install-evidence.mjs` is a cwd-safe shim.
+Shims delegate to repo-root `scripts/` with `cwd` at the clone root. Do **not** expect a second copy of repo-root scripts under `orchestrator/scripts/` except these delegates.

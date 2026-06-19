@@ -32,6 +32,29 @@ module.exports = [
     },
   },
   {
+    files: ["**/*.mjs"],
+    ignores: ["node_modules/**"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: {
+        process:      "readonly",
+        console:      "readonly",
+        Buffer:       "readonly",
+        setTimeout:   "readonly",
+        clearTimeout: "readonly",
+        URL:          "readonly",
+      },
+    },
+    rules: {
+      "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+      "no-console":     "off",
+      "no-undef":       "error",
+      "no-var":         "error",
+      "prefer-const":   "warn",
+    },
+  },
+  {
     files: ["**/*.cjs"],
     ignores: ["node_modules/**"],
     languageOptions: {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * v0.14 install evidence chain — Mac/Docker install path + claim audit.
+ * Install evidence chain — Mac/Docker install path + claim audit.
  * Always resolves scripts from repo root (safe after `cd orchestrator && npm test`).
  *
  * Usage:
@@ -202,7 +202,7 @@ async function main() {
   if (args.help) {
     process.stdout.write(`Usage: node scripts/run-install-evidence.mjs [options]
 
-v0.14 install evidence chain. Run from repo root (or any cwd — paths are repo-root absolute).
+Install evidence chain. Run from repo root, or from orchestrator/ via npm run evidence:install / shim scripts.
 
 Options:
   --model-policy <mode>  local_only (default) | remote_ok
@@ -218,7 +218,7 @@ Live Mac/Docker attestation (Ollama required on host):
 Claim audit only (CI-safe):
   node scripts/run-install-evidence.mjs --skip-live
 
-Do not run node scripts/audit-product-claims.mjs from orchestrator/ — use repo root or this wrapper.
+From orchestrator/: use npm run evidence:claims or orchestrator/scripts/audit-product-claims.mjs (shim).
 
 Exit codes: 0 = pass, 1 = blocker(s)
 Reason codes: INSTALL_EVIDENCE_INSTALL_FAIL, INSTALL_EVIDENCE_OPERATOR_FAIL,
