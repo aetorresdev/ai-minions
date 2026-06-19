@@ -18,6 +18,9 @@ on:
       - "docs/orchestrator/local-backend-adapter-contract.md"
       - "docs/how-to/install-ollama-docker-paths.md"
       - "orchestrator/local-backend-adapter.js"
+      - "orchestrator/install-model-config.js"
+      - "docs/orchestrator/provider-inference-profile-contract.md"
+      - "docs/orchestrator/model-config-ownership.md"
       - "orchestrator/local-model-discovery.js"
       - "scripts/operator-preflight.mjs"
       - "scripts/inspect-run-evidence.mjs"
@@ -53,6 +56,16 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: orchestrator/package-lock.json
+
+      - name: Install orchestrator dependencies
+        working-directory: orchestrator
+        run: npm ci
 
       - name: Verify usage how-to and README alignment
         run: node scripts/verify-usage-docs.mjs

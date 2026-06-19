@@ -57,6 +57,28 @@ function validateModelPolicy(policy) {
       throw new Error('model-policy.yaml: max_size_bytes must be a positive number when set');
     }
   }
+  if (policy.local_backend != null) {
+    if (typeof policy.local_backend !== 'object' || Array.isArray(policy.local_backend)) {
+      throw new Error('model-policy.yaml: local_backend must be an object when set');
+    }
+    const lb = /** @type {Record<string, unknown>} */ (policy.local_backend);
+    if (typeof lb.backend_id !== 'string' || !lb.backend_id.trim()) {
+      throw new Error('model-policy.yaml: local_backend.backend_id must be a non-empty string');
+    }
+    const supportStatus = String(lb.support_status ?? '');
+    if (!['supported', 'experimental', 'unsupported'].includes(supportStatus)) {
+      throw new Error(
+        'model-policy.yaml: local_backend.support_status must be supported|experimental|unsupported',
+      );
+    }
+    if (typeof lb.host !== 'string' || !lb.host.trim()) {
+      throw new Error('model-policy.yaml: local_backend.host must be a non-empty string');
+    }
+    const port = Number(lb.port);
+    if (!Number.isFinite(port) || port <= 0 || port > 65535) {
+      throw new Error('model-policy.yaml: local_backend.port must be a valid TCP port');
+    }
+  }
 }
 
 /**

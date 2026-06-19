@@ -40,6 +40,7 @@
     "flow-hook-bridge.js": "legacy",
     "local-model-discovery.js": "legacy",
     "local-backend-adapter.js": "legacy",
+    "install-model-config.js": "legacy",
     "local-model-policy.js": "legacy",
     "local-model-selection.js": "legacy",
     "mcp-client.js": "legacy",
