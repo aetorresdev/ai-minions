@@ -741,6 +741,73 @@ External usability beta (v0.14) · real external tester cohort · `MODEL-GOV-5` 
 - [x] **Changelog:** section **[0.13.0-alpha.1] - 2026-06-16**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.14.0-alpha.1 — Installer + Model Discovery Config
+
+**Scope:** install entrypoint, Ollama discovery, `.ai-minions` config generation, runtime preflight in operator chain, Mac/Docker install evidence + claim audit. **Prerequisite:** `v0.13.0-alpha.1` @ `fcdbd45`.
+
+**Release claim:** documented Mac/Docker install path writes model config and passes operator validation + claim audit — **not** production-ready, **not** global installer, **not** external beta, **not** remote provider setup, **not** multi-backend parity beyond Ollama.
+
+### Must-have bundle
+
+- [x] `install.sh` + `install-ai-minions.mjs` + host prereqs — merged @ `a6f2a18` (PR #203)
+- [x] Ollama discovery + local backend adapter contract — merged @ `f0cb4fd` (PR #205)
+- [x] Role/tier config write + inference profile contract + ownership doc — merged @ `8b8c9b0` (PR #206)
+- [x] Runtime preflight + operator validation chain — merged @ `1635eb0` (PR #207)
+- [x] Mac/Docker install evidence + claim audit — merged @ `b2e2a4d` (PR #208; CERBERUS Approve)
+- [ ] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep on this commit (pending merge); CERBERUS Approve pending
+
+### Out of scope
+
+External usability beta (v0.15) · real external tester cohort · remote credential contract · auto model pull · LM Studio / llama.cpp / vLLM functional backends · `MODEL-GOV-5` / `MODEL-CTRL-*` · packaged global installer · production TUI claim · architecture refactor complete · adaptive model layer · redoing v0.11–v0.13 lanes as mega-PR.
+
+### CERBERUS checks (pre-tag)
+
+- [x] Implementation slices (install through install evidence) — CERBERUS-approved; merges through `b2e2a4d`
+- [ ] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (this PR)
+- [x] No production-ready claim — release claim uses alpha limitations
+- [x] No external-beta / global-installer claim
+- [x] No remote-provider-setup or multi-backend parity claim
+
+### Forbidden release claims (v0.14)
+
+"production-ready" · "global installer" · "packaged installer shipped" · "production TUI shipped" · "external beta open" · "external usability beta ready" · "remote provider configured" · "LM Studio supported" · "multi-backend parity" · "hosted control plane included" · "architecture refactor complete" · "agent-owned tags/releases by default".
+
+### Vulnerability gate (pre-tag)
+
+- [ ] `bash scripts/release-trivy-gate.sh` — run on lane tip @ `b2e2a4d` before Phase B tag
+
+#### v0.14 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-19 | Workspace @ `b2e2a4d` — lane tip (E14-5) | `cd orchestrator && npm test` → **1114/1115** pass (1 skipped) |
+| 2026-06-19 | Workspace @ `b2e2a4d` | `node scripts/run-install-evidence.mjs --skip-live` → **OK** |
+| 2026-06-19 | Workspace @ `b2e2a4d` | `node scripts/run-install-evidence.mjs --json` (live Mac, Ollama) → **`mac_docker_live`** |
+| 2026-06-19 | Workspace @ `b2e2a4d` | `node scripts/verify-usage-docs.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK** |
+| 2026-06-19 | E14-5 PR CI | orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · security-trivy-scan — **green** |
+
+**Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` unchanged since lane tip @ `b2e2a4d`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `b2e2a4d` until tag.
+
+| Check | Lane / baseline |
+|-------|-----------------|
+| orchestrator-unit-tests | E14-5 PR head @ `b2e2a4d` |
+| orchestrator-e2e | E14-5 PR head @ `b2e2a4d` |
+| Docs usage verify | E14-5 PR head @ `b2e2a4d` |
+| security-trivy-scan | E14-5 PR head @ `b2e2a4d` |
+
+### Release execution plan (locked on release-prep merge — Phase B operator steps)
+
+**Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
+
+- [ ] **Tag target:** `v0.14.0-alpha.1` on post-tag hygiene commit *(operator)*
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.14.0-alpha.1` — pre-release published
+- [ ] **`release` branch:** align to tag commit (`release_branch_commit` matches `tag_commit`)
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.14.0-alpha.1] - 2026-06-19** (draft on release-prep)
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
