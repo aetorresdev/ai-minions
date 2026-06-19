@@ -27,8 +27,11 @@ const DOC_DIR = 'docs/orchestrator';
 /** Groomed backlog case ids must not appear in versioned operator docs. */
 const BACKLOG_CASE_ID_RE = /\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+)+-\d+\b/g;
 
-/** Groomed lane shorthand must not appear in versioned operator docs. */
+/** Groomed lane shorthand (A-prefixed) must not appear in versioned operator docs. */
 const LANE_ID_RE = /\bA\d+-\d+\b/g;
+
+/** Release slice shorthand (A|E + digits) — versioned source paths only. */
+const RELEASE_SLICE_LANE_RE = /\b(?:A|E)\d+-\d+\b/g;
 
 /** Section headings where forbidden phrases may appear as explicit negation. */
 const SAFE_SECTION_RE =
@@ -276,6 +279,7 @@ module.exports = {
   FORBIDDEN_RULES,
   BACKLOG_CASE_ID_RE,
   LANE_ID_RE,
+  RELEASE_SLICE_LANE_RE,
   checkDocRuntimeClaims,
   scanMarkdown,
   scanBacklogCaseIds,
