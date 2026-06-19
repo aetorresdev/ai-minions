@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
- * Repo install entrypoint — host prereqs + model discovery (current slices).
+ * Repo install entrypoint — host prereqs, model discovery, and config write (current slices).
  * Fail-closed with stable INSTALL_* reason codes — no secrets in output.
  *
  * Host phase: Node, ruff, uv, npm ci.
  * Discovery phase: Ollama via discoverLocalModels() + local backend adapter contract.
- * No .ai-minions config writes · no remote token handling (later installer phases).
+ * Config-write phase: .ai-minions/model-policy.yaml + model_policy.json + install-profile.json.
+ * No remote token handling (later installer phases).
  *
  * Usage:
  *   node scripts/install-ai-minions.mjs [--json] [--install] [--model-policy local_only|remote_ok]
@@ -31,6 +32,9 @@ export const REASON_CODES = {
   OLLAMA_UNREACHABLE: "INSTALL_OLLAMA_UNREACHABLE",
   LOCAL_MODELS_EMPTY: "INSTALL_LOCAL_MODELS_EMPTY",
   MODEL_DISCOVERY_DENIED: "INSTALL_MODEL_DISCOVERY_DENIED",
+  MODEL_POLICY_WRITE_FAILED: "INSTALL_MODEL_POLICY_WRITE_FAILED",
+  ROLE_MODEL_CONFIG_WRITTEN: "INSTALL_ROLE_MODEL_CONFIG_WRITTEN",
+  ROLE_MODEL_DEGRADED_SINGLE_MODEL: "INSTALL_ROLE_MODEL_DEGRADED_SINGLE_MODEL",
 };
 
 export const MIN_NODE_MAJOR = 18;
@@ -56,6 +60,15 @@ function defaultNormalizeInstallDiscovery() {
   const require = createRequire(import.meta.url);
   const { normalizeInstallDiscovery } = require(path.join(ORCHESTRATOR_DIR, "local-backend-adapter.js"));
   return normalizeInstallDiscovery;
+}
+
+/**
+ * @returns {typeof import('../orchestrator/install-model-config.js').writeInstallModelConfig}
+ */
+function defaultWriteInstallModelConfig() {
+  const require = createRequire(import.meta.url);
+  const { writeInstallModelConfig } = require(path.join(ORCHESTRATOR_DIR, "install-model-config.js"));
+  return writeInstallModelConfig;
 }
 
 /**
@@ -146,6 +159,34 @@ export function buildDiscoveryChecks(rawDiscovery, modelPolicy) {
     status: "pass",
     message: `discovered ${modelCount} local model(s) via ollama`,
   });
+  return checks;
+}
+
+/**
+ * @param {{
+ *   files_written: string[],
+ *   degraded_single_model: boolean,
+ * }} writeResult
+ * @returns {CheckResult[]}
+ */
+export function buildConfigWriteChecks(writeResult) {
+  /** @type {CheckResult[]} */
+  const checks = [
+    {
+      id: "config_write",
+      reason_code: REASON_CODES.ROLE_MODEL_CONFIG_WRITTEN,
+      status: "pass",
+      message: `wrote ${writeResult.files_written.join(", ")} under .ai-minions/`,
+    },
+  ];
+  if (writeResult.degraded_single_model) {
+    checks.push({
+      id: "role_model_tier",
+      reason_code: REASON_CODES.ROLE_MODEL_DEGRADED_SINGLE_MODEL,
+      status: "warn",
+      message: "single discovered model — all tiers map to the same model",
+    });
+  }
   return checks;
 }
 
@@ -292,6 +333,8 @@ export async function runHostPrereqChecks(repoRoot, orchDir, options = {}) {
  *   runNpmCi?: (orchDir: string) => { status: number },
  *   discoverLocalModels?: (options?: object) => Promise<import('../orchestrator/local-model-discovery.js').LocalModelDiscoveryResult>,
  *   normalizeInstallDiscovery?: (result: import('../orchestrator/local-model-discovery.js').LocalModelDiscoveryResult) => object,
+ *   writeInstallModelConfig?: typeof import('../orchestrator/install-model-config.js').writeInstallModelConfig,
+ *   configWriteOptions?: object,
  * }} [options]
  */
 export async function runInstallAiMinions(options = {}) {
@@ -321,16 +364,73 @@ export async function runInstallAiMinions(options = {}) {
   const discovery = normalizeInstallDiscovery(rawDiscovery);
   const discoveryChecks = buildDiscoveryChecks(rawDiscovery, modelPolicy);
   const checks = [...hostChecks, ...discoveryChecks];
+  const discoveryOk = checksOk(checks);
+  const modelCount = discovery.models?.length ?? 0;
 
-  return {
-    ok: checksOk(checks),
-    phase: "model_discovery",
-    model_policy: modelPolicy,
-    model_policy_mode: MODEL_POLICY_MODE,
-    repo_root: repoRoot,
-    checks,
-    discovery,
-  };
+  /** @type {Record<string, unknown> | null} */
+  let configWrite = null;
+
+  if (!discoveryOk || modelCount === 0) {
+    return {
+      ok: discoveryOk,
+      phase: "model_discovery",
+      model_policy: modelPolicy,
+      model_policy_mode: MODEL_POLICY_MODE,
+      repo_root: repoRoot,
+      checks,
+      discovery,
+      config_write: null,
+      inference_profiles_written: false,
+      inference_profile_mode: null,
+    };
+  }
+
+  const writeInstallModelConfig =
+    options.writeInstallModelConfig ?? defaultWriteInstallModelConfig();
+
+  try {
+    const writeResult = writeInstallModelConfig(repoRoot, discovery, modelPolicy, options.configWriteOptions);
+    const configChecks = buildConfigWriteChecks(writeResult);
+    const allChecks = [...checks, ...configChecks];
+    configWrite = writeResult;
+
+    return {
+      ok: checksOk(allChecks),
+      phase: "config_write",
+      model_policy: modelPolicy,
+      model_policy_mode: MODEL_POLICY_MODE,
+      repo_root: repoRoot,
+      checks: allChecks,
+      discovery,
+      config_write: configWrite,
+      inference_profiles_written: writeResult.inference_profiles_written,
+      inference_profile_mode: writeResult.inference_profile_mode,
+      default_model: writeResult.default_model,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const failChecks = [
+      ...checks,
+      {
+        id: "config_write",
+        reason_code: REASON_CODES.MODEL_POLICY_WRITE_FAILED,
+        status: /** @type {CheckStatus} */ ("fail"),
+        message,
+      },
+    ];
+    return {
+      ok: false,
+      phase: "config_write",
+      model_policy: modelPolicy,
+      model_policy_mode: MODEL_POLICY_MODE,
+      repo_root: repoRoot,
+      checks: failChecks,
+      discovery,
+      config_write: null,
+      inference_profiles_written: false,
+      inference_profile_mode: null,
+    };
+  }
 }
 
 /**
@@ -338,7 +438,12 @@ export async function runInstallAiMinions(options = {}) {
  * @returns {string}
  */
 export function formatReportText(report) {
-  const phaseLabel = report.phase === "model_discovery" ? "model discovery" : "host prereqs";
+  const phaseLabels = {
+    host_prereqs: "host prereqs",
+    model_discovery: "model discovery",
+    config_write: "config write",
+  };
+  const phaseLabel = phaseLabels[report.phase] ?? report.phase;
   const lines = [
     `ai-minions install (${phaseLabel})`,
     `  phase: ${report.phase}`,
@@ -347,6 +452,14 @@ export function formatReportText(report) {
     `  model_policy_mode: ${report.model_policy_mode} (declarative intent — discovery enforcement active for local inventory)`,
     `  ok: ${report.ok}`,
   ];
+
+  if (report.default_model) {
+    lines.push(`  default_model: ${report.default_model}`);
+  }
+  if (report.inference_profile_mode) {
+    lines.push(`  inference_profile_mode: ${report.inference_profile_mode}`);
+    lines.push(`  inference_profiles_written: ${report.inference_profiles_written}`);
+  }
 
   if (report.discovery) {
     for (const backend of report.discovery.backends) {
@@ -404,13 +517,15 @@ Options:
   --json                 Machine-readable report on stdout
   -h, --help             Show this help
 
-Phases: host prereqs (Node, ruff, uv, npm ci) → model discovery (Ollama only in this release).
+Phases: host prereqs → model discovery (Ollama) → config write (.ai-minions/).
 
 Install reason codes include INSTALL_OLLAMA_UNREACHABLE, INSTALL_LOCAL_MODELS_EMPTY,
-INSTALL_MODEL_DISCOVERY_DENIED during discovery.
+INSTALL_MODEL_DISCOVERY_DENIED during discovery; INSTALL_ROLE_MODEL_CONFIG_WRITTEN,
+INSTALL_ROLE_MODEL_DEGRADED_SINGLE_MODEL, INSTALL_MODEL_POLICY_WRITE_FAILED during config write.
 
-No .ai-minions config writes · no remote token handling · no additional local backends in this release.
+Config write requires discovered local models. No remote token handling · no additional local backends in this release.
 See docs/how-to/install-ollama-docker-paths.md for Mac/Docker Ollama reachability.
+See docs/orchestrator/model-config-ownership.md for YAML vs JSON ownership.
 `);
     process.exit(0);
   }

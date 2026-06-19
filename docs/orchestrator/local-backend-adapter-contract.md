@@ -76,7 +76,7 @@ Policy behavior:
 
 - Functional discovery for `openai_compatible_local`, `llama_cpp_server`, or `vllm`
 - Claiming multi-backend parity in v0.14 docs or install output
-- Writing `.ai-minions` config (later installer phase)
+- Writing `.ai-minions` config — see [`model-config-ownership.md`](./model-config-ownership.md) (config-write installer phase)
 
 ## Docker / Mac Ollama reachability
 

@@ -8,6 +8,7 @@ import {
   MODEL_POLICY_MODE,
   REASON_CODES,
   REPO_ROOT,
+  buildConfigWriteChecks,
   buildDiscoveryChecks,
   checksOk,
   formatReportText,
@@ -133,13 +134,19 @@ describe("install-ai-minions", () => {
       discoverLocalModels: mockDiscoverSuccess(),
     });
     assert.equal(report.ok, true);
-    assert.equal(report.phase, "model_discovery");
+    assert.equal(report.phase, "config_write");
     assert.equal(report.model_policy, "local_only");
     assert.equal(report.discovery?.backends[0].support_status, "supported");
     assert.equal(report.discovery?.backends[0].backend_id, "ollama");
     assert.equal(report.discovery?.models.length, 1);
+    assert.equal(report.inference_profiles_written, true);
+    assert.equal(report.inference_profile_mode, "declarative");
     const discovery = report.checks.find((c) => c.id === "model_discovery");
     assert.equal(discovery?.reason_code, REASON_CODES.OK);
+    const configWrite = report.checks.find((c) => c.id === "config_write");
+    assert.equal(configWrite?.reason_code, REASON_CODES.ROLE_MODEL_CONFIG_WRITTEN);
+    assert.ok(fs.existsSync(path.join(tmp, ".ai-minions", "model-policy.yaml")));
+    assert.ok(fs.existsSync(path.join(tmp, ".ai-minions", "model_policy.json")));
   });
 
   it("runs npm ci with --install when node_modules is missing", async () => {
@@ -179,7 +186,7 @@ describe("install-ai-minions", () => {
     });
     assert.equal(report.model_policy, "remote_ok");
     assert.equal(report.model_policy_mode, MODEL_POLICY_MODE);
-    assert.equal(report.phase, "model_discovery");
+    assert.equal(report.phase, "config_write");
   });
 
   it("fails discovery with INSTALL_OLLAMA_UNREACHABLE when local_only and ollama down", async () => {
@@ -306,6 +313,79 @@ describe("install-ai-minions", () => {
     assert.equal(checksOk(checks), true);
   });
 
+  it("warns INSTALL_ROLE_MODEL_DEGRADED_SINGLE_MODEL for single discovered model", async () => {
+    const tmp = makeHostReadyRepo();
+    const report = await runInstallAiMinions({
+      repoRoot: tmp,
+      nodeVersion: "20.0.0",
+      commandExists: () => true,
+      discoverLocalModels: mockDiscoverSuccess(["only-model:7b"]),
+    });
+    assert.equal(report.ok, true);
+    const warn = report.checks.find((c) => c.id === "role_model_tier");
+    assert.equal(warn?.reason_code, REASON_CODES.ROLE_MODEL_DEGRADED_SINGLE_MODEL);
+    assert.equal(warn?.status, "warn");
+  });
+
+  it("fails config write with INSTALL_MODEL_POLICY_WRITE_FAILED", async () => {
+    const tmp = makeHostReadyRepo();
+    const report = await runInstallAiMinions({
+      repoRoot: tmp,
+      nodeVersion: "20.0.0",
+      commandExists: () => true,
+      discoverLocalModels: mockDiscoverSuccess(),
+      writeInstallModelConfig: () => {
+        throw new Error("disk full");
+      },
+    });
+    assert.equal(report.ok, false);
+    assert.equal(report.phase, "config_write");
+    const fail = report.checks.find((c) => c.id === "config_write");
+    assert.equal(fail?.reason_code, REASON_CODES.MODEL_POLICY_WRITE_FAILED);
+  });
+
+  it("buildConfigWriteChecks emits pass and optional degrade warn", () => {
+    const passOnly = buildConfigWriteChecks({
+      files_written: ["model-policy.yaml", "model_policy.json"],
+      degraded_single_model: false,
+    });
+    assert.equal(passOnly.length, 1);
+    assert.equal(passOnly[0].reason_code, REASON_CODES.ROLE_MODEL_CONFIG_WRITTEN);
+
+    const withWarn = buildConfigWriteChecks({
+      files_written: ["model-policy.yaml"],
+      degraded_single_model: true,
+    });
+    assert.equal(withWarn.length, 2);
+    assert.equal(withWarn[1].reason_code, REASON_CODES.ROLE_MODEL_DEGRADED_SINGLE_MODEL);
+  });
+
+  it("skips config write when discovery has no models", async () => {
+    const tmp = makeHostReadyRepo();
+    const report = await runInstallAiMinions({
+      repoRoot: tmp,
+      nodeVersion: "20.0.0",
+      modelPolicy: "remote_ok",
+      commandExists: () => true,
+      discoverLocalModels: mockDiscoverResult({
+        backends: [
+          {
+            backend_id: "ollama",
+            available: false,
+            host: "localhost",
+            port: 11434,
+            reason: "down",
+          },
+        ],
+        models: [],
+        missing_local_backend: "missing local backend: ollama unreachable",
+      }),
+    });
+    assert.equal(report.phase, "model_discovery");
+    assert.equal(report.config_write, null);
+    assert.equal(report.inference_profiles_written, false);
+  });
+
   it("formatReportText includes support_status and discovery codes", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
@@ -315,9 +395,10 @@ describe("install-ai-minions", () => {
       discoverLocalModels: mockDiscoverSuccess(),
     });
     const text = formatReportText(report);
-    assert.match(text, /model discovery/);
+    assert.match(text, /config write/);
     assert.match(text, /support_status=supported/);
     assert.match(text, /INSTALL_OK/);
+    assert.match(text, /inference_profile_mode: declarative/);
   });
 
   it("formatReportText shows host failure without discovery", async () => {
@@ -335,6 +416,6 @@ describe("install-ai-minions", () => {
     });
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /install-ai-minions/);
-    assert.match(result.stdout, /model discovery/);
+    assert.match(result.stdout, /config write/);
   });
 });

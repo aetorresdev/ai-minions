@@ -236,8 +236,80 @@ function validateModelPolicy(raw) {
     role_defaults: roleDefaults,
     rules,
   };
+  if (policy.provider_inference_profiles !== undefined) {
+    normalized.provider_inference_profiles = validateProviderInferenceProfiles(
+      policy.provider_inference_profiles,
+    );
+  }
   assertPolicyTierDefaultsAllowed(normalized);
   return normalized;
+}
+
+const INFERENCE_EFFORTS = new Set(['low', 'medium', 'high']);
+const INFERENCE_THINKING_MODES = new Set(['disabled', 'adaptive', 'enabled']);
+const INFERENCE_THINKING_DISPLAY = new Set(['omit', 'summary', 'full']);
+
+/**
+ * @param {unknown} profile
+ * @param {string} label
+ */
+function validateInferenceProfileEntry(profile, label) {
+  if (typeof profile !== 'object' || profile === null || Array.isArray(profile)) {
+    throw new Error(`provider_inference_profiles: ${label} must be an object`);
+  }
+  const entry = /** @type {Record<string, unknown>} */ (profile);
+  if (!INFERENCE_EFFORTS.has(String(entry.effort))) {
+    throw new Error(`provider_inference_profiles: ${label}.effort must be low|medium|high`);
+  }
+  if (!INFERENCE_THINKING_MODES.has(String(entry.thinking_mode))) {
+    throw new Error(
+      `provider_inference_profiles: ${label}.thinking_mode must be disabled|adaptive|enabled`,
+    );
+  }
+  if (!INFERENCE_THINKING_DISPLAY.has(String(entry.thinking_display))) {
+    throw new Error(
+      `provider_inference_profiles: ${label}.thinking_display must be omit|summary|full`,
+    );
+  }
+  const maxTokens = Number(entry.max_tokens);
+  if (!Number.isFinite(maxTokens) || maxTokens <= 0) {
+    throw new Error(`provider_inference_profiles: ${label}.max_tokens must be a positive number`);
+  }
+  if (entry.profile_source != null && typeof entry.profile_source !== 'string') {
+    throw new Error(`provider_inference_profiles: ${label}.profile_source must be a string`);
+  }
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {Record<string, unknown>}
+ */
+function validateProviderInferenceProfiles(raw) {
+  if (raw === undefined || raw === null) {
+    return {};
+  }
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('provider_inference_profiles must be an object');
+  }
+  const root = /** @type {Record<string, unknown>} */ (raw);
+  for (const [providerId, providerProfile] of Object.entries(root)) {
+    if (typeof providerProfile !== 'object' || providerProfile === null || Array.isArray(providerProfile)) {
+      throw new Error(`provider_inference_profiles.${providerId} must be an object`);
+    }
+    const pp = /** @type {Record<string, unknown>} */ (providerProfile);
+    if (pp.default != null) {
+      validateInferenceProfileEntry(pp.default, `${providerId}.default`);
+    }
+    if (pp.by_role != null) {
+      if (typeof pp.by_role !== 'object' || Array.isArray(pp.by_role)) {
+        throw new Error(`provider_inference_profiles.${providerId}.by_role must be an object`);
+      }
+      for (const [role, roleProfile] of Object.entries(/** @type {Record<string, unknown>} */ (pp.by_role))) {
+        validateInferenceProfileEntry(roleProfile, `${providerId}.by_role.${role}`);
+      }
+    }
+  }
+  return root;
 }
 
 /**
@@ -335,4 +407,5 @@ module.exports = {
   listAllowedModelsForTier,
   rulesForTier,
   assertPolicyTierDefaultsAllowed,
+  validateProviderInferenceProfiles,
 };
