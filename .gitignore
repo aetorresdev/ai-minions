@@ -37,7 +37,7 @@ Thumbs.db
 .env
 .env.local
 secrets/
-
+.ai-minions/
 # Orchestrator L2 state (on-disk authority; may live under repo if ORCHESTRATOR_STATE_ROOT points here)
 .state/
 

@@ -8,14 +8,14 @@ const path = require('node:path');
 
 const {
   REASON_CODES,
-  V0_14_RUNTIME_COMPONENTS,
+  CURRENT_RUNTIME_COMPONENTS,
   deriveOverallStatus,
   parseClaudeMcpList,
   runRuntimePreflight,
 } = require('../runtime-preflight');
 
 function makeRepoLayout(tmp, { withVenv = true, withConfig = true, withSettings = true } = {}) {
-  for (const spec of V0_14_RUNTIME_COMPONENTS) {
+  for (const spec of CURRENT_RUNTIME_COMPONENTS) {
     if (spec.rel_dir) {
       const dir = path.join(tmp, spec.rel_dir);
       fs.mkdirSync(dir, { recursive: true });

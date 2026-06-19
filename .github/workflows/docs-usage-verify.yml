@@ -30,6 +30,7 @@ on:
       - "scripts/run-primary-smoke.mjs"
       - "scripts/audit-product-claims.mjs"
       - "scripts/run-fresh-clone-evidence.mjs"
+      - "scripts/run-install-evidence.mjs"
       - "scripts/lib/operator-doc-claims.mjs"
       - "scripts/verify-usage-docs.mjs"
       - "tests/bootstrap-preflight.test.mjs"
@@ -40,6 +41,7 @@ on:
       - "tests/primary-smoke.test.mjs"
       - "tests/audit-product-claims.test.mjs"
       - "tests/fresh-clone-evidence.test.mjs"
+      - "tests/run-install-evidence.test.mjs"
       - ".github/workflows/docs-usage-verify.yml"
       - ".github/workflows/claude-doc-smoke.yml"
       - "orchestrator/operator-cli-help.js"
@@ -99,5 +101,11 @@ jobs:
       - name: Fresh-clone evidence chain
         run: node scripts/run-fresh-clone-evidence.mjs
 
+      - name: Install evidence chain (CI claim audit)
+        run: node scripts/run-install-evidence.mjs --skip-live
+
       - name: Fresh-clone evidence unit tests
         run: node --test tests/fresh-clone-evidence.test.mjs
+
+      - name: Install evidence unit tests
+        run: node --test tests/run-install-evidence.test.mjs

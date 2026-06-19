@@ -39,7 +39,7 @@ const STATUS_RANK = Object.freeze({
  *   strict_local_only?: boolean,
  * }>}
  */
-const V0_14_RUNTIME_COMPONENTS = Object.freeze([
+const CURRENT_RUNTIME_COMPONENTS = Object.freeze([
   {
     component_id: 'mcp:orchestrator-state',
     component_type: 'mcp',
@@ -256,7 +256,7 @@ function parseClaudeMcpList(stdout) {
  *   modelPolicy?: 'local_only' | 'remote_ok' | null,
  *   listMcpServers?: () => { available: boolean, servers: Set<string> },
  *   readSettings?: (repoRoot: string) => string[],
- *   components?: typeof V0_14_RUNTIME_COMPONENTS,
+ *   components?: typeof CURRENT_RUNTIME_COMPONENTS,
  * }} options
  */
 function runRuntimePreflight(options) {
@@ -273,7 +273,7 @@ function runRuntimePreflight(options) {
       return { available: true, servers: parseClaudeMcpList(String(result.stdout ?? '')) };
     });
   const readSettings = options.readSettings ?? readSettingsContents;
-  const inventory = options.components ?? V0_14_RUNTIME_COMPONENTS;
+  const inventory = options.components ?? CURRENT_RUNTIME_COMPONENTS;
 
   const mcpListed = listMcpServers();
   const mcpState = {
@@ -353,26 +353,12 @@ function runRuntimePreflight(options) {
   };
 }
 
-/**
- * @param {{
- *   component_id: string,
- *   status: RuntimeComponentStatus,
- *   reason_code: string,
- *   message: string,
- * }[]} components
- * @returns {'pass' | 'warn' | 'fail'}
- */
-function runtimePreflightBlocksOperator(components) {
-  return components.some((c) => c.status === 'blocked') ? 'fail' : components.some((c) => c.status === 'degraded' || c.status === 'warn') ? 'warn' : 'pass';
-}
-
 module.exports = {
   REASON_CODES,
   STATUS_RANK,
-  V0_14_RUNTIME_COMPONENTS,
+  CURRENT_RUNTIME_COMPONENTS,
   deriveOverallStatus,
   parseClaudeMcpList,
   readSettingsContents,
   runRuntimePreflight,
-  runtimePreflightBlocksOperator,
 };
