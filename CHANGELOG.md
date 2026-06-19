@@ -6,6 +6,63 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.14.0-alpha.1] - 2026-06-19
+
+Fourteenth alpha pre-release: **Installer + Model Discovery Config** — repo install entrypoint with host prereqs, Ollama model discovery, `.ai-minions` config generation, provider runtime preflight in the operator chain, Mac/Docker install evidence, and deterministic claim audit.
+
+**Release claim:** a clean Mac or Docker environment can run the documented install script, discover local Ollama models, write initial `.ai-minions` model config, pass bootstrap → runtime → runner operator preflight, and satisfy install evidence + claim audit — **not** production-ready, **not** a packaged global installer, **not** external usability beta, **not** remote provider credential setup, **not** automatic model pull or multi-backend parity.
+
+**Prerequisite:** `v0.13.0-alpha.1` — Beta Readiness Dry Run @ `fcdbd45`.
+
+**Since [0.13.0-alpha.1]:** v0.13 centered on **internal beta dry-run** (limitations, feedback template, checklist). v0.14 adds **installer/config readiness** — `install-ai-minions.mjs`, discovery adapter contract, config-write phase, runtime preflight layer, install evidence chain — without opening external beta or claiming provider parity beyond Ollama.
+
+| Area | `v0.13.0-alpha.1` | `v0.14.0-alpha.1` (delta) |
+|------|-------------------|---------------------------|
+| Focus | Beta dry-run — limitations · feedback loop · checklist | Installer — discovery · config write · runtime preflight · install evidence |
+| Install | Entry/bootstrap scripts only | **`install.sh`**, **`install-ai-minions.mjs`**, **`run-install-evidence.mjs`** |
+| Config output | Operator-managed / manual | **`.ai-minions/model-policy.yaml`**, **`model_policy.json`**, **`install-profile.json`** (install-generated) |
+| Contracts | Operator UX + dry-run docs | **local-backend-adapter**, **inference-profile**, **runtime-preflight**, **model-config-ownership** |
+| Reason codes | `OPERATOR_*`, `INSPECT_*`, `BUNDLE_*`, `CLAIM_*` | **`INSTALL_*`**, **`RUNTIME_PREFLIGHT_*`**, **`INSTALL_EVIDENCE_*`** (prior families preserved) |
+| Unit tests (evidence) | 1396/1397 | **1114/1115** (1 skipped) on workspace @ lane tip `b2e2a4d` |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.14.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1114/1115** pass (1 skipped) on workspace @ lane tip `b2e2a4d`
+- Install evidence (CI): `node scripts/run-install-evidence.mjs --skip-live` → **OK**
+- Install evidence (live Mac, Ollama): `node scripts/run-install-evidence.mjs --json` → **`mac_docker_live`**
+- Docs: `node scripts/verify-usage-docs.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK**
+- Installer/config lane merged on `master` through install evidence @ `b2e2a4d` (PR #203–#208); release-prep on this commit (pending merge)
+- CI: orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · security-trivy-scan — green on lane PRs through install evidence merge
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
+- **Not** a packaged global installer, brew recipe, or production TUI — manual clone + documented scripts only.
+- **Not** external usability beta — v0.15 gate; Mac/Docker install evidence is a prerequisite, not a beta cohort claim.
+- **Not** remote provider setup, credential collection, or LM Studio / llama.cpp / vLLM functional backends — Ollama-only supported discovery in this release.
+- **Not** architecture refactor complete or adaptive model layer — installer/config contracts only.
+
+### Added
+
+- `install.sh` and `scripts/install-ai-minions.mjs` — host prereqs, Ollama discovery, `.ai-minions` config-write phase with stable `INSTALL_*` codes.
+- `orchestrator/local-backend-adapter.js`, `install-model-config.js`, and contract docs for adapter, inference profiles, and config ownership.
+- `orchestrator/runtime-preflight.js` and operator-chain runtime layer with `RUNTIME_PREFLIGHT_*` codes.
+- `scripts/run-install-evidence.mjs`, `docs/how-to/install-evidence.md`, `docs/how-to/install-ollama-docker-paths.md`, and orchestrator cwd shims for evidence scripts.
+- `lint:no-ticket-src` guard and `.ai-minions/` gitignore for install-generated config.
+
+### Security
+
+- Install and evidence scripts emit reason codes only — no secrets in stdout/stderr or JSON reports.
+- Runtime preflight is read-only — does not mutate user MCP/hook settings.
+- Claim audit covers new install operator docs; no runtime permission gate regression in this lane.
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Next roadmap lane after cut: **v0.15 First External Usability Beta** — blocked until this install evidence ships; not part of this release claim.
+
 ## [0.13.0-alpha.1] - 2026-06-16
 
 Thirteenth alpha pre-release: **Beta Readiness Dry Run** — known limitations doc for beta candidate, GitHub operator-feedback issue template, `ATTACH.md` / bundle alignment with the form, internal beta tester runbook, scorable dry-run checklist, and synthetic sample issue evidence proving bundle → actionable feedback without maintainer rewrite.
@@ -58,7 +115,7 @@ Thirteenth alpha pre-release: **Beta Readiness Dry Run** — known limitations d
 ### Notes
 
 - Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
-- Next roadmap lane after cut: **v0.14 First External Usability Beta** — not part of this release claim.
+- Next roadmap lane after cut: **v0.14 Installer + Model Discovery Config** — not part of this release claim.
 
 ## [0.12.0-alpha.1] - 2026-06-16
 
