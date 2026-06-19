@@ -5,6 +5,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import {
   OPERATOR_REASON_CODES,
+  buildRuntimePreflightChecks,
   classifyRunnerBlocker,
   formatReportText,
   parseRunnerPreflightOutput,
@@ -45,6 +46,7 @@ describe("operator-preflight", () => {
     const report = await runOperatorPreflight({
       repoRoot: tmp,
       bootstrapOnly: true,
+      skipRuntimePreflight: true,
       invokeRunner: () => {
         throw new Error("runner should not run");
       },
@@ -68,6 +70,7 @@ describe("operator-preflight", () => {
 
     const report = await runOperatorPreflight({
       repoRoot: tmp,
+      skipRuntimePreflight: true,
       invokeRunner: () => ({
         exitCode: 2,
         stdout: `Runner preflight
@@ -95,6 +98,7 @@ describe("operator-preflight", () => {
 
     const report = await runOperatorPreflight({
       repoRoot: tmp,
+      skipRuntimePreflight: true,
       invokeRunner: () => ({
         exitCode: 0,
         stdout: `Runner preflight
@@ -107,5 +111,81 @@ describe("operator-preflight", () => {
     assert.equal(report.ok, true);
     assert.equal(report.layer_stopped, null);
     assert.ok(report.checks.some((c) => c.operator_reason_code === OPERATOR_REASON_CODES.OK));
+  });
+
+  it("stops at runtime layer when install config blocked", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "operator-preflight-"));
+    const orch = path.join(tmp, "orchestrator");
+    fs.mkdirSync(orch, { recursive: true });
+    fs.writeFileSync(path.join(orch, "package.json"), '{"name":"test"}\n');
+    fs.mkdirSync(path.join(orch, "node_modules"), { recursive: true });
+
+    const report = await runOperatorPreflight({
+      repoRoot: tmp,
+      modelPolicy: "local_only",
+      invokeRunner: () => {
+        throw new Error("runner should not run when runtime blocked");
+      },
+      runRuntimePreflight: () => ({
+        runtime_preflight: {
+          overall_status: "blocked",
+          model_policy: "local_only",
+          components: [
+            {
+              component_id: "config:model-policy-yaml",
+              component_type: "config",
+              status: "blocked",
+              reason_code: "RUNTIME_PREFLIGHT_BLOCKED",
+              message: "missing config",
+            },
+          ],
+        },
+      }),
+    });
+
+    assert.equal(report.ok, false);
+    assert.equal(report.layer_stopped, "runtime");
+    assert.equal(report.runtime_preflight?.overall_status, "blocked");
+    const checks = buildRuntimePreflightChecks({
+      runtime_preflight: report.runtime_preflight,
+    });
+    assert.ok(checks.some((c) => c.status === "fail"));
+  });
+
+  it("includes runtime_preflight ok in chain when mocked healthy", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "operator-preflight-"));
+    const orch = path.join(tmp, "orchestrator");
+    fs.mkdirSync(orch, { recursive: true });
+    fs.writeFileSync(path.join(orch, "package.json"), '{"name":"test"}\n');
+    fs.mkdirSync(path.join(orch, "node_modules"), { recursive: true });
+
+    const report = await runOperatorPreflight({
+      repoRoot: tmp,
+      runRuntimePreflight: () => ({
+        runtime_preflight: {
+          overall_status: "ok",
+          model_policy: "local_only",
+          components: [
+            {
+              component_id: "mcp:orchestrator-state",
+              component_type: "mcp",
+              status: "ok",
+              reason_code: "RUNTIME_PREFLIGHT_OK",
+              message: "ok",
+            },
+          ],
+        },
+      }),
+      invokeRunner: () => ({
+        exitCode: 0,
+        stdout: "Runner preflight\n  ok: true\n",
+        stderr: "",
+      }),
+    });
+
+    assert.equal(report.ok, true);
+    assert.equal(report.runtime_preflight?.overall_status, "ok");
+    const text = formatReportText(report);
+    assert.match(text, /runtime_preflight: ok/);
   });
 });
