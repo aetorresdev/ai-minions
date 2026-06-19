@@ -57,6 +57,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: orchestrator/package-lock.json
+
+      - name: Install orchestrator dependencies
+        working-directory: orchestrator
+        run: npm ci
+
       - name: Verify usage how-to and README alignment
         run: node scripts/verify-usage-docs.mjs
 

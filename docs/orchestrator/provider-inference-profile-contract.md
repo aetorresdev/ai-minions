@@ -102,6 +102,7 @@ Install report adds:
 - Default `effort` is `medium` for most roles
 - `effort: high` only for `ARCHITECT` in `by_role` (documented tier mapping)
 - `ollama` profile included for local backend parity
+- `anthropic` (and other remote provider) entries may be written under **`local_only`** as **declarative placeholders only** — they do **not** enable that provider, do **not** collect credentials, and do **not** override `--model-policy local_only` for runtime routing
 
 ## Tests
 

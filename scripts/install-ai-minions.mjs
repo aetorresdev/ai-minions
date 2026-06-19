@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Repo install entrypoint — host prereqs, model discovery, and config write (current slices).
+ * Repo install entrypoint — host prereqs, model discovery, and config write (current installer flow).
  * Fail-closed with stable INSTALL_* reason codes — no secrets in output.
  *
  * Host phase: Node, ruff, uv, npm ci.

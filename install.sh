@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ai-minions install — delegates to scripts/install-ai-minions.mjs (single source of truth).
-# Current phase: host prereqs + Ollama model discovery; config writes in later installer phases.
+# Current installer flow: host prereqs + Ollama model discovery + .ai-minions config write.
 #
 # Usage (from clone root):
 #   ./install.sh [--install] [--json] [--model-policy local_only|remote_ok]

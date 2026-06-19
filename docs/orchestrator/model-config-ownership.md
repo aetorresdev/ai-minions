@@ -19,6 +19,7 @@ How installer-generated files under `.ai-minions/` split responsibilities and av
 3. **No duplicate role→model mapping in YAML** — YAML does not assign per-role models; roles map to tiers in JSON only.
 4. **Discovery is the source of truth for model names** — tier lists and `default_model` are derived from the same normalized discovery block (adapter contract shape).
 5. **Single-model degrade** — when only one model is discovered, all tiers reference that model and install emits `INSTALL_ROLE_MODEL_DEGRADED_SINGLE_MODEL` (warn).
+6. **`provider_inference_profiles` are declarative** — presence of a remote provider block (e.g. `anthropic`) does **not** enable that provider or override `model_policy` (`local_only` still means local-only runtime routing). Profiles record intended knobs for future trace/runtime slices only.
 
 ## Consistency check (install-time)
 

@@ -2,7 +2,7 @@
 
 /**
  * Build and write .ai-minions install config from normalized discovery (adapter contract shape).
- * E14-3: runtime YAML + governance JSON + optional install-profile evidence.
+ * Current config-write phase: runtime YAML + governance JSON + optional install-profile evidence.
  */
 
 const fs = require('node:fs');
