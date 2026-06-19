@@ -6,9 +6,27 @@
 
 **Runner:** `orchestrator/scripts/check-doc-runtime-claims.js` (`npm run lint:docs-claims` from `orchestrator/`).
 
-## Forbidden backlog references
+Groomed backlog **case ids** (`FOO-BAR-1` shape) and **lane shorthand** (release slice ids like `A8-2`) must not appear in `docs/orchestrator/*.md`. Ticket names and sequencing live in `docs/ai-minions-backlog-groomed.md` and `docs/backlog-open-specs.md` only.
 
-Groomed backlog **case ids** (`FOO-BAR-1` shape) and **lane shorthand** (`A8-2`) must not appear in `docs/orchestrator/*.md`. Ticket names and sequencing live in `docs/ai-minions-backlog-groomed.md` and `docs/backlog-open-specs.md` only.
+## Versioned source (no backlog ids in shipped code)
+
+Same case-id patterns must not appear in shipped implementation paths:
+
+- `orchestrator/**/*.js`
+- `scripts/**/*.{mjs,js,sh}`
+- `tests/**/*.{mjs,js}`
+- `scripts/hooks/**/*.py`
+
+**Periodic check (from repo root or `orchestrator/`):**
+
+```bash
+cd orchestrator && npm run lint:no-ticket-src
+cd orchestrator && npm run lint:docs-claims
+```
+
+Both run in `npm test` / `npm run test:unit`. Tests: `orchestrator/tests/versionedSourceNoBacklogTicketIds.test.js`.
+
+## Forbidden backlog references (operator docs)
 
 Detected by the same runner (`backlog_case_id` rule).
 

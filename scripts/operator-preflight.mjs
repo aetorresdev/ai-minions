@@ -9,6 +9,7 @@
  */
 
 import path from "node:path";
+import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
@@ -18,6 +19,14 @@ import {
 } from "./bootstrap-preflight.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * @returns {typeof import('../orchestrator/runtime-preflight.js').runRuntimePreflight}
+ */
+function defaultRunRuntimePreflight() {
+  const require = createRequire(import.meta.url);
+  return require(path.join(ORCHESTRATOR_DIR, "runtime-preflight.js")).runRuntimePreflight;
+}
 
 export const OPERATOR_REASON_CODES = {
   OK: "OPERATOR_OK",
@@ -33,7 +42,7 @@ export const OPERATOR_REASON_CODES = {
 /** @typedef {'pass' | 'fail' | 'warn'} CheckStatus */
 /** @typedef {{
  *   id: string,
- *   layer: 'bootstrap' | 'runner',
+ *   layer: 'bootstrap' | 'runtime' | 'runner',
  *   reason_code: string | null,
  *   operator_reason_code: string,
  *   status: CheckStatus,
@@ -59,6 +68,40 @@ export function classifyRunnerBlocker(blocker) {
     return OPERATOR_REASON_CODES.MODEL_SELECTION_FAILED;
   }
   return OPERATOR_REASON_CODES.RUNNER_PREFLIGHT_BLOCKED;
+}
+
+/**
+ * @param {import('../orchestrator/runtime-preflight.js').runRuntimePreflight extends (...args: infer A) => infer R ? R : never} runtimeResult
+ * @returns {BridgeCheck[]}
+ */
+export function buildRuntimePreflightChecks(runtimeResult) {
+  /** @type {BridgeCheck[]} */
+  const checks = [];
+  const components = runtimeResult.runtime_preflight?.components ?? [];
+  for (const component of components) {
+    if (component.status === "ok") continue;
+    const bridgeStatus =
+      component.status === "blocked" ? "fail" : /** @type {CheckStatus} */ ("warn");
+    checks.push({
+      id: `runtime_${component.component_id.replace(/[^a-z0-9]+/gi, "_")}`,
+      layer: "runtime",
+      reason_code: component.reason_code,
+      operator_reason_code: component.reason_code,
+      status: bridgeStatus,
+      message: `[${component.component_id}] ${component.message}`,
+    });
+  }
+  if (components.length > 0 && components.every((c) => c.status === "ok")) {
+    checks.push({
+      id: "runtime_preflight",
+      layer: "runtime",
+      reason_code: "RUNTIME_PREFLIGHT_OK",
+      operator_reason_code: OPERATOR_REASON_CODES.OK,
+      status: "pass",
+      message: `runtime preflight ok (${runtimeResult.runtime_preflight.overall_status})`,
+    });
+  }
+  return checks;
 }
 
 /**
@@ -117,11 +160,14 @@ export function runRunnerPreflightInvoke(options = {}) {
  *   bootstrapOnly?: boolean,
  *   modelPolicy?: string,
  *   invokeRunner?: typeof runRunnerPreflightInvoke,
+ *   runRuntimePreflight?: typeof import('../orchestrator/runtime-preflight.js').runRuntimePreflight,
+ *   skipRuntimePreflight?: boolean,
  * }} [options]
  */
 export async function runOperatorPreflight(options = {}) {
+  const repoRoot = options.repoRoot ?? REPO_ROOT;
   const bootstrap = await runBootstrapPreflight({
-    repoRoot: options.repoRoot ?? REPO_ROOT,
+    repoRoot,
     install: options.install,
     live: options.live,
     runTest: options.test,
@@ -149,6 +195,7 @@ export async function runOperatorPreflight(options = {}) {
       layer_stopped: "bootstrap",
       bootstrap,
       runner: null,
+      runtime_preflight: null,
       checks,
       traces_dir: bootstrap.traces_dir,
     };
@@ -163,12 +210,40 @@ export async function runOperatorPreflight(options = {}) {
     message: "bootstrap layer passed",
   });
 
+  /** @type {ReturnType<typeof defaultRunRuntimePreflight> extends (...args: infer A) => infer R ? R : null} */
+  let runtimePreflight = null;
+
+  if (!options.skipRuntimePreflight && !options.bootstrapOnly) {
+    const runRuntimePreflight = options.runRuntimePreflight ?? defaultRunRuntimePreflight();
+    runtimePreflight = runRuntimePreflight({
+      repoRoot,
+      modelPolicy: options.modelPolicy ?? "local_only",
+    });
+    checks.push(...buildRuntimePreflightChecks(runtimePreflight));
+
+    const runtimeBlocked = runtimePreflight.runtime_preflight.components.some(
+      (c) => c.status === "blocked",
+    );
+    if (runtimeBlocked) {
+      return {
+        ok: false,
+        layer_stopped: "runtime",
+        bootstrap,
+        runner: null,
+        runtime_preflight: runtimePreflight.runtime_preflight,
+        checks,
+        traces_dir: bootstrap.traces_dir,
+      };
+    }
+  }
+
   if (options.bootstrapOnly) {
     return {
       ok: true,
       layer_stopped: "bootstrap",
       bootstrap,
       runner: null,
+      runtime_preflight: runtimePreflight?.runtime_preflight ?? null,
       checks,
       traces_dir: bootstrap.traces_dir,
     };
@@ -176,7 +251,7 @@ export async function runOperatorPreflight(options = {}) {
 
   const invoke = options.invokeRunner ?? runRunnerPreflightInvoke;
   const runner = invoke({
-    orchestratorDir: path.join(options.repoRoot ?? REPO_ROOT, "orchestrator"),
+    orchestratorDir: path.join(repoRoot, "orchestrator"),
     modelPolicy: options.modelPolicy,
   });
 
@@ -194,6 +269,7 @@ export async function runOperatorPreflight(options = {}) {
       layer_stopped: "runner",
       bootstrap,
       runner,
+      runtime_preflight: runtimePreflight?.runtime_preflight ?? null,
       checks,
       traces_dir: bootstrap.traces_dir,
     };
@@ -241,6 +317,7 @@ export async function runOperatorPreflight(options = {}) {
     layer_stopped: ok ? null : "runner",
     bootstrap,
     runner,
+    runtime_preflight: runtimePreflight?.runtime_preflight ?? null,
     checks,
     traces_dir: bootstrap.traces_dir,
   };
@@ -259,6 +336,9 @@ export function formatReportText(report) {
   if (report.layer_stopped) {
     lines.push(`  layer_stopped: ${report.layer_stopped}`);
   }
+  if (report.runtime_preflight?.overall_status) {
+    lines.push(`  runtime_preflight: ${report.runtime_preflight.overall_status}`);
+  }
   for (const c of report.checks) {
     const tag = c.status === "pass" ? "PASS" : c.status === "warn" ? "WARN" : "FAIL";
     const bootstrapCode = c.reason_code ? ` ${c.reason_code}` : "";
@@ -275,7 +355,7 @@ export function formatReportText(report) {
 export function writeBlockersToStderr(report) {
   for (const c of report.checks) {
     if (c.status !== "fail") continue;
-    if (c.layer === "bootstrap" && c.reason_code) {
+    if ((c.layer === "bootstrap" || c.layer === "runtime") && c.reason_code) {
       process.stderr.write(`blocker: ${c.reason_code}\n`);
     } else {
       process.stderr.write(`blocker: ${c.operator_reason_code}\n`);
@@ -306,13 +386,13 @@ async function main() {
   if (args.help) {
     process.stdout.write(`Usage: node scripts/operator-preflight.mjs [options]
 
-Chains bootstrap-preflight (PREFLIGHT_*) then runner:tui preflight (OPERATOR_*).
+Chains bootstrap-preflight (PREFLIGHT_*) → runtime preflight (RUNTIME_PREFLIGHT_*) → runner:tui preflight (OPERATOR_*).
 
 Options:
   --install          Run npm ci when orchestrator/node_modules is missing
   --live             Require claude CLI + auth on bootstrap layer
   --test             Run npm test on bootstrap layer (slow)
-  --bootstrap-only   Stop after bootstrap layer (skip runner:tui preflight)
+  --bootstrap-only   Stop after bootstrap layer (skip runtime + runner preflight)
   --model-policy     local_only (default) | remote_ok — runner launch layer only
   --json             Machine-readable report on stdout
   -h, --help         Show this help
