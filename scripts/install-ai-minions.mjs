@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 /**
- * Repo install entrypoint — host/container prereqs (current installer phase).
+ * Repo install entrypoint — host prereqs + model discovery (current slices).
  * Fail-closed with stable INSTALL_* reason codes — no secrets in output.
  *
- * Current installer phase: --model-policy is declarative only (recorded in install report as intent).
- * No discovery, no config writes, no remote token collect/validate/print (separate credential slice).
- * Later installer phase: discovery; local_only vs remote_ok enforcement for missing local models begins.
- * Later installer phase: writes .ai-minions model config from discovered capabilities.
+ * Host phase: Node, ruff, uv, npm ci.
+ * Discovery phase: Ollama via discoverLocalModels() + local backend adapter contract.
+ * No .ai-minions config writes · no remote token handling (later installer phases).
  *
  * Usage:
  *   node scripts/install-ai-minions.mjs [--json] [--install] [--model-policy local_only|remote_ok]
@@ -16,29 +15,48 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
 export const ORCHESTRATOR_DIR = path.join(REPO_ROOT, "orchestrator");
 
-/** Host-prereq codes only in current installer phase — discovery/config codes ship in later installer phases. */
 export const REASON_CODES = {
   OK: "INSTALL_OK",
   NODE_MISSING: "INSTALL_NODE_MISSING",
   NPM_CI_FAILED: "INSTALL_NPM_CI_FAILED",
   RUFF_MISSING: "INSTALL_RUFF_MISSING",
   UV_MISSING: "INSTALL_UV_MISSING",
+  OLLAMA_UNREACHABLE: "INSTALL_OLLAMA_UNREACHABLE",
+  LOCAL_MODELS_EMPTY: "INSTALL_LOCAL_MODELS_EMPTY",
+  MODEL_DISCOVERY_DENIED: "INSTALL_MODEL_DISCOVERY_DENIED",
 };
 
 export const MIN_NODE_MAJOR = 18;
 export const MODEL_POLICIES = new Set(["local_only", "remote_ok"]);
-
-/** Current installer phase: policy flag is recorded only — enforcement begins in later installer phases. */
 export const MODEL_POLICY_MODE = "declarative";
 
-/** @typedef {'pass' | 'fail'} CheckStatus */
+/** @typedef {'pass' | 'fail' | 'warn'} CheckStatus */
 /** @typedef {{ id: string, reason_code: string, status: CheckStatus, message: string }} CheckResult */
+
+/**
+ * @returns {typeof import('../orchestrator/local-model-discovery.js').discoverLocalModels}
+ */
+function defaultDiscoverLocalModels() {
+  const require = createRequire(import.meta.url);
+  const { discoverLocalModels } = require(path.join(ORCHESTRATOR_DIR, "local-model-discovery.js"));
+  return discoverLocalModels;
+}
+
+/**
+ * @returns {typeof import('../orchestrator/local-backend-adapter.js').normalizeInstallDiscovery}
+ */
+function defaultNormalizeInstallDiscovery() {
+  const require = createRequire(import.meta.url);
+  const { normalizeInstallDiscovery } = require(path.join(ORCHESTRATOR_DIR, "local-backend-adapter.js"));
+  return normalizeInstallDiscovery;
+}
 
 /**
  * @param {string} cmd
@@ -79,30 +97,81 @@ export function normalizeModelPolicy(value) {
 }
 
 /**
+ * @param {import('../orchestrator/local-model-discovery.js').LocalModelDiscoveryResult} rawDiscovery
+ * @param {'local_only' | 'remote_ok' | null} modelPolicy
+ * @returns {CheckResult[]}
+ */
+export function buildDiscoveryChecks(rawDiscovery, modelPolicy) {
+  /** @type {CheckResult[]} */
+  const checks = [];
+  const missing = rawDiscovery.missing_local_backend ?? "";
+  const backend = rawDiscovery.backends?.[0];
+  const modelCount = rawDiscovery.models?.length ?? 0;
+
+  if (missing.includes("network egress denied") || backend?.reason === "network_denied") {
+    checks.push({
+      id: "model_discovery",
+      reason_code: REASON_CODES.MODEL_DISCOVERY_DENIED,
+      status: "fail",
+      message: "local model discovery denied by network permission gate",
+    });
+    return checks;
+  }
+
+  if (missing || !backend?.available) {
+    const severity = modelPolicy === "remote_ok" ? "warn" : "fail";
+    checks.push({
+      id: "ollama_reachable",
+      reason_code: REASON_CODES.OLLAMA_UNREACHABLE,
+      status: severity,
+      message: missing || backend?.reason || "ollama unreachable",
+    });
+    return checks;
+  }
+
+  if (modelCount === 0) {
+    const severity = modelPolicy === "remote_ok" ? "warn" : "fail";
+    checks.push({
+      id: "local_models",
+      reason_code: REASON_CODES.LOCAL_MODELS_EMPTY,
+      status: severity,
+      message: "ollama reachable but no local models installed",
+    });
+    return checks;
+  }
+
+  checks.push({
+    id: "model_discovery",
+    reason_code: REASON_CODES.OK,
+    status: "pass",
+    message: `discovered ${modelCount} local model(s) via ollama`,
+  });
+  return checks;
+}
+
+/**
+ * @param {CheckResult[]} checks
+ * @returns {boolean}
+ */
+export function checksOk(checks) {
+  return checks.every((check) => check.status !== "fail");
+}
+
+/**
+ * @param {string} repoRoot
+ * @param {string} orchDir
  * @param {{
- *   repoRoot?: string,
  *   install?: boolean,
- *   modelPolicy?: string | null,
  *   nodeVersion?: string,
  *   commandExists?: (cmd: string) => boolean,
  *   runNpmCi?: (orchDir: string) => { status: number },
- * }} [options]
- * @returns {Promise<{
- *   ok: boolean,
- *   phase: 'host_prereqs',
- *   model_policy: 'local_only' | 'remote_ok' | null,
- *   model_policy_mode: 'declarative',
- *   repo_root: string,
- *   checks: CheckResult[],
- * }>}
+ * }} options
+ * @returns {Promise<{ checks: CheckResult[], hostOk: boolean }>}
  */
-export async function runInstallAiMinions(options = {}) {
-  const repoRoot = options.repoRoot ?? REPO_ROOT;
-  const orchDir = path.join(repoRoot, "orchestrator");
+export async function runHostPrereqChecks(repoRoot, orchDir, options = {}) {
   const commandExists = options.commandExists ?? defaultCommandExists;
   const runNpmCi = options.runNpmCi ?? defaultRunNpmCi;
   const nodeVersion = options.nodeVersion ?? process.versions.node;
-  const modelPolicy = normalizeModelPolicy(options.modelPolicy);
   /** @type {CheckResult[]} */
   const checks = [];
 
@@ -114,14 +183,7 @@ export async function runInstallAiMinions(options = {}) {
       status: "fail",
       message: `missing ${path.relative(repoRoot, pkgPath)} — run from ai-minions clone root`,
     });
-    return {
-      ok: false,
-      phase: "host_prereqs",
-      model_policy: modelPolicy,
-      model_policy_mode: MODEL_POLICY_MODE,
-      repo_root: repoRoot,
-      checks,
-    };
+    return { checks, hostOk: false };
   }
 
   checks.push({
@@ -217,14 +279,57 @@ export async function runInstallAiMinions(options = {}) {
     });
   }
 
-  const ok = checks.every((c) => c.status !== "fail");
+  return { checks, hostOk: checksOk(checks) };
+}
+
+/**
+ * @param {{
+ *   repoRoot?: string,
+ *   install?: boolean,
+ *   modelPolicy?: string | null,
+ *   nodeVersion?: string,
+ *   commandExists?: (cmd: string) => boolean,
+ *   runNpmCi?: (orchDir: string) => { status: number },
+ *   discoverLocalModels?: (options?: object) => Promise<import('../orchestrator/local-model-discovery.js').LocalModelDiscoveryResult>,
+ *   normalizeInstallDiscovery?: (result: import('../orchestrator/local-model-discovery.js').LocalModelDiscoveryResult) => object,
+ * }} [options]
+ */
+export async function runInstallAiMinions(options = {}) {
+  const repoRoot = options.repoRoot ?? REPO_ROOT;
+  const orchDir = path.join(repoRoot, "orchestrator");
+  const modelPolicy = normalizeModelPolicy(options.modelPolicy);
+
+  const { checks: hostChecks, hostOk } = await runHostPrereqChecks(repoRoot, orchDir, options);
+  if (!hostOk) {
+    return {
+      ok: false,
+      phase: "host_prereqs",
+      model_policy: modelPolicy,
+      model_policy_mode: MODEL_POLICY_MODE,
+      repo_root: repoRoot,
+      checks: hostChecks,
+      discovery: null,
+    };
+  }
+
+  const discoverLocalModels =
+    options.discoverLocalModels ?? defaultDiscoverLocalModels();
+  const normalizeInstallDiscovery =
+    options.normalizeInstallDiscovery ?? defaultNormalizeInstallDiscovery();
+
+  const rawDiscovery = await discoverLocalModels({ cwd: repoRoot });
+  const discovery = normalizeInstallDiscovery(rawDiscovery);
+  const discoveryChecks = buildDiscoveryChecks(rawDiscovery, modelPolicy);
+  const checks = [...hostChecks, ...discoveryChecks];
+
   return {
-    ok,
-    phase: "host_prereqs",
+    ok: checksOk(checks),
+    phase: "model_discovery",
     model_policy: modelPolicy,
     model_policy_mode: MODEL_POLICY_MODE,
     repo_root: repoRoot,
     checks,
+    discovery,
   };
 }
 
@@ -233,16 +338,29 @@ export async function runInstallAiMinions(options = {}) {
  * @returns {string}
  */
 export function formatReportText(report) {
+  const phaseLabel = report.phase === "model_discovery" ? "model discovery" : "host prereqs";
   const lines = [
-    "ai-minions install (host prereqs)",
+    `ai-minions install (${phaseLabel})`,
     `  phase: ${report.phase}`,
     `  repo_root: ${report.repo_root}`,
     `  model_policy: ${report.model_policy ?? "(not set)"}`,
-    `  model_policy_mode: ${report.model_policy_mode} (declarative intent in current installer phase — enforcement in later installer phases)`,
+    `  model_policy_mode: ${report.model_policy_mode} (declarative intent — discovery enforcement active for local inventory)`,
     `  ok: ${report.ok}`,
   ];
+
+  if (report.discovery) {
+    for (const backend of report.discovery.backends) {
+      lines.push(
+        `  backend: ${backend.backend_id} support_status=${backend.support_status} available=${backend.available} ${backend.host}:${backend.port}`,
+      );
+    }
+    if (report.discovery.models.length > 0) {
+      lines.push(`  models: ${report.discovery.models.map((m) => m.name).join(", ")}`);
+    }
+  }
+
   for (const c of report.checks) {
-    const tag = c.status === "pass" ? "PASS" : "FAIL";
+    const tag = c.status === "pass" ? "PASS" : c.status === "warn" ? "WARN" : "FAIL";
     lines.push(`  [${tag}] ${c.reason_code} — ${c.message}`);
   }
   return lines.join("\n");
@@ -250,13 +368,6 @@ export function formatReportText(report) {
 
 /**
  * @param {string[]} argv
- * @returns {{
- *   json: boolean,
- *   install: boolean,
- *   help: boolean,
- *   modelPolicy: string | null,
- *   modelPolicyRaw: string | null,
- * }}
  */
 export function parseArgs(argv) {
   /** @type {string | null} */
@@ -287,16 +398,19 @@ async function main() {
 
 Options:
   --install              Run npm ci when orchestrator/node_modules is missing
-  --model-policy <mode>  local_only | remote_ok — declarative intent only in current installer phase
-                         (later phases: local_only fail / remote_ok warn when no local models;
-                          remote_ok = do not block on missing local inventory — not remote provider setup)
+  --model-policy <mode>  local_only | remote_ok
+                         local_only: fail when Ollama unreachable or no local models
+                         remote_ok: warn when local inventory missing (not remote provider setup)
   --json                 Machine-readable report on stdout
   -h, --help             Show this help
 
-Exit codes: 0 = pass, 1 = blocker(s)
+Phases: host prereqs (Node, ruff, uv, npm ci) → model discovery (Ollama only in this release).
 
-Current installer phase scope: host prereqs only (Node, ruff, uv, npm ci). No discovery · no .ai-minions writes ·
-no remote token collect/validate/print. Model behavior enforcement ships in later installer phases.
+Install reason codes include INSTALL_OLLAMA_UNREACHABLE, INSTALL_LOCAL_MODELS_EMPTY,
+INSTALL_MODEL_DISCOVERY_DENIED during discovery.
+
+No .ai-minions config writes · no remote token handling · no additional local backends in this release.
+See docs/how-to/install-ollama-docker-paths.md for Mac/Docker Ollama reachability.
 `);
     process.exit(0);
   }
