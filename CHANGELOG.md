@@ -33,8 +33,8 @@ Fourteenth alpha pre-release: **Installer + Model Discovery Config** — repo in
 - Install evidence (CI): `node scripts/run-install-evidence.mjs --skip-live` → **OK**
 - Install evidence (live Mac, Ollama): `node scripts/run-install-evidence.mjs --json` → **`mac_docker_live`**
 - Docs: `node scripts/verify-usage-docs.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK**
-- Lane merged on `master` through E14-5 @ `b2e2a4d` (PR #203–#208); release-prep on this commit (pending merge)
-- CI: orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · security-trivy-scan — green on lane PRs through E14-5
+- Installer/config lane merged on `master` through install evidence @ `b2e2a4d` (PR #203–#208); release-prep on this commit (pending merge)
+- CI: orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · security-trivy-scan — green on lane PRs through install evidence merge
 
 **Alpha limitations (not production):**
 
