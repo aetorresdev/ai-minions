@@ -754,7 +754,7 @@ External usability beta (v0.14) · real external tester cohort · `MODEL-GOV-5` 
 - [x] Role/tier config write + inference profile contract + ownership doc — merged @ `8b8c9b0` (PR #206)
 - [x] Runtime preflight + operator validation chain — merged @ `1635eb0` (PR #207)
 - [x] Mac/Docker install evidence + claim audit — merged @ `b2e2a4d` (PR #208; CERBERUS Approve)
-- [ ] Release hygiene: `CHANGELOG` + checklist sign-off — release-prep on this commit (pending merge); CERBERUS Approve pending
+- [x] Release hygiene: `CHANGELOG` + checklist sign-off — merged @ `bc8bbb4` (PR #209); CERBERUS Approve
 
 ### Out of scope
 
@@ -763,7 +763,7 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 ### CERBERUS checks (pre-tag)
 
 - [x] Implementation slices (install through install evidence) — CERBERUS-approved; merges through `b2e2a4d`
-- [ ] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (this PR)
+- [x] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (PR #209)
 - [x] No production-ready claim — release claim uses alpha limitations
 - [x] No external-beta / global-installer claim
 - [x] No remote-provider-setup or multi-backend parity claim
@@ -774,7 +774,7 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 
 ### Vulnerability gate (pre-tag)
 
-- [ ] `bash scripts/release-trivy-gate.sh` — run on lane tip @ `b2e2a4d` before Phase B tag
+- [x] `bash scripts/release-trivy-gate.sh` — published scope clean on lane tip @ `b2e2a4d`
 
 #### v0.14 validation log
 
@@ -785,6 +785,7 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 | 2026-06-19 | Workspace @ `b2e2a4d` | `node scripts/run-install-evidence.mjs --json` (live Mac, Ollama) → **`mac_docker_live`** |
 | 2026-06-19 | Workspace @ `b2e2a4d` | `node scripts/verify-usage-docs.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK** |
 | 2026-06-19 | E14-5 PR CI | orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · security-trivy-scan — **green** |
+| 2026-06-19 | Phase B operator cut @ `bc8bbb4` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 **Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes only `CHANGELOG.md` and `docs/**`; `orchestrator/**` unchanged since lane tip @ `b2e2a4d`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `b2e2a4d` until tag.
 
@@ -799,14 +800,14 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
 
-- [ ] **Tag target:** `v0.14.0-alpha.1` on post-tag hygiene commit *(operator)*
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.14.0-alpha.1` — pre-release published
-- [ ] **`release` branch:** align to tag commit (`release_branch_commit` matches `tag_commit`)
+- [x] **Tag target:** `v0.14.0-alpha.1` @ `bc8bbb4`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.14.0-alpha.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `bc8bbb4` (`release_branch_commit` matches `tag_commit`)
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.14.0-alpha.1] - 2026-06-19** (draft on release-prep)
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+- [x] **Changelog:** section **[0.14.0-alpha.1] - 2026-06-19**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 

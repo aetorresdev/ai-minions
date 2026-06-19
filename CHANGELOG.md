@@ -25,7 +25,7 @@ Fourteenth alpha pre-release: **Installer + Model Discovery Config** — repo in
 | Reason codes | `OPERATOR_*`, `INSPECT_*`, `BUNDLE_*`, `CLAIM_*` | **`INSTALL_*`**, **`RUNTIME_PREFLIGHT_*`**, **`INSTALL_EVIDENCE_*`** (prior families preserved) |
 | Unit tests (evidence) | 1396/1397 | **1114/1115** (1 skipped) on workspace @ lane tip `b2e2a4d` |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.14.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.14.0-alpha.1` — pre-release published @ tag `bc8bbb4`
 
 **Evidence (operator):**
 
@@ -33,7 +33,7 @@ Fourteenth alpha pre-release: **Installer + Model Discovery Config** — repo in
 - Install evidence (CI): `node scripts/run-install-evidence.mjs --skip-live` → **OK**
 - Install evidence (live Mac, Ollama): `node scripts/run-install-evidence.mjs --json` → **`mac_docker_live`**
 - Docs: `node scripts/verify-usage-docs.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK**
-- Installer/config lane merged on `master` through install evidence @ `b2e2a4d` (PR #203–#208); release-prep on this commit (pending merge)
+- Installer/config lane merged on `master` through install evidence @ `b2e2a4d` (PR #203–#208); release-prep merged @ `bc8bbb4` (PR #209); Phase B tag · pre-release · `release` branch @ `bc8bbb4`
 - CI: orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · security-trivy-scan — green on lane PRs through install evidence merge
 
 **Alpha limitations (not production):**
