@@ -57,3 +57,13 @@ export OLLAMA_PORT=11434
 - LM Studio, LocalAI, llama.cpp, vLLM functional discovery
 - Auto-pulling models into Ollama
 - Remote provider setup
+
+## Evidence chain
+
+Record Mac/Docker install attestation with:
+
+```bash
+node scripts/run-install-evidence.mjs --json
+```
+
+See [install-evidence.md](install-evidence.md) for CI-safe `--skip-live` mode and the `orchestrator/` cwd pitfall for claim audit.

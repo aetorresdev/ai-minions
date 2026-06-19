@@ -49,6 +49,8 @@ const COLLECT_RUN_SCRIPT = path.join(REPO_ROOT, "scripts/collect-run-report.mjs"
 const PRIMARY_SMOKE = path.join(REPO_ROOT, "docs/how-to/primary-smoke.md");
 const PRIMARY_SMOKE_SCRIPT = path.join(REPO_ROOT, "scripts/run-primary-smoke.mjs");
 const FRESH_CLONE_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/fresh-clone-evidence.md");
+const INSTALL_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/install-evidence.md");
+const INSTALL_EVIDENCE_SCRIPT = path.join(REPO_ROOT, "scripts/run-install-evidence.mjs");
 const CLAIM_AUDIT_SCRIPT = path.join(REPO_ROOT, "scripts/audit-product-claims.mjs");
 const EVIDENCE_SCRIPT = path.join(REPO_ROOT, "scripts/run-fresh-clone-evidence.mjs");
 const README = path.join(REPO_ROOT, "README.md");
@@ -374,6 +376,19 @@ function checkFreshCloneEvidenceDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkInstallEvidenceDoc(docText) {
+  const rel = "docs/how-to/install-evidence.md";
+  if (!docText) return;
+  mustInclude(docText, "INSTALL_EVIDENCE_OK", "install evidence reason code", rel);
+  mustInclude(docText, "CLAIM_FORBIDDEN_PHRASE", "claim audit reason code", rel);
+  mustInclude(docText, "run-install-evidence.mjs", "install evidence script reference", rel);
+  mustInclude(docText, "audit-product-claims.mjs", "claim audit script reference", rel);
+  mustInclude(docText, "install-ollama-docker-paths.md", "docker paths cross-link", rel);
+  mustInclude(docText, "orchestrator/", "cwd mistake warning", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkReadmeAlignment(readmeText, guideText) {
   const rel = "README.md";
   mustInclude(readmeText, "MODE: ORCHESTRATOR", "Quickstart MODE header", rel);
@@ -414,6 +429,7 @@ function main() {
   const bootstrapText = readUtf8(BOOTSTRAP_PREFLIGHT);
   const primarySmokeText = readUtf8(PRIMARY_SMOKE);
   const freshCloneText = readUtf8(FRESH_CLONE_EVIDENCE);
+  const installEvidenceText = readUtf8(INSTALL_EVIDENCE);
   const operatorBridgeText = readUtf8(OPERATOR_PREFLIGHT_BRIDGE);
   const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
@@ -447,6 +463,9 @@ function main() {
   if (!fs.existsSync(EVIDENCE_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, EVIDENCE_SCRIPT)}`);
   }
+  if (!fs.existsSync(INSTALL_EVIDENCE_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, INSTALL_EVIDENCE_SCRIPT)}`);
+  }
 
   if (guideText) checkGuide(guideText);
   if (tuiText) checkTuiChecklist(tuiText);
@@ -458,6 +477,7 @@ function main() {
   if (bootstrapText) checkBootstrapPreflightDoc(bootstrapText);
   if (primarySmokeText) checkPrimarySmokeDoc(primarySmokeText);
   if (freshCloneText) checkFreshCloneEvidenceDoc(freshCloneText);
+  if (installEvidenceText) checkInstallEvidenceDoc(installEvidenceText);
   if (operatorBridgeText) checkOperatorPreflightBridgeDoc(operatorBridgeText);
   if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
   if (inspectEvidenceText) checkInspectRunEvidenceDoc(inspectEvidenceText);
