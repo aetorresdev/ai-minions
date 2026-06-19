@@ -73,6 +73,7 @@ const ENTRIES = {
   'tests/internals.test.js': { owner: 'run-control', kind: 'unit' },
   'tests/iterationDoneEmitterContract.test.js': { owner: 'contracts', kind: 'contract' },
   'tests/localModelDiscovery.test.js': { owner: 'model-runtime', kind: 'unit' },
+  'tests/localBackendAdapter.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/localModelPolicy.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/localModelSelection.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/mcp-client.test.js': { owner: 'tools', kind: 'unit' },
