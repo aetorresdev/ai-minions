@@ -20,6 +20,7 @@ Public-facing honesty doc for **internal beta dry-run** and future external test
 | Trace / evidence inspect | [inspect-run-evidence](inspect-run-evidence.md) | `node scripts/inspect-run-evidence.mjs <task_id>` · `INSPECT_*` codes |
 | Local report bundle | [collect-run-report](collect-run-report.md) | `node scripts/collect-run-report.mjs <task_id>` · `BUNDLE_*` codes |
 | Beta smoke matrix | [beta-smoke-matrix](beta-smoke-matrix.md) | `node scripts/run-beta-smoke-matrix.mjs` · `SMOKE_MATRIX_*` codes |
+| Degraded-mode policy | [beta-degraded-mode-policy](beta-degraded-mode-policy.md) | `INSPECT_DEGRADED_*` in inspect/bundle |
 
 Fresh-clone evidence (maintainer/CI): [fresh-clone-evidence](fresh-clone-evidence.md).
 
@@ -71,6 +72,7 @@ If product copy or a third-party summary contradicts this table, treat **this do
 | `INSPECT_*` | Trace / evidence inspect | `inspect-run-evidence.mjs` |
 | `BUNDLE_*` | Report bundle collector | `collect-run-report.mjs` |
 | `SMOKE_MATRIX_*` | Beta smoke matrix structure / gate | `run-beta-smoke-matrix.mjs` |
+| `INSPECT_DEGRADED_*` | Degraded-mode beta eligibility | `inspect-run-evidence.mjs` · `collect-run-report.mjs` |
 
 Renaming or merging prefixes breaks CI doc contracts — report mismatches as doc/contract bugs, not “wrong error message” unless the contract doc says otherwise.
 

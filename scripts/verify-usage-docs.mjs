@@ -57,6 +57,8 @@ const BETA_SMOKE_MATRIX_RECORD = path.join(
   "docs/how-to/evidence/beta-smoke-matrix-record.json",
 );
 const BETA_SMOKE_MATRIX_SCRIPT = path.join(REPO_ROOT, "scripts/run-beta-smoke-matrix.mjs");
+const BETA_DEGRADED_POLICY = path.join(REPO_ROOT, "docs/how-to/beta-degraded-mode-policy.md");
+const DEGRADED_MODE_EVIDENCE = path.join(REPO_ROOT, "scripts/lib/degraded-mode-evidence.mjs");
 const CLAIM_AUDIT_SCRIPT = path.join(REPO_ROOT, "scripts/audit-product-claims.mjs");
 const EVIDENCE_SCRIPT = path.join(REPO_ROOT, "scripts/run-fresh-clone-evidence.mjs");
 const README = path.join(REPO_ROOT, "README.md");
@@ -165,6 +167,8 @@ function checkCollectRunReportDoc(docText) {
   mustInclude(docText, "operator-feedback-issue", "issue form guide link", rel);
   mustInclude(docText, "ATTACH.md", "attach field alignment", rel);
   mustInclude(docText, "manifest.json", "bundle manifest", rel);
+  mustInclude(docText, "degraded_mode", "degraded mode field", rel);
+  mustInclude(docText, "risk_acceptance_reason", "risk acceptance field", rel);
   mustInclude(docText, "inspect-run-evidence", "inspect chain link", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
@@ -177,6 +181,8 @@ function checkInspectRunEvidenceDoc(docText) {
   mustInclude(docText, "inspect-run-evidence.mjs", "inspect script reference", rel);
   mustInclude(docText, "runner:tui", "runner tui panels", rel);
   mustInclude(docText, "explain-run", "explain-run step", rel);
+  mustInclude(docText, "degraded_assessment", "degraded assessment output", rel);
+  mustInclude(docText, "INSPECT_DEGRADED_", "degraded inspect codes", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -233,6 +239,7 @@ function checkBetaKnownLimitationsDoc(docText) {
   mustInclude(docText, "beta-tester-guide", "beta tester guide link", rel);
   mustInclude(docText, "beta-dry-run-checklist", "dry-run checklist link", rel);
   mustInclude(docText, "beta-smoke-matrix", "smoke matrix link", rel);
+  mustInclude(docText, "beta-degraded-mode-policy", "degraded policy link", rel);
   mustInclude(docText, "audit-product-claims.mjs", "claim audit reference", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
@@ -267,6 +274,8 @@ function checkBetaDryRunChecklistDoc(docText) {
   mustInclude(docText, "Phase A", "entry path phase", rel);
   mustInclude(docText, "Phase B", "operator path phase", rel);
   mustInclude(docText, "Phase C", "evidence phase", rel);
+  mustInclude(docText, "beta-degraded-mode-policy", "degraded policy link", rel);
+  mustInclude(docText, "risk_acceptance_reason", "degraded field check", rel);
   mustInclude(docText, "Phase D", "feedback phase", rel);
   mustInclude(docText, "PASS", "scoring semantics", rel);
   mustInclude(docText, "without re-running", "triage exit bar", rel);
@@ -397,6 +406,19 @@ function checkInstallEvidenceDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkBetaDegradedPolicyDoc(docText) {
+  const rel = "docs/how-to/beta-degraded-mode-policy.md";
+  if (!docText) return;
+  mustInclude(docText, "INSPECT_DEGRADED_", "degraded inspect codes", rel);
+  mustInclude(docText, "degraded_mode", "degraded mode field", rel);
+  mustInclude(docText, "risk_acceptance_reason", "risk acceptance field", rel);
+  mustInclude(docText, "DEGRADED_SKIP_GATES", "skip gates trigger", rel);
+  mustInclude(docText, "collect-run-report.mjs", "bundle script reference", rel);
+  mustInclude(docText, "inspect-run-evidence.mjs", "inspect script reference", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkBetaSmokeMatrixDoc(docText) {
   const rel = "docs/how-to/beta-smoke-matrix.md";
   if (!docText) return;
@@ -429,6 +451,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "beta-tester-guide.md", "link to beta tester guide doc", rel);
   mustInclude(readmeText, "beta-dry-run-checklist.md", "link to beta dry-run checklist doc", rel);
   mustInclude(readmeText, "beta-smoke-matrix.md", "link to beta smoke matrix doc", rel);
+  mustInclude(readmeText, "beta-degraded-mode-policy.md", "link to beta degraded policy doc", rel);
   mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
 
   checkForbiddenClaimsForDoc(readmeText, rel);
@@ -455,6 +478,7 @@ function main() {
   const freshCloneText = readUtf8(FRESH_CLONE_EVIDENCE);
   const installEvidenceText = readUtf8(INSTALL_EVIDENCE);
   const betaSmokeMatrixText = readUtf8(BETA_SMOKE_MATRIX);
+  const betaDegradedPolicyText = readUtf8(BETA_DEGRADED_POLICY);
   const operatorBridgeText = readUtf8(OPERATOR_PREFLIGHT_BRIDGE);
   const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
@@ -494,6 +518,9 @@ function main() {
   if (!fs.existsSync(BETA_SMOKE_MATRIX_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, BETA_SMOKE_MATRIX_SCRIPT)}`);
   }
+  if (!fs.existsSync(DEGRADED_MODE_EVIDENCE)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, DEGRADED_MODE_EVIDENCE)}`);
+  }
   if (!fs.existsSync(BETA_SMOKE_MATRIX_RECORD)) {
     fail(`missing file: ${path.relative(REPO_ROOT, BETA_SMOKE_MATRIX_RECORD)}`);
   }
@@ -510,6 +537,7 @@ function main() {
   if (freshCloneText) checkFreshCloneEvidenceDoc(freshCloneText);
   if (installEvidenceText) checkInstallEvidenceDoc(installEvidenceText);
   if (betaSmokeMatrixText) checkBetaSmokeMatrixDoc(betaSmokeMatrixText);
+  if (betaDegradedPolicyText) checkBetaDegradedPolicyDoc(betaDegradedPolicyText);
   if (operatorBridgeText) checkOperatorPreflightBridgeDoc(operatorBridgeText);
   if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
   if (inspectEvidenceText) checkInspectRunEvidenceDoc(inspectEvidenceText);

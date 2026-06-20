@@ -17,6 +17,7 @@ Scorable checklist for the **internal beta dry-run** in [beta-tester-guide](beta
 | 0.1 | Fresh clone (or documented why not) | yes | | clone path + date |
 | 0.2 | `git rev-parse --short HEAD` recorded | yes | | SHA in notes or bundle |
 | 0.3 | [beta-known-limitations](beta-known-limitations.md) read | yes | | initials / date |
+| 0.4 | [beta-degraded-mode-policy](beta-degraded-mode-policy.md) read | yes | | initials / date |
 
 ---
 
@@ -48,6 +49,7 @@ Scorable checklist for the **internal beta dry-run** in [beta-tester-guide](beta
 | C.2 | `node scripts/collect-run-report.mjs <task_id>` | yes | | bundle dir path |
 | C.3 | `ATTACH.md` reviewed; secrets redacted | yes | | redaction note |
 | C.4 | `manifest.json` matches commit + task id | yes | | field spot-check |
+| C.5 | `degraded_mode` / `risk_acceptance_reason` reviewed | yes | | no disqualifying beta run claimed as PASS |
 
 ---
 
@@ -88,3 +90,4 @@ Scorable checklist for the **internal beta dry-run** in [beta-tester-guide](beta
 | [collect-run-report](collect-run-report.md) | Bundle + `ATTACH.md` |
 | [beta-known-limitations](beta-known-limitations.md) | Honesty boundaries |
 | [beta-smoke-matrix](beta-smoke-matrix.md) | External beta gate matrix (OS × provider × flow) |
+| [beta-degraded-mode-policy](beta-degraded-mode-policy.md) | Degraded-mode beta eligibility rules |

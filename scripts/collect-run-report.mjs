@@ -225,6 +225,10 @@ export function writeBundleFiles(input) {
     inspect_ok: inspectReport.ok,
     files: localArtifactFiles,
     inspect_reason_codes: inspectReport.checks.map((c) => c.reason_code),
+    degraded_mode: inspectReport.degraded_assessment?.degraded_mode ?? false,
+    disqualifies_beta_success: inspectReport.degraded_assessment?.disqualifies_beta_success ?? false,
+    risk_acceptance_reason: inspectReport.degraded_assessment?.risk_acceptance_reason ?? null,
+    degraded_assessment: inspectReport.degraded_assessment ?? null,
   };
 
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
@@ -252,6 +256,9 @@ export function writeBundleFiles(input) {
     inspectOk: inspectReport.ok,
     inspectChecks: inspectReport.checks,
     uploadFiles,
+    degradedMode: inspectReport.degraded_assessment?.degraded_mode ?? false,
+    disqualifiesBetaSuccess: inspectReport.degraded_assessment?.disqualifies_beta_success ?? false,
+    riskAcceptanceReason: inspectReport.degraded_assessment?.risk_acceptance_reason ?? null,
   });
   fs.writeFileSync(attachPath, attachBody, "utf8");
 
@@ -294,6 +301,9 @@ export function formatInspectBlockersForForm(checks) {
  *   inspectChecks: { reason_code: string, status: string, message: string }[],
  *   uploadFiles: string[],
  *   operatorPath?: string,
+ *   degradedMode?: boolean,
+ *   disqualifiesBetaSuccess?: boolean,
+ *   riskAcceptanceReason?: string | null,
  * }} ctx
  * @returns {string}
  */
@@ -316,6 +326,9 @@ export function buildAttachTemplate(ctx) {
 - **Bundle dir (local):** \`${ctx.bundleDir}\`
 - **Repo commit:** \`${ctx.repoCommit ?? "unknown"}\`
 - **Inspect verdict:** ${inspectVerdict}
+- **Degraded mode:** ${ctx.degradedMode ? "yes" : "no"}
+- **Disqualifies beta success:** ${ctx.disqualifiesBetaSuccess ? "yes" : "no"}
+- **Risk acceptance reason:** ${ctx.riskAcceptanceReason ?? "(none)"}
 
 ## Inspect blockers
 
