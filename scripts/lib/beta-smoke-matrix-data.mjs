@@ -140,6 +140,9 @@ export function validatePassEvidence(cellId, cell) {
   if (ev.bundle !== true) {
     errors.push(`${cellId}: PASS requires evidence.bundle === true`);
   }
+  if (ev.disqualifies_beta_success === true) {
+    errors.push(`${cellId}: PASS cannot have evidence.disqualifies_beta_success === true`);
+  }
   return errors;
 }
 
@@ -187,6 +190,7 @@ export function buildCompletePassCell(cell, overrides = {}) {
       inspect: true,
       bundle: true,
       failure_reason: null,
+      disqualifies_beta_success: false,
     },
     exception: null,
   };

@@ -36,7 +36,7 @@
 
 | Result | Meaning |
 |--------|---------|
-| `PASS` | Cell smoke completed; `task_id`, `repo_commit`, `operator`, `run_date`, and `evidence.trace` / `evidence.inspect` / `evidence.bundle` all recorded |
+| `PASS` | Cell smoke completed; `task_id`, `repo_commit`, `operator`, `run_date`, and `evidence.trace` / `evidence.inspect` / `evidence.bundle` recorded; `evidence.disqualifies_beta_success` must not be `true` |
 | `FAIL` | Attempted and failed — file GitHub issue with `failure_reason` |
 | `SKIP` | Not applicable with documented reason |
 | `PENDING` | Not yet run *(default in committed record)* |
