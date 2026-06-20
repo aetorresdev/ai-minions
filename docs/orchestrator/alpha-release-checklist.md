@@ -811,7 +811,7 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 
 ## v0.15.0-alpha.1 — External Beta Gate Hardening (in progress)
 
-**Scope:** privacy sanitize gate, beta smoke matrix evidence, degraded-mode policy, beta limitations/onboarding docs, verify/claim wiring. **Prerequisite:** `v0.14.0-alpha.1` @ `bc8bbb4`. **Not** external usability beta — that is **v0.17** (after v0.16 architecture hardening).
+**Scope:** privacy sanitize gate, beta smoke matrix evidence, degraded-mode policy, beta limitations/onboarding docs, verify/claim wiring. **Prerequisite:** `v0.14.0-alpha.1` @ `bc8bbb4`. **Not** external usability beta — that is v0.16.
 
 **Release claim:** trust and evidence gates documented before any external tester cohort — privacy scan on outbound artifacts, minimum smoke-matrix evidence, degraded-mode honesty — not production-ready, not external beta open, not full multi-OS CI smoke farm.
 
@@ -826,7 +826,7 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 
 ### Out of scope
 
-External usability beta (v0.17) · `UNTRUSTED-CONTEXT` runtime gate · `CTX-REPO-INDEX` · `RUN-RESUME` · architecture boundary hardening (v0.16) · LM Studio / llama.cpp / vLLM functional backends · full CI grid automation for smoke matrix · packaged global installer · production TUI claim.
+External usability beta (v0.16) · `UNTRUSTED-CONTEXT` runtime gate · `CTX-REPO-INDEX` · `RUN-RESUME` · LM Studio / llama.cpp / vLLM functional backends · full CI grid automation for smoke matrix · packaged global installer · production TUI claim.
 
 ### Forbidden release claims (v0.15)
 
@@ -837,41 +837,15 @@ External usability beta (v0.17) · `UNTRUSTED-CONTEXT` runtime gate · `CTX-REPO
 | Date | Context | Outcome |
 |------|---------|---------|
 | 2026-06-20 | E15-2 branch | `node scripts/run-beta-smoke-matrix.mjs --skip-live` → **OK** |
-| 2026-06-20 | E15-2 branch | `node --test tests/run-beta-smoke-matrix.test.mjs` → **8/8** |
+| 2026-06-20 | E15-2 branch | `node --test tests/run-beta-smoke-matrix.test.mjs` → **14/14** |
 | 2026-06-20 | E15-2 branch | `node scripts/verify-usage-docs.mjs` → **OK** |
 
-## v0.16.0-alpha.1 — Runtime Boundary Completion (planned)
+#### v0.15 validation log (E15-3)
 
-**Scope:** `ARCH-BETA-BOUNDARY-HARDENING-1` — physical migration of `model-runtime` (beta paths), `permissions`, and `tools`; MCP behind tools API; allowlist shrink (matrix ≤ 8); root import guard tightening; mandatory compat shims. **Prerequisite:** `v0.15.0-alpha.1` shipped (E15-1..6). **Not** external beta — that is **v0.17**.
-
-**Release claim:** beta-facing modular boundaries improved with CI evidence — **not** architecture refactor complete, **not** full modular monolith enforced, **not** run-control hub migration.
-
-### Must-have bundle (E16 slices)
-
-- [ ] E16-1 — model-runtime physical completion
-- [ ] E16-2 — permissions physical module
-- [ ] E16-3 — tools physical module + MCP API
-- [ ] E16-4 — allowlist shrink + root guard
-- [ ] E16-5 — docs coherence (honest partial state)
-- [ ] E16-6 — release-prep + tag `v0.16.0-alpha.1`
-
-### Out of scope
-
-External usability beta (v0.17) · `orchestrator.js` move · full `agents/` split · `shared/legacy` · full test layout mirror · `MODEL-GOV-5` / `MODEL-CTRL-*`.
-
-### Forbidden release claims (v0.16)
-
-"architecture refactor complete" · "full modular monolith enforced" · "external beta open" · "production-ready" · "clean architecture adopted".
-
-## v0.17.0-beta.1 — First External Usability Beta (planned)
-
-**Scope:** `BETA-EXTERNAL-USABILITY-1` — external tester cohort + real feedback capture. **Prerequisite:** `v0.16.0-alpha.1` @ E16-1..6 + v0.15 gate hardening.
-
-**Contingency:** `ARCH-BETA-RUN-CONTROL-1` as **v0.17.0-alpha.1** only if v0.16 closeout requires run-control rehearsal — CERBERUS activation required.
-
-### Forbidden release claims (v0.17)
-
-"production-ready" · "architecture refactor complete" · "full modular monolith enforced" · performative beta without issue trail.
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-20 | E15-3 branch | `node --test tests/degraded-mode-evidence.test.mjs` → **7/7** |
+| 2026-06-20 | E15-3 branch | `node scripts/verify-usage-docs.mjs` → **OK** |
 
 ## Future alpha / beta gates (positioning)
 
