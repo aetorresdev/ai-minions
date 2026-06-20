@@ -95,6 +95,120 @@ export const MINIMUM_GATE_CELLS = [
 
 export const CELL_RESULTS = ["PASS", "FAIL", "SKIP", "PENDING", "EXCEPTION"];
 
+export const APPROVED_AT_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * @param {unknown} value
+ * @returns {value is string}
+ */
+function nonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+/**
+ * @param {string} cellId
+ * @param {Record<string, unknown>} cell
+ * @returns {string[]}
+ */
+export function validatePassEvidence(cellId, cell) {
+  /** @type {string[]} */
+  const errors = [];
+  if (!nonEmptyString(cell.task_id)) {
+    errors.push(`${cellId}: PASS requires non-empty task_id`);
+  }
+  if (!nonEmptyString(cell.repo_commit)) {
+    errors.push(`${cellId}: PASS requires non-empty repo_commit`);
+  }
+  if (!nonEmptyString(cell.operator)) {
+    errors.push(`${cellId}: PASS requires non-empty operator`);
+  }
+  if (!nonEmptyString(cell.run_date)) {
+    errors.push(`${cellId}: PASS requires non-empty run_date`);
+  }
+  const evidence = cell.evidence;
+  if (!evidence || typeof evidence !== "object") {
+    errors.push(`${cellId}: PASS requires evidence object`);
+    return errors;
+  }
+  const ev = /** @type {Record<string, unknown>} */ (evidence);
+  if (ev.trace !== true) {
+    errors.push(`${cellId}: PASS requires evidence.trace === true`);
+  }
+  if (ev.inspect !== true) {
+    errors.push(`${cellId}: PASS requires evidence.inspect === true`);
+  }
+  if (ev.bundle !== true) {
+    errors.push(`${cellId}: PASS requires evidence.bundle === true`);
+  }
+  return errors;
+}
+
+/**
+ * @param {string} cellId
+ * @param {unknown} exception
+ * @returns {string[]}
+ */
+export function validateExceptionApproval(cellId, exception) {
+  /** @type {string[]} */
+  const errors = [];
+  if (!exception || typeof exception !== "object") {
+    errors.push(`${cellId}: EXCEPTION requires exception object`);
+    return errors;
+  }
+  const ex = /** @type {Record<string, unknown>} */ (exception);
+  if (ex.cerberus_approved !== true) {
+    errors.push(`${cellId}: EXCEPTION requires cerberus_approved === true`);
+  }
+  if (!nonEmptyString(ex.reason)) {
+    errors.push(`${cellId}: EXCEPTION requires non-empty reason`);
+  }
+  const approvedAt = ex.approved_at;
+  if (!nonEmptyString(approvedAt) || !APPROVED_AT_RE.test(String(approvedAt).trim())) {
+    errors.push(`${cellId}: EXCEPTION requires approved_at in YYYY-MM-DD format`);
+  }
+  return errors;
+}
+
+/**
+ * @param {Record<string, unknown>} cell
+ * @param {{ task_id?: string, repo_commit?: string, operator?: string, run_date?: string }} [overrides]
+ * @returns {Record<string, unknown>}
+ */
+export function buildCompletePassCell(cell, overrides = {}) {
+  return {
+    ...cell,
+    result: "PASS",
+    task_id: overrides.task_id ?? "smoke-task-001",
+    repo_commit: overrides.repo_commit ?? "b681e20",
+    operator: overrides.operator ?? "maintainer",
+    run_date: overrides.run_date ?? "2026-06-20",
+    evidence: {
+      trace: true,
+      inspect: true,
+      bundle: true,
+      failure_reason: null,
+    },
+    exception: null,
+  };
+}
+
+/**
+ * @param {Record<string, unknown>} cell
+ * @param {{ reason?: string, approved_at?: string }} [overrides]
+ * @returns {Record<string, unknown>}
+ */
+export function buildCompleteExceptionCell(cell, overrides = {}) {
+  return {
+    ...cell,
+    result: "EXCEPTION",
+    exception: {
+      cerberus_approved: true,
+      reason: overrides.reason ?? "no remote credentials in CI",
+      approved_at: overrides.approved_at ?? "2026-06-20",
+    },
+  };
+}
+
 /**
  * @param {unknown} record
  * @returns {{ ok: boolean, errors: string[] }}
@@ -162,17 +276,16 @@ export function validateGateResults(cells, options = {}) {
     const c = /** @type {Record<string, unknown>} */ (cell);
     const result = String(c.result);
 
-    if (result === "PASS") continue;
+    if (result === "PASS") {
+      if (options.requireGatePass) {
+        errors.push(...validatePassEvidence(def.id, c));
+      }
+      continue;
+    }
 
     if (result === "EXCEPTION") {
-      const ex = c.exception;
-      if (!ex || typeof ex !== "object") {
-        errors.push(`${def.id}: EXCEPTION requires exception object`);
-        continue;
-      }
-      const approved = /** @type {Record<string, unknown>} */ (ex).cerberus_approved;
-      if (approved !== true) {
-        errors.push(`${def.id}: EXCEPTION without cerberus_approved`);
+      if (options.requireGatePass) {
+        errors.push(...validateExceptionApproval(def.id, c.exception));
       }
       continue;
     }

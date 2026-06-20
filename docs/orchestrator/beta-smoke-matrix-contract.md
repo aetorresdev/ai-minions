@@ -30,6 +30,8 @@ Close the **evidence gate** before external usability beta (v0.16): prove docume
 }
 ```
 
+`--validate-gate` rejects `EXCEPTION` cells missing non-empty `reason` or valid `approved_at`.
+
 ## Gate classes
 
 | Class | Meaning |

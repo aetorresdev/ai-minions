@@ -11,7 +11,7 @@
 | Class | What it proves | How to run |
 |-------|----------------|------------|
 | **CI structure gate** *(default in PRs)* | Matrix doc + record JSON schema + claim audit | `node scripts/run-beta-smoke-matrix.mjs --skip-live` |
-| **Release gate** *(pre external beta)* | All **required** cells `PASS` or CERBERUS-approved `EXCEPTION` | `node scripts/run-beta-smoke-matrix.mjs --validate-gate` |
+| **Release gate** *(pre external beta)* | All **required** cells `PASS` with full evidence metadata or CERBERUS-approved `EXCEPTION` (`reason` + `approved_at`) | `node scripts/run-beta-smoke-matrix.mjs --validate-gate` |
 | **Manual cell attestation** | One matrix cell completed with trace + inspect + bundle | Update [beta-smoke-matrix-record.json](evidence/beta-smoke-matrix-record.json) |
 
 **Rule:** CI does **not** execute live provider smokes. Linux/Mac/Docker/Claude cells are **manual** unless maintainer records PASS in the evidence JSON.
@@ -36,7 +36,7 @@
 
 | Result | Meaning |
 |--------|---------|
-| `PASS` | Cell smoke completed; evidence fields recorded |
+| `PASS` | Cell smoke completed; `task_id`, `repo_commit`, `operator`, `run_date`, and `evidence.trace` / `evidence.inspect` / `evidence.bundle` all recorded |
 | `FAIL` | Attempted and failed — file GitHub issue with `failure_reason` |
 | `SKIP` | Not applicable with documented reason |
 | `PENDING` | Not yet run *(default in committed record)* |
@@ -117,7 +117,7 @@ node scripts/audit-product-claims.mjs
 | `SMOKE_MATRIX_OK` | Step passed |
 | `SMOKE_MATRIX_DOC_FAIL` | Matrix how-to missing required content |
 | `SMOKE_MATRIX_RECORD_FAIL` | Evidence JSON schema invalid |
-| `SMOKE_MATRIX_GATE_FAIL` | Required cell not PASS/approved EXCEPTION (`--validate-gate`) |
+| `SMOKE_MATRIX_GATE_FAIL` | Required cell missing PASS evidence or incomplete EXCEPTION (`--validate-gate`) |
 | `SMOKE_MATRIX_CLAIM_AUDIT_FAIL` | Claim audit blocked |
 
 Claim audit uses `CLAIM_*` codes (e.g. `CLAIM_FORBIDDEN_PHRASE`, `CLAIM_OK`) from `audit-product-claims.mjs`.

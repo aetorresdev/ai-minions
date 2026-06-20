@@ -5,10 +5,14 @@ import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import {
   MINIMUM_GATE_CELLS,
+  buildCompleteExceptionCell,
+  buildCompletePassCell,
   buildEmptyMatrixRecord,
+  validateExceptionApproval,
   validateGateResults,
   validateMatrixDoc,
   validateMatrixRecord,
+  validatePassEvidence,
 } from "../scripts/lib/beta-smoke-matrix-data.mjs";
 import {
   REASON_CODES,
@@ -40,23 +44,84 @@ describe("beta-smoke-matrix-data", () => {
     assert.match(check.errors.join(" "), /linux-ollama-sa-trivial/);
   });
 
-  it("validateGateResults accepts PASS and approved EXCEPTION", () => {
+  it("validateGateResults rejects required PASS without evidence metadata", () => {
     const empty = buildEmptyMatrixRecord();
     const cells = /** @type {Record<string, unknown>} */ (empty.cells);
     for (const def of MINIMUM_GATE_CELLS) {
       if (def.gate !== "required") continue;
-      const cell = /** @type {Record<string, unknown>} */ (cells[def.id]);
-      cell.result = def.id === "linux-claude-sa-trivial" ? "EXCEPTION" : "PASS";
-      if (cell.result === "EXCEPTION") {
-        cell.exception = {
-          cerberus_approved: true,
-          reason: "no remote credentials in CI",
-          approved_at: "2026-06-20",
-        };
-      }
+      cells[def.id] = { .../** @type {Record<string, unknown>} */ (cells[def.id]), result: "PASS" };
+    }
+    const check = validateGateResults(cells, { requireGatePass: true });
+    assert.equal(check.ok, false);
+    assert.match(check.errors.join(" "), /evidence\.trace/);
+    assert.match(check.errors.join(" "), /task_id/);
+  });
+
+  it("validateGateResults accepts required PASS with complete evidence", () => {
+    const empty = buildEmptyMatrixRecord();
+    const cells = /** @type {Record<string, unknown>} */ (empty.cells);
+    for (const def of MINIMUM_GATE_CELLS) {
+      if (def.gate !== "required") continue;
+      cells[def.id] = buildCompletePassCell(
+        /** @type {Record<string, unknown>} */ (cells[def.id]),
+        { task_id: `task-${def.id}` },
+      );
     }
     const check = validateGateResults(cells, { requireGatePass: true });
     assert.equal(check.ok, true, check.errors.join("; "));
+  });
+
+  it("validateGateResults accepts required EXCEPTION with full approval metadata", () => {
+    const empty = buildEmptyMatrixRecord();
+    const cells = /** @type {Record<string, unknown>} */ (empty.cells);
+    for (const def of MINIMUM_GATE_CELLS) {
+      if (def.gate !== "required") continue;
+      const base = /** @type {Record<string, unknown>} */ (cells[def.id]);
+      cells[def.id] =
+        def.id === "linux-claude-sa-trivial"
+          ? buildCompleteExceptionCell(base)
+          : buildCompletePassCell(base, { task_id: `task-${def.id}` });
+    }
+    const check = validateGateResults(cells, { requireGatePass: true });
+    assert.equal(check.ok, true, check.errors.join("; "));
+  });
+
+  it("validateExceptionApproval rejects missing reason", () => {
+    const errors = validateExceptionApproval("linux-claude-sa-trivial", {
+      cerberus_approved: true,
+      approved_at: "2026-06-20",
+    });
+    assert.match(errors.join(" "), /reason/);
+  });
+
+  it("validateExceptionApproval rejects missing approved_at", () => {
+    const errors = validateExceptionApproval("linux-claude-sa-trivial", {
+      cerberus_approved: true,
+      reason: "no credentials",
+    });
+    assert.match(errors.join(" "), /approved_at/);
+  });
+
+  it("validateExceptionApproval rejects invalid approved_at format", () => {
+    const errors = validateExceptionApproval("linux-claude-sa-trivial", {
+      cerberus_approved: true,
+      reason: "no credentials",
+      approved_at: "06/20/2026",
+    });
+    assert.match(errors.join(" "), /approved_at/);
+  });
+
+  it("validatePassEvidence requires trace, inspect, and bundle", () => {
+    const errors = validatePassEvidence("linux-ollama-sa-trivial", {
+      result: "PASS",
+      task_id: "t1",
+      repo_commit: "abc",
+      operator: "op",
+      run_date: "2026-06-20",
+      evidence: { trace: true, inspect: false, bundle: false },
+    });
+    assert.match(errors.join(" "), /inspect/);
+    assert.match(errors.join(" "), /bundle/);
   });
 
   it("matrix doc references all gate cell ids", () => {
