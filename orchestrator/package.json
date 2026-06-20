@@ -21,6 +21,7 @@
     "lint:no-ticket-src": "node scripts/check-versioned-source-no-ticket-ids.js",
     "lint:module-boundaries": "node scripts/check-module-boundaries.js",
     "evidence:install": "node scripts/run-install-evidence.mjs",
+    "evidence:smoke-matrix": "node scripts/run-beta-smoke-matrix.mjs",
     "evidence:claims": "node scripts/audit-product-claims.mjs",
     "emit:tool-manifest": "node scripts/emit-tool-manifest.cjs",
     "scaffold:tool-eval-fixtures": "node scripts/scaffold-tool-eval-fixtures.cjs",

@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "updated_at": null,
+  "maintainer_notes": "Update cells after manual smoke runs. PASS or CERBERUS-approved EXCEPTION required on all required gate cells before external beta (v0.16).",
+  "cells": {
+    "linux-ollama-sa-trivial": {
+      "result": "PENDING",
+      "task_id": null,
+      "repo_commit": null,
+      "evidence": {
+        "trace": false,
+        "inspect": false,
+        "bundle": false,
+        "failure_reason": null
+      },
+      "operator": null,
+      "run_date": null,
+      "notes": "Default maintainer/CI dev path; primary smoke or runner:tui",
+      "exception": null
+    },
+    "linux-ollama-sa-realistic": {
+      "result": "PENDING",
+      "task_id": null,
+      "repo_commit": null,
+      "evidence": {
+        "trace": false,
+        "inspect": false,
+        "bundle": false,
+        "failure_reason": null
+      },
+      "operator": null,
+      "run_date": null,
+      "notes": "Small code change (e.g. doc fix or test) with inspect + bundle",
+      "exception": null
+    },
+    "linux-ollama-ma-trivial": {
+      "result": "PENDING",
+      "task_id": null,
+      "repo_commit": null,
+      "evidence": {
+        "trace": false,
+        "inspect": false,
+        "bundle": false,
+        "failure_reason": null
+      },
+      "operator": null,
+      "run_date": null,
+      "notes": "Supervised multi-agent header; metrics directional only",
+      "exception": null
+    },
+    "macos-ollama-sa-trivial": {
+      "result": "PENDING",
+      "task_id": null,
+      "repo_commit": null,
+      "evidence": {
+        "trace": false,
+        "inspect": false,
+        "bundle": false,
+        "failure_reason": null
+      },
+      "operator": null,
+      "run_date": null,
+      "notes": "Manual Mac host attestation; see install-evidence for Ollama reachability",
+      "exception": null
+    },
+    "docker-ollama-sa-trivial": {
+      "result": "PENDING",
+      "task_id": null,
+      "repo_commit": null,
+      "evidence": {
+        "trace": false,
+        "inspect": false,
+        "bundle": false,
+        "failure_reason": null
+      },
+      "operator": null,
+      "run_date": null,
+      "notes": "Docker Desktop or Linux container; OLLAMA_HOST documented",
+      "exception": null
+    },
+    "linux-claude-sa-trivial": {
+      "result": "PENDING",
+      "task_id": null,
+      "repo_commit": null,
+      "evidence": {
+        "trace": false,
+        "inspect": false,
+        "bundle": false,
+        "failure_reason": null
+      },
+      "operator": null,
+      "run_date": null,
+      "notes": "Remote path; privacy gate must pass; EXCEPTION if no credentials",
+      "exception": null
+    },
+    "linux-openai-compat-sa-trivial": {
+      "result": "PENDING",
+      "task_id": null,
+      "repo_commit": null,
+      "evidence": {
+        "trace": false,
+        "inspect": false,
+        "bundle": false,
+        "failure_reason": null
+      },
+      "operator": null,
+      "run_date": null,
+      "notes": "LM Studio / local OpenAI-compatible server; EXCEPTION allowed pre-v0.16",
+      "exception": null
+    }
+  }
+}

@@ -51,6 +51,12 @@ const PRIMARY_SMOKE_SCRIPT = path.join(REPO_ROOT, "scripts/run-primary-smoke.mjs
 const FRESH_CLONE_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/fresh-clone-evidence.md");
 const INSTALL_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/install-evidence.md");
 const INSTALL_EVIDENCE_SCRIPT = path.join(REPO_ROOT, "scripts/run-install-evidence.mjs");
+const BETA_SMOKE_MATRIX = path.join(REPO_ROOT, "docs/how-to/beta-smoke-matrix.md");
+const BETA_SMOKE_MATRIX_RECORD = path.join(
+  REPO_ROOT,
+  "docs/how-to/evidence/beta-smoke-matrix-record.json",
+);
+const BETA_SMOKE_MATRIX_SCRIPT = path.join(REPO_ROOT, "scripts/run-beta-smoke-matrix.mjs");
 const CLAIM_AUDIT_SCRIPT = path.join(REPO_ROOT, "scripts/audit-product-claims.mjs");
 const EVIDENCE_SCRIPT = path.join(REPO_ROOT, "scripts/run-fresh-clone-evidence.mjs");
 const README = path.join(REPO_ROOT, "README.md");
@@ -226,6 +232,7 @@ function checkBetaKnownLimitationsDoc(docText) {
   mustInclude(docText, "operator-feedback-issue", "feedback issue doc link", rel);
   mustInclude(docText, "beta-tester-guide", "beta tester guide link", rel);
   mustInclude(docText, "beta-dry-run-checklist", "dry-run checklist link", rel);
+  mustInclude(docText, "beta-smoke-matrix", "smoke matrix link", rel);
   mustInclude(docText, "audit-product-claims.mjs", "claim audit reference", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
@@ -245,6 +252,7 @@ function checkBetaTesterGuideDoc(docText) {
   mustInclude(docText, "Not claimed", "not claimed section", rel);
   mustInclude(docText, "internal", "internal dry-run audience", rel);
   mustInclude(docText, "beta-dry-run-checklist", "dry-run checklist link", rel);
+  mustInclude(docText, "beta-smoke-matrix", "smoke matrix link", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -389,6 +397,21 @@ function checkInstallEvidenceDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkBetaSmokeMatrixDoc(docText) {
+  const rel = "docs/how-to/beta-smoke-matrix.md";
+  if (!docText) return;
+  mustInclude(docText, "SMOKE_MATRIX_OK", "smoke matrix reason code", rel);
+  mustInclude(docText, "CLAIM_FORBIDDEN_PHRASE", "claim audit reason code", rel);
+  mustInclude(docText, "run-beta-smoke-matrix.mjs", "smoke matrix script reference", rel);
+  mustInclude(docText, "audit-product-claims.mjs", "claim audit script reference", rel);
+  mustInclude(docText, "beta-smoke-matrix-record.json", "evidence record reference", rel);
+  mustInclude(docText, "not a merge gate", "live smoke not CI-gated disclaimer", rel);
+  mustInclude(docText, "## Minimum gate cells", "minimum gate cells section", rel);
+  mustInclude(docText, "linux-ollama-sa-trivial", "required gate cell id", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkReadmeAlignment(readmeText, guideText) {
   const rel = "README.md";
   mustInclude(readmeText, "MODE: ORCHESTRATOR", "Quickstart MODE header", rel);
@@ -405,6 +428,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "operator-feedback-issue.md", "link to operator feedback issue doc", rel);
   mustInclude(readmeText, "beta-tester-guide.md", "link to beta tester guide doc", rel);
   mustInclude(readmeText, "beta-dry-run-checklist.md", "link to beta dry-run checklist doc", rel);
+  mustInclude(readmeText, "beta-smoke-matrix.md", "link to beta smoke matrix doc", rel);
   mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
 
   checkForbiddenClaimsForDoc(readmeText, rel);
@@ -430,6 +454,7 @@ function main() {
   const primarySmokeText = readUtf8(PRIMARY_SMOKE);
   const freshCloneText = readUtf8(FRESH_CLONE_EVIDENCE);
   const installEvidenceText = readUtf8(INSTALL_EVIDENCE);
+  const betaSmokeMatrixText = readUtf8(BETA_SMOKE_MATRIX);
   const operatorBridgeText = readUtf8(OPERATOR_PREFLIGHT_BRIDGE);
   const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
@@ -466,6 +491,12 @@ function main() {
   if (!fs.existsSync(INSTALL_EVIDENCE_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, INSTALL_EVIDENCE_SCRIPT)}`);
   }
+  if (!fs.existsSync(BETA_SMOKE_MATRIX_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, BETA_SMOKE_MATRIX_SCRIPT)}`);
+  }
+  if (!fs.existsSync(BETA_SMOKE_MATRIX_RECORD)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, BETA_SMOKE_MATRIX_RECORD)}`);
+  }
 
   if (guideText) checkGuide(guideText);
   if (tuiText) checkTuiChecklist(tuiText);
@@ -478,6 +509,7 @@ function main() {
   if (primarySmokeText) checkPrimarySmokeDoc(primarySmokeText);
   if (freshCloneText) checkFreshCloneEvidenceDoc(freshCloneText);
   if (installEvidenceText) checkInstallEvidenceDoc(installEvidenceText);
+  if (betaSmokeMatrixText) checkBetaSmokeMatrixDoc(betaSmokeMatrixText);
   if (operatorBridgeText) checkOperatorPreflightBridgeDoc(operatorBridgeText);
   if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
   if (inspectEvidenceText) checkInspectRunEvidenceDoc(inspectEvidenceText);

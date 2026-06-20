@@ -17,7 +17,7 @@ End-to-end runbook for an **internal operator** playing beta tester: entry path 
 | Evidence chain works | Inspect + bundle scripts exit `0`; `ATTACH.md` fields are copyable |
 | Feedback loop works | GitHub issue filed from bundle skeleton — **actionable without maintainer rewrite** |
 
-Formal checklist + sample issue evidence: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample issue](evidence/beta-dry-run-sample-issue.md).
+Formal checklist + sample issue evidence: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample issue](evidence/beta-dry-run-sample-issue.md). External beta gate matrix: [beta-smoke-matrix](beta-smoke-matrix.md).
 
 ---
 
