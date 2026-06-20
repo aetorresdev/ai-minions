@@ -87,3 +87,4 @@ Scorable checklist for the **internal beta dry-run** in [beta-tester-guide](beta
 | [operator-feedback-issue](operator-feedback-issue.md) | Form field map |
 | [collect-run-report](collect-run-report.md) | Bundle + `ATTACH.md` |
 | [beta-known-limitations](beta-known-limitations.md) | Honesty boundaries |
+| [beta-smoke-matrix](beta-smoke-matrix.md) | External beta gate matrix (OS × provider × flow) |

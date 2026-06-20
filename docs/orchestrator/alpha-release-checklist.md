@@ -809,6 +809,37 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 - [x] **Changelog:** section **[0.14.0-alpha.1] - 2026-06-19**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.15.0-alpha.1 — External Beta Gate Hardening (in progress)
+
+**Scope:** privacy sanitize gate, beta smoke matrix evidence, degraded-mode policy, beta limitations/onboarding docs, verify/claim wiring. **Prerequisite:** `v0.14.0-alpha.1` @ `bc8bbb4`. **Not** external usability beta — that is v0.16.
+
+**Release claim:** trust and evidence gates documented before any external tester cohort — privacy scan on outbound artifacts, minimum smoke-matrix evidence, degraded-mode honesty — **not** production-ready, **not** external beta open, **not** full multi-OS CI smoke farm.
+
+### Must-have bundle
+
+- [x] Privacy sanitize gate (`SensitiveDataScanner` + `PRIVACY_*`) — merged @ `d4f0374` (PR #210)
+- [ ] Beta smoke matrix doc + evidence chain — E15-2 in progress
+- [ ] Degraded-mode acceptance policy — E15-3
+- [ ] External beta limitations + onboarding — E15-4
+- [ ] README + verify + claim audit wiring — E15-5
+- [ ] Release-prep + tag `v0.15.0-alpha.1` — E15-6
+
+### Out of scope
+
+External usability beta (v0.16) · `UNTRUSTED-CONTEXT` runtime gate · `CTX-REPO-INDEX` · `RUN-RESUME` · LM Studio / llama.cpp / vLLM functional backends · full CI grid automation for smoke matrix · packaged global installer · production TUI claim.
+
+### Forbidden release claims (v0.15)
+
+"production-ready" · "external beta open" · "external usability beta ready" · "global installer" · "production TUI shipped" · "hosted control plane included" · "multi-OS CI smoke farm shipped".
+
+#### v0.15 validation log (E15-2)
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-20 | E15-2 branch | `node scripts/run-beta-smoke-matrix.mjs --skip-live` → **OK** |
+| 2026-06-20 | E15-2 branch | `node --test tests/run-beta-smoke-matrix.test.mjs` → **8/8** |
+| 2026-06-20 | E15-2 branch | `node scripts/verify-usage-docs.mjs` → **OK** |
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.

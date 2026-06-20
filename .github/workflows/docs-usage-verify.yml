@@ -31,6 +31,8 @@ on:
       - "scripts/audit-product-claims.mjs"
       - "scripts/run-fresh-clone-evidence.mjs"
       - "scripts/run-install-evidence.mjs"
+      - "scripts/run-beta-smoke-matrix.mjs"
+      - "scripts/lib/beta-smoke-matrix-data.mjs"
       - "scripts/lib/operator-doc-claims.mjs"
       - "scripts/verify-usage-docs.mjs"
       - "tests/bootstrap-preflight.test.mjs"
@@ -42,6 +44,7 @@ on:
       - "tests/audit-product-claims.test.mjs"
       - "tests/fresh-clone-evidence.test.mjs"
       - "tests/run-install-evidence.test.mjs"
+      - "tests/run-beta-smoke-matrix.test.mjs"
       - ".github/workflows/docs-usage-verify.yml"
       - ".github/workflows/claude-doc-smoke.yml"
       - "orchestrator/operator-cli-help.js"
@@ -104,8 +107,14 @@ jobs:
       - name: Install evidence chain (CI claim audit)
         run: node scripts/run-install-evidence.mjs --skip-live
 
+      - name: Beta smoke matrix structure gate
+        run: node scripts/run-beta-smoke-matrix.mjs --skip-live
+
       - name: Fresh-clone evidence unit tests
         run: node --test tests/fresh-clone-evidence.test.mjs
 
       - name: Install evidence unit tests
         run: node --test tests/run-install-evidence.test.mjs
+
+      - name: Beta smoke matrix unit tests
+        run: node --test tests/run-beta-smoke-matrix.test.mjs
