@@ -42,4 +42,11 @@ describe("audit-product-claims", () => {
     const text = formatReportText(report);
     assert.match(text, /product-claim audit/);
   });
+
+  it("repo claim audit includes v0.15 beta gate how-tos", () => {
+    const report = runClaimAudit();
+    const files = report.checks.filter((c) => c.status === "pass").map((c) => c.file);
+    assert.ok(files.includes("docs/how-to/beta-smoke-matrix.md"));
+    assert.ok(files.includes("docs/how-to/beta-degraded-mode-policy.md"));
+  });
 });

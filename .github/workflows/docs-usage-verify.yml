@@ -48,6 +48,10 @@ on:
       - "tests/run-beta-smoke-matrix.test.mjs"
       - "tests/degraded-mode-evidence.test.mjs"
       - "docs/orchestrator/beta-limitations-onboarding-contract.md"
+      - "scripts/run-beta-gate-hardening-evidence.mjs"
+      - "docs/how-to/beta-gate-hardening-evidence.md"
+      - "docs/orchestrator/beta-gate-hardening-verify-contract.md"
+      - "tests/run-beta-gate-hardening-evidence.test.mjs"
       - "tests/beta-limitations-onboarding.test.mjs"
       - ".github/workflows/docs-usage-verify.yml"
       - ".github/workflows/claude-doc-smoke.yml"
@@ -114,6 +118,9 @@ jobs:
       - name: Beta smoke matrix structure gate
         run: node scripts/run-beta-smoke-matrix.mjs --skip-live
 
+      - name: Beta gate hardening evidence chain
+        run: node scripts/run-beta-gate-hardening-evidence.mjs
+
       - name: Fresh-clone evidence unit tests
         run: node --test tests/fresh-clone-evidence.test.mjs
 
@@ -122,6 +129,9 @@ jobs:
 
       - name: Beta smoke matrix unit tests
         run: node --test tests/run-beta-smoke-matrix.test.mjs
+
+      - name: Beta gate hardening evidence unit tests
+        run: node --test tests/run-beta-gate-hardening-evidence.test.mjs
 
       - name: Degraded-mode evidence unit tests
         run: node --test tests/degraded-mode-evidence.test.mjs
