@@ -59,6 +59,11 @@ Manual equivalents and slash aliases: [operator-slash-commands.md](operator-slas
 | `INSPECT_TRACE_PANEL_FAILED` | `trace` panel failed | See runner-tui-contract |
 | `INSPECT_BUDGET_PANEL_FAILED` | `budget` panel failed | See runner-tui-contract |
 | `INSPECT_EXPLAIN_FAILED` | `explain-run` failed or empty | `npm run explain-run -- --run-id <task_id>` manually |
+| `INSPECT_DEGRADED_OK` | No degraded signals in trace | — |
+| `INSPECT_DEGRADED_DIAGNOSTIC` | Degraded but not beta-disqualifying | Warn only — see policy |
+| `INSPECT_DEGRADED_BETA_INELIGIBLE` | Disqualifying degraded trigger | Do not count as beta/smoke PASS |
+
+JSON output includes `degraded_assessment` (`degraded_mode`, `disqualifies_beta_success`, `risk_acceptance_reason`). Policy: [beta-degraded-mode-policy](beta-degraded-mode-policy.md).
 
 ---
 

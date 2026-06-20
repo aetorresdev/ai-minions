@@ -818,8 +818,8 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 ### Must-have bundle
 
 - [x] Privacy sanitize gate (`SensitiveDataScanner` + `PRIVACY_*`) — merged @ `d4f0374` (PR #210)
-- [ ] Beta smoke matrix doc + evidence chain — E15-2 in progress
-- [ ] Degraded-mode acceptance policy — E15-3
+- [x] Beta smoke matrix doc + evidence chain — merged @ `289e7a3` (PR #211; CERBERUS Approve @ `2b6a9f3`)
+- [ ] Degraded-mode acceptance policy — E15-3 in progress
 - [ ] External beta limitations + onboarding — E15-4
 - [ ] README + verify + claim audit wiring — E15-5
 - [ ] Release-prep + tag `v0.15.0-alpha.1` — E15-6
@@ -837,8 +837,15 @@ External usability beta (v0.16) · `UNTRUSTED-CONTEXT` runtime gate · `CTX-REPO
 | Date | Context | Outcome |
 |------|---------|---------|
 | 2026-06-20 | E15-2 branch | `node scripts/run-beta-smoke-matrix.mjs --skip-live` → **OK** |
-| 2026-06-20 | E15-2 branch | `node --test tests/run-beta-smoke-matrix.test.mjs` → **8/8** |
+| 2026-06-20 | E15-2 branch | `node --test tests/run-beta-smoke-matrix.test.mjs` → **14/14** |
 | 2026-06-20 | E15-2 branch | `node scripts/verify-usage-docs.mjs` → **OK** |
+
+#### v0.15 validation log (E15-3)
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-20 | E15-3 branch | `node --test tests/degraded-mode-evidence.test.mjs` → **7/7** |
+| 2026-06-20 | E15-3 branch | `node scripts/verify-usage-docs.mjs` → **OK** |
 
 ## Future alpha / beta gates (positioning)
 

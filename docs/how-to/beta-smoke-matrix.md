@@ -58,6 +58,8 @@ Required before **external beta** (v0.16). Experimental cells may stay `EXCEPTIO
 | `linux-claude-sa-trivial` | linux | claude-cli-api | single-agent | trivial | required | PENDING | | privacy gate on remote path |
 | `linux-openai-compat-sa-trivial` | linux | openai-compat-local | single-agent | trivial | experimental | PENDING | | EXCEPTION allowed pre-v0.16 |
 
+Do not mark smoke-matrix cells `PASS` when `disqualifies_beta_success` is true — see [beta-degraded-mode-policy](beta-degraded-mode-policy.md).
+
 Canonical machine record: [evidence/beta-smoke-matrix-record.json](evidence/beta-smoke-matrix-record.json).
 
 ---

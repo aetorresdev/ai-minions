@@ -14,6 +14,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ORCHESTRATOR_DIR, resolveTracesDir } from "./bootstrap-preflight.mjs";
 import { inspectSmokeTrace } from "./run-primary-smoke.mjs";
+import { assessDegradedModeFromTrace } from "./lib/degraded-mode-evidence.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,6 +28,9 @@ export const REASON_CODES = {
   TRACE_PANEL_FAILED: "INSPECT_TRACE_PANEL_FAILED",
   BUDGET_PANEL_FAILED: "INSPECT_BUDGET_PANEL_FAILED",
   EXPLAIN_FAILED: "INSPECT_EXPLAIN_FAILED",
+  DEGRADED_OK: "INSPECT_DEGRADED_OK",
+  DEGRADED_DIAGNOSTIC: "INSPECT_DEGRADED_DIAGNOSTIC",
+  DEGRADED_BETA_INELIGIBLE: "INSPECT_DEGRADED_BETA_INELIGIBLE",
 };
 
 const SMOKE_TO_INSPECT = {
@@ -293,6 +297,38 @@ export async function runInspectRunEvidence(options = {}) {
   }
 
   const ok = checks.every((c) => c.status !== "fail");
+
+  /** @type {ReturnType<typeof assessDegradedModeFromTrace> | null} */
+  let degraded_assessment = null;
+  if (traceFile) {
+    degraded_assessment = assessDegradedModeFromTrace(traceFile);
+    if (degraded_assessment.disqualifies_beta_success) {
+      checks.push({
+        id: "degraded_mode",
+        layer: "policy",
+        reason_code: REASON_CODES.DEGRADED_BETA_INELIGIBLE,
+        status: "warn",
+        message: `degraded run disqualifies beta success (${degraded_assessment.risk_acceptance_reason})`,
+      });
+    } else if (degraded_assessment.degraded_mode) {
+      checks.push({
+        id: "degraded_mode",
+        layer: "policy",
+        reason_code: REASON_CODES.DEGRADED_DIAGNOSTIC,
+        status: "warn",
+        message: `degraded diagnostic run (${degraded_assessment.risk_acceptance_reason ?? "see trace"})`,
+      });
+    } else {
+      checks.push({
+        id: "degraded_mode",
+        layer: "policy",
+        reason_code: REASON_CODES.DEGRADED_OK,
+        status: "pass",
+        message: "no degraded-mode signals in trace",
+      });
+    }
+  }
+
   return {
     ok,
     task_id: taskId,
@@ -300,6 +336,7 @@ export async function runInspectRunEvidence(options = {}) {
     trace_file: traceFile,
     checks,
     panels,
+    degraded_assessment,
   };
 }
 
@@ -319,6 +356,11 @@ export function formatReportText(report) {
     const tag = c.status === "pass" ? "PASS" : c.status === "warn" ? "WARN" : "FAIL";
     const layer = c.layer ? `[${c.layer}] ` : "";
     lines.push(`  [${tag}] ${c.reason_code} — ${layer}${c.message}`);
+  }
+  if (report.degraded_assessment) {
+    lines.push(`  degraded_mode: ${report.degraded_assessment.degraded_mode}`);
+    lines.push(`  disqualifies_beta_success: ${report.degraded_assessment.disqualifies_beta_success}`);
+    lines.push(`  risk_acceptance_reason: ${report.degraded_assessment.risk_acceptance_reason ?? "(none)"}`);
   }
   if (report.panels) {
     lines.push("  panels:");

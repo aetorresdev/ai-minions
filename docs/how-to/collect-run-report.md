@@ -42,7 +42,7 @@ Default output: `report-bundles/<task_id>-<timestamp>/` under repo root (gitigno
 
 | Path | Contents |
 |------|----------|
-| `manifest.json` | Index: task id, commit, file list, inspect verdict |
+| `manifest.json` | Index: task id, commit, file list, inspect verdict, degraded flags |
 | `ATTACH.md` | Field values aligned with [operator feedback issue form](operator-feedback-issue.md) |
 | `trace/<task_id>.jsonl` | Trace copy (validate JSONL before collect) |
 | `inspect-report.json` | Full `INSPECT_*` report from [inspect-run-evidence.mjs](../../scripts/inspect-run-evidence.mjs) |
@@ -101,7 +101,17 @@ Inspect detail codes remain `INSPECT_*` inside `inspect-report.json`.
 2. Open `ATTACH.md` in the bundle directory.
 3. Copy pre-filled values into **New issue → Operator feedback (runner:tui)** — see [operator-feedback-issue](operator-feedback-issue.md).
 
-`ATTACH.md` field names match the GitHub issue form (`task_id`, `repo_commit`, `operator_path`, `inspect_verdict`, `bundle_path`, `inspect_blockers`, `severity`).
+`ATTACH.md` field names match the GitHub issue form (`task_id`, `repo_commit`, `operator_path`, `inspect_verdict`, `bundle_path`, `inspect_blockers`, `severity`). Degraded fields (`degraded_mode`, `disqualifies_beta_success`, `risk_acceptance_reason`) are included for beta gate honesty — see [beta-degraded-mode-policy](beta-degraded-mode-policy.md).
+
+---
+
+## Degraded-mode fields
+
+| Field | Source |
+|-------|--------|
+| `degraded_mode` | Trace JSONL via [degraded-mode-evidence.mjs](../../scripts/lib/degraded-mode-evidence.mjs) |
+| `disqualifies_beta_success` | Policy triggers (`DEGRADED_SKIP_GATES`, etc.) |
+| `risk_acceptance_reason` | Semicolon-separated trigger codes |
 
 ---
 
