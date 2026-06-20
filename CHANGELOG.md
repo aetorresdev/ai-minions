@@ -25,7 +25,7 @@ Fifteenth alpha pre-release: **External Beta Gate Hardening** — privacy saniti
 | Reason codes | `INSTALL_*`, `RUNTIME_PREFLIGHT_*`, `INSTALL_EVIDENCE_*` | **`PRIVACY_*`**, **`SMOKE_MATRIX_*`**, **`INSPECT_DEGRADED_*`**, **`GATE_HARDENING_*`** (prior families preserved) |
 | Unit tests (orchestrator) | 1114/1115 | **1126/1127** (1 skipped) on workspace @ lane tip `6cc1d17` |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.15.0-alpha.1` — pre-release reserved until Phase B tag (release-prep on `master` through gate-hardening lane @ `6cc1d17`)
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.15.0-alpha.1` — pre-release published @ tag `b14bfa2`
 
 **Evidence (operator):**
 
@@ -35,7 +35,7 @@ Fifteenth alpha pre-release: **External Beta Gate Hardening** — privacy saniti
 - Degraded-mode: `node --test tests/degraded-mode-evidence.test.mjs` → **7/7**
 - Smoke matrix structure: `node scripts/run-beta-smoke-matrix.mjs --skip-live` → **OK**
 - Docs: `node scripts/verify-usage-docs.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK**
-- Lane merged on `master` through verify wiring @ `6cc1d17` (PR #210–#214); release-prep pending Phase B tag · pre-release · `release` branch
+- Lane merged on `master` through verify wiring @ `6cc1d17` (PR #210–#214); release-prep merged @ `b14bfa2` (PR #215); Phase B tag · pre-release · `release` branch @ `b14bfa2`
 - CI: Docs usage verify · Link Check · Markdown Lint — green on lane PRs through #214
 
 **Alpha limitations (not production):**

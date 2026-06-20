@@ -809,7 +809,7 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 - [x] **Changelog:** section **[0.14.0-alpha.1] - 2026-06-19**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
-## v0.15.0-alpha.1 — External Beta Gate Hardening (in progress)
+## v0.15.0-alpha.1 — External Beta Gate Hardening
 
 **Scope:** privacy sanitize gate, beta smoke matrix evidence, degraded-mode policy, beta limitations/onboarding docs, verify/claim wiring. **Prerequisite:** `v0.14.0-alpha.1` @ `bc8bbb4`. **Not** external usability beta — first external usability beta is **v0.17.0-beta.1**, blocked until **v0.16.0-alpha.1** runtime boundary completion ships.
 
@@ -822,7 +822,7 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 - [x] Degraded-mode acceptance policy — merged @ `4380279` (PR #212)
 - [x] External beta limitations + onboarding — merged @ `0407313` (PR #213)
 - [x] README + verify + claim audit wiring — merged @ `6cc1d17` (PR #214; CERBERUS Approve with non-blocking notes)
-- [ ] Release-prep + tag `v0.15.0-alpha.1` — release-prep in progress
+- [x] Release-prep + tag `v0.15.0-alpha.1` — merged @ `b14bfa2` (PR #215; CERBERUS Approve with non-blocking notes)
 
 ### Out of scope
 
@@ -831,7 +831,7 @@ External usability beta (v0.17.0-beta.1) · untrusted-context runtime gate · re
 ### CERBERUS checks (pre-tag)
 
 - [x] Implementation slices (privacy through verify wiring) — CERBERUS-approved; merges through `6cc1d17`
-- [ ] Release-prep CHANGELOG + checklist claims — pending CERBERUS on release-prep PR
+- [x] Release-prep CHANGELOG + checklist claims — CERBERUS Approve (PR #215 @ `2a41e89`)
 - [x] No production-ready claim — release claim uses alpha limitations
 - [x] No external-beta / global-installer claim
 - [x] Smoke-matrix PASS rejects `evidence.disqualifies_beta_success === true` when gate validation enabled
@@ -884,6 +884,7 @@ External usability beta (v0.17.0-beta.1) · untrusted-context runtime gate · re
 | 2026-06-20 | release-prep branch | `node --test tests/run-beta-smoke-matrix.test.mjs` → **15/15** |
 | 2026-06-20 | release-prep branch | `node scripts/run-beta-smoke-matrix.mjs --skip-live` → **OK** |
 | 2026-06-20 | release-prep branch | `node scripts/verify-usage-docs.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK** |
+| 2026-06-20 | Phase B operator cut @ `b14bfa2` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 **Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes `CHANGELOG.md`, `docs/**`, `scripts/lib/beta-smoke-matrix-data.mjs`, and `tests/run-beta-smoke-matrix.test.mjs`; `orchestrator/**` unchanged since lane tip @ `6cc1d17`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `6cc1d17` until tag.
 
@@ -898,14 +899,14 @@ External usability beta (v0.17.0-beta.1) · untrusted-context runtime gate · re
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
 
-- [ ] **Tag target:** `v0.15.0-alpha.1` on release-prep merge commit @ `{prep_sha}`
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.15.0-alpha.1` — pre-release published
-- [ ] **`release` branch:** aligned to tag commit (`release_branch_commit` matches `tag_commit`)
+- [x] **Tag target:** `v0.15.0-alpha.1` on release-prep merge commit @ `b14bfa2`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.15.0-alpha.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `b14bfa2` (`release_branch_commit` matches `tag_commit`)
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.15.0-alpha.1] - 2026-06-20** (draft on release-prep)
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+- [x] **Changelog:** section **[0.15.0-alpha.1] - 2026-06-20**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 
