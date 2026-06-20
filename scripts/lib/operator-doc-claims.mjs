@@ -46,6 +46,8 @@ export const CLAIM_AUDIT_PATHS = [
   "docs/how-to/beta-known-limitations.md",
   "docs/how-to/beta-tester-guide.md",
   "docs/how-to/beta-dry-run-checklist.md",
+  "docs/how-to/beta-smoke-matrix.md",
+  "docs/how-to/beta-degraded-mode-policy.md",
   "docs/how-to/evidence/beta-dry-run-sample-issue.md",
   "docs/how-to/operator-feedback-issue.md",
 ];
@@ -56,6 +58,10 @@ export const README_REQUIRED_MARKERS = [
   { needle: "## What this is NOT", label: "what this is NOT section" },
   { needle: "not claimed", label: "not claimed maturity wording" },
   { needle: "usage-smoke-guide.md", label: "canonical smoke guide link" },
+  { needle: "beta-known-limitations.md", label: "beta limitations doc link" },
+  { needle: "verify-usage-docs.mjs", label: "verify usage docs script" },
+  { needle: "audit-product-claims.mjs", label: "claim audit script" },
+  { needle: "run-beta-gate-hardening-evidence.mjs", label: "gate hardening evidence script" },
 ];
 
 /**

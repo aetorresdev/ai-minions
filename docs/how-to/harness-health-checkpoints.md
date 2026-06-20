@@ -36,11 +36,12 @@ cd ai-minions
 node scripts/bootstrap-preflight.mjs --install
 node scripts/run-primary-smoke.mjs
 node scripts/run-fresh-clone-evidence.mjs
+node scripts/run-beta-gate-hardening-evidence.mjs
+node scripts/verify-usage-docs.mjs
+node scripts/audit-product-claims.mjs
 cd orchestrator
 npm test
 node run-orchestrator.js --help
-
-node scripts/verify-usage-docs.mjs
 ```
 
 After a smoke run:
@@ -61,5 +62,6 @@ npm run tokens:report -- <task_id>
 - [Usage smoke guide](usage-smoke-guide.md)
 - [Primary smoke command and trace path](primary-smoke.md)
 - [Fresh-clone evidence and claim audit](fresh-clone-evidence.md)
+- [Beta gate hardening evidence and claim audit](beta-gate-hardening-evidence.md)
 - [Token hygiene guide](../orchestrator/token-hygiene-guide.md)
 - [Context hygiene signals](../orchestrator/context-hygiene-signals.md)

@@ -820,8 +820,8 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 - [x] Privacy sanitize gate (`SensitiveDataScanner` + `PRIVACY_*`) — merged @ `d4f0374` (PR #210)
 - [x] Beta smoke matrix doc + evidence chain — merged @ `289e7a3` (PR #211; CERBERUS Approve @ `2b6a9f3`)
 - [x] Degraded-mode acceptance policy — merged @ `4380279` (PR #212)
-- [ ] External beta limitations + onboarding — in progress
-- [ ] README + verify + claim audit wiring
+- [x] External beta limitations + onboarding — merged @ `0407313` (PR #213)
+- [ ] README + verify + claim audit wiring — in progress
 - [ ] Release-prep + tag `v0.15.0-alpha.1`
 
 ### Out of scope
@@ -853,6 +853,14 @@ External usability beta (v0.16) · `UNTRUSTED-CONTEXT` runtime gate · `CTX-REPO
 |------|---------|---------|
 | 2026-06-20 | limitations + onboarding slice branch | `node --test tests/beta-limitations-onboarding.test.mjs` → **3/3** |
 | 2026-06-20 | limitations + onboarding slice branch | `node scripts/verify-usage-docs.mjs` → **OK** |
+
+#### v0.15 validation log (verify + claim audit slice)
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-20 | verify slice branch | `node scripts/run-beta-gate-hardening-evidence.mjs` → **OK** |
+| 2026-06-20 | verify slice branch | `node --test tests/run-beta-gate-hardening-evidence.test.mjs` → **3/3** |
+| 2026-06-20 | verify slice branch | `node scripts/audit-product-claims.mjs` → **OK** |
 
 ## Future alpha / beta gates (positioning)
 

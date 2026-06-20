@@ -62,6 +62,18 @@ const BETA_LIMITATIONS_ONBOARDING_CONTRACT = path.join(
   REPO_ROOT,
   "docs/orchestrator/beta-limitations-onboarding-contract.md",
 );
+const BETA_GATE_HARDENING_EVIDENCE = path.join(
+  REPO_ROOT,
+  "docs/how-to/beta-gate-hardening-evidence.md",
+);
+const BETA_GATE_HARDENING_VERIFY_CONTRACT = path.join(
+  REPO_ROOT,
+  "docs/orchestrator/beta-gate-hardening-verify-contract.md",
+);
+const BETA_GATE_HARDENING_EVIDENCE_SCRIPT = path.join(
+  REPO_ROOT,
+  "scripts/run-beta-gate-hardening-evidence.mjs",
+);
 const DEGRADED_MODE_EVIDENCE = path.join(REPO_ROOT, "scripts/lib/degraded-mode-evidence.mjs");
 const CLAIM_AUDIT_SCRIPT = path.join(REPO_ROOT, "scripts/audit-product-claims.mjs");
 const EVIDENCE_SCRIPT = path.join(REPO_ROOT, "scripts/run-fresh-clone-evidence.mjs");
@@ -439,6 +451,32 @@ function checkBetaLimitationsOnboardingContract(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkBetaGateHardeningEvidenceDoc(docText) {
+  const rel = "docs/how-to/beta-gate-hardening-evidence.md";
+  if (!docText) return;
+  mustInclude(docText, "run-beta-gate-hardening-evidence.mjs", "evidence script reference", rel);
+  mustInclude(docText, "verify-usage-docs.mjs", "verify script reference", rel);
+  mustInclude(docText, "audit-product-claims.mjs", "claim audit script reference", rel);
+  mustInclude(docText, "GATE_HARDENING_OK", "gate hardening reason code", rel);
+  mustInclude(docText, "beta-gate-hardening-verify-contract", "verify contract link", rel);
+  mustInclude(docText, "beta-limitations-onboarding-contract", "onboarding contract link", rel);
+  mustInclude(docText, "Not claimed", "not claimed disclaimer", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
+function checkBetaGateHardeningVerifyContract(docText) {
+  const rel = "docs/orchestrator/beta-gate-hardening-verify-contract.md";
+  if (!docText) return;
+  mustInclude(docText, "verify-usage-docs.mjs", "verify script reference", rel);
+  mustInclude(docText, "audit-product-claims.mjs", "claim audit script reference", rel);
+  mustInclude(docText, "run-beta-gate-hardening-evidence.mjs", "evidence script reference", rel);
+  mustInclude(docText, "beta-smoke-matrix.md", "smoke matrix doc scope", rel);
+  mustInclude(docText, "beta-degraded-mode-policy.md", "degraded policy doc scope", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkBetaDegradedPolicyDoc(docText) {
   const rel = "docs/how-to/beta-degraded-mode-policy.md";
   if (!docText) return;
@@ -485,6 +523,11 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "beta-dry-run-checklist.md", "link to beta dry-run checklist doc", rel);
   mustInclude(readmeText, "beta-smoke-matrix.md", "link to beta smoke matrix doc", rel);
   mustInclude(readmeText, "beta-degraded-mode-policy.md", "link to beta degraded policy doc", rel);
+  mustInclude(readmeText, "beta-limitations-onboarding-contract.md", "link to onboarding contract", rel);
+  mustInclude(readmeText, "beta-gate-hardening-evidence.md", "link to gate hardening evidence doc", rel);
+  mustInclude(readmeText, "verify-usage-docs.mjs", "verify usage docs script", rel);
+  mustInclude(readmeText, "audit-product-claims.mjs", "claim audit script", rel);
+  mustInclude(readmeText, "run-beta-gate-hardening-evidence.mjs", "gate hardening evidence script", rel);
   mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
 
   checkForbiddenClaimsForDoc(readmeText, rel);
@@ -513,6 +556,8 @@ function main() {
   const betaSmokeMatrixText = readUtf8(BETA_SMOKE_MATRIX);
   const betaDegradedPolicyText = readUtf8(BETA_DEGRADED_POLICY);
   const betaLimitationsContractText = readUtf8(BETA_LIMITATIONS_ONBOARDING_CONTRACT);
+  const betaGateHardeningEvidenceText = readUtf8(BETA_GATE_HARDENING_EVIDENCE);
+  const betaGateHardeningVerifyContractText = readUtf8(BETA_GATE_HARDENING_VERIFY_CONTRACT);
   const operatorBridgeText = readUtf8(OPERATOR_PREFLIGHT_BRIDGE);
   const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
@@ -555,6 +600,9 @@ function main() {
   if (!fs.existsSync(DEGRADED_MODE_EVIDENCE)) {
     fail(`missing file: ${path.relative(REPO_ROOT, DEGRADED_MODE_EVIDENCE)}`);
   }
+  if (!fs.existsSync(BETA_GATE_HARDENING_EVIDENCE_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, BETA_GATE_HARDENING_EVIDENCE_SCRIPT)}`);
+  }
   if (!fs.existsSync(BETA_SMOKE_MATRIX_RECORD)) {
     fail(`missing file: ${path.relative(REPO_ROOT, BETA_SMOKE_MATRIX_RECORD)}`);
   }
@@ -573,6 +621,10 @@ function main() {
   if (betaSmokeMatrixText) checkBetaSmokeMatrixDoc(betaSmokeMatrixText);
   if (betaDegradedPolicyText) checkBetaDegradedPolicyDoc(betaDegradedPolicyText);
   if (betaLimitationsContractText) checkBetaLimitationsOnboardingContract(betaLimitationsContractText);
+  if (betaGateHardeningEvidenceText) checkBetaGateHardeningEvidenceDoc(betaGateHardeningEvidenceText);
+  if (betaGateHardeningVerifyContractText) {
+    checkBetaGateHardeningVerifyContract(betaGateHardeningVerifyContractText);
+  }
   if (operatorBridgeText) checkOperatorPreflightBridgeDoc(operatorBridgeText);
   if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
   if (inspectEvidenceText) checkInspectRunEvidenceDoc(inspectEvidenceText);

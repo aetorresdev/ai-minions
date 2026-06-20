@@ -28,6 +28,10 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Beta dry-run checklist + sample issue | [`docs/how-to/beta-dry-run-checklist.md`](docs/how-to/beta-dry-run-checklist.md) |
 | Beta smoke matrix (external beta gate) | [`docs/how-to/beta-smoke-matrix.md`](docs/how-to/beta-smoke-matrix.md) |
 | Beta degraded-mode policy | [`docs/how-to/beta-degraded-mode-policy.md`](docs/how-to/beta-degraded-mode-policy.md) |
+| Beta limitations onboarding contract | [`docs/orchestrator/beta-limitations-onboarding-contract.md`](docs/orchestrator/beta-limitations-onboarding-contract.md) |
+| Validate gate-hardening docs (verify + claims) | [`docs/how-to/beta-gate-hardening-evidence.md`](docs/how-to/beta-gate-hardening-evidence.md) · `node scripts/run-beta-gate-hardening-evidence.mjs` |
+| Doc alignment verify | `node scripts/verify-usage-docs.mjs` |
+| Product claim audit | `node scripts/audit-product-claims.mjs` |
 | End-to-end runbook (step-by-step) | [Happy path](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) |
 | Something failed during smoke | [Troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) |
 
@@ -332,8 +336,9 @@ Canonical reference: [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
 | `FLOW: multi_agent` | Incomplete for some comparisons; metrics directional |
 | Degraded mode | Missing MCPs or `--skip-gates` = less protection; banner must show |
 | Bootstrap | No global installer — `scripts/bootstrap-preflight.mjs` + manual clone |
+| Gate-hardening doc validation | `node scripts/run-beta-gate-hardening-evidence.mjs` — not external beta approval |
 
-More: [`orchestrator/README.md`](orchestrator/README.md) § Known limitations · beta dry-run consolidation: [`beta-known-limitations.md`](docs/how-to/beta-known-limitations.md).
+More: [`orchestrator/README.md`](orchestrator/README.md) § Known limitations · beta dry-run consolidation: [`beta-known-limitations.md`](docs/how-to/beta-known-limitations.md) · verify wiring: [`beta-gate-hardening-evidence.md`](docs/how-to/beta-gate-hardening-evidence.md).
 
 ---
 
