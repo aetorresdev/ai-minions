@@ -63,7 +63,7 @@ describe("SensitiveDataScanner", () => {
     assert.ok(text.includes("[REDACTED:phone]"));
   });
 
-  it("redacts secret shapes from trace-redact patterns", () => {
+  it("redacts secret shapes with privacy-owned redaction", () => {
     const sk = fakeSkOpenAI();
     const aws = fakeAwsAccessKeyId();
     const gh = fakeGithubPatShape();
@@ -75,12 +75,39 @@ describe("SensitiveDataScanner", () => {
     assert.ok(!text.includes(gh));
   });
 
-  it("redacts .env-style secrets", () => {
+  it("redacts URL credentials and counts them as secrets", () => {
+    const url = "https:" + "//" + "user" + ":" + "pass" + "@" + "example.com/path";
+    const { text, scanResult } = redactOutboundText(`see ${url}`);
+    assert.equal(scanResult.reason_code, REASON_CODES.SECRET_REDACTED);
+    assert.ok(scanResult.redaction_counts.secret >= 1);
+    assert.ok(text.includes("[REDACTED:url-creds]"));
+    assert.ok(!text.includes("pass@"));
+  });
+
+  it("redacts .env-style secrets as secret redactions", () => {
     const line = "API_KEY=supersecretvalue";
     const { text, scanResult } = redactOutboundText(line);
     assert.equal(scanResult.reason_code, REASON_CODES.SECRET_REDACTED);
     assert.ok(!text.includes("supersecretvalue"));
     assert.ok(text.includes("[REDACTED:env_secret]"));
+  });
+
+  it("remote redaction ignores ORCH_TRACE_SKIP_SECRET_REDACT", () => {
+    setEnv("ORCH_TRACE_SKIP_SECRET_REDACT", "1");
+    delete process.env.CI;
+    const sk = fakeSkOpenAI();
+    const aws = fakeAwsAccessKeyId();
+    const gh = fakeGithubPatShape();
+    const bearer = "Bearer " + "z".repeat(20);
+    const out = prepareOutboundRemoteText(`tokens ${sk} ${aws} ${gh} ${bearer}`, {
+      remote: true,
+      agentId: "dev-backend",
+    });
+    assert.ok(!out.includes(sk));
+    assert.ok(!out.includes(aws));
+    assert.ok(!out.includes(gh));
+    assert.ok(!out.includes(bearer.slice(7)));
+    assert.ok(out.includes("[REDACTED:api_token]"));
   });
 
   it("blocks remote path when scan is forced to fail", () => {
@@ -91,11 +118,34 @@ describe("SensitiveDataScanner", () => {
     );
   });
 
-  it("warn-continues local path when scan is forced to fail", () => {
+  it("still redacts shareable copy when local scan is forced to fail", () => {
     setEnv("PRIVACY_SCAN_FORCE_FAIL", "1");
-    const { text, scanResult } = redactOutboundText("local prompt", { remote: false });
-    assert.equal(scanResult.reason_code, REASON_CODES.FAILED_BLOCKED);
-    assert.ok(typeof text === "string");
+    const sk = fakeSkOpenAI();
+    const email = "ops" + "@" + "example.org";
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "privacy-force-fail-"));
+    try {
+      const traceDir = path.join(dir, "trace");
+      fs.mkdirSync(traceDir, { recursive: true });
+      const traceBody = `{"goal":"leak ${sk} and ${email}"}\n`;
+      fs.writeFileSync(path.join(traceDir, "task-1.jsonl"), traceBody, "utf8");
+      fs.writeFileSync(
+        path.join(dir, "manifest.json"),
+        `${JSON.stringify({ bundle_version: "1", files: ["trace/task-1.jsonl"] }, null, 2)}\n`,
+        "utf8",
+      );
+
+      applyPrivacySanitizeToBundle(dir);
+      const shareable = fs.readFileSync(path.join(dir, "shareable", "trace", "task-1.jsonl"), "utf8");
+      assert.ok(!shareable.includes(sk));
+      assert.ok(!shareable.includes(email));
+
+      const { text, scanResult } = redactOutboundText(traceBody, { remote: false });
+      assert.equal(scanResult.reason_code, REASON_CODES.UNAVAILABLE);
+      assert.ok(!text.includes(sk));
+      assert.ok(!text.includes(email));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("applyPrivacySanitizeToBundle writes shareable redacted copies", () => {
@@ -124,7 +174,8 @@ describe("SensitiveDataScanner", () => {
 
       const manifest = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8"));
       assert.ok(manifest.privacy_scan);
-      assert.ok(manifest.shareable_files.length > 0);
+      assert.ok(manifest.upload_files.length > 0);
+      assert.ok(manifest.local_only_files.includes("trace/task-1.jsonl"));
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

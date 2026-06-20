@@ -2,7 +2,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const { redactSensitivePlaintext } = require("../trace-redact");
 const { isLocalOnlyModeEnabled } = require("../local-model-policy");
 
 const GATE_ID = "PRIVACY_SANITIZE_GATE";
@@ -45,6 +44,26 @@ function countNewPlaceholders(original, redacted, placeholders) {
 }
 
 /**
+ * Privacy-owned secret redaction — always enforced; ignores ORCH_TRACE_SKIP_SECRET_REDACT.
+ * @param {string} s
+ * @returns {string}
+ */
+function redactSecretsForPrivacy(s) {
+  let t = String(s);
+  t = t.replace(/\bBearer\s+[A-Za-z0-9\-._~+/=*]{16,}\b/gi, "[REDACTED:bearer]");
+  t = t.replace(/\bsk-[a-zA-Z0-9]{20,}\b/g, "[REDACTED:api_token]");
+  t = t.replace(/\bAKIA[0-9A-Z]{16}\b/g, "[REDACTED:aws_access_key]");
+  t = t.replace(/\bghp_[A-Za-z0-9]{30,}\b/g, "[REDACTED:github_pat]");
+  t = t.replace(/\bxox[bpa]-[0-9]{10,12}-[0-9]{10,12}-[a-zA-Z0-9]{20,}\b/gi, "[REDACTED:slack_token]");
+  t = t.replace(/\/\/(?:[^\s/@]+):(?:[^\s/@]+)@/g, "//[REDACTED:url-creds]@");
+  t = t.replace(
+    /(^|\n)([A-Z][A-Z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD)[A-Z0-9_]*)\s*=\s*(\S+)/gm,
+    "$1$2=[REDACTED:env_secret]",
+  );
+  return t;
+}
+
+/**
  * @param {string} s
  * @returns {string}
  */
@@ -52,11 +71,16 @@ function redactPiiPlaintext(s) {
   let t = String(s);
   t = t.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, "[REDACTED:email]");
   t = t.replace(/\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, "[REDACTED:phone]");
-  t = t.replace(
-    /(^|\n)([A-Z][A-Z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD)[A-Z0-9_]*)\s*=\s*(\S+)/gm,
-    "$1$2=[REDACTED:env_secret]",
-  );
   return t;
+}
+
+/**
+ * Deterministic privacy redaction — no trace-debug opt-out.
+ * @param {string} text
+ * @returns {string}
+ */
+function applyDeterministicRedaction(text) {
+  return redactPiiPlaintext(redactSecretsForPrivacy(text));
 }
 
 /**
@@ -72,33 +96,23 @@ function tryPresidioScan(_text) {
 }
 
 /**
- * @param {string} text
- * @param {{ remote?: boolean }} [options]
- * @returns {{ privacy_scan_status: string, reason_code: string, redaction_counts: { pii: number, secret: number }, presidio_available: boolean }}
- */
-function scanSensitiveData(text, options = {}) {
-  const { text: redacted, scanMeta } = redactOutboundTextInternal(text, options);
-  return buildScanResult(String(text), redacted, scanMeta);
-}
-
-/**
  * @param {string} original
  * @param {string} redacted
  * @param {{ presidio_available: boolean, scan_failed?: boolean }} meta
  */
 function buildScanResult(original, redacted, meta) {
+  const secret = countNewPlaceholders(original, redacted, SECRET_PLACEHOLDERS);
+  const pii = countNewPlaceholders(original, redacted, PII_PLACEHOLDERS);
+
   if (meta.scan_failed) {
     return {
-      privacy_scan_status: "blocked",
-      reason_code: REASON_CODES.FAILED_BLOCKED,
-      redaction_counts: { pii: 0, secret: 0 },
+      privacy_scan_status: "unavailable",
+      reason_code: REASON_CODES.UNAVAILABLE,
+      redaction_counts: { pii, secret },
       presidio_available: meta.presidio_available,
       redacted_artifact_path: null,
     };
   }
-
-  const secret = countNewPlaceholders(original, redacted, SECRET_PLACEHOLDERS);
-  const pii = countNewPlaceholders(original, redacted, PII_PLACEHOLDERS);
 
   let reason_code = REASON_CODES.OK;
   let privacy_scan_status = "ok";
@@ -125,21 +139,33 @@ function buildScanResult(original, redacted, meta) {
 /**
  * @param {string} text
  * @param {{ remote?: boolean }} [options]
+ * @returns {{ privacy_scan_status: string, reason_code: string, redaction_counts: { pii: number, secret: number }, presidio_available: boolean }}
+ */
+function scanSensitiveData(text, options = {}) {
+  const { text: redacted, scanMeta } = redactOutboundTextInternal(text, options);
+  return buildScanResult(String(text), redacted, scanMeta);
+}
+
+/**
+ * @param {string} text
+ * @param {{ remote?: boolean }} [options]
  * @returns {{ text: string, scanMeta: { presidio_available: boolean, scan_failed?: boolean } }}
  */
 function redactOutboundTextInternal(text, options = {}) {
+  const original = String(text);
+
   if (process.env.PRIVACY_SCAN_FORCE_FAIL === "1") {
-    const err = new Error("privacy scan forced failure");
-    if (options.remote !== false) throw err;
+    if (options.remote !== false) {
+      throw new Error("privacy scan forced failure");
+    }
+    const redacted = applyDeterministicRedaction(original);
     return {
-      text: String(text),
+      text: redacted,
       scanMeta: { presidio_available: false, scan_failed: true },
     };
   }
 
-  const original = String(text);
-  let redacted = redactSensitivePlaintext(original);
-  redacted = redactPiiPlaintext(redacted);
+  let redacted = applyDeterministicRedaction(original);
 
   const presidio = tryPresidioScan(redacted);
   if (presidio.available && presidio.text) {
@@ -168,14 +194,11 @@ function redactOutboundText(text, options = {}) {
       console.warn(
         `[privacy-sanitize] scan unavailable (${err instanceof Error ? err.message : String(err)}) — local path continues with warn`,
       );
-      const fallback = redactSensitivePlaintext(String(text));
-      const scanResult = {
-        privacy_scan_status: "unavailable",
-        reason_code: REASON_CODES.UNAVAILABLE,
-        redaction_counts: { pii: 0, secret: 0 },
+      const fallback = applyDeterministicRedaction(String(text));
+      const scanResult = buildScanResult(String(text), fallback, {
         presidio_available: false,
-        redacted_artifact_path: null,
-      };
+        scan_failed: true,
+      });
       return { text: fallback, scanResult };
     }
     throw createPrivacyPolicyError(
@@ -238,7 +261,29 @@ function prepareOutboundRemoteText(text, ctx = {}) {
 
 /**
  * @param {string} bundleDir
- * @returns {{ summary: object, shareable_files: string[], privacy_scan_path: string }}
+ * @param {string} taskId
+ * @param {{ summary: object, shareable_files: string[] }} privacyResult
+ */
+function writeShareableManifest(bundleDir, taskId, privacyResult) {
+  const relFiles = privacyResult.shareable_files
+    .filter((f) => f !== "privacy-scan.json" && f.startsWith("shareable/"))
+    .map((f) => f.slice("shareable/".length));
+  const manifest = {
+    bundle_version: "1",
+    upload_scope: "shareable",
+    task_id: taskId,
+    files: relFiles,
+    privacy_scan: privacyResult.summary,
+  };
+  const shareableManifestPath = path.join(bundleDir, "shareable", "manifest.json");
+  fs.mkdirSync(path.dirname(shareableManifestPath), { recursive: true });
+  fs.writeFileSync(shareableManifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  return path.relative(bundleDir, shareableManifestPath);
+}
+
+/**
+ * @param {string} bundleDir
+ * @returns {{ summary: object, shareable_files: string[], privacy_scan_path: string, upload_files: string[] }}
  */
 function applyPrivacySanitizeToBundle(bundleDir) {
   const shareableRoot = path.join(bundleDir, "shareable");
@@ -251,7 +296,7 @@ function applyPrivacySanitizeToBundle(bundleDir) {
   let worstReason = REASON_CODES.OK;
   let worstStatus = "ok";
 
-  const skipNames = new Set(["shareable", "privacy-scan.json"]);
+  const skipNames = new Set(["shareable", "privacy-scan.json", "manifest.json", "ATTACH.md"]);
 
   /**
    * @param {string} rel
@@ -259,7 +304,8 @@ function applyPrivacySanitizeToBundle(bundleDir) {
    */
   function processTextFile(rel, abs) {
     const raw = fs.readFileSync(abs, "utf8");
-    const { text: redacted, scanResult } = redactOutboundText(raw, { remote: false });
+    const redacted = applyDeterministicRedaction(raw);
+    const scanResult = buildScanResult(raw, redacted, { presidio_available: false });
     totalPii += scanResult.redaction_counts.pii;
     totalSecret += scanResult.redaction_counts.secret;
     if (scanResult.reason_code === REASON_CODES.SECRET_REDACTED) worstReason = REASON_CODES.SECRET_REDACTED;
@@ -311,18 +357,19 @@ function applyPrivacySanitizeToBundle(bundleDir) {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     manifest.privacy_scan = summary;
     manifest.shareable_files = ["privacy-scan.json", ...shareable_files];
-    if (!manifest.files.includes("privacy-scan.json")) {
-      manifest.files.push("privacy-scan.json");
-    }
-    for (const sf of shareable_files) {
-      if (!manifest.files.includes(sf)) manifest.files.push(sf);
-    }
+    manifest.upload_files = ["privacy-scan.json", ...shareable_files];
+    manifest.local_only_files = (manifest.files || []).filter(
+      (f) => !manifest.upload_files.includes(f) && f !== "ATTACH.md",
+    );
     fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   }
 
+  const upload_files = ["privacy-scan.json", ...shareable_files];
+
   return {
     summary,
-    shareable_files: ["privacy-scan.json", ...shareable_files],
+    shareable_files: upload_files,
+    upload_files,
     privacy_scan_path: privacyScanPath,
   };
 }
@@ -336,5 +383,8 @@ module.exports = {
   prepareOutboundRemoteText,
   createPrivacyPolicyError,
   applyPrivacySanitizeToBundle,
+  applyDeterministicRedaction,
+  redactSecretsForPrivacy,
   redactPiiPlaintext,
+  writeShareableManifest,
 };

@@ -50,8 +50,8 @@ Bundle collector additionally writes:
 | Code | When |
 |------|------|
 | `PRIVACY_SCAN_OK` | No sensitive shapes detected |
-| `PRIVACY_PII_REDACTED` | Email/phone/.env-style values redacted |
-| `PRIVACY_SECRET_REDACTED` | Secret-shaped tokens redacted (extends trace-redact patterns) |
+| `PRIVACY_PII_REDACTED` | Email or phone redacted |
+| `PRIVACY_SECRET_REDACTED` | Secret-shaped tokens redacted (API keys, bearer, AWS, GitHub, URL creds, `.env`-style values) |
 | `PRIVACY_SCAN_UNAVAILABLE` | Optional Presidio requested but unavailable; regex may still run |
 | `PRIVACY_SCAN_FAILED_BLOCKED` | Scan failed — remote path blocked |
 
@@ -61,8 +61,10 @@ Bundle collector additionally writes:
 
 | Path | Scan failure | Redaction |
 |------|--------------|-----------|
-| Remote Claude | **Block** (`PRIVACY_SANITIZE_BLOCKED`) | Redact before send |
-| Local-only / bundle shareable | **Warn**, continue | Redact shareable copies |
+| Remote Claude | **Block** (`PRIVACY_SANITIZE_BLOCKED`) | Privacy-owned forced redaction before send — **ignores** `ORCH_TRACE_SKIP_SECRET_REDACT` |
+| Local-only / bundle shareable | **Warn**, continue | Deterministic redaction on all `shareable/**` copies |
+
+Raw top-level bundle files (`trace/*.jsonl`, unredacted artifacts) are **local-only**. Upload default: `privacy-scan.json` + `shareable/**` only.
 
 ## Unsupported behavior
 

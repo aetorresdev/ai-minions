@@ -154,6 +154,26 @@ describe("askAgent — dev-backend", () => {
     assert.ok(!lastClaudePrompt.includes(sk));
     assert.ok(lastClaudePrompt.includes("[REDACTED:api_token]"));
   });
+
+  it("redacts remote prompt when ORCH_TRACE_SKIP_SECRET_REDACT=1", async () => {
+    const prev = process.env.ORCH_TRACE_SKIP_SECRET_REDACT;
+    const prevCi = process.env.CI;
+    delete process.env.CI;
+    process.env.ORCH_TRACE_SKIP_SECRET_REDACT = "1";
+    try {
+      reset(VALID_DEV_OUTPUT);
+      const sk = "sk-" + "y".repeat(21);
+      await askAgent("dev-backend", `leak ${sk}`);
+      assert.ok(lastClaudePrompt);
+      assert.ok(!lastClaudePrompt.includes(sk));
+      assert.ok(lastClaudePrompt.includes("[REDACTED:api_token]"));
+    } finally {
+      if (prev === undefined) delete process.env.ORCH_TRACE_SKIP_SECRET_REDACT;
+      else process.env.ORCH_TRACE_SKIP_SECRET_REDACT = prev;
+      if (prevCi === undefined) delete process.env.CI;
+      else process.env.CI = prevCi;
+    }
+  });
 });
 
 // ── qa / cerberus ─────────────────────────────────────────────────────────────
