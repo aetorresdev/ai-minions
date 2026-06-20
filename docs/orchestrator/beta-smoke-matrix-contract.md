@@ -4,7 +4,7 @@ Operator-facing checklist: [beta-smoke-matrix.md](../how-to/beta-smoke-matrix.md
 
 ## Purpose
 
-Close the **evidence gate** before external usability beta (v0.16): prove documented smoke paths work on minimum OS × provider × flow combinations, with trace / inspect / bundle artifacts — or record a **CERBERUS-approved exception**.
+Close the **evidence gate** before external usability beta (v0.17.0-beta.1): prove documented smoke paths work on minimum OS × provider × flow combinations, with trace / inspect / bundle artifacts — or record a **CERBERUS-approved exception**.
 
 ## Minimum axes
 

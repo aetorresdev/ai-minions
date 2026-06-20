@@ -34,7 +34,7 @@ These gates harden evidence **before** any external tester cohort. They do **not
 | Smoke matrix | Documented minimum OS × provider × flow cells | [beta-smoke-matrix](beta-smoke-matrix.md) · `SMOKE_MATRIX_*` |
 | Degraded-mode policy | Disqualifying degraded runs cannot back PASS evidence | [beta-degraded-mode-policy](beta-degraded-mode-policy.md) · `INSPECT_DEGRADED_*` |
 
-**Not claimed:** satisfying internal dry-run alone does not open external usability beta (→ v0.16+ release gates).
+**Not claimed:** satisfying internal dry-run alone does not open external usability beta (→ **v0.17.0-beta.1**, blocked until **v0.16.0-alpha.1** ships).
 
 ---
 

@@ -41,7 +41,7 @@ Fifteenth alpha pre-release: **External Beta Gate Hardening** — privacy saniti
 **Alpha limitations (not production):**
 
 - **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
-- **Not** external usability beta — v0.16 external cohort; v0.15 closes gate-hardening docs and evidence only.
+- **Not** external usability beta — first external usability beta is **v0.17.0-beta.1**; v0.15 closes gate-hardening docs and evidence only.
 - **Not** a packaged global installer or production TUI — manual clone + documented scripts only.
 - **Not** multi-OS CI smoke farm — smoke matrix structure is CI-gated; live cell attestation remains maintainer/manual.
 - **Not** architecture refactor complete or adaptive model layer — gate contracts and evidence wiring only.
@@ -62,7 +62,7 @@ Fifteenth alpha pre-release: **External Beta Gate Hardening** — privacy saniti
 ### Notes
 
 - Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
-- Next roadmap lane after cut: **v0.16** runtime boundary completion — still **not** external usability beta; first external cohort remains a later beta release gate.
+- Next roadmap lane after cut: **v0.16.0-alpha.1** runtime boundary completion; first external usability beta remains **v0.17.0-beta.1** and is blocked until v0.16 ships.
 
 ## [0.14.0-alpha.1] - 2026-06-19
 

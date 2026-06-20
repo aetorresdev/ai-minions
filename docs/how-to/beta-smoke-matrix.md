@@ -1,6 +1,6 @@
 # Beta smoke matrix (external beta gate)
 
-**v0.15 gate criterion:** document and track **minimum smoke evidence** across OS × provider × flow before any **external usability beta** (v0.16). Manual attestation is acceptable in v0.15 — full CI grid automation is **out of scope**.
+**v0.15 gate criterion:** document and track **minimum smoke evidence** across OS × provider × flow before any **external usability beta** (v0.17.0-beta.1). Manual attestation is acceptable in v0.15 — full CI grid automation is **out of scope**.
 
 **Related:** [beta-smoke-matrix contract](../orchestrator/beta-smoke-matrix-contract.md) · [beta dry-run checklist](beta-dry-run-checklist.md) · [beta tester guide](beta-tester-guide.md) · [install evidence](install-evidence.md) · [evidence record](evidence/beta-smoke-matrix-record.json)
 
@@ -46,7 +46,7 @@
 
 ## Minimum gate cells
 
-Required before **external beta** (v0.16). Experimental cells may stay `EXCEPTION` until a backend ships.
+Required before **external beta** (v0.17.0-beta.1). Experimental cells may stay `EXCEPTION` until a backend ships.
 
 | Cell ID | OS | Provider | Flow | Task | Gate | Result | Task ID | Notes |
 |---------|-----|----------|------|------|------|--------|---------|-------|
@@ -56,7 +56,7 @@ Required before **external beta** (v0.16). Experimental cells may stay `EXCEPTIO
 | `macos-ollama-sa-trivial` | macos | ollama | single-agent | trivial | required | PENDING | | Mac host + Ollama |
 | `docker-ollama-sa-trivial` | docker | ollama | single-agent | trivial | required | PENDING | | see [install-ollama-docker-paths](install-ollama-docker-paths.md) |
 | `linux-claude-sa-trivial` | linux | claude-cli-api | single-agent | trivial | required | PENDING | | privacy gate on remote path |
-| `linux-openai-compat-sa-trivial` | linux | openai-compat-local | single-agent | trivial | experimental | PENDING | | EXCEPTION allowed pre-v0.16 |
+| `linux-openai-compat-sa-trivial` | linux | openai-compat-local | single-agent | trivial | experimental | PENDING | | EXCEPTION allowed pre-v0.17.0-beta.1 |
 
 Do not mark smoke-matrix cells `PASS` when `disqualifies_beta_success` is true — see [beta-degraded-mode-policy](beta-degraded-mode-policy.md).
 
