@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { REPO_ROOT, resolveTracesDir } from "./bootstrap-preflight.mjs";
 import { traceFilePath } from "./run-primary-smoke.mjs";
@@ -21,6 +22,11 @@ import {
   runInspectRunEvidence,
   validateTraceJsonl,
 } from "./inspect-run-evidence.mjs";
+
+const require = createRequire(import.meta.url);
+const { applyPrivacySanitizeToBundle, writeShareableManifest, REASON_CODES: PRIVACY_REASON_CODES } = require(
+  "../orchestrator/security/sensitive-data-scanner.js",
+);
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -138,14 +144,28 @@ export function describeBundleFile(relPath, taskId) {
 }
 
 /**
- * @param {string[]} files
+ * @param {string} relPath
  * @param {string} taskId
  * @returns {string}
  */
-export function buildFilesTableRows(files, taskId) {
-  return files
-    .filter((f) => f !== "ATTACH.md")
-    .map((f) => `| \`${f}\` | ${describeBundleFile(f, taskId)} |`)
+export function describeShareableUploadFile(relPath, taskId) {
+  const inner = relPath.startsWith("shareable/") ? relPath.slice("shareable/".length) : relPath;
+  if (inner === "manifest.json") return "Redacted shareable index";
+  if (relPath === "privacy-scan.json") return "Privacy scan summary (counts + reason codes only)";
+  if (inner.startsWith("trace/") && inner.endsWith(".jsonl")) {
+    return `Redacted trace copy for \`${taskId}\``;
+  }
+  return describeBundleFile(inner, taskId);
+}
+
+/**
+ * @param {string[]} uploadFiles
+ * @param {string} taskId
+ * @returns {string}
+ */
+export function buildUploadFilesTableRows(uploadFiles, taskId) {
+  return uploadFiles
+    .map((f) => `| \`${f}\` | ${describeShareableUploadFile(f, taskId)} |`)
     .join("\n");
 }
 
@@ -194,7 +214,7 @@ export function writeBundleFiles(input) {
   }
 
   const manifestPath = path.join(bundleDir, "manifest.json");
-  const bundleFiles = ["manifest.json", ...files];
+  const localArtifactFiles = ["manifest.json", ...files];
   const manifest = {
     bundle_version: "1",
     task_id: taskId,
@@ -203,11 +223,26 @@ export function writeBundleFiles(input) {
     traces_dir: tracesDir ?? resolveTracesDir(),
     bundle_dir: bundleDir,
     inspect_ok: inspectReport.ok,
-    files: bundleFiles,
+    files: localArtifactFiles,
     inspect_reason_codes: inspectReport.checks.map((c) => c.reason_code),
   };
 
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+  const privacy = applyPrivacySanitizeToBundle(bundleDir);
+  const shareableManifestRel = writeShareableManifest(bundleDir, taskId, privacy);
+  if (!privacy.shareable_files.includes(shareableManifestRel)) {
+    privacy.shareable_files.push(shareableManifestRel);
+    privacy.upload_files.push(shareableManifestRel);
+  }
+
+  const uploadFiles = [
+    ...new Set([
+      "privacy-scan.json",
+      shareableManifestRel,
+      ...privacy.shareable_files.filter((f) => f !== "privacy-scan.json"),
+    ]),
+  ];
 
   const attachPath = path.join(bundleDir, "ATTACH.md");
   const attachBody = buildAttachTemplate({
@@ -216,12 +251,28 @@ export function writeBundleFiles(input) {
     repoCommit: repoCommit ?? null,
     inspectOk: inspectReport.ok,
     inspectChecks: inspectReport.checks,
-    files: bundleFiles,
+    uploadFiles,
   });
   fs.writeFileSync(attachPath, attachBody, "utf8");
-  bundleFiles.push("ATTACH.md");
 
-  return { manifestPath, attachPath, files: bundleFiles };
+  const allBundleFiles = [
+    ...new Set(["manifest.json", "ATTACH.md", ...files, ...uploadFiles]),
+  ];
+
+  const manifestFinal = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  manifestFinal.upload_files = uploadFiles;
+  manifestFinal.shareable_files = uploadFiles;
+  manifestFinal.local_only_files = files;
+  manifestFinal.files = allBundleFiles;
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifestFinal, null, 2)}\n`, "utf8");
+
+  return {
+    manifestPath,
+    attachPath,
+    files: allBundleFiles,
+    privacy_scan: privacy.summary,
+    upload_files: uploadFiles,
+  };
 }
 
 /**
@@ -241,7 +292,7 @@ export function formatInspectBlockersForForm(checks) {
  *   repoCommit: string | null,
  *   inspectOk: boolean,
  *   inspectChecks: { reason_code: string, status: string, message: string }[],
- *   files: string[],
+ *   uploadFiles: string[],
  *   operatorPath?: string,
  * }} ctx
  * @returns {string}
@@ -252,17 +303,17 @@ export function buildAttachTemplate(ctx) {
     failed.length > 0
       ? failed.map((c) => `- \`${c.reason_code}\` — ${c.message}`).join("\n")
       : "- (none — inspect passed)";
-  const fileRows = buildFilesTableRows(ctx.files, ctx.taskId);
+  const uploadRows = buildUploadFilesTableRows(ctx.uploadFiles, ctx.taskId);
   const inspectVerdict = ctx.inspectOk ? "PASS" : "FAIL";
   const operatorPath = ctx.operatorPath ?? "runner:tui guided run";
   const inspectBlockersForm = formatInspectBlockersForForm(ctx.inspectChecks);
 
   return `# Operator report bundle
 
-Attach this directory (or zip it) to a GitHub issue. Redact secrets before upload.
+**Upload to GitHub issues:** attach only \`privacy-scan.json\` and everything under \`shareable/\` (or zip those paths). The top-level bundle may contain **local-only raw** trace copies — do **not** upload raw \`trace/*.jsonl\` or unredacted artifacts.
 
 - **Task ID:** \`${ctx.taskId}\`
-- **Bundle dir:** \`${ctx.bundleDir}\`
+- **Bundle dir (local):** \`${ctx.bundleDir}\`
 - **Repo commit:** \`${ctx.repoCommit ?? "unknown"}\`
 - **Inspect verdict:** ${inspectVerdict}
 
@@ -270,11 +321,11 @@ Attach this directory (or zip it) to a GitHub issue. Redact secrets before uploa
 
 ${blockerLines}
 
-## Files in this bundle
+## Files safe to upload
 
 | File | Purpose |
 |------|---------|
-${fileRows}
+${uploadRows}
 
 ## GitHub issue form (Operator feedback)
 
@@ -304,7 +355,7 @@ ${inspectBlockersForm}
 
 **Actual** — fill in what happened.
 
-Automatic GitHub upload from this script is **not** shipped — copy fields manually or attach redacted bundle files.
+Automatic GitHub upload from this script is **not** shipped — copy fields manually and attach \`privacy-scan.json\` + \`shareable/**\` only.
 `;
 }
 
@@ -463,6 +514,21 @@ export async function runCollectRunReport(options = {}) {
     reason_code: REASON_CODES.OK,
     status: "pass",
     message: `bundle written to ${bundleDir}`,
+  });
+
+  const privacyReason = written.privacy_scan?.reason_code ?? PRIVACY_REASON_CODES.OK;
+  const privacyStatus =
+    privacyReason === PRIVACY_REASON_CODES.FAILED_BLOCKED
+      ? "fail"
+      : privacyReason === PRIVACY_REASON_CODES.OK
+        ? "pass"
+        : "warn";
+  checks.push({
+    id: "privacy_scan",
+    layer: "privacy",
+    reason_code: privacyReason,
+    status: privacyStatus,
+    message: `pii=${written.privacy_scan?.redaction_counts?.pii ?? 0} secret=${written.privacy_scan?.redaction_counts?.secret ?? 0}`,
   });
 
   if (!inspectReport.ok) {

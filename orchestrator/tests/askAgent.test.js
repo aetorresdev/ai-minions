@@ -14,13 +14,18 @@ const cp = require("child_process");
 
 let callCount    = 0;
 let calledModels = [];
+/** @type {string | null} */
+let lastClaudePrompt = null;
 // Queue of responses: each entry is { output, error } consumed in order.
 // If queue is empty, falls back to defaultResponse.
 let responseQueue   = [];
 let defaultResponse = { output: "", error: null };
 
-function stubSpawnSync(cmd, args, _opts) {
+function stubSpawnSync(cmd, args, opts) {
   callCount++;
+  if (cmd === "claude" && opts && typeof opts.input === "string") {
+    lastClaudePrompt = opts.input;
+  }
   const modelIdx = args.indexOf("--model");
   if (modelIdx !== -1) calledModels.push(args[modelIdx + 1]);
   const resp = responseQueue.length ? responseQueue.shift() : defaultResponse;
@@ -38,6 +43,7 @@ function reset(output, error = null) {
   responseQueue   = [];
   callCount       = 0;
   calledModels    = [];
+  lastClaudePrompt = null;
 }
 
 function queueResponses(...responses) {
@@ -138,6 +144,35 @@ describe("askAgent — dev-backend", () => {
       () => askAgent("dev-backend", "implement X"),
       /\[output contract\]/
     );
+  });
+
+  it("redacts secret-shaped values from remote Claude prompt", async () => {
+    reset(VALID_DEV_OUTPUT);
+    const sk = "sk-" + "z".repeat(21);
+    await askAgent("dev-backend", `store token ${sk} safely`);
+    assert.ok(lastClaudePrompt, "expected claude stdin prompt");
+    assert.ok(!lastClaudePrompt.includes(sk));
+    assert.ok(lastClaudePrompt.includes("[REDACTED:api_token]"));
+  });
+
+  it("redacts remote prompt when ORCH_TRACE_SKIP_SECRET_REDACT=1", async () => {
+    const prev = process.env.ORCH_TRACE_SKIP_SECRET_REDACT;
+    const prevCi = process.env.CI;
+    delete process.env.CI;
+    process.env.ORCH_TRACE_SKIP_SECRET_REDACT = "1";
+    try {
+      reset(VALID_DEV_OUTPUT);
+      const sk = "sk-" + "y".repeat(21);
+      await askAgent("dev-backend", `leak ${sk}`);
+      assert.ok(lastClaudePrompt);
+      assert.ok(!lastClaudePrompt.includes(sk));
+      assert.ok(lastClaudePrompt.includes("[REDACTED:api_token]"));
+    } finally {
+      if (prev === undefined) delete process.env.ORCH_TRACE_SKIP_SECRET_REDACT;
+      else process.env.ORCH_TRACE_SKIP_SECRET_REDACT = prev;
+      if (prevCi === undefined) delete process.env.CI;
+      else process.env.CI = prevCi;
+    }
   });
 });
 

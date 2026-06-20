@@ -43,6 +43,7 @@ const {
   OLLAMA_ORCHESTRATOR_DECIDE_APPEND,
 } = require("./agents/prompts/ollama-appends");
 const { buildAgents } = require("./agents/registry");
+const { prepareOutboundRemoteText } = require("./security/sensitive-data-scanner");
 const {
   isLocalOnlyModeEnabled,
   resolveLocalModelOverride,
@@ -524,7 +525,10 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
   const systemPrompt = envContext
     ? `${agent.system}\n\n---\n\n${envContext}`
     : agent.system;
-  const prompt = `${systemPrompt}\n\n---\n\n${userMessage}`;
+  const prompt = prepareOutboundRemoteText(`${systemPrompt}\n\n---\n\n${userMessage}`, {
+    remote: true,
+    agentId,
+  });
 
   let output;
   /** @type {unknown} */
@@ -615,7 +619,11 @@ async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
     conversationText += `${msg.role === "user" ? "User" : agent.name}: ${msg.content}\n\n`;
   }
   conversationText += `User: ${userMessage}`;
-  const reply = runClaude(`${agent.system}\n\n---\n\nConversation:\n\n${conversationText}`, {
+  const chatPrompt = prepareOutboundRemoteText(
+    `${agent.system}\n\n---\n\nConversation:\n\n${conversationText}`,
+    { remote: true, agentId },
+  );
+  const reply = runClaude(chatPrompt, {
     cwd,
     model: agent.model,
     traceRole: agent.mode,

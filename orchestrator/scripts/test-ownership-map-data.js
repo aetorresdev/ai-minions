@@ -128,6 +128,7 @@ const ENTRIES = {
   'tests/worktree/runWorkdirContract.test.js': { owner: 'worktree', kind: 'unit' },
   'tests/sandboxCredentialIsolationDesign.test.js': { owner: 'contracts', kind: 'contract' },
   'tests/scaffoldToolEvalFixtures.test.js': { owner: 'tools', kind: 'unit' },
+  'tests/sensitiveDataScanner.test.js': { owner: 'permissions', kind: 'unit' },
   'tests/operator/scenarioMetricsExport.test.js': { owner: 'operator', kind: 'unit' },
   'tests/selfImprovementLoopContract.test.js': { owner: 'contracts', kind: 'contract' },
   'tests/sessionResume.test.js': { owner: 'recovery', kind: 'unit' },

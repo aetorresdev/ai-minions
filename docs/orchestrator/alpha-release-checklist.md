@@ -745,7 +745,7 @@ External usability beta (v0.14) · real external tester cohort · `MODEL-GOV-5` 
 
 **Scope:** install entrypoint, Ollama discovery, `.ai-minions` config generation, runtime preflight in operator chain, Mac/Docker install evidence + claim audit. **Prerequisite:** `v0.13.0-alpha.1` @ `fcdbd45`.
 
-**Release claim:** documented Mac/Docker install path writes model config and passes operator validation + claim audit — **not** production-ready, **not** global installer, **not** external beta, **not** remote provider setup, **not** multi-backend parity beyond Ollama.
+**Release claim:** documented Mac/Docker install path writes model config and passes operator validation + claim audit — not production-ready, not global installer, not external beta, not remote provider setup, not multi-backend parity beyond Ollama.
 
 ### Must-have bundle
 

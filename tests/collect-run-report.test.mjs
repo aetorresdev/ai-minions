@@ -66,7 +66,37 @@ describe("collect-run-report", () => {
     assert.ok(fs.existsSync(path.join(out, "trace", "task-ok.jsonl")));
     assert.ok(fs.existsSync(path.join(out, "artifacts", "status.txt")));
     assert.ok(fs.existsSync(path.join(out, "ATTACH.md")));
+    assert.ok(fs.existsSync(path.join(out, "privacy-scan.json")));
+    assert.ok(fs.existsSync(path.join(out, "shareable", "trace", "task-ok.jsonl")));
     assert.match(formatReportText(report), /BUNDLE_OK/);
+  });
+
+  it("redacts sensitive shapes in shareable bundle copies", async () => {
+    const traces = fs.mkdtempSync(path.join(os.tmpdir(), "collect-traces-"));
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), "collect-out-"));
+    const sk = "sk-" + "x".repeat(21);
+    const email = "user" + "@" + "example.com";
+    fs.writeFileSync(
+      path.join(traces, "task-privacy.jsonl"),
+      `${JSON.stringify({ event: "session_start", goal: `leak ${sk} ${email}` })}\n`,
+    );
+
+    const report = await runCollectRunReport({
+      taskId: "task-privacy",
+      tracesDir: traces,
+      outDir: out,
+      skipPanels: true,
+      invokeStatus: () => ({ exitCode: 0, stdout: "ok\n", stderr: "" }),
+      invokeExplain: () => ({ exitCode: 0, stdout: "summary\n", stderr: "" }),
+    });
+
+    const shareableTrace = fs.readFileSync(
+      path.join(out, "shareable", "trace", "task-privacy.jsonl"),
+      "utf8",
+    );
+    assert.ok(!shareableTrace.includes(sk));
+    assert.ok(!shareableTrace.includes(email));
+    assert.ok(report.checks.some((c) => c.id === "privacy_scan"));
   });
 
   it("collects bundle when inspect fails but trace is valid", async () => {
@@ -101,12 +131,13 @@ describe("collect-run-report", () => {
           message: "missing",
         },
       ],
-      files: [
-        "manifest.json",
-        "trace/task-1.jsonl",
-        "inspect-report.json",
-        "artifacts/status.txt",
-        "artifacts/explain-run.txt",
+      uploadFiles: [
+        "privacy-scan.json",
+        "shareable/manifest.json",
+        "shareable/trace/task-1.jsonl",
+        "shareable/inspect-report.json",
+        "shareable/artifacts/status.txt",
+        "shareable/artifacts/explain-run.txt",
       ],
     });
     assert.match(text, /task-1/);
@@ -116,8 +147,13 @@ describe("collect-run-report", () => {
     assert.match(text, /Inspect verdict/);
     assert.match(text, /Report bundle path/);
     assert.match(text, /Severity/);
+    assert.match(text, /Files safe to upload/);
+    assert.match(text, /shareable\/trace\/task-1\.jsonl/);
+    assert.doesNotMatch(text, /Attach this directory/i);
+    assert.doesNotMatch(text, /zip it/i);
     assert.doesNotMatch(text, /planned for a later release/);
     assert.doesNotMatch(text, /trace-panel/);
+    assert.doesNotMatch(text, /\| `trace\/task-1\.jsonl`/);
   });
 
   it("formatInspectBlockersForForm returns (none) when inspect passed", () => {
@@ -141,12 +177,12 @@ describe("collect-run-report", () => {
     });
 
     const attach = fs.readFileSync(path.join(out, "ATTACH.md"), "utf8");
-    assert.doesNotMatch(attach, /artifacts\/trace-panel\.txt/);
-    assert.doesNotMatch(attach, /artifacts\/budget-panel\.txt/);
-    assert.match(attach, /artifacts\/status\.txt/);
-    assert.match(attach, /artifacts\/explain-run\.txt/);
-    assert.equal(fs.existsSync(path.join(out, "artifacts", "trace-panel.txt")), false);
-    assert.equal(fs.existsSync(path.join(out, "artifacts", "budget-panel.txt")), false);
+    assert.doesNotMatch(attach, /Attach this directory/i);
+    assert.doesNotMatch(attach, /zip it/i);
+    assert.doesNotMatch(attach, /\| `trace\/task-skip\.jsonl`/);
+    assert.match(attach, /shareable\/artifacts\/status\.txt/);
+    assert.match(attach, /shareable\/artifacts\/explain-run\.txt/);
+    assert.ok(fs.existsSync(path.join(out, "shareable", "manifest.json")));
   });
 
   it("writeBundleFiles lists manifest and trace copy", () => {
@@ -175,7 +211,14 @@ describe("collect-run-report", () => {
     });
 
     assert.ok(written.files.includes("manifest.json"));
+    assert.ok(written.upload_files.includes("privacy-scan.json"));
+    assert.ok(written.upload_files.some((f) => f.startsWith("shareable/")));
     assert.ok(fs.existsSync(written.manifestPath));
     assert.ok(fs.existsSync(written.attachPath));
+    const attach = fs.readFileSync(written.attachPath, "utf8");
+    assert.doesNotMatch(attach, /Attach this directory/i);
+    const manifest = JSON.parse(fs.readFileSync(written.manifestPath, "utf8"));
+    assert.ok(manifest.upload_files);
+    assert.ok(manifest.local_only_files.includes(`trace/task-x.jsonl`));
   });
 });
