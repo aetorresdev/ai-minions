@@ -65,7 +65,7 @@ Canonical cell list: `scripts/lib/beta-smoke-matrix-data.mjs` → `MINIMUM_GATE_
 
 - Automated parallel smoke farm across all cells.
 - LM Studio / llama.cpp / vLLM functional backends beyond documented experimental cell.
-- Degraded-mode policy (→ separate contract, E15-3).
+- Degraded-mode policy (→ separate contract doc).
 
 ## Acceptance (slice)
 

@@ -47,6 +47,8 @@ on:
       - "tests/run-install-evidence.test.mjs"
       - "tests/run-beta-smoke-matrix.test.mjs"
       - "tests/degraded-mode-evidence.test.mjs"
+      - "docs/orchestrator/beta-limitations-onboarding-contract.md"
+      - "tests/beta-limitations-onboarding.test.mjs"
       - ".github/workflows/docs-usage-verify.yml"
       - ".github/workflows/claude-doc-smoke.yml"
       - "orchestrator/operator-cli-help.js"
