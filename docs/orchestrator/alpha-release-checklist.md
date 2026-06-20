@@ -813,7 +813,7 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 
 **Scope:** privacy sanitize gate, beta smoke matrix evidence, degraded-mode policy, beta limitations/onboarding docs, verify/claim wiring. **Prerequisite:** `v0.14.0-alpha.1` @ `bc8bbb4`. **Not** external usability beta — that is v0.16.
 
-**Release claim:** trust and evidence gates documented before any external tester cohort — privacy scan on outbound artifacts, minimum smoke-matrix evidence, degraded-mode honesty — **not** production-ready, **not** external beta open, **not** full multi-OS CI smoke farm.
+**Release claim:** trust and evidence gates documented before any external tester cohort — privacy scan on outbound artifacts, minimum smoke-matrix evidence, degraded-mode honesty — not production-ready, not external beta open, not full multi-OS CI smoke farm.
 
 ### Must-have bundle
 
