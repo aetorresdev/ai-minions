@@ -124,6 +124,23 @@ describe("beta-smoke-matrix-data", () => {
     assert.match(errors.join(" "), /bundle/);
   });
 
+  it("validatePassEvidence rejects disqualifying degraded bundle", () => {
+    const errors = validatePassEvidence("linux-ollama-sa-trivial", {
+      result: "PASS",
+      task_id: "t1",
+      repo_commit: "abc",
+      operator: "op",
+      run_date: "2026-06-20",
+      evidence: {
+        trace: true,
+        inspect: true,
+        bundle: true,
+        disqualifies_beta_success: true,
+      },
+    });
+    assert.match(errors.join(" "), /disqualifies_beta_success/);
+  });
+
   it("matrix doc references all gate cell ids", () => {
     const doc = fs.readFileSync(MATRIX_DOC, "utf8");
     const check = validateMatrixDoc(doc);

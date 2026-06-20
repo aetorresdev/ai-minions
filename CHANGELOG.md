@@ -6,6 +6,64 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.15.0-alpha.1] - 2026-06-20
+
+Fifteenth alpha pre-release: **External Beta Gate Hardening** — privacy sanitize gate on outbound artifacts, beta smoke matrix evidence chain, degraded-mode acceptance policy with inspect/bundle fields, honest beta limitations and onboarding docs, and deterministic verify + claim-audit wiring for the gate-hardening doc bundle.
+
+**Release claim:** trust and evidence gates are documented and machine-checkable before any external tester cohort — privacy scan on remote-capable paths, smoke-matrix structure + record schema, degraded-mode honesty in inspect/bundle outputs, limitations/onboarding contracts, and gate-hardening evidence chain — **not** production-ready, **not** external usability beta open, **not** a multi-OS CI smoke farm, **not** performative beta without issue trail.
+
+**Prerequisite:** `v0.14.0-alpha.1` — Installer + Model Discovery Config @ `bc8bbb4`.
+
+**Since [0.14.0-alpha.1]:** v0.14 centered on **installer/config readiness** (discovery, config write, runtime preflight, install evidence). v0.15 adds **external-beta gate hardening** — `SensitiveDataScanner` + `PRIVACY_*`, smoke matrix doc/record/script, degraded-mode policy + trace assessment, limitations/onboarding bundle, README verify wiring — without opening external beta or claiming architecture refactor complete.
+
+| Area | `v0.14.0-alpha.1` | `v0.15.0-alpha.1` (delta) |
+|------|-------------------|---------------------------|
+| Focus | Installer — discovery · config write · runtime preflight · install evidence | Gate hardening — privacy · smoke matrix · degraded-mode · limitations/onboarding · verify/claim audit |
+| Privacy outbound | Trace redaction only | **`SensitiveDataScanner`** + **`PRIVACY_*`** on remote-capable send path |
+| Beta evidence | Dry-run loop + install evidence | **Smoke matrix** + **degraded-mode policy** + **gate-hardening evidence chain** |
+| Operator docs | install-evidence · operator chain | **beta-smoke-matrix**, **beta-degraded-mode-policy**, **beta-limitations-onboarding**, **beta-gate-hardening-evidence** |
+| Reason codes | `INSTALL_*`, `RUNTIME_PREFLIGHT_*`, `INSTALL_EVIDENCE_*` | **`PRIVACY_*`**, **`SMOKE_MATRIX_*`**, **`INSPECT_DEGRADED_*`**, **`GATE_HARDENING_*`** (prior families preserved) |
+| Unit tests (orchestrator) | 1114/1115 | **1126/1127** (1 skipped) on workspace @ lane tip `6cc1d17` |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.15.0-alpha.1` — pre-release reserved until Phase B tag (release-prep on `master` through gate-hardening lane @ `6cc1d17`)
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1126/1127** pass (1 skipped) on workspace @ lane tip `6cc1d17`
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean @ lane tip `6cc1d17`)
+- Gate hardening (CI): `node scripts/run-beta-gate-hardening-evidence.mjs` → **OK**
+- Degraded-mode: `node --test tests/degraded-mode-evidence.test.mjs` → **7/7**
+- Smoke matrix structure: `node scripts/run-beta-smoke-matrix.mjs --skip-live` → **OK**
+- Docs: `node scripts/verify-usage-docs.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK**
+- Lane merged on `master` through verify wiring @ `6cc1d17` (PR #210–#214); release-prep pending Phase B tag · pre-release · `release` branch
+- CI: Docs usage verify · Link Check · Markdown Lint — green on lane PRs through #214
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
+- **Not** external usability beta — first external usability beta is **v0.17.0-beta.1**; v0.15 closes gate-hardening docs and evidence only.
+- **Not** a packaged global installer or production TUI — manual clone + documented scripts only.
+- **Not** multi-OS CI smoke farm — smoke matrix structure is CI-gated; live cell attestation remains maintainer/manual.
+- **Not** architecture refactor complete or adaptive model layer — gate contracts and evidence wiring only.
+
+### Added
+
+- `orchestrator/security/sensitive-data-scanner.js` and privacy sanitize gate with stable `PRIVACY_*` reason codes on remote-capable outbound paths.
+- Beta smoke matrix how-to, contract, evidence record, and `run-beta-smoke-matrix.mjs` with structure gate and optional release gate validation.
+- Degraded-mode policy, trace assessment (`degraded-mode-evidence.mjs`), and `INSPECT_DEGRADED_*` surfacing in inspect/bundle outputs.
+- Beta limitations/onboarding contract, hardened honesty docs, and `run-beta-gate-hardening-evidence.mjs` verify + claim-audit chain.
+- Smoke-matrix PASS validation rejects `evidence.disqualifies_beta_success === true` when gate validation is enabled.
+
+### Security
+
+- Privacy sanitize gate blocks remote send on scan failure; degraded-mode flags surface disqualifying runs without auto-blocking local bundle collection.
+- Claim audit and doc-verify gates extended to v0.15 beta how-tos; no secrets in evidence script stdout.
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Next roadmap lane after cut: **v0.16.0-alpha.1** runtime boundary completion; first external usability beta remains **v0.17.0-beta.1** and is blocked until v0.16 ships.
+
 ## [0.14.0-alpha.1] - 2026-06-19
 
 Fourteenth alpha pre-release: **Installer + Model Discovery Config** — repo install entrypoint with host prereqs, Ollama model discovery, `.ai-minions` config generation, provider runtime preflight in the operator chain, Mac/Docker install evidence, and deterministic claim audit.

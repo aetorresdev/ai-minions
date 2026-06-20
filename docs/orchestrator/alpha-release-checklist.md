@@ -811,7 +811,7 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 
 ## v0.15.0-alpha.1 — External Beta Gate Hardening (in progress)
 
-**Scope:** privacy sanitize gate, beta smoke matrix evidence, degraded-mode policy, beta limitations/onboarding docs, verify/claim wiring. **Prerequisite:** `v0.14.0-alpha.1` @ `bc8bbb4`. **Not** external usability beta — that is v0.16.
+**Scope:** privacy sanitize gate, beta smoke matrix evidence, degraded-mode policy, beta limitations/onboarding docs, verify/claim wiring. **Prerequisite:** `v0.14.0-alpha.1` @ `bc8bbb4`. **Not** external usability beta — first external usability beta is **v0.17.0-beta.1**, blocked until **v0.16.0-alpha.1** runtime boundary completion ships.
 
 **Release claim:** trust and evidence gates documented before any external tester cohort — privacy scan on outbound artifacts, minimum smoke-matrix evidence, degraded-mode honesty — not production-ready, not external beta open, not full multi-OS CI smoke farm.
 
@@ -821,12 +821,20 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 - [x] Beta smoke matrix doc + evidence chain — merged @ `289e7a3` (PR #211; CERBERUS Approve @ `2b6a9f3`)
 - [x] Degraded-mode acceptance policy — merged @ `4380279` (PR #212)
 - [x] External beta limitations + onboarding — merged @ `0407313` (PR #213)
-- [ ] README + verify + claim audit wiring — in progress
-- [ ] Release-prep + tag `v0.15.0-alpha.1`
+- [x] README + verify + claim audit wiring — merged @ `6cc1d17` (PR #214; CERBERUS Approve with non-blocking notes)
+- [ ] Release-prep + tag `v0.15.0-alpha.1` — release-prep in progress
 
 ### Out of scope
 
-External usability beta (v0.16) · `UNTRUSTED-CONTEXT` runtime gate · `CTX-REPO-INDEX` · `RUN-RESUME` · LM Studio / llama.cpp / vLLM functional backends · full CI grid automation for smoke matrix · packaged global installer · production TUI claim.
+External usability beta (v0.17.0-beta.1) · untrusted-context runtime gate · repo-index context gate · run-resume checkpoint gate · LM Studio / llama.cpp / vLLM functional backends · full CI grid automation for smoke matrix · packaged global installer · production TUI claim.
+
+### CERBERUS checks (pre-tag)
+
+- [x] Implementation slices (privacy through verify wiring) — CERBERUS-approved; merges through `6cc1d17`
+- [ ] Release-prep CHANGELOG + checklist claims — pending CERBERUS on release-prep PR
+- [x] No production-ready claim — release claim uses alpha limitations
+- [x] No external-beta / global-installer claim
+- [x] Smoke-matrix PASS rejects `evidence.disqualifies_beta_success === true` when gate validation enabled
 
 ### Forbidden release claims (v0.15)
 
@@ -861,6 +869,43 @@ External usability beta (v0.16) · `UNTRUSTED-CONTEXT` runtime gate · `CTX-REPO
 | 2026-06-20 | verify slice branch | `node scripts/run-beta-gate-hardening-evidence.mjs` → **OK** |
 | 2026-06-20 | verify slice branch | `node --test tests/run-beta-gate-hardening-evidence.test.mjs` → **3/3** |
 | 2026-06-20 | verify slice branch | `node scripts/audit-product-claims.mjs` → **OK** |
+
+### Vulnerability gate (pre-tag)
+
+- [x] `bash scripts/release-trivy-gate.sh` — published scope clean on lane tip @ `6cc1d17`
+
+#### v0.15 validation log (release-prep)
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-20 | Workspace @ `6cc1d17` — lane tip | `cd orchestrator && npm test` → **1126/1127** pass (1 skipped) |
+| 2026-06-20 | Workspace @ `6cc1d17` | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-06-20 | release-prep branch | `node scripts/run-beta-gate-hardening-evidence.mjs` → **OK** |
+| 2026-06-20 | release-prep branch | `node --test tests/run-beta-smoke-matrix.test.mjs` → **15/15** |
+| 2026-06-20 | release-prep branch | `node scripts/run-beta-smoke-matrix.mjs --skip-live` → **OK** |
+| 2026-06-20 | release-prep branch | `node scripts/verify-usage-docs.mjs` → **OK** · `node scripts/audit-product-claims.mjs` → **OK** |
+
+**Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes `CHANGELOG.md`, `docs/**`, `scripts/lib/beta-smoke-matrix-data.mjs`, and `tests/run-beta-smoke-matrix.test.mjs`; `orchestrator/**` unchanged since lane tip @ `6cc1d17`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `6cc1d17` until tag.
+
+| Check | Lane / baseline |
+|-------|-----------------|
+| orchestrator-unit-tests | lane merge PR head @ `6cc1d17` |
+| orchestrator-e2e | lane merge PR head @ `6cc1d17` |
+| Docs usage verify | lane merge PR head @ `6cc1d17` |
+| security-trivy-scan | lane merge PR head @ `6cc1d17` |
+
+### Release execution plan (locked on release-prep merge — Phase B operator steps)
+
+**Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
+
+- [ ] **Tag target:** `v0.15.0-alpha.1` on release-prep merge commit @ `{prep_sha}`
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.15.0-alpha.1` — pre-release published
+- [ ] **`release` branch:** aligned to tag commit (`release_branch_commit` matches `tag_commit`)
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.15.0-alpha.1] - 2026-06-20** (draft on release-prep)
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 
