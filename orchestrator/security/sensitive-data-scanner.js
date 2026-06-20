@@ -2,7 +2,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const { isLocalOnlyModeEnabled } = require("../local-model-policy");
 
 const GATE_ID = "PRIVACY_SANITIZE_GATE";
 
@@ -25,6 +24,14 @@ const SECRET_PLACEHOLDERS = Object.freeze([
 ]);
 
 const PII_PLACEHOLDERS = Object.freeze(["[REDACTED:email]", "[REDACTED:phone]"]);
+
+/** Mirrors local-model-policy env gate — inlined to avoid permissions→model-runtime import. */
+function isLocalOnlyModeEnabled() {
+  const mode = String(process.env.ORCH_MODEL_MODE ?? "").trim().toLowerCase();
+  if (mode === "local_only") return true;
+  const v = String(process.env.ORCH_ALLOW_REMOTE_MODELS ?? "").trim().toLowerCase();
+  return v === "0" || v === "false" || v === "no";
+}
 
 /**
  * @param {string} original

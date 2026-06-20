@@ -93,6 +93,7 @@ describe("module-boundary guard", () => {
     assert.equal(classifyModule("security/trace-security-decision.js"), "permissions");
     assert.equal(classifyModule("security/action-classifiers/classify-action.js"), "permissions");
     assert.equal(classifyModule("security/load-tool-action-manifest.js"), "tools");
+    assert.equal(classifyModule("security/sensitive-data-scanner.js"), "permissions");
     assert.equal(classifyModule("portable-project-template.js"), "shared");
     assert.equal(classifyModule("context-utils.js"), "run-control");
   });
