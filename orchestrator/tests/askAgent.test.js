@@ -14,13 +14,18 @@ const cp = require("child_process");
 
 let callCount    = 0;
 let calledModels = [];
+/** @type {string | null} */
+let lastClaudePrompt = null;
 // Queue of responses: each entry is { output, error } consumed in order.
 // If queue is empty, falls back to defaultResponse.
 let responseQueue   = [];
 let defaultResponse = { output: "", error: null };
 
-function stubSpawnSync(cmd, args, _opts) {
+function stubSpawnSync(cmd, args, opts) {
   callCount++;
+  if (cmd === "claude" && opts && typeof opts.input === "string") {
+    lastClaudePrompt = opts.input;
+  }
   const modelIdx = args.indexOf("--model");
   if (modelIdx !== -1) calledModels.push(args[modelIdx + 1]);
   const resp = responseQueue.length ? responseQueue.shift() : defaultResponse;
@@ -38,6 +43,7 @@ function reset(output, error = null) {
   responseQueue   = [];
   callCount       = 0;
   calledModels    = [];
+  lastClaudePrompt = null;
 }
 
 function queueResponses(...responses) {
@@ -138,6 +144,15 @@ describe("askAgent — dev-backend", () => {
       () => askAgent("dev-backend", "implement X"),
       /\[output contract\]/
     );
+  });
+
+  it("redacts secret-shaped values from remote Claude prompt", async () => {
+    reset(VALID_DEV_OUTPUT);
+    const sk = "sk-" + "z".repeat(21);
+    await askAgent("dev-backend", `store token ${sk} safely`);
+    assert.ok(lastClaudePrompt, "expected claude stdin prompt");
+    assert.ok(!lastClaudePrompt.includes(sk));
+    assert.ok(lastClaudePrompt.includes("[REDACTED:api_token]"));
   });
 });
 

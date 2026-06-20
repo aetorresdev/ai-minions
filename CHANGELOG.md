@@ -61,7 +61,7 @@ Fourteenth alpha pre-release: **Installer + Model Discovery Config** — repo in
 ### Notes
 
 - Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
-- Next roadmap lane after cut: **v0.15 First External Usability Beta** — blocked until this install evidence ships; not part of this release claim.
+- Next roadmap lane after cut: **v0.15 External Beta Gate Hardening** (`BETA-GATE-HARDENING-1`) — not external beta; first cohort opens at **v0.16**.
 
 ## [0.13.0-alpha.1] - 2026-06-16
 

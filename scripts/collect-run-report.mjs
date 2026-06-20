@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { REPO_ROOT, resolveTracesDir } from "./bootstrap-preflight.mjs";
 import { traceFilePath } from "./run-primary-smoke.mjs";
@@ -21,6 +22,11 @@ import {
   runInspectRunEvidence,
   validateTraceJsonl,
 } from "./inspect-run-evidence.mjs";
+
+const require = createRequire(import.meta.url);
+const { applyPrivacySanitizeToBundle, REASON_CODES: PRIVACY_REASON_CODES } = require(
+  "../orchestrator/security/sensitive-data-scanner.js",
+);
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -221,7 +227,15 @@ export function writeBundleFiles(input) {
   fs.writeFileSync(attachPath, attachBody, "utf8");
   bundleFiles.push("ATTACH.md");
 
-  return { manifestPath, attachPath, files: bundleFiles };
+  const privacy = applyPrivacySanitizeToBundle(bundleDir);
+  bundleFiles.push("privacy-scan.json", ...privacy.shareable_files.filter((f) => f !== "privacy-scan.json"));
+
+  return {
+    manifestPath,
+    attachPath,
+    files: [...new Set(bundleFiles)],
+    privacy_scan: privacy.summary,
+  };
 }
 
 /**
@@ -463,6 +477,21 @@ export async function runCollectRunReport(options = {}) {
     reason_code: REASON_CODES.OK,
     status: "pass",
     message: `bundle written to ${bundleDir}`,
+  });
+
+  const privacyReason = written.privacy_scan?.reason_code ?? PRIVACY_REASON_CODES.OK;
+  const privacyStatus =
+    privacyReason === PRIVACY_REASON_CODES.FAILED_BLOCKED
+      ? "fail"
+      : privacyReason === PRIVACY_REASON_CODES.OK
+        ? "pass"
+        : "warn";
+  checks.push({
+    id: "privacy_scan",
+    layer: "privacy",
+    reason_code: privacyReason,
+    status: privacyStatus,
+    message: `pii=${written.privacy_scan?.redaction_counts?.pii ?? 0} secret=${written.privacy_scan?.redaction_counts?.secret ?? 0}`,
   });
 
   if (!inspectReport.ok) {

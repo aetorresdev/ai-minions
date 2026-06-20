@@ -66,7 +66,37 @@ describe("collect-run-report", () => {
     assert.ok(fs.existsSync(path.join(out, "trace", "task-ok.jsonl")));
     assert.ok(fs.existsSync(path.join(out, "artifacts", "status.txt")));
     assert.ok(fs.existsSync(path.join(out, "ATTACH.md")));
+    assert.ok(fs.existsSync(path.join(out, "privacy-scan.json")));
+    assert.ok(fs.existsSync(path.join(out, "shareable", "trace", "task-ok.jsonl")));
     assert.match(formatReportText(report), /BUNDLE_OK/);
+  });
+
+  it("redacts sensitive shapes in shareable bundle copies", async () => {
+    const traces = fs.mkdtempSync(path.join(os.tmpdir(), "collect-traces-"));
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), "collect-out-"));
+    const sk = "sk-" + "x".repeat(21);
+    const email = "user" + "@" + "example.com";
+    fs.writeFileSync(
+      path.join(traces, "task-privacy.jsonl"),
+      `${JSON.stringify({ event: "session_start", goal: `leak ${sk} ${email}` })}\n`,
+    );
+
+    const report = await runCollectRunReport({
+      taskId: "task-privacy",
+      tracesDir: traces,
+      outDir: out,
+      skipPanels: true,
+      invokeStatus: () => ({ exitCode: 0, stdout: "ok\n", stderr: "" }),
+      invokeExplain: () => ({ exitCode: 0, stdout: "summary\n", stderr: "" }),
+    });
+
+    const shareableTrace = fs.readFileSync(
+      path.join(out, "shareable", "trace", "task-privacy.jsonl"),
+      "utf8",
+    );
+    assert.ok(!shareableTrace.includes(sk));
+    assert.ok(!shareableTrace.includes(email));
+    assert.ok(report.checks.some((c) => c.id === "privacy_scan"));
   });
 
   it("collects bundle when inspect fails but trace is valid", async () => {
