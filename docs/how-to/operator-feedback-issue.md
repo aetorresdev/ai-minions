@@ -6,6 +6,8 @@ Official GitHub issue form for **operator-path feedback** after v0.11 entry + v0
 
 **Prerequisites:** [beta known limitations](beta-known-limitations.md) · [beta tester guide](beta-tester-guide.md) (internal dry-run) · [operator guided run](operator-guided-run.md) · [collect run report](collect-run-report.md)
 
+**Redaction:** [beta-known-limitations § Redaction](beta-known-limitations.md#redaction-policy-before-upload) · [trace-privacy](../orchestrator/trace-privacy-contract.md) · [privacy sanitize gate](../orchestrator/privacy-sanitize-gate-contract.md) (`PRIVACY_*`)
+
 ---
 
 ## When to use
@@ -27,7 +29,7 @@ Official GitHub issue form for **operator-path feedback** after v0.11 entry + v0
 3. Collect bundle: `node scripts/collect-run-report.mjs <task_id>` from repo root.
 4. Open **New issue** → **Operator feedback (runner:tui)** on GitHub.
 5. Copy fields from bundle `ATTACH.md` where they match (task id, commit, blockers, severity).
-6. Attach redacted bundle files or paste relevant excerpts — **never** raw `.env` or secrets.
+6. Attach redacted bundle files or paste relevant excerpts — **never** raw `.env`, credential files, or live tokens. Confirm no `PRIVACY_SCAN_FAILED_BLOCKED` path sent unreviewed content to a remote provider before blaming the privacy gate.
 
 ---
 

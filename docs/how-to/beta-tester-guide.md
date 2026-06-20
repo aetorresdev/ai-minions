@@ -4,7 +4,9 @@ End-to-end runbook for an **internal operator** playing beta tester: entry path 
 
 **Audience:** you already know Git, Node, and basic terminal use. You are **not** validating a production deployment.
 
-**Prerequisites (read first):** [beta known limitations](beta-known-limitations.md) · [operator feedback issue](operator-feedback-issue.md)
+**Contract:** [beta-limitations-onboarding-contract](../orchestrator/beta-limitations-onboarding-contract.md)
+
+**Prerequisites (read first):** [beta known limitations](beta-known-limitations.md) · [beta degraded-mode policy](beta-degraded-mode-policy.md) · [operator feedback issue](operator-feedback-issue.md)
 
 ---
 
@@ -46,6 +48,8 @@ Record the commit you are testing:
 ```bash
 git rev-parse --short HEAD
 ```
+
+**Gate docs (required):** skim [beta-known-limitations](beta-known-limitations.md) onboarding table, [beta-degraded-mode-policy](beta-degraded-mode-policy.md), and [beta-smoke-matrix](beta-smoke-matrix.md) § Minimum gate cells. Note: smoke matrix is maintainer evidence — your dry-run proves the **operator chain**, not every matrix cell.
 
 ---
 
@@ -141,8 +145,12 @@ node scripts/collect-run-report.mjs <task_id>
 **Pass:** both exit `0`. Open the bundle directory printed by the collector.
 
 1. Read `ATTACH.md` — pre-filled fields for the GitHub form.
-2. Read `manifest.json` — commit, paths, inspect verdict.
-3. **Redact** secrets before any paste or upload — strip `.env` values, tokens, PATs, API keys. See [trace-privacy](../orchestrator/trace-privacy-contract.md).
+2. Read `manifest.json` — commit, paths, inspect verdict, `degraded_mode`, `disqualifies_beta_success`, `risk_acceptance_reason`.
+3. **Redact before any paste or upload** (see [beta-known-limitations § Redaction](beta-known-limitations.md#redaction-policy-before-upload)):
+   - Strip `.env`, tokens, PATs, API keys, credential files.
+   - Prefer repo-relative paths over home-directory paths in issue text.
+   - If `disqualifies_beta_success` is `true`, do **not** describe the run as smoke-matrix PASS or external-beta evidence.
+4. Depth: [trace-privacy](../orchestrator/trace-privacy-contract.md) · [privacy sanitize gate](../orchestrator/privacy-sanitize-gate-contract.md) (`PRIVACY_*` on remote paths).
 
 If inspect reports `INSPECT_*` blockers or bundle reports `BUNDLE_*` failures, include them in your issue (expected during dry-run when something breaks).
 
@@ -197,6 +205,8 @@ node scripts/collect-run-report.mjs <task_id>
 | Doc | Role |
 |-----|------|
 | [beta-known-limitations](beta-known-limitations.md) | Honesty boundaries before you start |
+| [beta-degraded-mode-policy](beta-degraded-mode-policy.md) | Degraded-mode beta eligibility |
+| [beta-limitations-onboarding-contract](../orchestrator/beta-limitations-onboarding-contract.md) | Doc chain + redaction contract |
 | [operator-guided-run](operator-guided-run.md) | `runner:tui` phase detail |
 | [operator-feedback-issue](operator-feedback-issue.md) | Form field map |
 | [beta-dry-run-checklist](beta-dry-run-checklist.md) | Scorable checklist + exit bar |

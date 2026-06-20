@@ -819,10 +819,10 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 
 - [x] Privacy sanitize gate (`SensitiveDataScanner` + `PRIVACY_*`) — merged @ `d4f0374` (PR #210)
 - [x] Beta smoke matrix doc + evidence chain — merged @ `289e7a3` (PR #211; CERBERUS Approve @ `2b6a9f3`)
-- [ ] Degraded-mode acceptance policy — E15-3 in progress
-- [ ] External beta limitations + onboarding — E15-4
-- [ ] README + verify + claim audit wiring — E15-5
-- [ ] Release-prep + tag `v0.15.0-alpha.1` — E15-6
+- [x] Degraded-mode acceptance policy — merged @ `4380279` (PR #212)
+- [ ] External beta limitations + onboarding — in progress
+- [ ] README + verify + claim audit wiring
+- [ ] Release-prep + tag `v0.15.0-alpha.1`
 
 ### Out of scope
 
@@ -832,20 +832,27 @@ External usability beta (v0.16) · `UNTRUSTED-CONTEXT` runtime gate · `CTX-REPO
 
 "production-ready" · "external beta open" · "external usability beta ready" · "global installer" · "production TUI shipped" · "hosted control plane included" · "multi-OS CI smoke farm shipped".
 
-#### v0.15 validation log (E15-2)
+#### v0.15 validation log (smoke matrix slice)
 
 | Date | Context | Outcome |
 |------|---------|---------|
-| 2026-06-20 | E15-2 branch | `node scripts/run-beta-smoke-matrix.mjs --skip-live` → **OK** |
-| 2026-06-20 | E15-2 branch | `node --test tests/run-beta-smoke-matrix.test.mjs` → **14/14** |
-| 2026-06-20 | E15-2 branch | `node scripts/verify-usage-docs.mjs` → **OK** |
+| 2026-06-20 | smoke matrix slice branch | `node scripts/run-beta-smoke-matrix.mjs --skip-live` → **OK** |
+| 2026-06-20 | smoke matrix slice branch | `node --test tests/run-beta-smoke-matrix.test.mjs` → **14/14** |
+| 2026-06-20 | smoke matrix slice branch | `node scripts/verify-usage-docs.mjs` → **OK** |
 
-#### v0.15 validation log (E15-3)
+#### v0.15 validation log (degraded-mode policy slice)
 
 | Date | Context | Outcome |
 |------|---------|---------|
-| 2026-06-20 | E15-3 branch | `node --test tests/degraded-mode-evidence.test.mjs` → **7/7** |
-| 2026-06-20 | E15-3 branch | `node scripts/verify-usage-docs.mjs` → **OK** |
+| 2026-06-20 | degraded-mode policy slice branch | `node --test tests/degraded-mode-evidence.test.mjs` → **7/7** |
+| 2026-06-20 | degraded-mode policy slice branch | `node scripts/verify-usage-docs.mjs` → **OK** |
+
+#### v0.15 validation log (limitations + onboarding slice)
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-20 | limitations + onboarding slice branch | `node --test tests/beta-limitations-onboarding.test.mjs` → **3/3** |
+| 2026-06-20 | limitations + onboarding slice branch | `node scripts/verify-usage-docs.mjs` → **OK** |
 
 ## Future alpha / beta gates (positioning)
 

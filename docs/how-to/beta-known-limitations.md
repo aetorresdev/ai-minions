@@ -1,10 +1,40 @@
-# Beta known limitations (candidate)
+# Beta known limitations (v0.15 gate hardening)
 
-Public-facing honesty doc for **internal beta dry-run** and future external testers. Consolidates the **shipped operator surface** after v0.11 entry path + v0.12 operator UX — without inventing new capabilities.
+Public-facing honesty doc for **internal beta dry-run** and future external testers. Consolidates the **shipped operator surface** after v0.11 entry path + v0.12 operator UX + v0.15 trust gates — without inventing new capabilities.
+
+**Contract:** [beta-limitations-onboarding-contract](../orchestrator/beta-limitations-onboarding-contract.md)
 
 **Audience:** someone who can clone, bootstrap, run `runner:tui`, inspect evidence, and attach a report bundle — **not** a production deployment checklist.
 
 **Canonical depth:** root [`README.md`](../../README.md) § Known limitations · [`orchestrator/README.md`](../../orchestrator/README.md) § Known limitations (alpha) · maturity table in root README.
+
+---
+
+## Onboarding read order (before dry-run)
+
+| Step | Doc | Why |
+|------|-----|-----|
+| 1 | This doc | Honesty boundaries + not-claimed table |
+| 2 | [beta-degraded-mode-policy](beta-degraded-mode-policy.md) | When runs cannot count as beta success |
+| 3 | [beta-smoke-matrix](beta-smoke-matrix.md) | Minimum gate cells (maintainer evidence) |
+| 4 | [beta-tester-guide](beta-tester-guide.md) | End-to-end runbook |
+| 5 | [beta-dry-run-checklist](beta-dry-run-checklist.md) | Scorable checklist |
+
+**Redaction depth (before any upload):** [trace-privacy](../orchestrator/trace-privacy-contract.md) · [privacy sanitize gate](../orchestrator/privacy-sanitize-gate-contract.md).
+
+---
+
+## v0.15 trust gates (shipped — not external beta)
+
+These gates harden evidence **before** any external tester cohort. They do **not** open external beta.
+
+| Gate | What it enforces | Doc / codes |
+|------|------------------|-------------|
+| Privacy sanitize | Outbound scan on remote-capable paths; block on scan failure | [privacy-sanitize-gate-contract](../orchestrator/privacy-sanitize-gate-contract.md) · `PRIVACY_*` |
+| Smoke matrix | Documented minimum OS × provider × flow cells | [beta-smoke-matrix](beta-smoke-matrix.md) · `SMOKE_MATRIX_*` |
+| Degraded-mode policy | Disqualifying degraded runs cannot back PASS evidence | [beta-degraded-mode-policy](beta-degraded-mode-policy.md) · `INSPECT_DEGRADED_*` |
+
+**Not claimed:** satisfying internal dry-run alone does not open external usability beta (→ v0.16+ release gates).
 
 ---
 
@@ -37,11 +67,12 @@ These match the **actual shipped surface** — not a roadmap wish list.
 | `runner:tui` | **CLI MVP** — stdout panels and scripts, **not** a shipped production TUI or hosted web UI | [operator-guided-run](operator-guided-run.md) · [runner-tui-contract](../orchestrator/runner-tui-contract.md) |
 | `npm test` | Harness contract tests — **not** full interactive agent smoke in CI | Root [Known limitations](../../README.md#known-limitations-alpha) |
 | `FLOW: multi_agent` | Incomplete for broad comparisons; metrics **directional only** | Root [Status — SA vs MA](../../README.md#status--sa-vs-ma) |
-| Degraded mode | Missing MCPs or `--skip-gates` = weaker protection; banner must be visible | [strict-mode](../orchestrator/strict-mode.md) |
+| Degraded mode | Missing MCPs or `--skip-gates` = weaker protection; disqualifying runs cannot back smoke-matrix PASS | [beta-degraded-mode-policy](beta-degraded-mode-policy.md) · [strict-mode](../orchestrator/strict-mode.md) |
+| Privacy outbound scan | Remote-capable paths scan before send; failures block with `PRIVACY_*` | [privacy-sanitize-gate-contract](../orchestrator/privacy-sanitize-gate-contract.md) |
 | Live smoke in CI | Fresh-clone / primary smoke are **documented evidence paths**, not automatic PR merge gates | [fresh-clone-evidence](fresh-clone-evidence.md) |
 | Feedback loop | Report bundle + GitHub issue form | [operator-feedback-issue](operator-feedback-issue.md) · [collect-run-report](collect-run-report.md) |
 | External beta | **No** external tester cohort yet — internal dry-run only until beta gate satisfied | This doc + [beta-tester-guide](beta-tester-guide.md) |
-| Secrets in attachments | Redact before upload — **never** attach `.env`, tokens, or credential files | [collect-run-report](collect-run-report.md) · [trace-privacy](../orchestrator/trace-privacy-contract.md) |
+| Secrets in attachments | Redact before upload — **never** attach `.env`, tokens, or credential files | [Redaction policy](#redaction-policy-before-upload) · [trace-privacy](../orchestrator/trace-privacy-contract.md) |
 | Sandbox / isolation | Harness **reduces** risk; widening permissions or skipping gates can still cause real damage | [security-posture](../orchestrator/security-posture.md) |
 
 ---
@@ -73,8 +104,29 @@ If product copy or a third-party summary contradicts this table, treat **this do
 | `BUNDLE_*` | Report bundle collector | `collect-run-report.mjs` |
 | `SMOKE_MATRIX_*` | Beta smoke matrix structure / gate | `run-beta-smoke-matrix.mjs` |
 | `INSPECT_DEGRADED_*` | Degraded-mode beta eligibility | `inspect-run-evidence.mjs` · `collect-run-report.mjs` |
+| `PRIVACY_*` | Outbound privacy sanitize gate | `SensitiveDataScanner` · remote send path |
 
 Renaming or merging prefixes breaks CI doc contracts — report mismatches as doc/contract bugs, not “wrong error message” unless the contract doc says otherwise.
+
+---
+
+## Redaction policy (before upload)
+
+Apply **before** filing GitHub issues, pasting bundle excerpts, or sharing traces outside your machine.
+
+| Never attach or paste | Do instead |
+|-----------------------|------------|
+| `.env`, `credentials.json`, API keys, PATs, bearer tokens | Remove file; replace values with `[REDACTED]` |
+| Full trace JSONL with unmatched secret shapes | Review `ATTACH.md`; excerpt only redacted fields |
+| Home-directory paths with account names | Use repo-relative paths in issue body |
+
+**Layers:**
+
+1. **Writer/read trace redaction** — [trace-privacy-contract](../orchestrator/trace-privacy-contract.md) (`[REDACTED:…]` patterns).
+2. **Outbound privacy scan** — [privacy-sanitize-gate-contract](../orchestrator/privacy-sanitize-gate-contract.md) on remote-capable runs (`PRIVACY_SCAN_OK`, `PRIVACY_SECRET_REDACTED`, `PRIVACY_SCAN_FAILED_BLOCKED`, etc.).
+3. **Human review** — `collect-run-report.mjs` does not auto-upload; operator verifies `ATTACH.md` before copy.
+
+If `disqualifies_beta_success` is `true` in the bundle, you may still file feedback — but do **not** claim smoke-matrix PASS or external-beta readiness for that run.
 
 ---
 

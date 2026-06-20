@@ -16,8 +16,9 @@ Scorable checklist for the **internal beta dry-run** in [beta-tester-guide](beta
 |---|-------|----------|--------|----------|
 | 0.1 | Fresh clone (or documented why not) | yes | | clone path + date |
 | 0.2 | `git rev-parse --short HEAD` recorded | yes | | SHA in notes or bundle |
-| 0.3 | [beta-known-limitations](beta-known-limitations.md) read | yes | | initials / date |
+| 0.3 | [beta-known-limitations](beta-known-limitations.md) read (incl. redaction policy) | yes | | initials / date |
 | 0.4 | [beta-degraded-mode-policy](beta-degraded-mode-policy.md) read | yes | | initials / date |
+| 0.5 | [beta-smoke-matrix](beta-smoke-matrix.md) § Minimum gate cells skimmed | yes | | initials / date |
 
 ---
 
@@ -89,5 +90,6 @@ Scorable checklist for the **internal beta dry-run** in [beta-tester-guide](beta
 | [operator-feedback-issue](operator-feedback-issue.md) | Form field map |
 | [collect-run-report](collect-run-report.md) | Bundle + `ATTACH.md` |
 | [beta-known-limitations](beta-known-limitations.md) | Honesty boundaries |
+| [beta-limitations-onboarding-contract](../orchestrator/beta-limitations-onboarding-contract.md) | Onboarding chain contract |
 | [beta-smoke-matrix](beta-smoke-matrix.md) | External beta gate matrix (OS × provider × flow) |
 | [beta-degraded-mode-policy](beta-degraded-mode-policy.md) | Degraded-mode beta eligibility rules |

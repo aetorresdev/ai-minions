@@ -58,6 +58,10 @@ const BETA_SMOKE_MATRIX_RECORD = path.join(
 );
 const BETA_SMOKE_MATRIX_SCRIPT = path.join(REPO_ROOT, "scripts/run-beta-smoke-matrix.mjs");
 const BETA_DEGRADED_POLICY = path.join(REPO_ROOT, "docs/how-to/beta-degraded-mode-policy.md");
+const BETA_LIMITATIONS_ONBOARDING_CONTRACT = path.join(
+  REPO_ROOT,
+  "docs/orchestrator/beta-limitations-onboarding-contract.md",
+);
 const DEGRADED_MODE_EVIDENCE = path.join(REPO_ROOT, "scripts/lib/degraded-mode-evidence.mjs");
 const CLAIM_AUDIT_SCRIPT = path.join(REPO_ROOT, "scripts/audit-product-claims.mjs");
 const EVIDENCE_SCRIPT = path.join(REPO_ROOT, "scripts/run-fresh-clone-evidence.mjs");
@@ -209,6 +213,9 @@ function checkOperatorFeedbackIssueDoc(docText) {
   mustInclude(docText, "collect-run-report.mjs", "attach generator script", rel);
   mustInclude(docText, "ATTACH.md", "attach skeleton reference", rel);
   mustInclude(docText, "beta-tester-guide", "beta tester guide link", rel);
+  mustInclude(docText, "privacy-sanitize-gate-contract", "privacy gate link", rel);
+  mustInclude(docText, "PRIVACY_*", "privacy reason codes", rel);
+  mustInclude(docText, "Redaction", "redaction policy link", rel);
   mustInclude(docText, "INSPECT_*", "inspect reason codes", rel);
   mustInclude(docText, "BLOCKER", "severity guide", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
@@ -240,6 +247,12 @@ function checkBetaKnownLimitationsDoc(docText) {
   mustInclude(docText, "beta-dry-run-checklist", "dry-run checklist link", rel);
   mustInclude(docText, "beta-smoke-matrix", "smoke matrix link", rel);
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy link", rel);
+  mustInclude(docText, "beta-limitations-onboarding-contract", "onboarding contract link", rel);
+  mustInclude(docText, "Redaction policy", "redaction policy section", rel);
+  mustInclude(docText, "trace-privacy-contract", "trace privacy contract link", rel);
+  mustInclude(docText, "privacy-sanitize-gate-contract", "privacy gate contract link", rel);
+  mustInclude(docText, "PRIVACY_*", "privacy reason codes", rel);
+  mustInclude(docText, "v0.15 trust gates", "gate hardening section", rel);
   mustInclude(docText, "audit-product-claims.mjs", "claim audit reference", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
@@ -260,6 +273,10 @@ function checkBetaTesterGuideDoc(docText) {
   mustInclude(docText, "internal", "internal dry-run audience", rel);
   mustInclude(docText, "beta-dry-run-checklist", "dry-run checklist link", rel);
   mustInclude(docText, "beta-smoke-matrix", "smoke matrix link", rel);
+  mustInclude(docText, "beta-degraded-mode-policy", "degraded policy prerequisite", rel);
+  mustInclude(docText, "beta-limitations-onboarding-contract", "onboarding contract link", rel);
+  mustInclude(docText, "disqualifies_beta_success", "degraded bundle field", rel);
+  mustInclude(docText, "privacy-sanitize-gate-contract", "privacy gate link", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -275,6 +292,8 @@ function checkBetaDryRunChecklistDoc(docText) {
   mustInclude(docText, "Phase B", "operator path phase", rel);
   mustInclude(docText, "Phase C", "evidence phase", rel);
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy link", rel);
+  mustInclude(docText, "beta-limitations-onboarding-contract", "onboarding contract link", rel);
+  mustInclude(docText, "0.5", "smoke matrix read row", rel);
   mustInclude(docText, "risk_acceptance_reason", "degraded field check", rel);
   mustInclude(docText, "Phase D", "feedback phase", rel);
   mustInclude(docText, "PASS", "scoring semantics", rel);
@@ -406,6 +425,20 @@ function checkInstallEvidenceDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkBetaLimitationsOnboardingContract(docText) {
+  const rel = "docs/orchestrator/beta-limitations-onboarding-contract.md";
+  if (!docText) return;
+  mustInclude(docText, "beta-known-limitations", "limitations how-to link", rel);
+  mustInclude(docText, "beta-tester-guide", "tester guide link", rel);
+  mustInclude(docText, "Redaction policy", "redaction policy section", rel);
+  mustInclude(docText, "trace-privacy-contract", "trace privacy link", rel);
+  mustInclude(docText, "privacy-sanitize-gate-contract", "privacy gate link", rel);
+  mustInclude(docText, "no production SLA", "sla honesty", rel);
+  mustInclude(docText, "disqualifies_beta_success", "degraded field", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkBetaDegradedPolicyDoc(docText) {
   const rel = "docs/how-to/beta-degraded-mode-policy.md";
   if (!docText) return;
@@ -479,6 +512,7 @@ function main() {
   const installEvidenceText = readUtf8(INSTALL_EVIDENCE);
   const betaSmokeMatrixText = readUtf8(BETA_SMOKE_MATRIX);
   const betaDegradedPolicyText = readUtf8(BETA_DEGRADED_POLICY);
+  const betaLimitationsContractText = readUtf8(BETA_LIMITATIONS_ONBOARDING_CONTRACT);
   const operatorBridgeText = readUtf8(OPERATOR_PREFLIGHT_BRIDGE);
   const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
@@ -538,6 +572,7 @@ function main() {
   if (installEvidenceText) checkInstallEvidenceDoc(installEvidenceText);
   if (betaSmokeMatrixText) checkBetaSmokeMatrixDoc(betaSmokeMatrixText);
   if (betaDegradedPolicyText) checkBetaDegradedPolicyDoc(betaDegradedPolicyText);
+  if (betaLimitationsContractText) checkBetaLimitationsOnboardingContract(betaLimitationsContractText);
   if (operatorBridgeText) checkOperatorPreflightBridgeDoc(operatorBridgeText);
   if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
   if (inspectEvidenceText) checkInspectRunEvidenceDoc(inspectEvidenceText);
