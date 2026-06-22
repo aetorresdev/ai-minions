@@ -7,7 +7,7 @@
     "agents/runtime/run-ollama.js::../../orchestrator.js::orchestrator.js::matrix",
     "modules/model-runtime/flow-hook-bridge.js::../../worktree-isolation::worktree-isolation.js::matrix",
     "modules/model-runtime/runner-model-routing.js::../../runner-preflight::runner-preflight.js::matrix",
-    "mcp-client.js::./governance-gate::governance-gate.js::matrix",
+    "modules/tools/mcp-client.js::../../governance-gate::governance-gate.js::matrix",
     "modules/budget/token-trace-report.js::../../security/permission-check-summary::security/permission-check-summary.js::matrix",
     "modules/operator/runner-launcher.js::../../local-model-policy::local-model-policy.js::matrix",
     "modules/operator/runner-launcher.js::../../runner-model-routing::runner-model-routing.js::matrix",

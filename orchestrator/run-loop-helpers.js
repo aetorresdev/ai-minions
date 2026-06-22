@@ -6,7 +6,7 @@ const path = require("path");
 const { validateHandoffForMode } = require("./qa-spec-flow");
 const { _hashGoal, TRACE_REDACT_GOAL } = require("./trace-writer");
 const { runNetworkPermissionGate } = require("./security/network-permission-gate");
-const { emitPermissionCheckTrace } = require("./mcp-client");
+const { emitPermissionCheckTrace } = require("./modules/tools");
 
 function stripLeadingOwnerArchitectForDegradedMultiAgent(steps) {
   if (!Array.isArray(steps) || steps.length === 0) return steps;

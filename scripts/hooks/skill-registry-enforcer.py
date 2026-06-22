@@ -2,7 +2,7 @@
 """
 skill-registry-enforcer.py — PreToolUse hook for Skill tool
 
-Deny-by-default allowlist from orchestrator/security/skill-registry.v1.json when
+Deny-by-default allowlist from orchestrator/modules/tools/skill-registry.v1.json when
 ORCH_SKILL_REGISTRY_ENFORCE=1. Opt-in so IDE discovery of external skills is
 unchanged until operators enable enforcement.
 """
@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from gate_logger import log_gate_event
 
-REGISTRY_REL = Path("orchestrator/security/skill-registry.v1.json")
+REGISTRY_REL = Path("orchestrator/modules/tools/skill-registry.v1.json")
 
 
 def repo_root() -> Path:
