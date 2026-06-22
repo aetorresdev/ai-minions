@@ -96,14 +96,14 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | **contracts** | `modules/contracts/` (`*-design.js` validators) · shims: `bv-reviewer-design.js`, `progressive-disclosure-design.js`, `self-improvement-loop-design.js` · `validate-output.js` (via agents) · `tests/*Contract.test.js`, `tests/handoffContract.test.js`, `tests/sandboxCredentialIsolationDesign.test.js`, `tests/moduleBoundariesContract.test.js` |
 | **gates** | `modules/gates/` (`governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js`) · shims: `governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
 | **permissions** | `agents/permissions.js`, `agents/capability-matrix.js`, `credential-broker.js`, `environment-parser.js` |
-| **tools** | `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js`, `mcp-client.js` |
+| **tools** | `modules/tools/` (`index.js`, `mcp-client.js`, `tool-eval.js`, `skill-registry.js`, `untrusted-context-eval.js` + fixtures) · shims: root `mcp-client.js`, `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js` · permission gate shells remain under `security/` |
 | **model-runtime** | `modules/model-runtime/` (`model-policy-config.js`, `model-tier-gate.js`) · `agents/runtime/*`, `agents/routing/model-routing.js`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
 | **trace** | `modules/trace/` (`trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js`) · shims at legacy root paths |
 | **recovery** | `modules/recovery/` (`recovery-sweep.js`, `session-resume.js`) · shims: `recovery-sweep.js`, `session-resume.js` |
 | **budget** | `modules/budget/` (`token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`) · shims at legacy root paths |
 | **worktree** | `modules/worktree/` (`worktree-isolation.js`, `worktree-result-promotion.js`, `worktree-cleanup-safety.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js`) · shims at legacy root paths |
 | **operator** | `modules/operator/` (`console-dashboard.js`, `control-plane-tui.js`, `explain-run.js`, `operator-cli-help.js`, `project-template-cli.js`, `runner-budget-view.js`, `runner-launcher.js`, `runner-preflight.js`, `runner-trace-viewer.js`, `runner-tui-cli.js`, `scenario-metrics-export.js`) · shims at legacy root paths · `runner-model-routing.js` stays root (model-runtime) |
-| **disclosure** | `modules/contracts/progressive-disclosure-design.js` (shim at root; classified **disclosure** before generic `contracts` patterns in `module-boundary-rules.js`), `security/skill-registry.js` (metadata only); runtime filter **planned** |
+| **disclosure** | `modules/contracts/progressive-disclosure-design.js` (shim at root; classified **disclosure** before generic `contracts` patterns in `module-boundary-rules.js`), `modules/tools/skill-registry.js` (metadata only; shim at `security/skill-registry.js`); runtime filter **planned** |
 | **shared/legacy** | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` (facade) |
 
 Every new top-level file should declare target module in PR description. New cross-boundary imports fail CI unless added to the allowlist with explicit review justification.
@@ -116,7 +116,7 @@ Every new top-level file should declare target module in PR description. New cro
 |-------------|------|------------------|
 | Design validators at repo root (`*-design.js`) | Shims only — canonical under `modules/contracts/` | New validators land in `modules/contracts/` |
 | `orchestrator.js` imports across gates, trace, permissions, worktree | God-module pressure | Slice run-control facades per phase — deferred |
-| `mcp-client.js` used from run loop and operator paths | Tool transport bleeds into operator | Keep MCP behind tools module API — tools slice deferred |
+| Root `mcp-client.js` imported from run loop | **Closed** (v0.16 E16-3) | Run-control imports `./modules/tools`; root `mcp-client.js` is compat shim only |
 | `recovery` / `trace` gate reader imports | Grandfathered hard-rule allowlist (1 entry) | Consumption-only; trace→gates read of `review-record` |
 | Security helper `require()` paths | **Closed** (v0.10) | Classified under permissions/tools — removed from matrix allowlist |
 | `agents.js` → registry/prompts | **Closed** (v0.10) | Classified shared bucket |
@@ -124,7 +124,7 @@ Every new top-level file should declare target module in PR description. New cro
 
 **Allowlist count:** 34 → 15 (see [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md)).
 
-**None of the above block alpha** — they guide deferred slices (run-control, permissions, tools) and v0.10 allowlist shrink.
+**None of the above block alpha** — they guide deferred slices (run-control, permissions) and v0.10 allowlist shrink.
 
 ---
 

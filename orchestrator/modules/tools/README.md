@@ -34,7 +34,7 @@ Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adja
 
 ```javascript
 const { callStateMcp, beginMcpAudit } = require("./modules/tools");
-const { evaluateToolFixtureRow } = require("./modules/tools/tool-eval");
+const { runToolEvalScenario, runAllToolEvalFixtures } = require("./modules/tools/tool-eval");
 ```
 
 **Root compat shims (deprecated):** `mcp-client.js` re-export. **`security/` compat shims:** `tool-eval.js`, `skill-registry.js`, `untrusted-context-eval.js`.
