@@ -21,7 +21,7 @@ Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adja
 ## Forbidden
 
 - Mutating gate state without trace + human path
-- Owning model routing (`runner-model-routing.js` stays root / model-runtime)
+- Owning model routing (canonical: `modules/model-runtime/runner-model-routing.js`; root shim retained)
 - Permission policy tables
 
 ## Related contracts
@@ -37,4 +37,4 @@ const { buildDashboardText } = require("./modules/operator/console-dashboard");
 const { runTraceViewer } = require("./modules/operator/runner-trace-viewer");
 ```
 
-**Stays at root (model-runtime):** `runner-model-routing.js`.
+**Model-runtime routing:** `modules/model-runtime/runner-model-routing.js` (root shim: `runner-model-routing.js`).

@@ -1,10 +1,14 @@
 "use strict";
 
 /**
- * Model-runtime bounded context — tier policy config (policy loader slice).
- * Selection/routing integration is follow-on (frontier gate + tier summary).
+ * Model-runtime bounded context — discovery, selection, policy, routing, hook bridge.
  */
 module.exports = {
   ...require("./model-policy-config"),
   ...require("./model-tier-gate"),
+  ...require("./local-model-discovery"),
+  ...require("./local-model-selection"),
+  ...require("./local-model-policy"),
+  ...require("./runner-model-routing"),
+  ...require("./flow-hook-bridge"),
 };
