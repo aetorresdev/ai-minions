@@ -811,7 +811,7 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 
 ## v0.15.0-alpha.1 — External Beta Gate Hardening
 
-**Scope:** privacy sanitize gate, beta smoke matrix evidence, degraded-mode policy, beta limitations/onboarding docs, verify/claim wiring. **Prerequisite:** `v0.14.0-alpha.1` @ `bc8bbb4`. **Not** external usability beta — first external usability beta is **v0.17.0-beta.1**, blocked until **v0.16.0-alpha.1** runtime boundary completion ships.
+**Scope:** privacy sanitize gate, beta smoke matrix evidence, degraded-mode policy, beta limitations/onboarding docs, verify/claim wiring. **Prerequisite:** `v0.14.0-alpha.1` @ `bc8bbb4`. **Not** external usability beta — external usability beta is targeted for **v0.20.0-beta.1** after alpha lanes for runtime boundary hardening (v0.16), modular closeout (v0.17), standard operator UX (v0.18), and human-ready rehearsal (v0.19).
 
 **Release claim:** trust and evidence gates documented before any external tester cohort — privacy scan on outbound artifacts, minimum smoke-matrix evidence, degraded-mode honesty — not production-ready, not external beta open, not full multi-OS CI smoke farm.
 
@@ -826,7 +826,7 @@ External usability beta (v0.15) · real external tester cohort · remote credent
 
 ### Out of scope
 
-External usability beta (v0.17.0-beta.1) · untrusted-context runtime gate · repo-index context gate · run-resume checkpoint gate · LM Studio / llama.cpp / vLLM functional backends · full CI grid automation for smoke matrix · packaged global installer · production TUI claim.
+External usability beta (v0.20.0-beta.1) · untrusted-context runtime gate · repo-index context gate · run-resume checkpoint gate · modular closeout · standard/human-ready operator UX lanes · LM Studio / llama.cpp / vLLM functional backends · full CI grid automation for smoke matrix · packaged global installer · production TUI claim.
 
 ### CERBERUS checks (pre-tag)
 

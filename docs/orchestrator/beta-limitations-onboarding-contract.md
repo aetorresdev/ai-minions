@@ -22,7 +22,7 @@ Define honest **limitations** and the **onboarding doc chain** for internal beta
 Docs in this bundle must state:
 
 - **Alpha** — no production SLA, no support promise, no hosted control plane.
-- **Internal dry-run only** — external usability beta not open until **v0.17.0-beta.1** (blocked until **v0.16.0-alpha.1** runtime boundary completion ships).
+- **Internal dry-run only** — external usability beta not open until **v0.20.0-beta.1** (after **v0.16.0-alpha.1** runtime boundary completion, **v0.17.0-alpha.1** modular closeout, **v0.18.0-alpha.1** standard operator UX, and **v0.19.0-alpha.1** human-ready rehearsal).
 - **Manual clone** — no global installer or curl one-liner.
 - **`runner:tui` is CLI MVP** — not a production TUI or web UI.
 - **Degraded runs** — `--skip-gates` and related paths are diagnostic; disqualifying degraded runs cannot back smoke-matrix PASS.
