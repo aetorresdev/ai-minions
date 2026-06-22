@@ -151,7 +151,7 @@ Every new top-level file should declare target module in PR description. New cro
 | **Allowlist** | `orchestrator/module-boundary-allowlist.json` | Grandfathered legacy violations only — new keys require review |
 | **CI** | `npm test` / `orchestrator-unit-tests.yml` | Fails on unlisted violations |
 
-**Still planned:** ESLint `import/no-restricted-paths` zones (optional); run-control, permissions, tools physical slices; allowlist shrink (v0.10 coherence closeout).
+**Still planned:** ESLint `import/no-restricted-paths` zones (optional); run-control, permissions physical slices; allowlist shrink (v0.10 coherence closeout).
 
 **v0.8 physical slices shipped:** contracts · recovery · gates · trace · budget · worktree · operator · partial model-runtime — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
 
