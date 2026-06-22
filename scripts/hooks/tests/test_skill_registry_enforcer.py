@@ -51,7 +51,7 @@ class TestSkillRegistryEnforcer(unittest.TestCase):
         skill_dir = self.root / "skills" / "demo-skill"
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text("---\nname: demo-skill\n---\n", encoding="utf-8")
-        reg_dir = self.root / "orchestrator" / "security"
+        reg_dir = self.root / "orchestrator" / "modules" / "tools"
         reg_dir.mkdir(parents=True)
         (reg_dir / "skill-registry.v1.json").write_text(
             json.dumps(MINI_REGISTRY), encoding="utf-8"

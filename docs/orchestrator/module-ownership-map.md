@@ -72,10 +72,10 @@
 |--|--|
 | **Owns** | Tool classification, skill registry policy, untrusted-context eval, MCP client transport |
 | **Must not own** | Gate verdict parsing; run scheduling |
-| **Current paths** | `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js`, `mcp-client.js` |
-| **Target paths** | `modules/tools/` |
+| **Current paths** | `modules/tools/` (`index.js`, `mcp-client.js`, `tool-eval.js`, `skill-registry.js`, `untrusted-context-eval.js` + fixtures) · shims: root `mcp-client.js`, `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js` · permission gate shells remain under `security/` |
+| **Target paths** | `modules/tools/` *(partial — gate shells stay in `security/`)* |
 | **Coordinates with** | permissions (policy load), trace (security decisions) |
-| **Physical module** | **Not yet** |
+| **Physical module** | **Partial** — MCP client, tool-eval harness, skill registry, untrusted-context eval canonical under `modules/tools/`; permission gate shells still under `security/` |
 
 ### model-runtime
 
@@ -197,13 +197,14 @@ orchestrator/
 │   ├── contracts/
 │   ├── gates/
 │   ├── model-runtime/                   # partial — policy + tier gate (v0.9)
+│   ├── tools/                           # partial — MCP + eval harness (v0.16 E16-3)
 │   ├── operator/
 │   ├── recovery/
 │   ├── trace/
 │   └── worktree/
 ├── run-phases/                          # → modules/run-control/ (not yet)
 ├── agents/                              # → model-runtime + permissions (not yet)
-├── security/                            # → modules/tools/ + permissions (not yet)
+├── security/                            # permission gate shells (+ tools/permissions shims)
 ├── schemas/, scripts/, tests/           # stay (tests mirror over time — follow-on)
 └── … root shims for moved modules       # see root-file-inventory.md
 ```
@@ -216,5 +217,6 @@ orchestrator/
 |------|--------|
 | 2026-06-09 | Initial ownership map — recovery context proposed; current vs target documented |
 | 2026-06-12 | Post-v0.8/v0.9 physical align — eight contexts under `modules/*`; model-runtime partial; run-control/permissions/tools deferred |
+| 2026-05-18 | E16-3 tools partial physical module — canonical `modules/tools/`; root + `security/` compat shims |
 | 2026-06-12 | Link test ownership map — primary owner declared before physical test layout |
 | 2026-06-12 | Per-module README stubs — ownership, allowed imports, forbidden; link to adjacency matrix |

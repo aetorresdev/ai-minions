@@ -132,7 +132,7 @@ const {
   invokeMcpDirect,
   callStateMcp,
   callCompactHandoff,
-} = require("./mcp-client");
+} = require("./modules/tools");
 const { aggregatePermissionCheckRows } = require("./security/permission-check-summary");
 
 // ── Run-loop helpers (env/budget, logging, graph, handoff) ─────────────────────
@@ -1034,7 +1034,7 @@ module.exports = {
   traceIterationDone,
   composeIterationDonePayload,
 
-  // MCP & permission audit (re-exported from mcp-client.js / permission-check-summary.js)
+  // MCP & permission audit (re-exported from modules/tools / permission-check-summary.js)
   emitPermissionCheckTrace,
   aggregateMcpUsage,
   aggregatePermissionCheckRows,

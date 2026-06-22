@@ -44,7 +44,7 @@
     "runtime-preflight.js": "legacy",
     "local-model-policy.js": "shim",
     "local-model-selection.js": "shim",
-    "mcp-client.js": "legacy",
+    "mcp-client.js": "shim",
     "minions-config.js": "legacy",
     "operator-cli-help.js": "shim",
     "orchestrator.js": "legacy",

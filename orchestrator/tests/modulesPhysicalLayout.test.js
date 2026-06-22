@@ -449,6 +449,62 @@ describe("modules physical layout", () => {
     });
   });
 
+  describe("tools", () => {
+    it("physical modules/tools tree exists", () => {
+      for (const rel of [
+        "modules/tools/index.js",
+        "modules/tools/mcp-client.js",
+        "modules/tools/tool-eval.js",
+        "modules/tools/skill-registry.js",
+        "modules/tools/untrusted-context-eval.js",
+        "modules/tools/tool-eval-fixtures.v1.json",
+        "modules/tools/skill-registry.v1.json",
+        "modules/tools/untrusted-context-fixtures.v1.json",
+      ]) {
+        assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root and security shims re-export the same tools APIs", () => {
+      const shimMcp = require("../mcp-client");
+      const canonMcp = require("../modules/tools/mcp-client");
+      assert.equal(typeof shimMcp.callStateMcp, "function");
+      assert.equal(shimMcp.callStateMcp, canonMcp.callStateMcp);
+      assert.equal(typeof shimMcp.beginMcpAudit, "function");
+      assert.equal(shimMcp.beginMcpAudit, canonMcp.beginMcpAudit);
+
+      const shimEval = require("../security/tool-eval");
+      const canonEval = require("../modules/tools/tool-eval");
+      assert.equal(typeof shimEval.validateToolManifestEntry, "function");
+      assert.equal(shimEval.validateToolManifestEntry, canonEval.validateToolManifestEntry);
+
+      const shimRegistry = require("../security/skill-registry");
+      const canonRegistry = require("../modules/tools/skill-registry");
+      assert.equal(shimRegistry.REGISTRY_VERSION, canonRegistry.REGISTRY_VERSION);
+      assert.equal(typeof shimRegistry.loadSkillRegistry, "function");
+
+      const shimUntrusted = require("../security/untrusted-context-eval");
+      const canonUntrusted = require("../modules/tools/untrusted-context-eval");
+      assert.equal(typeof shimUntrusted.runAllUntrustedContextFixtures, "function");
+      assert.equal(shimUntrusted.runAllUntrustedContextFixtures, canonUntrusted.runAllUntrustedContextFixtures);
+    });
+
+    it("modules/tools index aggregates MCP exports for run-control API", () => {
+      const tools = require("../modules/tools");
+      assert.equal(typeof tools.callStateMcp, "function");
+      assert.equal(typeof tools.beginMcpAudit, "function");
+      assert.equal(typeof tools.emitPermissionCheckTrace, "function");
+      assert.equal(typeof tools.validateToolManifestEntry, "function");
+      assert.equal(typeof tools.loadSkillRegistry, "function");
+    });
+
+    it("run-loop-helpers imports tools module API not root mcp-client path", () => {
+      const source = fs.readFileSync(path.join(ORCH, "run-loop-helpers.js"), "utf8");
+      assert.match(source, /require\(["']\.\/modules\/tools["']\)/);
+      assert.doesNotMatch(source, /require\(["']\.\/mcp-client["']\)/);
+    });
+  });
+
   describe("module README stubs", () => {
     const PHYSICAL_CONTEXTS = [
       "gates",
@@ -460,6 +516,7 @@ describe("modules physical layout", () => {
       "operator",
       "model-runtime",
       "permissions",
+      "tools",
     ];
     const REQUIRED_SECTIONS = [
       "## Ownership",
