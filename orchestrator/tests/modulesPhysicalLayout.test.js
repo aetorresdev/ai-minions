@@ -333,7 +333,8 @@ describe("modules physical layout", () => {
       assert.equal(shimBudget.runBudgetView, canonBudget.runBudgetView);
     });
 
-    it("runner-model-routing remains at root (model-runtime)", () => {
+    it("runner-model-routing canonical path lives under model-runtime with root shim", () => {
+      assert.ok(fs.existsSync(path.join(ORCH, "modules/model-runtime/runner-model-routing.js")));
       assert.ok(fs.existsSync(path.join(ORCH, "runner-model-routing.js")));
       assert.equal(fs.existsSync(path.join(ORCH, "modules/operator/runner-model-routing.js")), false);
     });
@@ -355,6 +356,64 @@ describe("modules physical layout", () => {
       );
       assert.match(launcherSource, /require\(["']\.\.\/\.\.\/orchestrator["']\)/);
       assert.doesNotMatch(launcherSource, /require\(["']\.\/orchestrator["']\)/);
+    });
+  });
+
+  describe("model-runtime", () => {
+    it("physical modules/model-runtime tree exists", () => {
+      for (const rel of [
+        "modules/model-runtime/index.js",
+        "modules/model-runtime/model-policy-config.js",
+        "modules/model-runtime/model-tier-gate.js",
+        "modules/model-runtime/local-model-discovery.js",
+        "modules/model-runtime/local-model-selection.js",
+        "modules/model-runtime/local-model-policy.js",
+        "modules/model-runtime/runner-model-routing.js",
+        "modules/model-runtime/flow-hook-bridge.js",
+      ]) {
+        assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root shims re-export the same model-runtime APIs", () => {
+      const shimDiscovery = require("../local-model-discovery");
+      const canonDiscovery = require("../modules/model-runtime/local-model-discovery");
+      assert.equal(shimDiscovery.OLLAMA_BACKEND_ID, canonDiscovery.OLLAMA_BACKEND_ID);
+      assert.equal(typeof shimDiscovery.discoverLocalModels, "function");
+      assert.equal(shimDiscovery.discoverLocalModels, canonDiscovery.discoverLocalModels);
+
+      const shimSelection = require("../local-model-selection");
+      const canonSelection = require("../modules/model-runtime/local-model-selection");
+      assert.equal(shimSelection.SUPPORTED_POLICY_VERSION, canonSelection.SUPPORTED_POLICY_VERSION);
+      assert.equal(typeof shimSelection.selectLocalModel, "function");
+      assert.equal(shimSelection.selectLocalModel, canonSelection.selectLocalModel);
+
+      const shimPolicy = require("../local-model-policy");
+      const canonPolicy = require("../modules/model-runtime/local-model-policy");
+      assert.equal(shimPolicy.GATE_ID, canonPolicy.GATE_ID);
+      assert.equal(typeof shimPolicy.isLocalOnlyModeEnabled, "function");
+      assert.equal(shimPolicy.isLocalOnlyModeEnabled, canonPolicy.isLocalOnlyModeEnabled);
+
+      const shimRouting = require("../runner-model-routing");
+      const canonRouting = require("../modules/model-runtime/runner-model-routing");
+      assert.equal(typeof shimRouting.buildRoleRoutingPreview, "function");
+      assert.equal(shimRouting.buildRoleRoutingPreview, canonRouting.buildRoleRoutingPreview);
+
+      const shimBridge = require("../flow-hook-bridge");
+      const canonBridge = require("../modules/model-runtime/flow-hook-bridge");
+      assert.equal(typeof shimBridge.deriveRunScope, "function");
+      assert.equal(shimBridge.deriveRunScope, canonBridge.deriveRunScope);
+    });
+
+    it("modules/model-runtime index aggregates core exports", () => {
+      const modelRuntime = require("../modules/model-runtime");
+      assert.equal(typeof modelRuntime.discoverLocalModels, "function");
+      assert.equal(typeof modelRuntime.selectLocalModel, "function");
+      assert.equal(typeof modelRuntime.isLocalOnlyModeEnabled, "function");
+      assert.equal(typeof modelRuntime.buildRoleRoutingPreview, "function");
+      assert.equal(typeof modelRuntime.deriveRunScope, "function");
+      assert.equal(typeof modelRuntime.loadModelPolicyConfig, "function");
+      assert.equal(typeof modelRuntime.evaluateModelTierGate, "function");
     });
   });
 

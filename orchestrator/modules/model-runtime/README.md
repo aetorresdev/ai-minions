@@ -1,6 +1,6 @@
 # Model-runtime module
 
-Bounded context stub for `modules/model-runtime/`. **Partial physical slice** — policy loader and tier gate only; discovery/selection/adapters remain at root/`agents/`. **Not** architecture complete.
+Bounded context for `modules/model-runtime/`. **Partial physical slice** — discovery, selection, policy, runner routing, and hook bridge are canonical under this module; `agents/runtime/*` and `agents/routing/` remain at legacy paths. **Not** architecture complete.
 
 ## Ownership
 
@@ -34,6 +34,7 @@ Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adja
 ```javascript
 const { loadModelPolicyConfig } = require("./modules/model-runtime/model-policy-config");
 const { evaluateModelTierGate } = require("./modules/model-runtime/model-tier-gate");
+const { discoverLocalModels } = require("./modules/model-runtime/local-model-discovery");
 ```
 
-**Stays at root (same bounded context):** `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js`, `agents/runtime/*`, `agents/routing/`.
+**Root compat shims (deprecated):** `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` re-export canonical modules. **Legacy paths:** `agents/runtime/*`, `agents/routing/`.

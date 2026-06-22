@@ -5,7 +5,8 @@
     "agents/runtime/run-classified-shell.js::../../orchestrator.js::orchestrator.js::matrix",
     "agents/runtime/run-claude.js::../../orchestrator.js::orchestrator.js::matrix",
     "agents/runtime/run-ollama.js::../../orchestrator.js::orchestrator.js::matrix",
-    "flow-hook-bridge.js::./worktree-isolation::worktree-isolation.js::matrix",
+    "modules/model-runtime/flow-hook-bridge.js::../../worktree-isolation::worktree-isolation.js::matrix",
+    "modules/model-runtime/runner-model-routing.js::../../runner-preflight::runner-preflight.js::matrix",
     "mcp-client.js::./governance-gate::governance-gate.js::matrix",
     "modules/budget/token-trace-report.js::../../security/permission-check-summary::security/permission-check-summary.js::matrix",
     "modules/operator/runner-launcher.js::../../local-model-policy::local-model-policy.js::matrix",
@@ -14,8 +15,7 @@
     "modules/operator/runner-preflight.js::../../local-model-selection::local-model-selection.js::matrix",
     "modules/operator/runner-tui-cli.js::../../runner-model-routing::runner-model-routing.js::matrix",
     "modules/worktree/worktree-isolation.js::../../agents/runtime/run-classified-shell::agents/runtime/run-classified-shell.js::matrix",
-    "run-orchestrator.js::./operator-cli-help::operator-cli-help.js::matrix",
-    "runner-model-routing.js::./runner-preflight::runner-preflight.js::matrix"
+    "run-orchestrator.js::./operator-cli-help::operator-cli-help.js::matrix"
   ],
   "hard": [
     "modules/trace/run-outcome-summary.js::../gates/review-record::modules/gates/review-record.js::trace-not-policy"
