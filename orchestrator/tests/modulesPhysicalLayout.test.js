@@ -417,6 +417,38 @@ describe("modules physical layout", () => {
     });
   });
 
+  describe("permissions", () => {
+    it("physical modules/permissions tree exists", () => {
+      for (const rel of [
+        "modules/permissions/index.js",
+        "modules/permissions/credential-broker.js",
+        "modules/permissions/environment-parser.js",
+      ]) {
+        assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root shims re-export the same permissions APIs", () => {
+      const shimBroker = require("../credential-broker");
+      const canonBroker = require("../modules/permissions/credential-broker");
+      assert.equal(typeof shimBroker.requestCredentialUse, "function");
+      assert.equal(shimBroker.requestCredentialUse, canonBroker.requestCredentialUse);
+      assert.deepEqual(shimBroker.READ_OPERATIONS, canonBroker.READ_OPERATIONS);
+
+      const shimParser = require("../environment-parser");
+      const canonParser = require("../modules/permissions/environment-parser");
+      assert.equal(typeof shimParser.parseEnvironment, "function");
+      assert.equal(shimParser.parseEnvironment, canonParser.parseEnvironment);
+    });
+
+    it("modules/permissions index aggregates core exports", () => {
+      const permissions = require("../modules/permissions");
+      assert.equal(typeof permissions.requestCredentialUse, "function");
+      assert.equal(typeof permissions.parseEnvironment, "function");
+      assert.equal(typeof permissions.classifyOperation, "function");
+    });
+  });
+
   describe("module README stubs", () => {
     const PHYSICAL_CONTEXTS = [
       "gates",
@@ -427,6 +459,7 @@ describe("modules physical layout", () => {
       "worktree",
       "operator",
       "model-runtime",
+      "permissions",
     ];
     const REQUIRED_SECTIONS = [
       "## Ownership",
