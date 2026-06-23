@@ -498,10 +498,26 @@ describe("modules physical layout", () => {
       assert.equal(typeof tools.loadSkillRegistry, "function");
     });
 
-    it("run-loop-helpers imports tools module API not root mcp-client path", () => {
-      const source = fs.readFileSync(path.join(ORCH, "run-loop-helpers.js"), "utf8");
-      assert.match(source, /require\(["']\.\/modules\/tools["']\)/);
+    it("root run-control helper shims re-export canonical APIs", () => {
+      const pairs = [
+        ["run-loop-helpers", "detectBlockers"],
+        ["qa-spec-flow", "validateHandoffForMode"],
+        ["context-utils", "truncateForContext"],
+      ];
+      for (const [file, exportName] of pairs) {
+        const shim = require(`../${file}`);
+        const canon = require(`../modules/run-control/${file}`);
+        assert.equal(typeof shim[exportName], "function", `${file}.${exportName}`);
+        assert.equal(shim[exportName], canon[exportName], `${file}.${exportName} identity`);
+        assert.deepEqual(Object.keys(shim).sort(), Object.keys(canon).sort(), `${file} export keys`);
+      }
+    });
+
+    it("canonical run-loop-helpers imports tools module API not root mcp-client path", () => {
+      const source = fs.readFileSync(path.join(ORCH, "modules/run-control/run-loop-helpers.js"), "utf8");
+      assert.match(source, /require\(["']\.\.\/tools["']\)/);
       assert.doesNotMatch(source, /require\(["']\.\/mcp-client["']\)/);
+      assert.doesNotMatch(source, /require\(["']\.\/modules\/tools["']\)/);
     });
   });
 
@@ -518,6 +534,9 @@ describe("modules physical layout", () => {
         "modules/run-control/run-phases/gate-handling.js",
         "modules/run-control/run-phases/iteration-finalization.js",
         "modules/run-control/run-phases/session-end.js",
+        "modules/run-control/run-loop-helpers.js",
+        "modules/run-control/qa-spec-flow.js",
+        "modules/run-control/context-utils.js",
       ]) {
         assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
       }
