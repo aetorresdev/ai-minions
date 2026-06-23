@@ -1,19 +1,13 @@
 {
   "_comment": "Grandfathered legacy violations. New imports must not add keys — CI fails on unlisted violations.",
-  "_shrink_note": "v0.10 coherence closeout — tightened security/shared/run-control classification; 34→15 entries.",
+  "_shrink_note": "v0.16 E16-4 — operator↔model-runtime adjacency formalized; matrix 14→8 entries.",
   "matrix": [
     "agents/runtime/run-classified-shell.js::../../orchestrator.js::orchestrator.js::matrix",
     "agents/runtime/run-claude.js::../../orchestrator.js::orchestrator.js::matrix",
     "agents/runtime/run-ollama.js::../../orchestrator.js::orchestrator.js::matrix",
-    "modules/model-runtime/flow-hook-bridge.js::../../worktree-isolation::worktree-isolation.js::matrix",
-    "modules/model-runtime/runner-model-routing.js::../../runner-preflight::runner-preflight.js::matrix",
-    "modules/tools/mcp-client.js::../../governance-gate::governance-gate.js::matrix",
     "modules/budget/token-trace-report.js::../../security/permission-check-summary::security/permission-check-summary.js::matrix",
-    "modules/operator/runner-launcher.js::../../local-model-policy::local-model-policy.js::matrix",
-    "modules/operator/runner-launcher.js::../../runner-model-routing::runner-model-routing.js::matrix",
-    "modules/operator/runner-preflight.js::../../local-model-discovery::local-model-discovery.js::matrix",
-    "modules/operator/runner-preflight.js::../../local-model-selection::local-model-selection.js::matrix",
-    "modules/operator/runner-tui-cli.js::../../runner-model-routing::runner-model-routing.js::matrix",
+    "modules/model-runtime/flow-hook-bridge.js::../../worktree-isolation::worktree-isolation.js::matrix",
+    "modules/tools/mcp-client.js::../../governance-gate::governance-gate.js::matrix",
     "modules/worktree/worktree-isolation.js::../../agents/runtime/run-classified-shell::agents/runtime/run-classified-shell.js::matrix",
     "run-orchestrator.js::./operator-cli-help::operator-cli-help.js::matrix"
   ],

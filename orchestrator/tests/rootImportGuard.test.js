@@ -9,6 +9,7 @@ const {
   runRootImportGuard,
   ORCH_ROOT,
   SHIM_HEADER_RE,
+  LEGACY_BASELINE_COUNT,
 } = require("../scripts/check-root-import-guard");
 
 describe("root-import-guard", () => {
@@ -56,5 +57,15 @@ describe("root-import-guard", () => {
       ["cli.js", "run-orchestrator.js"],
     );
     assert.deepEqual(violations, []);
+  });
+
+  it("rejects new legacy root files beyond frozen baseline", () => {
+    const overBaseline = Object.fromEntries(
+      Array.from({ length: LEGACY_BASELINE_COUNT + 1 }, (_, i) => [`__legacy_probe_${i}__.js`, "legacy"]),
+    );
+    const rootFiles = Object.keys(overBaseline);
+    const violations = runRootImportGuard(overBaseline, rootFiles);
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].rule, "legacy_baseline_exceeded");
   });
 });

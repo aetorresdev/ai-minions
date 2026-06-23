@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/module-boundaries.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, `modules/trace/`, `modules/budget/`, `modules/worktree/`, `modules/operator/`, and partial `modules/model-runtime/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **Modular refactor not complete.**
+**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, `modules/trace/`, `modules/budget/`, `modules/worktree/`, `modules/operator/`, partial `modules/model-runtime/`, partial `modules/permissions/`, partial `modules/tools/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **Modular refactor not complete.**
 
 **Related:** [architecture-coherence-audit.md](architecture-coherence-audit.md) · [module-ownership-map.md](module-ownership-map.md) · [root-file-inventory.md](root-file-inventory.md) · [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
@@ -61,12 +61,12 @@ Rows = **may import / call** (runtime or `require`). Empty = no direct dependenc
 | **gates** | ✗ | ✓ | — | ✓ | ✗ | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ |
 | **permissions** | ✗ | ✓ | ✗ | — | ✓ | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ |
 | **tools** | ✗ | ✓ | ✗ | ✓ | — | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ |
-| **model-runtime** | ✗ | ✓ | ✗ | ✓ | ✓ | — | ✓ | ✗ | ✓ | ✗ | ✗ |
+| **model-runtime** | ✗ | ✓ | ✗ | ✓ | ✓ | — | ✓ | ✗ | ✓ | ✗ | ✓ |
 | **trace** | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | — | ✓ | ✓ | ✓ | ✗ |
 | **recovery** | ✗ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | — | ✗ | ✗ | ✗ |
 | **budget** | ✗ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ | ✗ | — | ✗ | ✗ |
 | **worktree** | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ | — | ✗ |
-| **operator** | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✓ | ✓ | — |
+| **operator** | ✓ | ✓ | ✗ | ✗ | ✗ | ✓ | ✓ | ✗ | ✓ | ✓ | — |
 
 **Global forbidden (any module →):** `agents/prompts/*` content into permission pure functions; trace rows into gate **decisions**; operator CLI mutating gate state without trace + human path.
 
@@ -122,7 +122,7 @@ Every new top-level file should declare target module in PR description. New cro
 | `agents.js` → registry/prompts | **Closed** (v0.10) | Classified shared bucket |
 | `context-utils` / portable template | **Closed** (v0.10) | run-control + shared classification |
 
-**Allowlist count:** 34 → 15 (see [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md)).
+**Allowlist count:** 34 → 15 (v0.10) → **9** (v0.16 E16-4: 8 matrix + 1 hard). See [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md).
 
 **None of the above block alpha** — they guide deferred slices (run-control, permissions) and v0.10 allowlist shrink.
 
@@ -147,7 +147,7 @@ Every new top-level file should declare target module in PR description. New cro
 
 | Mechanism | Path | Behavior |
 |-----------|------|----------|
-| **`lint:module-boundaries`** | `orchestrator/scripts/check-module-boundaries.js` | Adjacency matrix + **root import guard** (`root-import-allowlist.json` freezes `orchestrator/*.js`; shims require compat header) |
+| **`lint:module-boundaries`** | `orchestrator/scripts/check-module-boundaries.js` | Adjacency matrix + **root import guard** (`root-import-allowlist.json` freezes `orchestrator/*.js`; shims require compat header; **legacy** count frozen at baseline 13) |
 | **Allowlist** | `orchestrator/module-boundary-allowlist.json` | Grandfathered legacy violations only — new keys require review |
 | **CI** | `npm test` / `orchestrator-unit-tests.yml` | Fails on unlisted violations |
 

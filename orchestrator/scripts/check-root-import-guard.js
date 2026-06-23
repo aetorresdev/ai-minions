@@ -13,6 +13,7 @@ const ORCH_ROOT = path.join(__dirname, "..");
 const ALLOWLIST_PATH = path.join(ORCH_ROOT, "root-import-allowlist.json");
 
 const SHIM_HEADER_RE = /@deprecated\s+Import from `modules\//;
+const LEGACY_BASELINE_COUNT = 13;
 const ALLOWED_KINDS = new Set(["entrypoint", "config", "shim", "legacy"]);
 
 /**
@@ -90,6 +91,15 @@ function runRootImportGuard(allowlist = loadAllowlist(), rootFiles = listRootJsF
     }
   }
 
+  const legacyCount = Object.values(allowlist).filter((k) => k === "legacy").length;
+  if (legacyCount > LEGACY_BASELINE_COUNT) {
+    violations.push({
+      file: "(root)",
+      rule: "legacy_baseline_exceeded",
+      message: `legacy root .js count ${legacyCount} exceeds baseline ${LEGACY_BASELINE_COUNT} — migrate to modules/ or remove a legacy entry before adding`,
+    });
+  }
+
   return violations;
 }
 
@@ -117,4 +127,5 @@ module.exports = {
   ALLOWLIST_PATH,
   ORCH_ROOT,
   SHIM_HEADER_RE,
+  LEGACY_BASELINE_COUNT,
 };
