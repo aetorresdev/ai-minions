@@ -4,7 +4,7 @@ Bounded context for `modules/model-runtime/`. **Partial physical slice** — dis
 
 ## Ownership
 
-**Owns:** Local model policy config, model tier gate, and (at root) discovery/selection, agent runtime adapters, hook bridge, runner model routing.
+**Owns:** Local model policy config, model tier gate, discovery/selection, runner model routing, and hook bridge (canonical under `modules/model-runtime/`). `agents/runtime/*` and `agents/routing/` remain at legacy paths.
 
 **Must not own:** Approval before DEV; trace redaction policy; gate verdict parsing.
 

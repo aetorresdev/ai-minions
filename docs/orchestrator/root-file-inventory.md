@@ -2,11 +2,11 @@
 
 **Location:** `docs/orchestrator/root-file-inventory.md`. See [PATHS.md](PATHS.md).
 
-**Status:** Post-refactor inventory (v0.10 coherence closeout). Classification + shim targets — **no** file moves in this document.
+**Status:** Post-refactor inventory (v0.16 boundary hardening closeout). Classification + shim targets — **no** file moves in this document.
 
 **Related:** [module-boundaries.md](module-boundaries.md) · [module-ownership-map.md](module-ownership-map.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md)
 
-**Snapshot:** `orchestrator/` root @ v0.9.0-alpha.1 (`2519a7d`). Counts: **~57** root-level `.js` files (incl. compat shims), **8** physical module trees under `modules/` (+ partial `model-runtime/`). Evidence: `tests/modulesPhysicalLayout.test.js`.
+**Snapshot:** `orchestrator/` root @ v0.16 lane (`master` @ `3f9ad00`). Counts: **~57** root-level `.js` files (incl. compat shims), **10** physical module trees under `modules/` (partial: model-runtime, permissions, tools). Allowlist: **9** entries (8 matrix + 1 hard). Evidence: `tests/modulesPhysicalLayout.test.js`.
 
 ---
 
@@ -18,7 +18,7 @@
 | **Compat shims** | Explicit re-exports after physical refactor moves (e.g. `governance-gate.js`, `merge-governance/`) |
 | **Config / tooling** | `package.json`, `package-lock.json`, `eslint.config.js`, `models.json`, `module-boundary-allowlist.json`, `.env.example` |
 | **Docs index** | `README.md`, `CLAUDE.md` |
-| **Allowed dirs** | `schemas/`, `tests/`, `scripts/`, `modules/`, `agents/` (until further slice), `security/` (until tools slice) |
+| **Allowed dirs** | `schemas/`, `tests/`, `scripts/`, `modules/`, `agents/` (until further slice), `security/` (permission gate shells + compat shims) |
 
 Everything else that implements runtime or domain behavior should land under `orchestrator/modules/<bounded-context>/` per [module-ownership-map.md](module-ownership-map.md).
 
@@ -30,16 +30,16 @@ Everything else that implements runtime or domain behavior should land under `or
 |------|-------|------------------------|
 | `agents/` | Mixed runtime | **model-runtime** (`runtime/`, `routing/`) + **permissions** (`permissions.js`, `capability-matrix.js`) + prompts — split in later slices; not mass-moved in first refactor pass |
 | `merge-governance/` | Compat shim | Re-export to `modules/gates/merge-governance/` — keep until importers updated |
-| `modules/` | Physical modules | `budget/`, `contracts/`, `gates/`, `model-runtime/` *(partial)*, `operator/`, `recovery/`, `trace/`, `worktree/` — each with root compat shims |
+| `modules/` | Physical modules | `budget/`, `contracts/`, `gates/`, `model-runtime/` *(partial)*, `permissions/` *(partial)*, `tools/` *(partial)*, `operator/`, `recovery/`, `trace/`, `worktree/` — each with root compat shims where moved |
 | `run-phases/` | Runtime | **run-control** → `modules/run-control/run-phases/` |
 | `schemas/` | Allowed | Trace/schema SoT — stays |
 | `scripts/` | Allowed | CI, boundary checks — stays |
-| `security/` | Runtime | **tools** + permission gate shells — → `modules/tools/` + `modules/permissions/` in later slices |
+| `security/` | Runtime | Permission gate shells + compat shims for moved tools eval/registry paths — canonical tool/eval code under `modules/tools/` |
 | `tests/` | Allowed | Mirror module layout over time |
 
 ---
 
-## Physical migration status (post-v0.8 / v0.9)
+## Physical migration status (post-v0.8 / v0.9 / v0.16)
 
 Canonical implementation lives under `modules/<context>/`. Root paths below remain as **compat shims** unless noted **stay**.
 
@@ -52,10 +52,10 @@ Canonical implementation lives under `modules/<context>/`. Root paths below rema
 | budget | `modules/budget/` | `token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js` | **Moved** |
 | worktree | `modules/worktree/` | `worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js` | **Moved** |
 | operator | `modules/operator/` | `explain-run.js`, `control-plane-tui.js`, `runner-*.js`, `operator-cli-help.js`, … | **Moved** |
-| model-runtime | `modules/model-runtime/` *(partial)* | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` | **Partial** (policy + tier gate) |
+| model-runtime | `modules/model-runtime/` | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js`, policy/tier gate | **Partial** — root locals moved (E16-1); `agents/runtime/*`, `agents/routing/` remain |
+| permissions | `modules/permissions/` | `credential-broker.js`, `environment-parser.js` | **Partial** — broker/parser moved (E16-2); `agents/permissions.js`, capability matrix remain |
+| tools | `modules/tools/` | `mcp-client.js`, `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js` | **Partial** — MCP + eval shells moved (E16-3); permission gate shells stay in `security/` |
 | run-control | — | `orchestrator.js`, `run-phases/`, `run-loop-helpers.js`, … | **Deferred** |
-| permissions | — | `credential-broker.js`, `environment-parser.js`, `agents/permissions.js` | **Deferred** |
-| tools | — | `mcp-client.js`, `security/tool-eval.js`, … | **Deferred** |
 
 ---
 
@@ -74,17 +74,17 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | `context-utils.js` | Cross-cutting helper | run-control | `modules/run-control/context-utils.js` | Yes |
 | `control-plane-tui.js` | Operator surface | operator | `modules/operator/control-plane-tui.js` | Yes |
 | `cost-accounting-dimensions.js` | Shim | budget | `modules/budget/cost-accounting-dimensions.js` | Yes — **moved** |
-| `credential-broker.js` | Permission I/O | permissions | `modules/permissions/credential-broker.js` | Yes |
+| `credential-broker.js` | Shim | permissions | `modules/permissions/credential-broker.js` | Yes — **moved** |
 | `decision-engine.js` | Legacy helper | shared/legacy | `modules/shared/decision-engine.js` | Yes |
 | `doubt-review.js` | Shim | gates | `modules/gates/doubt-review.js` | Yes — **moved** |
-| `environment-parser.js` | Permission/env | permissions | `modules/permissions/environment-parser.js` | Yes |
+| `environment-parser.js` | Shim | permissions | `modules/permissions/environment-parser.js` | Yes — **moved** |
 | `explain-run.js` | Shim | operator | `modules/operator/explain-run.js` | Yes — **moved** |
-| `flow-hook-bridge.js` | Model/hook adapter | model-runtime | `modules/model-runtime/flow-hook-bridge.js` | Yes |
+| `flow-hook-bridge.js` | Shim | model-runtime | `modules/model-runtime/flow-hook-bridge.js` | Yes — **moved** |
 | `governance-gate.js` | Compat shim | gates | **Stay at root** (shim to `modules/gates/`) | — |
-| `local-model-discovery.js` | Model policy | model-runtime | `modules/model-runtime/local-model-discovery.js` | Yes |
-| `local-model-policy.js` | Model policy | model-runtime | `modules/model-runtime/local-model-policy.js` | Yes |
-| `local-model-selection.js` | Model policy | model-runtime | `modules/model-runtime/local-model-selection.js` | Yes |
-| `mcp-client.js` | Tool transport | tools | `modules/tools/mcp-client.js` | Yes |
+| `local-model-discovery.js` | Shim | model-runtime | `modules/model-runtime/local-model-discovery.js` | Yes — **moved** |
+| `local-model-policy.js` | Shim | model-runtime | `modules/model-runtime/local-model-policy.js` | Yes — **moved** |
+| `local-model-selection.js` | Shim | model-runtime | `modules/model-runtime/local-model-selection.js` | Yes — **moved** |
+| `mcp-client.js` | Shim | tools | `modules/tools/mcp-client.js` | Yes — **moved** |
 | `minions-config.js` | Project config | shared/legacy | `modules/shared/minions-config.js` | Yes |
 | `operator-cli-help.js` | Operator surface | operator | `modules/operator/operator-cli-help.js` | Yes |
 | `orchestrator.js` | Run loop hub | run-control | `modules/run-control/orchestrator.js` | Yes — last slice |
@@ -99,7 +99,7 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | `run-loop-helpers.js` | Run loop | run-control | `modules/run-control/run-loop-helpers.js` | Yes |
 | `runner-budget-view.js` | Operator/budget | operator (+ budget) | `modules/operator/runner-budget-view.js` | Yes |
 | `runner-launcher.js` | Operator launcher | operator | `modules/operator/runner-launcher.js` | Yes |
-| `runner-model-routing.js` | Model routing | model-runtime | `modules/model-runtime/runner-model-routing.js` | Yes |
+| `runner-model-routing.js` | Shim | model-runtime | `modules/model-runtime/runner-model-routing.js` | Yes — **moved** |
 | `runner-preflight.js` | Operator preflight | operator | `modules/operator/runner-preflight.js` | Yes |
 | `runner-trace-viewer.js` | Operator trace UI | operator | `modules/operator/runner-trace-viewer.js` | Yes |
 | `runner-tui-cli.js` | Operator CLI | operator | `modules/operator/runner-tui-cli.js` | Yes |
@@ -157,8 +157,8 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | `recovery-sweep.js`, `session-resume.js` | Hard-rule allowlist: gate reader imports | **Moved** to `modules/recovery/`; narrow imports via follow-on allowlist shrink |
 | `run-outcome-summary.js` | Hard-rule: imports `review-record` | **Moved** to `modules/trace/`; reader port follow-on |
 | `*-design.js` at root | Contracts shims | **Moved** to `modules/contracts/` — shims remain |
-| `orchestrator.js` | God-module — imports across gates, trace, permissions, worktree | Move last; run-control slice deferred |
-| `mcp-client.js` | Tool transport bleeds into operator paths | Keep MCP behind tools module API when tools slice lands |
+| `orchestrator.js` | God-module — imports across gates, trace, permissions, worktree | Move last; run-control slice deferred to v0.17 closeout |
+| `mcp-client.js` | Run-loop MCP import | **Closed** (E16-3) — run-control imports `./modules/tools`; root file is compat shim |
 
 ---
 
@@ -169,3 +169,4 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | 2026-06-09 | Initial inventory — 55 root `.js` files classified; module target paths proposed |
 | 2026-06-09 | Pre-merge review follow-up — `mcp-direct.py` flagged for root import guard allowlist |
 | 2026-06-12 | Post-v0.8/v0.9 align — physical migration status table; shim classification for moved contexts |
+| 2026-06-22 | v0.16 E16-5 — permissions/tools/model-runtime partial slices; allowlist 9; MCP run-loop import closed |

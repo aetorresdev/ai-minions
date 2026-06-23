@@ -61,10 +61,10 @@
 |--|--|
 | **Owns** | Capability matrix, credential ceiling, permission **decisions**, env/credential parsing |
 | **Must not own** | Shell execution; trace schema |
-| **Current paths** | `agents/permissions.js`, `agents/capability-matrix.js`, `credential-broker.js`, `environment-parser.js`, `security/*-permission-gate.js` |
+| **Current paths** | `modules/permissions/` (`credential-broker.js`, `environment-parser.js`) · shims at root · `agents/permissions.js`, `agents/capability-matrix.js` · `security/*-permission-gate.js` gate shells |
 | **Target paths** | `modules/permissions/` (+ `security/` gate shells classified with permissions) |
 | **Coordinates with** | tools (manifest), trace (permission_check rows) |
-| **Physical module** | **Not yet** |
+| **Physical module** | **Partial** — `credential-broker.js`, `environment-parser.js` under `modules/permissions/`; capability matrix + `agents/permissions.js` remain under `agents/`; gate shells under `security/` |
 
 ### tools
 
@@ -86,7 +86,7 @@
 | **Current paths** | `modules/model-runtime/` (`model-policy-config.js`, `model-tier-gate.js`) · `agents/runtime/*`, `agents/routing/`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
 | **Target paths** | `modules/model-runtime/` *(partial)* |
 | **Coordinates with** | permissions, trace, budget (token fields) |
-| **Physical module** | **Partial** — v0.9 policy loader + tier gate; discovery/selection/adapters still at root/`agents/` |
+| **Physical module** | **Partial** — v0.16 E16-1 root locals + policy/tier gate under `modules/model-runtime/`; `agents/runtime/*`, `agents/routing/` remain |
 
 ### trace
 
@@ -217,6 +217,6 @@ orchestrator/
 |------|--------|
 | 2026-06-09 | Initial ownership map — recovery context proposed; current vs target documented |
 | 2026-06-12 | Post-v0.8/v0.9 physical align — eight contexts under `modules/*`; model-runtime partial; run-control/permissions/tools deferred |
-| 2026-06-22 | E16-3 tools partial physical module — canonical `modules/tools/`; root + `security/` compat shims |
+| 2026-06-22 | v0.16 E16-5 — permissions partial physical module; model-runtime partial wording aligned |
 | 2026-06-12 | Link test ownership map — primary owner declared before physical test layout |
 | 2026-06-12 | Per-module README stubs — ownership, allowed imports, forbidden; link to adjacency matrix |

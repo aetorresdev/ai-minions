@@ -95,9 +95,9 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | **run-control** | `orchestrator.js`, `run-loop-helpers.js`, `run-phases/*`, `run-state.js`, `qa-spec-flow.js`, `cli.js` (invoke path) |
 | **contracts** | `modules/contracts/` (`*-design.js` validators) · shims: `bv-reviewer-design.js`, `progressive-disclosure-design.js`, `self-improvement-loop-design.js` · `validate-output.js` (via agents) · `tests/*Contract.test.js`, `tests/handoffContract.test.js`, `tests/sandboxCredentialIsolationDesign.test.js`, `tests/moduleBoundariesContract.test.js` |
 | **gates** | `modules/gates/` (`governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js`) · shims: `governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
-| **permissions** | `agents/permissions.js`, `agents/capability-matrix.js`, `credential-broker.js`, `environment-parser.js` |
+| **permissions** | `modules/permissions/` (`credential-broker.js`, `environment-parser.js`) · shims at root · `agents/permissions.js`, `agents/capability-matrix.js` remain under `agents/` · `security/*-permission-gate.js` gate shells |
 | **tools** | `modules/tools/` (`index.js`, `mcp-client.js`, `tool-eval.js`, `skill-registry.js`, `untrusted-context-eval.js` + fixtures) · shims: root `mcp-client.js`, `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js` · permission gate shells remain under `security/` |
-| **model-runtime** | `modules/model-runtime/` (`model-policy-config.js`, `model-tier-gate.js`) · `agents/runtime/*`, `agents/routing/model-routing.js`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
+| **model-runtime** | `modules/model-runtime/` (policy/tier gate, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js`) · root shims · `agents/runtime/*`, `agents/routing/` remain under `agents/` |
 | **trace** | `modules/trace/` (`trace-*.js`, `run-outcome-summary.js`, `otel-genai-trace-map.js`, `context-hygiene-signals.js`) · shims at legacy root paths |
 | **recovery** | `modules/recovery/` (`recovery-sweep.js`, `session-resume.js`) · shims: `recovery-sweep.js`, `session-resume.js` |
 | **budget** | `modules/budget/` (`token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js`) · shims at legacy root paths |
@@ -124,7 +124,7 @@ Every new top-level file should declare target module in PR description. New cro
 
 **Allowlist count:** 34 → 15 (v0.10) → **9** (v0.16 E16-4: 8 matrix + 1 hard). See [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md).
 
-**None of the above block alpha** — they guide deferred slices (run-control, permissions) and v0.10 allowlist shrink.
+**None of the above block alpha** — they guide deferred work (run-control facades, shared/legacy consolidation) and v0.17 modular closeout.
 
 ---
 
@@ -151,9 +151,9 @@ Every new top-level file should declare target module in PR description. New cro
 | **Allowlist** | `orchestrator/module-boundary-allowlist.json` | Grandfathered legacy violations only — new keys require review |
 | **CI** | `npm test` / `orchestrator-unit-tests.yml` | Fails on unlisted violations |
 
-**Still planned:** ESLint `import/no-restricted-paths` zones (optional); run-control, permissions physical slices; allowlist shrink (v0.10 coherence closeout).
+**Still planned:** ESLint `import/no-restricted-paths` zones (optional); run-control physical slice; `modules/shared/` legacy consolidation; flat test layout mirror under `tests/<context>/`.
 
-**v0.8 physical slices shipped:** contracts · recovery · gates · trace · budget · worktree · operator · partial model-runtime — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
+**v0.16 physical slices shipped (partial where noted):** model-runtime (E16-1) · permissions (E16-2) · tools (E16-3) · allowlist shrink 15→9 (E16-4). **Earlier:** contracts · recovery · gates · trace · budget · worktree · operator · partial model-runtime (v0.8–v0.9) — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
 
 ---
 
@@ -185,5 +185,8 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-12 | Post-v0.8/v0.9 doc align — status + known violations updated |
 | 2026-06-12 | Per-module `README.md` stubs under each physical `modules/<context>/` (v0.10 coherence closeout) |
 | 2026-06-12 | Allowlist shrink 34→15 — [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md) |
+| 2026-06-22 | v0.16 E16-1..3 — partial `modules/model-runtime/`, `modules/permissions/`, `modules/tools/`; run-control imports tools API |
+| 2026-06-22 | v0.16 E16-4 — allowlist 15→9; operator↔model-runtime adjacency formalized |
+| 2026-06-22 | v0.16 E16-5 — docs coherence pass; honest partial state, no architecture-complete claim |
 
 Update when module map or known violations change.
