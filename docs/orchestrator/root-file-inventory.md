@@ -52,9 +52,9 @@ Canonical implementation lives under `modules/<context>/`. Root paths below rema
 | budget | `modules/budget/` | `token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js` | **Moved** |
 | worktree | `modules/worktree/` | `worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js` | **Moved** |
 | operator | `modules/operator/` | `explain-run.js`, `control-plane-tui.js`, `runner-*.js`, `operator-cli-help.js`, … | **Moved** |
-| model-runtime | `modules/model-runtime/` | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js`, policy/tier gate | **Partial** — root locals moved (E16-1); `agents/runtime/*`, `agents/routing/` remain |
-| permissions | `modules/permissions/` | `credential-broker.js`, `environment-parser.js` | **Partial** — broker/parser moved (E16-2); `agents/permissions.js`, capability matrix remain |
-| tools | `modules/tools/` | `mcp-client.js`, `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js` | **Partial** — MCP + eval shells moved (E16-3); permission gate shells stay in `security/` |
+| model-runtime | `modules/model-runtime/` | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js`, policy/tier gate | **Partial** — root locals moved; `agents/runtime/*`, `agents/routing/` remain |
+| permissions | `modules/permissions/` | `credential-broker.js`, `environment-parser.js` | **Partial** — broker/parser moved; `agents/permissions.js`, capability matrix remain |
+| tools | `modules/tools/` | `mcp-client.js`, `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js` | **Partial** — MCP + eval shells moved; permission gate shells stay in `security/` |
 | run-control | — | `orchestrator.js`, `run-phases/`, `run-loop-helpers.js`, … | **Deferred** |
 
 ---
@@ -158,7 +158,7 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | `run-outcome-summary.js` | Hard-rule: imports `review-record` | **Moved** to `modules/trace/`; reader port follow-on |
 | `*-design.js` at root | Contracts shims | **Moved** to `modules/contracts/` — shims remain |
 | `orchestrator.js` | God-module — imports across gates, trace, permissions, worktree | Move last; run-control slice deferred to v0.17 closeout |
-| `mcp-client.js` | Run-loop MCP import | **Closed** (E16-3) — run-control imports `./modules/tools`; root file is compat shim |
+| `mcp-client.js` | Run-loop MCP import | **Closed** (v0.16 tools slice) — run-control imports `./modules/tools`; root file is compat shim |
 
 ---
 
@@ -169,4 +169,4 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | 2026-06-09 | Initial inventory — 55 root `.js` files classified; module target paths proposed |
 | 2026-06-09 | Pre-merge review follow-up — `mcp-direct.py` flagged for root import guard allowlist |
 | 2026-06-12 | Post-v0.8/v0.9 align — physical migration status table; shim classification for moved contexts |
-| 2026-06-22 | v0.16 E16-5 — permissions/tools/model-runtime partial slices; allowlist 9; MCP run-loop import closed |
+| 2026-06-22 | v0.16 — permissions/tools/model-runtime partial slices; allowlist 9; MCP run-loop import closed |

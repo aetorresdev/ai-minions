@@ -116,13 +116,13 @@ Every new top-level file should declare target module in PR description. New cro
 |-------------|------|------------------|
 | Design validators at repo root (`*-design.js`) | Shims only — canonical under `modules/contracts/` | New validators land in `modules/contracts/` |
 | `orchestrator.js` imports across gates, trace, permissions, worktree | God-module pressure | Slice run-control facades per phase — deferred |
-| Root `mcp-client.js` imported from run loop | **Closed** (v0.16 E16-3) | Run-control imports `./modules/tools`; root `mcp-client.js` is compat shim only |
+| Root `mcp-client.js` imported from run loop | **Closed** (v0.16 tools slice) | Run-control imports `./modules/tools`; root `mcp-client.js` is compat shim only |
 | `recovery` / `trace` gate reader imports | Grandfathered hard-rule allowlist (1 entry) | Consumption-only; trace→gates read of `review-record` |
 | Security helper `require()` paths | **Closed** (v0.10) | Classified under permissions/tools — removed from matrix allowlist |
 | `agents.js` → registry/prompts | **Closed** (v0.10) | Classified shared bucket |
 | `context-utils` / portable template | **Closed** (v0.10) | run-control + shared classification |
 
-**Allowlist count:** 34 → 15 (v0.10) → **9** (v0.16 E16-4: 8 matrix + 1 hard). See [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md).
+**Allowlist count:** 34 → 15 (v0.10) → **9** (v0.16: 8 matrix + 1 hard). See [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md).
 
 **None of the above block alpha** — they guide deferred work (run-control facades, shared/legacy consolidation) and v0.17 modular closeout.
 
@@ -153,7 +153,7 @@ Every new top-level file should declare target module in PR description. New cro
 
 **Still planned:** ESLint `import/no-restricted-paths` zones (optional); run-control physical slice; `modules/shared/` legacy consolidation; flat test layout mirror under `tests/<context>/`.
 
-**v0.16 physical slices shipped (partial where noted):** model-runtime (E16-1) · permissions (E16-2) · tools (E16-3) · allowlist shrink 15→9 (E16-4). **Earlier:** contracts · recovery · gates · trace · budget · worktree · operator · partial model-runtime (v0.8–v0.9) — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
+**v0.16 physical slices shipped (partial where noted):** model-runtime · permissions · tools · allowlist shrink 15→9. **Earlier:** contracts · recovery · gates · trace · budget · worktree · operator · partial model-runtime (v0.8–v0.9) — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
 
 ---
 
@@ -185,8 +185,8 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-12 | Post-v0.8/v0.9 doc align — status + known violations updated |
 | 2026-06-12 | Per-module `README.md` stubs under each physical `modules/<context>/` (v0.10 coherence closeout) |
 | 2026-06-12 | Allowlist shrink 34→15 — [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md) |
-| 2026-06-22 | v0.16 E16-1..3 — partial `modules/model-runtime/`, `modules/permissions/`, `modules/tools/`; run-control imports tools API |
-| 2026-06-22 | v0.16 E16-4 — allowlist 15→9; operator↔model-runtime adjacency formalized |
-| 2026-06-22 | v0.16 E16-5 — docs coherence pass; honest partial state, no architecture-complete claim |
+| 2026-06-22 | v0.16 — partial `modules/model-runtime/`, `modules/permissions/`, `modules/tools/`; run-control imports tools API |
+| 2026-06-22 | v0.16 allowlist 15→9; operator↔model-runtime adjacency formalized |
+| 2026-06-22 | v0.16 docs coherence pass; honest partial state, no architecture-complete claim |
 
 Update when module map or known violations change.

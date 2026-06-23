@@ -1,6 +1,6 @@
 {
   "_comment": "Grandfathered legacy violations. New imports must not add keys — CI fails on unlisted violations.",
-  "_shrink_note": "v0.16 E16-4 — operator↔model-runtime adjacency formalized; matrix 14→8 entries.",
+  "_shrink_note": "v0.16 allowlist shrink — operator↔model-runtime adjacency formalized; matrix 14→8 entries.",
   "matrix": [
     "agents/runtime/run-classified-shell.js::../../orchestrator.js::orchestrator.js::matrix",
     "agents/runtime/run-claude.js::../../orchestrator.js::orchestrator.js::matrix",
