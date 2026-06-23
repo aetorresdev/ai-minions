@@ -17,10 +17,12 @@ Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adja
 - `tools` — manifest / tool metadata
 - `trace` — append usage/selection rows
 - `budget` — token/cost field helpers
+- `operator` — **beta-path only:** runner preflight/routing coupling (e.g. `runner-model-routing` → `runner-preflight`); not for operator scheduling or UI ownership
 
 ## Forbidden
 
-- Importing `operator` or `run-control` for scheduling decisions
+- Owning operator scheduling, TUI/help surfaces, or run-launch policy (use narrow imports only)
+- Importing `run-control` for scheduling decisions
 - Owning trace schema or redaction policy
 - Bypassing permissions for model invocation
 
