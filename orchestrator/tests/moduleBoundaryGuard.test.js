@@ -98,11 +98,29 @@ describe("module-boundary guard", () => {
     assert.equal(classifyModule("context-utils.js"), "run-control");
   });
 
-  it("allowlist shrunk for v0.10 coherence closeout (baseline 34 entries)", () => {
+  it("allowlist shrunk for v0.16 boundary hardening (matrix ≤ 8)", () => {
     const raw = JSON.parse(fs.readFileSync(ALLOWLIST_PATH, "utf8"));
-    const count = (raw.matrix || []).length + (raw.hard || []).length;
-    assert.ok(count <= 15, `expected <= 15 allowlist entries, got ${count}`);
-    assert.ok(count < 34, "allowlist should be smaller than pre-v0.10 baseline");
+    const matrixCount = (raw.matrix || []).length;
+    const total = matrixCount + (raw.hard || []).length;
+    assert.ok(matrixCount <= 8, `expected <= 8 matrix allowlist entries, got ${matrixCount}`);
+    assert.ok(total <= 9, `expected <= 9 total allowlist entries, got ${total}`);
+    assert.ok(total < 15, "allowlist should be smaller than v0.10 baseline (15)");
+  });
+
+  it("formalized operator ↔ model-runtime adjacency removes runner grandfather keys", () => {
+    const raw = JSON.parse(fs.readFileSync(ALLOWLIST_PATH, "utf8"));
+    const matrix = raw.matrix || [];
+    for (const prefix of [
+      "modules/operator/runner-launcher.js",
+      "modules/operator/runner-preflight.js",
+      "modules/operator/runner-tui-cli.js",
+      "modules/model-runtime/runner-model-routing.js",
+    ]) {
+      assert.ok(
+        !matrix.some((k) => k.startsWith(prefix)),
+        `expected no grandfather for ${prefix}`,
+      );
+    }
   });
 
   it("detects new hard-rule violations under modules/gates", () => {
