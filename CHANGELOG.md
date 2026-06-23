@@ -6,6 +6,60 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.16.0-alpha.1] - 2026-06-22
+
+Sixteenth alpha pre-release: **Runtime Boundary Completion** — partial physical modules for model-runtime, permissions, and tools with compat shims; run-control tools API surface; module-boundary allowlist shrink (15→9); legacy root import baseline freeze; and honest partial-state docs alignment.
+
+**Release claim:** runtime boundary hardening with canonical implementations under `modules/model-runtime/`, `modules/permissions/`, and `modules/tools/` (partial where noted), tools module API for run-control MCP paths, tighter import guards (allowlist 9 entries, legacy root count frozen), and documentation that states partial physical migration — **not** architecture refactor complete, **not** full modular monolith enforced, **not** run-control hub or `agents/` tree moved, **not** external usability beta open.
+
+**Prerequisite:** `v0.15.0-alpha.1` — External Beta Gate Hardening @ `b14bfa2`.
+
+**Since [0.15.0-alpha.1]:** v0.15 centered on **trust and evidence gates** (privacy sanitize, smoke matrix, degraded-mode policy, limitations/onboarding). v0.16 adds **runtime boundary hardening** — physical slices for model-runtime root locals, permissions broker/parser, tools MCP/eval shells, allowlist shrink with formalized operator↔model-runtime adjacency, and docs coherence — without moving run-control, consolidating shared/legacy, or claiming architecture complete.
+
+| Area | `v0.15.0-alpha.1` | `v0.16.0-alpha.1` (delta) |
+|------|-------------------|---------------------------|
+| Focus | Gate hardening — privacy · smoke matrix · degraded-mode · limitations/onboarding | Boundary hardening — partial `modules/{model-runtime,permissions,tools}` · allowlist 9 · tools API · honest partial docs |
+| Physical modules | Eight contexts + partial model-runtime (policy/tier gate) | Ten trees — partial model-runtime, permissions, tools added under `modules/` |
+| Run-control MCP | Root `mcp-client` import | **`./modules/tools`** API; root `mcp-client.js` compat shim only |
+| Boundary guard | Allowlist 15 (14 matrix + 1 hard) | **Allowlist 9** (8 matrix + 1 hard); legacy root `.js` count frozen at 13 |
+| Unit tests (orchestrator) | 1126/1127 | **1140/1141** (1 skipped) on workspace @ lane tip `70cf699` |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.16.0-alpha.1` — pre-release **reserved** until Phase B tag on release-prep merge commit
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1140/1141** pass (1 skipped) on workspace @ lane tip `70cf699`
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean @ lane tip `70cf699`)
+- Module boundaries: `cd orchestrator && npm run lint:module-boundaries` → **OK** (189 files)
+- Contracts: `module-boundaries.md`, `root-file-inventory.md`, `architecture-coherence-audit.md`, `module-boundary-allowlist-shrink.md`
+- Lane merged on `master` through docs alignment @ `324013e` (PR #217–#221); ticket-ID cleanup @ `70cf699` (PR #222); release-prep pending merge
+- CI: orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · Link Check · Markdown Lint — green on lane PRs through #222
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
+- **Not** architecture refactor complete or full repo modularized — run-control hub, `agents/` subtree, shared/legacy, and security gate shells remain at legacy paths with compat shims.
+- **Not** external usability beta — targeted for **v0.20.0-beta.1** after v0.17 modular closeout, v0.18 standard operator UX, and v0.19 human-ready rehearsal.
+- **Not** run-control physical slice — deferred to **v0.17.0-alpha.1** modular monolith closeout.
+- **Not** zero cross-boundary debt — nine allowlist grandfather entries remain (documented).
+
+### Added
+
+- Partial `modules/model-runtime/` — `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` with root compat shims.
+- Partial `modules/permissions/` — `credential-broker.js`, `environment-parser.js` with root compat shims.
+- Partial `modules/tools/` — MCP client, tool-eval, skill-registry, untrusted-context eval + fixtures; `modules/tools/index.js` run-control API surface.
+- Module-boundary allowlist shrink 15→9; operator↔model-runtime adjacency formalized; legacy root import baseline freeze (13 files).
+
+### Changed
+
+- Run-control (`orchestrator.js`, `run-loop-helpers.js`) imports `./modules/tools` instead of root `mcp-client`.
+- Versioned orchestrator docs aligned to honest partial physical state (no architecture-complete claim).
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Next roadmap lane after cut: **v0.17.0-alpha.1** modular monolith closeout (run-control facades, shared/legacy, hub decision record), then **v0.18.0-alpha.1** standard operator UX, **v0.19.0-alpha.1** human-ready rehearsal; first external usability beta remains **v0.20.0-beta.1**.
+
 ## [0.15.0-alpha.1] - 2026-06-20
 
 Fifteenth alpha pre-release: **External Beta Gate Hardening** — privacy sanitize gate on outbound artifacts, beta smoke matrix evidence chain, degraded-mode acceptance policy with inspect/bundle fields, honest beta limitations and onboarding docs, and deterministic verify + claim-audit wiring for the gate-hardening doc bundle.

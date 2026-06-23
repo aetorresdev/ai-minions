@@ -908,6 +908,69 @@ External usability beta (v0.20.0-beta.1) · untrusted-context runtime gate · re
 - [x] **Changelog:** section **[0.15.0-alpha.1] - 2026-06-20**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.16.0-alpha.1 — Runtime Boundary Completion
+
+**Scope:** partial physical modules for model-runtime, permissions, and tools; tools module API; allowlist shrink 15→9; legacy root guard baseline; honest partial-state docs. **Prerequisite:** `v0.15.0-alpha.1` @ `b14bfa2`. **Not** architecture refactor complete · **not** run-control or full `agents/` move · **not** external usability beta — external usability beta is targeted for **v0.20.0-beta.1** after v0.17 modular closeout, v0.18 standard operator UX, and v0.19 human-ready rehearsal.
+
+**Release claim:** runtime boundary hardening with partial canonical modules under `modules/model-runtime/`, `modules/permissions/`, and `modules/tools/`, tools API for run-control, tighter import guards, and honest docs — not production-ready, not architecture complete, not external beta open, not run-control hub relocated.
+
+### Must-have bundle
+
+- [x] Model-runtime physical slice — merged @ `25e7a55` (PR #217)
+- [x] Permissions physical module — merged @ `6a4ce92` (PR #218)
+- [x] Tools physical module + tools API — merged @ `a2c0060` (PR #219)
+- [x] Allowlist shrink + legacy root guard — merged @ `3f9ad00` (PR #220)
+- [x] Docs coherence (honest partial state) — merged @ `324013e` (PR #221)
+- [x] Versioned-doc ticket-ID cleanup — merged @ `70cf699` (PR #222)
+- [ ] Release-prep + tag `v0.16.0-alpha.1` — pending merge (Phase A)
+
+### Out of scope
+
+External usability beta (v0.20.0-beta.1) · run-control physical slice · full `agents/` split · `modules/shared/` legacy consolidation · security gate shell mass-move · architecture refactor complete claim · external beta cohort.
+
+### CERBERUS checks (pre-tag)
+
+- [x] Implementation slices (model-runtime through docs coherence) — CERBERUS-approved; merges through `324013e`
+- [x] Ticket-ID cleanup in versioned orchestrator docs — merged @ `70cf699` (PR #222)
+- [ ] Release-prep CHANGELOG + checklist claims — pending CERBERUS on release-prep PR
+- [x] No architecture-complete / full-modularization claim in versioned docs
+- [x] No external-beta claim
+
+### Forbidden release claims (v0.16)
+
+"production-ready" · "architecture refactor complete" · "full modular monolith enforced" · "run-control migrated" · "root runtime clean" · "external beta open" · "external usability beta ready".
+
+#### v0.16 validation log (release-prep)
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-06-22 | Workspace @ `70cf699` — lane tip | `cd orchestrator && npm test` → **1140/1141** pass (1 skipped) |
+| 2026-06-22 | Workspace @ `70cf699` | `cd orchestrator && npm run lint:module-boundaries` → **OK** (189 files) |
+| 2026-06-22 | Workspace @ `70cf699` | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-06-22 | Lane PRs #217–#222 | orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · Link Check · Markdown Lint — green |
+
+**Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes `CHANGELOG.md` and `docs/orchestrator/alpha-release-checklist.md` only; `orchestrator/**` unchanged since lane tip @ `70cf699`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `70cf699` until tag.
+
+| Check | Lane / baseline |
+|-------|-----------------|
+| orchestrator-unit-tests | lane merge PR head @ `70cf699` |
+| orchestrator-e2e | lane merge PR head @ `3f9ad00` (PR #220) and @ `70cf699` (PR #222) |
+| Docs usage verify | lane merge PR head @ `70cf699` |
+| security-trivy-scan | lane merge PR head @ `70cf699` |
+
+### Release execution plan (locked on release-prep merge — Phase B operator steps)
+
+**Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
+
+- [ ] **Tag target:** `v0.16.0-alpha.1` on release-prep merge commit
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.16.0-alpha.1` — pre-release publish (Phase B)
+- [ ] **`release` branch:** aligned to tag commit (`release_branch_commit` matches `tag_commit`)
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.16.0-alpha.1] - 2026-06-22**
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
