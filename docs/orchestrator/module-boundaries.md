@@ -4,7 +4,7 @@
 
 **Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, `modules/trace/`, `modules/budget/`, `modules/worktree/`, `modules/operator/`, partial `modules/model-runtime/`, partial `modules/permissions/`, partial `modules/tools/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **Modular refactor not complete.**
 
-**Related:** [architecture-coherence-audit.md](architecture-coherence-audit.md) · [module-ownership-map.md](module-ownership-map.md) · [root-file-inventory.md](root-file-inventory.md) · [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
+**Related:** [architecture-coherence-audit.md](architecture-coherence-audit.md) · [module-ownership-map.md](module-ownership-map.md) · [root-file-inventory.md](root-file-inventory.md) · [run-control-hub-decision.md](run-control-hub-decision.md) · [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
 ---
 
@@ -92,7 +92,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 
 | Module | Principal files / dirs |
 |--------|-------------------------|
-| **run-control** | `orchestrator.js`, `run-loop-helpers.js`, `run-phases/*`, `run-state.js`, `qa-spec-flow.js`, `cli.js` (invoke path) |
+| **run-control** | `modules/run-control/` — `run-state.js`, `run-phases/*`, `run-loop-helpers.js`, `qa-spec-flow.js`, `context-utils.js` *(canonical)* · root shims · **`orchestrator.js` legacy hub** *(pending physical move)* · `cli.js`, `run-orchestrator.js` entrypoints at root |
 | **contracts** | `modules/contracts/` (`*-design.js` validators) · shims: `bv-reviewer-design.js`, `progressive-disclosure-design.js`, `self-improvement-loop-design.js` · `validate-output.js` (via agents) · `tests/*Contract.test.js`, `tests/handoffContract.test.js`, `tests/sandboxCredentialIsolationDesign.test.js`, `tests/moduleBoundariesContract.test.js` |
 | **gates** | `modules/gates/` (`governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js`) · shims: `governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
 | **permissions** | `modules/permissions/` (`credential-broker.js`, `environment-parser.js`) · shims at root · `agents/permissions.js`, `agents/capability-matrix.js` remain under `agents/` · `security/*-permission-gate.js` gate shells |
@@ -115,7 +115,7 @@ Every new top-level file should declare target module in PR description. New cro
 | Observation | Risk | Remediation lane |
 |-------------|------|------------------|
 | Design validators at repo root (`*-design.js`) | Shims only — canonical under `modules/contracts/` | New validators land in `modules/contracts/` |
-| `orchestrator.js` imports across gates, trace, permissions, worktree | God-module pressure | Slice run-control facades per phase — deferred |
+| `orchestrator.js` imports across gates, trace, permissions, worktree | God-module pressure | **Temporary hub** per [run-control-hub-decision.md](run-control-hub-decision.md) — hub physical move next; thin-hub extraction deferred |
 | Root `mcp-client.js` imported from run loop | **Closed** (v0.16 tools slice) | Run-control imports `./modules/tools`; root `mcp-client.js` is compat shim only |
 | `recovery` / `trace` gate reader imports | Grandfathered hard-rule allowlist (1 entry) | Consumption-only; trace→gates read of `review-record` |
 | Security helper `require()` paths | **Closed** (v0.10) | Classified under permissions/tools — removed from matrix allowlist |
@@ -153,7 +153,7 @@ Every new top-level file should declare target module in PR description. New cro
 
 **Still planned:** ESLint `import/no-restricted-paths` zones (optional); run-control physical slice; `modules/shared/` legacy consolidation; flat test layout mirror under `tests/<context>/`.
 
-**v0.16 physical slices shipped (partial where noted):** model-runtime · permissions · tools · allowlist shrink 15→9. **Earlier:** contracts · recovery · gates · trace · budget · worktree · operator · partial model-runtime (v0.8–v0.9) — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
+**v0.17 run-control physical slices shipped (partial):** run-state, run-phases, helper bundle under `modules/run-control/` + shims. **Hub ADR:** [run-control-hub-decision.md](run-control-hub-decision.md). **Pending:** `orchestrator.js` hub physical move. **Earlier:** v0.16 model-runtime · permissions · tools · allowlist shrink 15→9; v0.8–v0.9 contexts — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
 
 ---
 

@@ -2,11 +2,11 @@
 
 **Location:** `docs/orchestrator/architecture-coherence-audit.md`. See [PATHS.md](PATHS.md).
 
-**Status:** v0.8 coherence audit — **updated post-v0.16 boundary hardening (docs alignment pass)**. Docs only. **Not** architecture complete · **not** full repo modularized.
+**Status:** v0.8 coherence audit — **updated post-v0.17 run-control partial closeout + hub ADR (docs alignment pass)**. Docs only. **Not** architecture complete · **not** full repo modularized.
 
-**Related:** [root-file-inventory.md](root-file-inventory.md) · [module-ownership-map.md](module-ownership-map.md) · [module-boundaries.md](module-boundaries.md)
+**Related:** [root-file-inventory.md](root-file-inventory.md) · [module-ownership-map.md](module-ownership-map.md) · [module-boundaries.md](module-boundaries.md) · [run-control-hub-decision.md](run-control-hub-decision.md)
 
-**Baseline:** v0.16 lane @ `3f9ad00` · CI: `lint:module-boundaries` + root import guard (legacy baseline 13) + allowlist **9** entries · **Physical modules:** ten trees under `modules/` — partial: `model-runtime/`, `permissions/`, `tools/` · Evidence: `tests/modulesPhysicalLayout.test.js`.
+**Baseline:** v0.17 lane @ `7f90134` · CI: `lint:module-boundaries` + root import guard (legacy baseline 13) + allowlist **60** root files (**9** legacy) · **Physical modules:** eleven trees under `modules/` — partial: `model-runtime/`, `permissions/`, `tools/`, **`run-control/`** (state, phases, helpers) · Evidence: `tests/modulesPhysicalLayout.test.js`.
 
 ---
 
@@ -67,7 +67,7 @@ Rows = capability areas. Columns use the five allowed states only (one primary s
 | **Budget** | **implemented** | `modules/budget/`, token summaries, cost dimensions | No production spend SLA (**not claimed**) |
 | **Worktree** | **implemented** | `modules/worktree/`, isolation, promotion, lifecycle trace | — |
 | **Operator surfaces** | **implemented** | `modules/operator/`, CLI/TUI/export/preflight | Root shims remain; imports model-runtime via adjacency (runner routing) |
-| **Modular monolith layout** | **partial** | Ten physical contexts + shims; CI root guard + allowlist 9 | run-control hub + `agents/` subtree + shared/legacy deferred; flat test layout vs “tests mirror modules” |
+| **Modular monolith layout** | **partial** | Eleven physical contexts + shims; CI root guard · run-control **partial** (state, phases, helpers) | `orchestrator.js` hub legacy until physical move; `agents/` subtree + shared/legacy deferred; grandfathered cross-imports; flat test layout |
 | **OTLP export** | **planned** | OTel mapper derived | OTLP sink **not claimed** for v0.8 |
 | **Memory store** | **design-only** | `memory-store-decision.md` | No runtime memory SoT |
 | **Swarm / multi-agent scale-out** | **not claimed** | — | Explicitly out of v0.8 lane |
@@ -132,7 +132,9 @@ Movement plan slices from below — **status after v0.16 allowlist shrink** (`3f
 | 8 | Model-runtime (root locals) | **Partial** | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` under `modules/model-runtime/`; `agents/runtime/*` remains |
 | 9 | Permissions (root) | **Partial** | `credential-broker.js`, `environment-parser.js` under `modules/permissions/`; `agents/permissions.js` remains |
 | 10 | Tools | **Partial** | `mcp-client.js` + eval/registry shells under `modules/tools/`; run-control uses tools API |
-| 11–13 | Run-control, shared, hub | **Deferred** | v0.17 modular closeout unless beta-blocking |
+| 11 | Run-control (state, phases, helpers) | **Partial** | @ `7f90134` — `modules/run-control/` + shims; hub ADR merged |
+| 12 | Shared / legacy | **Deferred** | After hub physical move |
+| 13 | Hub (`orchestrator.js`) | **Deferred** | Physical move per [run-control-hub-decision.md](run-control-hub-decision.md) |
 
 **Docs/tests debt:** flat `tests/*.test.js` layout vs “tests mirror modules” — follow-on test governance. Allowlist shrink **Done** (v0.16: 15→9).
 
@@ -156,9 +158,9 @@ Movement plan slices from below — **status after v0.16 allowlist shrink** (`3f
 | 8 | Model-runtime (root locals) | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` | `modules/model-runtime/` | Yes | **Partial** — `agents/` subtree later |
 | 9 | Permissions (root) | `credential-broker.js`, `environment-parser.js` | `modules/permissions/` | Yes | **Partial** — `agents/permissions.js` later |
 | 10 | Tools | `mcp-client.js` + `security/tool-eval.js`, `skill-registry.js`, `untrusted-context-eval.js` | `modules/tools/` | Yes | **Partial** — permission gate shells stay in `security/` |
-| 11 | Run-control | `run-phases/`, `run-loop-helpers.js`, `run-state.js`, `qa-spec-flow.js`, `context-utils.js` | `modules/run-control/` | Yes | |
-| 12 | Shared / legacy | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` | `modules/shared/` | Yes | Optional; can defer |
-| 13 | Hub last | `orchestrator.js` | `modules/run-control/orchestrator.js` | Yes | Highest fan-in; verify export parity tests |
+| 11 | Run-control | `run-state`, `run-phases/`, helper bundle | `modules/run-control/` | Yes | **Partial** — hub move pending |
+| 12 | Shared / legacy | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` | `modules/shared/` | Yes | Deferred — after hub move |
+| 13 | Hub last | `orchestrator.js` | `modules/run-control/orchestrator.js` | Yes | **Deferred** — physical move only per hub ADR |
 
 **Do not move in physical refactor min bar:** `cli.js`, `run-orchestrator.js`, `governance-gate.js`, `merge-governance/`, config, `schemas/`, `scripts/`, `tests/`.
 
@@ -188,7 +190,7 @@ Movement plan slices from below — **status after v0.16 allowlist shrink** (`3f
 | No file movement in this audit | ✓ |
 | Physical refactor movement plan produced | ✓ — slice table above |
 
-**System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and **partial** physical modular layout (ten bounded contexts under `modules/*` — three partial from v0.16 — with compat shims). Coherence **frays** at remaining run-control hub sprawl (`orchestrator.js`), `agents/` legacy subtree, grandfathered cross-imports (9 allowlist entries), flat test layout vs “tests mirror modules”, and design-only docs that must not be read as shipped runtime. v0.16 closes **physical boundaries for model-runtime, permissions, and tools** plus allowlist shrink — **not** architecture complete.
+**System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and **partial** physical modular layout (eleven bounded contexts under `modules/*` — four partial including run-control state/phases/helpers — with compat shims). Coherence **frays** at the remaining **`orchestrator.js` temporary hub**, `agents/` legacy subtree, grandfathered cross-imports, flat test layout vs “tests mirror modules”, and design-only docs that must not be read as shipped runtime. v0.17 records **hub decision** and **partial run-control physical closeout** — **not** architecture complete.
 
 ---
 
@@ -200,3 +202,4 @@ Movement plan slices from below — **status after v0.16 allowlist shrink** (`3f
 | 2026-06-09 | Pre-merge review follow-up — companion commit rephrases v0.7 checklist line 273 (`lint:docs-claims` pre-existing on `master`) |
 | 2026-06-12 | Post-v0.8/v0.9 physical align — matrix + slice status; eight `modules/*` contexts documented |
 | 2026-06-22 | v0.16 — slice status for model-runtime/permissions/tools partial modules; allowlist 9; honest partial state |
+| 2026-06-23 | v0.17 — run-control partial closeout + hub ADR alignment @ `7f90134` |
