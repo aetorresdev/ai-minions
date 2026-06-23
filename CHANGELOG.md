@@ -24,7 +24,7 @@ Sixteenth alpha pre-release: **Runtime Boundary Completion** — partial physica
 | Boundary guard | Allowlist 15 (14 matrix + 1 hard) | **Allowlist 9** (8 matrix + 1 hard); legacy root `.js` count frozen at 13 |
 | Unit tests (orchestrator) | 1126/1127 | **1140/1141** (1 skipped) on workspace @ lane tip `70cf699` |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.16.0-alpha.1` — pre-release **reserved** until Phase B tag on release-prep merge commit
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.16.0-alpha.1` — pre-release published @ tag `c1ed631`
 
 **Evidence (operator):**
 
@@ -32,7 +32,7 @@ Sixteenth alpha pre-release: **Runtime Boundary Completion** — partial physica
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean @ lane tip `70cf699`)
 - Module boundaries: `cd orchestrator && npm run lint:module-boundaries` → **OK** (189 files)
 - Contracts: `module-boundaries.md`, `root-file-inventory.md`, `architecture-coherence-audit.md`, `module-boundary-allowlist-shrink.md`
-- Lane merged on `master` through docs alignment @ `324013e` (PR #217–#221); ticket-ID cleanup @ `70cf699` (PR #222); release-prep pending merge
+- Lane merged on `master` through docs alignment @ `324013e` (PR #217–#221); ticket-ID cleanup @ `70cf699` (PR #222); release-prep merged @ `c1ed631` (PR #223); Phase B tag · pre-release · `release` branch @ `c1ed631`
 - CI: orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · Link Check · Markdown Lint — green on lane PRs through #222
 
 **Alpha limitations (not production):**
