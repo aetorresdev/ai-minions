@@ -31,7 +31,7 @@ Everything else that implements runtime or domain behavior should land under `or
 | `agents/` | Mixed runtime | **model-runtime** (`runtime/`, `routing/`) + **permissions** (`permissions.js`, `capability-matrix.js`) + prompts — split in later slices; not mass-moved in first refactor pass |
 | `merge-governance/` | Compat shim | Re-export to `modules/gates/merge-governance/` — keep until importers updated |
 | `modules/` | Physical modules | `budget/`, `contracts/`, `gates/`, `model-runtime/` *(partial)*, `permissions/` *(partial)*, `tools/` *(partial)*, **`run-control/`** *(partial — state, phases, helpers)*, `operator/`, `recovery/`, `trace/`, `worktree/` — root compat shims where moved |
-| `run-phases/` | Compat shims | **run-control** → `modules/run-control/run-phases/` | **Moved** — root `run-phases/*.js` are shims |
+| `run-phases/` | Compat shims | **run-control** → `modules/run-control/run-phases/` — **Moved**; root `run-phases/*.js` are shims |
 | `schemas/` | Allowed | Trace/schema SoT — stays |
 | `scripts/` | Allowed | CI, boundary checks — stays |
 | `security/` | Runtime | Permission gate shells + compat shims for moved tools eval/registry paths — canonical tool/eval code under `modules/tools/` |
