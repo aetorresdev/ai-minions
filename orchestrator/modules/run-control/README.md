@@ -1,10 +1,10 @@
 # Run-control module
 
-Bounded context for `modules/run-control/`. **Partial physical slice** — in-memory run snapshot (`run-state`) is canonical here; `run-phases/`, `run-loop-helpers.js`, and `orchestrator.js` remain at legacy paths. **Not** architecture complete.
+Bounded context for `modules/run-control/`. **Partial physical slice** — `run-state` and `run-phases/` are canonical here; `run-loop-helpers.js` and `orchestrator.js` remain at legacy paths. **Not** architecture complete.
 
 ## Ownership
 
-**Owns:** In-memory run snapshot and step lifecycle helpers (`run-state`).
+**Owns:** In-memory run snapshot (`run-state`) and run phase graph modules (`run-phases/`).
 
 **Must not own:** Permission matrix SoT; trace schema authoring; gate policy tables.
 
@@ -34,6 +34,7 @@ Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adja
 
 ```javascript
 const { createRunState, getRunStatePublicView } = require("./modules/run-control/run-state");
+const { executeSessionStartPhase } = require("./modules/run-control/run-phases/session-start");
 ```
 
-**Root compat shim (deprecated):** `run-state.js` re-export.
+**Root compat shims (deprecated):** `run-state.js` and `run-phases/*.js` re-exports.

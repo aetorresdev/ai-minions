@@ -510,8 +510,36 @@ describe("modules physical layout", () => {
       for (const rel of [
         "modules/run-control/index.js",
         "modules/run-control/run-state.js",
+        "modules/run-control/run-phases/phase-context.js",
+        "modules/run-control/run-phases/phase-deps.js",
+        "modules/run-control/run-phases/session-start.js",
+        "modules/run-control/run-phases/plan-resolution.js",
+        "modules/run-control/run-phases/step-execution.js",
+        "modules/run-control/run-phases/gate-handling.js",
+        "modules/run-control/run-phases/iteration-finalization.js",
+        "modules/run-control/run-phases/session-end.js",
       ]) {
         assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root run-phases shims re-export the same phase APIs", () => {
+      const pairs = [
+        ["session-start", "executeSessionStartPhase"],
+        ["plan-resolution", "executePlanResolutionPhase"],
+        ["phase-context", "createPhaseContext"],
+        ["step-execution", "executeStepAgentInvocation"],
+        ["gate-handling", "executeGateHandlingPhase"],
+        ["session-end", "executeSessionEndPhase"],
+        ["phase-deps", "flattenGateHandlingDeps"],
+        ["iteration-finalization", "executeIterationFinalizationPhase"],
+      ];
+      for (const [file, exportName] of pairs) {
+        const shim = require(`../run-phases/${file}`);
+        const canon = require(`../modules/run-control/run-phases/${file}`);
+        assert.equal(typeof shim[exportName], "function", `${file}.${exportName}`);
+        assert.equal(shim[exportName], canon[exportName], `${file}.${exportName} identity`);
+        assert.deepEqual(Object.keys(shim).sort(), Object.keys(canon).sort(), `${file} export keys`);
       }
     });
 
@@ -524,6 +552,7 @@ describe("modules physical layout", () => {
       assert.equal(shim.getRunStatePublicView, canon.getRunStatePublicView);
       assert.equal(typeof shim.finalizeRunState, "function");
       assert.equal(shim.finalizeRunState, canon.finalizeRunState);
+      assert.deepEqual(Object.keys(shim).sort(), Object.keys(canon).sort(), "run-state export keys");
     });
 
     it("modules/run-control index aggregates run-state exports", () => {
