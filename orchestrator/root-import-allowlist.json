@@ -59,7 +59,7 @@
     "runner-trace-viewer.js": "shim",
     "runner-tui-cli.js": "shim",
     "run-loop-helpers.js": "legacy",
-    "run-state.js": "legacy",
+    "run-state.js": "shim",
     "scenario-metrics-export.js": "shim"
   }
 }

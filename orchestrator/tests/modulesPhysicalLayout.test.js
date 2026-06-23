@@ -505,6 +505,36 @@ describe("modules physical layout", () => {
     });
   });
 
+  describe("run-control", () => {
+    it("physical modules/run-control tree exists", () => {
+      for (const rel of [
+        "modules/run-control/index.js",
+        "modules/run-control/run-state.js",
+      ]) {
+        assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root shim re-exports the same run-state APIs", () => {
+      const shim = require("../run-state");
+      const canon = require("../modules/run-control/run-state");
+      assert.equal(typeof shim.createRunState, "function");
+      assert.equal(shim.createRunState, canon.createRunState);
+      assert.equal(typeof shim.getRunStatePublicView, "function");
+      assert.equal(shim.getRunStatePublicView, canon.getRunStatePublicView);
+      assert.equal(typeof shim.finalizeRunState, "function");
+      assert.equal(shim.finalizeRunState, canon.finalizeRunState);
+    });
+
+    it("modules/run-control index aggregates run-state exports", () => {
+      const runControl = require("../modules/run-control");
+      assert.equal(typeof runControl.createRunState, "function");
+      assert.equal(typeof runControl.syncRunIteration, "function");
+      assert.equal(typeof runControl.setStepRunning, "function");
+      assert.equal(typeof runControl.getRunStatePublicView, "function");
+    });
+  });
+
   describe("module README stubs", () => {
     const PHYSICAL_CONTEXTS = [
       "gates",
@@ -517,6 +547,7 @@ describe("modules physical layout", () => {
       "model-runtime",
       "permissions",
       "tools",
+      "run-control",
     ];
     const REQUIRED_SECTIONS = [
       "## Ownership",
