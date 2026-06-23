@@ -4,7 +4,7 @@ Bounded context for `modules/model-runtime/`. **Partial physical slice** — dis
 
 ## Ownership
 
-**Owns:** Local model policy config, model tier gate, and (at root) discovery/selection, agent runtime adapters, hook bridge, runner model routing.
+**Owns:** Local model policy config, model tier gate, discovery/selection, runner model routing, and hook bridge (canonical under `modules/model-runtime/`). `agents/runtime/*` and `agents/routing/` remain at legacy paths.
 
 **Must not own:** Approval before DEV; trace redaction policy; gate verdict parsing.
 
@@ -17,10 +17,12 @@ Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adja
 - `tools` — manifest / tool metadata
 - `trace` — append usage/selection rows
 - `budget` — token/cost field helpers
+- `operator` — **beta-path only:** runner preflight/routing coupling (e.g. `runner-model-routing` → `runner-preflight`); not for operator scheduling or UI ownership
 
 ## Forbidden
 
-- Importing `operator` or `run-control` for scheduling decisions
+- Owning operator scheduling, TUI/help surfaces, or run-launch policy (use narrow imports only)
+- Importing `run-control` for scheduling decisions
 - Owning trace schema or redaction policy
 - Bypassing permissions for model invocation
 

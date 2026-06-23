@@ -2,9 +2,9 @@
 
 **Location:** `docs/orchestrator/module-ownership-map.md`. See [PATHS.md](PATHS.md).
 
-**Status:** Post-refactor alignment artifact (v0.10 coherence closeout). Extends [module-boundaries.md](module-boundaries.md) with **declared ownership**, coordination rules, and **current vs target** layout after v0.8 physical slices. **Not** architecture complete · **not** full repo modularized.
+**Status:** Post-refactor alignment artifact (v0.16 boundary hardening closeout). Extends [module-boundaries.md](module-boundaries.md) with **declared ownership**, coordination rules, and **current vs target** layout. **Not** architecture complete · **not** full repo modularized.
 
-**Physical modules shipped (v0.8–v0.9):** `gates` · `contracts` · `recovery` · `trace` · `budget` · `worktree` · `operator` · `model-runtime` *(partial — policy + tier gate only)*. Evidence: `orchestrator/tests/modulesPhysicalLayout.test.js`.
+**Physical modules:** `gates` · `contracts` · `recovery` · `trace` · `budget` · `worktree` · `operator` *(v0.8–v0.9)* · partial `model-runtime/` *(E16-1)* · partial `permissions/` *(E16-2)* · partial `tools/` *(E16-3)*. Allowlist: **9** entries. Evidence: `orchestrator/tests/modulesPhysicalLayout.test.js`.
 
 **Related:** [root-file-inventory.md](root-file-inventory.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [test-ownership-map.md](test-ownership-map.md)
 
@@ -61,10 +61,10 @@
 |--|--|
 | **Owns** | Capability matrix, credential ceiling, permission **decisions**, env/credential parsing |
 | **Must not own** | Shell execution; trace schema |
-| **Current paths** | `agents/permissions.js`, `agents/capability-matrix.js`, `credential-broker.js`, `environment-parser.js`, `security/*-permission-gate.js` |
+| **Current paths** | `modules/permissions/` (`credential-broker.js`, `environment-parser.js`) · shims at root · `agents/permissions.js`, `agents/capability-matrix.js` · `security/*-permission-gate.js` gate shells |
 | **Target paths** | `modules/permissions/` (+ `security/` gate shells classified with permissions) |
 | **Coordinates with** | tools (manifest), trace (permission_check rows) |
-| **Physical module** | **Not yet** |
+| **Physical module** | **Partial** — `credential-broker.js`, `environment-parser.js` under `modules/permissions/`; capability matrix + `agents/permissions.js` remain under `agents/`; gate shells under `security/` |
 
 ### tools
 
@@ -86,7 +86,7 @@
 | **Current paths** | `modules/model-runtime/` (`model-policy-config.js`, `model-tier-gate.js`) · `agents/runtime/*`, `agents/routing/`, `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` |
 | **Target paths** | `modules/model-runtime/` *(partial)* |
 | **Coordinates with** | permissions, trace, budget (token fields) |
-| **Physical module** | **Partial** — v0.9 policy loader + tier gate; discovery/selection/adapters still at root/`agents/` |
+| **Physical module** | **Partial** — v0.16 E16-1 root locals + policy/tier gate under `modules/model-runtime/`; `agents/runtime/*`, `agents/routing/` remain |
 
 ### trace
 
@@ -196,7 +196,8 @@ orchestrator/
 │   ├── budget/
 │   ├── contracts/
 │   ├── gates/
-│   ├── model-runtime/                   # partial — policy + tier gate (v0.9)
+│   ├── model-runtime/                   # partial — root locals + policy/tier gate (v0.16 E16-1)
+│   ├── permissions/                     # partial — broker/parser (v0.16 E16-2)
 │   ├── tools/                           # partial — MCP + eval harness (v0.16 E16-3)
 │   ├── operator/
 │   ├── recovery/
@@ -217,6 +218,6 @@ orchestrator/
 |------|--------|
 | 2026-06-09 | Initial ownership map — recovery context proposed; current vs target documented |
 | 2026-06-12 | Post-v0.8/v0.9 physical align — eight contexts under `modules/*`; model-runtime partial; run-control/permissions/tools deferred |
-| 2026-06-22 | E16-3 tools partial physical module — canonical `modules/tools/`; root + `security/` compat shims |
+| 2026-06-22 | v0.16 E16-5 — permissions partial physical module; model-runtime partial wording aligned; header + tree updated |
 | 2026-06-12 | Link test ownership map — primary owner declared before physical test layout |
 | 2026-06-12 | Per-module README stubs — ownership, allowed imports, forbidden; link to adjacency matrix |
