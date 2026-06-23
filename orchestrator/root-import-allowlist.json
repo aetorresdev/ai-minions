@@ -31,7 +31,7 @@
     "trace-workspace-lifecycle.js": "shim",
     "agents.js": "legacy",
     "console-dashboard.js": "shim",
-    "context-utils.js": "legacy",
+    "context-utils.js": "shim",
     "control-plane-tui.js": "shim",
     "credential-broker.js": "shim",
     "decision-engine.js": "legacy",
@@ -50,7 +50,7 @@
     "orchestrator.js": "legacy",
     "portable-project-template.js": "legacy",
     "project-template-cli.js": "shim",
-    "qa-spec-flow.js": "legacy",
+    "qa-spec-flow.js": "shim",
     "repo-root.js": "legacy",
     "runner-budget-view.js": "shim",
     "runner-launcher.js": "shim",
@@ -58,7 +58,7 @@
     "runner-preflight.js": "shim",
     "runner-trace-viewer.js": "shim",
     "runner-tui-cli.js": "shim",
-    "run-loop-helpers.js": "legacy",
+    "run-loop-helpers.js": "shim",
     "run-state.js": "shim",
     "scenario-metrics-export.js": "shim"
   }
