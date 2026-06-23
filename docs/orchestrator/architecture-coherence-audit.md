@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/architecture-coherence-audit.md`. See [PATHS.md](PATHS.md).
 
-**Status:** v0.8 coherence audit — **updated post-v0.16 boundary hardening (E16-5 docs pass)**. Docs only. **Not** architecture complete · **not** full repo modularized.
+**Status:** v0.8 coherence audit — **updated post-v0.16 boundary hardening (docs alignment pass)**. Docs only. **Not** architecture complete · **not** full repo modularized.
 
 **Related:** [root-file-inventory.md](root-file-inventory.md) · [module-ownership-map.md](module-ownership-map.md) · [module-boundaries.md](module-boundaries.md)
 
@@ -118,7 +118,7 @@ From `module-boundary-allowlist.json`:
 
 ## Physical refactor slice status (post-v0.8 / v0.9 / v0.16)
 
-Movement plan slices from below — **status after v0.16 E16-4** (`3f9ad00`):
+Movement plan slices from below — **status after v0.16 allowlist shrink** (`3f9ad00`):
 
 | Order | Slice | Status | Evidence |
 |------:|-------|--------|----------|
@@ -129,12 +129,12 @@ Movement plan slices from below — **status after v0.16 E16-4** (`3f9ad00`):
 | 5 | Budget | **Done** | `modules/budget/` + shims |
 | 6 | Worktree | **Done** | `modules/worktree/` + shims |
 | 7 | Operator | **Done** | `modules/operator/` + shims |
-| 8 | Model-runtime (root locals) | **Partial** | E16-1 — `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` under `modules/model-runtime/`; `agents/runtime/*` remains |
-| 9 | Permissions (root) | **Partial** | E16-2 — `credential-broker.js`, `environment-parser.js` under `modules/permissions/`; `agents/permissions.js` remains |
-| 10 | Tools | **Partial** | E16-3 — `mcp-client.js` + eval/registry shells under `modules/tools/`; run-control uses tools API |
+| 8 | Model-runtime (root locals) | **Partial** | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` under `modules/model-runtime/`; `agents/runtime/*` remains |
+| 9 | Permissions (root) | **Partial** | `credential-broker.js`, `environment-parser.js` under `modules/permissions/`; `agents/permissions.js` remains |
+| 10 | Tools | **Partial** | `mcp-client.js` + eval/registry shells under `modules/tools/`; run-control uses tools API |
 | 11–13 | Run-control, shared, hub | **Deferred** | v0.17 modular closeout unless beta-blocking |
 
-**Docs/tests debt:** flat `tests/*.test.js` layout vs “tests mirror modules” — follow-on test governance. Allowlist shrink **Done** (E16-4: 15→9).
+**Docs/tests debt:** flat `tests/*.test.js` layout vs “tests mirror modules” — follow-on test governance. Allowlist shrink **Done** (v0.16: 15→9).
 
 ---
 
@@ -153,9 +153,9 @@ Movement plan slices from below — **status after v0.16 E16-4** (`3f9ad00`):
 | 5 | Budget | `token-*.js`, `cost-accounting-dimensions.js` | `modules/budget/` | Yes | Leave `runner-budget-view` in operator slice |
 | 6 | Worktree | `worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js` | `modules/worktree/` | Yes | |
 | 7 | Operator | `explain-run.js`, `runner-*.js`, `control-plane-tui.js`, etc. | `modules/operator/` | Yes | Largest file count; mostly independent |
-| 8 | Model-runtime (root locals) | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` | `modules/model-runtime/` | Yes | **Partial (E16-1)** — `agents/` subtree later |
-| 9 | Permissions (root) | `credential-broker.js`, `environment-parser.js` | `modules/permissions/` | Yes | **Partial (E16-2)** — `agents/permissions.js` later |
-| 10 | Tools | `mcp-client.js` + `security/tool-eval.js`, `skill-registry.js`, `untrusted-context-eval.js` | `modules/tools/` | Yes | **Partial (E16-3)** — permission gate shells stay in `security/` |
+| 8 | Model-runtime (root locals) | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` | `modules/model-runtime/` | Yes | **Partial** — `agents/` subtree later |
+| 9 | Permissions (root) | `credential-broker.js`, `environment-parser.js` | `modules/permissions/` | Yes | **Partial** — `agents/permissions.js` later |
+| 10 | Tools | `mcp-client.js` + `security/tool-eval.js`, `skill-registry.js`, `untrusted-context-eval.js` | `modules/tools/` | Yes | **Partial** — permission gate shells stay in `security/` |
 | 11 | Run-control | `run-phases/`, `run-loop-helpers.js`, `run-state.js`, `qa-spec-flow.js`, `context-utils.js` | `modules/run-control/` | Yes | |
 | 12 | Shared / legacy | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` | `modules/shared/` | Yes | Optional; can defer |
 | 13 | Hub last | `orchestrator.js` | `modules/run-control/orchestrator.js` | Yes | Highest fan-in; verify export parity tests |
@@ -165,7 +165,7 @@ Movement plan slices from below — **status after v0.16 E16-4** (`3f9ad00`):
 ### Post-move (root import guard)
 
 - Root import guard **implemented** — fail on new root-level `*.js` except allowlisted entrypoints/shims/legacy; legacy count frozen at baseline 13.
-- Allowlist shrink **Done** (v0.10: 34→15; v0.16 E16-4: 15→9) — see [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md).
+- Allowlist shrink **Done** (v0.10: 34→15; v0.16: 15→9) — see [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md).
 - Module `README.md` stubs under each physical `modules/<context>/` (v0.10 + v0.16 partial contexts).
 
 ### Explicitly deferred (post-v0.16)
@@ -199,4 +199,4 @@ Movement plan slices from below — **status after v0.16 E16-4** (`3f9ad00`):
 | 2026-06-09 | Initial coherence audit + physical refactor movement plan |
 | 2026-06-09 | Pre-merge review follow-up — companion commit rephrases v0.7 checklist line 273 (`lint:docs-claims` pre-existing on `master`) |
 | 2026-06-12 | Post-v0.8/v0.9 physical align — matrix + slice status; eight `modules/*` contexts documented |
-| 2026-06-22 | v0.16 E16-5 — slice status for model-runtime/permissions/tools partial modules; allowlist 9; honest partial state |
+| 2026-06-22 | v0.16 — slice status for model-runtime/permissions/tools partial modules; allowlist 9; honest partial state |

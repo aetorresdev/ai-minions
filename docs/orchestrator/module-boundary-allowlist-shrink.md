@@ -56,13 +56,13 @@ Cross-context debt deferred to future physical slices (run-control hub, tools↔
 - **run-control → operator** — `run-orchestrator` help surface
 - **trace → gates (hard)** — `run-outcome-summary` reads `review-record` (consumption only)
 
-**Formalized in v0.16 E16-4 (no longer grandfathered):** operator ↔ model-runtime runner launcher/preflight/TUI routing — adjacency matrix updated; six allowlist keys removed.
+**Formalized in v0.16 allowlist shrink (no longer grandfathered):** operator ↔ model-runtime runner launcher/preflight/TUI routing — adjacency matrix updated; six allowlist keys removed.
 
 ---
 
-## v0.16 E16-4 shrink (15 → 9)
+## v0.16 allowlist shrink (15 → 9)
 
-| Metric | v0.10 after | v0.16 E16-4 after |
+| Metric | v0.10 after | v0.16 after |
 |--------|-------------|-------------------|
 | Total allowlist entries | 15 | **9** |
 | `matrix` | 14 | **8** |
@@ -89,5 +89,5 @@ Shrink method: formalize documented **operator ↔ model-runtime** adjacency in 
 
 | Date | Change |
 |------|--------|
-| 2026-06-22 | v0.16 E16-4 allowlist shrink 15→9 — operator↔model-runtime adjacency formalized; legacy root baseline frozen |
+| 2026-06-22 | v0.16 allowlist shrink 15→9 — operator↔model-runtime adjacency formalized; legacy root baseline frozen |
 | 2026-06-12 | v0.10 allowlist shrink 34→15 via classification alignment |
