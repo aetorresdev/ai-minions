@@ -67,7 +67,7 @@ Rows = capability areas. Columns use the five allowed states only (one primary s
 | **Budget** | **implemented** | `modules/budget/`, token summaries, cost dimensions | No production spend SLA (**not claimed**) |
 | **Worktree** | **implemented** | `modules/worktree/`, isolation, promotion, lifecycle trace | — |
 | **Operator surfaces** | **implemented** | `modules/operator/`, CLI/TUI/export/preflight | Root shims remain; imports model-runtime via adjacency (runner routing) |
-| **Modular monolith layout** | **partial** | Eleven physical contexts + shims; CI root guard · run-control **partial** (state, phases, helpers) | `orchestrator.js` hub legacy until physical move; `agents/` subtree + shared/legacy deferred; grandfathered cross-imports; flat test layout |
+| **Modular monolith layout** | **partial** | Eleven physical contexts + shims; CI root guard · run-control hub canonical | `agents/` subtree + shared/legacy deferred; grandfathered cross-imports; flat test layout |
 | **OTLP export** | **planned** | OTel mapper derived | OTLP sink **not claimed** for v0.8 |
 | **Memory store** | **design-only** | `memory-store-decision.md` | No runtime memory SoT |
 | **Swarm / multi-agent scale-out** | **not claimed** | — | Explicitly out of v0.8 lane |
@@ -158,9 +158,9 @@ Movement plan slices from below — **status @ `7f90134`** (v0.8–v0.16 slices 
 | 8 | Model-runtime (root locals) | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` | `modules/model-runtime/` | Yes | **Partial** — `agents/` subtree later |
 | 9 | Permissions (root) | `credential-broker.js`, `environment-parser.js` | `modules/permissions/` | Yes | **Partial** — `agents/permissions.js` later |
 | 10 | Tools | `mcp-client.js` + `security/tool-eval.js`, `skill-registry.js`, `untrusted-context-eval.js` | `modules/tools/` | Yes | **Partial** — permission gate shells stay in `security/` |
-| 11 | Run-control | `run-state`, `run-phases/`, helper bundle | `modules/run-control/` | Yes | **Partial** — hub move pending |
-| 12 | Shared / legacy | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` | `modules/shared/` | Yes | Deferred — after hub move |
-| 13 | Hub last | `orchestrator.js` | `modules/run-control/orchestrator.js` | Yes | **Deferred** — physical move only per hub ADR |
+| 11 | Run-control | full hub tree | `modules/run-control/` | Yes | **Partial** — shared/legacy deferred |
+| 12 | Shared / legacy | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` | `modules/shared/` | Yes | Deferred |
+| 13 | Hub last | `orchestrator.js` | `modules/run-control/orchestrator.js` | Yes | **Done** (physical move) |
 
 **Do not move in physical refactor min bar:** `cli.js`, `run-orchestrator.js`, `governance-gate.js`, `merge-governance/`, config, `schemas/`, `scripts/`, `tests/`.
 
