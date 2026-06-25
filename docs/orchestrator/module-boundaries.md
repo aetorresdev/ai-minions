@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/module-boundaries.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, `modules/trace/`, `modules/budget/`, `modules/worktree/`, `modules/operator/`, partial `modules/model-runtime/`, partial `modules/permissions/`, partial `modules/tools/` ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **Modular refactor not complete.**
+**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, `modules/trace/`, `modules/budget/`, `modules/worktree/`, `modules/operator/`, partial `modules/model-runtime/`, partial `modules/permissions/`, partial `modules/tools/`, partial **`modules/run-control/`** (state, phases, helpers) ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **Modular refactor not complete.**
 
 **Related:** [architecture-coherence-audit.md](architecture-coherence-audit.md) · [module-ownership-map.md](module-ownership-map.md) · [root-file-inventory.md](root-file-inventory.md) · [run-control-hub-decision.md](run-control-hub-decision.md) · [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
@@ -151,7 +151,7 @@ Every new top-level file should declare target module in PR description. New cro
 | **Allowlist** | `orchestrator/module-boundary-allowlist.json` | Grandfathered legacy violations only — new keys require review |
 | **CI** | `npm test` / `orchestrator-unit-tests.yml` | Fails on unlisted violations |
 
-**Still planned:** ESLint `import/no-restricted-paths` zones (optional); run-control physical slice; `modules/shared/` legacy consolidation; flat test layout mirror under `tests/<context>/`.
+**Still planned:** ESLint `import/no-restricted-paths` zones (optional); run-control **hub** physical move; `modules/shared/` legacy consolidation; flat test layout mirror under `tests/<context>/`.
 
 **v0.17 run-control physical slices shipped (partial):** run-state, run-phases, helper bundle under `modules/run-control/` + shims. **Hub ADR:** [run-control-hub-decision.md](run-control-hub-decision.md). **Pending:** `orchestrator.js` hub physical move. **Earlier:** v0.16 model-runtime · permissions · tools · allowlist shrink 15→9; v0.8–v0.9 contexts — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
 
@@ -188,5 +188,4 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-22 | v0.16 — partial `modules/model-runtime/`, `modules/permissions/`, `modules/tools/`; run-control imports tools API |
 | 2026-06-22 | v0.16 allowlist 15→9; operator↔model-runtime adjacency formalized |
 | 2026-06-22 | v0.16 docs coherence pass; honest partial state, no architecture-complete claim |
-
-Update when module map or known violations change.
+| 2026-06-23 | v0.17 — partial `modules/run-control/` in status; hub move in still-planned |

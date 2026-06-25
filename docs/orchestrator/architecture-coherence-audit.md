@@ -112,13 +112,13 @@ From `module-boundary-allowlist.json`:
 | self-improvement-loop-contract | design-only | design validator only | Assumes auto-apply |
 | bv-reviewer-contract | design-only | no gate | Assumes value gate blocks merge |
 | memory-store-decision | design-only | trace SoT only | Assumes mem0/local store authority |
-| modular monolith complete | **not claimed** | **partial** — ten `modules/*` contexts (three partial) + shims | CERBERUS/doc drift if claimed complete |
+| modular monolith complete | **not claimed** | **partial** — eleven `modules/*` contexts (four partial: model-runtime, permissions, tools, run-control state/phases/helpers) + shims | CERBERUS/doc drift if claimed complete |
 
 ---
 
-## Physical refactor slice status (post-v0.8 / v0.9 / v0.16)
+## Physical refactor slice status (v0.17 run-control partial closeout)
 
-Movement plan slices from below — **status after v0.16 allowlist shrink** (`3f9ad00`):
+Movement plan slices from below — **status @ `7f90134`** (v0.8–v0.16 slices plus partial run-control physical closeout):
 
 | Order | Slice | Status | Evidence |
 |------:|-------|--------|----------|
