@@ -41,6 +41,7 @@ The **Node runner and tests** live under **`orchestrator/`** (product path).
 | [model-selection-trace-contract.md](model-selection-trace-contract.md) | Observable `model_selection` trace — tier and provenance (not auto-routing) |
 | [bv-reviewer-contract.md](bv-reviewer-contract.md) | Business value / outcome gate — `value_review` trace shape (design-first; no runtime gate) |
 | [self-improvement-loop-contract.md](self-improvement-loop-contract.md) | Governed harness improvement loop — `improvement_proposal` + human approval gate (design-first; no auto-apply) |
+| [run-control-hub-decision.md](run-control-hub-decision.md) | v0.17 ADR — temporary `orchestrator.js` hub, hub physical move scope, index export policy |
 | [module-boundaries.md](module-boundaries.md) | Modular monolith bounded contexts — module map, `modules/gates/` slice, CI `lint:module-boundaries` |
 | [architecture-coherence-audit.md](architecture-coherence-audit.md) | v0.8 system coherence matrix + physical refactor movement plan (audit only) |
 | [module-ownership-map.md](module-ownership-map.md) | Bounded-context ownership — current vs target paths |
