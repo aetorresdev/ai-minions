@@ -132,9 +132,9 @@ Movement plan slices from below — **status @ `7f90134`** (v0.8–v0.16 slices 
 | 8 | Model-runtime (root locals) | **Partial** | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` under `modules/model-runtime/`; `agents/runtime/*` remains |
 | 9 | Permissions (root) | **Partial** | `credential-broker.js`, `environment-parser.js` under `modules/permissions/`; `agents/permissions.js` remains |
 | 10 | Tools | **Partial** | `mcp-client.js` + eval/registry shells under `modules/tools/`; run-control uses tools API |
-| 11 | Run-control (state, phases, helpers) | **Partial** | @ `7f90134` — `modules/run-control/` + shims; hub ADR merged |
-| 12 | Shared / legacy | **Deferred** | After hub physical move |
-| 13 | Hub (`orchestrator.js`) | **Deferred** | Physical move per [run-control-hub-decision.md](run-control-hub-decision.md) |
+| 11 | Run-control (state, phases, helpers, hub) | **Partial** | hub tree under `modules/run-control/` + shims; shared/legacy deferred |
+| 12 | Shared / legacy | **Deferred** | Next consolidation slice |
+| 13 | Hub (`orchestrator.js`) | **Done** (physical) | Canonical `modules/run-control/orchestrator.js` + root shim |
 
 **Docs/tests debt:** flat `tests/*.test.js` layout vs “tests mirror modules” — follow-on test governance. Allowlist shrink **Done** (v0.16: 15→9).
 

@@ -69,7 +69,7 @@ The hub move PR **must not** (unless separately scoped change):
 | `run-loop-helpers.js` | **Moved** (shim) | `modules/run-control/run-loop-helpers.js` |
 | `qa-spec-flow.js` | **Moved** (shim) | `modules/run-control/qa-spec-flow.js` |
 | `context-utils.js` | **Moved** (shim) | `modules/run-control/context-utils.js` |
-| `orchestrator.js` | **Legacy hub** (pending move) | `modules/run-control/orchestrator.js` *(target)* |
+| `orchestrator.js` | **Moved** (shim) | `modules/run-control/orchestrator.js` |
 | `modules/run-control/index.js` | **Partial barrel** | Exports run-state only |
 
 **Still at legacy paths (later slices):** `agents.js`, `decision-engine.js`, `repo-root.js`, `minions-config.js` → shared/legacy consolidation; `agents/runtime/*` → model-runtime agents tree.

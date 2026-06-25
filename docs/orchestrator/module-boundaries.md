@@ -92,7 +92,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 
 | Module | Principal files / dirs |
 |--------|-------------------------|
-| **run-control** | `modules/run-control/` — `run-state.js`, `run-phases/*`, `run-loop-helpers.js`, `qa-spec-flow.js`, `context-utils.js` *(canonical)* · root shims · **`orchestrator.js` legacy hub** *(pending physical move)* · `cli.js`, `run-orchestrator.js` entrypoints at root |
+| **run-control** | `modules/run-control/` — full hub tree *(orchestrator.js canonical)* · root shims · `cli.js`, `run-orchestrator.js` entrypoints at root |
 | **contracts** | `modules/contracts/` (`*-design.js` validators) · shims: `bv-reviewer-design.js`, `progressive-disclosure-design.js`, `self-improvement-loop-design.js` · `validate-output.js` (via agents) · `tests/*Contract.test.js`, `tests/handoffContract.test.js`, `tests/sandboxCredentialIsolationDesign.test.js`, `tests/moduleBoundariesContract.test.js` |
 | **gates** | `modules/gates/` (`governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js`) · shims: `governance-gate.js`, `merge-governance/`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js` |
 | **permissions** | `modules/permissions/` (`credential-broker.js`, `environment-parser.js`) · shims at root · `agents/permissions.js`, `agents/capability-matrix.js` remain under `agents/` · `security/*-permission-gate.js` gate shells |
@@ -151,9 +151,9 @@ Every new top-level file should declare target module in PR description. New cro
 | **Allowlist** | `orchestrator/module-boundary-allowlist.json` | Grandfathered legacy violations only — new keys require review |
 | **CI** | `npm test` / `orchestrator-unit-tests.yml` | Fails on unlisted violations |
 
-**Still planned:** ESLint `import/no-restricted-paths` zones (optional); run-control **hub** physical move; `modules/shared/` legacy consolidation; flat test layout mirror under `tests/<context>/`.
+**Still planned:** ESLint `import/no-restricted-paths` zones (optional); `modules/shared/` legacy consolidation; flat test layout mirror under `tests/<context>/`.
 
-**v0.17 run-control physical slices shipped (partial):** run-state, run-phases, helper bundle under `modules/run-control/` + shims. **Hub ADR:** [run-control-hub-decision.md](run-control-hub-decision.md). **Pending:** `orchestrator.js` hub physical move. **Earlier:** v0.16 model-runtime · permissions · tools · allowlist shrink 15→9; v0.8–v0.9 contexts — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
+**v0.17 run-control physical slices shipped (partial):** run-state, run-phases, helper bundle, and hub under `modules/run-control/` + shims. **Hub ADR:** [run-control-hub-decision.md](run-control-hub-decision.md). **Pending:** shared/legacy consolidation. **Earlier:** v0.16 model-runtime · permissions · tools · allowlist shrink 15→9; v0.8–v0.9 contexts — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
 
 ---
 

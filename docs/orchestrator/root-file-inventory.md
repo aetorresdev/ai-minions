@@ -55,7 +55,7 @@ Canonical implementation lives under `modules/<context>/`. Root paths below rema
 | model-runtime | `modules/model-runtime/` | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js`, policy/tier gate | **Partial** — root locals moved; `agents/runtime/*`, `agents/routing/` remain |
 | permissions | `modules/permissions/` | `credential-broker.js`, `environment-parser.js` | **Partial** — broker/parser moved; `agents/permissions.js`, capability matrix remain |
 | tools | `modules/tools/` | `mcp-client.js`, `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js` | **Partial** — MCP + eval shells moved; permission gate shells stay in `security/` |
-| run-control | `modules/run-control/` | `run-state.js`, `run-phases/*.js`, `run-loop-helpers.js`, `qa-spec-flow.js`, `context-utils.js` | **Partial** — state/phases/helpers merged; `orchestrator.js` hub legacy until physical move |
+| run-control | `modules/run-control/` | full hub tree incl. `orchestrator.js` | **Partial** — hub physical move done; shared/legacy deferred |
 
 ---
 
@@ -87,7 +87,7 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | `mcp-client.js` | Shim | tools | `modules/tools/mcp-client.js` | Yes — **moved** |
 | `minions-config.js` | Project config | shared/legacy | `modules/shared/minions-config.js` | Yes |
 | `operator-cli-help.js` | Operator surface | operator | `modules/operator/operator-cli-help.js` | Yes |
-| `orchestrator.js` | Legacy hub | run-control | `modules/run-control/orchestrator.js` | Yes — **pending** per [run-control-hub-decision.md](run-control-hub-decision.md) |
+| `orchestrator.js` | Shim | run-control | `modules/run-control/orchestrator.js` | Yes — **moved** |
 | `otel-genai-trace-map.js` | Shim | trace | `modules/trace/otel-genai-trace-map.js` | Yes — **moved** |
 | `portable-project-template.js` | Operator/template | operator | `modules/operator/portable-project-template.js` | Yes |
 | `progressive-disclosure-design.js` | Shim | contracts | `modules/contracts/progressive-disclosure-design.js` | Yes — **moved** |
