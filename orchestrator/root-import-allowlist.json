@@ -58,6 +58,7 @@
     "runner-preflight.js": "shim",
     "runner-trace-viewer.js": "shim",
     "runner-tui-cli.js": "shim",
+    "ai-minions-cli.js": "shim",
     "run-loop-helpers.js": "shim",
     "run-state.js": "shim",
     "scenario-metrics-export.js": "shim"

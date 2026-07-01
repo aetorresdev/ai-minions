@@ -6,7 +6,6 @@
 
 "use strict";
 
-const { buildReport } = require("../budget/token-trace-report");
 const { buildRunOutcomeSummary } = require("../trace/run-outcome-summary");
 
 const OPERATOR_TRACE_SUMMARY_SCHEMA = "1";
