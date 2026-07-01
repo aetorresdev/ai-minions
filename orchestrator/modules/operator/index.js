@@ -17,5 +17,6 @@ module.exports = {
   ...require("./scenario-metrics-export"),
   ...require("./operator-trace-summary"),
   ...require("./operator-trace-command"),
+  ...require("./operator-doctor-evidence"),
   ...require("./ai-minions-cli"),
 };

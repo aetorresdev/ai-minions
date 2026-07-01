@@ -67,6 +67,7 @@ const ENTRIES = {
   'tests/operator/explainRun.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/aiMinionsCli.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTraceCommand.test.js': { owner: 'operator', kind: 'unit' },
+  'tests/operator/operatorDoctorEvidence.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTraceSummary.test.js': { owner: 'operator', kind: 'unit' },
   'tests/flowHookBridge.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/goldenPath.test.js': { owner: 'run-control', kind: 'integration' },

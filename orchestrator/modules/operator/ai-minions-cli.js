@@ -23,13 +23,12 @@ const {
 } = require('../../runner-model-routing');
 const { printAiMinionsCliHelp } = require('./operator-cli-help');
 const { runOperatorStatus, runOperatorExplain } = require('./operator-trace-command');
+const { runOperatorDoctor, runOperatorEvidence } = require('./operator-doctor-evidence');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const INSTALL_SCRIPT = path.join(REPO_ROOT, 'scripts', 'install-ai-minions.mjs');
 
 const PLANNED_ALPHA_COMMANDS = new Set([
-  'doctor',
-  'evidence',
   'context',
   'resume',
 ]);
@@ -63,6 +62,7 @@ function parseAiMinionsArgs(argv) {
   const out = parseCommonArgs(argv);
   out.json = argv.includes('--json');
   out.noInstall = argv.includes('--no-install');
+  out.live = argv.includes('--live');
   return out;
 }
 
@@ -72,8 +72,6 @@ function parseAiMinionsArgs(argv) {
  */
 function formatPlannedCommandMessage(cmd) {
   const hints = {
-    doctor: 'see docs/orchestrator/pre-run-checklist.md and npm run runner:tui -- preflight',
-    evidence: 'npm run control-plane:tui -- --run-id <task_id>',
     context: 'see docs/orchestrator/context-package-contract.md',
     resume: 'not implemented — inspect traces + explain-run',
   };
@@ -293,6 +291,49 @@ async function main() {
     process.exit(1);
   }
 
+  if (cmd === 'doctor') {
+    try {
+      const result = await runOperatorDoctor({
+        repoRoot: resolveInstallRepoRoot(opts.cwd),
+        cwd: opts.cwd,
+        modelPolicy: opts.modelPolicy ? String(opts.modelPolicy) : undefined,
+        live: opts.live === true,
+        install: opts.noInstall !== true,
+      });
+      if (opts.json === true && result.json) {
+        console.log(JSON.stringify(result.json, null, 2));
+      } else {
+        console.log(result.text);
+      }
+      if (!result.ok) {
+        for (const c of result.report.checks.filter((ch) => ch.status === 'fail')) {
+          console.error(`blocker: ${c.reason_code || c.operator_reason_code}`);
+        }
+      }
+      process.exit(result.exitCode);
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    }
+  }
+
+  if (cmd === 'evidence') {
+    const result = runOperatorEvidence({
+      runId: opts.runId ? String(opts.runId) : undefined,
+      filePath: opts.file ? String(opts.file) : undefined,
+      repoRoot: resolveInstallRepoRoot(opts.cwd),
+    });
+    if (opts.json === true && result.json) {
+      console.log(JSON.stringify(result.json, null, 2));
+    } else {
+      console.log(result.text);
+    }
+    if (!result.ok && result.reason_code) {
+      console.error(`reason_code: ${result.reason_code}`);
+    }
+    process.exit(result.exitCode);
+  }
+
   if (cmd === 'status' || cmd === 'result') {
     const result = runOperatorStatus({
       runId: opts.runId ? String(opts.runId) : undefined,
@@ -407,6 +448,8 @@ module.exports = {
   runStart,
   runOperatorStatus,
   runOperatorExplain,
+  runOperatorDoctor,
+  runOperatorEvidence,
   main,
 };
 
