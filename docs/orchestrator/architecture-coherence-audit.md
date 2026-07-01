@@ -2,11 +2,11 @@
 
 **Location:** `docs/orchestrator/architecture-coherence-audit.md`. See [PATHS.md](PATHS.md).
 
-**Status:** v0.8 coherence audit — **updated post-v0.17 run-control partial closeout + hub ADR (docs alignment pass)**. Docs only. **Not** architecture complete · **not** full repo modularized.
+**Status:** v0.8 coherence audit — **updated post-v0.17 run-control hub physical move (docs alignment pass)**. Docs only. **Not** architecture complete · **not** full repo modularized.
 
 **Related:** [root-file-inventory.md](root-file-inventory.md) · [module-ownership-map.md](module-ownership-map.md) · [module-boundaries.md](module-boundaries.md) · [run-control-hub-decision.md](run-control-hub-decision.md)
 
-**Baseline:** v0.17 lane @ `7f90134` · CI: `lint:module-boundaries` + root import guard (legacy baseline 13) + allowlist **60** root files (**9** legacy) · **Physical modules:** eleven trees under `modules/` — partial: `model-runtime/`, `permissions/`, `tools/`, **`run-control/`** (state, phases, helpers) · Evidence: `tests/modulesPhysicalLayout.test.js`.
+**Baseline:** v0.17 lane post hub physical move · CI: `lint:module-boundaries` + root import guard (legacy baseline 13) + allowlist **60** root files (**8** legacy) · **Physical modules:** eleven trees under `modules/` — partial: `model-runtime/`, `permissions/`, `tools/`, **`run-control/`** (full hub tree canonical; shared/legacy deferred) · Evidence: `tests/modulesPhysicalLayout.test.js`.
 
 ---
 
@@ -112,13 +112,13 @@ From `module-boundary-allowlist.json`:
 | self-improvement-loop-contract | design-only | design validator only | Assumes auto-apply |
 | bv-reviewer-contract | design-only | no gate | Assumes value gate blocks merge |
 | memory-store-decision | design-only | trace SoT only | Assumes mem0/local store authority |
-| modular monolith complete | **not claimed** | **partial** — eleven `modules/*` contexts (four partial: model-runtime, permissions, tools, run-control state/phases/helpers) + shims | CERBERUS/doc drift if claimed complete |
+| modular monolith complete | **not claimed** | **partial** — eleven `modules/*` contexts (four partial: model-runtime, permissions, tools, run-control hub tree) + shims | CERBERUS/doc drift if claimed complete |
 
 ---
 
-## Physical refactor slice status (v0.17 run-control partial closeout)
+## Physical refactor slice status (v0.17 run-control hub physical move)
 
-Movement plan slices from below — **status @ `7f90134`** (v0.8–v0.16 slices plus partial run-control physical closeout):
+Movement plan slices from below — **status post hub physical move** (v0.8–v0.16 slices plus run-control tree canonical):
 
 | Order | Slice | Status | Evidence |
 |------:|-------|--------|----------|
@@ -190,7 +190,7 @@ Movement plan slices from below — **status @ `7f90134`** (v0.8–v0.16 slices 
 | No file movement in this audit | ✓ |
 | Physical refactor movement plan produced | ✓ — slice table above |
 
-**System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and **partial** physical modular layout (eleven bounded contexts under `modules/*` — four partial including run-control state/phases/helpers — with compat shims). Coherence **frays** at the remaining **`orchestrator.js` temporary hub**, `agents/` legacy subtree, grandfathered cross-imports, flat test layout vs “tests mirror modules”, and design-only docs that must not be read as shipped runtime. v0.17 records **hub decision** and **partial run-control physical closeout** — **not** architecture complete.
+**System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and **partial** physical modular layout (eleven bounded contexts under `modules/*` — four partial including run-control hub tree — with compat shims). Coherence **frays** at **thin-hub coordination debt** (god-module imports, not root path), `agents/` legacy subtree, grandfathered cross-imports, flat test layout vs “tests mirror modules”, and design-only docs that must not be read as shipped runtime. v0.17 **hub physical move is done** — **not** architecture complete.
 
 ---
 
@@ -202,4 +202,4 @@ Movement plan slices from below — **status @ `7f90134`** (v0.8–v0.16 slices 
 | 2026-06-09 | Pre-merge review follow-up — companion commit rephrases v0.7 checklist line 273 (`lint:docs-claims` pre-existing on `master`) |
 | 2026-06-12 | Post-v0.8/v0.9 physical align — matrix + slice status; eight `modules/*` contexts documented |
 | 2026-06-22 | v0.16 — slice status for model-runtime/permissions/tools partial modules; allowlist 9; honest partial state |
-| 2026-06-23 | v0.17 — run-control partial closeout + hub ADR alignment @ `7f90134` |
+| 2026-06-25 | Post hub physical move — baseline, slice table, summary aligned |

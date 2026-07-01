@@ -1,20 +1,20 @@
 # Run-control hub decision (orchestrator.js)
 
-**Architecture decision record** — documents the **temporary hub** role of `orchestrator.js` during v0.17 modular closeout. **No runtime implementation** in this record; a follow-on PR owns the physical move.
+**Architecture decision record** — documents the **temporary hub** role (high fan-in run-loop coordination) of `orchestrator.js` during v0.17 modular closeout. **Physical move: complete** — canonical `modules/run-control/orchestrator.js`; root `orchestrator.js` is compat shim only. **Not** a thin-hub refactor record.
 
 **Related:** [module-boundaries.md](module-boundaries.md) · [root-file-inventory.md](root-file-inventory.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · `orchestrator/modules/run-control/README.md`
 
-**Evidence baseline:** `master` @ `7f90134` — run-state, run-phases, and run-loop helper bundle are canonical under `modules/run-control/` with root compat shims.
+**Evidence baseline:** run-control hub tree canonical under `modules/run-control/` with root compat shims and export parity tests.
 
 ---
 
 ## Context
 
-The orchestrator run loop coordinates session lifecycle, phase graph execution, gates, trace append, worktree binding, and model-runtime spawn paths. Historically this lived in a single root file (`orchestrator.js`) with high fan-in imports across bounded contexts.
+The orchestrator run loop coordinates session lifecycle, phase graph execution, gates, trace append, worktree binding, and model-runtime spawn paths. Historically this lived in a single root file with high fan-in imports across bounded contexts.
 
-v0.17 **run-control physical slices** moved supporting files into `modules/run-control/` with root compat shims and export parity tests. **`orchestrator.js` remains at the legacy root path** and still performs hub coordination.
+v0.17 **run-control physical closeout** moved the full hub tree — including `orchestrator.js` — into `modules/run-control/` with root compat shims and export parity tests. **Root `orchestrator.js` is no longer canonical**; it re-exports the module implementation.
 
-The hub physical move is blocked until this ADR records what “hub” means, what that move may change, and what remains explicitly **partial** or **deferred**.
+**Still partial (honest):** the hub remains a **coordination god-module** until optional thin-hub extraction; `agents/` subtree and shared/legacy files remain at root paths.
 
 ---
 
@@ -22,12 +22,12 @@ The hub physical move is blocked until this ADR records what “hub” means, wh
 
 | # | Decision | Rationale |
 |---|----------|-----------|
-| **D1** | **`orchestrator.js` is an explicit temporary run-control hub** at `orchestrator/orchestrator.js` until the hub physical move. | Preserves zero-behavior-change invariant across prior run-control slices; defers highest fan-in move until supporting files are canonical. |
-| **D2** | **Hub move scope = physical relocation + export parity**, not hub logic refactor. Target: `modules/run-control/orchestrator.js` with root compat shim re-exporting the same public surface tests already cover. | Separates layout closeout from behavioral extraction; review can reject stealth refactors in a “move” PR. |
-| **D3** | **`modules/run-control/index.js` exports `run-state` only** until a later deliberate slice widens the barrel. Phases and helpers import via **canonical paths** or **root shims**. | Avoids accidental API expansion through index aggregation; documented in module README and layout tests. |
+| **D1** | **Hub canonical path is `modules/run-control/orchestrator.js`.** Root `orchestrator.js` is **compat shim only**. Hub coordination role is **temporary** (not thin) until deliberate extraction. | Physical ownership closes run-control tree; behavioral god-module pressure acknowledged separately. |
+| **D2** | **Hub physical move = relocation + export parity only** — **no** hub logic refactor in the move slice. | Separates layout closeout from behavioral extraction; review rejects stealth refactors in “move” PRs. |
+| **D3** | **`modules/run-control/index.js` exports `run-state` only** until a later deliberate slice widens the barrel. Phases, helpers, and hub import via **canonical paths** or **root shims**. | Avoids accidental API expansion through index aggregation. |
 | **D4** | **Entrypoints stay at root:** `cli.js`, `run-orchestrator.js`. | Root policy — not run-control bounded-context internals. |
-| **D5** | **Incremental “thin hub” extraction** (moving coordination branches into phase-local facades, shrinking cross-import surface) is **deferred after the hub physical move** unless a beta-blocking defect is filed with evidence. | God-module pressure is acknowledged; v0.17 closeout optimizes **physical ownership**, not full coordination rewrite. |
-| **D6** | **No architecture-complete or run-control-complete claims** until closeout dry-run evidence and release prep. | Partial modular layout is honest state; external beta must not inherit overstated docs. |
+| **D5** | **Incremental “thin hub” extraction** (phase-local facades, smaller cross-import surface) is **deferred** unless a beta-blocking defect is filed with evidence. | v0.17 optimizes **physical ownership**, not full coordination rewrite. |
+| **D6** | **No architecture-complete or run-control-complete claims** until closeout dry-run evidence and release prep. | Partial modular layout is honest state. |
 
 ---
 
@@ -35,28 +35,24 @@ The hub physical move is blocked until this ADR records what “hub” means, wh
 
 | Option | Outcome |
 |--------|---------|
-| **Thin hub before helper-bundle move** (refactor coordination before move) | **Rejected** — behavior risk, scope creep, violates one-PR-per-slice lane. |
-| **Keep `orchestrator.js` at root indefinitely** | **Rejected** — run-control bounded context never closes; inventory and import guard stay ambiguous. |
-| **Move `orchestrator.js` before this ADR** | **Rejected** — closeout spec requires decision record before hub physical move. |
-| **Barrel-export all run-control through `index.js` now** | **Rejected** — widens implicit API; shims + direct canonical imports preserve compatibility with explicit parity tests. |
+| **Thin hub before physical move** | **Rejected** — behavior risk, scope creep. |
+| **Keep `orchestrator.js` at root indefinitely** | **Rejected** — run-control bounded context never closes. |
+| **Physical move before this ADR** | **Rejected** — closeout spec required decision record first (ADR predates move). |
+| **Barrel-export all run-control through `index.js` now** | **Rejected** — widens implicit API. |
 
 ---
 
-## Hub physical move acceptance (derived from this ADR)
+## Hub physical move acceptance (completed criteria)
 
-The hub move PR **must**:
+The hub physical move slice **met**:
 
-- Move canonical implementation to `modules/run-control/orchestrator.js`.
-- Add root `@deprecated` compat shim with **full export key parity** (same pattern as prior run-control physical slices).
-- Update `root-import-allowlist.json`: `orchestrator.js` `legacy` → `shim`.
-- Update layout tests and closeout docs; **no** claim that run-control or architecture is complete.
-- Keep `ci-check-harness-scope.sh` allowlist aligned if harness references move with the file.
+- Canonical implementation at `modules/run-control/orchestrator.js`.
+- Root `@deprecated` compat shim with **full export key parity**.
+- `root-import-allowlist.json`: `orchestrator.js` `legacy` → `shim`.
+- Layout tests and closeout docs updated; **no** architecture-complete claim.
+- Test helpers evict **both** root shim and canonical module from `require.cache`.
 
-The hub move PR **must not** (unless separately scoped change):
-
-- Rewrite run-loop control flow or gate ordering.
-- Remove root shims without migration path.
-- Declare modular monolith or run-control migration complete.
+**Did not** (by design): rewrite run-loop control flow; remove shims; declare modular monolith complete.
 
 ---
 
@@ -72,16 +68,16 @@ The hub move PR **must not** (unless separately scoped change):
 | `orchestrator.js` | **Moved** (shim) | `modules/run-control/orchestrator.js` |
 | `modules/run-control/index.js` | **Partial barrel** | Exports run-state only |
 
-**Still at legacy paths (later slices):** `agents.js`, `decision-engine.js`, `repo-root.js`, `minions-config.js` → shared/legacy consolidation; `agents/runtime/*` → model-runtime agents tree.
+**Pending (later slices):** thin-hub extraction (behavioral); `agents.js`, `decision-engine.js`, `repo-root.js`, `minions-config.js` → shared/legacy consolidation; `agents/runtime/*` → model-runtime agents tree.
 
 ---
 
 ## Consequences
 
-- Operators and tests may keep using root `require("./orchestrator")` paths via shims through v0.17.
-- Docs must label root run-control files as **compat shims** where applicable — not hidden architecture.
-- Review of the hub move PR uses this ADR, not an implicit “thin hub” goal.
-- Follow-on hub slimming requires its own brief with behavior evidence — out of v0.17 closeout unless beta-blocking.
+- Operators and tests may keep using root `require("./orchestrator")` via shims.
+- Docs label root run-control paths as **compat shims** where applicable.
+- Thin-hub work requires its own brief with behavior evidence.
+- **Not claimed:** run-control migration complete; architecture complete.
 
 ---
 
@@ -89,4 +85,5 @@ The hub move PR **must not** (unless separately scoped change):
 
 | Date | Change |
 |------|--------|
-| 2026-06-23 | Initial ADR — v0.17 closeout @ `7f90134` |
+| 2026-06-23 | Initial ADR — pre hub physical move |
+| 2026-06-25 | Post hub physical move — canonical path, shim-only root, pending thin-hub/shared-legacy |

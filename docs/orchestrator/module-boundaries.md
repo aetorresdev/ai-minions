@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/module-boundaries.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, `modules/trace/`, `modules/budget/`, `modules/worktree/`, `modules/operator/`, partial `modules/model-runtime/`, partial `modules/permissions/`, partial `modules/tools/`, partial **`modules/run-control/`** (state, phases, helpers) ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **Modular refactor not complete.**
+**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, `modules/trace/`, `modules/budget/`, `modules/worktree/`, `modules/operator/`, partial `modules/model-runtime/`, partial `modules/permissions/`, partial `modules/tools/`, partial **`modules/run-control/`** (state, phases, helpers, **hub canonical**) ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **Modular refactor not complete.**
 
 **Related:** [architecture-coherence-audit.md](architecture-coherence-audit.md) · [module-ownership-map.md](module-ownership-map.md) · [root-file-inventory.md](root-file-inventory.md) · [run-control-hub-decision.md](run-control-hub-decision.md) · [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
@@ -115,8 +115,8 @@ Every new top-level file should declare target module in PR description. New cro
 | Observation | Risk | Remediation lane |
 |-------------|------|------------------|
 | Design validators at repo root (`*-design.js`) | Shims only — canonical under `modules/contracts/` | New validators land in `modules/contracts/` |
-| `orchestrator.js` imports across gates, trace, permissions, worktree | God-module pressure | **Temporary hub** per [run-control-hub-decision.md](run-control-hub-decision.md) — hub physical move next; thin-hub extraction deferred |
-| Root `mcp-client.js` imported from run loop | **Closed** (v0.16 tools slice) | Run-control imports `./modules/tools`; root `mcp-client.js` is compat shim only |
+| `orchestrator.js` hub imports across gates, trace, permissions, worktree | God-module coordination pressure | Hub **canonical** under `modules/run-control/`; root path is shim — **thin-hub extraction** deferred per [run-control-hub-decision.md](run-control-hub-decision.md) |
+| Root `mcp-client.js` imported from run loop | **Closed** (v0.16 tools slice) | Canonical run-control imports `../tools` (module tools API); root `mcp-client.js` is compat shim only |
 | `recovery` / `trace` gate reader imports | Grandfathered hard-rule allowlist (1 entry) | Consumption-only; trace→gates read of `review-record` |
 | Security helper `require()` paths | **Closed** (v0.10) | Classified under permissions/tools — removed from matrix allowlist |
 | `agents.js` → registry/prompts | **Closed** (v0.10) | Classified shared bucket |
@@ -188,4 +188,4 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-22 | v0.16 — partial `modules/model-runtime/`, `modules/permissions/`, `modules/tools/`; run-control imports tools API |
 | 2026-06-22 | v0.16 allowlist 15→9; operator↔model-runtime adjacency formalized |
 | 2026-06-22 | v0.16 docs coherence pass; honest partial state, no architecture-complete claim |
-| 2026-06-23 | v0.17 — partial `modules/run-control/` in status; hub move in still-planned |
+| 2026-06-25 | Post hub physical move — run-control includes canonical hub; thin-hub deferred |
