@@ -2,11 +2,11 @@
 
 **Location:** `docs/orchestrator/architecture-coherence-audit.md`. See [PATHS.md](PATHS.md).
 
-**Status:** v0.8 coherence audit — **updated post-v0.17 run-control hub physical move (docs alignment pass)**. Docs only. **Not** architecture complete · **not** full repo modularized.
+**Status:** v0.8 coherence audit — **updated post-v0.17 shared/legacy physical move**. Docs only. **Not** architecture complete · **not** full repo modularized.
 
 **Related:** [root-file-inventory.md](root-file-inventory.md) · [module-ownership-map.md](module-ownership-map.md) · [module-boundaries.md](module-boundaries.md) · [run-control-hub-decision.md](run-control-hub-decision.md)
 
-**Baseline:** v0.17 lane post hub physical move · CI: `lint:module-boundaries` + root import guard (legacy baseline 13) + allowlist **60** root files (**8** legacy) · **Physical modules:** eleven trees under `modules/` — partial: `model-runtime/`, `permissions/`, `tools/`, **`run-control/`** (full hub tree canonical; shared/legacy deferred) · Evidence: `tests/modulesPhysicalLayout.test.js`.
+**Baseline:** v0.17 lane post shared/legacy physical move · CI: `lint:module-boundaries` + root import guard (legacy baseline 13) + allowlist **60** root files (**4** legacy) · **Physical modules:** twelve trees under `modules/` — partial: `model-runtime/`, `permissions/`, `tools/`, **`run-control/`** (full hub tree), **`shared/`** (`agents` facade + legacy helpers; `agents/` subtree deferred) · Evidence: `tests/modulesPhysicalLayout.test.js`.
 
 ---
 
@@ -67,7 +67,7 @@ Rows = capability areas. Columns use the five allowed states only (one primary s
 | **Budget** | **implemented** | `modules/budget/`, token summaries, cost dimensions | No production spend SLA (**not claimed**) |
 | **Worktree** | **implemented** | `modules/worktree/`, isolation, promotion, lifecycle trace | — |
 | **Operator surfaces** | **implemented** | `modules/operator/`, CLI/TUI/export/preflight | Root shims remain; imports model-runtime via adjacency (runner routing) |
-| **Modular monolith layout** | **partial** | Eleven physical contexts + shims; CI root guard · run-control hub canonical | `agents/` subtree + shared/legacy deferred; grandfathered cross-imports; flat test layout |
+| **Modular monolith layout** | **partial** | Twelve physical contexts + shims; CI root guard · run-control hub canonical · shared/legacy canonical | `agents/` subtree deferred; grandfathered cross-imports; flat test layout |
 | **OTLP export** | **planned** | OTel mapper derived | OTLP sink **not claimed** for v0.8 |
 | **Memory store** | **design-only** | `memory-store-decision.md` | No runtime memory SoT |
 | **Swarm / multi-agent scale-out** | **not claimed** | — | Explicitly out of v0.8 lane |
@@ -112,13 +112,13 @@ From `module-boundary-allowlist.json`:
 | self-improvement-loop-contract | design-only | design validator only | Assumes auto-apply |
 | bv-reviewer-contract | design-only | no gate | Assumes value gate blocks merge |
 | memory-store-decision | design-only | trace SoT only | Assumes mem0/local store authority |
-| modular monolith complete | **not claimed** | **partial** — eleven `modules/*` contexts (four partial: model-runtime, permissions, tools, run-control hub tree) + shims | CERBERUS/doc drift if claimed complete |
+| modular monolith complete | **not claimed** | **partial** — twelve `modules/*` contexts (five partial: model-runtime, permissions, tools, run-control hub tree, shared) + shims | CERBERUS/doc drift if claimed complete |
 
 ---
 
-## Physical refactor slice status (v0.17 run-control hub physical move)
+## Physical refactor slice status (v0.17 shared/legacy physical move)
 
-Movement plan slices from below — **status post hub physical move** (v0.8–v0.16 slices plus run-control tree canonical):
+Movement plan slices from below — **status post shared/legacy physical move** (v0.8–v0.16 slices plus run-control + shared canonical):
 
 | Order | Slice | Status | Evidence |
 |------:|-------|--------|----------|
@@ -132,8 +132,8 @@ Movement plan slices from below — **status post hub physical move** (v0.8–v0
 | 8 | Model-runtime (root locals) | **Partial** | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` under `modules/model-runtime/`; `agents/runtime/*` remains |
 | 9 | Permissions (root) | **Partial** | `credential-broker.js`, `environment-parser.js` under `modules/permissions/`; `agents/permissions.js` remains |
 | 10 | Tools | **Partial** | `mcp-client.js` + eval/registry shells under `modules/tools/`; run-control uses tools API |
-| 11 | Run-control (state, phases, helpers, hub) | **Partial** | hub tree under `modules/run-control/` + shims; shared/legacy deferred |
-| 12 | Shared / legacy | **Deferred** | Next consolidation slice |
+| 11 | Run-control (state, phases, helpers, hub) | **Partial** | hub tree under `modules/run-control/` + shims; thin-hub deferred |
+| 12 | Shared / legacy | **Partial** | four files under `modules/shared/` + shims; `agents/` subtree deferred |
 | 13 | Hub (`orchestrator.js`) | **Done** (physical) | Canonical `modules/run-control/orchestrator.js` + root shim |
 
 **Docs/tests debt:** flat `tests/*.test.js` layout vs “tests mirror modules” — follow-on test governance. Allowlist shrink **Done** (v0.16: 15→9).
@@ -158,8 +158,8 @@ Movement plan slices from below — **status post hub physical move** (v0.8–v0
 | 8 | Model-runtime (root locals) | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` | `modules/model-runtime/` | Yes | **Partial** — `agents/` subtree later |
 | 9 | Permissions (root) | `credential-broker.js`, `environment-parser.js` | `modules/permissions/` | Yes | **Partial** — `agents/permissions.js` later |
 | 10 | Tools | `mcp-client.js` + `security/tool-eval.js`, `skill-registry.js`, `untrusted-context-eval.js` | `modules/tools/` | Yes | **Partial** — permission gate shells stay in `security/` |
-| 11 | Run-control | full hub tree | `modules/run-control/` | Yes | **Partial** — shared/legacy deferred |
-| 12 | Shared / legacy | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` | `modules/shared/` | Yes | Deferred |
+| 11 | Run-control | full hub tree | `modules/run-control/` | Yes | **Partial** — thin-hub deferred |
+| 12 | Shared / legacy | `agents.js`, `decision-engine.js`, `repo-root.js`, `minions-config.js` | `modules/shared/` | Yes | **Partial** — `agents/` subtree deferred |
 | 13 | Hub last | `orchestrator.js` | `modules/run-control/orchestrator.js` | Yes | **Done** (physical move) |
 
 **Do not move in physical refactor min bar:** `cli.js`, `run-orchestrator.js`, `governance-gate.js`, `merge-governance/`, config, `schemas/`, `scripts/`, `tests/`.
@@ -190,7 +190,7 @@ Movement plan slices from below — **status post hub physical move** (v0.8–v0
 | No file movement in this audit | ✓ |
 | Physical refactor movement plan produced | ✓ — slice table above |
 
-**System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and **partial** physical modular layout (eleven bounded contexts under `modules/*` — four partial including run-control hub tree — with compat shims). Coherence **frays** at **thin-hub coordination debt** (god-module imports, not root path), `agents/` legacy subtree, grandfathered cross-imports, flat test layout vs “tests mirror modules”, and design-only docs that must not be read as shipped runtime. v0.17 **hub physical move is done** — **not** architecture complete.
+**System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and **partial** physical modular layout (twelve bounded contexts under `modules/*` — five partial including run-control hub tree and shared/legacy — with compat shims). Coherence **frays** at **thin-hub coordination debt** (god-module imports, not root path), `agents/` legacy subtree, grandfathered cross-imports, flat test layout vs “tests mirror modules”, and design-only docs that must not be read as shipped runtime. v0.17 **shared/legacy physical move is done** — **not** architecture complete.
 
 ---
 
@@ -202,4 +202,4 @@ Movement plan slices from below — **status post hub physical move** (v0.8–v0
 | 2026-06-09 | Pre-merge review follow-up — companion commit rephrases v0.7 checklist line 273 (`lint:docs-claims` pre-existing on `master`) |
 | 2026-06-12 | Post-v0.8/v0.9 physical align — matrix + slice status; eight `modules/*` contexts documented |
 | 2026-06-22 | v0.16 — slice status for model-runtime/permissions/tools partial modules; allowlist 9; honest partial state |
-| 2026-06-25 | Post hub physical move — baseline, slice table, summary aligned |
+| 2026-06-25 | Shared/legacy physical move — twelve module trees, four legacy root files |

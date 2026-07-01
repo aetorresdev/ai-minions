@@ -598,12 +598,66 @@ describe("modules physical layout", () => {
       assert.doesNotMatch(source, /require\(["']\.\/modules\/tools["']\)/);
     });
 
+    it("canonical orchestrator imports shared module API not root legacy paths", () => {
+      const source = fs.readFileSync(path.join(ORCH, "modules/run-control/orchestrator.js"), "utf8");
+      assert.match(source, /require\(["']\.\.\/shared\/agents["']\)/);
+      assert.match(source, /require\(["']\.\.\/shared\/decision-engine["']\)/);
+      assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/agents["']\)/);
+      assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/decision-engine["']\)/);
+    });
+
     it("modules/run-control index aggregates run-state exports", () => {
       const runControl = require("../modules/run-control");
       assert.equal(typeof runControl.createRunState, "function");
       assert.equal(typeof runControl.syncRunIteration, "function");
       assert.equal(typeof runControl.setStepRunning, "function");
       assert.equal(typeof runControl.getRunStatePublicView, "function");
+    });
+  });
+
+  describe("shared", () => {
+    it("physical modules/shared tree exists", () => {
+      for (const rel of [
+        "modules/shared/index.js",
+        "modules/shared/agents.js",
+        "modules/shared/decision-engine.js",
+        "modules/shared/repo-root.js",
+        "modules/shared/minions-config.js",
+      ]) {
+        assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
+      }
+    });
+
+    it("root shims re-export the same shared/legacy APIs", () => {
+      const shimAgents = require("../agents");
+      const canonAgents = require("../modules/shared/agents");
+      assert.equal(typeof shimAgents.askAgent, "function");
+      assert.equal(shimAgents.askAgent, canonAgents.askAgent);
+      assert.deepEqual(Object.keys(shimAgents).sort(), Object.keys(canonAgents).sort(), "agents export keys");
+
+      const shimDecide = require("../decision-engine");
+      const canonDecide = require("../modules/shared/decision-engine");
+      assert.equal(typeof shimDecide.decideFromOrchestratorDecide, "function");
+      assert.equal(shimDecide.decideFromOrchestratorDecide, canonDecide.decideFromOrchestratorDecide);
+
+      const shimRepo = require("../repo-root");
+      const canonRepo = require("../modules/shared/repo-root");
+      assert.equal(typeof shimRepo.getRepoRoot, "function");
+      assert.equal(shimRepo.getRepoRoot, canonRepo.getRepoRoot);
+
+      const shimMinions = require("../minions-config");
+      const canonMinions = require("../modules/shared/minions-config");
+      assert.equal(shimMinions.FILENAME, canonMinions.FILENAME);
+      assert.equal(typeof shimMinions.loadMinionsProjectConfig, "function");
+      assert.equal(shimMinions.loadMinionsProjectConfig, canonMinions.loadMinionsProjectConfig);
+    });
+
+    it("modules/shared index aggregates core exports", () => {
+      const shared = require("../modules/shared");
+      assert.equal(typeof shared.askAgent, "function");
+      assert.equal(typeof shared.decideFromOrchestratorDecide, "function");
+      assert.equal(typeof shared.getRepoRoot, "function");
+      assert.equal(typeof shared.loadMinionsProjectConfig, "function");
     });
   });
 
@@ -620,6 +674,7 @@ describe("modules physical layout", () => {
       "permissions",
       "tools",
       "run-control",
+      "shared",
     ];
     const REQUIRED_SECTIONS = [
       "## Ownership",

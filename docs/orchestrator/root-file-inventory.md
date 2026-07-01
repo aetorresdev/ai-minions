@@ -2,11 +2,11 @@
 
 **Location:** `docs/orchestrator/root-file-inventory.md`. See [PATHS.md](PATHS.md).
 
-**Status:** Post-refactor inventory (v0.17 run-control hub physical move). Classification + shim targets — **no** file moves in this document.
+**Status:** Post-refactor inventory (v0.17 shared/legacy physical move). Classification + shim targets — **no** file moves in this document.
 
 **Related:** [module-boundaries.md](module-boundaries.md) · [module-ownership-map.md](module-ownership-map.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [run-control-hub-decision.md](run-control-hub-decision.md)
 
-**Snapshot:** Post hub physical move — run-control tree (incl. `orchestrator.js`) canonical under `modules/run-control/`; root compat shims remain. **Eleven** physical module trees under `modules/` (partial: model-runtime, permissions, tools, **run-control**). Root import allowlist: **60** files (**8** legacy after `orchestrator.js` → shim, remainder entrypoint/shim/config). Evidence: `tests/modulesPhysicalLayout.test.js`.
+**Snapshot:** Post shared/legacy physical move — `agents.js`, `decision-engine.js`, `repo-root.js`, `minions-config.js` canonical under `modules/shared/`; root compat shims remain. **Twelve** physical module trees under `modules/` (partial: model-runtime, permissions, tools, run-control, **shared**). Root import allowlist: **60** files (**4** legacy after four shared files → shim, remainder entrypoint/shim/config). Evidence: `tests/modulesPhysicalLayout.test.js`.
 
 ---
 
@@ -30,7 +30,7 @@ Everything else that implements runtime or domain behavior should land under `or
 |------|-------|------------------------|
 | `agents/` | Mixed runtime | **model-runtime** (`runtime/`, `routing/`) + **permissions** (`permissions.js`, `capability-matrix.js`) + prompts — split in later slices; not mass-moved in first refactor pass |
 | `merge-governance/` | Compat shim | Re-export to `modules/gates/merge-governance/` — keep until importers updated |
-| `modules/` | Physical modules | `budget/`, `contracts/`, `gates/`, `model-runtime/` *(partial)*, `permissions/` *(partial)*, `tools/` *(partial)*, **`run-control/`** *(partial — full hub tree canonical)*, `operator/`, `recovery/`, `trace/`, `worktree/` — root compat shims where moved |
+| `modules/` | Physical modules | `budget/`, `contracts/`, `gates/`, `model-runtime/` *(partial)*, `permissions/` *(partial)*, `tools/` *(partial)*, **`run-control/`** *(partial — full hub tree canonical)*, **`shared/`** *(partial — facade + legacy helpers)*, `operator/`, `recovery/`, `trace/`, `worktree/` — root compat shims where moved |
 | `run-phases/` | Compat shims | **run-control** → `modules/run-control/run-phases/` — **Moved**; root `run-phases/*.js` are shims |
 | `schemas/` | Allowed | Trace/schema SoT — stays |
 | `scripts/` | Allowed | CI, boundary checks — stays |
@@ -55,7 +55,8 @@ Canonical implementation lives under `modules/<context>/`. Root paths below rema
 | model-runtime | `modules/model-runtime/` | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js`, policy/tier gate | **Partial** — root locals moved; `agents/runtime/*`, `agents/routing/` remain |
 | permissions | `modules/permissions/` | `credential-broker.js`, `environment-parser.js` | **Partial** — broker/parser moved; `agents/permissions.js`, capability matrix remain |
 | tools | `modules/tools/` | `mcp-client.js`, `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js` | **Partial** — MCP + eval shells moved; permission gate shells stay in `security/` |
-| run-control | `modules/run-control/` | full hub tree incl. `orchestrator.js` | **Partial** — hub physical move done; shared/legacy deferred |
+| run-control | `modules/run-control/` | full hub tree incl. `orchestrator.js` | **Partial** — hub physical move done; thin-hub deferred |
+| shared/legacy | `modules/shared/` | `agents.js`, `decision-engine.js`, `repo-root.js`, `minions-config.js` | **Partial** — physical move done; `agents/` subtree deferred |
 
 ---
 
@@ -65,7 +66,7 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 
 | File | Class | Proposed bounded context | Target path (proposed) | Shim after move |
 |------|-------|--------------------------|----------------------------|-----------------|
-| `agents.js` | Facade | shared/legacy | `modules/shared/agents-facade.js` (optional late slice) | Yes — high fan-in |
+| `agents.js` | Shim | shared/legacy | `modules/shared/agents.js` | Yes — **moved** |
 | `approval-policy-gate.js` | Shim | gates | `modules/gates/approval-policy-gate.js` | Yes — **moved** |
 | `bv-reviewer-design.js` | Shim | contracts | `modules/contracts/bv-reviewer-design.js` | Yes — **moved** |
 | `cli.js` | Entrypoint | run-control (invoke) | **Stay at root** | — |
@@ -75,7 +76,7 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | `control-plane-tui.js` | Operator surface | operator | `modules/operator/control-plane-tui.js` | Yes |
 | `cost-accounting-dimensions.js` | Shim | budget | `modules/budget/cost-accounting-dimensions.js` | Yes — **moved** |
 | `credential-broker.js` | Shim | permissions | `modules/permissions/credential-broker.js` | Yes — **moved** |
-| `decision-engine.js` | Legacy helper | shared/legacy | `modules/shared/decision-engine.js` | Yes |
+| `decision-engine.js` | Shim | shared/legacy | `modules/shared/decision-engine.js` | Yes — **moved** |
 | `doubt-review.js` | Shim | gates | `modules/gates/doubt-review.js` | Yes — **moved** |
 | `environment-parser.js` | Shim | permissions | `modules/permissions/environment-parser.js` | Yes — **moved** |
 | `explain-run.js` | Shim | operator | `modules/operator/explain-run.js` | Yes — **moved** |
@@ -85,7 +86,7 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | `local-model-policy.js` | Shim | model-runtime | `modules/model-runtime/local-model-policy.js` | Yes — **moved** |
 | `local-model-selection.js` | Shim | model-runtime | `modules/model-runtime/local-model-selection.js` | Yes — **moved** |
 | `mcp-client.js` | Shim | tools | `modules/tools/mcp-client.js` | Yes — **moved** |
-| `minions-config.js` | Project config | shared/legacy | `modules/shared/minions-config.js` | Yes |
+| `minions-config.js` | Shim | shared/legacy | `modules/shared/minions-config.js` | Yes — **moved** |
 | `operator-cli-help.js` | Operator surface | operator | `modules/operator/operator-cli-help.js` | Yes |
 | `orchestrator.js` | Shim | run-control | `modules/run-control/orchestrator.js` | Yes — **moved** |
 | `otel-genai-trace-map.js` | Shim | trace | `modules/trace/otel-genai-trace-map.js` | Yes — **moved** |
@@ -94,7 +95,7 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | `project-template-cli.js` | Operator CLI | operator | `modules/operator/project-template-cli.js` | Yes |
 | `qa-spec-flow.js` | Shim | run-control | `modules/run-control/qa-spec-flow.js` | Yes — **moved** |
 | `recovery-sweep.js` | Shim | recovery | `modules/recovery/recovery-sweep.js` | Yes — **moved** |
-| `repo-root.js` | Path helper | shared/legacy | `modules/shared/repo-root.js` | Yes |
+| `repo-root.js` | Shim | shared/legacy | `modules/shared/repo-root.js` | Yes — **moved** |
 | `review-record.js` | Shim | gates | `modules/gates/review-record.js` | Yes — **moved** |
 | `run-loop-helpers.js` | Shim | run-control | `modules/run-control/run-loop-helpers.js` | Yes — **moved** |
 | `runner-budget-view.js` | Operator/budget | operator (+ budget) | `modules/operator/runner-budget-view.js` | Yes |
@@ -169,4 +170,4 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | 2026-06-09 | Initial inventory — 55 root `.js` files classified; module target paths proposed |
 | 2026-06-09 | Pre-merge review follow-up — `mcp-direct.py` flagged for root import guard allowlist |
 | 2026-06-12 | Post-v0.8/v0.9 align — physical migration status table; shim classification for moved contexts |
-| 2026-06-25 | Post hub physical move — snapshot + run-control hub tree |
+| 2026-06-25 | Shared/legacy physical move — snapshot + `modules/shared/` tree |

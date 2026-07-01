@@ -34,6 +34,7 @@ function clearModuleCache(prefix) {
 function clearOrchestratorModuleCaches() {
   const paths = new Set([
     path.join(ORCH_ROOT, "agents.js"),
+    path.join(ORCH_ROOT, "modules", "shared", "agents.js"),
     path.join(ORCH_ROOT, "orchestrator.js"),
     path.join(ORCH_ROOT, "modules", "run-control", "orchestrator.js"),
     path.join(ORCH_ROOT, "agents", "runtime", "run-ollama.js"),

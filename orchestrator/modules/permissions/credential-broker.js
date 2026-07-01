@@ -5,7 +5,7 @@
  * Fail-closed; trace never contains secret values.
  */
 
-const { resolveCredentials } = require('../../agents');
+const { resolveCredentials } = require('../shared/agents');
 const { effectiveMode } = require('../../agents/permissions');
 const { appendTraceEvent } = require('../../trace-append');
 const { redactSensitivePlaintext } = require('../../trace-redact');

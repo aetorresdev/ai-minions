@@ -38,7 +38,7 @@ const MODEL_POLICY_CATALOG = [
 /** Lazy-load agents (heavy module graph) only when building previews. */
 function loadAgentsRouting() {
   // eslint-disable-next-line global-require
-  return require('../../agents');
+  return require('../shared/agents');
 }
 
 /**
