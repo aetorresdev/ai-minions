@@ -2,11 +2,11 @@
 
 **Location:** `docs/orchestrator/root-file-inventory.md`. See [PATHS.md](PATHS.md).
 
-**Status:** Post-refactor inventory (v0.17 shared/legacy physical move). Classification + shim targets — **no** file moves in this document.
+**Status:** Post-refactor inventory (v0.17 modular closeout alignment). Classification + shim targets — **no** file moves in this document.
 
 **Related:** [module-boundaries.md](module-boundaries.md) · [module-ownership-map.md](module-ownership-map.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [run-control-hub-decision.md](run-control-hub-decision.md)
 
-**Snapshot:** Post shared/legacy physical move — `agents.js`, `decision-engine.js`, `repo-root.js`, `minions-config.js` canonical under `modules/shared/`; root compat shims remain. **Twelve** physical module trees under `modules/` (partial: model-runtime, permissions, tools, run-control, **shared**). Root import allowlist: **60** files (**4** legacy after four shared files → shim, remainder entrypoint/shim/config). Evidence: `tests/modulesPhysicalLayout.test.js`.
+**Snapshot:** Post model-runtime agents runtime/routing physical move — runners and routing table canonical under `modules/model-runtime/` (legacy shims at `agents/runtime/*`, `agents/routing/`); shared facade/helpers under `modules/shared/`; hub tree under `modules/run-control/`. **Twelve** physical module trees under `modules/` (partial: model-runtime, permissions, tools, run-control, **shared**). Root import allowlist: **60** files (**4** legacy). Evidence: `tests/modulesPhysicalLayout.test.js`.
 
 ---
 
@@ -28,7 +28,7 @@ Everything else that implements runtime or domain behavior should land under `or
 
 | Path | Class | Proposed module / note |
 |------|-------|------------------------|
-| `agents/` | Mixed runtime | **model-runtime** (`runtime/`, `routing/`) + **permissions** (`permissions.js`, `capability-matrix.js`) + prompts — split in later slices; not mass-moved in first refactor pass |
+| `agents/` | Mixed runtime | **permissions** (`permissions.js`, `capability-matrix.js`) + prompts + registry — **runtime/routing moved** to `modules/model-runtime/`; legacy shims at `agents/runtime/*`, `agents/routing/` |
 | `merge-governance/` | Compat shim | Re-export to `modules/gates/merge-governance/` — keep until importers updated |
 | `modules/` | Physical modules | `budget/`, `contracts/`, `gates/`, `model-runtime/` *(partial)*, `permissions/` *(partial)*, `tools/` *(partial)*, **`run-control/`** *(partial — full hub tree canonical)*, **`shared/`** *(partial — facade + legacy helpers)*, `operator/`, `recovery/`, `trace/`, `worktree/` — root compat shims where moved |
 | `run-phases/` | Compat shims | **run-control** → `modules/run-control/run-phases/` — **Moved**; root `run-phases/*.js` are shims |
@@ -52,11 +52,11 @@ Canonical implementation lives under `modules/<context>/`. Root paths below rema
 | budget | `modules/budget/` | `token-usage-summary.js`, `token-trace-report.js`, `cost-accounting-dimensions.js` | **Moved** |
 | worktree | `modules/worktree/` | `worktree-*.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js` | **Moved** |
 | operator | `modules/operator/` | `explain-run.js`, `control-plane-tui.js`, `runner-*.js`, `operator-cli-help.js`, … | **Moved** |
-| model-runtime | `modules/model-runtime/` | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js`, policy/tier gate | **Partial** — root locals moved; `agents/runtime/*`, `agents/routing/` remain |
+| model-runtime | `modules/model-runtime/` | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js`, policy/tier gate, runners, routing table | **Partial** — runners/routing canonical; legacy shims at `agents/runtime/*`, `agents/routing/` |
 | permissions | `modules/permissions/` | `credential-broker.js`, `environment-parser.js` | **Partial** — broker/parser moved; `agents/permissions.js`, capability matrix remain |
 | tools | `modules/tools/` | `mcp-client.js`, `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js` | **Partial** — MCP + eval shells moved; permission gate shells stay in `security/` |
 | run-control | `modules/run-control/` | full hub tree incl. `orchestrator.js` | **Partial** — hub physical move done; thin-hub deferred |
-| shared/legacy | `modules/shared/` | `agents.js`, `decision-engine.js`, `repo-root.js`, `minions-config.js` | **Partial** — physical move done; `agents/` subtree deferred |
+| shared/legacy | `modules/shared/` | `agents.js`, `decision-engine.js`, `repo-root.js`, `minions-config.js` | **Partial** — facade/helpers moved; `agents/` registry subtree remains |
 
 ---
 
@@ -171,3 +171,4 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | 2026-06-09 | Pre-merge review follow-up — `mcp-direct.py` flagged for root import guard allowlist |
 | 2026-06-12 | Post-v0.8/v0.9 align — physical migration status table; shim classification for moved contexts |
 | 2026-06-25 | Shared/legacy physical move — snapshot + `modules/shared/` tree |
+| 2026-07-01 | Model-runtime agents runtime/routing physical move — snapshot alignment |

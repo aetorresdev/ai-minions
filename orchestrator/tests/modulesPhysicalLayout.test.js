@@ -370,6 +370,11 @@ describe("modules physical layout", () => {
         "modules/model-runtime/local-model-policy.js",
         "modules/model-runtime/runner-model-routing.js",
         "modules/model-runtime/flow-hook-bridge.js",
+        "modules/model-runtime/run-ollama.js",
+        "modules/model-runtime/run-claude.js",
+        "modules/model-runtime/run-classified-shell.js",
+        "modules/model-runtime/summarize-handoff.js",
+        "modules/model-runtime/model-routing.js",
       ]) {
         assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
       }
@@ -405,6 +410,34 @@ describe("modules physical layout", () => {
       assert.equal(shimBridge.deriveRunScope, canonBridge.deriveRunScope);
     });
 
+    it("legacy agents/runtime and agents/routing shims re-export the same model-runtime APIs", () => {
+      const shimOllama = require("../agents/runtime/run-ollama");
+      const canonOllama = require("../modules/model-runtime/run-ollama");
+      assert.equal(typeof shimOllama.runOllama, "function");
+      assert.equal(shimOllama.runOllama, canonOllama.runOllama);
+
+      const shimClaude = require("../agents/runtime/run-claude");
+      const canonClaude = require("../modules/model-runtime/run-claude");
+      assert.equal(typeof shimClaude.runClaude, "function");
+      assert.equal(shimClaude.runClaude, canonClaude.runClaude);
+      assert.deepEqual(shimClaude.MAX_OUTPUT_TOKENS, canonClaude.MAX_OUTPUT_TOKENS);
+
+      const shimShell = require("../agents/runtime/run-classified-shell");
+      const canonShell = require("../modules/model-runtime/run-classified-shell");
+      assert.equal(typeof shimShell.spawnClassifiedSync, "function");
+      assert.equal(shimShell.spawnClassifiedSync, canonShell.spawnClassifiedSync);
+
+      const shimSummary = require("../agents/runtime/summarize-handoff");
+      const canonSummary = require("../modules/model-runtime/summarize-handoff");
+      assert.equal(typeof shimSummary.summarizeHandoff, "function");
+      assert.equal(shimSummary.summarizeHandoff, canonSummary.summarizeHandoff);
+
+      const shimRoute = require("../agents/routing/model-routing");
+      const canonRoute = require("../modules/model-runtime/model-routing");
+      assert.deepEqual(shimRoute.MODEL_ROUTING, canonRoute.MODEL_ROUTING);
+      assert.equal(shimRoute.OLLAMA_MODEL, canonRoute.OLLAMA_MODEL);
+    });
+
     it("modules/model-runtime index aggregates core exports", () => {
       const modelRuntime = require("../modules/model-runtime");
       assert.equal(typeof modelRuntime.discoverLocalModels, "function");
@@ -414,6 +447,11 @@ describe("modules physical layout", () => {
       assert.equal(typeof modelRuntime.deriveRunScope, "function");
       assert.equal(typeof modelRuntime.loadModelPolicyConfig, "function");
       assert.equal(typeof modelRuntime.evaluateModelTierGate, "function");
+      assert.equal(typeof modelRuntime.runOllama, "function");
+      assert.equal(typeof modelRuntime.runClaude, "function");
+      assert.equal(typeof modelRuntime.spawnClassifiedSync, "function");
+      assert.equal(typeof modelRuntime.summarizeHandoff, "function");
+      assert.equal(typeof modelRuntime.MODEL_ROUTING, "object");
     });
   });
 
@@ -650,6 +688,18 @@ describe("modules physical layout", () => {
       assert.equal(shimMinions.FILENAME, canonMinions.FILENAME);
       assert.equal(typeof shimMinions.loadMinionsProjectConfig, "function");
       assert.equal(shimMinions.loadMinionsProjectConfig, canonMinions.loadMinionsProjectConfig);
+    });
+
+    it("canonical shared agents imports model-runtime module API not legacy agents/runtime paths", () => {
+      const source = fs.readFileSync(path.join(ORCH, "modules/shared/agents.js"), "utf8");
+      assert.match(source, /require\(["']\.\.\/model-runtime\/model-routing["']\)/);
+      assert.match(source, /require\(["']\.\.\/model-runtime\/run-ollama["']\)/);
+      assert.match(source, /require\(["']\.\.\/model-runtime\/run-claude["']\)/);
+      assert.match(source, /require\(["']\.\.\/model-runtime\/summarize-handoff["']\)/);
+      assert.match(source, /require\(["']\.\.\/model-runtime\/local-model-policy["']\)/);
+      assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/local-model-policy["']\)/);
+      assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/agents\/runtime\//);
+      assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/agents\/routing\//);
     });
 
     it("modules/shared index aggregates core exports", () => {

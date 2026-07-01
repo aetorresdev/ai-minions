@@ -38,8 +38,11 @@ function clearOrchestratorModuleCaches() {
     path.join(ORCH_ROOT, "orchestrator.js"),
     path.join(ORCH_ROOT, "modules", "run-control", "orchestrator.js"),
     path.join(ORCH_ROOT, "agents", "runtime", "run-ollama.js"),
+    path.join(ORCH_ROOT, "modules", "model-runtime", "run-ollama.js"),
     path.join(ORCH_ROOT, "agents", "runtime", "summarize-handoff.js"),
+    path.join(ORCH_ROOT, "modules", "model-runtime", "summarize-handoff.js"),
     path.join(ORCH_ROOT, "agents", "routing", "model-routing.js"),
+    path.join(ORCH_ROOT, "modules", "model-runtime", "model-routing.js"),
   ]);
   for (const key of Object.keys(require.cache)) {
     if (paths.has(key)) delete require.cache[key];
@@ -251,9 +254,17 @@ describe("askAgent — local-only blocks remote", () => {
 
 describe("summarizeHandoff — local-only model precedence", () => {
   const keys = ["ORCH_MODEL_MODE", "ORCH_LOCAL_MODEL", "AI_TEAM_SUMMARY_MODEL"];
-  const summarizePath = path.join(ORCH_ROOT, "agents", "runtime", "summarize-handoff.js");
+  const summarizeCachePaths = [
+    path.join(ORCH_ROOT, "agents", "runtime", "summarize-handoff.js"),
+    path.join(ORCH_ROOT, "modules", "model-runtime", "summarize-handoff.js"),
+    path.join(ORCH_ROOT, "agents", "runtime", "run-ollama.js"),
+    path.join(ORCH_ROOT, "modules", "model-runtime", "run-ollama.js"),
+  ];
   let prev;
-  const origRunOllama = ollamaRuntime.runOllama;
+
+  function clearSummarizeHandoffCaches() {
+    for (const p of summarizeCachePaths) delete require.cache[p];
+  }
 
   beforeEach(() => {
     prev = saveEnv(keys);
@@ -261,33 +272,39 @@ describe("summarizeHandoff — local-only model precedence", () => {
     process.env.ORCH_LOCAL_MODEL = "run-model";
     process.env.AI_TEAM_SUMMARY_MODEL = "summary-model";
     policy.resetLocalModelPolicy();
-    delete require.cache[summarizePath];
+    clearSummarizeHandoffCaches();
   });
 
   afterEach(() => {
-    ollamaRuntime.runOllama = origRunOllama;
     restoreEnv(prev);
     policy.resetLocalModelPolicy();
-    delete require.cache[summarizePath];
+    clearSummarizeHandoffCaches();
   });
 
   it("uses resolved local model instead of AI_TEAM_SUMMARY_MODEL", async () => {
     /** @type {string | undefined} */
     let capturedModel;
-    ollamaRuntime.runOllama = async (_system, _messages, opts) => {
+    const runtime = require("../agents/runtime/run-ollama");
+    const origRunOllama = runtime.runOllama;
+    runtime.runOllama = async (_system, _messages, opts) => {
       capturedModel = opts.model;
       return { content: "handoff summary", prompt_eval_count: 1, eval_count: 1 };
     };
 
-    const { summarizeHandoff } = require("../agents/runtime/summarize-handoff");
-    await summarizeHandoff({
-      agentId: "dev-backend",
-      task: "implement feature",
-      result: "files_modified:\n  - app.js",
-      cwd: ORCH_ROOT,
-    });
+    try {
+      const { summarizeHandoff } = require("../agents/runtime/summarize-handoff");
+      await summarizeHandoff({
+        agentId: "dev-backend",
+        task: "implement feature",
+        result: "files_modified:\n  - app.js",
+        cwd: ORCH_ROOT,
+      });
 
-    assert.equal(capturedModel, "run-model");
+      assert.equal(capturedModel, "run-model");
+    } finally {
+      runtime.runOllama = origRunOllama;
+      clearSummarizeHandoffCaches();
+    }
   });
 });
 
