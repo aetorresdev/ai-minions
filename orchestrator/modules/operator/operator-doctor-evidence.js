@@ -16,6 +16,40 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const OPERATOR_PREFLIGHT_SCRIPT = path.join(REPO_ROOT, 'scripts', 'operator-preflight.mjs');
 const COLLECT_REPORT_SCRIPT = path.join(REPO_ROOT, 'scripts', 'collect-run-report.mjs');
 
+/**
+ * Resolve clone root from cwd (lifts orchestrator/ package cwd to repo root).
+ * @param {string | undefined} cwd
+ * @returns {string}
+ */
+function resolveCloneRepoRoot(cwd) {
+  const candidate = cwd ? path.resolve(String(cwd)) : REPO_ROOT;
+
+  if (fs.existsSync(path.join(candidate, 'orchestrator', 'package.json'))) {
+    return candidate;
+  }
+
+  if (
+    path.basename(candidate) === 'orchestrator'
+    && fs.existsSync(path.join(candidate, 'package.json'))
+    && fs.existsSync(path.join(path.dirname(candidate), 'scripts', 'install-ai-minions.mjs'))
+  ) {
+    return path.dirname(candidate);
+  }
+
+  return candidate;
+}
+
+/**
+ * @param {{ repoRoot?: string, cwd?: string }} [options]
+ * @returns {string}
+ */
+function resolveOperatorRepoRoot(options = {}) {
+  if (options.repoRoot != null && String(options.repoRoot).trim() !== '') {
+    return path.resolve(String(options.repoRoot));
+  }
+  return resolveCloneRepoRoot(options.cwd);
+}
+
 const KNOWN_LIMITATIONS = [
   'v0.18 alpha — doctor does not run npm test unless bootstrap --test is added later',
   'remote_ok skips local Ollama reachability checks in runner preflight',
@@ -169,7 +203,7 @@ function buildOperatorDoctorJson(report) {
  * }} [options]
  */
 async function runOperatorDoctor(options = {}) {
-  const repoRoot = path.resolve(options.repoRoot ?? options.cwd ?? REPO_ROOT);
+  const repoRoot = resolveOperatorRepoRoot(options);
   const modelPolicy = options.modelPolicy ?? 'local_only';
   const loadMod = options.loadOperatorPreflightModule
     ?? (() => import(OPERATOR_PREFLIGHT_SCRIPT));
@@ -399,7 +433,7 @@ function buildOperatorEvidenceJson(ctx, meta = {}) {
  */
 function runOperatorEvidence(options = {}) {
   const loadContext = options.loadContext ?? loadOperatorTraceContext;
-  const repoRoot = path.resolve(options.repoRoot ?? REPO_ROOT);
+  const repoRoot = resolveOperatorRepoRoot(options);
   const ctx = loadContext({
     runId: options.runId,
     filePath: options.filePath,
@@ -444,6 +478,8 @@ module.exports = {
   REPO_ROOT,
   OPERATOR_PREFLIGHT_SCRIPT,
   COLLECT_REPORT_SCRIPT,
+  resolveCloneRepoRoot,
+  resolveOperatorRepoRoot,
   KNOWN_LIMITATIONS,
   deriveDoctorFieldSummary,
   deriveDoctorNextSafeAction,

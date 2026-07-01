@@ -11,6 +11,7 @@ const {
   deriveRedactionStatus,
   resolveLatestBundleDir,
   resolveEvidenceArtifactPaths,
+  resolveOperatorRepoRoot,
   runOperatorDoctor,
   runOperatorEvidence,
 } = require("../../modules/operator/operator-doctor-evidence");
@@ -118,6 +119,13 @@ describe("operator-doctor-evidence doctor", () => {
     assert.equal(result.exitCode, 0);
     assert.equal(result.ok, true);
     assert.match(result.text, /host_prerequisites:\s+pass/);
+  });
+});
+
+describe("operator-doctor-evidence repo root resolution", () => {
+  it("lifts orchestrator package cwd to clone root", () => {
+    const { REPO_ROOT: moduleRoot } = require("../../modules/operator/operator-doctor-evidence");
+    assert.equal(resolveOperatorRepoRoot({ cwd: ORCH_CWD }), moduleRoot);
   });
 });
 
