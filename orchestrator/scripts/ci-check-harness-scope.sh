@@ -16,6 +16,7 @@ excludes=(
   ":(exclude)orchestrator/tests/e2e.strict.harness.test.js"
   ":(exclude)orchestrator/tests/capability-plan-reject.test.js"
   ":(exclude)orchestrator/agents.js"
+  ":(exclude)orchestrator/modules/shared/agents.js"
   ":(exclude)orchestrator/orchestrator.js"
   ":(exclude)orchestrator/modules/run-control/run-loop-helpers.js"
   ":(exclude)orchestrator/README.md"
@@ -49,6 +50,7 @@ excludes_u=(
   ":(exclude).github"
   ":(exclude)orchestrator/tests/capability-plan-reject.test.js"
   ":(exclude)orchestrator/agents.js"
+  ":(exclude)orchestrator/modules/shared/agents.js"
   ":(exclude)orchestrator/README.md"
   ":(exclude)orchestrator/scripts/ci-check-harness-scope.sh"
 )
