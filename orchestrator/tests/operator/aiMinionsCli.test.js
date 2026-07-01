@@ -14,6 +14,8 @@ const {
   runInit,
   runStart,
   defaultTracePath,
+  resolveInstallRepoRoot,
+  REPO_ROOT,
 } = require("../../modules/operator/ai-minions-cli");
 
 const CLI_PATH = path.join(__dirname, "..", "..", "ai-minions-cli.js");
@@ -140,7 +142,7 @@ describe("ai-minions-cli formatters", () => {
 describe("ai-minions-cli runInit", () => {
   it("wraps install module without duplicate logic", async () => {
     const result = await runInit({
-      cwd: "/repo",
+      cwd: REPO_ROOT,
       install: false,
       loadInstallModule: async () => ({
         runInstallAiMinions: async () => ({
@@ -148,7 +150,7 @@ describe("ai-minions-cli runInit", () => {
           phase: "model_discovery",
           model_policy: "local_only",
           model_policy_mode: "declarative",
-          repo_root: "/repo",
+          repo_root: REPO_ROOT,
           checks: [{
             id: "ollama",
             reason_code: "INSTALL_OLLAMA_UNREACHABLE",
@@ -162,6 +164,92 @@ describe("ai-minions-cli runInit", () => {
     assert.equal(result.exitCode, 1);
     assert.match(result.text, /INSTALL_OLLAMA_UNREACHABLE/);
     assert.match(result.text, /next_safe_action/);
+  });
+
+  it("defaults repoRoot to REPO_ROOT when cwd omitted", async () => {
+    /** @type {string | undefined} */
+    let capturedRepoRoot;
+    await runInit({
+      install: false,
+      loadInstallModule: async () => ({
+        runInstallAiMinions: async (opts) => {
+          capturedRepoRoot = opts.repoRoot;
+          return {
+            ok: false,
+            phase: "host_prereqs",
+            model_policy: "local_only",
+            model_policy_mode: "declarative",
+            repo_root: opts.repoRoot,
+            checks: [],
+            discovery: null,
+          };
+        },
+      }),
+    });
+    assert.equal(capturedRepoRoot, REPO_ROOT);
+  });
+
+  it("normalizes orchestrator/ cwd to clone root for install", async () => {
+    /** @type {string | undefined} */
+    let capturedRepoRoot;
+    await runInit({
+      cwd: ORCH_CWD,
+      install: false,
+      loadInstallModule: async () => ({
+        runInstallAiMinions: async (opts) => {
+          capturedRepoRoot = opts.repoRoot;
+          return {
+            ok: false,
+            phase: "host_prereqs",
+            model_policy: "local_only",
+            model_policy_mode: "declarative",
+            repo_root: opts.repoRoot,
+            checks: [],
+            discovery: null,
+          };
+        },
+      }),
+    });
+    assert.equal(capturedRepoRoot, REPO_ROOT);
+    assert.notEqual(capturedRepoRoot, ORCH_CWD);
+  });
+
+  it("preserves explicit clone root when --cwd points at repo root", async () => {
+    /** @type {string | undefined} */
+    let capturedRepoRoot;
+    await runInit({
+      cwd: REPO_ROOT,
+      install: false,
+      loadInstallModule: async () => ({
+        runInstallAiMinions: async (opts) => {
+          capturedRepoRoot = opts.repoRoot;
+          return {
+            ok: false,
+            phase: "host_prereqs",
+            model_policy: "local_only",
+            model_policy_mode: "declarative",
+            repo_root: opts.repoRoot,
+            checks: [],
+            discovery: null,
+          };
+        },
+      }),
+    });
+    assert.equal(capturedRepoRoot, REPO_ROOT);
+  });
+});
+
+describe("ai-minions-cli resolveInstallRepoRoot", () => {
+  it("returns REPO_ROOT when cwd omitted", () => {
+    assert.equal(resolveInstallRepoRoot(undefined), REPO_ROOT);
+  });
+
+  it("lifts orchestrator package cwd to clone root", () => {
+    assert.equal(resolveInstallRepoRoot(ORCH_CWD), REPO_ROOT);
+  });
+
+  it("keeps clone root when cwd is repo root", () => {
+    assert.equal(resolveInstallRepoRoot(REPO_ROOT), REPO_ROOT);
   });
 });
 

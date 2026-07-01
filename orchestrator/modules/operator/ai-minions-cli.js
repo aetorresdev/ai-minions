@@ -6,6 +6,7 @@
 
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
@@ -36,10 +37,25 @@ const PLANNED_ALPHA_COMMANDS = new Set([
 ]);
 
 /**
+ * Resolve clone root for install/config-write (not orchestrator package cwd).
  * @param {string | undefined} cwd
  */
-function resolveProjectRoot(cwd) {
-  return cwd ? path.resolve(String(cwd)) : process.cwd();
+function resolveInstallRepoRoot(cwd) {
+  const candidate = cwd ? path.resolve(String(cwd)) : REPO_ROOT;
+
+  if (fs.existsSync(path.join(candidate, 'orchestrator', 'package.json'))) {
+    return candidate;
+  }
+
+  if (
+    path.basename(candidate) === 'orchestrator'
+    && fs.existsSync(path.join(candidate, 'package.json'))
+    && fs.existsSync(path.join(path.dirname(candidate), 'scripts', 'install-ai-minions.mjs'))
+  ) {
+    return path.dirname(candidate);
+  }
+
+  return candidate;
 }
 
 /**
@@ -188,7 +204,7 @@ function formatStartText(launched, meta = {}) {
  * }} [options]
  */
 async function runInit(options = {}) {
-  const repoRoot = resolveProjectRoot(options.cwd);
+  const repoRoot = resolveInstallRepoRoot(options.cwd);
   const loadInstall = options.loadInstallModule
     || (() => import(INSTALL_SCRIPT));
   const installMod = await loadInstall();
@@ -359,6 +375,7 @@ module.exports = {
   formatPlannedCommandMessage,
   deriveInitNextSafeAction,
   defaultTracePath,
+  resolveInstallRepoRoot,
   runInit,
   runStart,
   main,
