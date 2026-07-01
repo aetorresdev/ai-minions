@@ -15,4 +15,5 @@ module.exports = {
   ...require("./runner-trace-viewer"),
   ...require("./runner-tui-cli"),
   ...require("./scenario-metrics-export"),
+  ...require("./operator-trace-summary"),
 };

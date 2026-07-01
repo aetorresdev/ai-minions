@@ -4,6 +4,17 @@ All paths are **from the repo root** (`REPO_ROOT`). No fixed user paths: [PATHS.
 
 The **Node runner and tests** live under **`orchestrator/`** (product path).
 
+## Corpus navigation (by doc type)
+
+Flat paths below — grouped for discoverability only (no 1:1 module mirror). See [module-ownership-map.md](module-ownership-map.md) for **code** boundaries vs these **versioned contracts**.
+
+| Section | Start here |
+|---------|------------|
+| **Architecture** | [module-boundaries.md](module-boundaries.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [root-file-inventory.md](root-file-inventory.md) · [run-control-hub-decision.md](run-control-hub-decision.md) |
+| **Contracts** | [agent-contract.md](agent-contract.md) · [governance-gates-contract.md](governance-gates-contract.md) · [review-record-contract.md](review-record-contract.md) · [context-package-contract.md](context-package-contract.md) · [runner-tui-contract.md](runner-tui-contract.md) |
+| **Operator / runbooks** | [run-outcome-consumption.md](run-outcome-consumption.md) · [control-plane-tui-contract.md](control-plane-tui-contract.md) · [token-hygiene-guide.md](token-hygiene-guide.md) · [alpha-release-checklist.md](alpha-release-checklist.md) |
+| **Release / governance** | [release-workflow.md](release-workflow.md) · [release-governance-contract.md](release-governance-contract.md) · [changelog-release-format.md](changelog-release-format.md) |
+
 | File | Purpose |
 |------|---------|
 | [PATHS.md](PATHS.md) | **`REPO_ROOT` convention, Cursor in another project, User Rules** |

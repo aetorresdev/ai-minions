@@ -306,6 +306,7 @@ describe("modules physical layout", () => {
         "modules/operator/runner-trace-viewer.js",
         "modules/operator/runner-tui-cli.js",
         "modules/operator/scenario-metrics-export.js",
+        "modules/operator/operator-trace-summary.js",
       ]) {
         assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
       }

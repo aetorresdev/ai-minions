@@ -4,7 +4,7 @@ Bounded context stub for `modules/operator/`. Read-mostly CLI/TUI surfaces. Root
 
 ## Ownership
 
-**Owns:** CLI/TUI, explain-run, scenario metrics export, runner preflight/launcher/trace/budget views, console dashboard, control-plane TUI, project template CLI, operator help.
+**Owns:** CLI/TUI, explain-run, operator trace summary, scenario metrics export, runner preflight/launcher/trace/budget views, console dashboard, control-plane TUI, project template CLI, operator help.
 
 **Must not own:** Domain policy; gate bypass; permission matrix; trace schema authoring.
 
@@ -34,6 +34,7 @@ Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adja
 ```javascript
 const { printOperatorCliHelp } = require("./modules/operator");
 const { buildDashboardText } = require("./modules/operator/console-dashboard");
+const { buildOperatorTraceSummary } = require("./modules/operator/operator-trace-summary");
 const { runTraceViewer } = require("./modules/operator/runner-trace-viewer");
 ```
 

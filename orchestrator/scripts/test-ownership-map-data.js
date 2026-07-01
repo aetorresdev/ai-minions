@@ -65,6 +65,7 @@ const ENTRIES = {
   'tests/envRunScope.test.js': { owner: 'permissions', kind: 'unit' },
   'tests/evaluatePermission.test.js': { owner: 'permissions', kind: 'unit' },
   'tests/operator/explainRun.test.js': { owner: 'operator', kind: 'unit' },
+  'tests/operator/operatorTraceSummary.test.js': { owner: 'operator', kind: 'unit' },
   'tests/flowHookBridge.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/goldenPath.test.js': { owner: 'run-control', kind: 'integration' },
   'tests/governance-gate.test.js': { owner: 'gates', kind: 'unit' },

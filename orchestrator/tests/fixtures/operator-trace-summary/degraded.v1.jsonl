@@ -1,0 +1,3 @@
+{"event":"session_start","task_id":"fix-degraded","flow_mode":"single_agent","max_iterations":1}
+{"event":"degraded_mode","task_id":"fix-degraded","reason":"skipStateMcp=true"}
+{"event":"session_end","task_id":"fix-degraded","done":true,"iterations":1,"gate_blocks":0,"qa_degraded":true,"handoff_fallback_used":true}

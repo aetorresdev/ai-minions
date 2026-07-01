@@ -243,6 +243,47 @@ Not implemented — documentation only.
 
 ---
 
+## Fresh review package (CTX-HYGIENE — design contract)
+
+Named package type for **QA/CERBERUS review without implementation-history contamination**. This is a **contract shape only** — no runtime builder in this slice. Aligns with [agent-contract.md](agent-contract.md) exported-context guidance and [review-record-contract.md](review-record-contract.md).
+
+**When to use:** validating completed work (approve / request changes) from bounded artifacts — **not** re-reading raw exploration transcript or full trace dumps.
+
+```yaml
+fresh_review_package:
+  goal_ref: "<task envelope or resume pointer>"
+  handoff_ref: "<compact handoff path or inline YAML ref>"
+  approved_artifacts:
+    - path: "docs/example.md"
+      reason: "changed by DEV; in approved_artifacts"
+  evidence_refs:
+    - "test:npm test → pass"
+    - "trace:<task_id>:review_record:cerberus"
+  excluded_context:
+    - kind: "raw_transcript"
+      reason: "implementation history excluded for reviewer freshness"
+    - kind: "duplicate_trace_dump"
+      reason: "trace refs used instead of full JSONL replay"
+  reviewer_mode: QA | CERBERUS
+  freshness_marker: "<iso8601 or handoff sequence>"
+  limitations:
+    - "Does not replace validateOutput or CERBERUS merge authority"
+    - "Trace remains SoT; package is injection policy only"
+```
+
+**Observable checks (manual / future validator):**
+
+| Check | Pass | Fail |
+|-------|------|------|
+| Goal present | `goal_ref` set | missing goal |
+| Handoff or approved artifacts | at least one | neither |
+| Contamination excluded | `excluded_context` documents rejected kinds | full transcript injected as authority |
+| Reviewer mode | `QA` or `CERBERUS` | ambiguous |
+
+**Not in scope:** auto-stripping chat history · new trace events · replacing `compact_handoff` MCP · mem0 as SoT.
+
+---
+
 ## Limits (explicit)
 
 - No orchestrator runtime assembly in v0.1.x from this doc alone.
