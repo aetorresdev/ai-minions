@@ -39,7 +39,7 @@ const MODULE_PATTERNS = [
   { id: "disclosure", patterns: [/^modules\/contracts\/progressive-disclosure-design/, /^progressive-disclosure-design/] },
   { id: "contracts", patterns: [/^modules\/contracts\//, /-design\.js$/, /^agents\/validate-output/] },
   { id: "run-control", patterns: [/^modules\/run-control\//, /^orchestrator\.js$/, /^run-loop-helpers/, /^run-phases\//, /^run-state/, /^qa-spec-flow/, /^context-utils/, /^cli\.js$/, /^run-orchestrator/] },
-  { id: "shared", patterns: [/^repo-root/, /^minions-config/, /^decision-engine/, /^agents\.js$/, /^agents\/registry\.js$/, /^agents\/prompts\//, /^portable-project-template/, /^scripts\//] },
+  { id: "shared", patterns: [/^modules\/shared\//, /^repo-root/, /^minions-config/, /^decision-engine/, /^agents\.js$/, /^agents\/registry\.js$/, /^agents\/prompts\//, /^portable-project-template/, /^scripts\//] },
 ];
 
 /** Policy modules trace must not import for decisions. */

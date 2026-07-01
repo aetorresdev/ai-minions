@@ -2,7 +2,7 @@
 
 **Location:** `docs/orchestrator/module-boundaries.md`. See [PATHS.md](PATHS.md) if your workspace root differs.
 
-**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, `modules/trace/`, `modules/budget/`, `modules/worktree/`, `modules/operator/`, partial `modules/model-runtime/`, partial `modules/permissions/`, partial `modules/tools/`, partial **`modules/run-control/`** (state, phases, helpers, **hub canonical**) ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **Modular refactor not complete.**
+**Status:** **Design map + partial physical migration** — `modules/gates/`, `modules/contracts/`, `modules/recovery/`, `modules/trace/`, `modules/budget/`, `modules/worktree/`, `modules/operator/`, partial `modules/model-runtime/`, partial `modules/permissions/`, partial `modules/tools/`, partial **`modules/run-control/`** (hub canonical), partial **`modules/shared/`** (agents facade + legacy helpers) ship with compat shims at legacy paths. **CI import guard** via `lint:module-boundaries`. **Modular refactor not complete.**
 
 **Related:** [architecture-coherence-audit.md](architecture-coherence-audit.md) · [module-ownership-map.md](module-ownership-map.md) · [root-file-inventory.md](root-file-inventory.md) · [run-control-hub-decision.md](run-control-hub-decision.md) · [agent-registry-layout.md](agent-registry-layout.md) · [capability-flow-contract.md](capability-flow-contract.md) · [self-improvement-loop-contract.md](self-improvement-loop-contract.md) · [handoff-contract.md](handoff-contract.md) · [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) · [security-posture.md](security-posture.md)
 
@@ -104,7 +104,7 @@ Paths relative to `orchestrator/`. Tests mirror module under `tests/`.
 | **worktree** | `modules/worktree/` (`worktree-isolation.js`, `worktree-result-promotion.js`, `worktree-cleanup-safety.js`, `run-workdir-contract.js`, `trace-workspace-lifecycle.js`) · shims at legacy root paths |
 | **operator** | `modules/operator/` (`console-dashboard.js`, `control-plane-tui.js`, `explain-run.js`, `operator-cli-help.js`, `project-template-cli.js`, `runner-budget-view.js`, `runner-launcher.js`, `runner-preflight.js`, `runner-trace-viewer.js`, `runner-tui-cli.js`, `scenario-metrics-export.js`) · shims at legacy root paths · `runner-model-routing.js` stays root (model-runtime) |
 | **disclosure** | `modules/contracts/progressive-disclosure-design.js` (shim at root; classified **disclosure** before generic `contracts` patterns in `module-boundary-rules.js`), `modules/tools/skill-registry.js` (metadata only; shim at `security/skill-registry.js`); runtime filter **planned** |
-| **shared/legacy** | `repo-root.js`, `minions-config.js`, `decision-engine.js`, `agents.js` (facade) |
+| **shared/legacy** | `modules/shared/` (`agents.js`, `decision-engine.js`, `repo-root.js`, `minions-config.js`) · shims at legacy root paths |
 
 Every new top-level file should declare target module in PR description. New cross-boundary imports fail CI unless added to the allowlist with explicit review justification.
 
@@ -124,7 +124,7 @@ Every new top-level file should declare target module in PR description. New cro
 
 **Allowlist count:** 34 → 15 (v0.10) → **9** (v0.16: 8 matrix + 1 hard). See [module-boundary-allowlist-shrink.md](module-boundary-allowlist-shrink.md).
 
-**None of the above block alpha** — they guide deferred work (run-control facades, shared/legacy consolidation) and v0.17 modular closeout.
+**None of the above block alpha** — they guide deferred work (thin-hub extraction, `agents/` tree) and v0.17 modular closeout.
 
 ---
 
@@ -151,9 +151,9 @@ Every new top-level file should declare target module in PR description. New cro
 | **Allowlist** | `orchestrator/module-boundary-allowlist.json` | Grandfathered legacy violations only — new keys require review |
 | **CI** | `npm test` / `orchestrator-unit-tests.yml` | Fails on unlisted violations |
 
-**Still planned:** ESLint `import/no-restricted-paths` zones (optional); `modules/shared/` legacy consolidation; flat test layout mirror under `tests/<context>/`.
+**Still planned:** ESLint `import/no-restricted-paths` zones (optional); `agents/` subtree physical split; flat test layout mirror under `tests/<context>/`.
 
-**v0.17 run-control physical slices shipped (partial):** run-state, run-phases, helper bundle, and hub under `modules/run-control/` + shims. **Hub ADR:** [run-control-hub-decision.md](run-control-hub-decision.md). **Pending:** shared/legacy consolidation. **Earlier:** v0.16 model-runtime · permissions · tools · allowlist shrink 15→9; v0.8–v0.9 contexts — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
+**v0.17 physical slices shipped (partial):** run-control tree (incl. hub) and **shared/legacy** under `modules/` + shims. **Hub ADR:** [run-control-hub-decision.md](run-control-hub-decision.md). **Pending:** `agents/` tree physical split (parallel track). **Earlier:** v0.16 model-runtime · permissions · tools · allowlist shrink 15→9; v0.8–v0.9 contexts — see [architecture-coherence-audit.md](architecture-coherence-audit.md) slice status table.
 
 ---
 
@@ -188,4 +188,4 @@ Every new top-level file should declare target module in PR description. New cro
 | 2026-06-22 | v0.16 — partial `modules/model-runtime/`, `modules/permissions/`, `modules/tools/`; run-control imports tools API |
 | 2026-06-22 | v0.16 allowlist 15→9; operator↔model-runtime adjacency formalized |
 | 2026-06-22 | v0.16 docs coherence pass; honest partial state, no architecture-complete claim |
-| 2026-06-25 | Post hub physical move — run-control includes canonical hub; thin-hub deferred |
+| 2026-06-25 | Shared/legacy canonical under `modules/shared/`; twelve physical module trees |

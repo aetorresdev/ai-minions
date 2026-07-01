@@ -1,6 +1,6 @@
 # Run-control module
 
-Bounded context for `modules/run-control/`. **Partial physical slice** — run-state, run-phases, helper bundle, and **orchestrator hub** are canonical here; root compat shims remain. **Not** architecture complete (shared/legacy and agents tree deferred).
+Bounded context for `modules/run-control/`. **Partial physical slice** — run-state, run-phases, helper bundle, and **orchestrator hub** are canonical here; root compat shims remain. **Not** architecture complete (`agents/` tree deferred).
 
 ## Ownership
 
@@ -23,7 +23,7 @@ Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adja
 
 - Importing `operator` for CLI formatting
 - Owning permission or trace schema SoT
-- Claiming modular monolith or run-control migration complete while shared/legacy remains at root
+- Claiming modular monolith or run-control migration complete while `agents/` tree remains at root
 
 ## Related contracts
 

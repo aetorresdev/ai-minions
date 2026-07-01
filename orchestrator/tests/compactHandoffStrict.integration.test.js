@@ -34,6 +34,7 @@ let spawnCalls = 0;
 function clearOrchestratorModuleCaches() {
   const paths = new Set([
     path.resolve(__dirname, "..", "agents.js"),
+    path.resolve(__dirname, "..", "modules", "shared", "agents.js"),
     path.resolve(__dirname, "..", "orchestrator.js"),
     path.resolve(__dirname, "..", "modules", "run-control", "orchestrator.js"),
     path.resolve(__dirname, "..", "agents", "routing", "model-routing.js"),

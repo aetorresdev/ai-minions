@@ -40,7 +40,7 @@ const {
   getDegradedAgents,
   clearDegradedAgents,
   setModelSelectionTraceReporter,
-} = require("../../agents");
+} = require("../shared/agents");
 const { qaAgentDoneTraceExtras } = require("../../agents/validate-output");
 const {
   validatePlanStepsCapability,
@@ -84,7 +84,7 @@ const {
   formatGateBlockedReasonLines,
   planStepsReplayFromGateBlockedArtifacts,
   summaryMaxIterationsGateBlocked,
-} = require("../../decision-engine");
+} = require("../shared/decision-engine");
 
 // ── Trace write path (schema: trace-schema.js; writer: trace-writer.js) ───────
 const {

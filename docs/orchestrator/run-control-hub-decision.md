@@ -14,7 +14,7 @@ The orchestrator run loop coordinates session lifecycle, phase graph execution, 
 
 v0.17 **run-control physical closeout** moved the full hub tree — including `orchestrator.js` — into `modules/run-control/` with root compat shims and export parity tests. **Root `orchestrator.js` is no longer canonical**; it re-exports the module implementation.
 
-**Still partial (honest):** the hub remains a **coordination god-module** until optional thin-hub extraction; `agents/` subtree and shared/legacy files remain at root paths.
+**Still partial (honest):** the hub remains a **coordination god-module** until optional thin-hub extraction; **`agents/` subtree** remains at legacy paths.
 
 ---
 
@@ -68,7 +68,7 @@ The hub physical move slice **met**:
 | `orchestrator.js` | **Moved** (shim) | `modules/run-control/orchestrator.js` |
 | `modules/run-control/index.js` | **Partial barrel** | Exports run-state only |
 
-**Pending (later slices):** thin-hub extraction (behavioral); `agents.js`, `decision-engine.js`, `repo-root.js`, `minions-config.js` → shared/legacy consolidation; `agents/runtime/*` → model-runtime agents tree.
+**Pending (later slices):** thin-hub extraction (behavioral); `agents/runtime/*` → model-runtime agents tree.
 
 ---
 
@@ -86,4 +86,4 @@ The hub physical move slice **met**:
 | Date | Change |
 |------|--------|
 | 2026-06-23 | Initial ADR — pre hub physical move |
-| 2026-06-25 | Post hub physical move — canonical path, shim-only root, pending thin-hub/shared-legacy |
+| 2026-06-25 | Shared/legacy physical move — four files under `modules/shared/` |
