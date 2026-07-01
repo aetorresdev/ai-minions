@@ -6,6 +6,62 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.17.0-alpha.1] - 2026-07-01
+
+Seventeenth alpha pre-release: **Modular Monolith Beta Closeout** — physical slices for run-control (state, phases, helpers, hub), shared/legacy helpers, and model-runtime agents runtime/routing with compat shims; run-control hub decision record; modular closeout dry-run evidence chain; and honest partial-state docs alignment.
+
+**Release claim:** modular monolith closeout with canonical implementations under `modules/run-control/` (full hub tree), `modules/shared/` (legacy helpers), and extended `modules/model-runtime/` (runners/routing), root import guard and module-boundary enforcement unchanged, closeout evidence chain machine-checkable — **not** architecture refactor complete, **not** full modular monolith enforced, **not** compat shim retirement, **not** external usability beta open.
+
+**Prerequisite:** `v0.16.0-alpha.1` — Runtime Boundary Completion @ `c1ed631`.
+
+**Since [0.16.0-alpha.1]:** v0.16 centered on **runtime boundary hardening** (partial model-runtime, permissions, tools; allowlist shrink). v0.17 adds **modular closeout physical slices** — run-control hub tree, shared/legacy consolidation, model-runtime agents runtime/routing moves, hub ADR, closeout evidence wiring — without claiming architecture complete or opening external beta.
+
+| Area | `v0.16.0-alpha.1` | `v0.17.0-alpha.1` (delta) |
+|------|-------------------|---------------------------|
+| Focus | Boundary hardening — partial `modules/{model-runtime,permissions,tools}` · allowlist 9 · tools API | Closeout — run-control hub tree · shared/legacy · model-runtime runners · evidence chain · honest partial docs |
+| Physical modules | Ten trees — partial model-runtime, permissions, tools | **Twelve trees** — run-control hub tree + shared/legacy + model-runtime runners canonical |
+| Run-control hub | Legacy root paths + shims deferred | **`modules/run-control/`** canonical (state, phases, helpers, orchestrator) + root shims |
+| Unit tests (orchestrator) | 1140/1141 (1 skipped) on workspace @ lane tip `c77e51d` | **1155/1156** (1 skipped) on workspace @ lane tip `c77e51d` |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.17.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1155/1156** pass (1 skipped) on workspace @ lane tip `c77e51d`
+- Closeout chain: `node scripts/run-modular-closeout-evidence.mjs` → **OK** (all steps pass)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean @ lane tip `c77e51d`)
+- Module boundaries: `cd orchestrator && npm run lint:module-boundaries` → **OK**
+- Contracts: `modular-closeout-evidence-contract.md`, `architecture-coherence-audit.md`, `root-file-inventory.md`, `run-control-hub-decision.md`
+- Lane merged on `master` through model-runtime agents @ `c77e51d` (PR #224–#230); release-prep pending merge; Phase B tag · pre-release · `release` branch pending operator cut
+- CI: orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · Link Check · Markdown Lint — green on lane PRs through #230
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
+- **Not** architecture refactor complete or full repo modularized — `agents/` registry subtree, thin-hub coordination debt, security gate shells, and grandfathered cross-imports remain with compat shims.
+- **Not** external usability beta — targeted for **v0.20.0-beta.1** after v0.18 standard operator UX and v0.19 human-ready rehearsal.
+- **Not** zero compat shims — incremental shim retirement deferred to post-v0.17 hygiene lane.
+- **Not** tests mirror modules — flat `tests/*.test.js` layout debt remains documented.
+
+### Added
+
+- `modules/run-control/` — run-state, run-phases, run-loop-helpers, orchestrator hub with root compat shims.
+- `modules/shared/` — agents facade, decision-engine, repo-root, minions-config with root shims.
+- `modules/model-runtime/` — agents runtime/routing runners (run-ollama, run-claude, run-classified-shell, summarize-handoff, model-routing) with legacy shims.
+- Run-control hub decision record (`run-control-hub-decision.md`).
+- Modular closeout dry-run evidence chain (`run-modular-closeout-evidence.mjs`, `npm run evidence:closeout`).
+
+### Changed
+
+- Canonical imports in `modules/shared/agents.js` and `modules/worktree/worktree-isolation.js` point to module paths post-move.
+- Versioned orchestrator docs aligned to honest v0.17 partial closeout state (no architecture-complete claim).
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Next roadmap lane after cut: **v0.18.0-alpha.1** standard operator UX, then **v0.19.0-alpha.1** human-ready rehearsal; first external usability beta remains **v0.20.0-beta.1**.
+- Post-v0.17 hygiene: compat shim retirement and doc corpus layout follow-on lanes (non-blocking).
+
 ## [0.16.0-alpha.1] - 2026-06-22
 
 Sixteenth alpha pre-release: **Runtime Boundary Completion** — partial physical modules for model-runtime, permissions, and tools with compat shims; run-control tools API surface; module-boundary allowlist shrink (15→9); legacy root import baseline freeze; and honest partial-state docs alignment.

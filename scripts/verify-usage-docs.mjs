@@ -74,6 +74,18 @@ const BETA_GATE_HARDENING_EVIDENCE_SCRIPT = path.join(
   REPO_ROOT,
   "scripts/run-beta-gate-hardening-evidence.mjs",
 );
+const MODULAR_CLOSEOUT_EVIDENCE = path.join(
+  REPO_ROOT,
+  "docs/how-to/modular-closeout-evidence.md",
+);
+const MODULAR_CLOSEOUT_VERIFY_CONTRACT = path.join(
+  REPO_ROOT,
+  "docs/orchestrator/modular-closeout-evidence-contract.md",
+);
+const MODULAR_CLOSEOUT_EVIDENCE_SCRIPT = path.join(
+  REPO_ROOT,
+  "scripts/run-modular-closeout-evidence.mjs",
+);
 const DEGRADED_MODE_EVIDENCE = path.join(REPO_ROOT, "scripts/lib/degraded-mode-evidence.mjs");
 const CLAIM_AUDIT_SCRIPT = path.join(REPO_ROOT, "scripts/audit-product-claims.mjs");
 const EVIDENCE_SCRIPT = path.join(REPO_ROOT, "scripts/run-fresh-clone-evidence.mjs");
@@ -477,6 +489,30 @@ function checkBetaGateHardeningVerifyContract(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkModularCloseoutEvidenceDoc(docText) {
+  const rel = "docs/how-to/modular-closeout-evidence.md";
+  if (!docText) return;
+  mustInclude(docText, "run-modular-closeout-evidence.mjs", "evidence script reference", rel);
+  mustInclude(docText, "modular-closeout-evidence-contract", "verify contract link", rel);
+  mustInclude(docText, "audit-product-claims.mjs", "claim audit scope", rel);
+  mustInclude(docText, "CLOSEOUT_OK", "closeout reason code", rel);
+  mustInclude(docText, "Not claimed", "not claimed disclaimer", rel);
+  mustInclude(docText, "evidence:closeout", "npm script reference", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
+function checkModularCloseoutVerifyContract(docText) {
+  const rel = "docs/orchestrator/modular-closeout-evidence-contract.md";
+  if (!docText) return;
+  mustInclude(docText, "run-modular-closeout-evidence.mjs", "evidence script reference", rel);
+  mustInclude(docText, "check-root-import-guard.js", "root guard scope", rel);
+  mustInclude(docText, "lint:module-boundaries", "module boundaries scope", rel);
+  mustInclude(docText, "architecture-coherence-audit.md", "audit doc scope", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkBetaDegradedPolicyDoc(docText) {
   const rel = "docs/how-to/beta-degraded-mode-policy.md";
   if (!docText) return;
@@ -528,6 +564,8 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "verify-usage-docs.mjs", "verify usage docs script", rel);
   mustInclude(readmeText, "audit-product-claims.mjs", "claim audit script", rel);
   mustInclude(readmeText, "run-beta-gate-hardening-evidence.mjs", "gate hardening evidence script", rel);
+  mustInclude(readmeText, "modular-closeout-evidence.md", "link to modular closeout evidence doc", rel);
+  mustInclude(readmeText, "run-modular-closeout-evidence.mjs", "modular closeout evidence script", rel);
   mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
 
   checkForbiddenClaimsForDoc(readmeText, rel);
@@ -558,6 +596,8 @@ function main() {
   const betaLimitationsContractText = readUtf8(BETA_LIMITATIONS_ONBOARDING_CONTRACT);
   const betaGateHardeningEvidenceText = readUtf8(BETA_GATE_HARDENING_EVIDENCE);
   const betaGateHardeningVerifyContractText = readUtf8(BETA_GATE_HARDENING_VERIFY_CONTRACT);
+  const modularCloseoutEvidenceText = readUtf8(MODULAR_CLOSEOUT_EVIDENCE);
+  const modularCloseoutVerifyContractText = readUtf8(MODULAR_CLOSEOUT_VERIFY_CONTRACT);
   const operatorBridgeText = readUtf8(OPERATOR_PREFLIGHT_BRIDGE);
   const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
@@ -603,6 +643,9 @@ function main() {
   if (!fs.existsSync(BETA_GATE_HARDENING_EVIDENCE_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, BETA_GATE_HARDENING_EVIDENCE_SCRIPT)}`);
   }
+  if (!fs.existsSync(MODULAR_CLOSEOUT_EVIDENCE_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, MODULAR_CLOSEOUT_EVIDENCE_SCRIPT)}`);
+  }
   if (!fs.existsSync(BETA_SMOKE_MATRIX_RECORD)) {
     fail(`missing file: ${path.relative(REPO_ROOT, BETA_SMOKE_MATRIX_RECORD)}`);
   }
@@ -624,6 +667,10 @@ function main() {
   if (betaGateHardeningEvidenceText) checkBetaGateHardeningEvidenceDoc(betaGateHardeningEvidenceText);
   if (betaGateHardeningVerifyContractText) {
     checkBetaGateHardeningVerifyContract(betaGateHardeningVerifyContractText);
+  }
+  if (modularCloseoutEvidenceText) checkModularCloseoutEvidenceDoc(modularCloseoutEvidenceText);
+  if (modularCloseoutVerifyContractText) {
+    checkModularCloseoutVerifyContract(modularCloseoutVerifyContractText);
   }
   if (operatorBridgeText) checkOperatorPreflightBridgeDoc(operatorBridgeText);
   if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
