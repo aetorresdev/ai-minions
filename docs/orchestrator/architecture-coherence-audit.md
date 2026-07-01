@@ -2,11 +2,11 @@
 
 **Location:** `docs/orchestrator/architecture-coherence-audit.md`. See [PATHS.md](PATHS.md).
 
-**Status:** v0.8 coherence audit — **updated post-v0.17 shared/legacy physical move**. Docs only. **Not** architecture complete · **not** full repo modularized.
+**Status:** v0.8 coherence audit — **updated post-v0.17 modular closeout alignment**. Docs only. **Not** architecture complete · **not** full repo modularized.
 
 **Related:** [root-file-inventory.md](root-file-inventory.md) · [module-ownership-map.md](module-ownership-map.md) · [module-boundaries.md](module-boundaries.md) · [run-control-hub-decision.md](run-control-hub-decision.md)
 
-**Baseline:** v0.17 lane post shared/legacy physical move · CI: `lint:module-boundaries` + root import guard (legacy baseline 13) + allowlist **60** root files (**4** legacy) · **Physical modules:** twelve trees under `modules/` — partial: `model-runtime/`, `permissions/`, `tools/`, **`run-control/`** (full hub tree), **`shared/`** (`agents` facade + legacy helpers; `agents/` subtree deferred) · Evidence: `tests/modulesPhysicalLayout.test.js`.
+**Baseline:** v0.17 lane post model-runtime agents runtime/routing physical move · CI: `lint:module-boundaries` + root import guard (legacy baseline 13) + allowlist **60** root files (**4** legacy) · **Physical modules:** twelve trees under `modules/` — partial: `model-runtime/` (runners/routing canonical), `permissions/`, `tools/`, **`run-control/`** (full hub tree), **`shared/`** (facade + legacy helpers; `agents/` registry subtree remains) · Evidence: `tests/modulesPhysicalLayout.test.js`.
 
 ---
 
@@ -116,9 +116,9 @@ From `module-boundary-allowlist.json`:
 
 ---
 
-## Physical refactor slice status (v0.17 shared/legacy physical move)
+## Physical refactor slice status (v0.17 modular closeout)
 
-Movement plan slices from below — **status post shared/legacy physical move** (v0.8–v0.16 slices plus run-control + shared canonical):
+Movement plan slices from below — **status post model-runtime agents runtime/routing physical move** (v0.8–v0.16 slices plus run-control + shared + model-runtime runners canonical):
 
 | Order | Slice | Status | Evidence |
 |------:|-------|--------|----------|
@@ -190,7 +190,7 @@ Movement plan slices from below — **status post shared/legacy physical move** 
 | No file movement in this audit | ✓ |
 | Physical refactor movement plan produced | ✓ — slice table above |
 
-**System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and **partial** physical modular layout (twelve bounded contexts under `modules/*` — five partial including run-control hub tree and shared/legacy — with compat shims). Coherence **frays** at **thin-hub coordination debt** (god-module imports, not root path), `agents/` legacy subtree, grandfathered cross-imports, flat test layout vs “tests mirror modules”, and design-only docs that must not be read as shipped runtime. v0.17 **shared/legacy physical move is done** — **not** architecture complete.
+**System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and **partial** physical modular layout (twelve bounded contexts under `modules/*` — five partial including run-control hub tree, shared/legacy, and model-runtime runners — with compat shims). Coherence **frays** at **thin-hub coordination debt** (god-module imports, not root path), `agents/` registry subtree, grandfathered cross-imports, flat test layout vs “tests mirror modules”, and design-only docs that must not be read as shipped runtime. v0.17 physical closeout slices **in progress** — **not** architecture complete.
 
 ---
 
@@ -203,3 +203,4 @@ Movement plan slices from below — **status post shared/legacy physical move** 
 | 2026-06-12 | Post-v0.8/v0.9 physical align — matrix + slice status; eight `modules/*` contexts documented |
 | 2026-06-22 | v0.16 — slice status for model-runtime/permissions/tools partial modules; allowlist 9; honest partial state |
 | 2026-06-25 | Shared/legacy physical move — twelve module trees, four legacy root files |
+| 2026-07-01 | Model-runtime agents runtime/routing physical move — audit alignment |

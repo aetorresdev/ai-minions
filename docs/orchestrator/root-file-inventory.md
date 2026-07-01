@@ -2,11 +2,11 @@
 
 **Location:** `docs/orchestrator/root-file-inventory.md`. See [PATHS.md](PATHS.md).
 
-**Status:** Post-refactor inventory (v0.17 shared/legacy physical move). Classification + shim targets — **no** file moves in this document.
+**Status:** Post-refactor inventory (v0.17 modular closeout alignment). Classification + shim targets — **no** file moves in this document.
 
 **Related:** [module-boundaries.md](module-boundaries.md) · [module-ownership-map.md](module-ownership-map.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [run-control-hub-decision.md](run-control-hub-decision.md)
 
-**Snapshot:** Post shared/legacy physical move — `agents.js`, `decision-engine.js`, `repo-root.js`, `minions-config.js` canonical under `modules/shared/`; root compat shims remain. **Twelve** physical module trees under `modules/` (partial: model-runtime, permissions, tools, run-control, **shared**). Root import allowlist: **60** files (**4** legacy after four shared files → shim, remainder entrypoint/shim/config). Evidence: `tests/modulesPhysicalLayout.test.js`.
+**Snapshot:** Post model-runtime agents runtime/routing physical move — runners and routing table canonical under `modules/model-runtime/` (legacy shims at `agents/runtime/*`, `agents/routing/`); shared facade/helpers under `modules/shared/`; hub tree under `modules/run-control/`. **Twelve** physical module trees under `modules/` (partial: model-runtime, permissions, tools, run-control, **shared**). Root import allowlist: **60** files (**4** legacy). Evidence: `tests/modulesPhysicalLayout.test.js`.
 
 ---
 
@@ -171,3 +171,4 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | 2026-06-09 | Pre-merge review follow-up — `mcp-direct.py` flagged for root import guard allowlist |
 | 2026-06-12 | Post-v0.8/v0.9 align — physical migration status table; shim classification for moved contexts |
 | 2026-06-25 | Shared/legacy physical move — snapshot + `modules/shared/` tree |
+| 2026-07-01 | Model-runtime agents runtime/routing physical move — snapshot alignment |

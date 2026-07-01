@@ -696,6 +696,8 @@ describe("modules physical layout", () => {
       assert.match(source, /require\(["']\.\.\/model-runtime\/run-ollama["']\)/);
       assert.match(source, /require\(["']\.\.\/model-runtime\/run-claude["']\)/);
       assert.match(source, /require\(["']\.\.\/model-runtime\/summarize-handoff["']\)/);
+      assert.match(source, /require\(["']\.\.\/model-runtime\/local-model-policy["']\)/);
+      assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/local-model-policy["']\)/);
       assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/agents\/runtime\//);
       assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/agents\/routing\//);
     });

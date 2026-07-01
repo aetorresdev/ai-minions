@@ -49,7 +49,7 @@ const {
   resolveLocalModelOverride,
   assertRemoteProviderBlocked,
   getEffectiveOllamaModel,
-} = require("../../local-model-policy");
+} = require("../model-runtime/local-model-policy");
 const { buildModelSelectionPayload } = require("../trace/model-selection-trace");
 const { loadModelPolicyConfig } = require("../model-runtime/model-policy-config");
 const {
