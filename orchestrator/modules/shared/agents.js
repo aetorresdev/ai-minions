@@ -22,7 +22,7 @@ const {
   OLLAMA_MODEL,
   MODEL_ROUTING,
   FALLBACK_POLICY,
-} = require("../../agents/routing/model-routing");
+} = require("../model-runtime/model-routing");
 const { ROLE_PERMISSION, effectiveMode } = require("../../agents/permissions");
 
 const {
@@ -33,9 +33,9 @@ const {
   extractContextStats,
   cerberusFindingHasAnchor,
 } = require("../../agents/validate-output");
-const { runOllama } = require("../../agents/runtime/run-ollama");
-const { runClaude, MAX_OUTPUT_TOKENS } = require("../../agents/runtime/run-claude");
-const { summarizeHandoff } = require("../../agents/runtime/summarize-handoff");
+const { runOllama } = require("../model-runtime/run-ollama");
+const { runClaude, MAX_OUTPUT_TOKENS } = require("../model-runtime/run-claude");
+const { summarizeHandoff } = require("../model-runtime/summarize-handoff");
 const {
   OLLAMA_ARCHITECT_SYSTEM_APPEND,
   OLLAMA_DEV_SYSTEM_APPEND,

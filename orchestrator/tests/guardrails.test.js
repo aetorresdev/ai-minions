@@ -70,6 +70,7 @@ function clearOrchestratorModuleCaches() {
     path.resolve(__dirname, "..", "orchestrator.js"),
     path.resolve(__dirname, "..", "modules", "run-control", "orchestrator.js"),
     path.resolve(__dirname, "..", "agents", "routing", "model-routing.js"),
+    path.resolve(__dirname, "..", "modules", "model-runtime", "model-routing.js"),
   ]);
   for (const k of Object.keys(require.cache)) {
     if (paths.has(k)) delete require.cache[k];

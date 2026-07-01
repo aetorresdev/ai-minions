@@ -1,22 +1,19 @@
 # Shared / legacy module
 
-Bounded context for `modules/shared/`. **Partial physical slice** — agents facade, decision engine, repo-root helper, and minions project config are canonical here; root compat shims remain. **`agents/` subtree** still at legacy paths (E17-5 deferred). **Not** architecture complete.
+Bounded context for `modules/shared/`. **Partial physical slice** — agents facade, decision engine, repo-root helper, and minions project config are canonical here; root compat shims remain. **`agents/` registry subtree** (registry, permissions, validate-output, capability-matrix, prompts) remains under `orchestrator/agents/`. **Not** architecture complete.
 
 ## Ownership
 
 **Owns:** Public agents facade (`agents.js`), orchestrator decide/plan control-plane rules (`decision-engine.js`), repository root resolution (`repo-root.js`), optional `minions.md` project contract loader (`minions-config.js`).
 
-**Must not own:** Agent registry/runtime implementation (`agents/` tree); trace schema; gate policy.
+**Must not own:** Agent registry/permissions/validate-output implementation (`agents/` tree except re-exports); trace schema; gate policy.
 
 ## Allowed imports
 
 Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adjacency row **`shared/legacy`**:
 
-- `agents/` subtree — registry, runtime, prompts, validate-output
-- `model-runtime` — local model policy and tier gates (agents facade)
-- `trace` — model selection trace payloads
-- `security` — outbound text scanning
-- Root compat shims for model-runtime paths where not yet internalized
+- `agents/` subtree — registry, permissions, validate-output, prompts (not runtime/routing runners)
+- `model-runtime` — runners, routing table, local model policy and tier gates (agents facade imports canonical paths)
 
 ## Forbidden
 

@@ -38,8 +38,11 @@ function clearOrchestratorModuleCaches() {
     path.join(ORCH_ROOT, "orchestrator.js"),
     path.join(ORCH_ROOT, "modules", "run-control", "orchestrator.js"),
     path.join(ORCH_ROOT, "agents", "runtime", "run-ollama.js"),
+    path.join(ORCH_ROOT, "modules", "model-runtime", "run-ollama.js"),
     path.join(ORCH_ROOT, "agents", "runtime", "summarize-handoff.js"),
+    path.join(ORCH_ROOT, "modules", "model-runtime", "summarize-handoff.js"),
     path.join(ORCH_ROOT, "agents", "routing", "model-routing.js"),
+    path.join(ORCH_ROOT, "modules", "model-runtime", "model-routing.js"),
   ]);
   for (const key of Object.keys(require.cache)) {
     if (paths.has(key)) delete require.cache[key];

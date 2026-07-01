@@ -68,7 +68,7 @@ The hub physical move slice **met**:
 | `orchestrator.js` | **Moved** (shim) | `modules/run-control/orchestrator.js` |
 | `modules/run-control/index.js` | **Partial barrel** | Exports run-state only |
 
-**Pending (later slices):** thin-hub extraction (behavioral); `agents/runtime/*` → model-runtime agents tree.
+**Pending (later slices):** thin-hub extraction (behavioral).
 
 ---
 

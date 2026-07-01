@@ -2,13 +2,13 @@
   "_comment": "Grandfathered legacy violations. New imports must not add keys — CI fails on unlisted violations.",
   "_shrink_note": "v0.16 allowlist shrink — operator↔model-runtime adjacency formalized; matrix 14→8 entries.",
   "matrix": [
-    "agents/runtime/run-classified-shell.js::../../orchestrator.js::orchestrator.js::matrix",
-    "agents/runtime/run-claude.js::../../orchestrator.js::orchestrator.js::matrix",
-    "agents/runtime/run-ollama.js::../../orchestrator.js::orchestrator.js::matrix",
+    "modules/model-runtime/run-classified-shell.js::../../orchestrator.js::orchestrator.js::matrix",
+    "modules/model-runtime/run-claude.js::../../orchestrator.js::orchestrator.js::matrix",
+    "modules/model-runtime/run-ollama.js::../../orchestrator.js::orchestrator.js::matrix",
     "modules/budget/token-trace-report.js::../../security/permission-check-summary::security/permission-check-summary.js::matrix",
     "modules/model-runtime/flow-hook-bridge.js::../../worktree-isolation::worktree-isolation.js::matrix",
     "modules/tools/mcp-client.js::../../governance-gate::governance-gate.js::matrix",
-    "modules/worktree/worktree-isolation.js::../../agents/runtime/run-classified-shell::agents/runtime/run-classified-shell.js::matrix",
+    "modules/worktree/worktree-isolation.js::../model-runtime/run-classified-shell::modules/model-runtime/run-classified-shell.js::matrix",
     "run-orchestrator.js::./operator-cli-help::operator-cli-help.js::matrix"
   ],
   "hard": [

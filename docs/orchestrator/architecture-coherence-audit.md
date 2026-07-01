@@ -40,7 +40,7 @@ flowchart LR
 |-------|---------------|-------|----------|
 | Session start / workdir bind | run-control + worktree | **implemented** | `run-phases/session-start.js`, worktree contracts |
 | Plan resolution | run-control | **implemented** | `run-phases/plan-resolution.js`, capability matrix |
-| Step execution | run-control + model-runtime | **implemented** | `run-phases/step-execution.js`, `agents/runtime/*` |
+| Step execution | run-control + model-runtime | **implemented** | `run-phases/step-execution.js`, `modules/model-runtime/run-*.js` |
 | Gate handling | gates + permissions | **partial** | Policy gates ship; human grant/deny UI paths incomplete per governance contract |
 | Iteration finalization | run-control + trace | **implemented** | `iteration_done`, failure semantics contract |
 | Session end / cleanup | run-control + worktree | **implemented** | `session-end.js`, worktree cleanup safety |
@@ -129,7 +129,7 @@ Movement plan slices from below — **status post shared/legacy physical move** 
 | 5 | Budget | **Done** | `modules/budget/` + shims |
 | 6 | Worktree | **Done** | `modules/worktree/` + shims |
 | 7 | Operator | **Done** | `modules/operator/` + shims |
-| 8 | Model-runtime (root locals) | **Partial** | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js` under `modules/model-runtime/`; `agents/runtime/*` remains |
+| 8 | Model-runtime | **Partial** | Runners/routing under `modules/model-runtime/`; legacy shims at `agents/runtime/*`, `agents/routing/`; registry/permissions remain under `agents/` |
 | 9 | Permissions (root) | **Partial** | `credential-broker.js`, `environment-parser.js` under `modules/permissions/`; `agents/permissions.js` remains |
 | 10 | Tools | **Partial** | `mcp-client.js` + eval/registry shells under `modules/tools/`; run-control uses tools API |
 | 11 | Run-control (state, phases, helpers, hub) | **Partial** | hub tree under `modules/run-control/` + shims; thin-hub deferred |

@@ -7,7 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawnClassifiedSync } = require('../../agents/runtime/run-classified-shell');
+const { spawnClassifiedSync } = require('../model-runtime/run-classified-shell');
 const {
   buildRunWorkdirContract,
   writeRunWorkdirContract,

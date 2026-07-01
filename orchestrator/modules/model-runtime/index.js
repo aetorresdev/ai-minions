@@ -11,4 +11,9 @@ module.exports = {
   ...require("./local-model-policy"),
   ...require("./runner-model-routing"),
   ...require("./flow-hook-bridge"),
+  ...require("./model-routing"),
+  ...require("./run-ollama"),
+  ...require("./run-claude"),
+  ...require("./run-classified-shell"),
+  ...require("./summarize-handoff"),
 };
