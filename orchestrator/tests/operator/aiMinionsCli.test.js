@@ -34,6 +34,8 @@ describe("ai-minions-cli help", () => {
     assert.match(out, /start\s+Preflight then launch/);
     assert.match(out, /status\s+Operator trace summary/);
     assert.match(out, /explain\s+Why blocked/);
+    assert.match(out, /doctor\s+Bootstrap \+ runtime \+ runner preflight/);
+    assert.match(out, /evidence\s+Trace\/bundle paths/);
     assert.match(out, /Planned \(not implemented/);
     assert.match(out, /runner:tui/);
     assert.doesNotMatch(out, /production-ready/i);
@@ -69,8 +71,8 @@ describe("ai-minions-cli help", () => {
     assert.match(r.stdout, /ai-minions status/);
   });
 
-  it("planned doctor command exits 1 with next_safe_action", () => {
-    const r = spawnSync(process.execPath, [CLI_PATH, "doctor"], {
+  it("planned context command exits 1 with next_safe_action", () => {
+    const r = spawnSync(process.execPath, [CLI_PATH, "context"], {
       encoding: "utf8",
       cwd: ORCH_CWD,
     });
@@ -157,7 +159,7 @@ describe("ai-minions-cli formatters", () => {
   });
 
   it("formatPlannedCommandMessage includes interim script hint for planned commands", () => {
-    assert.match(formatPlannedCommandMessage("doctor"), /pre-run-checklist/);
+    assert.match(formatPlannedCommandMessage("context"), /context-package-contract/);
   });
 });
 
