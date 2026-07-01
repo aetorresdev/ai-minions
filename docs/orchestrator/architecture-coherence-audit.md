@@ -190,7 +190,7 @@ Movement plan slices from below — **status post model-runtime agents runtime/r
 | No file movement in this audit | ✓ |
 | Physical refactor movement plan produced | ✓ — slice table above |
 
-**System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and **partial** physical modular layout (twelve bounded contexts under `modules/*` — five partial including run-control hub tree, shared/legacy, and model-runtime runners — with compat shims). Coherence **frays** at **thin-hub coordination debt** (god-module imports, not root path), `agents/` registry subtree, grandfathered cross-imports, flat test layout vs “tests mirror modules”, and design-only docs that must not be read as shipped runtime. v0.17 physical closeout slices **in progress** — **not** architecture complete.
+**System coherence summary:** The orchestrator **implements** a credible multi-role run lifecycle with trace SoT, permission gates, and **partial** physical modular layout (twelve bounded contexts under `modules/*` — five partial including run-control hub tree, shared/legacy, and model-runtime runners — with compat shims). Coherence **frays** at **thin-hub coordination debt** (god-module imports, not root path), `agents/` registry subtree, grandfathered cross-imports, flat test layout vs “tests mirror modules”, and design-only docs that must not be read as shipped runtime. v0.17 physical closeout slices **complete (honest partial)** — **not** architecture complete.
 
 ---
 

@@ -30,6 +30,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Beta degraded-mode policy | [`docs/how-to/beta-degraded-mode-policy.md`](docs/how-to/beta-degraded-mode-policy.md) |
 | Beta limitations onboarding contract | [`docs/orchestrator/beta-limitations-onboarding-contract.md`](docs/orchestrator/beta-limitations-onboarding-contract.md) |
 | Validate gate-hardening docs (verify + claims) | [`docs/how-to/beta-gate-hardening-evidence.md`](docs/how-to/beta-gate-hardening-evidence.md) · `node scripts/run-beta-gate-hardening-evidence.mjs` |
+| Validate modular closeout evidence (v0.17) | [`docs/how-to/modular-closeout-evidence.md`](docs/how-to/modular-closeout-evidence.md) · `node scripts/run-modular-closeout-evidence.mjs` |
 | Doc alignment verify | `node scripts/verify-usage-docs.mjs` |
 | Product claim audit | `node scripts/audit-product-claims.mjs` |
 | End-to-end runbook (step-by-step) | [Happy path](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) |
