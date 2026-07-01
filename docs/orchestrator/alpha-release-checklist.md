@@ -987,8 +987,8 @@ External usability beta (v0.20.0-beta.1) · run-control physical slice · full `
 - [x] Orchestrator hub physical move — merged @ `48509d7` (PR #228)
 - [x] Shared/legacy physical slice — merged @ `60fb420` (PR #229)
 - [x] Model-runtime agents runtime/routing — merged @ `c77e51d` (PR #230)
-- [ ] Modular closeout dry-run evidence — release-prep PR pending
-- [ ] Release-prep + tag `v0.17.0-alpha.1` — release-prep PR pending
+- [x] Modular closeout dry-run evidence — merged @ `914d8d9` (PR #231)
+- [x] Release-prep + tag `v0.17.0-alpha.1` — merged @ `914d8d9` (PR #231; CERBERUS Approve with non-blocking notes)
 
 ### Out of scope
 
@@ -997,8 +997,8 @@ External usability beta (v0.20.0-beta.1) · compat shim mass-delete · full `age
 ### CERBERUS checks (pre-tag)
 
 - [x] Implementation slices (run-state through model-runtime agents) — CERBERUS-approved; merges through `c77e51d`
-- [ ] Closeout evidence chain + verify wiring — release-prep PR pending
-- [ ] Release-prep CHANGELOG + checklist claims — release-prep PR pending
+- [x] Closeout evidence chain + verify wiring — CERBERUS Approve with non-blocking notes (PR #231 @ `ac452bc`)
+- [x] Release-prep CHANGELOG + checklist claims — CERBERUS Approve with non-blocking notes (PR #231 @ `75dd96c`)
 - [x] No architecture-complete / full-modularization claim in versioned docs (lane through `c77e51d`)
 - [x] No external-beta claim
 
@@ -1015,6 +1015,7 @@ External usability beta (v0.20.0-beta.1) · compat shim mass-delete · full `age
 | 2026-07-01 | Workspace @ `c77e51d` | `cd orchestrator && npm run lint:module-boundaries` → **OK** |
 | 2026-07-01 | Workspace @ `c77e51d` | `bash scripts/release-trivy-gate.sh` → **OK** |
 | 2026-07-01 | Lane PRs #224–#230 | orchestrator-unit-tests · orchestrator-e2e · Docs usage verify — green |
+| 2026-07-01 | Phase B operator cut @ `914d8d9` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 **Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes `CHANGELOG.md`, `docs/orchestrator/alpha-release-checklist.md`, and closeout evidence docs; `orchestrator/**` runtime unchanged since lane tip @ `c77e51d` except `package.json` script + evidence shim. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `c77e51d` until tag.
 
@@ -1022,21 +1023,21 @@ External usability beta (v0.20.0-beta.1) · compat shim mass-delete · full `age
 |-------|-----------------|
 | orchestrator-unit-tests | lane merge PR head @ `c77e51d` |
 | orchestrator-e2e | lane merge PR head @ `48509d7` (PR #228) and @ `c77e51d` (PR #230) |
-| Docs usage verify | release-prep PR head |
+| Docs usage verify | release-prep PR head @ `ac452bc` (PR #231) |
 | security-trivy-scan | lane merge PR head @ `c77e51d` |
 
 ### Release execution plan (locked on release-prep merge — Phase B operator steps)
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
 
-- [ ] **Tag target:** `v0.17.0-alpha.1` on release-prep merge commit
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.17.0-alpha.1` — pre-release pending
-- [ ] **`release` branch:** align to tag commit (`release_branch_commit` matches `tag_commit`)
+- [x] **Tag target:** `v0.17.0-alpha.1` on release-prep merge commit @ `914d8d9`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.17.0-alpha.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `914d8d9` (`release_branch_commit` matches `tag_commit`)
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.17.0-alpha.1] - 2026-07-01**
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+- [x] **Changelog:** section **[0.17.0-alpha.1] - 2026-07-01**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 

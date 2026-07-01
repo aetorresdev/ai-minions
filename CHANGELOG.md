@@ -23,7 +23,7 @@ Seventeenth alpha pre-release: **Modular Monolith Beta Closeout** — physical s
 | Run-control hub | Legacy root paths + shims deferred | **`modules/run-control/`** canonical (state, phases, helpers, orchestrator) + root shims |
 | Unit tests (orchestrator) | 1140/1141 (1 skipped) on workspace @ lane tip `c77e51d` | **1155/1156** (1 skipped) on workspace @ lane tip `c77e51d` |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.17.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.17.0-alpha.1` — pre-release published @ tag `914d8d9`
 
 **Evidence (operator):**
 
@@ -32,7 +32,7 @@ Seventeenth alpha pre-release: **Modular Monolith Beta Closeout** — physical s
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean @ lane tip `c77e51d`)
 - Module boundaries: `cd orchestrator && npm run lint:module-boundaries` → **OK**
 - Contracts: `modular-closeout-evidence-contract.md`, `architecture-coherence-audit.md`, `root-file-inventory.md`, `run-control-hub-decision.md`
-- Lane merged on `master` through model-runtime agents @ `c77e51d` (PR #224–#230); release-prep pending merge; Phase B tag · pre-release · `release` branch pending operator cut
+- Lane merged on `master` through model-runtime agents @ `c77e51d` (PR #224–#230); release-prep merged @ `914d8d9` (PR #231); Phase B tag · pre-release · `release` branch @ `914d8d9`
 - CI: orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · Link Check · Markdown Lint — green on lane PRs through #230
 
 **Alpha limitations (not production):**
