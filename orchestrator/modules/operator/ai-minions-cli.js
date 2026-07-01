@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Product CLI router — ai-minions init/start (v0.18 alpha).
+ * Product CLI router — ai-minions init/start/status/explain (v0.18 alpha).
  * Wraps existing install + runner launch paths; no duplicate SoT.
  */
 
@@ -22,18 +22,16 @@ const {
   formatRoleRoutingText,
 } = require('../../runner-model-routing');
 const { printAiMinionsCliHelp } = require('./operator-cli-help');
+const { runOperatorStatus, runOperatorExplain } = require('./operator-trace-command');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const INSTALL_SCRIPT = path.join(REPO_ROOT, 'scripts', 'install-ai-minions.mjs');
 
 const PLANNED_ALPHA_COMMANDS = new Set([
-  'status',
-  'explain',
   'doctor',
   'evidence',
   'context',
   'resume',
-  'result',
 ]);
 
 /**
@@ -74,16 +72,13 @@ function parseAiMinionsArgs(argv) {
  */
 function formatPlannedCommandMessage(cmd) {
   const hints = {
-    status: 'npm run runner:tui -- status --run-id <task_id>',
-    explain: 'npm run explain-run -- --run-id <task_id>',
     doctor: 'see docs/orchestrator/pre-run-checklist.md and npm run runner:tui -- preflight',
     evidence: 'npm run control-plane:tui -- --run-id <task_id>',
     context: 'see docs/orchestrator/context-package-contract.md',
     resume: 'not implemented — inspect traces + explain-run',
-    result: 'npm run runner:tui -- status --run-id <task_id> (result alias)',
   };
   return [
-    `${cmd}: not implemented in v0.18 alpha (init/start slice only).`,
+    `${cmd}: not implemented in this alpha slice.`,
     `next_safe_action: ${hints[cmd] || 'npm run ai-minions -- --help'}`,
   ].join('\n');
 }
@@ -186,7 +181,7 @@ function formatStartText(launched, meta = {}) {
     `  terminal_status:  ${launched.terminal_status}`,
     `  trace_file:       ${traceFile}`,
     `  evidence_path:    ${traceFile}`,
-    `  next_safe_action: npm run ai-minions -- status --run-id ${launched.task_id} (planned status command) — interim: npm run runner:tui -- status --run-id ${launched.task_id}`,
+    `  next_safe_action: npm run ai-minions -- status --run-id ${launched.task_id}`,
   ];
   if (launched.result.summary) {
     lines.push(`  summary:          ${launched.result.summary}`);
@@ -298,6 +293,38 @@ async function main() {
     process.exit(1);
   }
 
+  if (cmd === 'status' || cmd === 'result') {
+    const result = runOperatorStatus({
+      runId: opts.runId ? String(opts.runId) : undefined,
+      filePath: opts.file ? String(opts.file) : undefined,
+    });
+    if (opts.json === true && result.json) {
+      console.log(JSON.stringify(result.json, null, 2));
+    } else {
+      console.log(result.text);
+    }
+    if (!result.ok && result.reason_code) {
+      console.error(`reason_code: ${result.reason_code}`);
+    }
+    process.exit(result.exitCode);
+  }
+
+  if (cmd === 'explain') {
+    const result = runOperatorExplain({
+      runId: opts.runId ? String(opts.runId) : undefined,
+      filePath: opts.file ? String(opts.file) : undefined,
+    });
+    if (opts.json === true && result.json) {
+      console.log(JSON.stringify(result.json, null, 2));
+    } else {
+      console.log(result.text);
+    }
+    if (!result.ok && result.reason_code) {
+      console.error(`reason_code: ${result.reason_code}`);
+    }
+    process.exit(result.exitCode);
+  }
+
   if (cmd === 'init') {
     if (opts.modelPolicy != null && !['local_only', 'remote_ok'].includes(String(opts.modelPolicy))) {
       console.error('blocker: unknown --model-policy value (expected local_only or remote_ok)');
@@ -378,6 +405,8 @@ module.exports = {
   resolveInstallRepoRoot,
   runInit,
   runStart,
+  runOperatorStatus,
+  runOperatorExplain,
   main,
 };
 

@@ -16,5 +16,6 @@ module.exports = {
   ...require("./runner-tui-cli"),
   ...require("./scenario-metrics-export"),
   ...require("./operator-trace-summary"),
+  ...require("./operator-trace-command"),
   ...require("./ai-minions-cli"),
 };

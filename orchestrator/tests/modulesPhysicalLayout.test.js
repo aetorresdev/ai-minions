@@ -307,6 +307,7 @@ describe("modules physical layout", () => {
         "modules/operator/runner-tui-cli.js",
         "modules/operator/scenario-metrics-export.js",
         "modules/operator/operator-trace-summary.js",
+        "modules/operator/operator-trace-command.js",
         "modules/operator/ai-minions-cli.js",
       ]) {
         assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
@@ -351,6 +352,8 @@ describe("modules physical layout", () => {
       assert.equal(typeof operator.main, "function");
       assert.equal(typeof operator.runInit, "function");
       assert.equal(typeof operator.runStart, "function");
+      assert.equal(typeof operator.runOperatorStatus, "function");
+      assert.equal(typeof operator.runOperatorExplain, "function");
     });
 
     it("runner-launcher requires root orchestrator.js (not ./orchestrator under operator)", () => {
