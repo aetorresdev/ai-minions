@@ -47,7 +47,7 @@
     "mcp-client.js": "shim",
     "minions-config.js": "legacy",
     "operator-cli-help.js": "shim",
-    "orchestrator.js": "legacy",
+    "orchestrator.js": "shim",
     "portable-project-template.js": "legacy",
     "project-template-cli.js": "shim",
     "qa-spec-flow.js": "shim",

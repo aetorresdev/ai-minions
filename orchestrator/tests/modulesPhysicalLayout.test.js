@@ -537,6 +537,7 @@ describe("modules physical layout", () => {
         "modules/run-control/run-loop-helpers.js",
         "modules/run-control/qa-spec-flow.js",
         "modules/run-control/context-utils.js",
+        "modules/run-control/orchestrator.js",
       ]) {
         assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);
       }
@@ -572,6 +573,29 @@ describe("modules physical layout", () => {
       assert.equal(typeof shim.finalizeRunState, "function");
       assert.equal(shim.finalizeRunState, canon.finalizeRunState);
       assert.deepEqual(Object.keys(shim).sort(), Object.keys(canon).sort(), "run-state export keys");
+    });
+
+    it("root orchestrator shim re-exports canonical hub facade", () => {
+      const cp = require("child_process");
+      const prev = cp.spawnSync;
+      cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
+      try {
+        const shim = require("../orchestrator");
+        const canon = require("../modules/run-control/orchestrator");
+        assert.equal(typeof shim.run, "function");
+        assert.equal(shim.run, canon.run);
+        assert.equal(typeof shim.detectBlockers, "function");
+        assert.equal(shim.detectBlockers, canon.detectBlockers);
+        assert.deepEqual(Object.keys(shim).sort(), Object.keys(canon).sort(), "orchestrator export keys");
+      } finally {
+        cp.spawnSync = prev;
+      }
+    });
+
+    it("canonical orchestrator imports tools module API not root mcp path", () => {
+      const source = fs.readFileSync(path.join(ORCH, "modules/run-control/orchestrator.js"), "utf8");
+      assert.match(source, /require\(["']\.\.\/tools["']\)/);
+      assert.doesNotMatch(source, /require\(["']\.\/modules\/tools["']\)/);
     });
 
     it("modules/run-control index aggregates run-state exports", () => {

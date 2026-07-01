@@ -2,11 +2,11 @@
 
 **Location:** `docs/orchestrator/root-file-inventory.md`. See [PATHS.md](PATHS.md).
 
-**Status:** Post-refactor inventory (v0.17 run-control partial closeout). Classification + shim targets — **no** file moves in this document.
+**Status:** Post-refactor inventory (v0.17 run-control hub physical move). Classification + shim targets — **no** file moves in this document.
 
 **Related:** [module-boundaries.md](module-boundaries.md) · [module-ownership-map.md](module-ownership-map.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [run-control-hub-decision.md](run-control-hub-decision.md)
 
-**Snapshot:** `orchestrator/` root @ `7f90134` (helper bundle slice merged). **Eleven** physical module trees under `modules/` (partial: model-runtime, permissions, tools, **run-control**). Root import allowlist: **60** files (**9** legacy, remainder entrypoint/shim/config). Evidence: `tests/modulesPhysicalLayout.test.js`.
+**Snapshot:** Post hub physical move — run-control tree (incl. `orchestrator.js`) canonical under `modules/run-control/`; root compat shims remain. **Eleven** physical module trees under `modules/` (partial: model-runtime, permissions, tools, **run-control**). Root import allowlist: **60** files (**8** legacy after `orchestrator.js` → shim, remainder entrypoint/shim/config). Evidence: `tests/modulesPhysicalLayout.test.js`.
 
 ---
 
@@ -30,7 +30,7 @@ Everything else that implements runtime or domain behavior should land under `or
 |------|-------|------------------------|
 | `agents/` | Mixed runtime | **model-runtime** (`runtime/`, `routing/`) + **permissions** (`permissions.js`, `capability-matrix.js`) + prompts — split in later slices; not mass-moved in first refactor pass |
 | `merge-governance/` | Compat shim | Re-export to `modules/gates/merge-governance/` — keep until importers updated |
-| `modules/` | Physical modules | `budget/`, `contracts/`, `gates/`, `model-runtime/` *(partial)*, `permissions/` *(partial)*, `tools/` *(partial)*, **`run-control/`** *(partial — state, phases, helpers)*, `operator/`, `recovery/`, `trace/`, `worktree/` — root compat shims where moved |
+| `modules/` | Physical modules | `budget/`, `contracts/`, `gates/`, `model-runtime/` *(partial)*, `permissions/` *(partial)*, `tools/` *(partial)*, **`run-control/`** *(partial — full hub tree canonical)*, `operator/`, `recovery/`, `trace/`, `worktree/` — root compat shims where moved |
 | `run-phases/` | Compat shims | **run-control** → `modules/run-control/run-phases/` — **Moved**; root `run-phases/*.js` are shims |
 | `schemas/` | Allowed | Trace/schema SoT — stays |
 | `scripts/` | Allowed | CI, boundary checks — stays |
@@ -55,7 +55,7 @@ Canonical implementation lives under `modules/<context>/`. Root paths below rema
 | model-runtime | `modules/model-runtime/` | `local-model-*.js`, `runner-model-routing.js`, `flow-hook-bridge.js`, policy/tier gate | **Partial** — root locals moved; `agents/runtime/*`, `agents/routing/` remain |
 | permissions | `modules/permissions/` | `credential-broker.js`, `environment-parser.js` | **Partial** — broker/parser moved; `agents/permissions.js`, capability matrix remain |
 | tools | `modules/tools/` | `mcp-client.js`, `security/tool-eval.js`, `security/skill-registry.js`, `security/untrusted-context-eval.js` | **Partial** — MCP + eval shells moved; permission gate shells stay in `security/` |
-| run-control | `modules/run-control/` | `run-state.js`, `run-phases/*.js`, `run-loop-helpers.js`, `qa-spec-flow.js`, `context-utils.js` | **Partial** — state/phases/helpers merged; `orchestrator.js` hub legacy until physical move |
+| run-control | `modules/run-control/` | full hub tree incl. `orchestrator.js` | **Partial** — hub physical move done; shared/legacy deferred |
 
 ---
 
@@ -87,7 +87,7 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | `mcp-client.js` | Shim | tools | `modules/tools/mcp-client.js` | Yes — **moved** |
 | `minions-config.js` | Project config | shared/legacy | `modules/shared/minions-config.js` | Yes |
 | `operator-cli-help.js` | Operator surface | operator | `modules/operator/operator-cli-help.js` | Yes |
-| `orchestrator.js` | Legacy hub | run-control | `modules/run-control/orchestrator.js` | Yes — **pending** per [run-control-hub-decision.md](run-control-hub-decision.md) |
+| `orchestrator.js` | Shim | run-control | `modules/run-control/orchestrator.js` | Yes — **moved** |
 | `otel-genai-trace-map.js` | Shim | trace | `modules/trace/otel-genai-trace-map.js` | Yes — **moved** |
 | `portable-project-template.js` | Operator/template | operator | `modules/operator/portable-project-template.js` | Yes |
 | `progressive-disclosure-design.js` | Shim | contracts | `modules/contracts/progressive-disclosure-design.js` | Yes — **moved** |
@@ -157,8 +157,8 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | `recovery-sweep.js`, `session-resume.js` | Hard-rule allowlist: gate reader imports | **Moved** to `modules/recovery/`; narrow imports via follow-on allowlist shrink |
 | `run-outcome-summary.js` | Hard-rule: imports `review-record` | **Moved** to `modules/trace/`; reader port follow-on |
 | `*-design.js` at root | Contracts shims | **Moved** to `modules/contracts/` — shims remain |
-| `orchestrator.js` | God-module — temporary hub; cross-context imports | Hub physical move next; thin-hub extraction deferred — [run-control-hub-decision.md](run-control-hub-decision.md) |
-| `mcp-client.js` | Run-loop MCP import | **Closed** (v0.16 tools slice) — run-control imports `./modules/tools`; root file is compat shim |
+| `orchestrator.js` | God-module — temporary hub; cross-context imports | Hub canonical under `modules/run-control/`; thin-hub extraction still deferred — [run-control-hub-decision.md](run-control-hub-decision.md) |
+| `mcp-client.js` | Run-loop MCP import | **Closed** (v0.16 tools slice) — canonical run-control imports `../tools`; root file is compat shim |
 
 ---
 
@@ -169,4 +169,4 @@ Paths relative to `orchestrator/`. **Shim** = compat re-export after physical mo
 | 2026-06-09 | Initial inventory — 55 root `.js` files classified; module target paths proposed |
 | 2026-06-09 | Pre-merge review follow-up — `mcp-direct.py` flagged for root import guard allowlist |
 | 2026-06-12 | Post-v0.8/v0.9 align — physical migration status table; shim classification for moved contexts |
-| 2026-06-23 | v0.17 run-control partial (state, phases, helpers); hub ADR; snapshot @ `7f90134` |
+| 2026-06-25 | Post hub physical move — snapshot + run-control hub tree |
