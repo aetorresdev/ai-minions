@@ -57,6 +57,33 @@ describe("operator-trace-command status labels", () => {
     assert.equal(ctx.summary.outcome, "unknown");
   });
 
+  it("maps degraded fixture to degraded status", () => {
+    const ctx = loadOperatorTraceContext({
+      filePath: path.join(FIXTURES, "degraded.v1.jsonl"),
+      existsSync: () => true,
+      readFileSync: (p) => loadFixture(path.basename(p)),
+    });
+    assert.equal(ctx.ok, true);
+    assert.equal(ctx.status_label, "degraded");
+    assert.equal(ctx.summary.outcome, "degraded");
+  });
+
+  it("maps failed session_end to failed status", () => {
+    const rows = [
+      { event: "session_start", task_id: "fail-run", flow_mode: "single_agent", ts_ms: 1 },
+      { event: "session_end", task_id: "fail-run", done: false, iterations: 2, gate_blocks: 0, ts_ms: 2 },
+    ];
+    const text = rows.map((r) => JSON.stringify(r)).join("\n");
+    const ctx = loadOperatorTraceContext({
+      filePath: "/tmp/fail-run.jsonl",
+      existsSync: () => true,
+      readFileSync: () => text,
+    });
+    assert.equal(ctx.ok, true);
+    assert.equal(ctx.status_label, "failed");
+    assert.equal(ctx.summary.outcome, "failed");
+  });
+
   it("returns reason_code when trace missing", () => {
     const ctx = loadOperatorTraceContext({
       runId: "missing-task",

@@ -40,7 +40,7 @@ function hasSessionStart(rows) {
 /**
  * @param {ReturnType<typeof buildOperatorTraceSummary>} summary
  * @param {object[]} rows
- * @returns {'ready'|'warn'|'degraded'|'blocked'|'running'|'failed'|'complete'}
+ * @returns {'warn'|'degraded'|'blocked'|'running'|'failed'|'complete'}
  */
 function deriveOperatorStatusLabel(summary, rows) {
   if (!hasSessionEnd(rows) && hasSessionStart(rows)) return 'running';
