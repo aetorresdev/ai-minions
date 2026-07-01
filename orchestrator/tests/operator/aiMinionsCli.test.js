@@ -32,7 +32,8 @@ describe("ai-minions-cli help", () => {
     assert.match(out, /ai-minions — product CLI/);
     assert.match(out, /init\s+Validate host prereqs/);
     assert.match(out, /start\s+Preflight then launch/);
-    assert.match(out, /Alpha limitations/);
+    assert.match(out, /status\s+Operator trace summary/);
+    assert.match(out, /explain\s+Why blocked/);
     assert.match(out, /Planned \(not implemented/);
     assert.match(out, /runner:tui/);
     assert.doesNotMatch(out, /production-ready/i);
@@ -47,13 +48,34 @@ describe("ai-minions-cli help", () => {
     assert.match(r.stderr + r.stdout, /Unknown command/);
   });
 
-  it("planned status command exits 1 with next_safe_action", () => {
-    const r = spawnSync(process.execPath, [CLI_PATH, "status"], {
+  it("status with missing trace exits 2 with reason_code", () => {
+    const r = spawnSync(process.execPath, [CLI_PATH, "status", "--run-id", "no-such-task-e18"], {
+      encoding: "utf8",
+      cwd: ORCH_CWD,
+      env: { ...process.env, ORCH_TRACES_DIR: path.join(ORCH_CWD, "tests", "fixtures", "no-traces-dir") },
+    });
+    assert.equal(r.status, 2);
+    assert.match(r.stdout + r.stderr, /OPERATOR_TRACE_NOT_FOUND/);
+    assert.match(r.stdout + r.stderr, /next_safe_action/);
+  });
+
+  it("result alias behaves like status", () => {
+    const r = spawnSync(process.execPath, [CLI_PATH, "result", "--run-id", "no-such-task-e18"], {
+      encoding: "utf8",
+      cwd: ORCH_CWD,
+      env: { ...process.env, ORCH_TRACES_DIR: path.join(ORCH_CWD, "tests", "fixtures", "no-traces-dir") },
+    });
+    assert.equal(r.status, 2);
+    assert.match(r.stdout, /ai-minions status/);
+  });
+
+  it("planned doctor command exits 1 with next_safe_action", () => {
+    const r = spawnSync(process.execPath, [CLI_PATH, "doctor"], {
       encoding: "utf8",
       cwd: ORCH_CWD,
     });
     assert.equal(r.status, 1);
-    assert.match(r.stderr, /not implemented in v0.18 alpha/);
+    assert.match(r.stderr, /not implemented in this alpha slice/);
     assert.match(r.stderr, /next_safe_action/);
   });
 });
@@ -134,8 +156,8 @@ describe("ai-minions-cli formatters", () => {
     }
   });
 
-  it("formatPlannedCommandMessage includes interim script hint", () => {
-    assert.match(formatPlannedCommandMessage("explain"), /explain-run/);
+  it("formatPlannedCommandMessage includes interim script hint for planned commands", () => {
+    assert.match(formatPlannedCommandMessage("doctor"), /pre-run-checklist/);
   });
 });
 
