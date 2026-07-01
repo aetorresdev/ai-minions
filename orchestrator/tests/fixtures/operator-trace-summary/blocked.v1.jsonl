@@ -1,0 +1,5 @@
+{"event":"session_start","task_id":"fix-blocked","flow_mode":"multi_agent","max_iterations":3}
+{"event":"model_tier_gate_denied","task_id":"fix-blocked","gate_id":"model_tier_gate","reason_code":"FRONTIER_UNAUTHORIZED_SOURCE","denial_reason":"Frontier tier cannot use selection_source=default."}
+{"event":"review_record","reviewer_role":"cerberus","verdict":"block","blockers":["contract mismatch"],"evidence_refs":[],"iteration":1}
+{"event":"iteration_done","task_id":"fix-blocked","outcome":"iterate","transition_reason":{"type":"ITERATE","reason_code":"CERBERUS_BLOCKERS_ITERATE"}}
+{"event":"session_end","task_id":"fix-blocked","done":false,"iterations":2,"gate_blocks":1}

@@ -1,0 +1,5 @@
+{"event":"session_start","task_id":"fix-complete","flow_mode":"single_agent","scenario_id":"Sc-fix","max_iterations":2}
+{"event":"context_stats","task_id":"fix-complete","phase":"verify","agent":"qa"}
+{"event":"review_record","reviewer_role":"cerberus","verdict":"approve","blockers":[],"evidence_refs":["docs/orchestrator/agent-contract.md"],"iteration":1}
+{"event":"iteration_done","task_id":"fix-complete","outcome":"done","transition_reason":{"type":"DONE","reason_code":"RUN_COMPLETED"}}
+{"event":"session_end","task_id":"fix-complete","done":true,"iterations":1,"gate_blocks":0,"ollama_prompt_tokens_total":20,"ollama_completion_tokens_total":8}
