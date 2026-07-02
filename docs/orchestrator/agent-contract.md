@@ -105,6 +105,8 @@ See `mcp-servers/orchestrator-state/README.md` for env vars and setup.
 
 **QA** and **CERBERUS** must run from **exported** context: `open_envelope` + handoff YAML + **only** `approved_artifacts` (and `allowed_inputs`), not from unconstrained long implementation history when avoidable. Prefer a **separate thread or subagent** with that package pasted in; state store gates constrain what is **valid to record** — a dedicated runner is needed to **strip** host history automatically.
 
+**Fresh review package:** when exporting context for QA/CERBERUS, shape inputs per [`context-package-contract.md`](context-package-contract.md) `fresh_review_package` — goal ref, handoff ref, `approved_artifacts`, evidence refs, and explicit `excluded_context` (raw transcript, duplicate trace dumps). Raw implementation chat is **not** reviewer SoT; trace remains authoritative for conflict resolution.
+
 ### Runtime control plane: in-memory run state + decision layer
 
 Separate from the **disk-backed** state store above, the Node `run()` path maintains a small **in-memory snapshot** (`runState` in `orchestrator/run-state.js`) so tooling can read coarse lifecycle without replaying JSONL:

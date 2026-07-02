@@ -53,9 +53,15 @@ npm run explain-run -- --run-id <task_id>
 npm run tokens:report -- <task_id>
 ```
 
-## Future `doctor` / `check`
+## `doctor` / readiness check
 
-`scripts/bootstrap-preflight.mjs` is the **v0.11 bootstrap/preflight** entry (stable reason codes). A future `doctor` subcommand may wrap the same checks. Until then: [bootstrap-preflight.md](bootstrap-preflight.md) and [pre-run-checklist.md](../orchestrator/pre-run-checklist.md).
+```bash
+cd ai-minions/orchestrator
+npm run ai-minions -- doctor --model-policy local_only
+npm run ai-minions -- doctor --live --model-policy local_only   # before worker-agent runs
+```
+
+`doctor` chains bootstrap (`PREFLIGHT_*`) and runner preflight (`OPERATOR_*`) — same bridge as [operator-preflight-bridge.md](operator-preflight-bridge.md). Legacy entry points remain valid: [bootstrap-preflight.md](bootstrap-preflight.md) · [pre-run-checklist.md](../orchestrator/pre-run-checklist.md).
 
 ## Related
 

@@ -19,6 +19,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Optional MCP / tool integrations | [Stage 4: MCP setup](#stage-4-mcp-setup-optional) |
 | Alpha boundaries and caveats | [Known limitations (alpha)](#known-limitations-alpha) · [Beta limitations (v0.15)](docs/how-to/beta-known-limitations.md) |
 | Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) |
+| **v0.18 product CLI** (`init` / `start` / `status` / `doctor`) | [`docs/how-to/ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md) · `cd orchestrator && npm run ai-minions -- --help` |
 | **Runner TUI guided run** (preflight → launch → status) | [`docs/how-to/operator-guided-run.md`](docs/how-to/operator-guided-run.md) |
 | Operator preflight bridge (`PREFLIGHT_*` + `OPERATOR_*`) | [`docs/how-to/operator-preflight-bridge.md`](docs/how-to/operator-preflight-bridge.md) |
 | Inspect run evidence (`INSPECT_*`) | [`docs/how-to/inspect-run-evidence.md`](docs/how-to/inspect-run-evidence.md) · `node scripts/inspect-run-evidence.mjs <task_id>` |
@@ -286,17 +287,20 @@ The header references `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `vars` —
 
 ```bash
 cd ai-minions/orchestrator
+npm run ai-minions -- --help
 node run-orchestrator.js --help
 npm run runner:tui -- --help
 ```
 
 | Step | Command | Exit signal |
 |------|---------|-------------|
-| Preflight | `npm run runner:tui -- preflight --model-policy local_only` | `0` + `ok: true` |
-| Launch | `npm run runner:tui -- run --goal "..." --skip-gates --iterations 1` | `0` + `done: true` · record `task_id` |
-| Result | `npm run runner:tui -- status --run-id <task_id>` | `0` + `terminal_status` |
+| Init / config | `npm run ai-minions -- init --model-policy local_only` | `0` + config paths |
+| Doctor | `npm run ai-minions -- doctor --model-policy local_only` | `0` + no blocking `PREFLIGHT_*` |
+| Preflight (legacy) | `npm run runner:tui -- preflight --model-policy local_only` | `0` + `ok: true` |
+| Launch | `npm run ai-minions -- start --goal "..." --skip-gates --iterations 1` | `0` + `done: true` · record `task_id` |
+| Result | `npm run ai-minions -- status --run-id <task_id>` | `0` + terminal summary |
 
-Guided walkthrough: [`operator-guided-run.md`](docs/how-to/operator-guided-run.md). Slash aliases (doc only): [`operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
+Migration table (all legacy scripts): [`ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md). Guided `runner:tui` walkthrough: [`operator-guided-run.md`](docs/how-to/operator-guided-run.md). Slash aliases (doc only): [`operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
 
 **3d — CLI smoke (Node runner)** — repeatable degraded run + trace path (no Claude chat):
 

@@ -252,7 +252,7 @@ Triage only — **no** “Claude Code equivalent” claim. Status for harness pl
 |---------|------------------|----------------|
 | Classify-and-act | MODE + permission evaluator | Partial — plan steps need explicit `intent` typing in validator |
 | Fan-out / fan-in | Multi-agent flow_mode (limited); worktree per leg | **Gap** — fan-in merge + `trace_refs` rules in this doc |
-| Adversarial verification | CERBERUS / QA roles, `review_record` | Partial — encode as `verification` step shape |
+| Adversarial verification | CERBERUS / QA roles, `review_record` | Partial — encode as `verification` step shape; reviewer legs use [`fresh_review_package`](context-package-contract.md#fresh-review-package-ctx-hygiene--design-contract) (no raw implementation transcript as SoT) |
 | Generate-and-filter | Governance + permission deny | Partial — no generated-script execution |
 | Tournament / consensus | Not implemented | **Gap** — `stop_condition.type: consensus` design only |
 | Loop until converged | `max_iterations` in task envelope | Partial — workflow-level loop needs runner wiring |

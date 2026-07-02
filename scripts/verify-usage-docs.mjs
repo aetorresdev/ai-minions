@@ -30,6 +30,7 @@ const BOOTSTRAP_SCRIPT = path.join(REPO_ROOT, "scripts/bootstrap-preflight.mjs")
 const OPERATOR_PREFLIGHT_SCRIPT = path.join(REPO_ROOT, "scripts/operator-preflight.mjs");
 const OPERATOR_PREFLIGHT_BRIDGE = path.join(REPO_ROOT, "docs/how-to/operator-preflight-bridge.md");
 const OPERATOR_GUIDED_RUN = path.join(REPO_ROOT, "docs/how-to/operator-guided-run.md");
+const AI_MINIONS_MIGRATION = path.join(REPO_ROOT, "docs/how-to/ai-minions-command-migration.md");
 const INSPECT_RUN_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/inspect-run-evidence.md");
 const INSPECT_RUN_SCRIPT = path.join(REPO_ROOT, "scripts/inspect-run-evidence.mjs");
 const COLLECT_RUN_REPORT = path.join(REPO_ROOT, "docs/how-to/collect-run-report.md");
@@ -150,6 +151,8 @@ function checkGuide(guideText) {
   mustInclude(guideText, "primary-smoke.md", "primary smoke link", rel);
   mustInclude(guideText, "run-primary-smoke.mjs", "primary smoke script reference", rel);
   mustInclude(guideText, "fresh-clone-evidence.md", "fresh-clone evidence link", rel);
+  mustInclude(guideText, "ai-minions-command-migration.md", "ai-minions migration link", rel);
+  mustInclude(guideText, "npm run ai-minions", "product CLI reference", rel);
 
   checkForbiddenClaimsForDoc(guideText, rel);
   mustNotHaveBacklogCaseIdsForDoc(guideText, rel);
@@ -225,6 +228,7 @@ function checkOperatorGuidedRunDoc(docText) {
   mustInclude(docText, "/operator-preflight", "operator-preflight slash alias", rel);
   mustInclude(docText, "inspect-run-evidence", "inspect evidence link", rel);
   mustInclude(docText, "collect-run-report", "collect report link", rel);
+  mustInclude(docText, "ai-minions-command-migration", "migration doc cross-link", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -298,6 +302,8 @@ function checkBetaTesterGuideDoc(docText) {
   mustInclude(docText, "beta-dry-run-checklist", "dry-run checklist link", rel);
   mustInclude(docText, "beta-smoke-matrix", "smoke matrix link", rel);
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy prerequisite", rel);
+  mustInclude(docText, "ai-minions-command-migration", "migration doc link", rel);
+  mustInclude(docText, "npm run ai-minions", "product CLI reference", rel);
   mustInclude(docText, "beta-limitations-onboarding-contract", "onboarding contract link", rel);
   mustInclude(docText, "disqualifies_beta_success", "degraded bundle field", rel);
   mustInclude(docText, "privacy-sanitize-gate-contract", "privacy gate link", rel);
@@ -361,7 +367,7 @@ function checkHarnessCheckpoints(docText) {
   mustInclude(docText, "Bootstrap passes", "bootstrap checkpoint", rel);
   mustInclude(docText, "npm test", "validation checkpoint", rel);
   mustInclude(docText, "Demo harness vs ai-minions", "demo comparison section", rel);
-  mustInclude(docText, "doctor", "future doctor note", rel);
+  mustInclude(docText, "npm run ai-minions -- doctor", "doctor command reference", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -541,6 +547,27 @@ function checkBetaSmokeMatrixDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkAiMinionsMigrationDoc(docText) {
+  const rel = "docs/how-to/ai-minions-command-migration.md";
+  if (!docText) return;
+  mustInclude(docText, "npm run ai-minions", "product CLI entry", rel);
+  mustInclude(docText, "init", "init command", rel);
+  mustInclude(docText, "start", "start command", rel);
+  mustInclude(docText, "status", "status command", rel);
+  mustInclude(docText, "explain", "explain command", rel);
+  mustInclude(docText, "doctor", "doctor command", rel);
+  mustInclude(docText, "evidence", "evidence command", rel);
+  mustInclude(docText, "RUN_RESUME_NOT_IMPLEMENTED", "honest resume limitation", rel);
+  mustInclude(docText, "bootstrap-preflight.mjs", "legacy bootstrap script", rel);
+  mustInclude(docText, "runner:tui", "legacy runner tui", rel);
+  mustInclude(docText, "collect-run-report.mjs", "unchanged bundle script", rel);
+  mustInclude(docText, "install-evidence", "v0.14 evidence chain link", rel);
+  mustInclude(docText, "beta-gate-hardening-evidence", "v0.15 evidence chain link", rel);
+  mustInclude(docText, "not a second runtime", "no duplicate SoT disclaimer", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkReadmeAlignment(readmeText, guideText) {
   const rel = "README.md";
   mustInclude(readmeText, "MODE: ORCHESTRATOR", "Quickstart MODE header", rel);
@@ -567,6 +594,8 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "modular-closeout-evidence.md", "link to modular closeout evidence doc", rel);
   mustInclude(readmeText, "run-modular-closeout-evidence.mjs", "modular closeout evidence script", rel);
   mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
+  mustInclude(readmeText, "ai-minions-command-migration.md", "ai-minions migration doc link", rel);
+  mustInclude(readmeText, "npm run ai-minions", "product CLI reference", rel);
 
   checkForbiddenClaimsForDoc(readmeText, rel);
 
@@ -600,6 +629,7 @@ function main() {
   const modularCloseoutVerifyContractText = readUtf8(MODULAR_CLOSEOUT_VERIFY_CONTRACT);
   const operatorBridgeText = readUtf8(OPERATOR_PREFLIGHT_BRIDGE);
   const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
+  const aiMinionsMigrationText = readUtf8(AI_MINIONS_MIGRATION);
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
   const collectReportText = readUtf8(COLLECT_RUN_REPORT);
   const betaLimitationsText = readUtf8(BETA_KNOWN_LIMITATIONS);
@@ -674,6 +704,7 @@ function main() {
   }
   if (operatorBridgeText) checkOperatorPreflightBridgeDoc(operatorBridgeText);
   if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
+  if (aiMinionsMigrationText) checkAiMinionsMigrationDoc(aiMinionsMigrationText);
   if (inspectEvidenceText) checkInspectRunEvidenceDoc(inspectEvidenceText);
   if (collectReportText) checkCollectRunReportDoc(collectReportText);
   if (betaLimitationsText) checkBetaKnownLimitationsDoc(betaLimitationsText);
