@@ -15,7 +15,7 @@ End-to-end runbook for an **internal operator** playing beta tester: entry path 
 | Goal | Pass signal |
 |------|-------------|
 | Entry path works on a clone | Bootstrap exits `0` (`PREFLIGHT_*` clear or understood) |
-| Operator path is followable | `runner:tui` preflight → run → status completes or failure is documented with `task_id` |
+| Operator path is followable | `runner:tui` or `npm run ai-minions -- start` → status completes or failure is documented with `task_id` |
 | Evidence chain works | Inspect + bundle scripts exit `0`; `ATTACH.md` fields are copyable |
 | Feedback loop works | GitHub issue filed from bundle skeleton — **actionable without maintainer rewrite** |
 
@@ -49,7 +49,7 @@ Record the commit you are testing:
 git rev-parse --short HEAD
 ```
 
-**Gate docs (required):** skim [beta-known-limitations](beta-known-limitations.md) onboarding table, [beta-degraded-mode-policy](beta-degraded-mode-policy.md), and [beta-smoke-matrix](beta-smoke-matrix.md) § Minimum gate cells. Note: smoke matrix is maintainer evidence — your dry-run proves the **operator chain**, not every matrix cell.
+**Gate docs (required):** skim [beta-known-limitations](beta-known-limitations.md) onboarding table, [beta-degraded-mode-policy](beta-degraded-mode-policy.md), [beta-smoke-matrix](beta-smoke-matrix.md) § Minimum gate cells, and [ai-minions-command-migration](ai-minions-command-migration.md) for v0.18 CLI mapping. Note: smoke matrix is maintainer evidence — your dry-run proves the **operator chain**, not every matrix cell.
 
 ---
 

@@ -16,11 +16,30 @@ Canonical **end-to-end happy path** for trying **ai-minions** without tribal kno
 - [Primary smoke command and trace path](primary-smoke.md) — stable CLI smoke + evidence path
 - [Fresh-clone evidence and claim audit](fresh-clone-evidence.md) — v0.11 entry-path evidence + claim audit
 - [Operator guided run (`runner:tui`)](operator-guided-run.md) — terminal preflight → launch → status (not a v0.11 happy-path remix)
+- [ai-minions command migration](ai-minions-command-migration.md) — v0.18 product CLI mapping from shipped scripts
 - [Operator preflight bridge](operator-preflight-bridge.md) — `PREFLIGHT_*` + `OPERATOR_*` chained script
 - [Environment access contract](../orchestrator/environment-access.md) — `ENVIRONMENT` block schema
 - [Orchestrator README](../../orchestrator/README.md) — CLI flags, env vars, traces, `explain-run`
 - [Skill registry contract](../orchestrator/skill-registry-contract.md) — allowlist + opt-in PreToolUse hook
 - [Alpha release checklist](../orchestrator/alpha-release-checklist.md) — release bar (not required for a casual smoke)
+
+---
+
+## v0.18 product CLI (`ai-minions`)
+
+From `orchestrator/`, the **product CLI** wraps shipped install, preflight, launch, and trace-read paths:
+
+```bash
+cd ai-minions/orchestrator
+npm run ai-minions -- init --model-policy local_only
+npm run ai-minions -- doctor --model-policy local_only
+npm run ai-minions -- start --goal "Smoke: list three files under orchestrator/ and stop" \
+  --skip-gates --iterations 1
+npm run ai-minions -- status --run-id <task_id>
+npm run ai-minions -- explain --run-id <task_id>
+```
+
+Full mapping (legacy scripts → commands): [ai-minions-command-migration.md](ai-minions-command-migration.md). **`runner:tui`**, **`run-orchestrator.js`**, and **`run-primary-smoke.mjs`** remain valid — wrappers do not replace them in v0.18.
 
 ---
 

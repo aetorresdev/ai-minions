@@ -50,6 +50,7 @@ export const CLAIM_AUDIT_PATHS = [
   "docs/how-to/beta-degraded-mode-policy.md",
   "docs/how-to/evidence/beta-dry-run-sample-issue.md",
   "docs/how-to/operator-feedback-issue.md",
+  "docs/how-to/ai-minions-command-migration.md",
 ];
 
 /** Required README anchors for v0.11 claim hygiene. */

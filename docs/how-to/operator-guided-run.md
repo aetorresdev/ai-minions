@@ -2,6 +2,8 @@
 
 Terminal-only guide for **launching and reading back** an orchestrator run via `npm run runner:tui`. No MODE header in chat; no bootstrap semantics on this page.
 
+**v0.18 product CLI:** equivalent flows via `npm run ai-minions -- start|status|explain` — see [ai-minions-command-migration.md](ai-minions-command-migration.md). This page documents **`runner:tui`** detail; both paths share the same launch and trace contracts.
+
 **Contract (commands, exit codes, limits):** [`runner-tui-contract.md`](../orchestrator/runner-tui-contract.md)
 
 ## What this guide is (and is not)

@@ -10,9 +10,10 @@ Flat paths below — grouped for discoverability only (no 1:1 module mirror). Se
 
 | Section | Start here |
 |---------|------------|
-| **Architecture** | [module-boundaries.md](module-boundaries.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [root-file-inventory.md](root-file-inventory.md) · [run-control-hub-decision.md](run-control-hub-decision.md) |
-| **Contracts** | [agent-contract.md](agent-contract.md) · [governance-gates-contract.md](governance-gates-contract.md) · [review-record-contract.md](review-record-contract.md) · [context-package-contract.md](context-package-contract.md) · [runner-tui-contract.md](runner-tui-contract.md) |
+| **Architecture** | [module-boundaries.md](module-boundaries.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [arch-shim-retirement-plan.md](arch-shim-retirement-plan.md) · [root-file-inventory.md](root-file-inventory.md) · [run-control-hub-decision.md](run-control-hub-decision.md) |
+| **Contracts** | [agent-contract.md](agent-contract.md) · [governance-gates-contract.md](governance-gates-contract.md) · [review-record-contract.md](review-record-contract.md) · [context-package-contract.md](context-package-contract.md) · [skill-capability-boundary.md](skill-capability-boundary.md) · [runner-tui-contract.md](runner-tui-contract.md) |
 | **Operator / runbooks** | [run-outcome-consumption.md](run-outcome-consumption.md) · [control-plane-tui-contract.md](control-plane-tui-contract.md) · [token-hygiene-guide.md](token-hygiene-guide.md) · [alpha-release-checklist.md](alpha-release-checklist.md) |
+| **How-to (repo root)** | [ai-minions command migration](../how-to/ai-minions-command-migration.md) · [usage smoke guide](../how-to/usage-smoke-guide.md) · [operator guided run](../how-to/operator-guided-run.md) |
 | **Release / governance** | [release-workflow.md](release-workflow.md) · [release-governance-contract.md](release-governance-contract.md) · [changelog-release-format.md](changelog-release-format.md) |
 
 | File | Purpose |
@@ -65,7 +66,9 @@ Flat paths below — grouped for discoverability only (no 1:1 module mirror). Se
 | [recovery-sweep-contract.md](recovery-sweep-contract.md) | Stranded run/step detection (`recovery_*` events); detect/explain only |
 | [session-resume-contract.md](session-resume-contract.md) | Session checkpoint + resume eligibility (`session_*` events); explicit operator resume only |
 | [memory-store-decision.md](memory-store-decision.md) | Local storage categories, matrix, go/no-go (design-first; trace SoT) |
-| [context-package-contract.md](context-package-contract.md) | Context package inclusion policy — required / optional / excluded / rejected (design-first) |
+| [context-package-contract.md](context-package-contract.md) | Context package inclusion policy — required / optional / excluded / rejected; `fresh_review_package` for QA/CERBERUS |
+| [skill-capability-boundary.md](skill-capability-boundary.md) | Skill vs harness vs MCP boundaries — procedure only, not permission SoT (ST-1) |
+| [arch-shim-retirement-plan.md](arch-shim-retirement-plan.md) | Incremental compat shim retirement waves — plan only, no mass delete |
 | [control-plane-tui-contract.md](control-plane-tui-contract.md) | Read-only run inspect CLI (`control-plane:tui`); stdout panel over run_outcome_summary |
 | [portable-project-template-contract.md](portable-project-template-contract.md) | Export/import scrubbed project config bundle; import dry-run only |
 | [skill-security-threatmodel.md](skill-security-threatmodel.md) | Workflow skills threat model — threat → control → gap (no skill sandbox claim) |
