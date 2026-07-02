@@ -27,7 +27,7 @@ Add `--json` on supported commands for machine-readable output.
 |----------------------|----------------------|--------------|
 | `node scripts/install-ai-minions.mjs` | `npm run ai-minions -- init` | Wraps install + model discovery + `.ai-minions` config write |
 | `node scripts/bootstrap-preflight.mjs` | `npm run ai-minions -- doctor` | Bootstrap checks included in `doctor` (without `--live`) |
-| `node scripts/operator-preflight.mjs` | `npm run ai-minions -- doctor --live` | Chains bootstrap + runner preflight (`PREFLIGHT_*` + `OPERATOR_*`) |
+| `node scripts/operator-preflight.mjs` | `npm run ai-minions -- doctor [--live]` | Chains bootstrap + runner preflight (`PREFLIGHT_*` + `OPERATOR_*`); `--live` adds claude CLI/auth checks |
 | `npm run runner:tui -- preflight` then `run` | `npm run ai-minions -- start --goal "..."` | Same launch path as `runner:tui run` after internal preflight |
 | `npm run runner:tui -- status --run-id <id>` | `npm run ai-minions -- status --run-id <id>` | Operator trace summary over existing JSONL |
 | `npm run explain-run -- --run-id <id>` | `npm run ai-minions -- explain --run-id <id>` | Reason codes + remediation from trace |

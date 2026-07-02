@@ -23,7 +23,7 @@ ai-minions adds **permission gates**, **CERBERUS review**, and **contract valida
 |---|--------|----------------|----------------|
 | 1 | **Bootstrap passes** | `orchestrator/package.json` → `npm ci` + `npm test` | Fix install/test before orchestration |
 | 2 | **Task source explicit** | MODE header `GOAL` or `minions.md` | Agent scope drifts — write a bounded GOAL |
-| 3 | **Session state visible** | `run-primary-smoke.mjs --inspect`, `explain-run`, trace path, optional `state/project_state.md` | Cannot resume/debug — note `task_id` after each run |
+| 3 | **Session state visible** | `run-primary-smoke.mjs --inspect`, `explain-run`, trace path, optional `state/project_state.md` | Cannot reconstruct run state from chat alone — note `task_id` after each run; durable `resume` is not implemented (`RUN_RESUME_NOT_IMPLEMENTED`) |
 | 4 | **Role rules documented** | `docs/orchestrator/agent-contract.md`, hooks in `scripts/hooks/` | MODE violations — read contract before multi_agent |
 | 4b | **Skill allowlist (optional)** | `skill-registry.v1.json` + `ORCH_SKILL_REGISTRY_ENFORCE=1` for Claude Code `Skill` | Unlisted skills load freely when hook is off — see [skill-registry-contract.md](../orchestrator/skill-registry-contract.md) |
 | 5 | **Validation executable** | `npm test`; strict E2E optional ([orchestrator README](../../orchestrator/README.md)) | No evidence for merge — run at least unit suite |

@@ -19,7 +19,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Optional MCP / tool integrations | [Stage 4: MCP setup](#stage-4-mcp-setup-optional) |
 | Alpha boundaries and caveats | [Known limitations (alpha)](#known-limitations-alpha) · [Beta limitations (v0.15)](docs/how-to/beta-known-limitations.md) |
 | Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) |
-| **v0.18 product CLI** (`init` / `start` / `status` / `doctor`) | [`docs/how-to/ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md) · `cd orchestrator && npm run ai-minions -- --help` |
+| **v0.18 product CLI** (core: `init` / `start` / `status` / `doctor`; also `explain` / `evidence` / `context` / `resume`) | [`docs/how-to/ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md) · `cd orchestrator && npm run ai-minions -- --help` |
 | **Runner TUI guided run** (preflight → launch → status) | [`docs/how-to/operator-guided-run.md`](docs/how-to/operator-guided-run.md) |
 | Operator preflight bridge (`PREFLIGHT_*` + `OPERATOR_*`) | [`docs/how-to/operator-preflight-bridge.md`](docs/how-to/operator-preflight-bridge.md) |
 | Inspect run evidence (`INSPECT_*`) | [`docs/how-to/inspect-run-evidence.md`](docs/how-to/inspect-run-evidence.md) · `node scripts/inspect-run-evidence.mjs <task_id>` |
