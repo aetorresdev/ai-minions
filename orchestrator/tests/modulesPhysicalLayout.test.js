@@ -309,6 +309,7 @@ describe("modules physical layout", () => {
         "modules/operator/operator-trace-summary.js",
         "modules/operator/operator-trace-command.js",
         "modules/operator/operator-doctor-evidence.js",
+        "modules/operator/operator-context-resume.js",
         "modules/operator/ai-minions-cli.js",
       ]) {
         assert.ok(fs.existsSync(path.join(ORCH, rel)), `missing ${rel}`);

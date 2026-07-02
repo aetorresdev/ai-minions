@@ -1,0 +1,145 @@
+"use strict";
+
+const { describe, it } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+
+const {
+  deriveTrustClassification,
+  buildContextPackageSummary,
+  runOperatorContext,
+  runOperatorResume,
+  RUN_RESUME_NOT_IMPLEMENTED,
+} = require("../../modules/operator/operator-context-resume");
+const { loadOperatorTraceContext } = require("../../modules/operator/operator-trace-command");
+
+const FIXTURE = path.join(__dirname, "..", "fixtures", "context-disclosure-trace.v1.jsonl");
+const CLI_PATH = path.join(__dirname, "..", "..", "ai-minions-cli.js");
+const ORCH_CWD = path.join(__dirname, "..", "..");
+
+function loadFixture() {
+  return fs.readFileSync(FIXTURE, "utf8");
+}
+
+describe("operator-context-resume trust classification", () => {
+  it("maps disclosure actions to trust buckets", () => {
+    assert.equal(deriveTrustClassification("exposed"), "trusted");
+    assert.equal(deriveTrustClassification("partial"), "partial");
+    assert.equal(deriveTrustClassification("hidden"), "excluded");
+  });
+});
+
+describe("operator-context-resume buildContextPackageSummary", () => {
+  it("extracts package refs and freshness from disclosure fixture", () => {
+    const ctx = loadOperatorTraceContext({
+      filePath: FIXTURE,
+      existsSync: () => true,
+      readFileSync: () => loadFixture(),
+    });
+    assert.equal(ctx.ok, true);
+    const summary = buildContextPackageSummary(ctx.rows);
+    assert.deepEqual(summary.context_package_refs, ["handoff:dev-001.yaml", "acceptance_criteria"]);
+    assert.equal(summary.freshness_marker, "trace_recorded");
+    assert.ok(summary.disclosure_items.length >= 3);
+    assert.ok(summary.limitations.length > 0);
+  });
+});
+
+describe("operator-context-resume runOperatorContext", () => {
+  it("formats human output with package refs and trust lines", () => {
+    const result = runOperatorContext({
+      filePath: FIXTURE,
+      loadContext: () => loadOperatorTraceContext({
+        filePath: FIXTURE,
+        existsSync: () => true,
+        readFileSync: () => loadFixture(),
+      }),
+    });
+    assert.equal(result.exitCode, 0);
+    assert.match(result.text, /package_refs:.*handoff:dev-001\.yaml/);
+    assert.match(result.text, /context_package: exposed → trusted/);
+    assert.match(result.text, /limitations:/);
+  });
+
+  it("exit 2 when trace missing", () => {
+    const result = runOperatorContext({
+      runId: "missing-context-run",
+      loadContext: () => ({
+        ok: false,
+        reason_code: "OPERATOR_TRACE_NOT_FOUND",
+        next_safe_action: "Provide --run-id",
+      }),
+    });
+    assert.equal(result.exitCode, 2);
+    assert.equal(result.reason_code, "OPERATOR_TRACE_NOT_FOUND");
+  });
+});
+
+describe("operator-context-resume runOperatorResume", () => {
+  it("always returns RUN_RESUME_NOT_IMPLEMENTED with inspect alternatives", () => {
+    const result = runOperatorResume({});
+    assert.equal(result.exitCode, 2);
+    assert.equal(result.reason_code, RUN_RESUME_NOT_IMPLEMENTED);
+    assert.equal(result.json.supported, false);
+    assert.match(result.text, /supported:\s+false/);
+    assert.match(result.text, /inspect_instead:/);
+    assert.doesNotMatch(result.text, /resume launched/i);
+  });
+
+  it("includes checkpoint eligibility when trace provided", () => {
+    const rows = [
+      { event: "session_start", task_id: "t-resume-1", goal: "ship feature", permission_profile: "dev-local" },
+      { event: "agent_start", step_id: "s1", agent: "DEV", iteration: 1 },
+      { event: "agent_done", step_id: "s1", agent: "DEV", iteration: 1 },
+      { event: "recovery_completed", recovery_schema_version: "1", policy: "no_auto_retry", finding_count: 0, clean: true, summary: "clean" },
+    ];
+    const result = runOperatorResume({
+      runId: "t-resume-1",
+      loadContext: () => ({
+        ok: true,
+        run_id: "t-resume-1",
+        trace_file: "/tmp/t-resume-1.jsonl",
+        rows,
+        summary: {},
+        skipped: 0,
+        truncated: false,
+      }),
+    });
+    assert.equal(result.reason_code, RUN_RESUME_NOT_IMPLEMENTED);
+    assert.match(result.text, /checkpoint_eligible:\s+true/);
+    assert.match(result.text, /reason_code:\s+RUN_RESUME_NOT_IMPLEMENTED/);
+  });
+});
+
+describe("ai-minions-cli context/resume integration", () => {
+  it("help documents context and resume as shipped", () => {
+    const r = spawnSync(process.execPath, [CLI_PATH, "--help"], {
+      encoding: "utf8",
+      cwd: ORCH_CWD,
+    });
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /context\s+Context package refs/);
+    assert.match(r.stdout, /resume\s+Honest resume capability probe/);
+    assert.doesNotMatch(r.stdout, /Planned \(not implemented/);
+  });
+
+  it("resume exits 2 with RUN_RESUME_NOT_IMPLEMENTED", () => {
+    const r = spawnSync(process.execPath, [CLI_PATH, "resume"], {
+      encoding: "utf8",
+      cwd: ORCH_CWD,
+    });
+    assert.equal(r.status, 2);
+    assert.match(r.stdout + r.stderr, /RUN_RESUME_NOT_IMPLEMENTED/);
+  });
+
+  it("context loads disclosure fixture via --file", () => {
+    const r = spawnSync(process.execPath, [CLI_PATH, "context", "--file", FIXTURE], {
+      encoding: "utf8",
+      cwd: ORCH_CWD,
+    });
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /acceptance_criteria/);
+  });
+});

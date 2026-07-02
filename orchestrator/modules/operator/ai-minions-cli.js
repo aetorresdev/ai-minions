@@ -24,14 +24,10 @@ const {
 const { printAiMinionsCliHelp } = require('./operator-cli-help');
 const { runOperatorStatus, runOperatorExplain } = require('./operator-trace-command');
 const { runOperatorDoctor, runOperatorEvidence } = require('./operator-doctor-evidence');
+const { runOperatorContext, runOperatorResume } = require('./operator-context-resume');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const INSTALL_SCRIPT = path.join(REPO_ROOT, 'scripts', 'install-ai-minions.mjs');
-
-const PLANNED_ALPHA_COMMANDS = new Set([
-  'context',
-  'resume',
-]);
 
 /**
  * Resolve clone root for install/config-write (not orchestrator package cwd).
@@ -71,13 +67,9 @@ function parseAiMinionsArgs(argv) {
  * @returns {string}
  */
 function formatPlannedCommandMessage(cmd) {
-  const hints = {
-    context: 'see docs/orchestrator/context-package-contract.md',
-    resume: 'not implemented — inspect traces + explain-run',
-  };
   return [
     `${cmd}: not implemented in this alpha slice.`,
-    `next_safe_action: ${hints[cmd] || 'npm run ai-minions -- --help'}`,
+    'next_safe_action: npm run ai-minions -- --help',
   ].join('\n');
 }
 
@@ -286,11 +278,6 @@ async function main() {
   const rest = argv.slice(1);
   const opts = parseAiMinionsArgs(rest);
 
-  if (PLANNED_ALPHA_COMMANDS.has(cmd)) {
-    console.error(formatPlannedCommandMessage(cmd));
-    process.exit(1);
-  }
-
   if (cmd === 'doctor') {
     try {
       const result = await runOperatorDoctor({
@@ -329,6 +316,38 @@ async function main() {
       console.log(result.text);
     }
     if (!result.ok && result.reason_code) {
+      console.error(`reason_code: ${result.reason_code}`);
+    }
+    process.exit(result.exitCode);
+  }
+
+  if (cmd === 'context') {
+    const result = runOperatorContext({
+      runId: opts.runId ? String(opts.runId) : undefined,
+      filePath: opts.file ? String(opts.file) : undefined,
+    });
+    if (opts.json === true && result.json) {
+      console.log(JSON.stringify(result.json, null, 2));
+    } else {
+      console.log(result.text);
+    }
+    if (!result.ok && result.reason_code) {
+      console.error(`reason_code: ${result.reason_code}`);
+    }
+    process.exit(result.exitCode);
+  }
+
+  if (cmd === 'resume') {
+    const result = runOperatorResume({
+      runId: opts.runId ? String(opts.runId) : undefined,
+      filePath: opts.file ? String(opts.file) : undefined,
+    });
+    if (opts.json === true && result.json) {
+      console.log(JSON.stringify(result.json, null, 2));
+    } else {
+      console.log(result.text);
+    }
+    if (result.reason_code) {
       console.error(`reason_code: ${result.reason_code}`);
     }
     process.exit(result.exitCode);
@@ -436,7 +455,6 @@ async function main() {
 module.exports = {
   REPO_ROOT,
   INSTALL_SCRIPT,
-  PLANNED_ALPHA_COMMANDS,
   parseAiMinionsArgs,
   formatInitText,
   formatStartText,
@@ -450,6 +468,8 @@ module.exports = {
   runOperatorExplain,
   runOperatorDoctor,
   runOperatorEvidence,
+  runOperatorContext,
+  runOperatorResume,
   main,
 };
 
