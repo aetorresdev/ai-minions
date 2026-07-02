@@ -36,7 +36,9 @@ describe("ai-minions-cli help", () => {
     assert.match(out, /explain\s+Why blocked/);
     assert.match(out, /doctor\s+Bootstrap \+ runtime \+ runner preflight/);
     assert.match(out, /evidence\s+Trace\/bundle paths/);
-    assert.match(out, /Planned \(not implemented/);
+    assert.match(out, /context\s+Context package refs/);
+    assert.match(out, /resume\s+Honest resume capability probe/);
+    assert.match(out, /RUN_RESUME_NOT_IMPLEMENTED/);
     assert.match(out, /runner:tui/);
     assert.doesNotMatch(out, /production-ready/i);
   });
@@ -71,14 +73,14 @@ describe("ai-minions-cli help", () => {
     assert.match(r.stdout, /ai-minions status/);
   });
 
-  it("planned context command exits 1 with next_safe_action", () => {
-    const r = spawnSync(process.execPath, [CLI_PATH, "context"], {
+  it("context without trace exits 2 with reason_code", () => {
+    const r = spawnSync(process.execPath, [CLI_PATH, "context", "--run-id", "no-such-context-e18"], {
       encoding: "utf8",
       cwd: ORCH_CWD,
+      env: { ...process.env, ORCH_TRACES_DIR: path.join(ORCH_CWD, "tests", "fixtures", "no-traces-dir") },
     });
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /not implemented in this alpha slice/);
-    assert.match(r.stderr, /next_safe_action/);
+    assert.equal(r.status, 2);
+    assert.match(r.stdout + r.stderr, /OPERATOR_TRACE_NOT_FOUND/);
   });
 });
 
@@ -158,8 +160,9 @@ describe("ai-minions-cli formatters", () => {
     }
   });
 
-  it("formatPlannedCommandMessage includes interim script hint for planned commands", () => {
-    assert.match(formatPlannedCommandMessage("context"), /context-package-contract/);
+  it("formatPlannedCommandMessage includes help fallback", () => {
+    assert.match(formatPlannedCommandMessage("future-cmd"), /not implemented in this alpha slice/);
+    assert.match(formatPlannedCommandMessage("future-cmd"), /ai-minions -- --help/);
   });
 });
 

@@ -18,5 +18,6 @@ module.exports = {
   ...require("./operator-trace-summary"),
   ...require("./operator-trace-command"),
   ...require("./operator-doctor-evidence"),
+  ...require("./operator-context-resume"),
   ...require("./ai-minions-cli"),
 };
