@@ -6,6 +6,64 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.18.0-alpha.1] - 2026-07-02
+
+Eighteenth alpha pre-release: **Standard Operator UX** — product CLI (`npm run ai-minions`) wrapping install, preflight, launch, trace readback, doctor, evidence, and context disclosure; operator trace summary with critical decision fields; migration documentation and verify-usage/claim-audit wiring; and bundled hygiene doc slices (fresh-review cross-refs, corpus index, skill boundary ST-1, shim retirement plan).
+
+**Release claim:** predictable operator command semantics (`init` / `start` / `status` / `explain` / `doctor` / `evidence` / `context` / `resume`) as wrappers over existing install, runner, trace, and evidence paths — with `buildOperatorTraceSummary` for human-readable status/explain without raw JSONL authority — **not** production-ready operator UX, **not** global npm package, **not** durable session resume, **not** automatic chat-history stripping, **not** external usability beta open.
+
+**Prerequisite:** `v0.17.0-alpha.1` — Modular Monolith Beta Closeout @ `914d8d9`.
+
+**Since [0.17.0-alpha.1]:** v0.17 centered on **modular closeout physical slices** (run-control hub, shared/legacy, model-runtime runners, closeout evidence). v0.18 adds **standard operator UX** — product CLI router, trace summarizer consumption, doctor/evidence bridges, honest resume probe, command migration docs, and verify-usage/claim-audit regression — without a second runtime or evidence store.
+
+| Area | `v0.17.0-alpha.1` | `v0.18.0-alpha.1` (delta) |
+|------|-------------------|---------------------------|
+| Focus | Modular closeout — run-control hub · shared/legacy · model-runtime runners · closeout evidence | Standard operator UX — `ai-minions` product CLI · trace summary · migration docs · evidence regression |
+| Operator entry | `runner:tui` · scripts (`bootstrap-preflight`, `inspect-run-evidence`, …) | **`npm run ai-minions`** primary path + documented legacy script aliases |
+| Trace consumption | `explain-run` · run outcome summary | **`buildOperatorTraceSummary`** + `status`/`explain`/`context` operator panels |
+| Unit tests (orchestrator) | 1155/1156 (1 skipped) on workspace @ lane tip `c77e51d` | **1214/1214** pass on workspace @ lane tip `268943a` |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.18.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1214/1214** pass on workspace @ lane tip `268943a`
+- Usage docs: `node scripts/verify-usage-docs.mjs` → **OK**
+- Claim audit: `node scripts/audit-product-claims.mjs` → **OK**
+- Install evidence: `node scripts/run-install-evidence.mjs --skip-live` → **OK** (v0.14 chain regression)
+- Gate hardening: `node scripts/run-beta-gate-hardening-evidence.mjs` → **OK** (v0.15 chain regression)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean @ lane tip `268943a`)
+- Contracts: `ai-minions-command-migration.md`, `run-outcome-consumption.md`, `context-package-contract.md`, `skill-capability-boundary.md`
+- Lane merged on `master` through compatibility docs @ `268943a` (PR #232–#237); release-prep pending merge; Phase B tag · pre-release · `release` branch pending operator cut
+- CI: orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · Link Check · Markdown Lint — green on lane PRs through #237
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
+- **Not** polished product UI — stdout panels and migration docs only; `runner:tui` and legacy scripts remain valid.
+- **Not** durable resume — `ai-minions resume` returns `RUN_RESUME_NOT_IMPLEMENTED` (exit `2`).
+- **Not** automatic reviewer context stripping — `fresh_review_package` is contract-only; no runtime package builder.
+- **Not** external usability beta — targeted for **v0.20.0-beta.1** after v0.19 human-ready rehearsal.
+- **Not** architecture refactor complete or zero compat shims — shim retirement remains incremental hygiene.
+
+### Added
+
+- Product CLI: `npm run ai-minions --` commands `init`, `start`, `status`, `explain`, `doctor`, `evidence`, `context`, `resume` (`modules/operator/ai-minions-cli.js` and helpers).
+- `buildOperatorTraceSummary` — operator-facing trace summary with critical decision fields for status/explain.
+- `docs/how-to/ai-minions-command-migration.md` — legacy script → product CLI mapping; verify-usage-docs and claim-audit enforcement.
+- Hygiene docs: `skill-capability-boundary.md` (ST-1), `arch-shim-retirement-plan.md` (plan only), fresh-review cross-refs in agent/dynamic-workflow contracts.
+
+### Changed
+
+- README and operator guides document `ai-minions` as primary v0.18 path; legacy entrypoints remain documented.
+- `docs/orchestrator/README.md` corpus index strengthened (how-to + hygiene contract links).
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Next roadmap lane after cut: **v0.19.0-alpha.1** human-ready UX + privacy notice rehearsal; first external usability beta remains **v0.20.0-beta.1`.
+- Post-v0.18 hygiene: shim retirement waves, skill boundary ST-2+, optional doc corpus Option B — non-blocking.
+
 ## [0.17.0-alpha.1] - 2026-07-01
 
 Seventeenth alpha pre-release: **Modular Monolith Beta Closeout** — physical slices for run-control (state, phases, helpers, hub), shared/legacy helpers, and model-runtime agents runtime/routing with compat shims; run-control hub decision record; modular closeout dry-run evidence chain; and honest partial-state docs alignment.
