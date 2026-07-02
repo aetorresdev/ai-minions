@@ -1053,7 +1053,7 @@ External usability beta (v0.20.0-beta.1) · compat shim mass-delete · full `age
 - [x] `doctor` + `evidence` — merged @ `c937eb6` (PR #235)
 - [x] `context` + `resume` (honest probe) — merged @ `780a908` (PR #236)
 - [x] Compatibility docs + evidence regression — merged @ `268943a` (PR #237)
-- [ ] Release-prep + tag `v0.18.0-alpha.1` — pending merge (E18-7; CERBERUS Approve required)
+- [x] Release-prep + tag `v0.18.0-alpha.1` — merged @ `d4adfb7` (PR #238); Phase B tag · pre-release · `release` branch @ `d4adfb7`
 
 ### Out of scope
 
@@ -1062,7 +1062,7 @@ External usability beta (v0.20.0-beta.1) · human-ready UX polish (v0.19) · pro
 ### CERBERUS checks (pre-tag)
 
 - [x] Implementation slices (E18-1 through E18-6) — merged through `268943a` (PR #232–#237)
-- [ ] Release-prep CHANGELOG + checklist claims — pending E18-7 merge + CERBERUS Approve
+- [x] Release-prep CHANGELOG + checklist claims — merged @ `d4adfb7` (PR #238) + CERBERUS Approve
 - [x] No production-ready UX / global installer / external-beta claim in migration docs (PR #237)
 - [x] `resume` documented as `RUN_RESUME_NOT_IMPLEMENTED` — honest probe only (PR #236)
 
@@ -1081,6 +1081,8 @@ External usability beta (v0.20.0-beta.1) · human-ready UX polish (v0.19) · pro
 | 2026-07-02 | Workspace @ `268943a` | `node scripts/run-beta-gate-hardening-evidence.mjs` → **OK** |
 | 2026-07-02 | Workspace @ `268943a` | `bash scripts/release-trivy-gate.sh` → **OK** |
 | 2026-07-02 | Lane PRs #232–#237 | orchestrator-unit-tests · Docs usage verify · Link Check · Markdown Lint — green |
+| 2026-07-02 | Release-prep PR #238 @ `7ebb28f` | Docs usage verify · Link Check · Markdown Lint — green |
+| 2026-07-02 | Phase B operator cut @ `d4adfb7` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 **Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes `CHANGELOG.md` and `docs/orchestrator/alpha-release-checklist.md`; `orchestrator/**` runtime unchanged since lane tip @ `268943a`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `268943a` until tag.
 
@@ -1095,14 +1097,14 @@ External usability beta (v0.20.0-beta.1) · human-ready UX polish (v0.19) · pro
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
 
-- [ ] **Tag target:** `v0.18.0-alpha.1` on release-prep merge commit (pending)
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.18.0-alpha.1` — pre-release pending
-- [ ] **`release` branch:** align to tag commit after Phase B cut
+- [x] **Tag target:** `v0.18.0-alpha.1` on release-prep merge commit @ `d4adfb7`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.18.0-alpha.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `d4adfb7` (`release_branch_commit` matches `tag_commit`)
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.18.0-alpha.1] - 2026-07-02** (draft in release-prep PR)
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+- [x] **Changelog:** section **[0.18.0-alpha.1] - 2026-07-02**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 

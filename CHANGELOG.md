@@ -23,7 +23,7 @@ Eighteenth alpha pre-release: **Standard Operator UX** — product CLI (`npm run
 | Trace consumption | `explain-run` · run outcome summary | **`buildOperatorTraceSummary`** + `status`/`explain`/`context` operator panels |
 | Unit tests (orchestrator) | 1155/1156 (1 skipped) on workspace @ lane tip `c77e51d` | **1214/1214** pass on workspace @ lane tip `268943a` |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.18.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.18.0-alpha.1` — pre-release published @ tag `d4adfb7`
 
 **Evidence (operator):**
 
@@ -34,7 +34,7 @@ Eighteenth alpha pre-release: **Standard Operator UX** — product CLI (`npm run
 - Gate hardening: `node scripts/run-beta-gate-hardening-evidence.mjs` → **OK** (v0.15 chain regression)
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean @ lane tip `268943a`)
 - Contracts: `ai-minions-command-migration.md`, `run-outcome-consumption.md`, `context-package-contract.md`, `skill-capability-boundary.md`
-- Lane merged on `master` through compatibility docs @ `268943a` (PR #232–#237); release-prep pending merge; Phase B tag · pre-release · `release` branch pending operator cut
+- Lane merged on `master` through compatibility docs @ `268943a` (PR #232–#237); release-prep merged @ `d4adfb7` (PR #238); Phase B tag · pre-release · `release` branch @ `d4adfb7`
 - CI: orchestrator-unit-tests · orchestrator-e2e · Docs usage verify · Link Check · Markdown Lint — green on lane PRs through #237
 
 **Alpha limitations (not production):**
