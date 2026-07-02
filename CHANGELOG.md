@@ -61,7 +61,7 @@ Eighteenth alpha pre-release: **Standard Operator UX** — product CLI (`npm run
 ### Notes
 
 - Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
-- Next roadmap lane after cut: **v0.19.0-alpha.1** human-ready UX + privacy notice rehearsal; first external usability beta remains **v0.20.0-beta.1`.
+- Next roadmap lane after cut: **v0.19.0-alpha.1** human-ready UX + privacy notice rehearsal; first external usability beta remains **v0.20.0-beta.1**.
 - Post-v0.18 hygiene: shim retirement waves, skill boundary ST-2+, optional doc corpus Option B — non-blocking.
 
 ## [0.17.0-alpha.1] - 2026-07-01
