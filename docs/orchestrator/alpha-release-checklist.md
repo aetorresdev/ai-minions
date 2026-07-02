@@ -1041,7 +1041,7 @@ External usability beta (v0.20.0-beta.1) · compat shim mass-delete · full `age
 
 ## v0.18.0-alpha.1 — Standard Operator UX
 
-**Scope:** product CLI (`npm run ai-minions`) wrapping install, preflight, launch, trace readback, doctor, evidence, and context disclosure; operator trace summary; migration docs; verify-usage/claim-audit regression; hygiene doc slices bundled in E18-6. **Prerequisite:** `v0.17.0-alpha.1` @ `914d8d9`. **Not** production-ready operator UX · **not** durable resume · **not** external usability beta — external usability beta is targeted for **v0.20.0-beta.1** after v0.19 human-ready rehearsal.
+**Scope:** product CLI (`npm run ai-minions`) wrapping install, preflight, launch, trace readback, doctor, evidence, and context disclosure; operator trace summary; migration docs; verify-usage/claim-audit regression; hygiene doc slices bundled in E18-6. **Prerequisite:** `v0.17.0-alpha.1` @ `914d8d9`. **not** polished product UI · **not** durable resume · **not** external usability beta — external usability beta is targeted for **v0.20.0-beta.1** after v0.19 human-ready rehearsal.
 
 **Release claim:** standard operator command semantics and trace summarizer consumption as wrappers over existing contracts — not production-ready UX, not global installer, not external beta open, not architecture complete.
 
