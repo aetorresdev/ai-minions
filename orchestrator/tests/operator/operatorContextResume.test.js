@@ -111,6 +111,25 @@ describe("operator-context-resume runOperatorResume", () => {
     assert.match(result.text, /checkpoint_eligible:\s+true/);
     assert.match(result.text, /reason_code:\s+RUN_RESUME_NOT_IMPLEMENTED/);
   });
+
+  it("resume with missing trace keeps RUN_RESUME_NOT_IMPLEMENTED as primary reason", () => {
+    const result = runOperatorResume({
+      runId: "missing-resume-run",
+      loadContext: () => ({
+        ok: false,
+        reason_code: "OPERATOR_TRACE_NOT_FOUND",
+        next_safe_action: "Provide --run-id",
+      }),
+    });
+    assert.equal(result.exitCode, 2);
+    assert.equal(result.reason_code, RUN_RESUME_NOT_IMPLEMENTED);
+    assert.equal(result.json.supported, false);
+    assert.equal(result.json.trace_reason_code, "OPERATOR_TRACE_NOT_FOUND");
+    assert.equal(result.json.trace_missing, true);
+    assert.match(result.text, /supported:\s+false/);
+    assert.match(result.text, /reason_code:\s+RUN_RESUME_NOT_IMPLEMENTED/);
+    assert.match(result.text, /trace_reason_code:\s+OPERATOR_TRACE_NOT_FOUND/);
+  });
 });
 
 describe("ai-minions-cli context/resume integration", () => {
@@ -132,6 +151,19 @@ describe("ai-minions-cli context/resume integration", () => {
     });
     assert.equal(r.status, 2);
     assert.match(r.stdout + r.stderr, /RUN_RESUME_NOT_IMPLEMENTED/);
+  });
+
+  it("resume with missing trace exits 2 with RUN_RESUME_NOT_IMPLEMENTED primary", () => {
+    const r = spawnSync(process.execPath, [CLI_PATH, "resume", "--run-id", "no-such-resume-e18"], {
+      encoding: "utf8",
+      cwd: ORCH_CWD,
+      env: { ...process.env, ORCH_TRACES_DIR: path.join(ORCH_CWD, "tests", "fixtures", "no-traces-dir") },
+    });
+    assert.equal(r.status, 2);
+    assert.match(r.stdout, /supported:\s+false/);
+    assert.match(r.stdout + r.stderr, /reason_code:\s+RUN_RESUME_NOT_IMPLEMENTED/);
+    assert.match(r.stdout, /trace_reason_code:\s+OPERATOR_TRACE_NOT_FOUND/);
+    assert.doesNotMatch(r.stderr, /reason_code: OPERATOR_TRACE_NOT_FOUND/);
   });
 
   it("context loads disclosure fixture via --file", () => {

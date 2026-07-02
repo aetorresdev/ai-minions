@@ -349,22 +349,27 @@ function runOperatorResume(options = {}) {
     if (loaded.ok) {
       ctx = loaded;
     } else if (loaded.reason_code === 'OPERATOR_TRACE_NOT_FOUND') {
+      const nextSafeAction = 'Resume is not implemented. Trace was also not found; inspect existing traces or start a new run.';
+      const json = {
+        ...buildOperatorResumeJson(null),
+        trace_reason_code: loaded.reason_code,
+        trace_missing: true,
+        next_safe_action: nextSafeAction,
+      };
+
       return {
         ok: false,
         exitCode: 2,
-        reason_code: loaded.reason_code,
-        next_safe_action: loaded.next_safe_action,
+        reason_code: RUN_RESUME_NOT_IMPLEMENTED,
+        next_safe_action: nextSafeAction,
         text: [
           'ai-minions resume',
-          `  reason_code:      ${loaded.reason_code}`,
-          `  next_safe_action: ${loaded.next_safe_action}`,
-          `  note:             ${RUN_RESUME_NOT_IMPLEMENTED} — resume action not available even when trace exists.`,
+          '  supported:           false',
+          `  reason_code:         ${RUN_RESUME_NOT_IMPLEMENTED}`,
+          `  trace_reason_code:   ${loaded.reason_code}`,
+          `  next_safe_action:    ${nextSafeAction}`,
         ].join('\n'),
-        json: {
-          ...buildOperatorResumeJson(null),
-          reason_code: loaded.reason_code,
-          trace_missing: true,
-        },
+        json,
       };
     }
   }
