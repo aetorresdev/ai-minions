@@ -1,5 +1,5 @@
 /**
- * Path-independent ai-minions CLI install — local shim + home config (E20-1).
+ * Path-independent ai-minions CLI install — local shim + home config.
  * No shell rc mutation · no secrets in output · realpath validation on CLI entry.
  */
 
