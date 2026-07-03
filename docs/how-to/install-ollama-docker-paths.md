@@ -60,10 +60,12 @@ export OLLAMA_PORT=11434
 
 ## Evidence chain
 
-Record Mac/Docker install attestation with:
+Record install attestation with:
 
 ```bash
 node scripts/run-install-evidence.mjs --json
 ```
 
-See [install-evidence.md](install-evidence.md) for CI-safe `--skip-live` mode and the `orchestrator/` cwd pitfall for claim audit.
+**Docker live (automated):** same-repo PRs run this inside Docker on the self-hosted runner — see [install-evidence.md](install-evidence.md) and `.github/workflows/installed-cli-docker-live.yml`.
+
+See [install-evidence.md](install-evidence.md) for CI-safe `--skip-live` / `--installed-cli-ci` modes and the `orchestrator/` cwd pitfall for claim audit.

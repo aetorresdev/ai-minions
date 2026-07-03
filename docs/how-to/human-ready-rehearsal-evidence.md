@@ -1,8 +1,10 @@
-# Human-ready rehearsal evidence (v0.19)
+# Human-ready rehearsal evidence (v0.19 / v0.20)
 
 **Release criterion:** internal dry-run proves a near-external operator can follow docs from clone → product CLI → evidence bundle → GitHub feedback **without maintainer translation**, with privacy notice before upload.
 
-**Not claimed:** external beta cohort · production support SLA · live rehearsal substitute for v0.20 gate matrix.
+**v0.20 add-on:** Mac/Docker live attestation via **installed `ai-minions`** (PATH shim) — see [install-evidence](install-evidence.md) and record [installed_cli_evidence](evidence/human-ready-rehearsal-record.json).
+
+**Not claimed:** external beta cohort · production support SLA · doc-chain alone substitutes for v0.20 installed CLI live gate.
 
 ---
 
@@ -24,10 +26,12 @@ node scripts/run-human-ready-rehearsal-evidence.mjs --json
 ## Live operator dry-run (human rehearsal)
 
 1. Read [PRIVACY.md](../../PRIVACY.md) and [beta-known-limitations](beta-known-limitations.md) onboarding order.
-2. Follow [beta-tester-guide](beta-tester-guide.md) using the **product CLI primary path** (not legacy `runner:tui` alone).
-3. Score [beta-dry-run-checklist](beta-dry-run-checklist.md) — all required rows `PASS` or documented `FAIL`.
-4. Before Phase C bundle collect: confirm privacy notice read (checklist row C.0).
-5. File feedback or record **no issue found** — update [human-ready-rehearsal-record.json](evidence/human-ready-rehearsal-record.json) with commit, date, `task_id`, and issue URL.
+2. Run product install: `node scripts/install-ai-minions.mjs` — then use **`ai-minions`** from `$HOME` (not `cd orchestrator`).
+3. Follow [beta-tester-guide](beta-tester-guide.md) using the **installed product CLI primary path** (legacy `npm run ai-minions` = dev fallback only).
+4. Score [beta-dry-run-checklist](beta-dry-run-checklist.md) — all required rows `PASS` or documented `FAIL`.
+5. Before Phase C bundle collect: confirm privacy notice read (checklist row C.0).
+6. Mac/Docker install evidence: `node scripts/run-install-evidence.mjs --json` — record `evidence_class` + commit in [human-ready-rehearsal-record.json](evidence/human-ready-rehearsal-record.json) `installed_cli_evidence`.
+7. File feedback or record **no issue found** — update record with commit, date, `task_id`, and issue URL.
 
 **Synthetic feedback artifact (template dry-run):** [beta-dry-run-sample-issue.md](evidence/beta-dry-run-sample-issue.md)
 
@@ -47,7 +51,26 @@ node scripts/run-human-ready-rehearsal-evidence.mjs --json
 
 ---
 
-## Operator path (v0.19 primary)
+## Operator path (v0.20 installed CLI — live gate)
+
+```bash
+cd ai-minions
+node scripts/install-ai-minions.mjs
+cd ~
+ai-minions --help
+ai-minions init --model-policy local_only
+ai-minions doctor --model-policy local_only
+ai-minions start --goal "Rehearsal: list three files under orchestrator/ and stop" \
+  --skip-gates --iterations 1 --model-policy local_only
+ai-minions status --run-id <task_id>
+ai-minions explain --run-id <task_id>
+cd ai-minions
+node scripts/collect-run-report.mjs <task_id>
+```
+
+Read [PRIVACY.md](../../PRIVACY.md) **before** `collect-run-report.mjs`. Legacy `runner:tui` remains documented as advanced — [operator-guided-run](operator-guided-run.md).
+
+## Operator path (v0.19 repo-local — baseline only)
 
 ```bash
 cd ai-minions/orchestrator
@@ -61,7 +84,7 @@ cd ..
 node scripts/collect-run-report.mjs <task_id>
 ```
 
-Read [PRIVACY.md](../../PRIVACY.md) **before** `collect-run-report.mjs`. Legacy `runner:tui` remains documented as advanced — [operator-guided-run](operator-guided-run.md).
+**Not valid v0.20 beta evidence** until installed CLI path passes [install-evidence](install-evidence.md) live gate.
 
 ---
 
