@@ -30,7 +30,112 @@ function makeHostReadyRepo() {
   return tmp;
 }
 
+/**
+ * @param {string} shimPath
+ * @param {{ homeDir: string, aiMinionsHome?: string, args?: string[] }} options
+ */
+function runInstalledShim(shimPath, options) {
+  const env = {
+    ...process.env,
+    HOME: options.homeDir,
+    PATH: `${path.dirname(shimPath)}${path.delimiter}${process.env.PATH ?? ""}`,
+  };
+  if (options.aiMinionsHome !== undefined) {
+    env.AI_MINIONS_HOME = options.aiMinionsHome;
+  } else {
+    delete env.AI_MINIONS_HOME;
+  }
+  return spawnSync(shimPath, options.args ?? ["--help"], {
+    encoding: "utf8",
+    cwd: os.tmpdir(),
+    env,
+  });
+}
+
 describe("ai-minions-cli-install", () => {
+  it("buildShimSource embeds all registered CLI_INSTALL_REASON_CODES", () => {
+    const src = buildShimSource();
+    assert.match(src, /const SHIM_REASON = /);
+    for (const code of Object.values(CLI_INSTALL_REASON_CODES)) {
+      assert.match(src, new RegExp(code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
+    assert.doesNotMatch(src, /fail\(\s*'INSTALL_/);
+  });
+
+  it("shim emits INSTALL_HOME_UNSET without AI_MINIONS_HOME and config", async () => {
+    const repoRoot = makeHostReadyRepo();
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-home-"));
+    const binDir = path.join(homeDir, "bin");
+    const report = await runCliInstall({
+      repoRoot,
+      homeDir,
+      binDir,
+      configDir: defaultConfigDir(homeDir),
+      pathEnv: binDir,
+    });
+    fs.unlinkSync(report.config_path);
+
+    const result = runInstalledShim(report.shim_path, {
+      homeDir,
+      aiMinionsHome: "",
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, new RegExp(`blocker: ${CLI_INSTALL_REASON_CODES.HOME_UNSET}`));
+  });
+
+  it("shim emits INSTALL_REPO_LAYOUT_INVALID when product CLI is missing", async () => {
+    const repoRoot = makeHostReadyRepo();
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-home-"));
+    const binDir = path.join(homeDir, "bin");
+    const report = await runCliInstall({
+      repoRoot,
+      homeDir,
+      binDir,
+      configDir: defaultConfigDir(homeDir),
+      pathEnv: binDir,
+    });
+    fs.unlinkSync(path.join(repoRoot, "orchestrator", "ai-minions-cli.js"));
+
+    const result = runInstalledShim(report.shim_path, {
+      homeDir,
+      aiMinionsHome: repoRoot,
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, new RegExp(`blocker: ${CLI_INSTALL_REASON_CODES.REPO_LAYOUT_INVALID}`));
+  });
+
+  it("shim emits INSTALL_CLI_DISPATCH_FAILED when node spawn fails", async () => {
+    const repoRoot = makeHostReadyRepo();
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-home-"));
+    const binDir = path.join(homeDir, "bin");
+    const report = await runCliInstall({
+      repoRoot,
+      homeDir,
+      binDir,
+      configDir: defaultConfigDir(homeDir),
+      pathEnv: binDir,
+    });
+    const shimSrc = fs.readFileSync(report.shim_path, "utf8");
+    fs.writeFileSync(
+      report.shim_path,
+      shimSrc.replace(
+        "spawnSync(process.execPath,",
+        "spawnSync('/nonexistent-node-xyz',",
+      ),
+      { encoding: "utf8", mode: 0o755 },
+    );
+
+    const result = runInstalledShim(report.shim_path, {
+      homeDir,
+      aiMinionsHome: repoRoot,
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, new RegExp(`blocker: ${CLI_INSTALL_REASON_CODES.DISPATCH_FAILED}`));
+  });
+
   it("pathIncludesDir matches real paths on PATH", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "path-inc-"));
     assert.equal(pathIncludesDir(`${dir}${path.delimiter}/tmp`, dir), true);

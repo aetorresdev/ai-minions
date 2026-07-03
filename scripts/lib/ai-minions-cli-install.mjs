@@ -15,6 +15,8 @@ export const CLI_INSTALL_REASON_CODES = {
   CONFIG_WRITE_FAILED: "INSTALL_HOME_CONFIG_WRITE_FAILED",
   REPO_LAYOUT_INVALID: "INSTALL_REPO_LAYOUT_INVALID",
   SHIM_VALIDATION_FAILED: "INSTALL_CLI_SHIM_VALIDATION_FAILED",
+  HOME_UNSET: "INSTALL_HOME_UNSET",
+  DISPATCH_FAILED: "INSTALL_CLI_DISPATCH_FAILED",
 };
 
 /** Relative path from repo root to product CLI entry (validated at install time). */
@@ -71,6 +73,7 @@ export function pathIncludesDir(pathEnv, dir) {
  * @returns {string}
  */
 export function buildShimSource() {
+  const shimReason = JSON.stringify(CLI_INSTALL_REASON_CODES);
   return `#!/usr/bin/env node
 'use strict';
 
@@ -79,6 +82,7 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+const SHIM_REASON = ${shimReason};
 const CONFIG_FILE = path.join(process.env.HOME || os.homedir(), '.config', 'ai-minions', 'home');
 const CLI_REL = ${JSON.stringify(CLI_ENTRY_REL.split(path.sep).join("/"))};
 
@@ -105,7 +109,7 @@ function fail(reasonCode, message) {
 const repoRoot = readConfiguredHome();
 if (!repoRoot) {
   fail(
-    'INSTALL_HOME_UNSET',
+    SHIM_REASON.HOME_UNSET,
     'AI_MINIONS_HOME unset and ~/.config/ai-minions/home missing — re-run: node scripts/install-ai-minions.mjs',
   );
 }
@@ -115,18 +119,18 @@ let realCli;
 try {
   realCli = fs.realpathSync(cliPath);
 } catch {
-  fail('INSTALL_REPO_LAYOUT_INVALID', \`missing product CLI at \${cliPath}\`);
+  fail(SHIM_REASON.REPO_LAYOUT_INVALID, \`missing product CLI at \${cliPath}\`);
 }
 
 let realRepo;
 try {
   realRepo = fs.realpathSync(repoRoot);
 } catch {
-  fail('INSTALL_REPO_LAYOUT_INVALID', \`invalid AI_MINIONS_HOME: \${repoRoot}\`);
+  fail(SHIM_REASON.REPO_LAYOUT_INVALID, \`invalid AI_MINIONS_HOME: \${repoRoot}\`);
 }
 
 if (!realCli.startsWith(realRepo + path.sep) && realCli !== realRepo) {
-  fail('INSTALL_CLI_SHIM_VALIDATION_FAILED', 'product CLI path escapes AI_MINIONS_HOME');
+  fail(SHIM_REASON.SHIM_VALIDATION_FAILED, 'product CLI path escapes AI_MINIONS_HOME');
 }
 
 const env = {
@@ -142,7 +146,7 @@ const result = spawnSync(process.execPath, [realCli, ...process.argv.slice(2)], 
 });
 
 if (result.error) {
-  fail('INSTALL_CLI_DISPATCH_FAILED', result.error.message);
+  fail(SHIM_REASON.DISPATCH_FAILED, result.error.message);
 }
 
 process.exit(result.status == null ? 1 : result.status);
