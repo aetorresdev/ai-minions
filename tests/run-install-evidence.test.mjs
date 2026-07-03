@@ -33,6 +33,18 @@ describe("run-install-evidence", () => {
 
   it("uses INSTALL_EVIDENCE reason codes on failure paths", () => {
     assert.equal(REASON_CODES.INSTALL, "INSTALL_EVIDENCE_INSTALL_FAIL");
+    assert.equal(REASON_CODES.INSTALLED_CLI, "INSTALL_EVIDENCE_INSTALLED_CLI_FAIL");
     assert.equal(REASON_CODES.CLAIM_AUDIT, "INSTALL_EVIDENCE_CLAIM_AUDIT_FAIL");
+  });
+
+  it("installedCliCi mode runs shim evidence without doctor", async () => {
+    const report = await runInstallEvidence({ installedCliCi: true });
+    assert.equal(report.evidence_class, "installed_cli_ci");
+    const doctor = report.steps.find((s) => s.id === "installed_cli_installed_doctor");
+    const help = report.steps.find((s) => s.id === "installed_cli_installed_help");
+    assert.equal(doctor?.status, "skip");
+    assert.ok(help);
+    const install = report.steps.find((s) => s.id === "install");
+    assert.equal(install?.status, "skip");
   });
 });

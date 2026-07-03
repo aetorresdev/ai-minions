@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { runClaimAudit } from "./audit-product-claims.mjs";
 import {
   CHECKLIST_HUMAN_READY_MARKERS,
+  INSTALLED_CLI_RECORD_KEYS,
   PRIVACY_BEFORE_BUNDLE_CHECKS,
   REHEARSAL_RECORD_PATH,
   REHEARSAL_REQUIRED_DOCS,
@@ -69,11 +70,14 @@ export function checkRehearsalRecord(options = {}) {
     return { ok: false, failures: [`invalid JSON: ${REHEARSAL_RECORD_PATH}`] };
   }
 
-  if (parsed.schema_version !== 1) {
-    failures.push(`${REHEARSAL_RECORD_PATH}: schema_version must be 1`);
+  if (parsed.schema_version !== 1 && parsed.schema_version !== 2) {
+    failures.push(`${REHEARSAL_RECORD_PATH}: schema_version must be 1 or 2`);
   }
-  if (parsed.rehearsal_type !== "internal_human_ready_v0.19") {
-    failures.push(`${REHEARSAL_RECORD_PATH}: rehearsal_type must be internal_human_ready_v0.19`);
+  const allowedTypes = ["internal_human_ready_v0.19", "internal_human_ready_v0.20"];
+  if (!allowedTypes.includes(parsed.rehearsal_type)) {
+    failures.push(
+      `${REHEARSAL_RECORD_PATH}: rehearsal_type must be one of ${allowedTypes.join(", ")}`,
+    );
   }
   if (!parsed.record || typeof parsed.record !== "object") {
     failures.push(`${REHEARSAL_RECORD_PATH}: missing record object`);
@@ -82,6 +86,18 @@ export function checkRehearsalRecord(options = {}) {
     for (const key of required) {
       if (!(key in parsed.record)) {
         failures.push(`${REHEARSAL_RECORD_PATH}: record.${key} required`);
+      }
+    }
+    if (parsed.schema_version === 2) {
+      const ice = parsed.record.installed_cli_evidence;
+      if (!ice || typeof ice !== "object") {
+        failures.push(`${REHEARSAL_RECORD_PATH}: record.installed_cli_evidence required for schema v2`);
+      } else {
+        for (const key of INSTALLED_CLI_RECORD_KEYS) {
+          if (!(key in ice)) {
+            failures.push(`${REHEARSAL_RECORD_PATH}: record.installed_cli_evidence.${key} required`);
+          }
+        }
       }
     }
   }
@@ -233,7 +249,12 @@ export async function runHumanReadyRehearsalEvidence(options = {}) {
   });
 
   const ok = steps.every((s) => s.status === "pass");
-  return { ok, steps, evidence_class: "human_ready_rehearsal_v0.19" };
+  const evidenceClass =
+    checkRehearsalRecord({ repoRoot }).ok
+    && JSON.parse(fs.readFileSync(path.join(repoRoot, REHEARSAL_RECORD_PATH), "utf8")).schema_version === 2
+      ? "human_ready_rehearsal_v0.20"
+      : "human_ready_rehearsal_v0.19";
+  return { ok, steps, evidence_class: evidenceClass };
 }
 
 async function main() {

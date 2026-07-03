@@ -483,6 +483,8 @@ function checkInstallEvidenceDoc(docText) {
   const rel = "docs/how-to/install-evidence.md";
   if (!docText) return;
   mustInclude(docText, "INSTALL_EVIDENCE_OK", "install evidence reason code", rel);
+  mustInclude(docText, "INSTALL_EVIDENCE_INSTALLED_CLI_FAIL", "installed CLI reason code", rel);
+  mustInclude(docText, "--installed-cli-ci", "installed CLI CI gate flag", rel);
   mustInclude(docText, "CLAIM_FORBIDDEN_PHRASE", "claim audit reason code", rel);
   mustInclude(docText, "run-install-evidence.mjs", "install evidence script reference", rel);
   mustInclude(docText, "audit-product-claims.mjs", "claim audit script reference", rel);
@@ -635,6 +637,7 @@ function checkHumanReadyRehearsalEvidenceDoc(docText) {
   mustInclude(docText, "PRIVACY.md", "privacy notice link", rel);
   mustInclude(docText, "beta-dry-run-checklist", "checklist link", rel);
   mustInclude(docText, "human-ready-rehearsal-record.json", "record file reference", rel);
+  mustInclude(docText, "install-evidence", "installed CLI evidence link", rel);
   mustInclude(docText, "Not claimed", "not claimed disclaimer", rel);
   mustInclude(docText, "npm run ai-minions", "product CLI path", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);

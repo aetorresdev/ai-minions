@@ -48,3 +48,12 @@ export const SAMPLE_ISSUE_MARKERS = [
   "PRIVACY.md",
   "synthetic",
 ];
+
+/** v0.20 installed CLI evidence fields in rehearsal record. */
+export const INSTALLED_CLI_RECORD_KEYS = [
+  "required_before_v0_20_beta",
+  "evidence_class",
+  "install_evidence_commit",
+  "live_attestation_date",
+  "operator_path_detail",
+];

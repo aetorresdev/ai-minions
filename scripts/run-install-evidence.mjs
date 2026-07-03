@@ -12,15 +12,49 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runClaimAudit } from "./audit-product-claims.mjs";
-import { runInstallAiMinions } from "./install-ai-minions.mjs";
-import { runOperatorPreflight } from "./operator-preflight.mjs";
+import { runInstalledCliEvidence } from "./lib/installed-cli-evidence.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * @param {StepResult[]} steps
+ * @param {Awaited<ReturnType<typeof runInstalledCliEvidence>>} installed
+ */
+function appendInstalledCliSteps(steps, installed) {
+  for (const sub of installed.steps) {
+    steps.push({
+      id: `installed_cli_${sub.id}`,
+      reason_code: sub.status === "fail" ? REASON_CODES.INSTALLED_CLI : REASON_CODES.OK,
+      status: sub.status === "skip" ? "skip" : sub.status,
+      message: sub.message,
+    });
+  }
+}
+
+/**
+ * @param {StepResult[]} steps
+ * @param {string} mode
+ */
+function appendLegacyInstallSkips(steps, mode) {
+  steps.push({
+    id: "install",
+    reason_code: REASON_CODES.OK,
+    status: "skip",
+    message: `legacy install step covered by installed_cli product_cli_install (${mode})`,
+  });
+  steps.push({
+    id: "operator_preflight",
+    reason_code: REASON_CODES.OK,
+    status: "skip",
+    message: "operator-preflight skipped (installed CLI primary for v0.20)",
+  });
+}
 
 export const REASON_CODES = {
   OK: "INSTALL_EVIDENCE_OK",
   INSTALL: "INSTALL_EVIDENCE_INSTALL_FAIL",
   OPERATOR: "INSTALL_EVIDENCE_OPERATOR_FAIL",
+  INSTALLED_CLI: "INSTALL_EVIDENCE_INSTALLED_CLI_FAIL",
   CLAIM_AUDIT: "INSTALL_EVIDENCE_CLAIM_AUDIT_FAIL",
   NPM_TEST: "INSTALL_EVIDENCE_NPM_TEST_FAIL",
 };
@@ -34,6 +68,8 @@ export const REASON_CODES = {
  *   modelPolicy?: string,
  *   withNpmTest?: boolean,
  *   skipLive?: boolean,
+ *   installedCliCi?: boolean,
+ *   skipInstalledDoctor?: boolean,
  * }} [options]
  * @returns {Promise<{ ok: boolean, steps: StepResult[], evidence_class: string }>}
  */
@@ -43,7 +79,7 @@ export async function runInstallEvidence(options = {}) {
   /** @type {StepResult[]} */
   const steps = [];
 
-  if (options.skipLive) {
+  if (options.skipLive && !options.installedCliCi) {
     steps.push({
       id: "install",
       reason_code: REASON_CODES.OK,
@@ -56,57 +92,40 @@ export async function runInstallEvidence(options = {}) {
       status: "skip",
       message: "operator-preflight skipped (--skip-live)",
     });
-  } else {
-    const install = await runInstallAiMinions({
-      repoRoot,
-      install: true,
-      modelPolicy,
+    steps.push({
+      id: "installed_cli",
+      reason_code: REASON_CODES.OK,
+      status: "skip",
+      message: "installed CLI evidence skipped (--skip-live)",
     });
-    if (!install.ok) {
-      steps.push({
-        id: "install",
-        reason_code: REASON_CODES.INSTALL,
-        status: "fail",
-        message: `install-ai-minions failed at phase ${install.phase}`,
-      });
-    } else {
-      steps.push({
-        id: "install",
-        reason_code: REASON_CODES.OK,
-        status: "pass",
-        message: `install-ai-minions passed (phase ${install.phase})`,
-      });
-    }
-
-    if (install.ok) {
-      const operator = await runOperatorPreflight({
-        repoRoot,
-        install: true,
-        modelPolicy,
-      });
-      if (!operator.ok) {
-        steps.push({
-          id: "operator_preflight",
-          reason_code: REASON_CODES.OPERATOR,
-          status: "fail",
-          message: `operator-preflight stopped at ${operator.layer_stopped ?? "unknown"}`,
-        });
-      } else {
-        steps.push({
-          id: "operator_preflight",
-          reason_code: REASON_CODES.OK,
-          status: "pass",
-          message: "operator-preflight passed (bootstrap + runtime + runner)",
-        });
-      }
-    } else {
-      steps.push({
-        id: "operator_preflight",
-        reason_code: REASON_CODES.OK,
-        status: "skip",
-        message: "operator-preflight skipped (install failed)",
-      });
-    }
+  } else if (options.installedCliCi) {
+    const installed = await runInstalledCliEvidence({
+      repoRoot,
+      modelPolicy,
+      skipDoctor: true,
+    });
+    appendInstalledCliSteps(steps, installed);
+    appendLegacyInstallSkips(steps, "installed_cli_ci");
+  } else {
+    const installed = await runInstalledCliEvidence({
+      repoRoot,
+      modelPolicy,
+      skipDoctor: options.skipInstalledDoctor === true,
+    });
+    appendInstalledCliSteps(steps, installed);
+    const product = installed.steps.find((s) => s.id === "product_cli_install");
+    steps.push({
+      id: "install",
+      reason_code: product?.status === "fail" ? REASON_CODES.INSTALL : REASON_CODES.OK,
+      status: product?.status === "fail" ? "fail" : "pass",
+      message: product?.message ?? "install-ai-minions product CLI",
+    });
+    steps.push({
+      id: "operator_preflight",
+      reason_code: REASON_CODES.OK,
+      status: "skip",
+      message: "operator-preflight script skipped (v0.20 live uses installed ai-minions doctor)",
+    });
   }
 
   const claimAudit = runClaimAudit({ repoRoot });
@@ -154,11 +173,13 @@ export async function runInstallEvidence(options = {}) {
   }
 
   const ok = steps.every((s) => s.status !== "fail");
-  const evidenceClass = options.skipLive
+  const evidenceClass = options.skipLive && !options.installedCliCi
     ? "ci_claim_audit"
-    : options.withNpmTest
-      ? "mac_docker_live_plus_unit"
-      : "mac_docker_live";
+    : options.installedCliCi
+      ? "installed_cli_ci"
+      : options.withNpmTest
+        ? "mac_docker_live_installed_cli_plus_unit"
+        : "mac_docker_live_installed_cli";
 
   return { ok, steps, evidence_class: evidenceClass };
 }
@@ -192,6 +213,8 @@ function parseArgs(argv) {
     json: argv.includes("--json"),
     withNpmTest: argv.includes("--with-npm-test"),
     skipLive: argv.includes("--skip-live"),
+    installedCliCi: argv.includes("--installed-cli-ci"),
+    skipInstalledDoctor: argv.includes("--skip-installed-doctor"),
     modelPolicy,
     help: argv.includes("-h") || argv.includes("--help"),
   };
@@ -208,6 +231,8 @@ Options:
   --model-policy <mode>  local_only (default) | remote_ok
   --with-npm-test        Also run cd orchestrator && npm test (slow)
   --skip-live            Skip install + operator-preflight (CI claim-audit gate only)
+  --installed-cli-ci     Installed PATH shim evidence (product_cli + --help); doctor skipped
+  --skip-installed-doctor  Skip ai-minions doctor in live installed-cli chain
   --json                 Machine-readable report on stdout
   -h, --help             Show this help
 
@@ -218,11 +243,13 @@ Live Mac/Docker attestation (Ollama required on host):
 Claim audit only (CI-safe):
   node scripts/run-install-evidence.mjs --skip-live
 
-From orchestrator/: use npm run evidence:claims or orchestrator/scripts/audit-product-claims.mjs (shim).
+Installed CLI CI gate (v0.20 — shim + --help from outside repo):
+  node scripts/run-install-evidence.mjs --installed-cli-ci --json
 
 Exit codes: 0 = pass, 1 = blocker(s)
-Reason codes: INSTALL_EVIDENCE_INSTALL_FAIL, INSTALL_EVIDENCE_OPERATOR_FAIL,
-INSTALL_EVIDENCE_CLAIM_AUDIT_FAIL, INSTALL_EVIDENCE_NPM_TEST_FAIL, INSTALL_EVIDENCE_OK
+Reason codes: INSTALL_EVIDENCE_INSTALL_FAIL, INSTALL_EVIDENCE_INSTALLED_CLI_FAIL,
+INSTALL_EVIDENCE_OPERATOR_FAIL, INSTALL_EVIDENCE_CLAIM_AUDIT_FAIL,
+INSTALL_EVIDENCE_NPM_TEST_FAIL, INSTALL_EVIDENCE_OK
 `);
     process.exit(0);
   }
@@ -230,6 +257,8 @@ INSTALL_EVIDENCE_CLAIM_AUDIT_FAIL, INSTALL_EVIDENCE_NPM_TEST_FAIL, INSTALL_EVIDE
   const report = await runInstallEvidence({
     withNpmTest: args.withNpmTest,
     skipLive: args.skipLive,
+    installedCliCi: args.installedCliCi,
+    skipInstalledDoctor: args.skipInstalledDoctor,
     modelPolicy: args.modelPolicy,
   });
 
