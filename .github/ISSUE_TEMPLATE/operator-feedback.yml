@@ -9,6 +9,7 @@ body:
       value: |
         **Alpha harness** — not production support. Redact secrets; do not paste `.env`, API keys, or tokens.
 
+        - [Beta privacy notice (PRIVACY.md)](https://github.com/aetorresdev/ai-minions/blob/master/PRIVACY.md) — read before attaching bundles
         - [Beta known limitations](https://github.com/aetorresdev/ai-minions/blob/master/docs/how-to/beta-known-limitations.md)
         - Report bundle: `node scripts/collect-run-report.mjs <task_id>` — [collect-run-report](https://github.com/aetorresdev/ai-minions/blob/master/docs/how-to/collect-run-report.md)
         - Field guide: [operator-feedback-issue](https://github.com/aetorresdev/ai-minions/blob/master/docs/how-to/operator-feedback-issue.md)

@@ -2,6 +2,8 @@
 
 Local report bundle for operator feedback — copies trace, inspect report, and runner panel captures into one attachable directory. Complements [inspect run evidence](inspect-run-evidence.md) for GitHub issue attachment. Known limitations for beta dry-run: [beta-known-limitations](beta-known-limitations.md).
 
+**Before collecting or uploading:** read [PRIVACY.md](../../PRIVACY.md) and [beta-claim-blast-radius](beta-claim-blast-radius.md).
+
 **Script:** `node scripts/collect-run-report.mjs <task_id>`
 
 **Contract:** [runner-tui-contract.md](../orchestrator/runner-tui-contract.md) · trace dir `ORCH_TRACES_DIR` (default `~/.claude/metrics/traces`)
@@ -125,6 +127,7 @@ Inspect detail codes remain `INSPECT_*` inside `inspect-report.json`.
 ## Related
 
 - [Beta tester guide](beta-tester-guide.md) — internal dry-run (Phases A–D)
+- [PRIVACY.md](../../PRIVACY.md) — read before attaching bundles
 - [Beta dry-run checklist](beta-dry-run-checklist.md) — scorable checklist + sample issue
 - [Operator feedback issue template](operator-feedback-issue.md)
 

@@ -14,13 +14,15 @@ Public-facing honesty doc for **internal beta dry-run** and future external test
 
 | Step | Doc | Why |
 |------|-----|-----|
+| 0 | [PRIVACY.md](../../PRIVACY.md) | What traces/bundles may contain · public GitHub visibility · no secret uploads |
 | 1 | This doc | Honesty boundaries + not-claimed table |
-| 2 | [beta-degraded-mode-policy](beta-degraded-mode-policy.md) | When runs cannot count as beta success |
-| 3 | [beta-smoke-matrix](beta-smoke-matrix.md) | Minimum gate cells (maintainer evidence) |
-| 4 | [beta-tester-guide](beta-tester-guide.md) | End-to-end runbook |
-| 5 | [beta-dry-run-checklist](beta-dry-run-checklist.md) | Scorable checklist |
+| 2 | [beta-claim-blast-radius](beta-claim-blast-radius.md) | Side-effect blast radius + forbidden claims |
+| 3 | [beta-degraded-mode-policy](beta-degraded-mode-policy.md) | When runs cannot count as beta success |
+| 4 | [beta-smoke-matrix](beta-smoke-matrix.md) | Minimum gate cells (maintainer evidence) |
+| 5 | [beta-tester-guide](beta-tester-guide.md) | End-to-end runbook |
+| 6 | [beta-dry-run-checklist](beta-dry-run-checklist.md) | Scorable checklist |
 
-**Redaction depth (before any upload):** [trace-privacy](../orchestrator/trace-privacy-contract.md) · [privacy sanitize gate](../orchestrator/privacy-sanitize-gate-contract.md).
+**Redaction depth (before any upload):** [PRIVACY.md](../../PRIVACY.md) · [trace-privacy](../orchestrator/trace-privacy-contract.md) · [privacy sanitize gate](../orchestrator/privacy-sanitize-gate-contract.md).
 
 ---
 

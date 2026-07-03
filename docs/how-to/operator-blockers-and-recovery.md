@@ -6,7 +6,7 @@ Friendly but precise guide for when the **product CLI** blocks, warns, or finish
 
 **Related:** [bootstrap-preflight](bootstrap-preflight.md) (`PREFLIGHT_*`) · [operator-preflight-bridge](operator-preflight-bridge.md) (`OPERATOR_*`) · [beta-degraded-mode-policy](beta-degraded-mode-policy.md)
 
-**Not claimed:** production-ready operator UX · global installer · durable `resume` · automatic secret stripping in attachments.
+**Not claimed:** production-ready operator UX · global installer · durable `resume` · guaranteed secret removal from attachments (bundle privacy-scan + manual redaction still required — [PRIVACY.md](../../PRIVACY.md)).
 
 ---
 
@@ -115,7 +115,7 @@ Legacy `runner:tui` and script exit codes remain documented in their own guides 
 
 1. Re-run the recovery ladder once with the same `task_id`.
 2. Collect evidence: `npm run ai-minions -- evidence --run-id <task_id>` then `collect-run-report.mjs`.
-3. File using [operator-feedback-issue](operator-feedback-issue.md) — include `reason_code`, **not** tokens or `.env` contents.
+3. File using [operator-feedback-issue](operator-feedback-issue.md) — read [PRIVACY.md](../../PRIVACY.md) first; include `reason_code`, **not** tokens or `.env` contents.
 
 ---
 

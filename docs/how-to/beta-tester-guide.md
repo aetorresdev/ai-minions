@@ -6,7 +6,7 @@ End-to-end runbook for an **internal operator** playing beta tester: entry path 
 
 **Contract:** [beta-limitations-onboarding-contract](../orchestrator/beta-limitations-onboarding-contract.md)
 
-**Prerequisites (read first):** [beta known limitations](beta-known-limitations.md) · [beta degraded-mode policy](beta-degraded-mode-policy.md) · [operator feedback issue](operator-feedback-issue.md)
+**Prerequisites (read first):** [PRIVACY.md](../../PRIVACY.md) · [beta known limitations](beta-known-limitations.md) · [beta degraded-mode policy](beta-degraded-mode-policy.md) · [operator feedback issue](operator-feedback-issue.md)
 
 ---
 
@@ -49,7 +49,7 @@ Record the commit you are testing:
 git rev-parse --short HEAD
 ```
 
-**Gate docs (required):** skim [beta-known-limitations](beta-known-limitations.md) onboarding table, [beta-degraded-mode-policy](beta-degraded-mode-policy.md), [beta-smoke-matrix](beta-smoke-matrix.md) § Minimum gate cells, and [ai-minions-command-migration](ai-minions-command-migration.md) for v0.18 CLI mapping. Note: smoke matrix is maintainer evidence — your dry-run proves the **operator chain**, not every matrix cell.
+**Gate docs (required):** [PRIVACY.md](../../PRIVACY.md) · [beta-claim-blast-radius](beta-claim-blast-radius.md) · skim [beta-known-limitations](beta-known-limitations.md) onboarding table, [beta-degraded-mode-policy](beta-degraded-mode-policy.md), [beta-smoke-matrix](beta-smoke-matrix.md) § Minimum gate cells, and [ai-minions-command-migration](ai-minions-command-migration.md) for v0.18 CLI mapping. Note: smoke matrix is maintainer evidence — your dry-run proves the **operator chain**, not every matrix cell.
 
 ---
 
@@ -132,6 +132,8 @@ cd ..
 ---
 
 ## Phase C — Evidence bundle
+
+**Read first:** [PRIVACY.md](../../PRIVACY.md) — public GitHub issues and bundle contents.
 
 **Depth:** [inspect-run-evidence](inspect-run-evidence.md) · [collect-run-report](collect-run-report.md)
 
