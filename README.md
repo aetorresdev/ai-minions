@@ -8,19 +8,21 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 
 | Goal | Where |
 |------|--------|
+| **Primary product CLI** (`init` / `doctor` / `start` / `status` / `explain` / `evidence` / `context`) | [Quickstart — Stage 2](#stage-2-product-cli-ai-minions) · [`ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md) |
 | Full staged path | [Quickstart](#quickstart) |
+| Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) · [Happy path](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) |
 | Clone + install + unit tests | [Stage 1: Install and validate locally](#stage-1-install-and-validate-locally) |
-| Bootstrap + preflight (reason codes) | [Bootstrap and preflight](docs/how-to/bootstrap-preflight.md) |
-| Primary CLI smoke + trace path | [Primary smoke](docs/how-to/primary-smoke.md) · `node scripts/run-primary-smoke.mjs` |
-| Fresh-clone evidence + claim audit | [Fresh-clone evidence](docs/how-to/fresh-clone-evidence.md) · `node scripts/run-fresh-clone-evidence.mjs` |
-| Try a skill (no MODE header) | [Stage 2: Run a simple skill](#stage-2-run-a-simple-skill) |
-| Run the orchestrator in Claude Code | [Stage 3: Run orchestration](#stage-3-run-orchestration) |
-| Secrets, `.env`, and `ENVIRONMENT` | [Values vs permission](#values-vs-permission-env-and-secrets) |
-| Optional MCP / tool integrations | [Stage 4: MCP setup](#stage-4-mcp-setup-optional) |
 | Alpha boundaries and caveats | [Known limitations (alpha)](#known-limitations-alpha) · [Beta limitations (v0.15)](docs/how-to/beta-known-limitations.md) |
-| Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) |
-| **v0.18 product CLI** (core: `init` / `start` / `status` / `doctor`; also `explain` / `evidence` / `context` / `resume`) | [`docs/how-to/ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md) · `cd orchestrator && npm run ai-minions -- --help` |
-| **Runner TUI guided run** (preflight → launch → status) | [`docs/how-to/operator-guided-run.md`](docs/how-to/operator-guided-run.md) |
+| Something failed during smoke | [Troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) |
+| **Advanced — Claude Code skill** (no MODE header) | [Stage 3: Run a simple skill](#stage-3-run-a-simple-skill) |
+| **Advanced — MODE orchestration** | [Stage 4: Run orchestration in Claude Code](#stage-4-run-orchestration-in-claude-code) |
+| **Advanced — legacy scripts** (`runner:tui`, `run-orchestrator`, primary smoke) | [Stage 5: Legacy and deeper control](#stage-5-legacy-and-deeper-control) |
+| Bootstrap + preflight (reason codes) | [Bootstrap and preflight](docs/how-to/bootstrap-preflight.md) |
+| Primary CLI smoke + trace path (legacy script) | [Primary smoke](docs/how-to/primary-smoke.md) · `node scripts/run-primary-smoke.mjs` |
+| Fresh-clone evidence + claim audit | [Fresh-clone evidence](docs/how-to/fresh-clone-evidence.md) · `node scripts/run-fresh-clone-evidence.mjs` |
+| Secrets, `.env`, and `ENVIRONMENT` | [Values vs permission](#values-vs-permission-env-and-secrets) |
+| Optional MCP / tool integrations | [Stage 6: MCP setup](#stage-6-mcp-setup-optional) |
+| **Runner TUI guided run** (legacy) | [`docs/how-to/operator-guided-run.md`](docs/how-to/operator-guided-run.md) |
 | Operator preflight bridge (`PREFLIGHT_*` + `OPERATOR_*`) | [`docs/how-to/operator-preflight-bridge.md`](docs/how-to/operator-preflight-bridge.md) |
 | Inspect run evidence (`INSPECT_*`) | [`docs/how-to/inspect-run-evidence.md`](docs/how-to/inspect-run-evidence.md) · `node scripts/inspect-run-evidence.mjs <task_id>` |
 | Collect run report bundle (`BUNDLE_*`) | [`docs/how-to/collect-run-report.md`](docs/how-to/collect-run-report.md) · `node scripts/collect-run-report.mjs <task_id>` |
@@ -142,7 +144,7 @@ Full wiring: [`docs/orchestrator/system-architecture-diagram.md`](docs/orchestra
 
 ## Quickstart
 
-**Goal:** install → validate → try a skill → run orchestration → (optional) wire secrets and MCPs.
+**Goal:** clone → install → `ai-minions init` → `doctor` → `start` → `status`/`explain` → `evidence`/`context` → (optional) Claude Code skill, MODE header, or legacy scripts.
 
 Full walkthrough and troubleshooting: [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
 
@@ -201,7 +203,43 @@ Some hooks/skills docs assume this path.
 
 ---
 
-### Stage 2: Run a simple skill
+### Stage 2: Product CLI (`ai-minions`)
+
+Primary operator path — wrappers over existing install, preflight, launch, and trace-readback contracts. **Not** a polished product UI; **not** a global installer.
+
+```bash
+cd ai-minions/orchestrator
+npm run ai-minions -- --help
+npm run ai-minions -- init --model-policy local_only
+npm run ai-minions -- doctor --model-policy local_only
+npm run ai-minions -- start --goal "Smoke: list three files under orchestrator/ and stop" \
+  --skip-gates --iterations 1
+# record task_id from output
+npm run ai-minions -- status --run-id <task_id>
+npm run ai-minions -- explain --run-id <task_id>
+npm run ai-minions -- evidence --run-id <task_id>
+npm run ai-minions -- context --run-id <task_id>
+npm run ai-minions -- resume --run-id <task_id>   # honest probe: RUN_RESUME_NOT_IMPLEMENTED (exit 2)
+```
+
+| Step | Command | Exit signal |
+|------|---------|-------------|
+| Init / config | `npm run ai-minions -- init --model-policy local_only` | `0` + config paths |
+| Doctor | `npm run ai-minions -- doctor --model-policy local_only` | `0` + no blocking `PREFLIGHT_*` |
+| Launch | `npm run ai-minions -- start --goal "..." --skip-gates --iterations 1` | `0` + `done: true` · record `task_id` |
+| Result | `npm run ai-minions -- status --run-id <task_id>` | `0` + terminal summary |
+| Explain | `npm run ai-minions -- explain --run-id <task_id>` | `0` + critical decision summary |
+| Evidence | `npm run ai-minions -- evidence --run-id <task_id>` | `0` + inspect/bundle paths |
+| Context | `npm run ai-minions -- context --run-id <task_id>` | `0` + disclosure panel |
+| Resume probe | `npm run ai-minions -- resume --run-id <task_id>` | `2` + `RUN_RESUME_NOT_IMPLEMENTED` — **not** durable resume |
+
+`--skip-gates` is **degraded mode** (banner visible) — fine for first contact. Full mapping: [`ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md).
+
+Live `start` requires `claude` CLI (`claude auth status`). `npm test` alone does not prove end-to-end orchestration.
+
+---
+
+### Stage 3: Run a simple skill *(advanced — Claude Code)*
 
 In Claude Code, send a skill prompt **without** a MODE header:
 
@@ -213,9 +251,9 @@ Confirms the editor loads repo skills. Does **not** exercise orchestrator gates,
 
 ---
 
-### Stage 3: Run orchestration
+### Stage 4: Run orchestration in Claude Code *(advanced)*
 
-**3a — Minimal run** (files/specs only, no live APIs):
+**4a — Minimal run** (files/specs only, no live APIs):
 
 ```text
 MODE: ORCHESTRATOR
@@ -224,7 +262,7 @@ GOAL: <your goal here>
 MAX_ITERATIONS: 3
 ```
 
-**3b — Background / other repo** — add `FLOW: multi_agent` and absolute `CWD`:
+**4b — Background / other repo** — add `FLOW: multi_agent` and absolute `CWD`:
 
 ```text
 MODE: ORCHESTRATOR
@@ -234,7 +272,7 @@ MAX_ITERATIONS: 3
 CWD: /absolute/path/to/target/project
 ```
 
-**3c — Live APIs** — append `ENVIRONMENT` with **env var names only** (never secret values):
+**4c — Live APIs** — append `ENVIRONMENT` with **env var names only** (never secret values):
 
 ```text
 ENVIRONMENT:
@@ -283,26 +321,27 @@ set +a
 
 The header references `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `vars` — not the values.
 
-**Operator CLI** (discover flags — not a polished product UI):
+---
+
+### Stage 5: Legacy and deeper control *(advanced / troubleshooting)*
+
+Use when debugging wrappers, comparing trace paths, or following older runbooks. **Not** the primary onboarding path.
 
 ```bash
 cd ai-minions/orchestrator
-npm run ai-minions -- --help
 node run-orchestrator.js --help
 npm run runner:tui -- --help
 ```
 
-| Step | Command | Exit signal |
-|------|---------|-------------|
-| Init / config | `npm run ai-minions -- init --model-policy local_only` | `0` + config paths |
-| Doctor | `npm run ai-minions -- doctor --model-policy local_only` | `0` + no blocking `PREFLIGHT_*` |
-| Preflight (legacy) | `npm run runner:tui -- preflight --model-policy local_only` | `0` + `ok: true` |
-| Launch | `npm run ai-minions -- start --goal "..." --skip-gates --iterations 1` | `0` + `done: true` · record `task_id` |
-| Result | `npm run ai-minions -- status --run-id <task_id>` | `0` + terminal summary |
+| Path | When |
+|------|------|
+| `npm run runner:tui -- preflight` | Legacy preflight panels (prefer `ai-minions doctor`) |
+| `node run-orchestrator.js …` | Direct runner invocation |
+| `node scripts/run-primary-smoke.mjs --run` | Legacy smoke wrapper (prefer `ai-minions start`) |
 
-Migration table (all legacy scripts): [`ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md). Guided `runner:tui` walkthrough: [`operator-guided-run.md`](docs/how-to/operator-guided-run.md). Slash aliases (doc only): [`operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
+Guided `runner:tui` walkthrough: [`operator-guided-run.md`](docs/how-to/operator-guided-run.md). Slash aliases (doc only): [`operator-slash-commands.md`](docs/how-to/operator-slash-commands.md).
 
-**3d — CLI smoke (Node runner)** — repeatable degraded run + trace path (no Claude chat):
+**Legacy CLI smoke** — repeatable degraded run + trace path (no Claude chat):
 
 ```bash
 cd ai-minions
@@ -315,7 +354,7 @@ Full contract: [`primary-smoke.md`](docs/how-to/primary-smoke.md).
 
 ---
 
-### Stage 4: MCP setup (optional)
+### Stage 6: MCP setup (optional)
 
 MCPs add tools and stronger on-disk gate enforcement. Without them: **degraded mode** — explore OK, weaker transition enforcement.
 
@@ -324,9 +363,9 @@ MCPs add tools and stronger on-disk gate enforcement. Without them: **degraded m
 
 ---
 
-### Stage 5: Full smoke guide
+### Stage 7: Full smoke guide
 
-After Stages 1–4: follow the [happy path runbook](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) (steps 1–8) and [troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) if blocked.
+After Stages 1–2 (and optional advanced stages): follow the [happy path runbook](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) and [troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) if blocked.
 
 Canonical reference: [`usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md). Primary CLI smoke: [`primary-smoke.md`](docs/how-to/primary-smoke.md). Fresh-clone evidence: [`fresh-clone-evidence.md`](docs/how-to/fresh-clone-evidence.md). Token/session habits: [`token-hygiene-guide.md`](docs/orchestrator/token-hygiene-guide.md).
 
