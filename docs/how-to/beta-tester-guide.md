@@ -19,7 +19,7 @@ End-to-end runbook for an **internal operator** playing beta tester: entry path 
 | Evidence chain works | Inspect + bundle scripts exit `0`; `ATTACH.md` fields are copyable |
 | Feedback loop works | GitHub issue filed from bundle skeleton — **actionable without maintainer rewrite** |
 
-Formal checklist + sample issue evidence: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample issue](evidence/beta-dry-run-sample-issue.md). External beta gate matrix: [beta-smoke-matrix](beta-smoke-matrix.md).
+Formal checklist + sample issue evidence: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample issue](evidence/beta-dry-run-sample-issue.md) · [human-ready rehearsal evidence](human-ready-rehearsal-evidence.md). External beta gate matrix: [beta-smoke-matrix](beta-smoke-matrix.md).
 
 ---
 
@@ -82,52 +82,65 @@ git rev-parse --short HEAD
 
 ---
 
-## Phase B — Operator path
+## Phase B — Operator path (product CLI primary)
 
-**Depth:** [operator-guided-run](operator-guided-run.md) · [operator-preflight-bridge](operator-preflight-bridge.md)
+**Depth:** [usage-smoke-guide — Happy path](usage-smoke-guide.md#happy-path-end-to-end-runbook) · [operator-blockers-and-recovery](operator-blockers-and-recovery.md)
 
-Working directory for `runner:tui` commands:
+Working directory:
 
 ```bash
 cd orchestrator
 ```
 
-1. *(Recommended)* Full preflight bridge (bootstrap + operator layers):
+1. Init + doctor:
 
    ```bash
-   node ../scripts/operator-preflight.mjs --install --live
+   npm run ai-minions -- init --model-policy local_only
+   npm run ai-minions -- doctor --model-policy local_only
    ```
 
-2. Runner preflight (model policy — adjust if not using local Ollama):
+2. Launch a short smoke run:
 
    ```bash
-   npm run runner:tui -- preflight --model-policy local_only
-   ```
-
-3. Launch a short smoke run:
-
-   ```bash
-   npm run runner:tui -- run \
+   npm run ai-minions -- start \
      --goal "Dry-run: list three files in the repo root and stop" \
-     --flow single_agent \
-     --model-policy local_only \
-     --skip-gates \
-     --iterations 1
+     --skip-gates --iterations 1 --model-policy local_only
    ```
 
-4. Read status (use `task_id` from run output):
+3. Read status (use `task_id` from run output):
 
    ```bash
-   npm run runner:tui -- status --task-id <task_id>
+   npm run ai-minions -- status --run-id <task_id>
+   npm run ai-minions -- explain --run-id <task_id>
    ```
 
-**Record `task_id`** — required for Phase C. Note terminal status (`done`, `failed`, etc.) and any `OPERATOR_*` blockers.
+**Record `task_id`** — required for Phase C. Note outcome fields and any `reason_code` / `next_safe_action`.
+
+**Legacy path (optional):** [operator-guided-run](operator-guided-run.md) · [operator-preflight-bridge](operator-preflight-bridge.md)
 
 Return to repo root for evidence scripts:
 
 ```bash
 cd ..
 ```
+
+---
+
+## Phase B-alt — Legacy `runner:tui` path *(optional)*
+
+**Depth:** [operator-guided-run](operator-guided-run.md) · [operator-preflight-bridge](operator-preflight-bridge.md)
+
+```bash
+cd orchestrator
+node ../scripts/operator-preflight.mjs --install --live
+npm run runner:tui -- preflight --model-policy local_only
+npm run runner:tui -- run --goal "Dry-run smoke" --flow single_agent \
+  --model-policy local_only --skip-gates --iterations 1
+npm run runner:tui -- status --task-id <task_id>
+cd ..
+```
+
+Use only when comparing legacy vs product CLI paths — not the v0.19 primary rehearsal route.
 
 ---
 
@@ -171,17 +184,19 @@ If inspect reports `INSPECT_*` blockers or bundle reports `BUNDLE_*` failures, i
 
 ---
 
-## Quick reference (command chain)
+## Quick reference (command chain — v0.19 primary)
 
 ```bash
-# From fresh clone (repo root)
+# From fresh clone (repo root) — read PRIVACY.md first
 npm ci && (cd orchestrator && npm ci && cd ..)
 node scripts/bootstrap-preflight.mjs
 cd orchestrator
-npm run runner:tui -- preflight --model-policy local_only
-npm run runner:tui -- run --goal "Dry-run smoke" --flow single_agent \
-  --model-policy local_only --skip-gates --iterations 1
+npm run ai-minions -- init --model-policy local_only
+npm run ai-minions -- doctor --model-policy local_only
+npm run ai-minions -- start --goal "Dry-run smoke" \
+  --skip-gates --iterations 1 --model-policy local_only
 # note task_id from output
+npm run ai-minions -- status --run-id <task_id>
 cd ..
 node scripts/inspect-run-evidence.mjs <task_id>
 node scripts/collect-run-report.mjs <task_id>
@@ -212,4 +227,5 @@ node scripts/collect-run-report.mjs <task_id>
 | [operator-guided-run](operator-guided-run.md) | `runner:tui` phase detail |
 | [operator-feedback-issue](operator-feedback-issue.md) | Form field map |
 | [beta-dry-run-checklist](beta-dry-run-checklist.md) | Scorable checklist + exit bar |
+| [human-ready-rehearsal-evidence](human-ready-rehearsal-evidence.md) | v0.19 rehearsal doc-chain + record |
 | [usage-smoke-guide](usage-smoke-guide.md) | Full happy path + troubleshooting tables |

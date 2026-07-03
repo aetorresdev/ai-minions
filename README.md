@@ -28,7 +28,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Collect run report bundle (`BUNDLE_*`) | [`docs/how-to/collect-run-report.md`](docs/how-to/collect-run-report.md) · `node scripts/collect-run-report.mjs <task_id>` |
 | File operator feedback (GitHub issue form) | [`docs/how-to/operator-feedback-issue.md`](docs/how-to/operator-feedback-issue.md) |
 | Internal beta dry-run (end-to-end runbook) | [`docs/how-to/beta-tester-guide.md`](docs/how-to/beta-tester-guide.md) |
-| Beta dry-run checklist + sample issue | [`docs/how-to/beta-dry-run-checklist.md`](docs/how-to/beta-dry-run-checklist.md) |
+| Beta dry-run checklist + sample issue | [`docs/how-to/beta-dry-run-checklist.md`](docs/how-to/beta-dry-run-checklist.md) · [human-ready rehearsal](docs/how-to/human-ready-rehearsal-evidence.md) |
 | Beta smoke matrix (external beta gate) | [`docs/how-to/beta-smoke-matrix.md`](docs/how-to/beta-smoke-matrix.md) |
 | Beta degraded-mode policy | [`docs/how-to/beta-degraded-mode-policy.md`](docs/how-to/beta-degraded-mode-policy.md) |
 | Beta privacy notice (read before traces/issues) | [`PRIVACY.md`](PRIVACY.md) · [claim/blast-radius](docs/how-to/beta-claim-blast-radius.md) |
