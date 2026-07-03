@@ -1108,7 +1108,7 @@ External usability beta (v0.20.0-beta.1) · human-ready UX polish (v0.19) · pro
 
 ## v0.19.0-alpha.1 — Human-ready UX + privacy rehearsal
 
-**Scope:** README/usage-smoke landing (product CLI primary path); operator blocker/degraded recovery copy; `PRIVACY.md` and claim blast-radius discipline; internal dry-run checklist and rehearsal evidence chain with PRIVACY-before-upload ordering; doc-chain validation script. **Prerequisite:** `v0.18.0-alpha.1` @ `d4adfb7`. **not** external usability beta · **not** production-ready UX · **not** automatic secret stripping · **not** live rehearsal substitute for v0.20 gate.
+**Scope:** README/usage-smoke landing (product CLI primary path); operator blocker/degraded recovery copy; `PRIVACY.md` and claim blast-radius discipline; internal dry-run checklist and rehearsal evidence chain with PRIVACY-before-upload ordering; doc-chain validation script. **Prerequisite:** `v0.18.0-alpha.1` @ `d4adfb7`. not external usability beta · not production-ready UX · not automatic secret stripping · not live rehearsal substitute for v0.20 gate.
 
 **Release claim:** human-readable onboarding and beta feedback path with PRIVACY linked before collect/upload — not external beta open, not legal privacy policy, not live rehearsal complete until operator updates record.
 
