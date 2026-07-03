@@ -12,10 +12,13 @@
 |-------|----------------|------------|
 | **CI claim audit** *(default in PRs)* | Operator docs have no inflated install claims | `node scripts/run-install-evidence.mjs --skip-live` |
 | **Installed CLI CI** *(v0.20 PR gate)* | Product install + `ai-minions --help` from outside repo (doctor skipped) | `node scripts/run-install-evidence.mjs --installed-cli-ci --json` |
-| **Mac/Docker live** | Installed CLI shim + `ai-minions doctor` from target repo | `node scripts/run-install-evidence.mjs --json` on Mac host or Docker with `OLLAMA_HOST` set |
+| **Mac/Docker live (CI)** | Installed CLI shim + doctor inside Docker on self-hosted runner | `.github/workflows/installed-cli-docker-live.yml` |
+| **Mac/Docker live (host)** | Same command on Mac host (optional attestation) | `node scripts/run-install-evidence.mjs --json` on Mac with Ollama |
 | **Live + unit** | Above + orchestrator unit gate | `node scripts/run-install-evidence.mjs --with-npm-test --json` |
 
-**Rule:** CI does **not** require live Ollama. Mac/Docker attestation is **manual** (record SHA + JSON in release notes, checklist, or [human-ready-rehearsal-record.json](evidence/human-ready-rehearsal-record.json)).
+**Rule:** Hosted `ubuntu-latest` does **not** run live Ollama. **Docker live** attestation runs on the **self-hosted** runner (`self-hosted` + `ollama` labels) via GHA — counts as Docker attestation for v0.20. Mac host attestation remains optional unless the runner executes the non-container path.
+
+**Merge gate (E20-4):** PRs must pass **installed CLI CI** (`--installed-cli-ci` on `docs-usage-verify`) **and** **Docker live** (`installed-cli-docker-live` on self-hosted). Fork PRs skip the self-hosted job (same-repo only).
 
 **Legacy:** v0.14 used `operator-preflight.mjs` as the live install chain. v0.20 live path uses **installed `ai-minions`** (`product_cli_install` + `installed_help` + `installed_doctor`).
 
@@ -106,6 +109,21 @@ Evidence classes: `ci_claim_audit` · `installed_cli_ci` · `mac_docker_live_ins
 |----------|------|---------|
 | **Docs usage verify** | PR touching install/docs | `node scripts/run-install-evidence.mjs --skip-live` |
 | **Docs usage verify** | PR touching install/docs | `node scripts/run-install-evidence.mjs --installed-cli-ci --json` |
+| **Installed CLI Docker live** | Same-repo PR + self-hosted runner | `node scripts/run-install-evidence.mjs --json` inside Docker (`installed-cli-docker-live.yml`) |
+
+**Docker live JSON contract** (asserted in CI):
+
+| Field / step | Expected |
+|--------------|----------|
+| `evidence_class` | `mac_docker_live_installed_cli` |
+| `installed_cli_product_cli_install` | `pass` |
+| `installed_cli_installed_help` | `pass` |
+| `installed_cli_installed_doctor` | `pass` |
+| `operator_preflight` | `skip` |
+
+Validator: `node scripts/assert-docker-live-install-evidence.mjs --file report.json`
+
+**Security:** Docker live runs only when `github.repository == 'aetorresdev/ai-minions'` and the PR head is same-repo (not a fork).
 
 ---
 

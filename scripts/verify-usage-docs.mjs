@@ -485,6 +485,8 @@ function checkInstallEvidenceDoc(docText) {
   mustInclude(docText, "INSTALL_EVIDENCE_OK", "install evidence reason code", rel);
   mustInclude(docText, "INSTALL_EVIDENCE_INSTALLED_CLI_FAIL", "installed CLI reason code", rel);
   mustInclude(docText, "--installed-cli-ci", "installed CLI CI gate flag", rel);
+  mustInclude(docText, "installed-cli-docker-live", "Docker live workflow reference", rel);
+  mustInclude(docText, "mac_docker_live_installed_cli", "Docker live evidence class", rel);
   mustInclude(docText, "CLAIM_FORBIDDEN_PHRASE", "claim audit reason code", rel);
   mustInclude(docText, "run-install-evidence.mjs", "install evidence script reference", rel);
   mustInclude(docText, "audit-product-claims.mjs", "claim audit script reference", rel);

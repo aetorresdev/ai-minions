@@ -1,0 +1,107 @@
+# Installed CLI Docker live evidence — self-hosted runner + local Ollama.
+#
+# Prerequisites (one-time on the self-hosted machine):
+#   1. GitHub Actions runner with labels: self-hosted, ollama
+#      (optional dedicated label: ai-minions-local-ollama)
+#   2. Docker available on the runner host
+#   3. Ollama listening at 127.0.0.1:11434 (or OLLAMA_HOST / OLLAMA_PORT on runner env)
+#   4. At least one local model pulled (workflow best-effort pulls qwen2.5-coder:7b)
+#
+# Fork PRs: skipped when head repo ≠ base repo (untrusted code must not run on self-hosted).
+#
+name: Installed CLI Docker live
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installed-cli-docker-live-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "scripts/run-install-evidence.mjs"
+      - "scripts/lib/installed-cli-evidence.mjs"
+      - "scripts/lib/ai-minions-cli-install.mjs"
+      - "scripts/install-ai-minions.mjs"
+      - "scripts/assert-docker-live-install-evidence.mjs"
+      - "orchestrator/**"
+      - "docs/how-to/install-evidence.md"
+      - "docs/how-to/install-ollama-docker-paths.md"
+      - ".github/workflows/installed-cli-docker-live.yml"
+      - "tests/assert-docker-live-install-evidence.test.mjs"
+      - "tests/installed-cli-evidence.test.mjs"
+      - "tests/run-install-evidence.test.mjs"
+
+jobs:
+  installed-cli-docker-live:
+    name: Installed CLI Docker live evidence
+    runs-on: [self-hosted, ollama]
+    if: >-
+      github.repository == 'aetorresdev/ai-minions' &&
+      (github.event_name != 'pull_request' ||
+        github.event.pull_request.head.repo.full_name == github.repository)
+    timeout-minutes: 20
+
+    env:
+      OLLAMA_HOST: ${{ vars.OLLAMA_HOST || '127.0.0.1' }}
+      OLLAMA_PORT: ${{ vars.OLLAMA_PORT || '11434' }}
+      OLLAMA_MODEL: qwen2.5-coder:7b
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Docker available
+        run: docker version
+
+      - name: Verify Ollama reachable from host
+        run: |
+          set -euo pipefail
+          curl -fsS "http://${OLLAMA_HOST}:${OLLAMA_PORT}/api/tags" | \
+            python3 -c "import sys,json; d=json.load(sys.stdin); models=[m['name'] for m in d.get('models',[])]; print('Available models:', models); sys.exit(0 if models else 1)"
+
+      - name: Ensure workflow model is pulled (best-effort)
+        run: |
+          set -euo pipefail
+          if command -v ollama >/dev/null 2>&1; then
+            if ! ollama list 2>/dev/null | grep -qF "$OLLAMA_MODEL"; then
+              echo "Pulling $OLLAMA_MODEL …"
+              ollama pull "$OLLAMA_MODEL" || echo "::warning::ollama pull failed — doctor may block"
+            fi
+          else
+            echo "::notice::ollama CLI not on PATH — assuming model already present in daemon"
+          fi
+
+      - name: Run installed CLI evidence inside Docker
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --network=host \
+            -v "${{ github.workspace }}:/workspace/ai-minions" \
+            -w /workspace/ai-minions \
+            -e OLLAMA_HOST="${OLLAMA_HOST}" \
+            -e OLLAMA_PORT="${OLLAMA_PORT}" \
+            node:20-bookworm \
+            bash -lc '
+              set -euo pipefail
+              node --version
+              cd orchestrator && npm ci
+              cd ..
+              node scripts/run-install-evidence.mjs --json | tee /tmp/install-evidence.json
+              node scripts/assert-docker-live-install-evidence.mjs --file /tmp/install-evidence.json
+            '
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Installed CLI Docker live evidence"
+            echo "- **Evidence class:** \`mac_docker_live_installed_cli\`"
+            echo "- **Runner:** self-hosted, labels \`self-hosted\` + \`ollama\`"
+            echo "- **Container:** \`node:20-bookworm\` with \`--network=host\`"
+            echo "- **Ollama:** \`${OLLAMA_HOST}:${OLLAMA_PORT}\`"
+            echo "- **Gate:** product CLI install + help + doctor inside Docker"
+          } >> "$GITHUB_STEP_SUMMARY"
