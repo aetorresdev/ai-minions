@@ -1118,7 +1118,7 @@ External usability beta (v0.20.0-beta.1) · human-ready UX polish (v0.19) · pro
 - [x] Operator copy polish (blocker/degraded) — merged @ `ed15ebb` (PR #240)
 - [x] Privacy notice + blast-radius — merged @ `aaf76d9` (PR #241)
 - [x] Human-ready rehearsal evidence — merged @ `447470b` (PR #242)
-- [ ] Release-prep + tag `v0.19.0-alpha.1` — release-prep pending; Phase B tag · pre-release · `release` branch pending operator cut
+- [x] Release-prep + tag `v0.19.0-alpha.1` — merged @ `8b6c03e` (PR #243); Phase B tag · pre-release · `release` branch @ `8b6c03e`
 
 ### Out of scope
 
@@ -1127,7 +1127,7 @@ External usability beta (v0.20.0-beta.1) · public beta cohort · production TUI
 ### CERBERUS checks (pre-tag)
 
 - [x] Implementation slices (E19-1 through E19-4) — merged through `447470b` (PR #239–#242)
-- [ ] Release-prep CHANGELOG + checklist claims — release-prep pending + CERBERUS Approve
+- [x] Release-prep CHANGELOG + checklist claims — merged @ `8b6c03e` (PR #243) + CERBERUS Approve
 - [x] No external-beta / production-ready / automatic-stripping claims in lane docs (PR #239–#242)
 - [x] `PRIVACY.md` linked before upload/collect paths in beta docs (PR #241–#242)
 - [x] Rehearsal record honest: `DOC_CHAIN_PASS`, live fields null, `live_run_required_before_v0_20: true` (PR #242)
@@ -1147,7 +1147,9 @@ External usability beta (v0.20.0-beta.1) · public beta cohort · production TUI
 | 2026-07-03 | Workspace @ `447470b` | `node scripts/run-install-evidence.mjs --skip-live` → **OK** |
 | 2026-07-03 | Workspace @ `447470b` | `node scripts/run-beta-gate-hardening-evidence.mjs` → **OK** |
 | 2026-07-03 | Lane PRs #239–#242 | Docs usage verify · Link Check · Markdown Lint — green |
-| 2026-07-03 | Release-prep branch | Pre-tag trivy — inherit lane CI @ `447470b` (doc-only; operator re-run at tag) |
+| 2026-07-03 | Release-prep PR #243 @ `c95ed11` | Docs usage verify · Link Check · Markdown Lint — green |
+| 2026-07-03 | Workspace @ `8b6c03e` | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-07-03 | Phase B operator cut @ `8b6c03e` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 **Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes `CHANGELOG.md` and `docs/orchestrator/alpha-release-checklist.md`; `orchestrator/**` runtime unchanged since lane tip @ `447470b`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `447470b` until tag.
 
@@ -1162,14 +1164,14 @@ External usability beta (v0.20.0-beta.1) · public beta cohort · production TUI
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
 
-- [ ] **Tag target:** `v0.19.0-alpha.1` on release-prep merge commit @ `{prep_sha}`
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.19.0-alpha.1` — pre-release pending
-- [ ] **`release` branch:** align to tag commit (`release_branch_commit` matches `tag_commit`)
+- [x] **Tag target:** `v0.19.0-alpha.1` on release-prep merge commit @ `8b6c03e`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.19.0-alpha.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `8b6c03e` (`release_branch_commit` matches `tag_commit`)
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.19.0-alpha.1] - 2026-07-03**
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+- [x] **Changelog:** section **[0.19.0-alpha.1] - 2026-07-03**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 

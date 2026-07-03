@@ -23,7 +23,7 @@ Nineteenth alpha pre-release: **Human-ready UX + privacy rehearsal** — README 
 | Beta feedback | Beta docs + limitations | **`PRIVACY.md` before upload** · blast-radius · dry-run checklist · sample issue · rehearsal record |
 | Unit tests (orchestrator) | 1214/1214 pass on workspace @ lane tip `268943a` | **1214/1214** pass on workspace @ lane tip `447470b` (docs-only lane; no runtime delta) |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.19.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.19.0-alpha.1` — pre-release published @ tag `8b6c03e`
 
 **Evidence (operator):**
 
@@ -33,9 +33,9 @@ Nineteenth alpha pre-release: **Human-ready UX + privacy rehearsal** — README 
 - Rehearsal chain: `node scripts/run-human-ready-rehearsal-evidence.mjs` → **OK** (doc-chain; live fields null until operator dry-run)
 - Install evidence: `node scripts/run-install-evidence.mjs --skip-live` → **OK** (v0.14 chain regression)
 - Gate hardening: `node scripts/run-beta-gate-hardening-evidence.mjs` → **OK** (v0.15 chain regression)
-- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → inherit lane CI @ `447470b` (doc-only release-prep; operator re-run at tag)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean @ tag `8b6c03e`)
 - Contracts: `PRIVACY.md`, `human-ready-rehearsal-evidence.md`, `operator-blockers-and-recovery.md`, `beta-claim-blast-radius.md`, `beta-dry-run-checklist.md`
-- Lane merged on `master` through rehearsal evidence @ `447470b` (PR #239–#242); release-prep pending merge; Phase B tag · pre-release · `release` branch pending operator cut
+- Lane merged on `master` through rehearsal evidence @ `447470b` (PR #239–#242); release-prep merged @ `8b6c03e` (PR #243); Phase B tag · pre-release · `release` branch @ `8b6c03e`
 - CI: Docs usage verify · Link Check · Markdown Lint — green on lane PRs #239–#242
 
 **Alpha limitations (not production):**
