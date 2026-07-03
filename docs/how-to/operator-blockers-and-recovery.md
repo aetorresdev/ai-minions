@@ -2,7 +2,7 @@
 
 Friendly but precise guide for when the **product CLI** blocks, warns, or finishes in a confusing state. Read this before diving into architecture contracts.
 
-**Primary commands:** `cd orchestrator && npm run ai-minions -- <command>` · Full mapping: [ai-minions-command-migration](ai-minions-command-migration.md)
+**Primary commands:** `ai-minions <command>` (installed shim) · Dev fallback: `cd orchestrator && npm run ai-minions -- <command>` · Full mapping: [ai-minions-command-migration](ai-minions-command-migration.md)
 
 **Related:** [bootstrap-preflight](bootstrap-preflight.md) (`PREFLIGHT_*`) · [operator-preflight-bridge](operator-preflight-bridge.md) (`OPERATOR_*`) · [beta-degraded-mode-policy](beta-degraded-mode-policy.md)
 
@@ -47,23 +47,21 @@ These outcomes look similar in chat; the CLI separates them on purpose.
 Use this sequence before legacy scripts or MODE headers.
 
 ```bash
-cd ai-minions/orchestrator
-
 # 1 — environment + launch readiness
-npm run ai-minions -- doctor --model-policy local_only
-npm run ai-minions -- doctor --live --model-policy local_only   # before worker-agent runs
+ai-minions doctor --model-policy local_only
+ai-minions doctor --live --model-policy local_only   # before worker-agent runs
 
 # 2 — launch (learning smoke may use --skip-gates — degraded, not blocked)
-npm run ai-minions -- start --goal "Smoke: list three files under orchestrator/ and stop" \
+ai-minions start --goal "Smoke: list three files under orchestrator/ and stop" \
   --skip-gates --iterations 1 --model-policy local_only
 
 # 3 — read back outcome (replace <task_id> from start output)
-npm run ai-minions -- status --run-id <task_id>
-npm run ai-minions -- explain --run-id <task_id>
-npm run ai-minions -- evidence --run-id <task_id>
+ai-minions status --run-id <task_id>
+ai-minions explain --run-id <task_id>
+ai-minions evidence --run-id <task_id>
 
 # 4 — ATTACH bundle for GitHub (unchanged script)
-cd ..
+cd ai-minions
 node scripts/collect-run-report.mjs <task_id>
 ```
 

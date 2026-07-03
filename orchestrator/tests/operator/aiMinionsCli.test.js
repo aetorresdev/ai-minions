@@ -165,7 +165,7 @@ describe("ai-minions-cli formatters", () => {
 
   it("formatPlannedCommandMessage includes help fallback", () => {
     assert.match(formatPlannedCommandMessage("future-cmd"), /not implemented in this alpha slice/);
-    assert.match(formatPlannedCommandMessage("future-cmd"), /ai-minions -- --help/);
+    assert.match(formatPlannedCommandMessage("future-cmd"), /ai-minions --help/);
   });
 });
 

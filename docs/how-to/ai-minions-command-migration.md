@@ -1,37 +1,48 @@
-# ai-minions command migration — v0.18 alpha
+# ai-minions command migration — v0.18+ alpha
 
-Maps **shipped scripts and npm aliases** to the **v0.18 product CLI** (`npm run ai-minions`). The product CLI is a **wrapper** over existing contracts — not a second runtime or evidence store.
+Maps **shipped scripts and npm aliases** to the **product CLI** (`ai-minions`). The product CLI is a **wrapper** over existing contracts — not a second runtime or evidence store.
 
-**Contract:** [OPERATOR-STANDARD-UX semantics](../orchestrator/runner-tui-contract.md) · CLI help: `cd orchestrator && npm run ai-minions -- --help`
+**Contract:** [OPERATOR-STANDARD-UX semantics](../orchestrator/runner-tui-contract.md) · CLI help: `ai-minions --help`
 
-**Not claimed:** global npm package · production-ready operator UX · durable `resume` · automatic chat-history stripping.
+**Not claimed:** npm publish / Homebrew global package · production-ready operator UX · durable `resume` · automatic chat-history stripping.
 
 ---
 
 ## Entry point
 
-All commands run from the orchestrator package:
+**Primary (after product install):** run `ai-minions` from any directory — no `cd orchestrator` required.
+
+```bash
+cd ai-minions
+node scripts/install-ai-minions.mjs   # product install — PATH shim + AI_MINIONS_HOME
+cd ~
+ai-minions <command> [options]
+```
+
+Add `--json` on supported commands for machine-readable output.
+
+**Dev fallback** (from clone, no PATH shim):
 
 ```bash
 cd ai-minions/orchestrator
 npm run ai-minions -- <command> [options]
 ```
 
-Add `--json` on supported commands for machine-readable output.
+**Repo-local bootstrap/setup** (not product install): `node scripts/bootstrap-preflight.mjs --install` — see [bootstrap-preflight](bootstrap-preflight.md).
 
 ---
 
 ## Command mapping
 
-| Legacy / shipped path | v0.18 product command | Relationship |
-|----------------------|----------------------|--------------|
-| `node scripts/install-ai-minions.mjs` | `npm run ai-minions -- init` | Wraps install + model discovery + `.ai-minions` config write |
-| `node scripts/bootstrap-preflight.mjs` | `npm run ai-minions -- doctor` | Bootstrap checks included in `doctor` (without `--live`) |
-| `node scripts/operator-preflight.mjs` | `npm run ai-minions -- doctor [--live]` | Chains bootstrap + runner preflight (`PREFLIGHT_*` + `OPERATOR_*`); `--live` adds claude CLI/auth checks |
-| `npm run runner:tui -- preflight` then `run` | `npm run ai-minions -- start --goal "..."` | Same launch path as `runner:tui run` after internal preflight |
-| `npm run runner:tui -- status --run-id <id>` | `npm run ai-minions -- status --run-id <id>` | Operator trace summary over existing JSONL |
-| `npm run explain-run -- --run-id <id>` | `npm run ai-minions -- explain --run-id <id>` | Reason codes + remediation from trace |
-| `node scripts/inspect-run-evidence.mjs <id>` | `npm run ai-minions -- evidence --run-id <id>` | Inspect panel + bundle paths (does not replace collect script) |
+| Legacy / shipped path | Product command | Relationship |
+|----------------------|-----------------|--------------|
+| `node scripts/install-ai-minions.mjs` | `ai-minions init` | Wraps install + model discovery + `.ai-minions` config write |
+| `node scripts/bootstrap-preflight.mjs` | `ai-minions doctor` | Bootstrap checks included in `doctor` (without `--live`) |
+| `node scripts/operator-preflight.mjs` | `ai-minions doctor [--live]` | Chains bootstrap + runner preflight (`PREFLIGHT_*` + `OPERATOR_*`); `--live` adds claude CLI/auth checks |
+| `npm run runner:tui -- preflight` then `run` | `ai-minions start --goal "..."` | Same launch path as `runner:tui run` after internal preflight |
+| `npm run runner:tui -- status --run-id <id>` | `ai-minions status --run-id <id>` | Operator trace summary over existing JSONL |
+| `npm run explain-run -- --run-id <id>` | `ai-minions explain --run-id <id>` | Reason codes + remediation from trace |
+| `node scripts/inspect-run-evidence.mjs <id>` | `ai-minions evidence --run-id <id>` | Inspect panel + bundle paths (does not replace collect script) |
 | `node scripts/collect-run-report.mjs <id>` | *(unchanged)* | Still the canonical ATTACH bundle generator |
 | `node run-orchestrator.js ...` | *(unchanged)* | Direct runner entry — `start` delegates here |
 | `node scripts/run-primary-smoke.mjs` | *(unchanged)* | Smoke harness + trace path note |
@@ -47,22 +58,27 @@ Add `--json` on supported commands for machine-readable output.
 
 ```bash
 cd ai-minions
-node scripts/bootstrap-preflight.mjs --install   # still valid — v0.11 evidence chain
-cd orchestrator
-npm run ai-minions -- init --model-policy local_only
-npm run ai-minions -- doctor --model-policy local_only
-npm run ai-minions -- doctor --live --model-policy local_only   # before worker-agent runs
+node scripts/install-ai-minions.mjs
+ai-minions init --model-policy local_only
+ai-minions doctor --model-policy local_only
+ai-minions doctor --live --model-policy local_only   # before worker-agent runs
+```
+
+Optional harness bootstrap (repo-local setup, separate from product install):
+
+```bash
+node scripts/bootstrap-preflight.mjs --install
+cd orchestrator && npm test
 ```
 
 ### Launch + read back
 
 ```bash
-cd ai-minions/orchestrator
-npm run ai-minions -- start --goal "Smoke: list three files under orchestrator/ and stop" \
+ai-minions start --goal "Smoke: list three files under orchestrator/ and stop" \
   --skip-gates --iterations 1 --model-policy local_only
-npm run ai-minions -- status --run-id <task_id>
-npm run ai-minions -- explain --run-id <task_id>
-npm run ai-minions -- evidence --run-id <task_id>
+ai-minions status --run-id <task_id>
+ai-minions explain --run-id <task_id>
+ai-minions evidence --run-id <task_id>
 ```
 
 ### Evidence bundle (unchanged script)
@@ -82,6 +98,7 @@ node scripts/collect-run-report.mjs <task_id>
 | Wrappers only | `ai-minions` commands call existing modules — no hidden state |
 | Evidence chains | v0.14 install evidence and v0.15 gate-hardening evidence must keep passing |
 | Reason codes | `doctor` preserves `PREFLIGHT_*` / `OPERATOR_*` where the bridge already does |
+| Dev fallback | `npm run ai-minions` from `orchestrator/` remains valid for maintainers |
 
 ---
 
@@ -102,8 +119,8 @@ Human-readable recovery (field glossary, degraded vs blocked, recovery ladder): 
 
 Quick pattern:
 
-1. `npm run ai-minions -- doctor` — fix first FAIL / `blocker:` line.
-2. `npm run ai-minions -- start …` — note `task_id`.
+1. `ai-minions doctor` — fix first FAIL / `blocker:` line.
+2. `ai-minions start …` — note `task_id`.
 3. `status` → `explain` → `evidence` on that `task_id`.
 4. ATTACH bundle still via `node scripts/collect-run-report.mjs <task_id>`.
 

@@ -77,7 +77,7 @@ function parseAiMinionsArgs(argv) {
 function formatPlannedCommandMessage(cmd) {
   return [
     `${cmd}: not implemented in this alpha slice.`,
-    'next_safe_action: npm run ai-minions -- --help',
+    'next_safe_action: ai-minions --help',
   ].join('\n');
 }
 
@@ -141,15 +141,15 @@ function formatInitText(report) {
  */
 function deriveInitNextSafeAction(report) {
   if (report.ok && report.phase === 'config_write') {
-    return 'Run: npm run ai-minions -- start --goal "<goal>" (or npm run runner:tui -- preflight first)';
+    return 'Run: ai-minions start --goal "<goal>" (or npm run runner:tui -- preflight first)';
   }
   if (report.phase === 'host_prereqs') {
-    return 'Fix host prerequisites, then re-run: npm run ai-minions -- init';
+    return 'Fix host prerequisites, then re-run: ai-minions init';
   }
   if (report.phase === 'model_discovery') {
-    return 'Ensure Ollama is reachable with local models, then re-run: npm run ai-minions -- init';
+    return 'Ensure Ollama is reachable with local models, then re-run: ai-minions init';
   }
-  return 'Review blockers above, then re-run: npm run ai-minions -- init';
+  return 'Review blockers above, then re-run: ai-minions init';
 }
 
 /**
@@ -179,7 +179,7 @@ function formatStartText(launched, meta = {}) {
     `  terminal_status:  ${launched.terminal_status}`,
     `  trace_file:       ${traceFile}`,
     `  evidence_path:    ${traceFile}`,
-    `  next_safe_action: npm run ai-minions -- status --run-id ${launched.task_id}`,
+    `  next_safe_action: ai-minions status --run-id ${launched.task_id}`,
   ];
   if (launched.result.summary) {
     lines.push(`  summary:          ${launched.result.summary}`);

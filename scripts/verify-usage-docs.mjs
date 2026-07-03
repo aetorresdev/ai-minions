@@ -167,7 +167,9 @@ function checkGuide(guideText) {
   mustInclude(guideText, "run-primary-smoke.mjs", "primary smoke script reference", rel);
   mustInclude(guideText, "fresh-clone-evidence.md", "fresh-clone evidence link", rel);
   mustInclude(guideText, "ai-minions-command-migration.md", "ai-minions migration link", rel);
-  mustInclude(guideText, "npm run ai-minions", "product CLI reference", rel);
+  mustInclude(guideText, "ai-minions init", "installed product CLI reference", rel);
+  mustInclude(guideText, "install-ai-minions.mjs", "product install script", rel);
+  mustInclude(guideText, "npm run ai-minions", "dev fallback reference", rel);
   mustInclude(guideText, "RUN_RESUME_NOT_IMPLEMENTED", "resume honest probe", rel);
   mustInclude(guideText, "operator-blockers-and-recovery.md", "blockers recovery link", rel);
   mustInclude(guideText, "## Advanced paths", "advanced paths section", rel);
@@ -618,7 +620,7 @@ function checkOperatorBlockersRecoveryDoc(docText) {
   mustInclude(docText, "degraded_mode", "degraded mode field", rel);
   mustInclude(docText, "RUN_RESUME_NOT_IMPLEMENTED", "honest resume limitation", rel);
   mustInclude(docText, "--skip-gates", "skip gates degraded honesty", rel);
-  mustInclude(docText, "npm run ai-minions -- doctor", "doctor recovery command", rel);
+  mustInclude(docText, "ai-minions doctor", "doctor recovery command", rel);
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy link", rel);
   mustInclude(docText, "Not claimed", "not claimed disclaimer", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
@@ -642,7 +644,9 @@ function checkHumanReadyRehearsalEvidenceDoc(docText) {
 function checkAiMinionsMigrationDoc(docText) {
   const rel = "docs/how-to/ai-minions-command-migration.md";
   if (!docText) return;
-  mustInclude(docText, "npm run ai-minions", "product CLI entry", rel);
+  mustInclude(docText, "ai-minions <command>", "installed product CLI entry", rel);
+  mustInclude(docText, "npm run ai-minions", "dev fallback entry", rel);
+  mustInclude(docText, "install-ai-minions.mjs", "product install script", rel);
   mustInclude(docText, "init", "init command", rel);
   mustInclude(docText, "start", "start command", rel);
   mustInclude(docText, "status", "status command", rel);
@@ -674,9 +678,9 @@ function checkGuideHappyPathPrimaryOrdering(guideText) {
   const happy = extractMarkdownSection(guideText, "## Happy path");
   if (!happy) fail(`${rel}: missing Happy path section`);
 
-  mustInclude(happy, "npm run ai-minions -- start", "product CLI start in happy path", rel);
+  mustInclude(happy, "ai-minions start", "product CLI start in happy path", rel);
 
-  const startIdx = happy.indexOf("npm run ai-minions -- start");
+  const startIdx = happy.indexOf("ai-minions start");
   const legacyIdx = happy.indexOf("run-primary-smoke.mjs");
   if (legacyIdx !== -1 && startIdx !== -1 && legacyIdx < startIdx) {
     fail(`${rel}: run-primary-smoke.mjs appears before ai-minions start in happy path`);
@@ -688,10 +692,12 @@ function checkReadmeProductCliPrimaryOrdering(readmeText) {
   const quickstart = extractMarkdownSection(readmeText, "## Quickstart");
   if (!quickstart) fail(`${rel}: missing Quickstart section`);
 
-  mustInclude(quickstart, "npm run ai-minions -- init", "product CLI init in Quickstart", rel);
+  mustInclude(quickstart, "ai-minions init", "product CLI init in Quickstart", rel);
+  mustInclude(quickstart, "install-ai-minions.mjs", "product install in Quickstart", rel);
+  mustInclude(quickstart, "npm run ai-minions", "dev fallback in Quickstart", rel);
   mustInclude(quickstart, "RUN_RESUME_NOT_IMPLEMENTED", "resume honest probe in Quickstart", rel);
 
-  const aiIdx = quickstart.indexOf("npm run ai-minions -- init");
+  const aiIdx = quickstart.indexOf("ai-minions init");
   const runnerIdx = quickstart.indexOf("npm run runner:tui");
   if (runnerIdx !== -1 && aiIdx !== -1 && runnerIdx < aiIdx) {
     fail(`${rel} Quickstart: npm run runner:tui appears before product CLI init path`);
@@ -733,7 +739,9 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "operator-blockers-and-recovery.md", "blockers recovery doc link", rel);
   mustInclude(readmeText, "human-ready-rehearsal-evidence.md", "rehearsal evidence doc link", rel);
   mustInclude(readmeText, "PRIVACY.md", "privacy notice link", rel);
-  mustInclude(readmeText, "npm run ai-minions", "product CLI reference", rel);
+  mustInclude(readmeText, "ai-minions init", "installed product CLI reference", rel);
+  mustInclude(readmeText, "install-ai-minions.mjs", "product install script", rel);
+  mustInclude(readmeText, "npm run ai-minions", "dev fallback reference", rel);
 
   checkReadmeProductCliPrimaryOrdering(readmeText);
   checkForbiddenClaimsForDoc(readmeText, rel);
