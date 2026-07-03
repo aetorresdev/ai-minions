@@ -25,38 +25,24 @@ Canonical **end-to-end happy path** for trying **ai-minions** without tribal kno
 
 ---
 
-## v0.18 product CLI (`ai-minions`)
-
-From `orchestrator/`, the **product CLI** wraps shipped install, preflight, launch, and trace-read paths:
-
-```bash
-cd ai-minions/orchestrator
-npm run ai-minions -- init --model-policy local_only
-npm run ai-minions -- doctor --model-policy local_only
-npm run ai-minions -- start --goal "Smoke: list three files under orchestrator/ and stop" \
-  --skip-gates --iterations 1
-npm run ai-minions -- status --run-id <task_id>
-npm run ai-minions -- explain --run-id <task_id>
-```
-
-Full mapping (legacy scripts → commands): [ai-minions-command-migration.md](ai-minions-command-migration.md). **`runner:tui`**, **`run-orchestrator.js`**, and **`run-primary-smoke.mjs`** remain valid — wrappers do not replace them in v0.18.
-
----
-
 ## Happy path (end-to-end runbook)
+
+**Primary path:** product CLI (`npm run ai-minions`) — same sequence as [README Quickstart Stage 2](../../README.md#stage-2-product-cli-ai-minions).
 
 Follow **in order**. You do not need prior chat context or maintainer hints. If a step fails, jump to [Troubleshooting](#troubleshooting).
 
 | Step | What to do | Pass signal |
 |------|------------|-------------|
 | **1** | Clone and validate the Node harness | `npm test` exits 0 |
-| **2** | Try a simple skill in Claude Code | Model responds using a repo skill |
-| **3** | Paste a minimal orchestration header | Session accepts `MODE` / `FLOW` / `GOAL` |
-| **4** | Run one CLI smoke command | Terminal prints `Done` and a **Task ID**; trace JSONL on known path |
-| **5** | Inspect the trace | `explain-run` or `tokens:report` reads the JSONL |
-| **6** *(optional)* | Wire secrets correctly | Vars in shell for the orchestrator process; header lists **names** only |
-| **7** *(optional)* | MCP + gates | Understand `DEGRADED MODE` vs strict gates |
-| **8** *(optional)* | TUI depth check | Eight cases in [TUI checklist](tui-manual-smoke-checklist.md) |
+| **2** | `ai-minions init` | `0` + config paths |
+| **3** | `ai-minions doctor` | `0` + no blocking `PREFLIGHT_*` |
+| **4** | `ai-minions start` (live smoke run) | `0` + `done: true` · record **Task ID** |
+| **5** | `status` + `explain` | `0` + terminal summary + critical decision fields |
+| **6** | `evidence` + `context` | `0` + inspect/bundle paths + disclosure panel |
+| **7** | `resume` (honest probe) | `2` + `RUN_RESUME_NOT_IMPLEMENTED` — **not** durable resume |
+| **8** *(optional)* | Claude Code skill / MODE / legacy scripts | See [Advanced paths](#advanced-paths-optional) |
+
+Full command mapping (legacy scripts → product CLI): [ai-minions-command-migration.md](ai-minions-command-migration.md).
 
 ### Step 1 — Clone and validate
 
@@ -72,7 +58,85 @@ npm test
 
 `npm test` validates the **Node harness only** — not full live orchestration with worker agents.
 
-### Step 2 — Simple skill (no MODE header)
+### Step 2 — Init (`ai-minions`)
+
+```bash
+cd ai-minions/orchestrator
+npm run ai-minions -- init --model-policy local_only
+```
+
+Pass: exit `0` and printed config paths.
+
+### Step 3 — Doctor
+
+```bash
+npm run ai-minions -- doctor --model-policy local_only
+```
+
+Pass: exit `0` with no blocking `PREFLIGHT_*` reason codes.
+
+### Step 4 — Start (live smoke run)
+
+Requires `claude` CLI authenticated (`claude auth status`).
+
+```bash
+npm run ai-minions -- start --goal "Smoke: list three files under orchestrator/ and stop" \
+  --skip-gates --iterations 1
+```
+
+Pass: exit `0`, console shows `done: true`, **Task ID**, and step snippets. `--skip-gates` is **degraded mode** (banner visible) — fine for first contact.
+
+Default trace path (override with `ORCH_TRACES_DIR`):
+
+```text
+~/.claude/metrics/traces/<task_id>.jsonl
+```
+
+### Step 5 — Status and explain
+
+Replace `<task_id>` with the Task ID from Step 4:
+
+```bash
+npm run ai-minions -- status --run-id <task_id>
+npm run ai-minions -- explain --run-id <task_id>
+```
+
+Pass: exit `0` and human-readable summary with critical decision fields.
+
+Optional legacy inspect:
+
+```bash
+cd ..
+node scripts/run-primary-smoke.mjs --inspect <task_id>
+cd orchestrator
+npm run explain-run -- --run-id <task_id>
+npm run tokens:report -- <task_id>
+```
+
+### Step 6 — Evidence and context
+
+```bash
+npm run ai-minions -- evidence --run-id <task_id>
+npm run ai-minions -- context --run-id <task_id>
+```
+
+Pass: exit `0` with inspect/bundle paths and trace disclosure panel.
+
+### Step 7 — Resume (honest probe)
+
+```bash
+npm run ai-minions -- resume --run-id <task_id>
+```
+
+Pass: exit `2` with `RUN_RESUME_NOT_IMPLEMENTED`. **Not** durable session resume.
+
+---
+
+## Advanced paths (optional)
+
+Use after happy path Steps 1–7 when you need Claude Code IDE flows, MODE contracts, or legacy script debugging.
+
+### Simple skill (Claude Code, no MODE header)
 
 In Claude Code, with the repo open:
 
@@ -80,9 +144,9 @@ In Claude Code, with the repo open:
 Review this Dockerfile
 ```
 
-Pass: the model follows a skill from `skills/`. This does **not** exercise orchestrator gates or traces.
+Pass: the model follows a skill from `skills/`. Does **not** exercise orchestrator gates or traces.
 
-### Step 3 — Orchestration header (Claude Code)
+### Orchestration header (Claude Code)
 
 Paste at the **start** of a new chat:
 
@@ -93,21 +157,15 @@ GOAL: Smoke test — list three files in the repo root and stop
 MAX_ITERATIONS: 1
 ```
 
-Pass: the session runs under the MODE contract (not vague “act as orchestrator” prose). For background/multi-repo runs, add `FLOW: multi_agent` and absolute `CWD` — see [Canonical orchestration header](#canonical-orchestration-header).
+Pass: the session runs under the MODE contract. For background/multi-repo runs, add `FLOW: multi_agent` and absolute `CWD` — see [Canonical orchestration header](#canonical-orchestration-header).
 
-### Step 4 — CLI smoke run
+### Legacy CLI smoke (`run-primary-smoke.mjs`)
 
-**Smoke note** (prints canonical command + trace path — no live run):
+**Not** the primary happy path.
 
 ```bash
 cd ai-minions
 node scripts/run-primary-smoke.mjs
-```
-
-**Live run** (same stable command the wrapper documents):
-
-```bash
-cd ai-minions
 node scripts/run-primary-smoke.mjs --run
 ```
 
@@ -118,29 +176,9 @@ cd ai-minions/orchestrator
 node run-orchestrator.js --skip-gates --iterations 1 "Smoke: list three files under orchestrator/ and stop"
 ```
 
-Pass: exit `0`, console shows `Done`, **Task ID**, and step snippets. `--skip-gates` is **degraded mode** (banner visible) — fine for first contact. Full contract: [primary-smoke.md](primary-smoke.md).
+Full contract: [primary-smoke.md](primary-smoke.md). **`runner:tui`** remains valid — see [operator-guided-run.md](operator-guided-run.md).
 
-### Step 5 — Inspect trace
-
-Note the **Task ID** from Step 4, then:
-
-```bash
-cd ai-minions
-node scripts/run-primary-smoke.mjs --inspect <task_id>
-cd orchestrator
-npm run explain-run -- --run-id <task_id>
-npm run tokens:report -- <task_id>
-```
-
-Default trace path (override with `ORCH_TRACES_DIR`):
-
-```text
-~/.claude/metrics/traces/<task_id>.jsonl
-```
-
-Pass: JSONL exists and `explain-run` summarizes the run without errors.
-
-### Step 6 — Secrets and `.env` *(optional)*
+### Secrets and `.env` *(optional)*
 
 **Values** must be in **`process.env`** for the shell that starts the runner (`resolveCredentials()` reads `process.env[envVar]`). **Permission** is declared in the header (`ENVIRONMENT`).
 
@@ -175,11 +213,11 @@ ENVIRONMENT:
 
 Rules: [Environment contract](#environment-contract-values-vs-permission) · full schema: [`environment-access.md`](../orchestrator/environment-access.md).
 
-### Step 7 — MCP and gates *(optional)*
+### MCP and gates *(optional)*
 
 Without MCPs or with `--skip-gates`, the runner prints **⚠ DEGRADED MODE** — transitions are not recorded on disk. For gate smoke, configure MCPs per [orchestrator README — With hard gates](../../orchestrator/README.md).
 
-### Step 8 — TUI checklist *(optional)*
+### TUI checklist *(optional)*
 
 Run the eight manual cases in [tui-manual-smoke-checklist.md](tui-manual-smoke-checklist.md) when validating IDE-only behavior.
 
@@ -202,7 +240,7 @@ Symptom-first reference. Stable `reason_code` values and full check list: [boots
 | Credential “not available” | Vars unset in the orchestrator shell or names mismatch | Ensure `EXAMPLE_*` exist in the **shell running** `run-orchestrator.js` / Claude session. If using `.env.local`, `source`/`export` it before the run; header `vars` must match **exact** env var names |
 | Agent used API without permission | No `ENVIRONMENT` block in header | Add `ENVIRONMENT` with names only — `.env` alone does **not** grant permission |
 | `multi_agent` hooks silent | Wrong `CWD` or hooks not installed | `CWD` must be absolute real path; check `logs/orchestrator.log` under clone if hooks enabled |
-| TUI ignores MODE header | Header not at **start** of chat or paraphrased | Paste exact block from [Step 3](#step-3--orchestration-header-claude-code) |
+| TUI ignores MODE header | Header not at **start** of chat or paraphrased | Paste exact block from [Advanced paths — orchestration header](#orchestration-header-claude-code) |
 | Overclaim confusion | README vs runbook mismatch | Use **implemented / planned / not claimed** — [README maturity](../../README.md#maturity-implemented--planned--not-claimed) |
 
 ### Quick diagnostic commands
@@ -234,12 +272,13 @@ Maturity table: [README — Maturity](../../README.md#maturity-implemented--plan
 
 ---
 
-## Two ways to run work
+## How to run work
 
 | Path | You use | Best for |
 |------|---------|----------|
-| **CLI runner** | `node run-orchestrator.js` from `orchestrator/` | Repeatable smoke, CI-style checks, inspecting traces without Claude chat |
-| **Claude Code TUI** | Paste a MODE header (or a simple skill prompt) in the IDE | Day-to-day assisted work; hooks can launch the same runner on `multi_agent`; optional skill allowlist via `ORCH_SKILL_REGISTRY_ENFORCE=1` |
+| **Product CLI** *(primary)* | `npm run ai-minions -- init/doctor/start/status/…` | First contact, repeatable operator smoke, human-ready onboarding |
+| **Legacy CLI runner** | `node run-orchestrator.js`, `run-primary-smoke.mjs`, `runner:tui` | Debugging wrappers, older runbooks, deeper control |
+| **Claude Code TUI** | Paste a MODE header (or a simple skill prompt) in the IDE | Day-to-day assisted work; hooks can launch the same runner on `multi_agent` |
 
 **Do not conflate them:** a failure in the Node runner (gates, Ollama, MCP) is not the same as “the model ignored a restriction in chat.” Use the [TUI checklist](tui-manual-smoke-checklist.md) for IDE-only behavior.
 

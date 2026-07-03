@@ -153,7 +153,10 @@ function checkGuide(guideText) {
   mustInclude(guideText, "fresh-clone-evidence.md", "fresh-clone evidence link", rel);
   mustInclude(guideText, "ai-minions-command-migration.md", "ai-minions migration link", rel);
   mustInclude(guideText, "npm run ai-minions", "product CLI reference", rel);
+  mustInclude(guideText, "RUN_RESUME_NOT_IMPLEMENTED", "resume honest probe", rel);
+  mustInclude(guideText, "## Advanced paths", "advanced paths section", rel);
 
+  checkGuideHappyPathPrimaryOrdering(guideText);
   checkForbiddenClaimsForDoc(guideText, rel);
   mustNotHaveBacklogCaseIdsForDoc(guideText, rel);
 }
@@ -568,6 +571,48 @@ function checkAiMinionsMigrationDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function extractMarkdownSection(text, heading) {
+  const start = text.indexOf(heading);
+  if (start === -1) return "";
+  const rest = text.slice(start + heading.length);
+  const next = rest.search(/\n## /);
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
+function checkGuideHappyPathPrimaryOrdering(guideText) {
+  const rel = "docs/how-to/usage-smoke-guide.md";
+  const happy = extractMarkdownSection(guideText, "## Happy path");
+  if (!happy) fail(`${rel}: missing Happy path section`);
+
+  mustInclude(happy, "npm run ai-minions -- start", "product CLI start in happy path", rel);
+
+  const startIdx = happy.indexOf("npm run ai-minions -- start");
+  const legacyIdx = happy.indexOf("run-primary-smoke.mjs");
+  if (legacyIdx !== -1 && startIdx !== -1 && legacyIdx < startIdx) {
+    fail(`${rel}: run-primary-smoke.mjs appears before ai-minions start in happy path`);
+  }
+}
+
+function checkReadmeProductCliPrimaryOrdering(readmeText) {
+  const rel = "README.md";
+  const quickstart = extractMarkdownSection(readmeText, "## Quickstart");
+  if (!quickstart) fail(`${rel}: missing Quickstart section`);
+
+  mustInclude(quickstart, "npm run ai-minions -- init", "product CLI init in Quickstart", rel);
+  mustInclude(quickstart, "RUN_RESUME_NOT_IMPLEMENTED", "resume honest probe in Quickstart", rel);
+
+  const aiIdx = quickstart.indexOf("npm run ai-minions -- init");
+  const runnerIdx = quickstart.indexOf("npm run runner:tui");
+  if (runnerIdx !== -1 && aiIdx !== -1 && runnerIdx < aiIdx) {
+    fail(`${rel} Quickstart: npm run runner:tui appears before product CLI init path`);
+  }
+
+  const goalLine = quickstart.split("\n").find((line) => line.startsWith("**Goal:**"));
+  if (goalLine && !goalLine.includes("ai-minions init")) {
+    fail(`${rel} Quickstart goal must lead with product CLI (ai-minions init)`);
+  }
+}
+
 function checkReadmeAlignment(readmeText, guideText) {
   const rel = "README.md";
   mustInclude(readmeText, "MODE: ORCHESTRATOR", "Quickstart MODE header", rel);
@@ -597,6 +642,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "ai-minions-command-migration.md", "ai-minions migration doc link", rel);
   mustInclude(readmeText, "npm run ai-minions", "product CLI reference", rel);
 
+  checkReadmeProductCliPrimaryOrdering(readmeText);
   checkForbiddenClaimsForDoc(readmeText, rel);
 
   if (guideText && readmeText) {
