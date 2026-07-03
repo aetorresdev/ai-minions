@@ -8,13 +8,16 @@ Minimal **bootstrap + preflight** for a clean clone — fail-closed with **stabl
 
 **Related:** [Usage smoke guide — Step 1](usage-smoke-guide.md#step-1--clone-and-validate) · [Harness health checkpoints](harness-health-checkpoints.md) · [Runner TUI preflight](../../orchestrator/README.md) (Ollama/model policy — separate from this script)
 
-### Product install security (CLI shim)
+## Product install security (CLI shim)
 
 `node scripts/install-ai-minions.mjs` (product install) is separate from bootstrap preflight:
 
-- Emits stable `INSTALL_*` reason codes on blocked paths (`INSTALL_PATH_NOT_ON_PATH`, `INSTALL_HOME_UNSET`, `INSTALL_CLI_SHIM_VALIDATION_FAILED`, …).
+- Emits stable `INSTALL_*` reason codes on blocked paths:
+  `INSTALL_PATH_NOT_ON_PATH`, `INSTALL_HOME_UNSET`,
+  `INSTALL_CLI_SHIM_VALIDATION_FAILED`, …
 - Validates shim targets with `realpath` — product CLI must stay inside `AI_MINIONS_HOME`.
-- Does **not** write `.bashrc`, `.zshrc`, or profile files; PATH remediation is printed for the operator to apply manually.
+- Does **not** write `.bashrc`, `.zshrc`, or profile files.
+  PATH remediation is printed for the operator to apply manually.
 - Does **not** print secret env values in stdout/stderr/JSON reports.
 - Negative-test matrix: `tests/install-ai-minions-preflight-security.test.mjs`.
 
