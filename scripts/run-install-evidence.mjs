@@ -20,14 +20,19 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
  * @param {StepResult[]} steps
  * @param {Awaited<ReturnType<typeof runInstalledCliEvidence>>} installed
  */
-function appendInstalledCliSteps(steps, installed) {
+export function appendInstalledCliSteps(steps, installed) {
   for (const sub of installed.steps) {
-    steps.push({
+    /** @type {StepResult} */
+    const step = {
       id: `installed_cli_${sub.id}`,
-      reason_code: sub.status === "fail" ? REASON_CODES.INSTALLED_CLI : REASON_CODES.OK,
+      reason_code: sub.reason_code,
       status: sub.status === "skip" ? "skip" : sub.status,
       message: sub.message,
-    });
+    };
+    if (sub.status === "fail") {
+      step.evidence_reason_code = REASON_CODES.INSTALLED_CLI;
+    }
+    steps.push(step);
   }
 }
 
@@ -60,7 +65,7 @@ export const REASON_CODES = {
 };
 
 /** @typedef {'pass' | 'fail' | 'skip'} StepStatus */
-/** @typedef {{ id: string, reason_code: string, status: StepStatus, message: string }} StepResult */
+/** @typedef {{ id: string, reason_code: string, status: StepStatus, message: string, evidence_reason_code?: string }} StepResult */
 
 /**
  * @param {{
@@ -70,12 +75,14 @@ export const REASON_CODES = {
  *   skipLive?: boolean,
  *   installedCliCi?: boolean,
  *   skipInstalledDoctor?: boolean,
+ *   runInstalledCliEvidence?: typeof runInstalledCliEvidence,
  * }} [options]
  * @returns {Promise<{ ok: boolean, steps: StepResult[], evidence_class: string }>}
  */
 export async function runInstallEvidence(options = {}) {
   const repoRoot = options.repoRoot ?? REPO_ROOT;
   const modelPolicy = options.modelPolicy ?? "local_only";
+  const runInstalledCli = options.runInstalledCliEvidence ?? runInstalledCliEvidence;
   /** @type {StepResult[]} */
   const steps = [];
 
@@ -99,7 +106,7 @@ export async function runInstallEvidence(options = {}) {
       message: "installed CLI evidence skipped (--skip-live)",
     });
   } else if (options.installedCliCi) {
-    const installed = await runInstalledCliEvidence({
+    const installed = await runInstalledCli({
       repoRoot,
       modelPolicy,
       skipDoctor: true,
@@ -107,7 +114,7 @@ export async function runInstallEvidence(options = {}) {
     appendInstalledCliSteps(steps, installed);
     appendLegacyInstallSkips(steps, "installed_cli_ci");
   } else {
-    const installed = await runInstalledCliEvidence({
+    const installed = await runInstalledCli({
       repoRoot,
       modelPolicy,
       skipDoctor: options.skipInstalledDoctor === true,

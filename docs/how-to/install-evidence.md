@@ -83,7 +83,11 @@ node scripts/audit-product-claims.mjs
 |------|---------|
 | `INSTALL_EVIDENCE_OK` | Step passed |
 | `INSTALL_EVIDENCE_INSTALL_FAIL` | Product install chain blocked |
-| `INSTALL_EVIDENCE_INSTALLED_CLI_FAIL` | Installed shim / help / doctor blocked |
+| `INSTALL_EVIDENCE_INSTALLED_CLI_FAIL` | Summary umbrella on installed CLI substeps (`evidence_reason_code` when `status: fail`) |
+| `INSTALLED_CLI_PRODUCT_FAIL` | Product shim install blocked |
+| `INSTALLED_CLI_HELP_FAIL` | `ai-minions --help` failed from outside repo |
+| `INSTALLED_CLI_DOCTOR_FAIL` | `ai-minions doctor` blocked (live Mac/Docker needs Ollama) |
+| `INSTALLED_CLI_SKIPPED` | Substep skipped (e.g. doctor in `--installed-cli-ci`) |
 | `INSTALL_EVIDENCE_OPERATOR_FAIL` | Legacy operator-preflight blocked *(v0.14 only; skipped in v0.20 live)* |
 | `INSTALL_EVIDENCE_CLAIM_AUDIT_FAIL` | Claim audit blocked |
 | `INSTALL_EVIDENCE_NPM_TEST_FAIL` | `npm test` failed when `--with-npm-test` |
