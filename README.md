@@ -239,7 +239,9 @@ Live `start` requires `claude` CLI (`claude auth status`). `npm test` alone does
 
 ---
 
-### Stage 3: Run a simple skill *(advanced — Claude Code)*
+### Stage 3: Run a simple skill
+
+*Advanced — Claude Code.*
 
 In Claude Code, send a skill prompt **without** a MODE header:
 
@@ -251,7 +253,9 @@ Confirms the editor loads repo skills. Does **not** exercise orchestrator gates,
 
 ---
 
-### Stage 4: Run orchestration in Claude Code *(advanced)*
+### Stage 4: Run orchestration in Claude Code
+
+*Advanced.*
 
 **4a — Minimal run** (files/specs only, no live APIs):
 
@@ -323,7 +327,9 @@ The header references `EXAMPLE_API_URL` and `EXAMPLE_API_TOKEN` under `vars` —
 
 ---
 
-### Stage 5: Legacy and deeper control *(advanced / troubleshooting)*
+### Stage 5: Legacy and deeper control
+
+*Advanced / troubleshooting.*
 
 Use when debugging wrappers, comparing trace paths, or following older runbooks. **Not** the primary onboarding path.
 
