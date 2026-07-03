@@ -225,32 +225,40 @@ Run the eight manual cases in [tui-manual-smoke-checklist.md](tui-manual-smoke-c
 
 ## Troubleshooting
 
-Symptom-first reference. Stable `reason_code` values and full check list: [bootstrap-preflight.md](bootstrap-preflight.md).
+**Start here when blocked:** [operator-blockers-and-recovery.md](operator-blockers-and-recovery.md) — read `next_safe_action` on stdout, then use the recovery ladder (`doctor` → `start` → `status` / `explain` / `evidence`).
+
+Symptom-first reference below. Stable `reason_code` values and full check list: [bootstrap-preflight.md](bootstrap-preflight.md) · `PREFLIGHT_*` / `OPERATOR_*` bridge: [operator-preflight-bridge.md](operator-preflight-bridge.md).
 
 | Symptom | Likely cause | What to do |
 |---------|--------------|------------|
-| `npm test` fails on clone | Node under 18, stale `node_modules`, network during `npm ci` | `node scripts/bootstrap-preflight.mjs --install` → `PREFLIGHT_NPM_CI` / `PREFLIGHT_NPM_TEST`; or `node --version` (≥ 18) |
-| `npm test` passes but CLI run hangs/fails | `claude` CLI missing or not authenticated | `claude --version`; `claude auth status`; install/login per Anthropic docs |
-| `Ollama` / planner errors | Ollama not running or model missing | `curl -sS http://127.0.0.1:11434/api/tags`; `ollama list`; start Ollama or use `--skip-gates` for a degraded learning run |
-| **⚠ DEGRADED MODE** banner | `--skip-gates` and/or MCPs not registered | **Expected** for Steps 4–5; install MCPs + remove `--skip-gates` for strict gates — [strict-mode](../orchestrator/strict-mode.md) |
-| Exit `1` — no goal | Empty argv and empty stdin | Pass goal as argument or pipe: `echo "Smoke: OK" \| node run-orchestrator.js --skip-gates --iterations 1` |
-| No trace file / wrong path | Wrong Task ID or custom `ORCH_TRACES_DIR` | Copy Task ID from run output; `node scripts/run-primary-smoke.mjs --inspect <task_id>`; see [primary-smoke.md](primary-smoke.md) |
-| `compact_handoff failed` (strict) | Ollama unreachable with gates on | Start Ollama or run degraded (`--skip-gates`) while learning |
-| Gate blocked / `gateBlocked: true` | Handoff contract, goal alignment, or permission gate | `npm run explain-run -- --run-id <task_id>`; inspect `gate_result`, `contract_fail` events |
-| Credential “not available” | Vars unset in the orchestrator shell or names mismatch | Ensure `EXAMPLE_*` exist in the **shell running** `run-orchestrator.js` / Claude session. If using `.env.local`, `source`/`export` it before the run; header `vars` must match **exact** env var names |
+| `npm run ai-minions -- doctor` exit `2` | Bootstrap or launch preflight failed | Read FAIL lines + `next_safe_action`; fix first `PREFLIGHT_*` or `OPERATOR_*` — [blockers guide](operator-blockers-and-recovery.md#common-blockers-symptom--meaning--fix) |
+| `npm test` fails on clone | Node under 18, stale `node_modules`, network during `npm ci` | `npm run ai-minions -- doctor` or `node scripts/bootstrap-preflight.mjs --install` → `PREFLIGHT_NPM_CI`; or `node --version` (≥ 18) |
+| `npm test` passes but `start` hangs/fails | `claude` CLI missing or not authenticated | `npm run ai-minions -- doctor --live`; `claude --version`; `claude auth status` |
+| Ollama / planner errors | Ollama not running or model missing | `npm run ai-minions -- doctor --model-policy local_only`; `curl -sS http://127.0.0.1:11434/api/tags`; or `--skip-gates` for a **degraded** learning run only |
+| **⚠ DEGRADED MODE** banner | `--skip-gates` and/or MCPs not registered | **Expected** for learning smokes; not a bug — [degraded vs blocked](operator-blockers-and-recovery.md#blocked-vs-degraded-vs-failed) · strict gates: [strict-mode](../orchestrator/strict-mode.md) |
+| `start` exit `2` — preflight blocked | Launch layer not ready | Re-run `doctor`; read `blocker:` on stderr |
+| `status` / `explain` exit `2` | Wrong `task_id` or custom `ORCH_TRACES_DIR` | Copy `task_id` from `start` output; `npm run ai-minions -- explain --run-id <task_id>` |
+| Exit `1` — no goal (legacy runner) | Empty argv and empty stdin | Product path: pass `--goal "..."` to `ai-minions start`; legacy: pipe goal to `run-orchestrator.js` |
+| `compact_handoff failed` (strict) | Ollama unreachable with gates on | Start Ollama or use `--skip-gates` while learning (degraded — not beta PASS) |
+| Gate blocked / `gateBlocked: true` | Handoff contract, goal alignment, or permission gate | `npm run ai-minions -- explain --run-id <task_id>`; inspect `gate_result`, `contract_fail` events |
+| Credential “not available” | Vars unset in the orchestrator shell or names mismatch | Ensure `EXAMPLE_*` exist in the **shell running** the runner. If using `.env.local`, `source`/`export` it before the run; header `vars` must match **exact** env var names |
 | Agent used API without permission | No `ENVIRONMENT` block in header | Add `ENVIRONMENT` with names only — `.env` alone does **not** grant permission |
 | `multi_agent` hooks silent | Wrong `CWD` or hooks not installed | `CWD` must be absolute real path; check `logs/orchestrator.log` under clone if hooks enabled |
 | TUI ignores MODE header | Header not at **start** of chat or paraphrased | Paste exact block from [Advanced paths — orchestration header](#orchestration-header-claude-code) |
+| `resume` exit `2` | Durable resume not implemented | `RUN_RESUME_NOT_IMPLEMENTED` — use `status` / `explain` or new `start` ([blockers guide](operator-blockers-and-recovery.md)) |
 | Overclaim confusion | README vs runbook mismatch | Use **implemented / planned / not claimed** — [README maturity](../../README.md#maturity-implemented--planned--not-claimed) |
 
 ### Quick diagnostic commands
 
 ```bash
+cd ai-minions/orchestrator
+npm run ai-minions -- doctor --model-policy local_only
+npm run ai-minions -- doctor --live --model-policy local_only
+
 cd ai-minions
-node scripts/bootstrap-preflight.mjs
-node scripts/bootstrap-preflight.mjs --live   # before worker-agent runs
-node scripts/run-primary-smoke.mjs            # smoke note + trace path
 node scripts/run-fresh-clone-evidence.mjs     # entry-path evidence + claim audit
+node scripts/bootstrap-preflight.mjs            # legacy bootstrap-only path
+node scripts/run-primary-smoke.mjs              # legacy smoke note + trace path
 ```
 
 ### When to file an issue

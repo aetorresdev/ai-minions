@@ -96,9 +96,25 @@ node scripts/collect-run-report.mjs <task_id>
 
 ---
 
+## When blocked or degraded
+
+Human-readable recovery (field glossary, degraded vs blocked, recovery ladder): [operator-blockers-and-recovery.md](operator-blockers-and-recovery.md).
+
+Quick pattern:
+
+1. `npm run ai-minions -- doctor` — fix first FAIL / `blocker:` line.
+2. `npm run ai-minions -- start …` — note `task_id`.
+3. `status` → `explain` → `evidence` on that `task_id`.
+4. ATTACH bundle still via `node scripts/collect-run-report.mjs <task_id>`.
+
+`--skip-gates` is **degraded mode** (learning OK; strict beta evidence often **no**). See [beta-degraded-mode-policy](beta-degraded-mode-policy.md).
+
+---
+
 ## Related
 
 - [usage-smoke-guide](usage-smoke-guide.md) — full happy path
+- [operator-blockers-and-recovery](operator-blockers-and-recovery.md) — when blocked or degraded
 - [operator-guided-run](operator-guided-run.md) — `runner:tui` detail (still valid)
 - [bootstrap-preflight](bootstrap-preflight.md) — `PREFLIGHT_*` reason codes
 - [inspect-run-evidence](inspect-run-evidence.md) · [collect-run-report](collect-run-report.md)
