@@ -84,12 +84,21 @@ jobs:
             -w /workspace/ai-minions \
             -e OLLAMA_HOST="${OLLAMA_HOST}" \
             -e OLLAMA_PORT="${OLLAMA_PORT}" \
+            -e OLLAMA_MODEL="${OLLAMA_MODEL}" \
             node:20-bookworm \
             bash -lc '
               set -euo pipefail
               node --version
+              apt-get update -qq
+              apt-get install -y -qq curl ca-certificates python3-pip
+              pip3 install --break-system-packages -q ruff
+              curl -LsSf https://astral.sh/uv/0.6.14/install.sh | sh
+              export PATH="$HOME/.local/bin:$PATH"
               cd orchestrator && npm ci
-              cd ..
+              cd ../mcp-servers/orchestrator-state && uv sync --quiet
+              cd ../compact-handoff && uv sync --quiet
+              cd /workspace/ai-minions
+              node scripts/install-ai-minions.mjs --install --model-policy local_only --json >/tmp/product-install.json
               node scripts/run-install-evidence.mjs --json | tee /tmp/install-evidence.json
               node scripts/assert-docker-live-install-evidence.mjs --file /tmp/install-evidence.json
             '

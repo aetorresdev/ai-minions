@@ -123,6 +123,8 @@ Evidence classes: `ci_claim_audit` · `installed_cli_ci` · `mac_docker_live_ins
 
 Validator: `node scripts/assert-docker-live-install-evidence.mjs --file report.json`
 
+**Container setup (workflow):** `node:20-bookworm` with `--network=host` installs `ruff`, `uv`, runs `npm ci`, `uv sync` for MCP servers, `install-ai-minions.mjs --install`, then `run-install-evidence.mjs --json`.
+
 **Security:** Docker live runs only when `github.repository == 'aetorresdev/ai-minions'` and the PR head is same-repo (not a fork).
 
 ---
