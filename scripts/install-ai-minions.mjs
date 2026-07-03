@@ -10,7 +10,11 @@
  *
  * Usage:
  *   node scripts/install-ai-minions.mjs [--json] [--install] [--model-policy local_only|remote_ok]
+ *   node scripts/install-ai-minions.mjs [--skip-cli] [--no-install]   # bootstrap-only (repo-local setup)
  *   ./install.sh [same options]
+ *
+ * Product install (default): writes ~/.local/bin/ai-minions shim + ~/.config/ai-minions/home.
+ * Requires bin dir on PATH or exits blocked with INSTALL_PATH_NOT_ON_PATH remediation.
  */
 
 import fs from "node:fs";
@@ -18,6 +22,13 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import {
+  CLI_INSTALL_REASON_CODES,
+  productCliInstallOk,
+  runCliInstall,
+} from "./lib/ai-minions-cli-install.mjs";
+
+export { CLI_INSTALL_REASON_CODES, productCliInstallOk, runCliInstall };
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -335,6 +346,8 @@ export async function runHostPrereqChecks(repoRoot, orchDir, options = {}) {
  *   normalizeInstallDiscovery?: (result: import('../orchestrator/local-model-discovery.js').LocalModelDiscoveryResult) => object,
  *   writeInstallModelConfig?: typeof import('../orchestrator/install-model-config.js').writeInstallModelConfig,
  *   configWriteOptions?: object,
+ *   cliInstall?: boolean,
+ *   cliInstallOptions?: object,
  * }} [options]
  */
 export async function runInstallAiMinions(options = {}) {
@@ -343,8 +356,18 @@ export async function runInstallAiMinions(options = {}) {
   const modelPolicy = normalizeModelPolicy(options.modelPolicy);
 
   const { checks: hostChecks, hostOk } = await runHostPrereqChecks(repoRoot, orchDir, options);
+
+  /** @type {Awaited<ReturnType<typeof runCliInstall>> | null} */
+  let cliInstall = null;
+  if (options.cliInstall !== false && hostOk) {
+    cliInstall = await runCliInstall({
+      repoRoot,
+      ...(options.cliInstallOptions ?? {}),
+    });
+  }
+
   if (!hostOk) {
-    return {
+    return attachProductFields({
       ok: false,
       phase: "host_prereqs",
       model_policy: modelPolicy,
@@ -352,7 +375,7 @@ export async function runInstallAiMinions(options = {}) {
       repo_root: repoRoot,
       checks: hostChecks,
       discovery: null,
-    };
+    }, cliInstall);
   }
 
   const discoverLocalModels =
@@ -371,7 +394,7 @@ export async function runInstallAiMinions(options = {}) {
   let configWrite = null;
 
   if (!discoveryOk || modelCount === 0) {
-    return {
+    return attachProductFields({
       ok: discoveryOk,
       phase: "model_discovery",
       model_policy: modelPolicy,
@@ -382,7 +405,7 @@ export async function runInstallAiMinions(options = {}) {
       config_write: null,
       inference_profiles_written: false,
       inference_profile_mode: null,
-    };
+    }, cliInstall);
   }
 
   const writeInstallModelConfig =
@@ -394,7 +417,7 @@ export async function runInstallAiMinions(options = {}) {
     const allChecks = [...checks, ...configChecks];
     configWrite = writeResult;
 
-    return {
+    return attachProductFields({
       ok: checksOk(allChecks),
       phase: "config_write",
       model_policy: modelPolicy,
@@ -406,7 +429,7 @@ export async function runInstallAiMinions(options = {}) {
       inference_profiles_written: writeResult.inference_profiles_written,
       inference_profile_mode: writeResult.inference_profile_mode,
       default_model: writeResult.default_model,
-    };
+    }, cliInstall);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const failChecks = [
@@ -418,7 +441,7 @@ export async function runInstallAiMinions(options = {}) {
         message,
       },
     ];
-    return {
+    return attachProductFields({
       ok: false,
       phase: "config_write",
       model_policy: modelPolicy,
@@ -429,8 +452,20 @@ export async function runInstallAiMinions(options = {}) {
       config_write: null,
       inference_profiles_written: false,
       inference_profile_mode: null,
-    };
+    }, cliInstall);
   }
+}
+
+/**
+ * @param {Record<string, unknown>} report
+ * @param {Awaited<ReturnType<typeof runCliInstall>> | null} cliInstall
+ */
+function attachProductFields(report, cliInstall) {
+  const withCli = { ...report, cli_install: cliInstall ?? null };
+  return {
+    ...withCli,
+    product_cli_ok: productCliInstallOk(withCli),
+  };
 }
 
 /**
@@ -451,7 +486,21 @@ export function formatReportText(report) {
     `  model_policy: ${report.model_policy ?? "(not set)"}`,
     `  model_policy_mode: ${report.model_policy_mode} (declarative intent — discovery enforcement active for local inventory)`,
     `  ok: ${report.ok}`,
+    `  product_cli_ok: ${report.product_cli_ok === true}`,
   ];
+
+  if (report.cli_install) {
+    lines.push(`  cli_install.phase: ${report.cli_install.phase}`);
+    lines.push(`  cli_install.shim_path: ${report.cli_install.shim_path ?? "(none)"}`);
+    lines.push(`  cli_install.config_path: ${report.cli_install.config_path ?? "(none)"}`);
+    if (report.cli_install.path_remediation) {
+      lines.push(`  path_remediation: ${report.cli_install.path_remediation}`);
+    }
+    for (const c of report.cli_install.checks ?? []) {
+      const tag = c.status === "pass" ? "PASS" : c.status === "warn" ? "WARN" : "FAIL";
+      lines.push(`  [CLI ${tag}] ${c.reason_code} — ${c.message}`);
+    }
+  }
 
   if (report.default_model) {
     lines.push(`  default_model: ${report.default_model}`);
@@ -485,10 +534,15 @@ export function formatReportText(report) {
 export function parseArgs(argv) {
   /** @type {string | null} */
   let modelPolicyRaw = null;
+  /** @type {string | null} */
+  let binDir = null;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--model-policy" && argv[i + 1]) {
       modelPolicyRaw = argv[i + 1];
+      i += 1;
+    } else if (arg === "--bin-dir" && argv[i + 1]) {
+      binDir = argv[i + 1];
       i += 1;
     }
   }
@@ -496,9 +550,12 @@ export function parseArgs(argv) {
   return {
     json: argv.includes("--json"),
     install: argv.includes("--install"),
+    noInstall: argv.includes("--no-install"),
+    skipCli: argv.includes("--skip-cli"),
     help: argv.includes("-h") || argv.includes("--help"),
     modelPolicy,
     modelPolicyRaw,
+    binDir,
   };
 }
 
@@ -510,14 +567,21 @@ async function main() {
   node scripts/install-ai-minions.mjs [options]
 
 Options:
-  --install              Run npm ci when orchestrator/node_modules is missing
+  --install              Run npm ci when orchestrator/node_modules is missing (also default for product install)
+  --no-install           Skip npm ci even when node_modules is missing
+  --skip-cli             Repo-local bootstrap only — do not install ~/.local/bin/ai-minions shim
+  --bin-dir <path>       Override CLI shim directory (default: ~/.local/bin)
   --model-policy <mode>  local_only | remote_ok
                          local_only: fail when Ollama unreachable or no local models
                          remote_ok: warn when local inventory missing (not remote provider setup)
   --json                 Machine-readable report on stdout
   -h, --help             Show this help
 
-Phases: host prereqs → model discovery (Ollama) → config write (.ai-minions/).
+Phases: host prereqs → CLI shim install (product) → model discovery (Ollama) → config write (.ai-minions/).
+
+Product install writes ~/.config/ai-minions/home and ~/.local/bin/ai-minions (PATH required).
+CLI reason codes include INSTALL_PATH_NOT_ON_PATH, INSTALL_PATH_BIN_WRITE_FAILED,
+INSTALL_HOME_CONFIG_WRITE_FAILED, INSTALL_CLI_SHIM_VALIDATION_FAILED.
 
 Install reason codes include INSTALL_OLLAMA_UNREACHABLE, INSTALL_LOCAL_MODELS_EMPTY,
 INSTALL_MODEL_DISCOVERY_DENIED during discovery; INSTALL_ROLE_MODEL_CONFIG_WRITTEN,
@@ -538,7 +602,9 @@ See docs/orchestrator/model-config-ownership.md for YAML vs JSON ownership.
   }
 
   const report = await runInstallAiMinions({
-    install: args.install,
+    install: args.noInstall ? false : true,
+    cliInstall: !args.skipCli,
+    cliInstallOptions: args.binDir ? { binDir: path.resolve(args.binDir) } : {},
     modelPolicy: args.modelPolicy,
   });
 
@@ -548,14 +614,21 @@ See docs/orchestrator/model-config-ownership.md for YAML vs JSON ownership.
     process.stdout.write(`${formatReportText(report)}\n`);
   }
 
-  if (!report.ok) {
+  const exitOk = args.skipCli ? report.ok : report.product_cli_ok === true;
+
+  if (!exitOk) {
     const blockers = report.checks.filter((c) => c.status === "fail");
     for (const b of blockers) {
       process.stderr.write(`blocker: ${b.reason_code}\n`);
     }
+    if (report.cli_install) {
+      for (const b of report.cli_install.checks.filter((c) => c.status === "fail")) {
+        process.stderr.write(`blocker: ${b.reason_code}\n`);
+      }
+    }
   }
 
-  process.exit(report.ok ? 0 : 1);
+  process.exit(exitOk ? 0 : 1);
 }
 
 const isMain =

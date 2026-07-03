@@ -34,6 +34,14 @@ const INSTALL_SCRIPT = path.join(REPO_ROOT, 'scripts', 'install-ai-minions.mjs')
  * @param {string | undefined} cwd
  */
 function resolveInstallRepoRoot(cwd) {
+  const fromHome = process.env.AI_MINIONS_HOME;
+  if (fromHome && String(fromHome).trim()) {
+    const homeRoot = path.resolve(String(fromHome).trim());
+    if (fs.existsSync(path.join(homeRoot, 'orchestrator', 'package.json'))) {
+      return homeRoot;
+    }
+  }
+
   const candidate = cwd ? path.resolve(String(cwd)) : REPO_ROOT;
 
   if (fs.existsSync(path.join(candidate, 'orchestrator', 'package.json'))) {
