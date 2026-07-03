@@ -8,7 +8,6 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { defaultBinDir, defaultConfigDir, runCliInstall } from "./ai-minions-cli-install.mjs";
-import { runInstallAiMinions } from "../install-ai-minions.mjs";
 
 export const INSTALLED_CLI_REASON_CODES = {
   OK: "INSTALLED_CLI_EVIDENCE_OK",
@@ -46,8 +45,6 @@ export function spawnInstalledShim(shimPath, args, options) {
  *   binDir?: string,
  *   skipDoctor?: boolean,
  *   modelPolicy?: string,
- *   commandExists?: (cmd: string) => boolean,
- *   discoverLocalModels?: Function,
  * }} [options]
  * @returns {Promise<{
  *   ok: boolean,
@@ -65,33 +62,21 @@ export async function runInstalledCliEvidence(options) {
   /** @type {Array<{ id: string, reason_code: string, status: 'pass'|'fail'|'skip', message: string }>} */
   const steps = [];
 
-  const installReport = await runInstallAiMinions({
+  const installReport = await runCliInstall({
     repoRoot,
-    install: false,
-    cliInstall: true,
-    modelPolicy: options.modelPolicy ?? "local_only",
-    commandExists: options.commandExists,
-    discoverLocalModels:
-      options.discoverLocalModels
-      ?? (async () => ({
-        backends: [{ backend_id: "ollama", available: false, host: "localhost", port: 11434, reason: "down" }],
-        models: [],
-        missing_local_backend: "missing local backend: ollama unreachable",
-      })),
-    cliInstallOptions: {
-      homeDir,
-      binDir,
-      configDir,
-      pathEnv: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
-    },
+    homeDir,
+    binDir,
+    configDir,
+    pathEnv: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
   });
 
-  if (installReport.product_cli_ok !== true) {
+  if (installReport.ok !== true) {
+    const blocker = installReport.checks?.find((c) => c.status === "fail");
     steps.push({
       id: "product_cli_install",
       reason_code: INSTALLED_CLI_REASON_CODES.PRODUCT_CLI,
       status: "fail",
-      message: "product_cli_ok false after install-ai-minions",
+      message: blocker?.message ?? "runCliInstall failed",
     });
     return { ok: false, home_dir: homeDir, bin_dir: binDir, steps };
   }
@@ -100,10 +85,10 @@ export async function runInstalledCliEvidence(options) {
     id: "product_cli_install",
     reason_code: INSTALLED_CLI_REASON_CODES.OK,
     status: "pass",
-    message: `product CLI shim installed (${installReport.cli_install?.shim_path})`,
+    message: `product CLI shim installed (${installReport.shim_path})`,
   });
 
-  const shimPath = installReport.cli_install?.shim_path;
+  const shimPath = installReport.shim_path;
   if (!shimPath || !fs.existsSync(shimPath)) {
     steps.push({
       id: "installed_help",

@@ -32,11 +32,6 @@ describe("installed-cli-evidence", () => {
     const report = await runInstalledCliEvidence({
       repoRoot: REPO_ROOT,
       skipDoctor: true,
-      discoverLocalModels: async () => ({
-        backends: [{ backend_id: "ollama", available: false, host: "localhost", port: 11434, reason: "down" }],
-        models: [],
-        missing_local_backend: "missing local backend: ollama unreachable",
-      }),
     });
     const install = report.steps.find((s) => s.id === "product_cli_install");
     const help = report.steps.find((s) => s.id === "installed_help");
@@ -56,11 +51,6 @@ describe("installed-cli-evidence", () => {
       repoRoot,
       homeDir,
       skipDoctor: true,
-      discoverLocalModels: async () => ({
-        backends: [],
-        models: [],
-        missing_local_backend: "missing local backend: ollama unreachable",
-      }),
     });
     const install = report.steps.find((s) => s.id === "product_cli_install");
     assert.equal(install?.status, "fail");
