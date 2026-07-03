@@ -1106,6 +1106,71 @@ External usability beta (v0.20.0-beta.1) · human-ready UX polish (v0.19) · pro
 - [x] **Changelog:** section **[0.18.0-alpha.1] - 2026-07-02**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.19.0-alpha.1 — Human-ready UX + privacy rehearsal
+
+**Scope:** README/usage-smoke landing (product CLI primary path); operator blocker/degraded recovery copy; `PRIVACY.md` and claim blast-radius discipline; internal dry-run checklist and rehearsal evidence chain with PRIVACY-before-upload ordering; doc-chain validation script. **Prerequisite:** `v0.18.0-alpha.1` @ `d4adfb7`. not external usability beta · not production-ready UX · not automatic secret stripping · not live rehearsal substitute for v0.20 gate.
+
+**Release claim:** human-readable onboarding and beta feedback path with PRIVACY linked before collect/upload — not external beta open, not legal privacy policy, not live rehearsal complete until operator updates record.
+
+### Must-have bundle
+
+- [x] README human-ready landing — merged @ `61d06ce` (PR #239)
+- [x] Operator copy polish (blocker/degraded) — merged @ `ed15ebb` (PR #240)
+- [x] Privacy notice + blast-radius — merged @ `aaf76d9` (PR #241)
+- [x] Human-ready rehearsal evidence — merged @ `447470b` (PR #242)
+- [ ] Release-prep + tag `v0.19.0-alpha.1` — release-prep pending; Phase B tag · pre-release · `release` branch pending operator cut
+
+### Out of scope
+
+External usability beta (v0.20.0-beta.1) · public beta cohort · production TUI · global npm package · automatic secret stripping · legal/SaaS privacy policy · durable session resume · architecture refactor complete · live rehearsal record filled (operator Phase B+ before v0.20).
+
+### CERBERUS checks (pre-tag)
+
+- [x] Implementation slices (E19-1 through E19-4) — merged through `447470b` (PR #239–#242)
+- [ ] Release-prep CHANGELOG + checklist claims — release-prep pending + CERBERUS Approve
+- [x] No external-beta / production-ready / automatic-stripping claims in lane docs (PR #239–#242)
+- [x] `PRIVACY.md` linked before upload/collect paths in beta docs (PR #241–#242)
+- [x] Rehearsal record honest: `DOC_CHAIN_PASS`, live fields null, `live_run_required_before_v0_20: true` (PR #242)
+
+### Forbidden release claims (v0.19)
+
+"external beta open" · "production-ready UX" · "automatic secret stripping" · "public beta cohort" · "legal privacy policy" · "live rehearsal complete" (until operator dry-run) · "architecture refactor complete".
+
+#### v0.19 validation log (release-prep)
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-07-03 | Workspace @ `447470b` — lane tip | `cd orchestrator && npm test` → **1214/1214** pass |
+| 2026-07-03 | Workspace @ `447470b` | `node scripts/verify-usage-docs.mjs` → **OK** |
+| 2026-07-03 | Workspace @ `447470b` | `node scripts/audit-product-claims.mjs` → **OK** |
+| 2026-07-03 | Workspace @ `447470b` | `node scripts/run-human-ready-rehearsal-evidence.mjs` → **OK** |
+| 2026-07-03 | Workspace @ `447470b` | `node scripts/run-install-evidence.mjs --skip-live` → **OK** |
+| 2026-07-03 | Workspace @ `447470b` | `node scripts/run-beta-gate-hardening-evidence.mjs` → **OK** |
+| 2026-07-03 | Lane PRs #239–#242 | Docs usage verify · Link Check · Markdown Lint — green |
+| 2026-07-03 | Release-prep branch | Pre-tag trivy — inherit lane CI @ `447470b` (doc-only; operator re-run at tag) |
+
+**Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes `CHANGELOG.md` and `docs/orchestrator/alpha-release-checklist.md`; `orchestrator/**` runtime unchanged since lane tip @ `447470b`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `447470b` until tag.
+
+| Check | Lane / baseline |
+|-------|-----------------|
+| orchestrator-unit-tests | lane baseline @ `268943a` (PR #237); unchanged @ `447470b` |
+| orchestrator-e2e | lane merge CI on PRs #232–#236 |
+| Docs usage verify | lane PR #242 @ `447470b` |
+| security-trivy-scan | lane baseline @ `268943a`; doc-only lane inherits |
+
+### Release execution plan (locked on release-prep merge — Phase B operator steps)
+
+**Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
+
+- [ ] **Tag target:** `v0.19.0-alpha.1` on release-prep merge commit @ `{prep_sha}`
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.19.0-alpha.1` — pre-release pending
+- [ ] **`release` branch:** align to tag commit (`release_branch_commit` matches `tag_commit`)
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.19.0-alpha.1] - 2026-07-03**
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.

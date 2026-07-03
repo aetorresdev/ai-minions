@@ -6,6 +6,67 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.19.0-alpha.1] - 2026-07-03
+
+Nineteenth alpha pre-release: **Human-ready UX + privacy rehearsal** — README and usage-smoke landing with product CLI as primary path; operator blocker/degraded recovery copy; beta privacy notice and claim blast-radius discipline; internal dry-run checklist and rehearsal evidence chain with PRIVACY-before-upload ordering; doc-chain validation script (`run-human-ready-rehearsal-evidence.mjs`).
+
+**Release claim:** human-readable onboarding and beta feedback path (clone → `npm run ai-minions` → evidence bundle → GitHub issue) with PRIVACY linked before collect/upload instructions and machine-checkable rehearsal record (`DOC_CHAIN_PASS`) — **not** external usability beta open, **not** production-ready operator UX, **not** automatic secret stripping in attachments, **not** legal privacy policy or SaaS compliance attestation, **not** substitute for live operator rehearsal before **v0.20.0-beta.1**.
+
+**Prerequisite:** `v0.18.0-alpha.1` — Standard Operator UX @ `d4adfb7`.
+
+**Since [0.18.0-alpha.1]:** v0.18 centered on **standard operator UX** (product CLI router, trace summary, migration docs, evidence regression). v0.19 adds **human-ready landing and beta rehearsal docs** — README/usage-smoke primary path, blocker recovery guide, `PRIVACY.md`, blast-radius table, dry-run checklist alignment, sample issue + rehearsal record — without runtime, trace, or gate changes.
+
+| Area | `v0.18.0-alpha.1` | `v0.19.0-alpha.1` (delta) |
+|------|-------------------|---------------------------|
+| Focus | Standard operator UX — `ai-minions` product CLI · trace summary · migration docs | Human-ready UX — README landing · privacy/blast-radius · blocker copy · rehearsal evidence chain |
+| Onboarding narrative | Product CLI documented; skill/MODE still prominent in quickstart goal | **Product CLI primary path** in README/usage-smoke; skill/MODE/legacy = advanced |
+| Beta feedback | Beta docs + limitations | **`PRIVACY.md` before upload** · blast-radius · dry-run checklist · sample issue · rehearsal record |
+| Unit tests (orchestrator) | 1214/1214 pass on workspace @ lane tip `268943a` | **1214/1214** pass on workspace @ lane tip `447470b` (docs-only lane; no runtime delta) |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.19.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1214/1214** pass on workspace @ lane tip `447470b`
+- Usage docs: `node scripts/verify-usage-docs.mjs` → **OK**
+- Claim audit: `node scripts/audit-product-claims.mjs` → **OK**
+- Rehearsal chain: `node scripts/run-human-ready-rehearsal-evidence.mjs` → **OK** (doc-chain; live fields null until operator dry-run)
+- Install evidence: `node scripts/run-install-evidence.mjs --skip-live` → **OK** (v0.14 chain regression)
+- Gate hardening: `node scripts/run-beta-gate-hardening-evidence.mjs` → **OK** (v0.15 chain regression)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → inherit lane CI @ `447470b` (doc-only release-prep; operator re-run at tag)
+- Contracts: `PRIVACY.md`, `human-ready-rehearsal-evidence.md`, `operator-blockers-and-recovery.md`, `beta-claim-blast-radius.md`, `beta-dry-run-checklist.md`
+- Lane merged on `master` through rehearsal evidence @ `447470b` (PR #239–#242); release-prep pending merge; Phase B tag · pre-release · `release` branch pending operator cut
+- CI: Docs usage verify · Link Check · Markdown Lint — green on lane PRs #239–#242
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — alpha harness; human operator owns tag, pre-release, and `release` branch.
+- **Not** external usability beta — targeted for **v0.20.0-beta.1** after v0.19 closeout and live rehearsal record update.
+- **Not** automatic secret stripping — privacy-scan + manual redaction; operators must read `PRIVACY.md` before upload.
+- **Not** legal privacy policy — `PRIVACY.md` is a beta operator notice, not SaaS compliance attestation.
+- **Not** live rehearsal complete — `human-ready-rehearsal-record.json` is `DOC_CHAIN_PASS` until operator dry-run fills live fields.
+- **Not** durable resume — `ai-minions resume` remains `RUN_RESUME_NOT_IMPLEMENTED` (exit `2`).
+
+### Added
+
+- `PRIVACY.md` — beta privacy notice linked before external feedback/upload paths.
+- `docs/how-to/operator-blockers-and-recovery.md` — blocked vs degraded vs failed copy and recovery ladder.
+- `docs/how-to/beta-claim-blast-radius.md` — claim blast-radius table for beta-facing docs.
+- `docs/how-to/human-ready-rehearsal-evidence.md` + `docs/how-to/evidence/human-ready-rehearsal-record.json` + `scripts/run-human-ready-rehearsal-evidence.mjs` — internal rehearsal runbook and doc-chain evidence.
+
+### Changed
+
+- README + `usage-smoke-guide.md` — product CLI primary path; skill/MODE/legacy scoped as advanced.
+- `beta-dry-run-checklist.md`, `beta-tester-guide.md`, `beta-dry-run-sample-issue.md` — PRIVACY-first ordering and product CLI dry-run path.
+- `verify-usage-docs.mjs` and claim audit — rehearsal doc/script/record guards and privacy-before-bundle markers.
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Live operator rehearsal must update `human-ready-rehearsal-record.json` before **v0.20.0-beta.1** gate matrix.
+- Next roadmap lane after cut: **v0.20.0-beta.1** first external usability beta (pending v0.19 closeout + live rehearsal).
+- Non-blocking carry-forward: GitHub issue template title still references `runner:tui`; neutralize when convenient.
+
 ## [0.18.0-alpha.1] - 2026-07-02
 
 Eighteenth alpha pre-release: **Standard Operator UX** — product CLI (`npm run ai-minions`) wrapping install, preflight, launch, trace readback, doctor, evidence, and context disclosure; operator trace summary with critical decision fields; migration documentation and verify-usage/claim-audit wiring; and bundled hygiene doc slices (fresh-review cross-refs, corpus index, skill boundary ST-1, shim retirement plan).
