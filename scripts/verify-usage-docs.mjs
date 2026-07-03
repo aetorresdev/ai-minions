@@ -31,6 +31,10 @@ const OPERATOR_PREFLIGHT_SCRIPT = path.join(REPO_ROOT, "scripts/operator-preflig
 const OPERATOR_PREFLIGHT_BRIDGE = path.join(REPO_ROOT, "docs/how-to/operator-preflight-bridge.md");
 const OPERATOR_GUIDED_RUN = path.join(REPO_ROOT, "docs/how-to/operator-guided-run.md");
 const AI_MINIONS_MIGRATION = path.join(REPO_ROOT, "docs/how-to/ai-minions-command-migration.md");
+const OPERATOR_BLOCKERS_RECOVERY = path.join(
+  REPO_ROOT,
+  "docs/how-to/operator-blockers-and-recovery.md",
+);
 const INSPECT_RUN_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/inspect-run-evidence.md");
 const INSPECT_RUN_SCRIPT = path.join(REPO_ROOT, "scripts/inspect-run-evidence.mjs");
 const COLLECT_RUN_REPORT = path.join(REPO_ROOT, "docs/how-to/collect-run-report.md");
@@ -154,6 +158,7 @@ function checkGuide(guideText) {
   mustInclude(guideText, "ai-minions-command-migration.md", "ai-minions migration link", rel);
   mustInclude(guideText, "npm run ai-minions", "product CLI reference", rel);
   mustInclude(guideText, "RUN_RESUME_NOT_IMPLEMENTED", "resume honest probe", rel);
+  mustInclude(guideText, "operator-blockers-and-recovery.md", "blockers recovery link", rel);
   mustInclude(guideText, "## Advanced paths", "advanced paths section", rel);
 
   checkGuideHappyPathPrimaryOrdering(guideText);
@@ -550,6 +555,20 @@ function checkBetaSmokeMatrixDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkOperatorBlockersRecoveryDoc(docText) {
+  const rel = "docs/how-to/operator-blockers-and-recovery.md";
+  if (!docText) return;
+  mustInclude(docText, "next_safe_action", "next_safe_action field glossary", rel);
+  mustInclude(docText, "degraded_mode", "degraded mode field", rel);
+  mustInclude(docText, "RUN_RESUME_NOT_IMPLEMENTED", "honest resume limitation", rel);
+  mustInclude(docText, "--skip-gates", "skip gates degraded honesty", rel);
+  mustInclude(docText, "npm run ai-minions -- doctor", "doctor recovery command", rel);
+  mustInclude(docText, "beta-degraded-mode-policy", "degraded policy link", rel);
+  mustInclude(docText, "Not claimed", "not claimed disclaimer", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkAiMinionsMigrationDoc(docText) {
   const rel = "docs/how-to/ai-minions-command-migration.md";
   if (!docText) return;
@@ -567,6 +586,7 @@ function checkAiMinionsMigrationDoc(docText) {
   mustInclude(docText, "install-evidence", "v0.14 evidence chain link", rel);
   mustInclude(docText, "beta-gate-hardening-evidence", "v0.15 evidence chain link", rel);
   mustInclude(docText, "not a second runtime", "no duplicate SoT disclaimer", rel);
+  mustInclude(docText, "operator-blockers-and-recovery.md", "blockers recovery link", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -640,6 +660,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "run-modular-closeout-evidence.mjs", "modular closeout evidence script", rel);
   mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
   mustInclude(readmeText, "ai-minions-command-migration.md", "ai-minions migration doc link", rel);
+  mustInclude(readmeText, "operator-blockers-and-recovery.md", "blockers recovery doc link", rel);
   mustInclude(readmeText, "npm run ai-minions", "product CLI reference", rel);
 
   checkReadmeProductCliPrimaryOrdering(readmeText);
@@ -676,6 +697,7 @@ function main() {
   const operatorBridgeText = readUtf8(OPERATOR_PREFLIGHT_BRIDGE);
   const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
   const aiMinionsMigrationText = readUtf8(AI_MINIONS_MIGRATION);
+  const operatorBlockersRecoveryText = readUtf8(OPERATOR_BLOCKERS_RECOVERY);
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
   const collectReportText = readUtf8(COLLECT_RUN_REPORT);
   const betaLimitationsText = readUtf8(BETA_KNOWN_LIMITATIONS);
@@ -751,6 +773,7 @@ function main() {
   if (operatorBridgeText) checkOperatorPreflightBridgeDoc(operatorBridgeText);
   if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
   if (aiMinionsMigrationText) checkAiMinionsMigrationDoc(aiMinionsMigrationText);
+  if (operatorBlockersRecoveryText) checkOperatorBlockersRecoveryDoc(operatorBlockersRecoveryText);
   if (inspectEvidenceText) checkInspectRunEvidenceDoc(inspectEvidenceText);
   if (collectReportText) checkCollectRunReportDoc(collectReportText);
   if (betaLimitationsText) checkBetaKnownLimitationsDoc(betaLimitationsText);

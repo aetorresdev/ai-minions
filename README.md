@@ -13,7 +13,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) · [Happy path](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) |
 | Clone + install + unit tests | [Stage 1: Install and validate locally](#stage-1-install-and-validate-locally) |
 | Alpha boundaries and caveats | [Known limitations (alpha)](#known-limitations-alpha) · [Beta limitations (v0.15)](docs/how-to/beta-known-limitations.md) |
-| Something failed during smoke | [Troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) |
+| Something failed during smoke | [Blockers and recovery](docs/how-to/operator-blockers-and-recovery.md) · [Troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) |
 | **Advanced — Claude Code skill** (no MODE header) | [Stage 3: Run a simple skill](#stage-3-run-a-simple-skill) |
 | **Advanced — MODE orchestration** | [Stage 4: Run orchestration in Claude Code](#stage-4-run-orchestration-in-claude-code) |
 | **Advanced — legacy scripts** (`runner:tui`, `run-orchestrator`, primary smoke) | [Stage 5: Legacy and deeper control](#stage-5-legacy-and-deeper-control) |
@@ -37,7 +37,6 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Doc alignment verify | `node scripts/verify-usage-docs.mjs` |
 | Product claim audit | `node scripts/audit-product-claims.mjs` |
 | End-to-end runbook (step-by-step) | [Happy path](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) |
-| Something failed during smoke | [Troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) |
 
 ---
 
