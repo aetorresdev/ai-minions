@@ -31,6 +31,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | Beta dry-run checklist + sample issue | [`docs/how-to/beta-dry-run-checklist.md`](docs/how-to/beta-dry-run-checklist.md) |
 | Beta smoke matrix (external beta gate) | [`docs/how-to/beta-smoke-matrix.md`](docs/how-to/beta-smoke-matrix.md) |
 | Beta degraded-mode policy | [`docs/how-to/beta-degraded-mode-policy.md`](docs/how-to/beta-degraded-mode-policy.md) |
+| Beta privacy notice (read before traces/issues) | [`PRIVACY.md`](PRIVACY.md) · [claim/blast-radius](docs/how-to/beta-claim-blast-radius.md) |
 | Beta limitations onboarding contract | [`docs/orchestrator/beta-limitations-onboarding-contract.md`](docs/orchestrator/beta-limitations-onboarding-contract.md) |
 | Validate gate-hardening docs (verify + claims) | [`docs/how-to/beta-gate-hardening-evidence.md`](docs/how-to/beta-gate-hardening-evidence.md) · `node scripts/run-beta-gate-hardening-evidence.mjs` |
 | Validate modular closeout evidence (v0.17) | [`docs/how-to/modular-closeout-evidence.md`](docs/how-to/modular-closeout-evidence.md) · `node scripts/run-modular-closeout-evidence.mjs` |

@@ -18,6 +18,9 @@ export const FORBIDDEN_CLAIMS = [
   { re: /\bbrew\s+install\s+ai-minions/i, label: "brew installer claim" },
   { re: /turnkey\s+marketplace/i, label: "turnkey marketplace claim" },
   { re: /hosted\s+control\s+plane\s+included/i, label: "hosted control plane claim" },
+  { re: /prevents?\s+secrets?\s+from\s+being\s+shared/i, label: "prevents secrets shared claim" },
+  { re: /catches?\s+all\s+secrets/i, label: "catches all secrets claim" },
+  { re: /guarantee[ds]?\s+(no|zero)\s+secret/i, label: "guaranteed no secrets claim" },
 ];
 
 /** @type {ForbiddenClaimRule[]} */
@@ -52,6 +55,8 @@ export const CLAIM_AUDIT_PATHS = [
   "docs/how-to/operator-feedback-issue.md",
   "docs/how-to/ai-minions-command-migration.md",
   "docs/how-to/operator-blockers-and-recovery.md",
+  "docs/how-to/beta-claim-blast-radius.md",
+  "PRIVACY.md",
 ];
 
 /** Required README anchors for v0.11 claim hygiene. */

@@ -35,6 +35,8 @@ const OPERATOR_BLOCKERS_RECOVERY = path.join(
   REPO_ROOT,
   "docs/how-to/operator-blockers-and-recovery.md",
 );
+const PRIVACY_NOTICE = path.join(REPO_ROOT, "PRIVACY.md");
+const BETA_CLAIM_BLAST_RADIUS = path.join(REPO_ROOT, "docs/how-to/beta-claim-blast-radius.md");
 const INSPECT_RUN_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/inspect-run-evidence.md");
 const INSPECT_RUN_SCRIPT = path.join(REPO_ROOT, "scripts/inspect-run-evidence.mjs");
 const COLLECT_RUN_REPORT = path.join(REPO_ROOT, "docs/how-to/collect-run-report.md");
@@ -209,6 +211,7 @@ function checkCollectRunReportDoc(docText) {
   mustInclude(docText, "degraded_mode", "degraded mode field", rel);
   mustInclude(docText, "risk_acceptance_reason", "risk acceptance field", rel);
   mustInclude(docText, "inspect-run-evidence", "inspect chain link", rel);
+  mustInclude(docText, "PRIVACY.md", "privacy notice before upload", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -244,6 +247,7 @@ function checkOperatorGuidedRunDoc(docText) {
 function checkOperatorFeedbackIssueDoc(docText) {
   const rel = "docs/how-to/operator-feedback-issue.md";
   if (!docText) return;
+  mustInclude(docText, "PRIVACY.md", "privacy notice prerequisite", rel);
   mustInclude(docText, "operator-feedback.yml", "issue template file reference", rel);
   mustInclude(docText, "collect-run-report", "bundle collector link", rel);
   mustInclude(docText, "collect-run-report.mjs", "attach generator script", rel);
@@ -266,11 +270,15 @@ function checkOperatorFeedbackTemplate(templateText) {
   mustInclude(templateText, "severity", "severity field", rel);
   mustInclude(templateText, "operator_path", "operator path field", rel);
   mustInclude(templateText, "beta-known-limitations", "limitations doc link", rel);
+  mustInclude(templateText, "PRIVACY.md", "privacy notice link", rel);
 }
 
 function checkBetaKnownLimitationsDoc(docText) {
   const rel = "docs/how-to/beta-known-limitations.md";
   if (!docText) return;
+  mustInclude(docText, "Onboarding read order", "onboarding table", rel);
+  mustInclude(docText, "PRIVACY.md", "privacy notice in onboarding order", rel);
+  mustInclude(docText, "beta-claim-blast-radius", "blast radius doc link", rel);
   mustInclude(docText, "CLI MVP", "runner tui CLI MVP wording", rel);
   mustInclude(docText, "Not claimed", "not claimed section", rel);
   mustInclude(docText, "operator-guided-run", "operator guided run link", rel);
@@ -313,6 +321,7 @@ function checkBetaTesterGuideDoc(docText) {
   mustInclude(docText, "ai-minions-command-migration", "migration doc link", rel);
   mustInclude(docText, "npm run ai-minions", "product CLI reference", rel);
   mustInclude(docText, "beta-limitations-onboarding-contract", "onboarding contract link", rel);
+  mustInclude(docText, "PRIVACY.md", "privacy notice prerequisite", rel);
   mustInclude(docText, "disqualifies_beta_success", "degraded bundle field", rel);
   mustInclude(docText, "privacy-sanitize-gate-contract", "privacy gate link", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
@@ -555,6 +564,35 @@ function checkBetaSmokeMatrixDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkPrivacyNoticeDoc(docText) {
+  const rel = "PRIVACY.md";
+  if (!docText) return;
+  mustInclude(docText, "not legal advice", "legal disclaimer", rel);
+  mustInclude(docText, "GitHub issues are public", "public issue visibility", rel);
+  mustInclude(docText, "Do not upload", "secret upload warning", rel);
+  mustInclude(docText, "privacy-sanitize-gate-contract", "runtime scan contract link", rel);
+  mustInclude(docText, "beta-claim-blast-radius", "blast radius link", rel);
+  mustInclude(docText, "Not claimed", "not claimed section", rel);
+  mustInclude(docText, "does not guarantee", "no full protection claim", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
+function checkBetaClaimBlastRadiusDoc(docText) {
+  const rel = "docs/how-to/beta-claim-blast-radius.md";
+  if (!docText) return;
+  mustInclude(docText, "action_type", "blast radius field", rel);
+  mustInclude(docText, "max_impact", "blast radius field", rel);
+  mustInclude(docText, "requires_human", "blast radius field", rel);
+  mustInclude(docText, "rollback_available", "blast radius field", rel);
+  mustInclude(docText, "evidence_ref", "blast radius field", rel);
+  mustInclude(docText, "PRIVACY.md", "privacy notice link", rel);
+  mustInclude(docText, "audit-product-claims.mjs", "claim audit reference", rel);
+  mustInclude(docText, "Not in scope", "scope boundary", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkOperatorBlockersRecoveryDoc(docText) {
   const rel = "docs/how-to/operator-blockers-and-recovery.md";
   if (!docText) return;
@@ -661,6 +699,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
   mustInclude(readmeText, "ai-minions-command-migration.md", "ai-minions migration doc link", rel);
   mustInclude(readmeText, "operator-blockers-and-recovery.md", "blockers recovery doc link", rel);
+  mustInclude(readmeText, "PRIVACY.md", "privacy notice link", rel);
   mustInclude(readmeText, "npm run ai-minions", "product CLI reference", rel);
 
   checkReadmeProductCliPrimaryOrdering(readmeText);
@@ -698,6 +737,8 @@ function main() {
   const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
   const aiMinionsMigrationText = readUtf8(AI_MINIONS_MIGRATION);
   const operatorBlockersRecoveryText = readUtf8(OPERATOR_BLOCKERS_RECOVERY);
+  const privacyNoticeText = readUtf8(PRIVACY_NOTICE);
+  const betaClaimBlastRadiusText = readUtf8(BETA_CLAIM_BLAST_RADIUS);
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
   const collectReportText = readUtf8(COLLECT_RUN_REPORT);
   const betaLimitationsText = readUtf8(BETA_KNOWN_LIMITATIONS);
@@ -774,6 +815,8 @@ function main() {
   if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
   if (aiMinionsMigrationText) checkAiMinionsMigrationDoc(aiMinionsMigrationText);
   if (operatorBlockersRecoveryText) checkOperatorBlockersRecoveryDoc(operatorBlockersRecoveryText);
+  if (privacyNoticeText) checkPrivacyNoticeDoc(privacyNoticeText);
+  if (betaClaimBlastRadiusText) checkBetaClaimBlastRadiusDoc(betaClaimBlastRadiusText);
   if (inspectEvidenceText) checkInspectRunEvidenceDoc(inspectEvidenceText);
   if (collectReportText) checkCollectRunReportDoc(collectReportText);
   if (betaLimitationsText) checkBetaKnownLimitationsDoc(betaLimitationsText);

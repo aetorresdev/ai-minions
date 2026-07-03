@@ -4,9 +4,9 @@ Official GitHub issue form for **operator-path feedback** after v0.11 entry + v0
 
 **Template file:** [`.github/ISSUE_TEMPLATE/operator-feedback.yml`](../../.github/ISSUE_TEMPLATE/operator-feedback.yml)
 
-**Prerequisites:** [beta known limitations](beta-known-limitations.md) · [beta tester guide](beta-tester-guide.md) (internal dry-run) · [operator guided run](operator-guided-run.md) · [collect run report](collect-run-report.md)
+**Prerequisites:** [PRIVACY.md](../../PRIVACY.md) · [beta known limitations](beta-known-limitations.md) · [beta tester guide](beta-tester-guide.md) (internal dry-run) · [operator guided run](operator-guided-run.md) · [collect run report](collect-run-report.md)
 
-**Redaction:** [beta-known-limitations § Redaction](beta-known-limitations.md#redaction-policy-before-upload) · [trace-privacy](../orchestrator/trace-privacy-contract.md) · [privacy sanitize gate](../orchestrator/privacy-sanitize-gate-contract.md) (`PRIVACY_*`)
+**Redaction:** [PRIVACY.md](../../PRIVACY.md) · [beta-known-limitations § Redaction](beta-known-limitations.md#redaction-policy-before-upload) · [trace-privacy](../orchestrator/trace-privacy-contract.md) · [privacy sanitize gate](../orchestrator/privacy-sanitize-gate-contract.md) (`PRIVACY_*`)
 
 ---
 
