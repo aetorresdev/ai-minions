@@ -37,6 +37,15 @@ const OPERATOR_BLOCKERS_RECOVERY = path.join(
 );
 const PRIVACY_NOTICE = path.join(REPO_ROOT, "PRIVACY.md");
 const BETA_CLAIM_BLAST_RADIUS = path.join(REPO_ROOT, "docs/how-to/beta-claim-blast-radius.md");
+const HUMAN_READY_REHEARSAL = path.join(REPO_ROOT, "docs/how-to/human-ready-rehearsal-evidence.md");
+const HUMAN_READY_REHEARSAL_RECORD = path.join(
+  REPO_ROOT,
+  "docs/how-to/evidence/human-ready-rehearsal-record.json",
+);
+const HUMAN_READY_REHEARSAL_SCRIPT = path.join(
+  REPO_ROOT,
+  "scripts/run-human-ready-rehearsal-evidence.mjs",
+);
 const INSPECT_RUN_EVIDENCE = path.join(REPO_ROOT, "docs/how-to/inspect-run-evidence.md");
 const INSPECT_RUN_SCRIPT = path.join(REPO_ROOT, "scripts/inspect-run-evidence.mjs");
 const COLLECT_RUN_REPORT = path.join(REPO_ROOT, "docs/how-to/collect-run-report.md");
@@ -319,6 +328,7 @@ function checkBetaTesterGuideDoc(docText) {
   mustInclude(docText, "beta-smoke-matrix", "smoke matrix link", rel);
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy prerequisite", rel);
   mustInclude(docText, "ai-minions-command-migration", "migration doc link", rel);
+  mustInclude(docText, "human-ready-rehearsal-evidence", "rehearsal evidence link", rel);
   mustInclude(docText, "npm run ai-minions", "product CLI reference", rel);
   mustInclude(docText, "beta-limitations-onboarding-contract", "onboarding contract link", rel);
   mustInclude(docText, "PRIVACY.md", "privacy notice prerequisite", rel);
@@ -335,12 +345,18 @@ function checkBetaDryRunChecklistDoc(docText) {
   mustInclude(docText, "ATTACH.md", "attach skeleton reference", rel);
   mustInclude(docText, "operator-feedback-issue", "feedback issue link", rel);
   mustInclude(docText, "beta-dry-run-sample-issue", "sample issue evidence link", rel);
+  mustInclude(docText, "human-ready-rehearsal-evidence", "rehearsal evidence link", rel);
+  mustInclude(docText, "PRIVACY.md", "privacy notice in checklist", rel);
+  mustInclude(docText, "npm run ai-minions", "product CLI in checklist", rel);
+  mustInclude(docText, "operator-blockers-and-recovery", "blocker recovery link", rel);
+  mustInclude(docText, "beta-claim-blast-radius", "blast radius link", rel);
+  mustInclude(docText, "C.0", "privacy before collect row", rel);
   mustInclude(docText, "Phase A", "entry path phase", rel);
   mustInclude(docText, "Phase B", "operator path phase", rel);
   mustInclude(docText, "Phase C", "evidence phase", rel);
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy link", rel);
   mustInclude(docText, "beta-limitations-onboarding-contract", "onboarding contract link", rel);
-  mustInclude(docText, "0.5", "smoke matrix read row", rel);
+  mustInclude(docText, "0.8", "smoke matrix read row", rel);
   mustInclude(docText, "risk_acceptance_reason", "degraded field check", rel);
   mustInclude(docText, "Phase D", "feedback phase", rel);
   mustInclude(docText, "PASS", "scoring semantics", rel);
@@ -359,6 +375,8 @@ function checkBetaDryRunSampleIssueDoc(docText) {
   mustInclude(docText, "Inspect blockers", "inspect blockers field", rel);
   mustInclude(docText, "Steps to reproduce", "steps field", rel);
   mustInclude(docText, "Severity", "severity field", rel);
+  mustInclude(docText, "npm run ai-minions", "product CLI in sample issue", rel);
+  mustInclude(docText, "PRIVACY.md", "privacy in sample issue", rel);
   mustInclude(docText, "synthetic", "synthetic disclaimer", rel);
   mustInclude(docText, "without maintainer rewrite", "triage sufficiency claim", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
@@ -607,6 +625,20 @@ function checkOperatorBlockersRecoveryDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkHumanReadyRehearsalEvidenceDoc(docText) {
+  const rel = "docs/how-to/human-ready-rehearsal-evidence.md";
+  if (!docText) return;
+  mustInclude(docText, "run-human-ready-rehearsal-evidence.mjs", "evidence script reference", rel);
+  mustInclude(docText, "REHEARSAL_OK", "rehearsal reason code", rel);
+  mustInclude(docText, "PRIVACY.md", "privacy notice link", rel);
+  mustInclude(docText, "beta-dry-run-checklist", "checklist link", rel);
+  mustInclude(docText, "human-ready-rehearsal-record.json", "record file reference", rel);
+  mustInclude(docText, "Not claimed", "not claimed disclaimer", rel);
+  mustInclude(docText, "npm run ai-minions", "product CLI path", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkAiMinionsMigrationDoc(docText) {
   const rel = "docs/how-to/ai-minions-command-migration.md";
   if (!docText) return;
@@ -699,6 +731,7 @@ function checkReadmeAlignment(readmeText, guideText) {
   mustInclude(readmeText, "npm run runner:tui -- --help", "runner tui help command", rel);
   mustInclude(readmeText, "ai-minions-command-migration.md", "ai-minions migration doc link", rel);
   mustInclude(readmeText, "operator-blockers-and-recovery.md", "blockers recovery doc link", rel);
+  mustInclude(readmeText, "human-ready-rehearsal-evidence.md", "rehearsal evidence doc link", rel);
   mustInclude(readmeText, "PRIVACY.md", "privacy notice link", rel);
   mustInclude(readmeText, "npm run ai-minions", "product CLI reference", rel);
 
@@ -739,6 +772,7 @@ function main() {
   const operatorBlockersRecoveryText = readUtf8(OPERATOR_BLOCKERS_RECOVERY);
   const privacyNoticeText = readUtf8(PRIVACY_NOTICE);
   const betaClaimBlastRadiusText = readUtf8(BETA_CLAIM_BLAST_RADIUS);
+  const humanReadyRehearsalText = readUtf8(HUMAN_READY_REHEARSAL);
   const inspectEvidenceText = readUtf8(INSPECT_RUN_EVIDENCE);
   const collectReportText = readUtf8(COLLECT_RUN_REPORT);
   const betaLimitationsText = readUtf8(BETA_KNOWN_LIMITATIONS);
@@ -748,6 +782,13 @@ function main() {
   const operatorFeedbackText = readUtf8(OPERATOR_FEEDBACK_ISSUE);
   const operatorFeedbackTemplateText = readUtf8(OPERATOR_FEEDBACK_TEMPLATE);
   const readmeText = readUtf8(README);
+
+  if (!fs.existsSync(HUMAN_READY_REHEARSAL_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, HUMAN_READY_REHEARSAL_SCRIPT)}`);
+  }
+  if (!fs.existsSync(HUMAN_READY_REHEARSAL_RECORD)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, HUMAN_READY_REHEARSAL_RECORD)}`);
+  }
 
   if (!fs.existsSync(BOOTSTRAP_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, BOOTSTRAP_SCRIPT)}`);
@@ -817,6 +858,7 @@ function main() {
   if (operatorBlockersRecoveryText) checkOperatorBlockersRecoveryDoc(operatorBlockersRecoveryText);
   if (privacyNoticeText) checkPrivacyNoticeDoc(privacyNoticeText);
   if (betaClaimBlastRadiusText) checkBetaClaimBlastRadiusDoc(betaClaimBlastRadiusText);
+  if (humanReadyRehearsalText) checkHumanReadyRehearsalEvidenceDoc(humanReadyRehearsalText);
   if (inspectEvidenceText) checkInspectRunEvidenceDoc(inspectEvidenceText);
   if (collectReportText) checkCollectRunReportDoc(collectReportText);
   if (betaLimitationsText) checkBetaKnownLimitationsDoc(betaLimitationsText);

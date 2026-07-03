@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "rehearsal_type": "internal_human_ready_v0.19",
+  "maintainer_notes": "Doc-chain rehearsal artifact for v0.19 closeout. Live operator dry-run: complete beta-dry-run-checklist.md, update record.status to LIVE_PASS or LIVE_FAIL, set repo_commit/task_id/issue_url. Until then, sample issue + evidence script prove feedback template dry-run.",
+  "record": {
+    "status": "DOC_CHAIN_PASS",
+    "repo_commit": null,
+    "rehearsal_date": null,
+    "operator_path": "product_cli_primary",
+    "checklist": "docs/how-to/beta-dry-run-checklist.md",
+    "sample_issue": "docs/how-to/evidence/beta-dry-run-sample-issue.md",
+    "privacy_notice_ack": true,
+    "live_run_required_before_v0_20": true,
+    "task_id": null,
+    "issue_url": null,
+    "outcome_notes": "Synthetic sample issue documents actionable feedback without maintainer rewrite. Run node scripts/run-human-ready-rehearsal-evidence.mjs for automated doc-chain validation."
+  }
+}

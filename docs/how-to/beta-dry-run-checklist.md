@@ -1,12 +1,16 @@
 # Beta dry-run checklist (internal)
 
-Scorable checklist for the **internal beta dry-run** in [beta-tester-guide](beta-tester-guide.md). Record results before filing operator feedback.
+Scorable checklist for the **internal human-ready rehearsal** in [beta-tester-guide](beta-tester-guide.md). Record results before filing operator feedback.
+
+**v0.19 path:** product CLI primary (`npm run ai-minions`) · [PRIVACY.md](../../PRIVACY.md) before bundle upload · [operator-blockers-and-recovery](operator-blockers-and-recovery.md) for failures.
 
 **Score each row:** `PASS` · `FAIL` · `SKIP` (with one-line evidence).
 
 **Exit bar:** all **required** rows `PASS` or documented `FAIL` with a filed GitHub issue — maintainer can triage **without re-running the whole path**.
 
 **Not claimed:** external beta · production SLA · automatic issue upload.
+
+**Evidence chain:** `node scripts/run-human-ready-rehearsal-evidence.mjs` · record [human-ready-rehearsal-record.json](evidence/human-ready-rehearsal-record.json)
 
 ---
 
@@ -16,9 +20,12 @@ Scorable checklist for the **internal beta dry-run** in [beta-tester-guide](beta
 |---|-------|----------|--------|----------|
 | 0.1 | Fresh clone (or documented why not) | yes | | clone path + date |
 | 0.2 | `git rev-parse --short HEAD` recorded | yes | | SHA in notes or bundle |
-| 0.3 | [beta-known-limitations](beta-known-limitations.md) read (incl. redaction policy) | yes | | initials / date |
-| 0.4 | [beta-degraded-mode-policy](beta-degraded-mode-policy.md) read | yes | | initials / date |
-| 0.5 | [beta-smoke-matrix](beta-smoke-matrix.md) § Minimum gate cells skimmed | yes | | initials / date |
+| 0.3 | [PRIVACY.md](../../PRIVACY.md) read | yes | | initials / date |
+| 0.4 | [beta-claim-blast-radius](beta-claim-blast-radius.md) skimmed | yes | | initials / date |
+| 0.5 | [operator-blockers-and-recovery](operator-blockers-and-recovery.md) skimmed | yes | | initials / date |
+| 0.6 | [beta-known-limitations](beta-known-limitations.md) read (incl. redaction policy) | yes | | initials / date |
+| 0.7 | [beta-degraded-mode-policy](beta-degraded-mode-policy.md) read | yes | | initials / date |
+| 0.8 | [beta-smoke-matrix](beta-smoke-matrix.md) § Minimum gate cells skimmed | yes | | initials / date |
 
 ---
 
@@ -28,17 +35,19 @@ Scorable checklist for the **internal beta dry-run** in [beta-tester-guide](beta
 |---|-------|----------|--------|----------|
 | A.1 | `npm ci` (root + `orchestrator/`) | yes | | exit code |
 | A.2 | `node scripts/bootstrap-preflight.mjs` → exit `0` | yes | | `PREFLIGHT_*` or `PASS` |
-| A.3 | Primary smoke plan/run *(optional)* | no | | `SMOKE_*` or skip reason |
+| A.3 | `npm run ai-minions -- init` *(product CLI)* | yes | | exit code |
+| A.4 | Primary smoke plan/run *(optional legacy)* | no | | `SMOKE_*` or skip reason |
 
 ---
 
-## Phase B — Operator path
+## Phase B — Operator path (product CLI primary)
 
 | # | Check | Required | Result | Evidence |
 |---|-------|----------|--------|----------|
-| B.1 | `runner:tui` preflight attempted | yes | | exit code + `OPERATOR_*` if any |
-| B.2 | `runner:tui run` completed or failure captured | yes | | `task_id` recorded |
-| B.3 | `runner:tui status --task-id <id>` read | yes | | terminal status quoted |
+| B.1 | `npm run ai-minions -- doctor --model-policy local_only` | yes | | exit code + `next_safe_action` |
+| B.2 | `npm run ai-minions -- start …` completed or failure captured | yes | | `task_id` recorded |
+| B.3 | `npm run ai-minions -- status --run-id <id>` read | yes | | terminal status quoted |
+| B.4 | Legacy `runner:tui` path attempted *(optional)* | no | | exit code + `OPERATOR_*` if any |
 
 ---
 
@@ -46,6 +55,7 @@ Scorable checklist for the **internal beta dry-run** in [beta-tester-guide](beta
 
 | # | Check | Required | Result | Evidence |
 |---|-------|----------|--------|----------|
+| C.0 | [PRIVACY.md](../../PRIVACY.md) re-read before collect | yes | | initials / date |
 | C.1 | `node scripts/inspect-run-evidence.mjs <task_id>` | yes | | exit code + `INSPECT_*` |
 | C.2 | `node scripts/collect-run-report.mjs <task_id>` | yes | | bundle dir path |
 | C.3 | `ATTACH.md` reviewed; secrets redacted | yes | | redaction note |
@@ -58,7 +68,7 @@ Scorable checklist for the **internal beta dry-run** in [beta-tester-guide](beta
 
 | # | Check | Required | Result | Evidence |
 |---|-------|----------|--------|----------|
-| D.1 | GitHub issue opened (**Operator feedback**) | yes | | issue URL |
+| D.1 | GitHub issue opened (**Operator feedback**) or **no issue found** documented | yes | | issue URL or record note |
 | D.2 | Form fields copied from `ATTACH.md` | yes | | task id + commit match bundle |
 | D.3 | Steps / Expected / Actual filled (not placeholders) | yes | | issue body |
 | D.4 | Severity selected (`BLOCKER` / `BUG` / `USABILITY` / `DOCS`) | yes | | label in issue |
@@ -86,6 +96,7 @@ Scorable checklist for the **internal beta dry-run** in [beta-tester-guide](beta
 
 | Doc | Role |
 |-----|------|
+| [human-ready-rehearsal-evidence](human-ready-rehearsal-evidence.md) | Automated doc-chain + live runbook |
 | [beta-tester-guide](beta-tester-guide.md) | Step-by-step runbook |
 | [operator-feedback-issue](operator-feedback-issue.md) | Form field map |
 | [collect-run-report](collect-run-report.md) | Bundle + `ATTACH.md` |

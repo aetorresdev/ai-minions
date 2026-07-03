@@ -138,7 +138,7 @@ If `disqualifies_beta_success` is `true` in the bundle, you may still file feedb
 2. Capture `task_id` from run output.
 3. Run `node scripts/collect-run-report.mjs <task_id>` from repo root.
 4. Review `ATTACH.md` in the bundle — redact secrets before any upload.
-5. File a GitHub issue via [operator-feedback-issue](operator-feedback-issue.md) — copy values from bundle `ATTACH.md`. Full chain: [beta-tester-guide](beta-tester-guide.md). Record results: [beta-dry-run-checklist](beta-dry-run-checklist.md).
+5. File a GitHub issue via [operator-feedback-issue](operator-feedback-issue.md) — copy values from bundle `ATTACH.md`. Full chain: [beta-tester-guide](beta-tester-guide.md). Record results: [beta-dry-run-checklist](beta-dry-run-checklist.md). Doc-chain validation: [human-ready-rehearsal-evidence](human-ready-rehearsal-evidence.md).
 
 **Do not** paste API keys, PATs, or `.env` contents into issues.
 
