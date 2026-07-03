@@ -133,15 +133,15 @@ function deriveDoctorFieldSummary(report) {
  */
 function deriveDoctorNextSafeAction(report) {
   if (report.ok) {
-    return 'Environment ready — run: npm run ai-minions -- start --goal "<goal>" (or status after a run).';
+    return 'Environment ready — run: ai-minions start --goal "<goal>" (or status after a run).';
   }
   if (report.layer_stopped === 'bootstrap') {
-    return 'Fix host/bootstrap blockers above, then re-run: npm run ai-minions -- doctor';
+    return 'Fix host/bootstrap blockers above, then re-run: ai-minions doctor';
   }
   if (report.layer_stopped === 'runtime') {
-    return 'Fix runtime MCP/hook/config blockers, then re-run: npm run ai-minions -- doctor';
+    return 'Fix runtime MCP/hook/config blockers, then re-run: ai-minions doctor';
   }
-  return 'Fix runner/model/Ollama blockers, then re-run: npm run ai-minions -- doctor --model-policy local_only';
+  return 'Fix runner/model/Ollama blockers, then re-run: ai-minions doctor --model-policy local_only';
 }
 
 /**

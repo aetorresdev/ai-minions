@@ -261,9 +261,9 @@ function runOperatorContext(options = {}) {
 function deriveResumeInspectAlternatives(ctx) {
   const runId = ctx && ctx.run_id ? ctx.run_id : '<task_id>';
   return [
-    `npm run ai-minions -- status --run-id ${runId}`,
-    `npm run ai-minions -- explain --run-id ${runId}`,
-    `npm run ai-minions -- evidence --run-id ${runId}`,
+    `ai-minions status --run-id ${runId}`,
+    `ai-minions explain --run-id ${runId}`,
+    `ai-minions evidence --run-id ${runId}`,
     `grep 'session_' ${ctx?.trace_file ?? '~/.claude/metrics/traces/<task_id>.jsonl'}`,
   ];
 }

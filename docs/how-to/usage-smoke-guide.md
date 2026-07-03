@@ -27,13 +27,13 @@ Canonical **end-to-end happy path** for trying **ai-minions** without tribal kno
 
 ## Happy path (end-to-end runbook)
 
-**Primary path:** product CLI (`npm run ai-minions`) — same sequence as [README Quickstart Stage 2](../../README.md#stage-2-product-cli-ai-minions).
+**Primary path:** installed product CLI (`ai-minions`) — same sequence as [README Quickstart Stage 2](../../README.md#stage-2-product-cli-ai-minions).
 
 Follow **in order**. You do not need prior chat context or maintainer hints. If a step fails, jump to [Troubleshooting](#troubleshooting).
 
 | Step | What to do | Pass signal |
 |------|------------|-------------|
-| **1** | Clone and validate the Node harness | `npm test` exits 0 |
+| **1** | Clone, bootstrap harness, product install | `npm test` exits 0 · `ai-minions --help` from `$HOME` |
 | **2** | `ai-minions init` | `0` + config paths |
 | **3** | `ai-minions doctor` | `0` + no blocking `PREFLIGHT_*` |
 | **4** | `ai-minions start` (live smoke run) | `0` + `done: true` · record **Task ID** |
@@ -44,7 +44,7 @@ Follow **in order**. You do not need prior chat context or maintainer hints. If 
 
 Full command mapping (legacy scripts → product CLI): [ai-minions-command-migration.md](ai-minions-command-migration.md).
 
-### Step 1 — Clone and validate
+### Step 1 — Clone, bootstrap, and product install
 
 ```bash
 git clone https://github.com/aetorresdev/ai-minions.git
@@ -52,17 +52,22 @@ cd ai-minions
 node scripts/bootstrap-preflight.mjs --install
 cd orchestrator
 npm test
+cd ..
+node scripts/install-ai-minions.mjs
+cd ~
+ai-minions --help
 ```
 
-`bootstrap-preflight` checks layout, Node, deps, and trace dir with stable `reason_code` values — see [bootstrap-preflight.md](bootstrap-preflight.md). Add `--live` before worker-agent runs (requires `claude` CLI).
+`bootstrap-preflight` is **repo-local bootstrap/setup** (layout, Node, deps, trace dir) — see [bootstrap-preflight.md](bootstrap-preflight.md). Add `--live` before worker-agent runs (requires `claude` CLI).
+
+`node scripts/install-ai-minions.mjs` is the **product install** (PATH shim + `AI_MINIONS_HOME`). Blocked installs print `INSTALL_*` reason codes.
 
 `npm test` validates the **Node harness only** — not full live orchestration with worker agents.
 
 ### Step 2 — Init (`ai-minions`)
 
 ```bash
-cd ai-minions/orchestrator
-npm run ai-minions -- init --model-policy local_only
+ai-minions init --model-policy local_only
 ```
 
 Pass: exit `0` and printed config paths.
@@ -70,7 +75,7 @@ Pass: exit `0` and printed config paths.
 ### Step 3 — Doctor
 
 ```bash
-npm run ai-minions -- doctor --model-policy local_only
+ai-minions doctor --model-policy local_only
 ```
 
 Pass: exit `0` with no blocking `PREFLIGHT_*` reason codes.
@@ -80,7 +85,7 @@ Pass: exit `0` with no blocking `PREFLIGHT_*` reason codes.
 Requires `claude` CLI authenticated (`claude auth status`).
 
 ```bash
-npm run ai-minions -- start --goal "Smoke: list three files under orchestrator/ and stop" \
+ai-minions start --goal "Smoke: list three files under orchestrator/ and stop" \
   --skip-gates --iterations 1
 ```
 
@@ -97,8 +102,8 @@ Default trace path (override with `ORCH_TRACES_DIR`):
 Replace `<task_id>` with the Task ID from Step 4:
 
 ```bash
-npm run ai-minions -- status --run-id <task_id>
-npm run ai-minions -- explain --run-id <task_id>
+ai-minions status --run-id <task_id>
+ai-minions explain --run-id <task_id>
 ```
 
 Pass: exit `0` and human-readable summary with critical decision fields.
@@ -106,7 +111,7 @@ Pass: exit `0` and human-readable summary with critical decision fields.
 Optional legacy inspect:
 
 ```bash
-cd ..
+cd ai-minions
 node scripts/run-primary-smoke.mjs --inspect <task_id>
 cd orchestrator
 npm run explain-run -- --run-id <task_id>
@@ -116,8 +121,8 @@ npm run tokens:report -- <task_id>
 ### Step 6 — Evidence and context
 
 ```bash
-npm run ai-minions -- evidence --run-id <task_id>
-npm run ai-minions -- context --run-id <task_id>
+ai-minions evidence --run-id <task_id>
+ai-minions context --run-id <task_id>
 ```
 
 Pass: exit `0` with inspect/bundle paths and trace disclosure panel.
@@ -125,7 +130,7 @@ Pass: exit `0` with inspect/bundle paths and trace disclosure panel.
 ### Step 7 — Resume (honest probe)
 
 ```bash
-npm run ai-minions -- resume --run-id <task_id>
+ai-minions resume --run-id <task_id>
 ```
 
 Pass: exit `2` with `RUN_RESUME_NOT_IMPLEMENTED`. **Not** durable session resume.
@@ -231,16 +236,16 @@ Symptom-first reference below. Stable `reason_code` values and full check list: 
 
 | Symptom | Likely cause | What to do |
 |---------|--------------|------------|
-| `npm run ai-minions -- doctor` exit `2` | Bootstrap or launch preflight failed | Read FAIL lines + `next_safe_action`; fix first `PREFLIGHT_*` or `OPERATOR_*` — [blockers guide](operator-blockers-and-recovery.md#common-blockers-symptom--meaning--fix) |
-| `npm test` fails on clone | Node under 18, stale `node_modules`, network during `npm ci` | `npm run ai-minions -- doctor` or `node scripts/bootstrap-preflight.mjs --install` → `PREFLIGHT_NPM_CI`; or `node --version` (≥ 18) |
-| `npm test` passes but `start` hangs/fails | `claude` CLI missing or not authenticated | `npm run ai-minions -- doctor --live`; `claude --version`; `claude auth status` |
-| Ollama / planner errors | Ollama not running or model missing | `npm run ai-minions -- doctor --model-policy local_only`; `curl -sS http://127.0.0.1:11434/api/tags`; or `--skip-gates` for a **degraded** learning run only |
+| `ai-minions doctor` exit `2` | Bootstrap or launch preflight failed | Read FAIL lines + `next_safe_action`; fix first `PREFLIGHT_*` or `OPERATOR_*` — [blockers guide](operator-blockers-and-recovery.md#common-blockers-symptom--meaning--fix) |
+| `npm test` fails on clone | Node under 18, stale `node_modules`, network during `npm ci` | `ai-minions doctor` or `node scripts/bootstrap-preflight.mjs --install` → `PREFLIGHT_NPM_CI`; or `node --version` (≥ 18) |
+| `npm test` passes but `start` hangs/fails | `claude` CLI missing or not authenticated | `ai-minions doctor --live`; `claude --version`; `claude auth status` |
+| Ollama / planner errors | Ollama not running or model missing | `ai-minions doctor --model-policy local_only`; `curl -sS http://127.0.0.1:11434/api/tags`; or `--skip-gates` for a **degraded** learning run only |
 | **⚠ DEGRADED MODE** banner | `--skip-gates` and/or MCPs not registered | **Expected** for learning smokes; not a bug — [degraded vs blocked](operator-blockers-and-recovery.md#blocked-vs-degraded-vs-failed) · strict gates: [strict-mode](../orchestrator/strict-mode.md) |
 | `start` exit `2` — preflight blocked | Launch layer not ready | Re-run `doctor`; read `blocker:` on stderr |
-| `status` / `explain` exit `2` | Wrong `task_id` or custom `ORCH_TRACES_DIR` | Copy `task_id` from `start` output; `npm run ai-minions -- explain --run-id <task_id>` |
+| `status` / `explain` exit `2` | Wrong `task_id` or custom `ORCH_TRACES_DIR` | Copy `task_id` from `start` output; `ai-minions explain --run-id <task_id>` |
 | Exit `1` — no goal (legacy runner) | Empty argv and empty stdin | Product path: pass `--goal "..."` to `ai-minions start`; legacy: pipe goal to `run-orchestrator.js` |
 | `compact_handoff failed` (strict) | Ollama unreachable with gates on | Start Ollama or use `--skip-gates` while learning (degraded — not beta PASS) |
-| Gate blocked / `gateBlocked: true` | Handoff contract, goal alignment, or permission gate | `npm run ai-minions -- explain --run-id <task_id>`; inspect `gate_result`, `contract_fail` events |
+| Gate blocked / `gateBlocked: true` | Handoff contract, goal alignment, or permission gate | `ai-minions explain --run-id <task_id>`; inspect `gate_result`, `contract_fail` events |
 | Credential “not available” | Vars unset in the orchestrator shell or names mismatch | Ensure `EXAMPLE_*` exist in the **shell running** the runner. If using `.env.local`, `source`/`export` it before the run; header `vars` must match **exact** env var names |
 | Agent used API without permission | No `ENVIRONMENT` block in header | Add `ENVIRONMENT` with names only — `.env` alone does **not** grant permission |
 | `multi_agent` hooks silent | Wrong `CWD` or hooks not installed | `CWD` must be absolute real path; check `logs/orchestrator.log` under clone if hooks enabled |
@@ -251,9 +256,8 @@ Symptom-first reference below. Stable `reason_code` values and full check list: 
 ### Quick diagnostic commands
 
 ```bash
-cd ai-minions/orchestrator
-npm run ai-minions -- doctor --model-policy local_only
-npm run ai-minions -- doctor --live --model-policy local_only
+ai-minions doctor --model-policy local_only
+ai-minions doctor --live --model-policy local_only
 
 cd ai-minions
 node scripts/run-fresh-clone-evidence.mjs     # entry-path evidence + claim audit
@@ -284,7 +288,8 @@ Maturity table: [README — Maturity](../../README.md#maturity-implemented--plan
 
 | Path | You use | Best for |
 |------|---------|----------|
-| **Product CLI** *(primary)* | `npm run ai-minions -- init/doctor/start/status/…` | First contact, repeatable operator smoke, human-ready onboarding |
+| **Product CLI** *(primary)* | `ai-minions init/doctor/start/status/…` (installed shim) | First contact, repeatable operator smoke, human-ready onboarding |
+| **Dev fallback** | `cd orchestrator && npm run ai-minions -- …` | Maintainer clone without PATH shim |
 | **Legacy CLI runner** | `node run-orchestrator.js`, `run-primary-smoke.mjs`, `runner:tui` | Debugging wrappers, older runbooks, deeper control |
 | **Claude Code TUI** | Paste a MODE header (or a simple skill prompt) in the IDE | Day-to-day assisted work; hooks can launch the same runner on `multi_agent` |
 

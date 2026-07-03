@@ -11,7 +11,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | **Primary product CLI** (`init` / `doctor` / `start` / `status` / `explain` / `evidence` / `context`) | [Quickstart — Stage 2](#stage-2-product-cli-ai-minions) · [`ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md) |
 | Full staged path | [Quickstart](#quickstart) |
 | Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) · [Happy path](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) |
-| Clone + install + unit tests | [Stage 1: Install and validate locally](#stage-1-install-and-validate-locally) |
+| Clone + install + unit tests | [Stage 1: Clone, bootstrap, and product install](#stage-1-clone-bootstrap-and-product-install) |
 | Alpha boundaries and caveats | [Known limitations (alpha)](#known-limitations-alpha) · [Beta limitations (v0.15)](docs/how-to/beta-known-limitations.md) |
 | Something failed during smoke | [Blockers and recovery](docs/how-to/operator-blockers-and-recovery.md) · [Troubleshooting](docs/how-to/usage-smoke-guide.md#troubleshooting) |
 | **Advanced — Claude Code skill** (no MODE header) | [Stage 3: Run a simple skill](#stage-3-run-a-simple-skill) |
@@ -169,15 +169,17 @@ Full walkthrough and troubleshooting: [`docs/how-to/usage-smoke-guide.md`](docs/
 
 `npm test` validates the **Node harness only** — not full live orchestration with worker agents.
 
-**Not claimed in this release:** packaged global installer · production TUI (`runner:tui` = CLI MVP) · provider-agnostic worker backend.
+**Not claimed in this release:** npm publish / Homebrew global package · production TUI (`runner:tui` = CLI MVP) · provider-agnostic worker backend.
 
 Contract detail: [`orchestrator/README.md`](orchestrator/README.md).
 
 ---
 
-### Stage 1: Install and validate locally
+### Stage 1: Clone, bootstrap, and product install
 
 Clone anywhere; the commands below use the default folder name `ai-minions`. Do not assume `~/.claude` unless you want the maintainer layout.
+
+**Harness bootstrap** (repo-local setup — layout, deps, unit tests):
 
 ```bash
 git clone https://github.com/aetorresdev/ai-minions.git
@@ -187,7 +189,18 @@ cd orchestrator
 npm test
 ```
 
-Preflight uses stable `reason_code` values (layout, Node, deps, trace dir) — [`bootstrap-preflight.md`](docs/how-to/bootstrap-preflight.md). Add `--live` before worker-agent runs.
+**Product install** (path-independent CLI shim — primary path for Stage 2):
+
+```bash
+cd ai-minions
+node scripts/install-ai-minions.mjs
+cd ~
+ai-minions --help
+```
+
+Requires `~/.local/bin` (or your configured bin dir) on PATH. Blocked installs print stable `INSTALL_*` reason codes with remediation — see [`install-ai-minions.mjs`](scripts/install-ai-minions.mjs) header.
+
+`bootstrap-preflight` uses stable `reason_code` values (layout, Node, deps, trace dir) — [`bootstrap-preflight.md`](docs/how-to/bootstrap-preflight.md). Add `--live` before worker-agent runs.
 
 Passing unit tests means the harness is wired; it does **not** prove Claude CLI orchestration end-to-end.
 
@@ -205,33 +218,36 @@ Some hooks/skills docs assume this path.
 
 ### Stage 2: Product CLI (`ai-minions`)
 
-Primary operator path — wrappers over existing install, preflight, launch, and trace-readback contracts. **Not** a polished product UI; **not** a global installer.
+Primary operator path — installed `ai-minions` command (local shim via Stage 1 install). Wrappers over existing install, preflight, launch, and trace-readback contracts. **Not** a polished product UI; **not** npm publish / Homebrew.
+
+Run from any directory after product install (no `cd orchestrator` required):
 
 ```bash
-cd ai-minions/orchestrator
-npm run ai-minions -- --help
-npm run ai-minions -- init --model-policy local_only
-npm run ai-minions -- doctor --model-policy local_only
-npm run ai-minions -- start --goal "Smoke: list three files under orchestrator/ and stop" \
+ai-minions --help
+ai-minions init --model-policy local_only
+ai-minions doctor --model-policy local_only
+ai-minions start --goal "Smoke: list three files under orchestrator/ and stop" \
   --skip-gates --iterations 1
 # record task_id from output
-npm run ai-minions -- status --run-id <task_id>
-npm run ai-minions -- explain --run-id <task_id>
-npm run ai-minions -- evidence --run-id <task_id>
-npm run ai-minions -- context --run-id <task_id>
-npm run ai-minions -- resume --run-id <task_id>   # honest probe: RUN_RESUME_NOT_IMPLEMENTED (exit 2)
+ai-minions status --run-id <task_id>
+ai-minions explain --run-id <task_id>
+ai-minions evidence --run-id <task_id>
+ai-minions context --run-id <task_id>
+ai-minions resume --run-id <task_id>   # honest probe: RUN_RESUME_NOT_IMPLEMENTED (exit 2)
 ```
 
 | Step | Command | Exit signal |
 |------|---------|-------------|
-| Init / config | `npm run ai-minions -- init --model-policy local_only` | `0` + config paths |
-| Doctor | `npm run ai-minions -- doctor --model-policy local_only` | `0` + no blocking `PREFLIGHT_*` |
-| Launch | `npm run ai-minions -- start --goal "..." --skip-gates --iterations 1` | `0` + `done: true` · record `task_id` |
-| Result | `npm run ai-minions -- status --run-id <task_id>` | `0` + terminal summary |
-| Explain | `npm run ai-minions -- explain --run-id <task_id>` | `0` + critical decision summary |
-| Evidence | `npm run ai-minions -- evidence --run-id <task_id>` | `0` + inspect/bundle paths |
-| Context | `npm run ai-minions -- context --run-id <task_id>` | `0` + disclosure panel |
-| Resume probe | `npm run ai-minions -- resume --run-id <task_id>` | `2` + `RUN_RESUME_NOT_IMPLEMENTED` — **not** durable resume |
+| Init / config | `ai-minions init --model-policy local_only` | `0` + config paths |
+| Doctor | `ai-minions doctor --model-policy local_only` | `0` + no blocking `PREFLIGHT_*` |
+| Launch | `ai-minions start --goal "..." --skip-gates --iterations 1` | `0` + `done: true` · record `task_id` |
+| Result | `ai-minions status --run-id <task_id>` | `0` + terminal summary |
+| Explain | `ai-minions explain --run-id <task_id>` | `0` + critical decision summary |
+| Evidence | `ai-minions evidence --run-id <task_id>` | `0` + inspect/bundle paths |
+| Context | `ai-minions context --run-id <task_id>` | `0` + disclosure panel |
+| Resume probe | `ai-minions resume --run-id <task_id>` | `2` + `RUN_RESUME_NOT_IMPLEMENTED` — **not** durable resume |
+
+**Dev fallback** (from clone, no PATH shim): `cd orchestrator && npm run ai-minions -- <command>` — see [`ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md).
 
 `--skip-gates` is **degraded mode** (banner visible) — fine for first contact. Full mapping: [`ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md).
 
@@ -468,7 +484,7 @@ internet without your own auth, network controls, and secret handling.
 
 | Bucket | What it means here |
 |--------|---------------------|
-| **Implemented** | MODE protocol + YAML handoffs, `validateOutput`, JSONL traces, permission evaluator + runtime gates, token/cost reporting and run budget hard-stop, hook metrics, worktree isolation (v0.3), CERBERUS doubt cycle + `review_record`, **v0.18 product CLI** (`npm run ai-minions` — init/start/status/explain/doctor/evidence/context/resume as wrappers), operator trace summary for status/explain, **v0.19 human-ready landing** (README/usage-smoke primary path, [`PRIVACY.md`](PRIVACY.md) before beta upload, blocker/recovery + rehearsal evidence docs), design contracts for BV gate and progressive disclosure (validators/tests). |
+| **Implemented** | MODE protocol + YAML handoffs, `validateOutput`, JSONL traces, permission evaluator + runtime gates, token/cost reporting and run budget hard-stop, hook metrics, worktree isolation (v0.3), CERBERUS doubt cycle + `review_record`, **v0.18+ product CLI** (`ai-minions` installed shim — init/start/status/explain/doctor/evidence/context/resume as wrappers; `npm run ai-minions` dev fallback from `orchestrator/`), operator trace summary for status/explain, **v0.19 human-ready landing** (README/usage-smoke primary path, [`PRIVACY.md`](PRIVACY.md) before beta upload, blocker/recovery + rehearsal evidence docs), **v0.20 local CLI installer** (`install-ai-minions.mjs` → PATH shim), design contracts for BV gate and progressive disclosure (validators/tests). |
 | **Partial** | Skill registry allowlist (`skill-registry.v1.json`); untrusted-context fixture harness; handoff/sandbox **design** docs |
 | **Planned** | Durable session/resume semantics (beyond honest `RUN_RESUME_NOT_IMPLEMENTED` probe); skill router runtime; sandbox/credential broker runtime; progressive-disclosure **enforcement** in runner — see [`docs/orchestrator/README.md`](docs/orchestrator/README.md), not implied as shipped. |
 | **Not claimed** | Production SLA, OSI “open source” license, hosted control plane, turnkey marketplace, multi-tenant isolation, general AI workspace, fully sandboxed autonomous execution — see [`LICENSE`](LICENSE) and [`COMMERCIAL_LICENSE.md`](COMMERCIAL_LICENSE.md). |

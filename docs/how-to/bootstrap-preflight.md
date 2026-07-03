@@ -1,6 +1,8 @@
 # Bootstrap and preflight
 
-Minimal **bootstrap + preflight** for a clean clone — fail-closed with **stable `reason_code` values**. No global installer; no secrets in output.
+Minimal **bootstrap + preflight** for a clean clone — fail-closed with **stable `reason_code` values**. No secrets in output.
+
+**This is repo-local bootstrap/setup** — layout, deps, trace dir. For the **product install** (PATH shim), use `node scripts/install-ai-minions.mjs` instead.
 
 **When to use:** after `git clone`, before first orchestrator run or when debugging “why doesn’t smoke work?”
 
