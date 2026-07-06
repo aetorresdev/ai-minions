@@ -160,12 +160,21 @@ function formatOperatorDoctorText(report) {
     `  local_backend:         ${fields.local_backend}`,
     `  auth_status:           ${fields.auth_status}`,
     `  config_validity:       ${fields.config_validity}`,
+  ];
+
+  if (report.ok && fields.config_validity === 'degraded') {
+    lines.push(
+      '  beta_lane_note:        v0.20 beta OK — MCP venv + Claude hooks WARNs are optional; strict mode needs uv sync',
+    );
+  }
+
+  lines.push(
     '  known_limitations:',
     ...fields.known_limitations.map((l) => `    - ${l}`),
     `  next_safe_action:      ${deriveDoctorNextSafeAction(report)}`,
     '',
     '-- checks (bootstrap → runtime → runner) --',
-  ];
+  );
 
   for (const c of report.checks) {
     const tag = c.status === 'pass' ? 'PASS' : c.status === 'warn' ? 'WARN' : 'FAIL';

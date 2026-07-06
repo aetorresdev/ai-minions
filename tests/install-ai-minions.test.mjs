@@ -12,6 +12,7 @@ import {
   buildDiscoveryChecks,
   checksOk,
   formatReportText,
+  deriveInstallNextSafeAction,
   normalizeModelPolicy,
   parseArgs,
   parseNodeMajor,
@@ -404,9 +405,27 @@ describe("install-ai-minions", () => {
   it("formatReportText shows host failure without discovery", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "install-ai-minions-"));
     const report = await runInstallAiMinions({ repoRoot: tmp, nodeVersion: "20.0.0" });
-    const text = formatReportText(report);
+    const text = formatReportText(report, { useColor: false });
     assert.match(text, /host prereqs/);
     assert.match(text, /INSTALL_NPM_CI_FAILED/);
+  });
+
+  it("formatReportText highlights blocked install and next_safe_action for missing ruff/uv", async () => {
+    const tmp = makeHostReadyRepo();
+    const report = await runInstallAiMinions({
+      repoRoot: tmp,
+      nodeVersion: "20.0.0",
+      commandExists: (cmd) => cmd === "node",
+      discoverLocalModels: mockDiscoverSuccess(),
+      cliInstall: false,
+    });
+    const text = formatReportText(report, { useColor: false });
+    assert.match(text, /INSTALL BLOCKED/);
+    assert.match(text, /\[FAIL\] INSTALL_RUFF_MISSING/);
+    assert.match(text, /\[FAIL\] INSTALL_UV_MISSING/);
+    assert.match(text, /brew install ruff uv/);
+    assert.match(text, /next_safe_action:/);
+    assert.match(deriveInstallNextSafeAction(report), /brew install ruff uv/);
   });
 
   it("bash wrapper delegates to install-ai-minions.mjs (--help)", () => {

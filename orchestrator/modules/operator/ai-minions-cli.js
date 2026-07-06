@@ -144,10 +144,16 @@ function deriveInitNextSafeAction(report) {
     return 'Run: ai-minions start --goal "<goal>" (or npm run runner:tui -- preflight first)';
   }
   if (report.phase === 'host_prereqs') {
-    return 'Fix host prerequisites, then re-run: ai-minions init';
+    const codes = new Set(
+      report.checks.filter((c) => c.status === 'fail').map((c) => c.reason_code),
+    );
+    if (codes.has('INSTALL_RUFF_MISSING') || codes.has('INSTALL_UV_MISSING')) {
+      return 'Install host tools: brew install ruff uv — then re-run: ai-minions init';
+    }
+    return 'Fix host prerequisites (see install output), then re-run: ai-minions init';
   }
   if (report.phase === 'model_discovery') {
-    return 'Ensure Ollama is reachable with local models, then re-run: ai-minions init';
+    return 'Start Ollama (ollama serve), pull a model, then re-run: ai-minions init';
   }
   return 'Review blockers above, then re-run: ai-minions init';
 }

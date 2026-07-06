@@ -27,6 +27,11 @@ import {
   productCliInstallOk,
   runCliInstall,
 } from "./lib/ai-minions-cli-install.mjs";
+import {
+  ansi,
+  formatStatusTag,
+  shouldUseAnsiStdout,
+} from "./lib/terminal-style.mjs";
 
 export { CLI_INSTALL_REASON_CODES, productCliInstallOk, runCliInstall };
 
@@ -148,7 +153,9 @@ export function buildDiscoveryChecks(rawDiscovery, modelPolicy) {
       id: "ollama_reachable",
       reason_code: REASON_CODES.OLLAMA_UNREACHABLE,
       status: severity,
-      message: missing || backend?.reason || "ollama unreachable",
+      message:
+        (missing || backend?.reason || "ollama unreachable")
+        + " — start Ollama (app or: ollama serve), pull a model, then re-run install",
     });
     return checks;
   }
@@ -274,7 +281,8 @@ export async function runHostPrereqChecks(repoRoot, orchDir, options = {}) {
       id: "ruff",
       reason_code: REASON_CODES.RUFF_MISSING,
       status: "fail",
-      message: "ruff not found in PATH — required for orchestrator npm test (lint:py)",
+      message:
+        "ruff not found in PATH — install: brew install ruff  (required for orchestrator npm test / lint:py)",
     });
   }
 
@@ -290,7 +298,8 @@ export async function runHostPrereqChecks(repoRoot, orchDir, options = {}) {
       id: "uv",
       reason_code: REASON_CODES.UV_MISSING,
       status: "fail",
-      message: "uv not found in PATH — required for MCP server sync (see docs/mcp-installation.md)",
+      message:
+        "uv not found in PATH — install: brew install uv  (required for MCP venv sync; see docs/mcp-installation.md)",
     });
   }
 
@@ -472,22 +481,76 @@ function attachProductFields(report, cliInstall) {
  * @param {Awaited<ReturnType<typeof runInstallAiMinions>>} report
  * @returns {string}
  */
-export function formatReportText(report) {
+export function deriveInstallNextSafeAction(report) {
+  if (report.ok && report.phase === "config_write") {
+    return "Run: ai-minions --help from outside orchestrator/ (product install complete)";
+  }
+
+  const fails = report.checks.filter((c) => c.status === "fail");
+  const codes = new Set(fails.map((f) => f.reason_code));
+
+  if (report.phase === "host_prereqs") {
+    if (codes.has(REASON_CODES.RUFF_MISSING) || codes.has(REASON_CODES.UV_MISSING)) {
+      return "Install host tools: brew install ruff uv — then re-run: node scripts/install-ai-minions.mjs";
+    }
+    if (codes.has(REASON_CODES.NODE_MISSING)) {
+      return "Install Node.js 18+, then re-run: node scripts/install-ai-minions.mjs";
+    }
+    if (codes.has(REASON_CODES.NPM_CI_FAILED)) {
+      return "Run: cd orchestrator && npm ci  (or re-run install with --install)";
+    }
+    return "Fix host prerequisites above, then re-run: node scripts/install-ai-minions.mjs";
+  }
+
+  if (report.phase === "model_discovery") {
+    if (codes.has(REASON_CODES.OLLAMA_UNREACHABLE)) {
+      return "Start Ollama (open app or: ollama serve), pull a model (ollama pull <name>), then re-run install";
+    }
+    if (codes.has(REASON_CODES.LOCAL_MODELS_EMPTY)) {
+      return "Pull a local model: ollama pull qwen2.5-coder:7b — then re-run install";
+    }
+    return "Fix model discovery blockers, then re-run: node scripts/install-ai-minions.mjs";
+  }
+
+  return "Review blockers above, then re-run: node scripts/install-ai-minions.mjs";
+}
+
+/**
+ * @param {Awaited<ReturnType<typeof runInstallAiMinions>>} report
+ * @param {{ useColor?: boolean }} [options]
+ * @returns {string}
+ */
+export function formatReportText(report, options = {}) {
+  const useColor = options.useColor ?? shouldUseAnsiStdout();
   const phaseLabels = {
     host_prereqs: "host prereqs",
     model_discovery: "model discovery",
     config_write: "config write",
   };
   const phaseLabel = phaseLabels[report.phase] ?? report.phase;
-  const lines = [
+  /** @type {string[]} */
+  const lines = [];
+
+  const checkFails = report.checks.filter((c) => c.status === "fail").length;
+  const cliFails = (report.cli_install?.checks ?? []).filter((c) => c.status === "fail").length;
+  const totalFails = checkFails + cliFails;
+  const productOk = report.product_cli_ok === true;
+
+  if (!productOk && totalFails > 0) {
+    lines.push(ansi(useColor, "1;31", `✗ INSTALL BLOCKED — ${totalFails} blocker(s)`));
+  } else if (report.ok && productOk) {
+    lines.push(ansi(useColor, "1;32", "✓ install complete"));
+  }
+
+  lines.push(
     `ai-minions install (${phaseLabel})`,
     `  phase: ${report.phase}`,
     `  repo_root: ${report.repo_root}`,
     `  model_policy: ${report.model_policy ?? "(not set)"}`,
     `  model_policy_mode: ${report.model_policy_mode} (declarative intent — discovery enforcement active for local inventory)`,
-    `  ok: ${report.ok}`,
-    `  product_cli_ok: ${report.product_cli_ok === true}`,
-  ];
+    `  ok: ${ansi(useColor, report.ok ? "32" : "1;31", String(report.ok))}`,
+    `  product_cli_ok: ${ansi(useColor, productOk ? "32" : "1;31", String(productOk))}`,
+  );
 
   if (report.cli_install) {
     lines.push(`  cli_install.phase: ${report.cli_install.phase}`);
@@ -497,8 +560,8 @@ export function formatReportText(report) {
       lines.push(`  path_remediation: ${report.cli_install.path_remediation}`);
     }
     for (const c of report.cli_install.checks ?? []) {
-      const tag = c.status === "pass" ? "PASS" : c.status === "warn" ? "WARN" : "FAIL";
-      lines.push(`  [CLI ${tag}] ${c.reason_code} — ${c.message}`);
+      const tag = formatStatusTag(c.status, useColor).replace("[", "[CLI ");
+      lines.push(`  ${tag} ${c.reason_code} — ${c.message}`);
     }
   }
 
@@ -522,9 +585,14 @@ export function formatReportText(report) {
   }
 
   for (const c of report.checks) {
-    const tag = c.status === "pass" ? "PASS" : c.status === "warn" ? "WARN" : "FAIL";
-    lines.push(`  [${tag}] ${c.reason_code} — ${c.message}`);
+    const tag = formatStatusTag(c.status, useColor);
+    lines.push(`  ${tag} ${c.reason_code} — ${c.message}`);
   }
+
+  if (!productOk) {
+    lines.push(`  next_safe_action: ${deriveInstallNextSafeAction(report)}`);
+  }
+
   return lines.join("\n");
 }
 
@@ -617,15 +685,20 @@ See docs/orchestrator/model-config-ownership.md for YAML vs JSON ownership.
   const exitOk = args.skipCli ? report.ok : report.product_cli_ok === true;
 
   if (!exitOk) {
+    const useColor = shouldUseAnsiStdout();
+    process.stderr.write(
+      `${ansi(useColor, "1;31", "install failed")} — phase=${report.phase} exit=1\n`,
+    );
     const blockers = report.checks.filter((c) => c.status === "fail");
     for (const b of blockers) {
-      process.stderr.write(`blocker: ${b.reason_code}\n`);
+      process.stderr.write(`${ansi(useColor, "1;31", "blocker:")} ${b.reason_code}\n`);
     }
     if (report.cli_install) {
       for (const b of report.cli_install.checks.filter((c) => c.status === "fail")) {
-        process.stderr.write(`blocker: ${b.reason_code}\n`);
+        process.stderr.write(`${ansi(useColor, "1;31", "blocker:")} ${b.reason_code}\n`);
       }
     }
+    process.stderr.write(`next_safe_action: ${deriveInstallNextSafeAction(report)}\n`);
   }
 
   process.exit(exitOk ? 0 : 1);
