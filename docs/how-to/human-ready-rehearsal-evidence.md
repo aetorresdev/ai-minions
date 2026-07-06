@@ -15,6 +15,8 @@ From repo root:
 ```bash
 node scripts/run-human-ready-rehearsal-evidence.mjs
 node scripts/run-human-ready-rehearsal-evidence.mjs --json
+node scripts/run-beta-cohort-guard.mjs
+node scripts/run-beta-cohort-guard.mjs --json
 ```
 
 **Pass:** exit `0` · all steps `pass`.
@@ -48,6 +50,7 @@ node scripts/run-human-ready-rehearsal-evidence.mjs --json
 | Checklist v0.19 | PRIVACY, product CLI, blast-radius, blocker recovery markers |
 | Sample issue | Product CLI path + PRIVACY + synthetic disclaimer |
 | Privacy ordering | PRIVACY linked before bundle collect in key docs |
+| Cohort guard | [beta-cohort-guard](beta-cohort-guard.md) chains rehearsal + installed CLI + performative-beta guard |
 
 ---
 

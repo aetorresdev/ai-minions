@@ -55,15 +55,19 @@ on:
       - "tests/degraded-mode-evidence.test.mjs"
       - "docs/orchestrator/beta-limitations-onboarding-contract.md"
       - "scripts/run-beta-gate-hardening-evidence.mjs"
+      - "scripts/run-beta-cohort-guard.mjs"
+      - "scripts/lib/beta-cohort-guard-data.mjs"
       - "scripts/run-modular-closeout-evidence.mjs"
       - "scripts/lib/modular-closeout-data.mjs"
       - "docs/how-to/beta-gate-hardening-evidence.md"
+      - "docs/how-to/beta-cohort-guard.md"
       - "docs/orchestrator/beta-gate-hardening-verify-contract.md"
       - "docs/orchestrator/modular-closeout-evidence-contract.md"
       - "docs/orchestrator/architecture-coherence-audit.md"
       - "docs/orchestrator/root-file-inventory.md"
       - "docs/orchestrator/module-boundaries.md"
       - "tests/run-beta-gate-hardening-evidence.test.mjs"
+      - "tests/run-beta-cohort-guard.test.mjs"
       - "tests/run-modular-closeout-evidence.test.mjs"
       - "tests/beta-limitations-onboarding.test.mjs"
       - ".github/workflows/docs-usage-verify.yml"
@@ -137,6 +141,9 @@ jobs:
       - name: Beta gate hardening evidence chain
         run: node scripts/run-beta-gate-hardening-evidence.mjs
 
+      - name: Beta cohort guard evidence chain
+        run: node scripts/run-beta-cohort-guard.mjs
+
       - name: Modular closeout evidence chain
         run: node scripts/run-modular-closeout-evidence.mjs
 
@@ -151,6 +158,9 @@ jobs:
 
       - name: Beta gate hardening evidence unit tests
         run: node --test tests/run-beta-gate-hardening-evidence.test.mjs
+
+      - name: Beta cohort guard unit tests
+        run: node --test tests/run-beta-cohort-guard.test.mjs
 
       - name: Modular closeout evidence unit tests
         run: node --test tests/run-modular-closeout-evidence.test.mjs

@@ -11,6 +11,7 @@ export const REHEARSAL_REQUIRED_DOCS = [
   "docs/how-to/beta-dry-run-checklist.md",
   "docs/how-to/evidence/beta-dry-run-sample-issue.md",
   "docs/how-to/beta-tester-guide.md",
+  "docs/how-to/beta-cohort-guard.md",
   "docs/how-to/operator-blockers-and-recovery.md",
   "docs/how-to/beta-claim-blast-radius.md",
 ];

@@ -24,7 +24,7 @@ End-to-end runbook for an **internal operator** playing beta tester: product ins
 | Evidence chain works | `ai-minions attach` (or scripts) exit `0`; `ATTACH.md` fields copyable |
 | Feedback loop works | GitHub issue from bundle — **actionable without maintainer rewrite** |
 
-Formal checklist: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample issue](evidence/beta-dry-run-sample-issue.md) · [human-ready rehearsal evidence](human-ready-rehearsal-evidence.md). Gate matrix: [beta-smoke-matrix](beta-smoke-matrix.md).
+Formal checklist: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample issue](evidence/beta-dry-run-sample-issue.md) · [human-ready rehearsal evidence](human-ready-rehearsal-evidence.md) · [cohort guard](beta-cohort-guard.md) (`node scripts/run-beta-cohort-guard.mjs`). Gate matrix: [beta-smoke-matrix](beta-smoke-matrix.md).
 
 ---
 
@@ -32,7 +32,7 @@ Formal checklist: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample
 
 | Item | Why |
 |------|-----|
-| External beta cohort | Internal dry-run until E20-6 cohort guard |
+| External beta cohort | Internal dry-run until E20-6 [cohort guard](beta-cohort-guard.md) passes |
 | Production support SLA | Beta candidate — no support promise |
 | Production TUI / Web UI | Guided CLI only — `runner:tui` is advanced/legacy |
 | Automatic issue upload | Bundle is local; you open GitHub manually |
@@ -206,5 +206,6 @@ ai-minions attach --run-id <task_id>
 |-----|------|
 | [beta-dry-run-checklist](beta-dry-run-checklist.md) | Scorable checklist |
 | [human-ready-rehearsal-evidence](human-ready-rehearsal-evidence.md) | Rehearsal record + doc-chain |
+| [beta-cohort-guard](beta-cohort-guard.md) | Pre-cohort automated guard |
 | [beta-known-limitations](beta-known-limitations.md) | Honesty boundaries |
 | [operator-guided-run](operator-guided-run.md) | Legacy `runner:tui` detail |
