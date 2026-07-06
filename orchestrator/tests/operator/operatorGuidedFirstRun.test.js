@@ -15,10 +15,16 @@ const {
   hasInitConfig,
   runAttach,
   runFirstRun,
+  runSmoke,
   validateTargetRepo,
 } = require("../../modules/operator/operator-guided-first-run");
 
 const CLI_PATH = path.join(__dirname, "..", "..", "ai-minions-cli.js");
+const SMOKE_SUCCESS_PRELOAD = path.join(
+  __dirname,
+  "fixtures",
+  "smoke-success-preload.cjs",
+);
 const ORCH_CWD = path.join(__dirname, "..", "..");
 
 function makeRepoWithOrch() {
@@ -124,6 +130,34 @@ describe("operator-guided-first-run", () => {
     assert.match(text, /guided_chain/);
     assert.match(text, /Not claimed: production TUI/);
   });
+
+  it("runSmoke returns ok true and SMOKE_OK when start exits 0", async () => {
+    const result = await runSmoke({
+      runStart: async () => ({
+        exitCode: 0,
+        preflightText: "preflight",
+        routingText: "routing",
+        text: "done",
+      }),
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.reason_code, "SMOKE_OK");
+  });
+
+  it("runSmoke returns ok false and SMOKE_BLOCKED when start exits non-zero", async () => {
+    const result = await runSmoke({
+      runStart: async () => ({
+        exitCode: 2,
+        preflightText: "preflight",
+        routingText: "routing",
+        text: "blocked",
+      }),
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.reason_code, "SMOKE_BLOCKED");
+  });
 });
 
 describe("ai-minions-cli guided verbs", () => {
@@ -157,5 +191,16 @@ describe("ai-minions-cli guided verbs", () => {
     });
     assert.equal(r.status, 1);
     assert.match(r.stdout + r.stderr, /ATTACH_RUN_ID_MISSING/);
+  });
+
+  it("smoke success does not print SMOKE_OK to stderr", () => {
+    const r = spawnSync(
+      process.execPath,
+      ["-r", SMOKE_SUCCESS_PRELOAD, CLI_PATH, "smoke"],
+      { encoding: "utf8", cwd: ORCH_CWD },
+    );
+    assert.equal(r.status, 0);
+    assert.doesNotMatch(r.stderr, /reason_code:\s*SMOKE_OK/);
+    assert.match(r.stdout, /smoke done/);
   });
 });

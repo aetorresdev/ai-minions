@@ -259,9 +259,13 @@ async function runSmoke(options = {}) {
     skipGates: options.skipGates !== false,
     maxIterations: options.maxIterations ?? 1,
   });
+
+  const ok = result.exitCode === 0;
+
   return {
     ...result,
-    reason_code: result.exitCode === 0 ? 'SMOKE_OK' : 'SMOKE_BLOCKED',
+    ok,
+    reason_code: ok ? 'SMOKE_OK' : 'SMOKE_BLOCKED',
   };
 }
 
