@@ -4,7 +4,7 @@
   "maintainer_notes": "Live operator dry-run completed 2026-07-06 on Mac M4 (Apple Silicon). Primary issue: GitHub #251. Related friction: #252 #253 #254. External cohort still requires cohort guard exit 0 plus this record LIVE_PASS.",
   "record": {
     "status": "LIVE_PASS",
-    "repo_commit": "99233e0",
+    "repo_commit": "8a367a9",
     "rehearsal_date": "2026-07-06",
     "operator_path": "installed_cli_primary",
     "checklist": "docs/how-to/beta-dry-run-checklist.md",
@@ -17,7 +17,7 @@
     "installed_cli_evidence": {
       "required_before_v0_20_beta": true,
       "evidence_class": "mac_host_operator_dry_run",
-      "install_evidence_commit": "99233e0",
+      "install_evidence_commit": "8a367a9",
       "live_attestation_date": "2026-07-06",
       "operator_path_detail": "node scripts/install-ai-minions.mjs then ai-minions from $HOME (no cd orchestrator)"
     },
