@@ -18,6 +18,7 @@ import {
   PERFORMATIVE_BETA_SCAN_PATHS,
   checkNoPrimaryDevPathInChecklist,
   checkPerformativeBetaClaims,
+  checkLivePassCohortDocContract,
 } from "./lib/beta-cohort-guard-data.mjs";
 import { REHEARSAL_RECORD_PATH } from "./lib/human-ready-rehearsal-data.mjs";
 import { runHumanReadyRehearsalEvidence } from "./run-human-ready-rehearsal-evidence.mjs";
@@ -33,6 +34,7 @@ export const REASON_CODES = {
   PERFORMATIVE: "COHORT_GUARD_PERFORMATIVE_BETA_FAIL",
   PRIMARY_PATH: "COHORT_GUARD_PRIMARY_PATH_FAIL",
   ISSUE_EVIDENCE: "COHORT_GUARD_ISSUE_EVIDENCE_FAIL",
+  LIVE_PASS: "COHORT_GUARD_LIVE_PASS_DOC_FAIL",
   RECORD: "COHORT_GUARD_RECORD_FAIL",
 };
 
@@ -160,6 +162,15 @@ export function checkCohortGuardRecord(options = {}) {
   if (cg.performative_beta_guard !== "enforced") {
     failures.push(`${REHEARSAL_RECORD_PATH}: cohort_guard.performative_beta_guard must be "enforced"`);
   }
+  if (cg.doc_chain_status !== "DOC_CHAIN_PASS") {
+    failures.push(`${REHEARSAL_RECORD_PATH}: cohort_guard.doc_chain_status must be "DOC_CHAIN_PASS"`);
+  }
+  const expectedIssueChain = "docs/how-to/evidence/beta-dry-run-sample-issue.md";
+  if (cg.issue_evidence_chain !== expectedIssueChain) {
+    failures.push(
+      `${REHEARSAL_RECORD_PATH}: cohort_guard.issue_evidence_chain must be ${JSON.stringify(expectedIssueChain)}`,
+    );
+  }
 
   return { ok: failures.length === 0, failures };
 }
@@ -213,6 +224,16 @@ export async function runBetaCohortGuard(options = {}) {
     reason_code: performative.ok ? REASON_CODES.OK : REASON_CODES.PERFORMATIVE,
     status: performative.ok ? "pass" : "fail",
     message: performative.ok ? "no performative external-beta claims" : performative.failures.join("; "),
+  });
+
+  const livePassDocs = checkLivePassCohortDocContract({ repoRoot });
+  steps.push({
+    id: "live_pass_doc_contract",
+    reason_code: livePassDocs.ok ? REASON_CODES.OK : REASON_CODES.LIVE_PASS,
+    status: livePassDocs.ok ? "pass" : "fail",
+    message: livePassDocs.ok
+      ? "LIVE_PASS required-before-cohort docs OK"
+      : livePassDocs.failures.join("; "),
   });
 
   const issue = checkIssueEvidenceChain({ repoRoot });

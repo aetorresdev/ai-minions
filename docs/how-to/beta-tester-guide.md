@@ -32,7 +32,7 @@ Formal checklist: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample
 
 | Item | Why |
 |------|-----|
-| External beta cohort | Internal dry-run until E20-6 [cohort guard](beta-cohort-guard.md) passes |
+| External beta cohort | Internal dry-run until E20-6 [cohort guard](beta-cohort-guard.md) passes **and** rehearsal record `status` is `LIVE_PASS` |
 | Production support SLA | Beta candidate — no support promise |
 | Production TUI / Web UI | Guided CLI only — `runner:tui` is advanced/legacy |
 | Automatic issue upload | Bundle is local; you open GitHub manually |

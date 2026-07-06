@@ -74,7 +74,7 @@ These match the **actual shipped surface** — not a roadmap wish list.
 | Privacy outbound scan | Remote-capable paths scan before send; failures block with `PRIVACY_*` | [privacy-sanitize-gate-contract](../orchestrator/privacy-sanitize-gate-contract.md) |
 | Live smoke in CI | Fresh-clone / primary smoke are **documented evidence paths**, not automatic PR merge gates | [fresh-clone-evidence](fresh-clone-evidence.md) |
 | Feedback loop | Report bundle + GitHub issue form | [operator-feedback-issue](operator-feedback-issue.md) · [collect-run-report](collect-run-report.md) |
-| External beta | **No** external tester cohort until [cohort guard](beta-cohort-guard.md) passes — internal dry-run only | This doc + [beta-tester-guide](beta-tester-guide.md) |
+| External beta | **No** external tester cohort until [cohort guard](beta-cohort-guard.md) passes **and** [human-ready rehearsal record](evidence/human-ready-rehearsal-record.json) `status` is `LIVE_PASS` — internal dry-run only | This doc + [beta-tester-guide](beta-tester-guide.md) |
 | Secrets in attachments | Redact before upload — **never** attach `.env`, tokens, or credential files | [Redaction policy](#redaction-policy-before-upload) · [trace-privacy](../orchestrator/trace-privacy-contract.md) |
 | Sandbox / isolation | Harness **reduces** risk; widening permissions or skipping gates can still cause real damage | [security-posture](../orchestrator/security-posture.md) |
 

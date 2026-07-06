@@ -2,6 +2,8 @@
  * Beta cohort guard (v0.20 E20-6) — doc markers, performative-beta rules, record schema.
  */
 
+import fs from "node:fs";
+import path from "node:path";
 import {
   lineNegatesClaim,
   stripCodeSpans,
@@ -70,6 +72,56 @@ export function checkPerformativeBetaClaims(text, fileRel, onFailure) {
       }
     }
   }
+}
+
+/** Docs that must state LIVE_PASS is required before external cohort opens. */
+export const LIVE_PASS_COHORT_GATE_DOCS = [
+  "docs/how-to/beta-cohort-guard.md",
+  "docs/how-to/beta-tester-guide.md",
+  "docs/how-to/beta-known-limitations.md",
+];
+
+/** Forbidden wording that weakens LIVE_PASS as a hard gate. */
+export const LIVE_PASS_FORBIDDEN_PHRASES = [
+  "Optional live attestation",
+];
+
+/**
+ * @param {{ repoRoot?: string }} [options]
+ * @returns {{ ok: boolean, failures: string[] }}
+ */
+export function checkLivePassCohortDocContract(options = {}) {
+  const repoRoot = options.repoRoot ?? process.cwd();
+  /** @type {string[]} */
+  const failures = [];
+
+  for (const rel of LIVE_PASS_COHORT_GATE_DOCS) {
+    const filePath = path.join(repoRoot, rel);
+    if (!fs.existsSync(filePath)) {
+      failures.push(`missing doc: ${rel}`);
+      continue;
+    }
+    const text = fs.readFileSync(filePath, "utf8");
+    if (!text.includes("LIVE_PASS")) {
+      failures.push(`${rel}: must mention LIVE_PASS for external cohort gate`);
+    }
+    for (const phrase of LIVE_PASS_FORBIDDEN_PHRASES) {
+      if (text.includes(phrase)) {
+        failures.push(`${rel}: forbidden phrase ${JSON.stringify(phrase)}`);
+      }
+    }
+  }
+
+  const guardRel = "docs/how-to/beta-cohort-guard.md";
+  const guardPath = path.join(repoRoot, guardRel);
+  if (fs.existsSync(guardPath)) {
+    const guardText = fs.readFileSync(guardPath, "utf8");
+    if (!guardText.includes("Required before external cohort")) {
+      failures.push(`${guardRel}: must state LIVE_PASS is required before external cohort`);
+    }
+  }
+
+  return { ok: failures.length === 0, failures };
 }
 
 /**

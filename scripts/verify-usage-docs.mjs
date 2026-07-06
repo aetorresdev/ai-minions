@@ -303,6 +303,7 @@ function checkBetaKnownLimitationsDoc(docText) {
   mustInclude(docText, "beta-tester-guide", "beta tester guide link", rel);
   mustInclude(docText, "beta-dry-run-checklist", "dry-run checklist link", rel);
   mustInclude(docText, "beta-cohort-guard", "cohort guard link", rel);
+  mustInclude(docText, "LIVE_PASS", "live pass gate for external cohort", rel);
   mustInclude(docText, "beta-smoke-matrix", "smoke matrix link", rel);
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy link", rel);
   mustInclude(docText, "beta-limitations-onboarding-contract", "onboarding contract link", rel);
@@ -335,6 +336,7 @@ function checkBetaTesterGuideDoc(docText) {
   mustInclude(docText, "ai-minions-command-migration", "migration doc link", rel);
   mustInclude(docText, "human-ready-rehearsal-evidence", "rehearsal evidence link", rel);
   mustInclude(docText, "beta-cohort-guard", "cohort guard link", rel);
+  mustInclude(docText, "LIVE_PASS", "live pass gate for external cohort", rel);
   mustInclude(docText, "run-beta-cohort-guard.mjs", "cohort guard script", rel);
   mustInclude(docText, "ai-minions first-run", "guided first-run verb", rel);
   mustInclude(docText, "ai-minions smoke", "smoke verb", rel);
@@ -674,6 +676,9 @@ function checkBetaCohortGuardDoc(docText) {
   mustInclude(docText, "beta-dry-run-checklist", "checklist link", rel);
   mustInclude(docText, "operator-feedback-issue", "feedback issue link", rel);
   mustInclude(docText, "Not claimed", "not claimed disclaimer", rel);
+  mustInclude(docText, "LIVE_PASS", "live pass gate for external cohort", rel);
+  mustInclude(docText, "Required before external cohort", "live pass required wording", rel);
+  mustNotMatch(docText, /Optional live attestation/i, "optional live attestation weakens LIVE_PASS gate", rel);
   mustInclude(docText, "ai-minions", "installed CLI reference", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);

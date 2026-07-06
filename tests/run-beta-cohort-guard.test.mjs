@@ -15,6 +15,7 @@ import {
 import {
   checkPerformativeBetaClaims,
   checkNoPrimaryDevPathInChecklist,
+  checkLivePassCohortDocContract,
 } from "../scripts/lib/beta-cohort-guard-data.mjs";
 
 describe("beta-cohort-guard-data", () => {
@@ -50,6 +51,24 @@ describe("beta-cohort-guard-data", () => {
 });
 
 describe("run-beta-cohort-guard", () => {
+  it("checkLivePassCohortDocContract passes on repo docs", () => {
+    const result = checkLivePassCohortDocContract();
+    assert.equal(result.ok, true, result.failures.join("; "));
+  });
+
+  it("checkLivePassCohortDocContract rejects Optional live attestation", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "live-pass-doc-"));
+    const guardDir = path.join(tmp, "docs/how-to");
+    fs.mkdirSync(guardDir, { recursive: true });
+    const bad = "Optional live attestation\n";
+    for (const name of ["beta-cohort-guard.md", "beta-tester-guide.md", "beta-known-limitations.md"]) {
+      fs.writeFileSync(path.join(guardDir, name), bad);
+    }
+    const result = checkLivePassCohortDocContract({ repoRoot: tmp });
+    assert.equal(result.ok, false);
+    assert.ok(result.failures.some((f) => f.includes("Optional live attestation")));
+  });
+
   it("checkGuidedPathChecklist passes on repo checklist", () => {
     const result = checkGuidedPathChecklist();
     assert.equal(result.ok, true, result.failures.join("; "));
@@ -91,12 +110,13 @@ describe("run-beta-cohort-guard", () => {
     const ids = report.steps.map((s) => s.id);
     assert.ok(ids.includes("human_ready_rehearsal"));
     assert.ok(ids.includes("performative_beta_guard"));
+    assert.ok(ids.includes("live_pass_doc_contract"));
     assert.ok(ids.includes("cohort_guard_record"));
     assert.equal(report.ok, true, formatReportText(report));
   });
 
   it("uses COHORT_GUARD reason codes", () => {
-    assert.equal(REASON_CODES.PERFORMATIVE, "COHORT_GUARD_PERFORMATIVE_BETA_FAIL");
+    assert.equal(REASON_CODES.LIVE_PASS, "COHORT_GUARD_LIVE_PASS_DOC_FAIL");
     assert.equal(REASON_CODES.RECORD, "COHORT_GUARD_RECORD_FAIL");
   });
 });
