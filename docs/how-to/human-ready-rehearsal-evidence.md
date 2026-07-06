@@ -27,7 +27,7 @@ node scripts/run-human-ready-rehearsal-evidence.mjs --json
 
 1. Read [PRIVACY.md](../../PRIVACY.md) and [beta-known-limitations](beta-known-limitations.md) onboarding order.
 2. Run product install: `node scripts/install-ai-minions.mjs` — then use **`ai-minions`** from `$HOME` (not `cd orchestrator`).
-3. Follow [beta-tester-guide](beta-tester-guide.md) using the **installed product CLI primary path** (legacy `npm run ai-minions` = dev fallback only).
+3. `ai-minions first-run --model-policy local_only` — then follow [beta-tester-guide](beta-tester-guide.md) using the **installed product CLI primary path** (legacy `npm run ai-minions` = dev fallback only).
 4. Score [beta-dry-run-checklist](beta-dry-run-checklist.md) — all required rows `PASS` or documented `FAIL`.
 5. Before Phase C bundle collect: confirm privacy notice read (checklist row C.0).
 6. Mac/Docker install evidence: `node scripts/run-install-evidence.mjs --json` — record `evidence_class` + commit in [human-ready-rehearsal-record.json](evidence/human-ready-rehearsal-record.json) `installed_cli_evidence`.
@@ -58,14 +58,14 @@ cd ai-minions
 node scripts/install-ai-minions.mjs
 cd ~
 ai-minions --help
-ai-minions init --model-policy local_only
+ai-minions first-run --model-policy local_only
+ai-minions init --model-policy local_only    # if FIRST_RUN_NEEDS_INIT
 ai-minions doctor --model-policy local_only
-ai-minions start --goal "Rehearsal: list three files under orchestrator/ and stop" \
-  --skip-gates --iterations 1 --model-policy local_only
+ai-minions smoke --model-policy local_only
 ai-minions status --run-id <task_id>
 ai-minions explain --run-id <task_id>
 cd ai-minions
-node scripts/collect-run-report.mjs <task_id>
+ai-minions attach --run-id <task_id>
 ```
 
 Read [PRIVACY.md](../../PRIVACY.md) **before** `collect-run-report.mjs`. Legacy `runner:tui` remains documented as advanced — [operator-guided-run](operator-guided-run.md).

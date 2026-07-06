@@ -2,13 +2,15 @@
 
 Scorable checklist for the **internal human-ready rehearsal** in [beta-tester-guide](beta-tester-guide.md). Record results before filing operator feedback.
 
-**v0.19 path:** product CLI primary (`npm run ai-minions`) · [PRIVACY.md](../../PRIVACY.md) before bundle upload · [operator-blockers-and-recovery](operator-blockers-and-recovery.md) for failures.
+**v0.20 path:** installed **`ai-minions`** primary (`first-run` · `smoke` · `attach`) · [PRIVACY.md](../../PRIVACY.md) before bundle upload · [operator-blockers-and-recovery](operator-blockers-and-recovery.md) for failures.
+
+**Dev fallback:** `npm run ai-minions` from `orchestrator/` only — not the primary scoring path.
 
 **Score each row:** `PASS` · `FAIL` · `SKIP` (with one-line evidence).
 
 **Exit bar:** all **required** rows `PASS` or documented `FAIL` with a filed GitHub issue — maintainer can triage **without re-running the whole path**.
 
-**Not claimed:** external beta · production SLA · automatic issue upload.
+**Not claimed:** external beta · production SLA · production TUI · automatic issue upload.
 
 **Evidence chain:** `node scripts/run-human-ready-rehearsal-evidence.mjs` · record [human-ready-rehearsal-record.json](evidence/human-ready-rehearsal-record.json)
 
@@ -29,25 +31,26 @@ Scorable checklist for the **internal human-ready rehearsal** in [beta-tester-gu
 
 ---
 
-## Phase A — Entry path
+## Phase A — Product install
 
 | # | Check | Required | Result | Evidence |
 |---|-------|----------|--------|----------|
-| A.1 | `npm ci` (root + `orchestrator/`) | yes | | exit code |
-| A.2 | `node scripts/bootstrap-preflight.mjs` → exit `0` | yes | | `PREFLIGHT_*` or `PASS` |
-| A.3 | `npm run ai-minions -- init` *(product CLI)* | yes | | exit code |
-| A.4 | Primary smoke plan/run *(optional legacy)* | no | | `SMOKE_*` or skip reason |
+| A.1 | `node scripts/install-ai-minions.mjs` → product CLI ok | yes | | `product_cli_ok` or remediation |
+| A.2 | `ai-minions --help` from outside `orchestrator/` | yes | | exit code |
+| A.3 | `ai-minions first-run --model-policy local_only` | yes | | `FIRST_RUN_*` + `next_safe_action` |
+| A.4 | `node scripts/bootstrap-preflight.mjs` *(maintainer optional)* | no | | `PREFLIGHT_*` or skip |
 
 ---
 
-## Phase B — Operator path (product CLI primary)
+## Phase B — Operator path (installed CLI primary)
 
 | # | Check | Required | Result | Evidence |
 |---|-------|----------|--------|----------|
-| B.1 | `npm run ai-minions -- doctor --model-policy local_only` | yes | | exit code + `next_safe_action` |
-| B.2 | `npm run ai-minions -- start …` completed or failure captured | yes | | `task_id` recorded |
-| B.3 | `npm run ai-minions -- status --run-id <id>` read | yes | | terminal status quoted |
-| B.4 | Legacy `runner:tui` path attempted *(optional)* | no | | exit code + `OPERATOR_*` if any |
+| B.1 | `ai-minions init` if `FIRST_RUN_NEEDS_INIT` | yes | | exit code |
+| B.2 | `ai-minions doctor --model-policy local_only` | yes | | exit code + `next_safe_action` |
+| B.3 | `ai-minions smoke --model-policy local_only` completed or failure captured | yes | | `task_id` recorded |
+| B.4 | `ai-minions status --run-id <id>` read | yes | | terminal status quoted |
+| B.5 | Legacy `runner:tui` path attempted *(optional)* | no | | exit code + `OPERATOR_*` if any |
 
 ---
 
@@ -56,8 +59,8 @@ Scorable checklist for the **internal human-ready rehearsal** in [beta-tester-gu
 | # | Check | Required | Result | Evidence |
 |---|-------|----------|--------|----------|
 | C.0 | [PRIVACY.md](../../PRIVACY.md) re-read before collect | yes | | initials / date |
-| C.1 | `node scripts/inspect-run-evidence.mjs <task_id>` | yes | | exit code + `INSPECT_*` |
-| C.2 | `node scripts/collect-run-report.mjs <task_id>` | yes | | bundle dir path |
+| C.1 | `ai-minions attach --run-id <id>` or `collect-run-report.mjs` | yes | | bundle dir path |
+| C.2 | `node scripts/inspect-run-evidence.mjs <task_id>` | yes | | exit code + `INSPECT_*` |
 | C.3 | `ATTACH.md` reviewed; secrets redacted | yes | | redaction note |
 | C.4 | `manifest.json` matches commit + task id | yes | | field spot-check |
 | C.5 | `degraded_mode` / `risk_acceptance_reason` reviewed | yes | | no disqualifying beta run claimed as PASS |
@@ -66,9 +69,11 @@ Scorable checklist for the **internal human-ready rehearsal** in [beta-tester-gu
 
 ## Phase D — Feedback loop
 
+Use [operator-feedback-issue](operator-feedback-issue.md) for field mapping.
+
 | # | Check | Required | Result | Evidence |
 |---|-------|----------|--------|----------|
-| D.1 | GitHub issue opened (**Operator feedback**) or **no issue found** documented | yes | | issue URL or record note |
+| D.1 | GitHub issue opened or **no issue found** documented | yes | | issue URL or record note |
 | D.2 | Form fields copied from `ATTACH.md` | yes | | task id + commit match bundle |
 | D.3 | Steps / Expected / Actual filled (not placeholders) | yes | | issue body |
 | D.4 | Severity selected (`BLOCKER` / `BUG` / `USABILITY` / `DOCS`) | yes | | label in issue |
@@ -98,9 +103,4 @@ Scorable checklist for the **internal human-ready rehearsal** in [beta-tester-gu
 |-----|------|
 | [human-ready-rehearsal-evidence](human-ready-rehearsal-evidence.md) | Automated doc-chain + live runbook |
 | [beta-tester-guide](beta-tester-guide.md) | Step-by-step runbook |
-| [operator-feedback-issue](operator-feedback-issue.md) | Form field map |
-| [collect-run-report](collect-run-report.md) | Bundle + `ATTACH.md` |
-| [beta-known-limitations](beta-known-limitations.md) | Honesty boundaries |
-| [beta-limitations-onboarding-contract](../orchestrator/beta-limitations-onboarding-contract.md) | Onboarding chain contract |
-| [beta-smoke-matrix](beta-smoke-matrix.md) | External beta gate matrix (OS × provider × flow) |
-| [beta-degraded-mode-policy](beta-degraded-mode-policy.md) | Degraded-mode beta eligibility rules |
+| [beta-limitations-onboarding-contract](../orchestrator/beta-limitations-onboarding-contract.md) | Redaction + onboarding contract |

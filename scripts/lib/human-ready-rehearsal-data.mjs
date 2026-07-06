@@ -37,14 +37,15 @@ export const PRIVACY_BEFORE_BUNDLE_CHECKS = [
 /** Checklist must reference v0.19 human-ready primary path markers. */
 export const CHECKLIST_HUMAN_READY_MARKERS = [
   "PRIVACY.md",
-  "npm run ai-minions",
+  "ai-minions first-run",
+  "ai-minions smoke",
   "operator-blockers-and-recovery",
   "beta-claim-blast-radius",
 ];
 
 /** Sample issue must document product CLI rehearsal path. */
 export const SAMPLE_ISSUE_MARKERS = [
-  "npm run ai-minions",
+  "ai-minions smoke",
   "PRIVACY.md",
   "synthetic",
 ];

@@ -19,7 +19,7 @@ Values the operator copies into the GitHub form (from `collect-run-report.mjs` o
 |------------|-------|
 | Task ID | `dry-run-sample-7f3a` |
 | Repo commit (short SHA) | `aaf76d9` |
-| Operator path | product CLI (`npm run ai-minions`) |
+| Operator path | installed CLI (`ai-minions smoke`) |
 | Inspect verdict | PASS |
 | Report bundle path (local) | `/tmp/ai-minions/report-bundles/dry-run-sample-7f3a-2026-07-03T12-00-00Z` |
 | Inspect blockers | see block below |
@@ -44,7 +44,7 @@ Values the operator copies into the GitHub form (from `collect-run-report.mjs` o
 |-------|-------|
 | **Task ID** | `dry-run-sample-7f3a` |
 | **Repo commit** | `aaf76d9` |
-| **Operator path** | product CLI (`npm run ai-minions`) |
+| **Operator path** | installed CLI (`ai-minions smoke`; dev fallback: `npm run ai-minions`) |
 | **Inspect verdict** | PASS |
 | **Report bundle path** | `/tmp/ai-minions/report-bundles/dry-run-sample-7f3a-2026-07-03T12-00-00Z` |
 | **Inspect blockers** | `(none)` |
@@ -53,14 +53,14 @@ Values the operator copies into the GitHub form (from `collect-run-report.mjs` o
 ### Steps to reproduce
 
 1. Read [PRIVACY.md](../../../PRIVACY.md) (Phase 0 / before bundle).
-2. Fresh clone; `npm ci` at repo root and `orchestrator/`.
-3. `node scripts/bootstrap-preflight.mjs` → exit `0`.
-4. `cd orchestrator` → `npm run ai-minions -- init --model-policy local_only` → exit `0`.
-5. `npm run ai-minions -- doctor --model-policy local_only` → exit `0`.
-6. `npm run ai-minions -- start --goal "Rehearsal smoke" --skip-gates --iterations 1 --model-policy local_only` → exit `0`; `task_id` `dry-run-sample-7f3a`.
-7. `npm run ai-minions -- status --run-id dry-run-sample-7f3a` → outcome readable.
-8. From repo root: `node scripts/inspect-run-evidence.mjs dry-run-sample-7f3a` → exit `0`.
-9. Re-read PRIVACY.md; `node scripts/collect-run-report.mjs dry-run-sample-7f3a` → bundle dir above; reviewed `ATTACH.md`.
+2. Fresh clone; `node scripts/install-ai-minions.mjs` → `ai-minions --help` from `$HOME`.
+3. `ai-minions first-run --model-policy local_only` → `FIRST_RUN_READY`.
+4. `ai-minions init --model-policy local_only` → exit `0` (if needed).
+5. `ai-minions doctor --model-policy local_only` → exit `0`.
+6. `ai-minions smoke --model-policy local_only` → exit `0`; `task_id` `dry-run-sample-7f3a`.
+7. `ai-minions status --run-id dry-run-sample-7f3a` → outcome readable.
+8. `ai-minions attach --run-id dry-run-sample-7f3a` → bundle dir above; reviewed `ATTACH.md`.
+9. *(Dev fallback reference)* `cd orchestrator && npm run ai-minions -- --help` works on clone.
 
 ### Expected
 
@@ -78,7 +78,7 @@ All steps passed. Inspect verdict PASS; no `INSPECT_*` blockers. Copied form tab
 |---------------------|-------------------|
 | Which commit? | `aaf76d9` |
 | Which run? | `dry-run-sample-7f3a` |
-| Operator entry? | product CLI (`npm run ai-minions`) |
+| Operator entry? | installed CLI (`ai-minions smoke`; dev fallback `npm run ai-minions`) |
 | Privacy before upload? | PRIVACY.md read in steps 1 and 9 |
 | Evidence quality? | Inspect PASS; bundle path + attach list |
 | Repro without chat? | Numbered steps from repo root / `orchestrator/` |
