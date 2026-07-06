@@ -331,7 +331,11 @@ function checkBetaTesterGuideDoc(docText) {
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy prerequisite", rel);
   mustInclude(docText, "ai-minions-command-migration", "migration doc link", rel);
   mustInclude(docText, "human-ready-rehearsal-evidence", "rehearsal evidence link", rel);
-  mustInclude(docText, "npm run ai-minions", "product CLI reference", rel);
+  mustInclude(docText, "ai-minions first-run", "guided first-run verb", rel);
+  mustInclude(docText, "ai-minions smoke", "smoke verb", rel);
+  mustInclude(docText, "ai-minions attach", "attach verb", rel);
+  mustInclude(docText, "install-ai-minions.mjs", "product install script", rel);
+  mustInclude(docText, "npm run ai-minions", "dev fallback reference", rel);
   mustInclude(docText, "beta-limitations-onboarding-contract", "onboarding contract link", rel);
   mustInclude(docText, "PRIVACY.md", "privacy notice prerequisite", rel);
   mustInclude(docText, "disqualifies_beta_success", "degraded bundle field", rel);
@@ -349,7 +353,9 @@ function checkBetaDryRunChecklistDoc(docText) {
   mustInclude(docText, "beta-dry-run-sample-issue", "sample issue evidence link", rel);
   mustInclude(docText, "human-ready-rehearsal-evidence", "rehearsal evidence link", rel);
   mustInclude(docText, "PRIVACY.md", "privacy notice in checklist", rel);
-  mustInclude(docText, "npm run ai-minions", "product CLI in checklist", rel);
+  mustInclude(docText, "ai-minions first-run", "guided first-run in checklist", rel);
+  mustInclude(docText, "ai-minions smoke", "smoke verb in checklist", rel);
+  mustInclude(docText, "npm run ai-minions", "dev fallback in checklist", rel);
   mustInclude(docText, "operator-blockers-and-recovery", "blocker recovery link", rel);
   mustInclude(docText, "beta-claim-blast-radius", "blast radius link", rel);
   mustInclude(docText, "C.0", "privacy before collect row", rel);
@@ -377,7 +383,8 @@ function checkBetaDryRunSampleIssueDoc(docText) {
   mustInclude(docText, "Inspect blockers", "inspect blockers field", rel);
   mustInclude(docText, "Steps to reproduce", "steps field", rel);
   mustInclude(docText, "Severity", "severity field", rel);
-  mustInclude(docText, "npm run ai-minions", "product CLI in sample issue", rel);
+  mustInclude(docText, "npm run ai-minions", "dev fallback in sample issue", rel);
+  mustInclude(docText, "ai-minions smoke", "installed CLI in sample issue", rel);
   mustInclude(docText, "PRIVACY.md", "privacy in sample issue", rel);
   mustInclude(docText, "synthetic", "synthetic disclaimer", rel);
   mustInclude(docText, "without maintainer rewrite", "triage sufficiency claim", rel);
@@ -642,6 +649,7 @@ function checkHumanReadyRehearsalEvidenceDoc(docText) {
   mustInclude(docText, "install-evidence", "installed CLI evidence link", rel);
   mustInclude(docText, "Not claimed", "not claimed disclaimer", rel);
   mustInclude(docText, "npm run ai-minions", "product CLI path", rel);
+  mustInclude(docText, "ai-minions first-run", "guided first-run reference", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }

@@ -417,6 +417,81 @@ async function main() {
     process.exit(result.exitCode);
   }
 
+  if (cmd === 'first-run') {
+    const { runFirstRun } = require('./operator-guided-first-run');
+    try {
+      const result = await runFirstRun({
+        cwd: opts.cwd,
+        modelPolicy: opts.modelPolicy ? String(opts.modelPolicy) : undefined,
+        install: opts.noInstall !== true,
+        json: opts.json === true,
+      });
+      if (opts.json === true && result.json) {
+        console.log(JSON.stringify(result.json, null, 2));
+      } else {
+        console.log(result.text);
+      }
+      if (!result.ok && result.reason_code) {
+        console.error(`reason_code: ${result.reason_code}`);
+      }
+      process.exit(result.exitCode);
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    }
+  }
+
+  if (cmd === 'smoke') {
+    const { runSmoke } = require('./operator-guided-first-run');
+    const modelPolicy = await resolveModelPolicyOption(opts);
+    try {
+      const result = await runSmoke({
+        goal: opts.goal ? String(opts.goal) : undefined,
+        cwd: opts.cwd,
+        modelPolicy: modelPolicy ?? (opts.modelPolicy ? String(opts.modelPolicy) : undefined),
+        model: opts.model ? String(opts.model) : undefined,
+        skipGates: opts.skipGates !== false,
+        maxIterations: opts.maxIterations ?? 1,
+      });
+      console.log(result.preflightText);
+      console.log('');
+      console.log(result.routingText);
+      console.log('');
+      console.log(result.text);
+      if (!result.ok && result.reason_code) {
+        console.error(`reason_code: ${result.reason_code}`);
+      }
+      process.exit(result.exitCode);
+    } catch (err) {
+      if (err && err.preflight) {
+        console.error(formatPreflightText(err.preflight));
+      } else {
+        console.error(err instanceof Error ? err.message : String(err));
+      }
+      const code = err && err.code;
+      if (code === 'AI_MINIONS_USAGE') process.exit(1);
+      process.exit(code === 'RUNNER_PREFLIGHT_BLOCKED' || code === 'RUNNER_WORKTREE_BLOCKED' ? 2 : 1);
+    }
+  }
+
+  if (cmd === 'attach') {
+    const { runAttach } = require('./operator-guided-first-run');
+    const result = await runAttach({
+      runId: opts.runId ? String(opts.runId) : undefined,
+      cwd: opts.cwd,
+      json: opts.json === true,
+    });
+    if (opts.json === true && result.json) {
+      console.log(JSON.stringify(result.json, null, 2));
+    } else {
+      console.log(result.text);
+    }
+    if (!result.ok && result.reason_code) {
+      console.error(`reason_code: ${result.reason_code}`);
+    }
+    process.exit(result.exitCode);
+  }
+
   if (cmd === 'start') {
     if (!opts.goal) {
       console.error('start requires --goal');

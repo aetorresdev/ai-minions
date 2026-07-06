@@ -68,6 +68,7 @@ const ENTRIES = {
   'tests/operator/aiMinionsCli.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTraceCommand.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorDoctorEvidence.test.js': { owner: 'operator', kind: 'unit' },
+  'tests/operator/operatorGuidedFirstRun.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorContextResume.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTraceSummary.test.js': { owner: 'operator', kind: 'unit' },
   'tests/flowHookBridge.test.js': { owner: 'model-runtime', kind: 'unit' },
