@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { runOperatorDoctor } = require('./operator-doctor-evidence');
+const { loadRunStatusFromTrace } = require('./runner-launcher');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const COLLECT_REPORT_SCRIPT = path.join(REPO_ROOT, 'scripts', 'collect-run-report.mjs');
@@ -41,8 +42,23 @@ const FIRST_RUN_REASON_CODES = {
   UNKNOWN_ERROR: 'FIRST_RUN_UNKNOWN_ERROR',
 };
 
-const DEFAULT_SMOKE_GOAL =
-  'Beta smoke: list three files in the repo root and stop';
+const SMOKE_REASON_CODES = {
+  OK: 'SMOKE_OK',
+  BLOCKED: 'SMOKE_BLOCKED',
+  OUTPUT_CONTRACT: 'SMOKE_OUTPUT_CONTRACT',
+  RUNTIME_FAILED: 'SMOKE_RUNTIME_FAILED',
+  PREFLIGHT_BLOCKED: 'SMOKE_PREFLIGHT_BLOCKED',
+};
+
+const DEFAULT_SMOKE_GOAL = [
+  'Beta smoke: read README.md and orchestrator/package.json.',
+  'Your reply MUST START with YAML (no markdown fence before it) containing:',
+  'files_read:, files_modified:, validation_run:',
+  'List README.md and orchestrator/package.json under files_read.',
+  'files_modified must only contain paths already listed in files_read.',
+  'validation_run must cite a real command (e.g. test -f README.md).',
+  'After YAML, name one more file visible in the repo root in one sentence. Stop.',
+].join(' ');
 
 /**
  * @param {string} repoRoot
@@ -154,6 +170,122 @@ function formatFirstRunText(ctx) {
 }
 
 /**
+ * @param {ReturnType<typeof loadRunStatusFromTrace> | null} traceStatus
+ * @returns {{
+ *   reason_code: string,
+ *   failure_class: string,
+ *   message: string,
+ *   gate_id: string | null,
+ *   transition_reason: string | null,
+ * }}
+ */
+function classifySmokeFailure(traceStatus) {
+  if (!traceStatus || traceStatus.error) {
+    return {
+      reason_code: SMOKE_REASON_CODES.RUNTIME_FAILED,
+      failure_class: 'trace_unavailable',
+      message: traceStatus?.error || 'trace unavailable after smoke run',
+      gate_id: null,
+      transition_reason: null,
+    };
+  }
+
+  const ros = traceStatus.summary;
+  const tr = ros?.what?.last_transition_reason;
+  const reasonCode = typeof tr?.reason_code === 'string' ? tr.reason_code : '';
+  const gateId = typeof tr?.gate_id === 'string' ? tr.gate_id : null;
+  const contractFails = ros?.why?.rollup_contract_fail_steps ?? 0;
+
+  if (
+    reasonCode === 'MAX_ITERATIONS_CERBERUS_BLOCKERS'
+    || gateId === 'files_read_vs_modified'
+    || contractFails > 0
+  ) {
+    const message = gateId === 'files_read_vs_modified' || contractFails > 0
+      ? 'DEV output contract — files_modified must be declared in files_read'
+      : (reasonCode || 'output contract failure');
+    return {
+      reason_code: SMOKE_REASON_CODES.OUTPUT_CONTRACT,
+      failure_class: 'output_contract',
+      message,
+      gate_id: gateId || (contractFails > 0 ? 'files_read_vs_modified' : null),
+      transition_reason: reasonCode || null,
+    };
+  }
+
+  return {
+    reason_code: SMOKE_REASON_CODES.RUNTIME_FAILED,
+    failure_class: 'runtime',
+    message: reasonCode || `terminal_status=${traceStatus.terminal_status}`,
+    gate_id: gateId,
+    transition_reason: reasonCode || null,
+  };
+}
+
+/**
+ * @param {{
+ *   ok: boolean,
+ *   reason_code: string,
+ *   task_id?: string | null,
+ * }} ctx
+ * @returns {string}
+ */
+function deriveSmokeNextSafeAction(ctx) {
+  if (ctx.ok) {
+    return ctx.task_id
+      ? `Run: ai-minions status --run-id ${ctx.task_id} then ai-minions attach --run-id ${ctx.task_id}`
+      : 'Run: ai-minions status --run-id <task_id> from smoke output';
+  }
+  if (ctx.reason_code === SMOKE_REASON_CODES.OUTPUT_CONTRACT && ctx.task_id) {
+    return `Run: ai-minions explain --run-id ${ctx.task_id} — failure captured counts for beta dry-run (checklist B.3)`;
+  }
+  if (ctx.task_id) {
+    return `Run: ai-minions explain --run-id ${ctx.task_id}`;
+  }
+  return 'Re-run: ai-minions doctor --model-policy local_only then ai-minions smoke';
+}
+
+/**
+ * @param {{
+ *   ok: boolean,
+ *   reason_code: string,
+ *   task_id?: string | null,
+ *   terminal_status?: string | null,
+ *   skip_gates?: boolean,
+ *   classification?: ReturnType<typeof classifySmokeFailure>,
+ *   next_safe_action: string,
+ * }} ctx
+ * @returns {string}
+ */
+function formatSmokeText(ctx) {
+  const lines = [
+    'ai-minions smoke',
+    `  ok:               ${ctx.ok}`,
+    `  reason_code:      ${ctx.reason_code}`,
+  ];
+  if (ctx.task_id) lines.push(`  run_id:           ${ctx.task_id}`);
+  if (ctx.terminal_status) lines.push(`  terminal_status:  ${ctx.terminal_status}`);
+  if (ctx.skip_gates) {
+    lines.push('  degraded_mode:    true (--skip-gates; MCP/hard gates off)');
+  }
+  if (ctx.classification && !ctx.ok) {
+    lines.push(`  failure_class:    ${ctx.classification.failure_class}`);
+    lines.push(`  blocker_summary:  ${ctx.classification.message}`);
+    if (ctx.classification.gate_id) {
+      lines.push(`  gate_id:          ${ctx.classification.gate_id}`);
+    }
+    if (ctx.classification.transition_reason) {
+      lines.push(`  transition_reason: ${ctx.classification.transition_reason}`);
+    }
+  }
+  if (!ctx.ok && ctx.reason_code === SMOKE_REASON_CODES.OUTPUT_CONTRACT) {
+    lines.push('  checklist_note:   failure captured — valid beta dry-run per checklist B.3');
+  }
+  lines.push(`  next_safe_action: ${ctx.next_safe_action}`);
+  return lines.join('\n');
+}
+
+/**
  * @param {{
  *   cwd?: string,
  *   modelPolicy?: string,
@@ -246,26 +378,59 @@ async function runFirstRun(options = {}) {
  *   maxIterations?: number | string,
  *   json?: boolean,
  *   runStart?: typeof getRunStart extends () => infer R ? R : never,
+ *   loadRunStatusFromTrace?: typeof loadRunStatusFromTrace,
  * }} [options]
  */
 async function runSmoke(options = {}) {
   const goal = String(options.goal ?? DEFAULT_SMOKE_GOAL).trim();
+  const skipGates = options.skipGates !== false;
   const runStart = options.runStart ?? getRunStart();
+  const loadTrace = options.loadRunStatusFromTrace ?? loadRunStatusFromTrace;
   const result = await runStart({
     goal,
     cwd: options.cwd,
     modelPolicy: options.modelPolicy ?? 'local_only',
     model: options.model,
-    skipGates: options.skipGates !== false,
+    skipGates,
     maxIterations: options.maxIterations ?? 1,
   });
 
+  const taskId = result.launched?.task_id ?? null;
   const ok = result.exitCode === 0;
+  /** @type {ReturnType<typeof classifySmokeFailure> | null} */
+  let classification = null;
+  let traceStatus = null;
+
+  if (!ok && taskId) {
+    traceStatus = loadTrace(String(taskId));
+    classification = classifySmokeFailure(traceStatus);
+  }
+
+  const reason_code = ok
+    ? SMOKE_REASON_CODES.OK
+    : (classification?.reason_code ?? SMOKE_REASON_CODES.BLOCKED);
+  const next_safe_action = deriveSmokeNextSafeAction({ ok, reason_code, task_id: taskId });
+  const smokeText = formatSmokeText({
+    ok,
+    reason_code,
+    task_id: taskId,
+    terminal_status: result.launched?.terminal_status ?? null,
+    skip_gates: skipGates,
+    classification,
+    next_safe_action,
+  });
 
   return {
     ...result,
     ok,
-    reason_code: ok ? 'SMOKE_OK' : 'SMOKE_BLOCKED',
+    reason_code,
+    task_id: taskId,
+    failure_class: classification?.failure_class ?? null,
+    blocker_summary: classification?.message ?? null,
+    gate_id: classification?.gate_id ?? null,
+    next_safe_action,
+    smokeText,
+    traceStatus,
   };
 }
 
@@ -319,12 +484,16 @@ async function runAttach(options = {}) {
 
 module.exports = {
   FIRST_RUN_REASON_CODES,
+  SMOKE_REASON_CODES,
   DEFAULT_SMOKE_GOAL,
   hasInitConfig,
   validateTargetRepo,
   classifyDoctorFailure,
+  classifySmokeFailure,
   deriveFirstRunNextSafeAction,
+  deriveSmokeNextSafeAction,
   formatFirstRunText,
+  formatSmokeText,
   runFirstRun,
   runSmoke,
   runAttach,
