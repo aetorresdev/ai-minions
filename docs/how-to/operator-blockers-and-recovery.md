@@ -80,7 +80,9 @@ If `doctor` fails, fix the **first FAIL line** in its check list, then re-run `d
 | `doctor` exit `2`, `OPERATOR_OLLAMA_UNREACHABLE` | Runner | Ollama not reachable for local policy | Start Ollama or use `--model-policy remote_ok` where documented |
 | `start` exit `2`, preflight blocked | Runner | Launch layer not ready | Re-run `doctor`; read `blocker:` lines on stderr |
 | ⚠ **DEGRADED MODE** banner during run | Degraded | Gates skipped or MCPs missing | **Expected** for learning smokes with `--skip-gates`; remove flag + install MCPs for strict runs |
-| `status` / `explain` exit `2`, trace missing | Post-run | Wrong `task_id` or custom traces dir | Copy `task_id` from `start` output; check `ORCH_TRACES_DIR` |
+| `ai-minions smoke` → `SMOKE_OUTPUT_CONTRACT` | Degraded smoke | DEV output contract failed (`files_modified` ∉ `files_read`) | **Valid dry-run** per checklist B.3 — run `ai-minions explain --run-id <task_id>`; do not treat as install/doctor failure |
+| `ai-minions smoke` exit non-zero, generic `SMOKE_RUNTIME_FAILED` | Smoke run | Run failed without contract classification | `ai-minions explain --run-id <task_id>` from smoke output |
+| `status` / `explain` exit `2`, trace missing | Post-run | Wrong `task_id` or custom traces dir | Copy `task_id` from smoke/start output; check `ORCH_TRACES_DIR` |
 | `resume` exit `2`, `RUN_RESUME_NOT_IMPLEMENTED` | Probe | Durable resume **not shipped** | Use `status` / `explain` / new `start` — not “resume anyway” |
 | Gate blocked mid-run | Trace `gate_result` | Contract or permission gate fired | `npm run ai-minions -- explain --run-id <task_id>` |
 

@@ -463,9 +463,20 @@ async function main() {
       console.log('');
       console.log(result.routingText);
       console.log('');
-      console.log(result.text);
-      if (!result.ok && result.reason_code) {
-        console.error(`reason_code: ${result.reason_code}`);
+      console.log(result.smokeText || result.text);
+      if (!result.ok) {
+        if (result.reason_code) {
+          console.error(`reason_code: ${result.reason_code}`);
+        }
+        if (result.failure_class) {
+          console.error(`failure_class: ${result.failure_class}`);
+        }
+        if (result.blocker_summary) {
+          console.error(`blocker_summary: ${result.blocker_summary}`);
+        }
+        if (result.next_safe_action) {
+          console.error(`next_safe_action: ${result.next_safe_action}`);
+        }
       }
       process.exit(result.exitCode);
     } catch (err) {

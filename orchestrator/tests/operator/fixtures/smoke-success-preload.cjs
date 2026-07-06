@@ -14,5 +14,6 @@ guided.runSmoke = async () => ({
   preflightText: 'preflight ok',
   routingText: 'routing ok',
   text: 'smoke done',
+  smokeText: 'ai-minions smoke\n  ok:               true\n  reason_code:      SMOKE_OK',
   reason_code: 'SMOKE_OK',
 });

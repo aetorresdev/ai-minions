@@ -9,9 +9,13 @@ const { spawnSync } = require("node:child_process");
 
 const {
   FIRST_RUN_REASON_CODES,
+  SMOKE_REASON_CODES,
   classifyDoctorFailure,
+  classifySmokeFailure,
   deriveFirstRunNextSafeAction,
+  deriveSmokeNextSafeAction,
   formatFirstRunText,
+  formatSmokeText,
   hasInitConfig,
   runAttach,
   runFirstRun,
@@ -152,11 +156,83 @@ describe("operator-guided-first-run", () => {
         preflightText: "preflight",
         routingText: "routing",
         text: "blocked",
+        launched: { task_id: null, terminal_status: "failed" },
       }),
     });
 
     assert.equal(result.ok, false);
     assert.equal(result.reason_code, "SMOKE_BLOCKED");
+    assert.match(result.smokeText, /next_safe_action/);
+  });
+
+  it("classifySmokeFailure maps contract fail to SMOKE_OUTPUT_CONTRACT", () => {
+    const out = classifySmokeFailure({
+      task_id: "task-abc",
+      terminal_status: "failed",
+      trace_file: "/tmp/task-abc.jsonl",
+      summary: {
+        what: { last_transition_reason: { reason_code: "MAX_ITERATIONS_CERBERUS_BLOCKERS", gate_id: "files_read_vs_modified" } },
+        why: { rollup_contract_fail_steps: 1 },
+      },
+    });
+    assert.equal(out.reason_code, SMOKE_REASON_CODES.OUTPUT_CONTRACT);
+    assert.equal(out.failure_class, "output_contract");
+    assert.match(out.message, /files_modified/);
+  });
+
+  it("formatSmokeText surfaces output contract failure for operators", () => {
+    const text = formatSmokeText({
+      ok: false,
+      reason_code: SMOKE_REASON_CODES.OUTPUT_CONTRACT,
+      task_id: "task-abc",
+      terminal_status: "failed",
+      skip_gates: true,
+      classification: {
+        reason_code: SMOKE_REASON_CODES.OUTPUT_CONTRACT,
+        failure_class: "output_contract",
+        message: "DEV output contract — files_modified must be declared in files_read",
+        gate_id: "files_read_vs_modified",
+        transition_reason: "MAX_ITERATIONS_CERBERUS_BLOCKERS",
+      },
+      next_safe_action: deriveSmokeNextSafeAction({
+        ok: false,
+        reason_code: SMOKE_REASON_CODES.OUTPUT_CONTRACT,
+        task_id: "task-abc",
+      }),
+    });
+    assert.match(text, /failure_class:\s+output_contract/);
+    assert.match(text, /gate_id:\s+files_read_vs_modified/);
+    assert.match(text, /checklist B\.3/);
+    assert.match(text, /ai-minions explain --run-id task-abc/);
+  });
+
+  it("runSmoke classifies trace contract failure as SMOKE_OUTPUT_CONTRACT", async () => {
+    const result = await runSmoke({
+      runStart: async () => ({
+        exitCode: 3,
+        preflightText: "preflight",
+        routingText: "routing",
+        text: "start summary",
+        launched: { task_id: "task-smoke-1", terminal_status: "failed" },
+      }),
+      loadRunStatusFromTrace: () => ({
+        task_id: "task-smoke-1",
+        terminal_status: "failed",
+        trace_file: "/tmp/task-smoke-1.jsonl",
+        summary: {
+          what: {
+            last_transition_reason: {
+              reason_code: "MAX_ITERATIONS_CERBERUS_BLOCKERS",
+              gate_id: "files_read_vs_modified",
+            },
+          },
+          why: { rollup_contract_fail_steps: 1 },
+        },
+      }),
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason_code, SMOKE_REASON_CODES.OUTPUT_CONTRACT);
+    assert.equal(result.failure_class, "output_contract");
   });
 });
 
@@ -201,6 +277,6 @@ describe("ai-minions-cli guided verbs", () => {
     );
     assert.equal(r.status, 0);
     assert.doesNotMatch(r.stderr, /reason_code:\s*SMOKE_OK/);
-    assert.match(r.stdout, /smoke done/);
+    assert.match(r.stdout, /SMOKE_OK/);
   });
 });
