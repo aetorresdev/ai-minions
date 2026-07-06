@@ -6,6 +6,59 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.20.1-beta.1] - 2026-07-06
+
+Patch beta pre-release: **operator UX hardening after internal dry-run** — install blocked output for missing host prereqs (`ruff`/`uv`), doctor `beta_lane_note` for degraded MCP/hook WARNs, and smoke failure classification (`SMOKE_OUTPUT_CONTRACT`) with operator-facing `next_safe_action` — without reopening cohort gate semantics.
+
+**Release claim:** testers on `v0.20.1-beta.1` get clearer install/smoke/doctor signals from the guided CLI path; external cohort still requires cohort guard exit `0` **and** rehearsal record `LIVE_PASS` — **not** a new feature lane, **not** production-ready, **not** smoke pass guarantee on all models.
+
+**Prerequisite:** `v0.20.0-beta.1` @ `3469d17` (LIVE_PASS evidence @ `99233e0`).
+
+**Since [0.20.0-beta.1]:** v0.20.0 shipped install + cohort guard + Mac M4 dry-run (issues #251–#254). v0.20.1 closes operator friction (#252–#254, #251) with install stderr/banner UX, beta tester prereq docs, doctor degraded note, and trace-backed smoke failure classification.
+
+| Area | `v0.20.0-beta.1` | `v0.20.1-beta.1` (delta) |
+|------|------------------|---------------------------|
+| Focus | First external-usability beta cut + cohort dual gate | Dry-run friction fixes — install/doctor/smoke operator surfacing |
+| Operator path | Installed CLI primary; opaque smoke `SMOKE_BLOCKED` | `INSTALL BLOCKED` banner · `beta_lane_note` · `SMOKE_OUTPUT_CONTRACT` + explain path |
+| Unit tests (orchestrator) | 1227/1227 pass (1 skipped) @ lane tip `eff9ca3` | **1230/1230** pass (1 skipped) @ `cbf9823` |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.20.1-beta.1` — pre-release published on cut (implementation @ `cbf9823`; release-prep docs on tag commit)
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1230/1230** pass (1 skipped) @ `cbf9823`
+- Usage docs: `node scripts/verify-usage-docs.mjs` → **OK**
+- Claim audit: `node scripts/audit-product-claims.mjs` → **OK**
+- Rehearsal chain: `node scripts/run-human-ready-rehearsal-evidence.mjs` → **OK**
+- Cohort guard: `node scripts/run-beta-cohort-guard.mjs` → **7/7 PASS**
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK**
+- Docker spot-check: `node:20-bookworm` + `--network=host` — install blocked w/o ruff/uv · doctor degraded note · smoke `SMOKE_OUTPUT_CONTRACT` (checklist B.3)
+- Lane: PR #255 @ `71c173f` · PR #256 @ `cbf9823` · dry-run issues #251–#254 closed
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — patch beta; smoke may still fail on model output contract under degraded mode.
+- **Not** cohort gate change — `LIVE_PASS` @ `99233e0` still required; tag alone does not open cohort.
+- **Not** Linux-native install remediation in all docs — Mac Homebrew-first; Debian/Docker uses pip/curl for ruff/uv.
+- **Not** guaranteed `SMOKE_OK` on Ollama — failure captured with classification is valid dry-run evidence.
+
+### Added
+
+- `scripts/lib/terminal-style.mjs` — TTY-aware install status tags.
+- Smoke reason codes: `SMOKE_OUTPUT_CONTRACT`, `SMOKE_RUNTIME_FAILED`; `formatSmokeText` operator summary.
+
+### Changed
+
+- Install: `INSTALL BLOCKED` banner, colored `[FAIL]` on TTY, `next_safe_action` on stderr (PR #255).
+- Doctor: `beta_lane_note` when `config_validity: degraded` (PR #255).
+- Default smoke goal: YAML-first output contract instructions (PR #256).
+- `beta-tester-guide` Phase A host prereqs; `operator-blockers-and-recovery` smoke/install rows.
+
+### Notes
+
+- Point external testers to `v0.20.1-beta.1` (supersedes `v0.20.0-beta.1` for guided CLI UX).
+- Optional follow-up: stream-aware ANSI for stderr; precise `blocker_summary` from trace `gateReason`.
+
 ## [0.20.0-beta.1] - 2026-07-06
 
 First beta pre-release: **Real install + external usability beta lane** — path-independent `ai-minions` CLI installer and installed-shim primary path; install preflight/security matrix; Mac/Docker live install evidence; guided first-run CLI (`first-run` / `smoke` / `attach`); beta cohort guard evidence chain with performative-beta guard and `LIVE_PASS` dual gate before external cohort.

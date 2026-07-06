@@ -1243,6 +1243,37 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 - [x] **Changelog:** section **[0.20.0-beta.1] - 2026-07-06**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.20.1-beta.1 — Dry-run operator UX patch
+
+**Scope:** install blocked surfacing (ruff/uv/Ollama), doctor degraded beta note, smoke `SMOKE_OUTPUT_CONTRACT` classification, beta tester prereq docs — closes dry-run issues #251–#254. **Prerequisite:** `v0.20.0-beta.1` · LIVE_PASS @ `99233e0`. not cohort gate change · not production-ready · not smoke pass guarantee.
+
+**Release claim:** patch beta for clearer operator signals on guided CLI path; cohort invitation unchanged (guard `0` + `LIVE_PASS`).
+
+### Must-have bundle
+
+- [x] Install prereq UX — merged @ `71c173f` (PR #255)
+- [x] Smoke output-contract classification — merged @ `cbf9823` (PR #256)
+- [x] Dry-run issues #251–#254 — closed
+
+### v0.20.1 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-07-06 | Workspace @ `cbf9823` | `cd orchestrator && npm test` → **1230/1230** pass (1 skipped) |
+| 2026-07-06 | Workspace @ `cbf9823` | `node scripts/run-beta-cohort-guard.mjs` → **7/7 PASS** |
+| 2026-07-06 | Workspace @ `cbf9823` | `node scripts/run-human-ready-rehearsal-evidence.mjs` → **OK** |
+| 2026-07-06 | Docker `node:20-bookworm` host Ollama | install blocked w/o ruff/uv · doctor `beta_lane_note` · smoke `SMOKE_OUTPUT_CONTRACT` |
+
+### Release execution plan (Phase B)
+
+- [x] **Tag target:** `v0.20.1-beta.1` on release-prep commit (implementation @ `cbf9823`)
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.20.1-beta.1`
+- [x] **`release` branch:** aligned to tag commit
+
+### Release artifact
+
+- [x] **Changelog:** section **[0.20.1-beta.1] - 2026-07-06**
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
