@@ -58,6 +58,17 @@ git rev-parse --short HEAD
 
 **Depth:** [install-evidence](install-evidence.md) · [bootstrap-preflight](bootstrap-preflight.md) (maintainer diagnostics)
 
+**Host prerequisites (Mac/Linux):** install before first run:
+
+| Tool | Why | Typical install |
+|------|-----|-----------------|
+| **Node.js ≥ 18** | orchestrator runtime | `brew install node` or nvm |
+| **ruff** | Python lint in `npm test` | `brew install ruff` |
+| **uv** | MCP server venv sync (strict mode) | `brew install uv` |
+| **Ollama** | local model discovery (`local_only`) | [install-ollama-docker-paths](install-ollama-docker-paths.md) — start app or `ollama serve` before install |
+
+One-liner (Homebrew Mac): `brew install ruff uv` — then start Ollama and pull a model.
+
 From clone root:
 
 ```bash

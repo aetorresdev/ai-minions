@@ -74,6 +74,9 @@ If `doctor` fails, fix the **first FAIL line** in its check list, then re-run `d
 | Symptom | Likely code / layer | What it means | What to do |
 |---------|---------------------|---------------|------------|
 | `doctor` exit `2`, `PREFLIGHT_NPM_CI` | Bootstrap | Dependencies or layout wrong | From clone root: `node scripts/bootstrap-preflight.mjs --install` |
+| `INSTALL_RUFF_MISSING` / `INSTALL_UV_MISSING` on install | Host prereqs | `ruff` or `uv` not in PATH | `brew install ruff uv` (Mac) — see [beta-tester-guide](beta-tester-guide.md) Phase A |
+| `INSTALL_OLLAMA_UNREACHABLE` on install | Model discovery | Ollama not running | Start Ollama app or `ollama serve`, pull a model, re-run install |
+| `doctor` exit `0`, `config_validity: degraded`, MCP/hook WARNs | Beta lane | MCP venv + Claude hooks not set up | **Expected** for v0.20 beta — proceed with `first-run`/`smoke`; strict runs need `uv sync` in MCP dirs |
 | `doctor` exit `2`, `OPERATOR_OLLAMA_UNREACHABLE` | Runner | Ollama not reachable for local policy | Start Ollama or use `--model-policy remote_ok` where documented |
 | `start` exit `2`, preflight blocked | Runner | Launch layer not ready | Re-run `doctor`; read `blocker:` lines on stderr |
 | ⚠ **DEGRADED MODE** banner during run | Degraded | Gates skipped or MCPs missing | **Expected** for learning smokes with `--skip-gates`; remove flag + install MCPs for strict runs |
