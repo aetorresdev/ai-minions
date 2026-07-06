@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Beta cohort guard (v0.20 E20-6) — checklist + issue evidence + performative-beta guard.
+ * Beta cohort guard (v0.20) — checklist + issue evidence + performative-beta guard.
  *
  * Chains human-ready rehearsal, installed CLI CI evidence, guided-path markers,
  * and cohort guard record validation. Does **not** open external cohort by itself.

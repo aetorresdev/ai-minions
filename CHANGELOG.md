@@ -6,6 +6,71 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.20.0-beta.1] - 2026-07-06
+
+First beta pre-release: **Real install + external usability beta lane** — path-independent `ai-minions` CLI installer and installed-shim primary path; install preflight/security matrix; Mac/Docker live install evidence; guided first-run CLI (`first-run` / `smoke` / `attach`); beta cohort guard evidence chain with performative-beta guard and `LIVE_PASS` dual gate before external cohort.
+
+**Release claim:** installed `ai-minions` product path from clone → `install-ai-minions.mjs` → guided CLI → evidence/attach → GitHub issue, with machine-checkable cohort guard (`run-beta-cohort-guard.mjs`) and rehearsal record — **not** external cohort open until guard exits `0` **and** `human-ready-rehearsal-record.json` has `record.status = LIVE_PASS`, **not** production-ready, **not** production TUI, **not** global npm package, **not** automatic secret stripping, **not** legal privacy policy.
+
+**Prerequisite:** `v0.19.0-alpha.1` — Human-ready UX + privacy rehearsal @ `8b6c03e`.
+
+**Since [0.19.0-alpha.1]:** v0.19 centered on **human-ready landing and rehearsal docs** (README primary path, `PRIVACY.md`, dry-run checklist, doc-chain record). v0.20 adds **real path-independent install**, **installed CLI live evidence**, **guided first-run product verbs**, and **cohort guard** — without opening external cohort until operator live rehearsal attestation.
+
+| Area | `v0.19.0-alpha.1` | `v0.20.0-beta.1` (delta) |
+|------|-------------------|---------------------------|
+| Focus | Human-ready UX — README landing · privacy/blast-radius · rehearsal evidence chain | Real install + beta lane — PATH shim · guided CLI · cohort guard · positioning vs workflow-only harnesses |
+| Operator path | Product CLI documented; clone-local `npm run` fallback | **Installed `ai-minions` primary** — `first-run`/`smoke`/`attach`; dev fallback secondary |
+| External beta | Blocked — rehearsal `DOC_CHAIN_PASS` only | **Cut ready** — cohort opens only after guard `0` + `LIVE_PASS` on rehearsal record |
+| Unit tests (orchestrator) | 1214/1214 pass on workspace @ lane tip `447470b` | **1227/1227** pass (1 skipped) on workspace @ lane tip `eff9ca3` |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.20.0-beta.1` — reserved until Phase B tag on release-prep merge commit
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1227/1227** pass (1 skipped) on workspace @ lane tip `eff9ca3`
+- Usage docs: `node scripts/verify-usage-docs.mjs` → **OK**
+- Claim audit: `node scripts/audit-product-claims.mjs` → **OK**
+- Rehearsal chain: `node scripts/run-human-ready-rehearsal-evidence.mjs` → **OK**
+- Cohort guard: `node scripts/run-beta-cohort-guard.mjs` → **7/7 PASS**
+- Cohort guard tests: `node --test tests/run-beta-cohort-guard.test.mjs` → **12/12** pass
+- Install evidence: `node scripts/run-install-evidence.mjs --skip-live` → **OK**
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (pending on release-prep merge)
+- Contracts: `beta-cohort-guard.md`, `beta-tester-guide.md`, `beta-known-limitations.md`, `human-ready-rehearsal-evidence.md`, `install-ai-minions.mjs` shim path
+- Lane merged on `master` through cohort guard @ `eff9ca3` (PR #244–#249); release-prep pending
+- CI: Docs usage verify · Link Check · Markdown Lint — green on lane PR #249 @ `19e6b04`
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — beta harness; human operator owns tag, pre-release, `release` branch, and cohort invitation.
+- **Not** external cohort open by tag alone — requires `run-beta-cohort-guard.mjs` exit `0` **and** rehearsal record `status = LIVE_PASS` after operator dry-run.
+- **Not** production TUI / Web UI — guided CLI only; `runner:tui` remains advanced/legacy.
+- **Not** global npm package — local install script + PATH shim only.
+- **Not** automatic secret stripping — privacy-scan + manual redaction per `PRIVACY.md`.
+- **Not** durable resume — `ai-minions resume` remains `RUN_RESUME_NOT_IMPLEMENTED` (exit `2`).
+- **Not** architecture refactor complete — modular monolith closeout remains honest partial state.
+
+### Added
+
+- `scripts/install-ai-minions.mjs` + installed `ai-minions` PATH shim — path-independent product CLI entry.
+- Guided first-run CLI verbs: `ai-minions first-run`, `smoke`, `attach` (`operator-guided-first-run.js`).
+- `scripts/run-beta-cohort-guard.mjs` + `beta-cohort-guard.md` — seven-step cohort guard with performative-beta scan and `live_pass_doc_contract`.
+- Mac/Docker installed CLI live evidence gate (CI + rehearsal record fields).
+- Install preflight/security negative matrix and bootstrap hardening docs.
+- README § *How this differs from workflow-only harnesses* (category positioning, no competitor naming).
+
+### Changed
+
+- README, `usage-smoke-guide.md`, `bootstrap-preflight.md` — installed `ai-minions` as primary operator path.
+- `beta-tester-guide.md`, `beta-dry-run-checklist.md`, `beta-known-limitations.md` — guided CLI path + dual gate wording.
+- `human-ready-rehearsal-record.json` — `cohort_guard` block (schema v2).
+- `verify-usage-docs.mjs` — cohort guard, guided path, and `LIVE_PASS` doc contract guards.
+
+### Notes
+
+- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Operator must run live dry-run and set `record.status = LIVE_PASS` before inviting external testers.
+- Phase B operator steps follow release-prep merge — see `alpha-release-checklist.md` § v0.20.0-beta.1.
+
 ## [0.19.0-alpha.1] - 2026-07-03
 
 Nineteenth alpha pre-release: **Human-ready UX + privacy rehearsal** — README and usage-smoke landing with product CLI as primary path; operator blocker/degraded recovery copy; beta privacy notice and claim blast-radius discipline; internal dry-run checklist and rehearsal evidence chain with PRIVACY-before-upload ordering; doc-chain validation script (`run-human-ready-rehearsal-evidence.mjs`).

@@ -142,6 +142,22 @@ Full wiring: [`docs/orchestrator/system-architecture-diagram.md`](docs/orchestra
 
 ---
 
+## How this differs from workflow-only harnesses
+
+Workflow-first tools optimize graphs, triggers, and chat surfaces. **ai-minions** optimizes **control before merge**:
+
+| Workflow-only harness (typical) | ai-minions (control-first) |
+|--------------------------------|----------------------------|
+| Implicit agent handoffs in chat | Fixed MODE roles + YAML handoff contracts |
+| Success = task completed | Success = artifacts + `validateOutput` + trace evidence |
+| Optional or post-hoc review | CERBERUS / gate review **before** acceptance when policy requires |
+| Tool access often ambient | Permission classification, budget stops, degraded-mode banners |
+| Shareable output = chat export | Operator bundles (`evidence` / `attach`) with privacy notice first |
+
+No competitor naming — category contrast only. See [`harness-engineering-positioning.md`](docs/orchestrator/harness-engineering-positioning.md) for full framing. **Alpha/beta:** first external usability cut (`v0.20.0-beta.1`) — still **not** production-ready.
+
+---
+
 ## Quickstart
 
 **Goal:** clone → install → `ai-minions init` → `doctor` → `start` → `status`/`explain` → `evidence`/`context` → (optional) Claude Code skill, MODE header, or legacy scripts.

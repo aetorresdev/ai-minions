@@ -1,5 +1,5 @@
 /**
- * Beta cohort guard (v0.20 E20-6) — doc markers, performative-beta rules, record schema.
+ * Beta cohort guard (v0.20) — doc markers, performative-beta rules, record schema.
  */
 
 import fs from "node:fs";

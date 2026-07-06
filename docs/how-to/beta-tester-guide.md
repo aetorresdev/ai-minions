@@ -6,6 +6,8 @@ End-to-end runbook for an **internal operator** playing beta tester: product ins
 
 **Primary path (v0.20):** installed **`ai-minions`** on PATH — guided CLI verbs `first-run` · `smoke` · `attach`. **Not** production TUI.
 
+**Positioning:** control-first harness (roles, gates, trace evidence) — not a workflow-only chat or DAG runtime. See README § *How this differs from workflow-only harnesses*.
+
 **Dev fallback:** `cd orchestrator && npm run ai-minions -- <command>` (clone-local only).
 
 **Contract:** [beta-limitations-onboarding-contract](../orchestrator/beta-limitations-onboarding-contract.md)
@@ -32,7 +34,7 @@ Formal checklist: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample
 
 | Item | Why |
 |------|-----|
-| External beta cohort | Internal dry-run until E20-6 [cohort guard](beta-cohort-guard.md) passes **and** rehearsal record `status` is `LIVE_PASS` |
+| External beta cohort | [Cohort guard](beta-cohort-guard.md) exit `0` **and** rehearsal record `status` is `LIVE_PASS` — maintainer opens cohort; dry-run alone is insufficient |
 | Production support SLA | Beta candidate — no support promise |
 | Production TUI / Web UI | Guided CLI only — `runner:tui` is advanced/legacy |
 | Automatic issue upload | Bundle is local; you open GitHub manually |
