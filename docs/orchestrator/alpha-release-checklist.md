@@ -1187,7 +1187,7 @@ External usability beta (v0.20.0-beta.1) · public beta cohort · production TUI
 - [x] Mac/Docker installed CLI live evidence — merged @ `688111b` (PR #247)
 - [x] Guided first-run CLI + beta tester guide — merged @ `578a5fe` (PR #248)
 - [x] Cohort guard + guided-path validation — merged @ `eff9ca3` (PR #249)
-- [ ] Release-prep + tag `v0.20.0-beta.1` — release-prep branch (pending); Phase B tag · pre-release · `release` branch after CERBERUS Approve
+- [x] Release-prep + tag `v0.20.0-beta.1` — merged @ `270e1f3` (PR #250); Phase B tag · pre-release · `release` branch @ `270e1f3`
 
 ### Out of scope
 
@@ -1196,7 +1196,7 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 ### CERBERUS checks (pre-tag)
 
 - [x] Implementation slices (E20-1 through E20-6) — merged through `eff9ca3` (PR #244–#249)
-- [ ] Release-prep CHANGELOG + checklist claims — release-prep PR (pending) + CERBERUS Approve
+- [x] Release-prep CHANGELOG + checklist claims — merged @ `270e1f3` (PR #250) + CERBERUS Approve
 - [x] No performative external-beta-open claims in beta-facing docs (PR #249 cohort guard)
 - [x] `LIVE_PASS` required-before-cohort contract in guard docs (PR #249 @ `19e6b04`)
 - [x] Primary path uses installed `ai-minions` — no required `npm run` / `cd orchestrator` in checklist (PR #248–#249)
@@ -1217,7 +1217,9 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 | 2026-07-06 | Workspace @ `eff9ca3` | `node scripts/run-beta-cohort-guard.mjs` → **7/7 PASS** |
 | 2026-07-06 | Workspace @ `eff9ca3` | `node --test tests/run-beta-cohort-guard.test.mjs` → **12/12** pass |
 | 2026-07-06 | Workspace @ `eff9ca3` | `node scripts/run-install-evidence.mjs --skip-live` → **OK** |
-| 2026-07-06 | Lane PR #249 @ `19e6b04` | Docs usage verify · Link Check · Markdown Lint — green |
+| 2026-07-06 | Release-prep PR #250 @ `413ea88` | Docs usage verify · Link Check · Markdown Lint — green |
+| 2026-07-06 | Workspace @ `270e1f3` | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-07-06 | Phase B operator cut @ `270e1f3` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 **Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes `CHANGELOG.md`, `docs/**`, and `README.md`; `orchestrator/**` runtime unchanged since lane tip @ `eff9ca3`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `eff9ca3` until tag.
 
@@ -1231,14 +1233,14 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 
 **Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
 
-- [ ] **Tag target:** `v0.20.0-beta.1` on release-prep merge commit @ `{prep_sha}`
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.20.0-beta.1` — pre-release pending
-- [ ] **`release` branch:** align to tag commit after Phase B
+- [x] **Tag target:** `v0.20.0-beta.1` on release-prep merge commit @ `270e1f3`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.20.0-beta.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `270e1f3` (`release_branch_commit` matches `tag_commit`)
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.20.0-beta.1] - 2026-07-06** (draft on release-prep)
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+- [x] **Changelog:** section **[0.20.0-beta.1] - 2026-07-06**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 
