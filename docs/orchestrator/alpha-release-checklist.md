@@ -1173,6 +1173,73 @@ External usability beta (v0.20.0-beta.1) · public beta cohort · production TUI
 - [x] **Changelog:** section **[0.19.0-alpha.1] - 2026-07-03**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.20.0-beta.1 — Real install + external usability beta lane
+
+**Scope:** path-independent `ai-minions` installer + installed-shim primary path; install preflight/security; Mac/Docker live install evidence; guided first-run CLI (`first-run` / `smoke` / `attach`); beta cohort guard with performative-beta scan and `LIVE_PASS` dual gate; README positioning vs workflow-only harnesses; changelog/checklist release-prep. **Prerequisite:** `v0.19.0-alpha.1` @ `8b6c03e`. not external cohort open by tag alone · not production-ready · not production TUI · not global npm package · not live rehearsal complete until operator sets `LIVE_PASS`.
+
+**Release claim:** first **external usability beta** cut with machine-checkable install + cohort guard evidence — cohort invitation only after guard exit `0` **and** `human-ready-rehearsal-record.json` `record.status = LIVE_PASS`.
+
+### Must-have bundle
+
+- [x] Path-independent CLI installer — merged @ `905ad26` (PR #244)
+- [x] Install docs + primary-path claims — merged @ `32a950d` (PR #245)
+- [x] Install preflight/security — merged @ `081fc41` (PR #246)
+- [x] Mac/Docker installed CLI live evidence — merged @ `688111b` (PR #247)
+- [x] Guided first-run CLI + beta tester guide — merged @ `578a5fe` (PR #248)
+- [x] Cohort guard + guided-path validation — merged @ `eff9ca3` (PR #249)
+- [ ] Release-prep + tag `v0.20.0-beta.1` — release-prep branch (pending); Phase B tag · pre-release · `release` branch after CERBERUS Approve
+
+### Out of scope
+
+Production TUI · Web UI · global npm package · automatic secret stripping · legal/SaaS privacy policy · durable session resume · architecture refactor complete · external cohort open without `LIVE_PASS` · opening cohort by release tag alone.
+
+### CERBERUS checks (pre-tag)
+
+- [x] Implementation slices (E20-1 through E20-6) — merged through `eff9ca3` (PR #244–#249)
+- [ ] Release-prep CHANGELOG + checklist claims — release-prep PR (pending) + CERBERUS Approve
+- [x] No performative external-beta-open claims in beta-facing docs (PR #249 cohort guard)
+- [x] `LIVE_PASS` required-before-cohort contract in guard docs (PR #249 @ `19e6b04`)
+- [x] Primary path uses installed `ai-minions` — no required `npm run` / `cd orchestrator` in checklist (PR #248–#249)
+- [x] Rehearsal record honest: `DOC_CHAIN_PASS`; live fields null until operator dry-run (PR #242 chain; cohort_guard @ PR #249)
+
+### Forbidden release claims (v0.20)
+
+"external beta open" (without `LIVE_PASS`) · "production-ready" · "production TUI" · "global npm package" · "automatic secret stripping" · "legal privacy policy" · "live rehearsal complete" (until operator dry-run) · "architecture refactor complete" · "workflow marketplace" · "DAG runtime shipped".
+
+#### v0.20 validation log (release-prep)
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-07-06 | Workspace @ `eff9ca3` — lane tip | `cd orchestrator && npm test` → **1227/1227** pass (1 skipped) |
+| 2026-07-06 | Workspace @ `eff9ca3` | `node scripts/verify-usage-docs.mjs` → **OK** |
+| 2026-07-06 | Workspace @ `eff9ca3` | `node scripts/audit-product-claims.mjs` → **OK** |
+| 2026-07-06 | Workspace @ `eff9ca3` | `node scripts/run-human-ready-rehearsal-evidence.mjs` → **OK** |
+| 2026-07-06 | Workspace @ `eff9ca3` | `node scripts/run-beta-cohort-guard.mjs` → **7/7 PASS** |
+| 2026-07-06 | Workspace @ `eff9ca3` | `node --test tests/run-beta-cohort-guard.test.mjs` → **12/12** pass |
+| 2026-07-06 | Workspace @ `eff9ca3` | `node scripts/run-install-evidence.mjs --skip-live` → **OK** |
+| 2026-07-06 | Lane PR #249 @ `19e6b04` | Docs usage verify · Link Check · Markdown Lint — green |
+
+**Phase A A3 — doc-only release-prep CI inheritance:** release-prep PR changes `CHANGELOG.md`, `docs/**`, and `README.md`; `orchestrator/**` runtime unchanged since lane tip @ `eff9ca3`. Path-filtered orchestrator workflows may not re-run on release-prep. Per [release-workflow.md](release-workflow.md) step A3, Phase A accepts **lane-merge CI** at `eff9ca3` until tag.
+
+| Check | Lane / baseline |
+|-------|-----------------|
+| orchestrator-unit-tests | lane baseline @ `eff9ca3` |
+| Docs usage verify | lane PR #249 @ `19e6b04` |
+| security-trivy-scan | lane baseline @ `eff9ca3`; doc-only lane inherits |
+
+### Release execution plan (locked on release-prep merge — Phase B operator steps)
+
+**Wording:** items below record **targets and operator steps** — not claims that the git tag, GitHub pre-release, or `release` branch already exist. **Do not** mark `[x]` until Phase B complete and `validateReleaseGovernanceRecord` returns `ok: true`.
+
+- [ ] **Tag target:** `v0.20.0-beta.1` on release-prep merge commit @ `{prep_sha}`
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.20.0-beta.1` — pre-release pending
+- [ ] **`release` branch:** align to tag commit after Phase B
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.20.0-beta.1] - 2026-07-06** (draft on release-prep)
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
