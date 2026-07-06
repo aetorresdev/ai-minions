@@ -23,7 +23,7 @@ First beta pre-release: **Real install + external usability beta lane** — path
 | External beta | Blocked — rehearsal `DOC_CHAIN_PASS` only | **Cut ready** — cohort opens only after guard `0` + `LIVE_PASS` on rehearsal record |
 | Unit tests (orchestrator) | 1214/1214 pass on workspace @ lane tip `447470b` | **1227/1227** pass (1 skipped) on workspace @ lane tip `eff9ca3` |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.20.0-beta.1` — pre-release published @ tag `270e1f3`
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.20.0-beta.1` — pre-release published @ tag `99233e0` (LIVE_PASS evidence; tag aligned with `release`/`master`)
 
 **Evidence (operator):**
 
@@ -34,9 +34,9 @@ First beta pre-release: **Real install + external usability beta lane** — path
 - Cohort guard: `node scripts/run-beta-cohort-guard.mjs` → **7/7 PASS**
 - Cohort guard tests: `node --test tests/run-beta-cohort-guard.test.mjs` → **12/12** pass
 - Install evidence: `node scripts/run-install-evidence.mjs --skip-live` → **OK**
-- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean @ tag `270e1f3`)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (published scope clean @ tag `99233e0`)
 - Contracts: `beta-cohort-guard.md`, `beta-tester-guide.md`, `beta-known-limitations.md`, `human-ready-rehearsal-evidence.md`, `install-ai-minions.mjs` shim path
-- Lane merged on `master` through cohort guard @ `eff9ca3` (PR #244–#249); release-prep merged @ `270e1f3` (PR #250); Phase B tag · pre-release · `release` branch @ `270e1f3`
+- Lane merged on `master` through cohort guard @ `eff9ca3` (PR #244–#249); release-prep merged @ `270e1f3` (PR #250); LIVE_PASS record @ `99233e0`; Phase B tag · pre-release · `release` branch @ `99233e0`
 - CI: Docs usage verify · Link Check · Markdown Lint — green on lane PR #249 @ `19e6b04`
 
 **Alpha limitations (not production):**
