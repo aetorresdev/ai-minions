@@ -20,6 +20,14 @@
       "install_evidence_commit": null,
       "live_attestation_date": null,
       "operator_path_detail": "node scripts/install-ai-minions.mjs then ai-minions from $HOME (no cd orchestrator)"
+    },
+    "cohort_guard": {
+      "required_before_external_cohort": true,
+      "guard_script": "scripts/run-beta-cohort-guard.mjs",
+      "doc_chain_status": "DOC_CHAIN_PASS",
+      "performative_beta_guard": "enforced",
+      "guided_cli_validated": true,
+      "issue_evidence_chain": "docs/how-to/evidence/beta-dry-run-sample-issue.md"
     }
   }
 }

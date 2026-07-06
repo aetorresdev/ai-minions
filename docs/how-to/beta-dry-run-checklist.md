@@ -12,7 +12,7 @@ Scorable checklist for the **internal human-ready rehearsal** in [beta-tester-gu
 
 **Not claimed:** external beta · production SLA · production TUI · automatic issue upload.
 
-**Evidence chain:** `node scripts/run-human-ready-rehearsal-evidence.mjs` · record [human-ready-rehearsal-record.json](evidence/human-ready-rehearsal-record.json)
+**Evidence chain:** `node scripts/run-human-ready-rehearsal-evidence.mjs` · `node scripts/run-beta-cohort-guard.mjs` · record [human-ready-rehearsal-record.json](evidence/human-ready-rehearsal-record.json)
 
 ---
 

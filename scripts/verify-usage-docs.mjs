@@ -90,6 +90,8 @@ const BETA_GATE_HARDENING_EVIDENCE_SCRIPT = path.join(
   REPO_ROOT,
   "scripts/run-beta-gate-hardening-evidence.mjs",
 );
+const BETA_COHORT_GUARD = path.join(REPO_ROOT, "docs/how-to/beta-cohort-guard.md");
+const BETA_COHORT_GUARD_SCRIPT = path.join(REPO_ROOT, "scripts/run-beta-cohort-guard.mjs");
 const MODULAR_CLOSEOUT_EVIDENCE = path.join(
   REPO_ROOT,
   "docs/how-to/modular-closeout-evidence.md",
@@ -300,6 +302,8 @@ function checkBetaKnownLimitationsDoc(docText) {
   mustInclude(docText, "operator-feedback-issue", "feedback issue doc link", rel);
   mustInclude(docText, "beta-tester-guide", "beta tester guide link", rel);
   mustInclude(docText, "beta-dry-run-checklist", "dry-run checklist link", rel);
+  mustInclude(docText, "beta-cohort-guard", "cohort guard link", rel);
+  mustInclude(docText, "LIVE_PASS", "live pass gate for external cohort", rel);
   mustInclude(docText, "beta-smoke-matrix", "smoke matrix link", rel);
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy link", rel);
   mustInclude(docText, "beta-limitations-onboarding-contract", "onboarding contract link", rel);
@@ -331,6 +335,9 @@ function checkBetaTesterGuideDoc(docText) {
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy prerequisite", rel);
   mustInclude(docText, "ai-minions-command-migration", "migration doc link", rel);
   mustInclude(docText, "human-ready-rehearsal-evidence", "rehearsal evidence link", rel);
+  mustInclude(docText, "beta-cohort-guard", "cohort guard link", rel);
+  mustInclude(docText, "LIVE_PASS", "live pass gate for external cohort", rel);
+  mustInclude(docText, "run-beta-cohort-guard.mjs", "cohort guard script", rel);
   mustInclude(docText, "ai-minions first-run", "guided first-run verb", rel);
   mustInclude(docText, "ai-minions smoke", "smoke verb", rel);
   mustInclude(docText, "ai-minions attach", "attach verb", rel);
@@ -355,8 +362,11 @@ function checkBetaDryRunChecklistDoc(docText) {
   mustInclude(docText, "PRIVACY.md", "privacy notice in checklist", rel);
   mustInclude(docText, "ai-minions first-run", "guided first-run in checklist", rel);
   mustInclude(docText, "ai-minions smoke", "smoke verb in checklist", rel);
+  mustInclude(docText, "ai-minions attach", "attach verb in checklist", rel);
+  mustInclude(docText, "run-beta-cohort-guard.mjs", "cohort guard script", rel);
   mustInclude(docText, "npm run ai-minions", "dev fallback in checklist", rel);
   mustInclude(docText, "operator-blockers-and-recovery", "blocker recovery link", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   mustInclude(docText, "beta-claim-blast-radius", "blast radius link", rel);
   mustInclude(docText, "C.0", "privacy before collect row", rel);
   mustInclude(docText, "Phase A", "entry path phase", rel);
@@ -642,6 +652,8 @@ function checkHumanReadyRehearsalEvidenceDoc(docText) {
   const rel = "docs/how-to/human-ready-rehearsal-evidence.md";
   if (!docText) return;
   mustInclude(docText, "run-human-ready-rehearsal-evidence.mjs", "evidence script reference", rel);
+  mustInclude(docText, "run-beta-cohort-guard.mjs", "cohort guard script reference", rel);
+  mustInclude(docText, "beta-cohort-guard", "cohort guard doc link", rel);
   mustInclude(docText, "REHEARSAL_OK", "rehearsal reason code", rel);
   mustInclude(docText, "PRIVACY.md", "privacy notice link", rel);
   mustInclude(docText, "beta-dry-run-checklist", "checklist link", rel);
@@ -650,6 +662,24 @@ function checkHumanReadyRehearsalEvidenceDoc(docText) {
   mustInclude(docText, "Not claimed", "not claimed disclaimer", rel);
   mustInclude(docText, "npm run ai-minions", "product CLI path", rel);
   mustInclude(docText, "ai-minions first-run", "guided first-run reference", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
+function checkBetaCohortGuardDoc(docText) {
+  const rel = "docs/how-to/beta-cohort-guard.md";
+  if (!docText) return;
+  mustInclude(docText, "run-beta-cohort-guard.mjs", "evidence script reference", rel);
+  mustInclude(docText, "COHORT_GUARD_OK", "cohort guard reason code", rel);
+  mustInclude(docText, "performative_beta_guard", "performative guard step", rel);
+  mustInclude(docText, "human-ready-rehearsal-evidence", "rehearsal chain link", rel);
+  mustInclude(docText, "beta-dry-run-checklist", "checklist link", rel);
+  mustInclude(docText, "operator-feedback-issue", "feedback issue link", rel);
+  mustInclude(docText, "Not claimed", "not claimed disclaimer", rel);
+  mustInclude(docText, "LIVE_PASS", "live pass gate for external cohort", rel);
+  mustInclude(docText, "Required before external cohort", "live pass required wording", rel);
+  mustNotMatch(docText, /Optional live attestation/i, "optional live attestation weakens LIVE_PASS gate", rel);
+  mustInclude(docText, "ai-minions", "installed CLI reference", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -784,6 +814,7 @@ function main() {
   const betaDegradedPolicyText = readUtf8(BETA_DEGRADED_POLICY);
   const betaLimitationsContractText = readUtf8(BETA_LIMITATIONS_ONBOARDING_CONTRACT);
   const betaGateHardeningEvidenceText = readUtf8(BETA_GATE_HARDENING_EVIDENCE);
+  const betaCohortGuardText = readUtf8(BETA_COHORT_GUARD);
   const betaGateHardeningVerifyContractText = readUtf8(BETA_GATE_HARDENING_VERIFY_CONTRACT);
   const modularCloseoutEvidenceText = readUtf8(MODULAR_CLOSEOUT_EVIDENCE);
   const modularCloseoutVerifyContractText = readUtf8(MODULAR_CLOSEOUT_VERIFY_CONTRACT);
@@ -809,6 +840,9 @@ function main() {
   }
   if (!fs.existsSync(HUMAN_READY_REHEARSAL_RECORD)) {
     fail(`missing file: ${path.relative(REPO_ROOT, HUMAN_READY_REHEARSAL_RECORD)}`);
+  }
+  if (!fs.existsSync(BETA_COHORT_GUARD_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, BETA_COHORT_GUARD_SCRIPT)}`);
   }
 
   if (!fs.existsSync(BOOTSTRAP_SCRIPT)) {
@@ -866,6 +900,7 @@ function main() {
   if (betaDegradedPolicyText) checkBetaDegradedPolicyDoc(betaDegradedPolicyText);
   if (betaLimitationsContractText) checkBetaLimitationsOnboardingContract(betaLimitationsContractText);
   if (betaGateHardeningEvidenceText) checkBetaGateHardeningEvidenceDoc(betaGateHardeningEvidenceText);
+  if (betaCohortGuardText) checkBetaCohortGuardDoc(betaCohortGuardText);
   if (betaGateHardeningVerifyContractText) {
     checkBetaGateHardeningVerifyContract(betaGateHardeningVerifyContractText);
   }
