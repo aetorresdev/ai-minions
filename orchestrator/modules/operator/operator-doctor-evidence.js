@@ -255,14 +255,18 @@ function resolveLatestBundleDir(taskId, repoRoot, fsOps = {}) {
   const prefix = `${taskId}-`;
   /** @type {string[]} */
   const matches = [];
-  for (const name of readdirSync(bundleRoot)) {
-    if (!name.startsWith(prefix)) continue;
-    const full = path.join(bundleRoot, name);
-    try {
-      if (statSync(full).isDirectory()) matches.push(full);
-    } catch {
-      // skip unreadable entries
+  try {
+    for (const name of readdirSync(bundleRoot)) {
+      if (!name.startsWith(prefix)) continue;
+      const full = path.join(bundleRoot, name);
+      try {
+        if (statSync(full).isDirectory()) matches.push(full);
+      } catch {
+        // skip unreadable entries
+      }
     }
+  } catch {
+    return null;
   }
   if (!matches.length) return null;
   matches.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);

@@ -18,7 +18,9 @@ const {
 } = require('./explain-run');
 const {
   buildOperatorTraceSummary,
+  buildRunStateVisibility,
   formatOperatorTraceSummaryLines,
+  formatRunStateVisibilityLines,
 } = require('./operator-trace-summary');
 
 /**
@@ -79,6 +81,7 @@ function deriveWhatNotToDo(summary) {
  *   runId?: string,
  *   filePath?: string,
  *   tracesDir?: string,
+ *   repoRoot?: string,
  *   readFileSync?: typeof fs.readFileSync,
  *   existsSync?: typeof fs.existsSync,
  *   resolveLatest?: typeof resolveLatestRunFile,
@@ -108,14 +111,37 @@ function loadOperatorTraceContext(options = {}) {
       ok: false,
       code: 'TRACE_NOT_FOUND',
       reason_code: 'OPERATOR_TRACE_NOT_FOUND',
+      result_code: 'RUN_NOT_FOUND',
       next_safe_action: 'Provide --run-id <task_id> or --file <path> to a trace JSONL file.',
       trace_file: filePath,
     };
   }
 
   const raw = readFileSync(filePath, 'utf8');
+  if (!String(raw).trim()) {
+    return {
+      ok: false,
+      code: 'TRACE_INVALID',
+      reason_code: 'OPERATOR_TRACE_INVALID',
+      result_code: 'RUN_TRACE_INVALID',
+      next_safe_action: 'Trace file is empty or unreadable; re-run with a valid completed trace JSONL.',
+      trace_file: filePath,
+    };
+  }
+
   const { text, truncated } = enforceLimits(raw);
   const { rows, skipped } = parseJsonl(text);
+  if (!rows.length) {
+    return {
+      ok: false,
+      code: 'TRACE_INVALID',
+      reason_code: 'OPERATOR_TRACE_INVALID',
+      result_code: 'RUN_TRACE_INVALID',
+      next_safe_action: 'Trace file has no valid JSONL rows; inspect file or re-run the workflow.',
+      trace_file: filePath,
+      skipped,
+    };
+  }
   const sorted = sanitizeTraceRowsForRead(rows.slice().sort((a, b) => {
     const ta = typeof a.ts_ms === 'number' ? a.ts_ms : 0;
     const tb = typeof b.ts_ms === 'number' ? b.ts_ms : 0;
@@ -131,16 +157,32 @@ function loadOperatorTraceContext(options = {}) {
   const statusLabel = deriveOperatorStatusLabel(summary, sorted);
   const explain = deriveExplain(sorted);
 
+  const repoRoot = options.repoRoot
+    ? path.resolve(String(options.repoRoot))
+    : require('./operator-doctor-evidence').resolveOperatorRepoRoot({});
+  const {
+    resolveEvidenceArtifactPaths,
+    deriveRedactionStatus,
+  } = require('./operator-doctor-evidence');
+  const artifactPaths = resolveEvidenceArtifactPaths(String(runId), repoRoot, { existsSync });
+  const redaction = deriveRedactionStatus(artifactPaths.attach_bundle, { existsSync, readFileSync });
+  const run_state = buildRunStateVisibility(summary, sorted, {
+    ...artifactPaths,
+    privacy_notice_status: redaction.status,
+  });
+
   return {
     ok: true,
     run_id: runId,
     trace_file: filePath,
     rows: sorted,
     summary,
+    run_state,
     status_label: statusLabel,
     explain,
     skipped,
     truncated,
+    artifact_paths: artifactPaths,
   };
 }
 
@@ -149,13 +191,21 @@ function loadOperatorTraceContext(options = {}) {
  * @returns {string}
  */
 function formatOperatorStatusText(ctx) {
-  const { summary, status_label: statusLabel } = ctx;
+  const { summary, status_label: statusLabel, run_state: runState } = ctx;
   const lines = [
     'ai-minions status',
     `  status:           ${statusLabel}`,
+    `  result_code:      ${runState.result_code}`,
     `  run_id:           ${ctx.run_id}`,
     `  outcome:          ${summary.outcome}`,
     `  current_phase:    ${summary.current_phase ?? '-'}`,
+    `  last_successful_phase: ${runState.last_successful_phase ?? '-'}`,
+    `  blocking_reason_code:  ${runState.blocking_reason_code ?? '-'}`,
+    `  model:            ${runState.model ?? 'unavailable'}`,
+    `  model_backend:    ${runState.model_backend ?? 'unavailable'}`,
+    `  selection_reason: ${runState.selection_reason ?? 'unavailable'}`,
+    `  attach_available: ${runState.attach_available}`,
+    `  privacy_notice_status: ${runState.privacy_notice_status}`,
     `  trace_file:       ${ctx.trace_file}`,
   ];
   if (summary.degraded_mode.active) {
@@ -167,6 +217,7 @@ function formatOperatorStatusText(ctx) {
   lines.push(`  cerberus:         ${summary.cerberus.verdict ?? '-'}`);
   lines.push(`  next_safe_action: ${summary.next_safe_action}`);
   lines.push('');
+  lines.push(...formatRunStateVisibilityLines(runState));
   lines.push(...formatOperatorTraceSummaryLines(summary));
   if (ctx.truncated) {
     lines.push('WARNING: trace truncated to last session_end segment (size limits)');
@@ -228,6 +279,7 @@ function buildOperatorStatusJson(ctx) {
     run_id: ctx.run_id,
     trace_file: ctx.trace_file,
     status: ctx.status_label,
+    run_state_visibility: ctx.run_state,
     operator_trace_summary: ctx.summary,
     truncated: ctx.truncated,
     skipped_lines: ctx.skipped,
@@ -249,12 +301,14 @@ function buildOperatorExplainJson(ctx) {
         (c) => c !== ctx.summary.policy_decision.reason_code,
       ),
     ],
+    blocking_reason_code: ctx.run_state.blocking_reason_code,
     missing_evidence: ctx.summary.missing_evidence,
     blocking_gate: ctx.summary.blocked_gates[0] ?? null,
     policy_source: ctx.summary.policy_decision.policy_source,
     remediation: ctx.summary.next_safe_action,
     what_not_to_do: deriveWhatNotToDo(ctx.summary),
     explain: ctx.explain,
+    run_state_visibility: ctx.run_state,
     operator_trace_summary: ctx.summary,
     truncated: ctx.truncated,
     skipped_lines: ctx.skipped,
@@ -276,9 +330,11 @@ function runOperatorStatus(options = {}) {
       ok: false,
       exitCode: 2,
       reason_code: ctx.reason_code,
+      result_code: ctx.result_code ?? 'RUN_NOT_FOUND',
       next_safe_action: ctx.next_safe_action,
       text: [
         'ai-minions status',
+        `  result_code:      ${ctx.result_code ?? 'RUN_NOT_FOUND'}`,
         `  reason_code:      ${ctx.reason_code}`,
         `  next_safe_action: ${ctx.next_safe_action}`,
       ].join('\n'),
