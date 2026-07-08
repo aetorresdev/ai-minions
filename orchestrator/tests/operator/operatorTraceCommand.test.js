@@ -104,6 +104,20 @@ describe("operator-trace-command status labels", () => {
     });
     assert.equal(ctx.ok, false);
     assert.equal(ctx.result_code, "RUN_TRACE_INVALID");
+    assert.match(ctx.next_safe_action, /empty/);
+  });
+
+  it("returns RUN_TRACE_INVALID when trace file is unreadable", () => {
+    const ctx = loadOperatorTraceContext({
+      filePath: "/tmp/unreadable.jsonl",
+      existsSync: () => true,
+      readFileSync: () => {
+        throw new Error("EACCES: permission denied");
+      },
+    });
+    assert.equal(ctx.ok, false);
+    assert.equal(ctx.result_code, "RUN_TRACE_INVALID");
+    assert.match(ctx.next_safe_action, /unreadable/);
   });
 
   it("exposes run_state on complete fixture", () => {

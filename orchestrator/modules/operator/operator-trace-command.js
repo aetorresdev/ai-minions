@@ -117,14 +117,26 @@ function loadOperatorTraceContext(options = {}) {
     };
   }
 
-  const raw = readFileSync(filePath, 'utf8');
+  let raw;
+  try {
+    raw = readFileSync(filePath, 'utf8');
+  } catch {
+    return {
+      ok: false,
+      code: 'TRACE_INVALID',
+      reason_code: 'OPERATOR_TRACE_INVALID',
+      result_code: 'RUN_TRACE_INVALID',
+      next_safe_action: 'Trace file is unreadable; check permissions or re-run with a valid completed trace JSONL.',
+      trace_file: filePath,
+    };
+  }
   if (!String(raw).trim()) {
     return {
       ok: false,
       code: 'TRACE_INVALID',
       reason_code: 'OPERATOR_TRACE_INVALID',
       result_code: 'RUN_TRACE_INVALID',
-      next_safe_action: 'Trace file is empty or unreadable; re-run with a valid completed trace JSONL.',
+      next_safe_action: 'Trace file is empty; re-run with a valid completed trace JSONL.',
       trace_file: filePath,
     };
   }
