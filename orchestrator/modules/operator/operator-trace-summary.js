@@ -9,6 +9,9 @@
 const { buildRunOutcomeSummary } = require("../trace/run-outcome-summary");
 
 const OPERATOR_TRACE_SUMMARY_SCHEMA = "1";
+const RUN_STATE_VISIBILITY_SCHEMA = "1";
+
+/** @typedef {'RUN_FOUND'|'RUN_NOT_FOUND'|'RUN_TRACE_INVALID'|'RUN_STATE_UNKNOWN'} RunStateResultCode */
 
 /**
  * @param {{ trace_file?: string | null, report_path?: string | null, attach_bundle_path?: string | null }} meta
@@ -44,6 +47,14 @@ function buildEmptyOperatorTraceSummary(meta = {}) {
  */
 function hasSessionEnd(rows) {
   return rows.some((r) => r && r.event === "session_end");
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {boolean}
+ */
+function hasSessionStart(rows) {
+  return rows.some((r) => r && r.event === "session_start");
 }
 
 /**
@@ -309,6 +320,194 @@ function deriveCerberus(ros) {
 }
 
 /**
+ * @param {object[]} rows
+ * @returns {string | null}
+ */
+function deriveLastSuccessfulPhase(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+
+  /** @type {string | null} */
+  let lastSuccess = null;
+  for (const r of rows) {
+    if (!r) continue;
+    if (r.event === "iteration_done" && r.outcome === "done") {
+      if (typeof r.phase === "string" && r.phase.length) {
+        lastSuccess = r.phase;
+      } else if (typeof r.agent === "string" && r.agent.length) {
+        lastSuccess = r.agent;
+      }
+    }
+    if (r.event === "agent_done") {
+      if (typeof r.phase === "string" && r.phase.length) {
+        lastSuccess = r.phase;
+      } else if (typeof r.agent === "string" && r.agent.length) {
+        lastSuccess = r.agent;
+      }
+    }
+  }
+
+  const ended = rows.find((r) => r && r.event === "session_end");
+  if (ended && ended.done === true) {
+    return deriveCurrentPhase(rows) ?? lastSuccess;
+  }
+  return lastSuccess;
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {{
+ *   model: string | null,
+ *   model_tier: string | null,
+ *   model_backend: string | null,
+ *   selection_reason: string | null,
+ *   availability: 'available' | 'unavailable',
+ * }}
+ */
+function deriveModelSelectionContext(rows) {
+  /** @type {object | null} */
+  let lastSelection = null;
+  /** @type {string | null} */
+  let sessionBackend = null;
+
+  for (const r of rows) {
+    if (!r) continue;
+    if (r.event === "session_start" && typeof r.model_backend === "string" && r.model_backend.length) {
+      sessionBackend = r.model_backend;
+    }
+    if (r.event === "model_selection") {
+      lastSelection = r;
+    }
+  }
+
+  if (!lastSelection) {
+    return {
+      model: null,
+      model_tier: null,
+      model_backend: sessionBackend,
+      selection_reason: null,
+      availability: "unavailable",
+    };
+  }
+
+  return {
+    model: typeof lastSelection.model === "string" ? lastSelection.model : null,
+    model_tier: typeof lastSelection.model_tier === "string" ? lastSelection.model_tier : null,
+    model_backend: typeof lastSelection.model_backend === "string" && lastSelection.model_backend.length
+      ? lastSelection.model_backend
+      : sessionBackend,
+    selection_reason: typeof lastSelection.selection_reason === "string"
+      ? lastSelection.selection_reason
+      : null,
+    availability: "available",
+  };
+}
+
+/**
+ * @param {object} summary
+ * @param {object[]} rows
+ * @returns {string | null}
+ */
+function deriveBlockingReasonCode(summary, rows) {
+  if (summary.policy_decision?.reason_code) {
+    return summary.policy_decision.reason_code;
+  }
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if (!r || typeof r.reason_code !== "string" || !r.reason_code.length) continue;
+    if (
+      r.event === "model_tier_gate_denied"
+      || r.event === "budget_block"
+      || (r.event === "permission_check" && (r.decision === "deny" || r.decision === "requires_approval"))
+    ) {
+      return r.reason_code;
+    }
+  }
+  if (summary.blocked_gates?.length) {
+    const gate = String(summary.blocked_gates[0]);
+    const idx = gate.lastIndexOf(":");
+    return idx >= 0 ? gate.slice(idx + 1) : gate;
+  }
+  if (summary.outcome === "failed") return "RUN_FAILED";
+  return null;
+}
+
+/**
+ * @param {object} summary
+ * @param {object[]} rows
+ * @param {{
+ *   attach_bundle?: string | null,
+ *   report_path?: string | null,
+ *   attach_md?: string | null,
+ *   privacy_notice_status?: string | null,
+ *   result_code?: RunStateResultCode,
+ * }} [meta]
+ * @returns {object}
+ */
+function buildRunStateVisibility(summary, rows, meta = {}) {
+  const modelCtx = deriveModelSelectionContext(rows);
+  /** @type {string[]} */
+  const evidence_paths = [];
+  if (summary.artifacts?.trace) evidence_paths.push(summary.artifacts.trace);
+  if (meta.report_path) evidence_paths.push(meta.report_path);
+  if (meta.attach_md) evidence_paths.push(meta.attach_md);
+  if (meta.attach_bundle) evidence_paths.push(meta.attach_bundle);
+  if (summary.artifacts?.report && !evidence_paths.includes(summary.artifacts.report)) {
+    evidence_paths.push(summary.artifacts.report);
+  }
+
+  const attach_available = Boolean(meta.attach_bundle);
+  /** @type {RunStateResultCode} */
+  let result_code = meta.result_code ?? "RUN_FOUND";
+  if (summary.outcome === "unknown" && hasSessionStart(rows) && !hasSessionEnd(rows)) {
+    result_code = "RUN_STATE_UNKNOWN";
+  }
+
+  return {
+    schema_version: RUN_STATE_VISIBILITY_SCHEMA,
+    result_code,
+    run_id: summary.run_id,
+    current_phase: summary.current_phase,
+    last_successful_phase: deriveLastSuccessfulPhase(rows),
+    blocking_reason_code: deriveBlockingReasonCode(summary, rows),
+    next_safe_action: summary.next_safe_action,
+    evidence_paths,
+    attach_available,
+    attach_result_code: attach_available ? "RUN_ATTACH_AVAILABLE" : "RUN_ATTACH_MISSING",
+    privacy_notice_status: meta.privacy_notice_status ?? "unknown",
+    model: modelCtx.model,
+    model_tier: modelCtx.model_tier,
+    model_backend: modelCtx.model_backend,
+    selection_reason: modelCtx.selection_reason,
+    model_selection_availability: modelCtx.availability,
+  };
+}
+
+/**
+ * @param {ReturnType<typeof buildRunStateVisibility>} runState
+ * @returns {string[]}
+ */
+function formatRunStateVisibilityLines(runState) {
+  const lines = [
+    "-- run_state_visibility --",
+    `  result_code:           ${runState.result_code}`,
+    `  run_id:                ${runState.run_id ?? "?"}`,
+    `  current_phase:         ${runState.current_phase ?? "-"}`,
+    `  last_successful_phase: ${runState.last_successful_phase ?? "-"}`,
+    `  blocking_reason_code:  ${runState.blocking_reason_code ?? "-"}`,
+    `  attach_available:      ${runState.attach_available}`,
+    `  attach_result_code:    ${runState.attach_result_code}`,
+    `  privacy_notice_status: ${runState.privacy_notice_status}`,
+    `  model:                 ${runState.model ?? "unavailable"}`,
+    `  model_backend:         ${runState.model_backend ?? "unavailable"}`,
+    `  selection_reason:      ${runState.selection_reason ?? "unavailable"}`,
+    `  evidence_paths:        ${runState.evidence_paths.length ? runState.evidence_paths.join("; ") : "(none)"}`,
+    `  next_safe_action:      ${runState.next_safe_action}`,
+    "",
+  ];
+  return lines;
+}
+
+/**
  * @param {object[]} rows — sanitized trace rows
  * @param {{ trace_file?: string | null, report_path?: string | null, attach_bundle_path?: string | null, ollama_usd_estimate?: object | null }} [meta]
  * @returns {object}
@@ -393,7 +592,13 @@ function formatOperatorTraceSummaryLines(summary) {
 
 module.exports = {
   OPERATOR_TRACE_SUMMARY_SCHEMA,
+  RUN_STATE_VISIBILITY_SCHEMA,
   buildOperatorTraceSummary,
   buildEmptyOperatorTraceSummary,
+  buildRunStateVisibility,
+  deriveLastSuccessfulPhase,
+  deriveModelSelectionContext,
+  deriveBlockingReasonCode,
   formatOperatorTraceSummaryLines,
+  formatRunStateVisibilityLines,
 };

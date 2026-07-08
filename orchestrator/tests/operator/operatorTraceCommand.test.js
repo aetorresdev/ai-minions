@@ -55,6 +55,7 @@ describe("operator-trace-command status labels", () => {
     assert.equal(ctx.ok, true);
     assert.equal(ctx.status_label, "running");
     assert.equal(ctx.summary.outcome, "unknown");
+    assert.equal(ctx.run_state.result_code, "RUN_STATE_UNKNOWN");
   });
 
   it("maps degraded fixture to degraded status", () => {
@@ -84,14 +85,63 @@ describe("operator-trace-command status labels", () => {
     assert.equal(ctx.summary.outcome, "failed");
   });
 
-  it("returns reason_code when trace missing", () => {
+  it("returns RUN_NOT_FOUND when trace missing", () => {
     const ctx = loadOperatorTraceContext({
       runId: "missing-task",
       existsSync: () => false,
     });
     assert.equal(ctx.ok, false);
     assert.equal(ctx.reason_code, "OPERATOR_TRACE_NOT_FOUND");
+    assert.equal(ctx.result_code, "RUN_NOT_FOUND");
     assert.match(ctx.next_safe_action, /--run-id|--file/);
+  });
+
+  it("returns RUN_TRACE_INVALID for empty trace file", () => {
+    const ctx = loadOperatorTraceContext({
+      filePath: "/tmp/empty.jsonl",
+      existsSync: () => true,
+      readFileSync: () => "\n",
+    });
+    assert.equal(ctx.ok, false);
+    assert.equal(ctx.result_code, "RUN_TRACE_INVALID");
+    assert.match(ctx.next_safe_action, /empty/);
+  });
+
+  it("returns RUN_TRACE_INVALID when trace file is unreadable", () => {
+    const ctx = loadOperatorTraceContext({
+      filePath: "/tmp/unreadable.jsonl",
+      existsSync: () => true,
+      readFileSync: () => {
+        throw new Error("EACCES: permission denied");
+      },
+    });
+    assert.equal(ctx.ok, false);
+    assert.equal(ctx.result_code, "RUN_TRACE_INVALID");
+    assert.match(ctx.next_safe_action, /unreadable/);
+  });
+
+  it("exposes run_state on complete fixture", () => {
+    const ctx = loadOperatorTraceContext({
+      filePath: path.join(FIXTURES, "complete.v1.jsonl"),
+      existsSync: (p) => !String(p).includes("report-bundles"),
+      readFileSync: (p) => loadFixture(path.basename(p)),
+      repoRoot: "/tmp/repo",
+    });
+    assert.equal(ctx.ok, true);
+    assert.equal(ctx.run_state.result_code, "RUN_FOUND");
+    assert.equal(ctx.run_state.run_id, "fix-complete");
+    assert.equal(ctx.run_state.attach_result_code, "RUN_ATTACH_MISSING");
+  });
+
+  it("maps blocked fixture blocking_reason_code", () => {
+    const ctx = loadOperatorTraceContext({
+      filePath: path.join(FIXTURES, "blocked.v1.jsonl"),
+      existsSync: (p) => !String(p).includes("report-bundles"),
+      readFileSync: (p) => loadFixture(path.basename(p)),
+      repoRoot: "/tmp/repo",
+    });
+    assert.equal(ctx.ok, true);
+    assert.equal(ctx.run_state.blocking_reason_code, "CERBERUS_BLOCKERS_ITERATE");
   });
 });
 
@@ -121,10 +171,26 @@ describe("operator-trace-command runOperatorStatus", () => {
         explain: {},
         skipped: 0,
         truncated: false,
+        run_state: {
+          result_code: "RUN_FOUND",
+          run_id: "task-1",
+          current_phase: "complete",
+          last_successful_phase: "complete",
+          blocking_reason_code: null,
+          next_safe_action: "Run may advance",
+          evidence_paths: ["/traces/task-1.jsonl"],
+          attach_available: false,
+          attach_result_code: "RUN_ATTACH_MISSING",
+          privacy_notice_status: "bundle_not_collected",
+          model: null,
+          model_backend: null,
+          selection_reason: null,
+        },
       }),
     });
     assert.equal(result.exitCode, 0);
-    assert.match(result.text, /status:\s+complete/);
+    assert.match(result.text, /result_code:\s+RUN_FOUND/);
+    assert.match(result.text, /run_state_visibility/);
     assert.match(result.text, /next_safe_action:/);
   });
 });
@@ -155,6 +221,10 @@ describe("operator-trace-command runOperatorExplain", () => {
         explain: { failure_type: "UNKNOWN" },
         skipped: 0,
         truncated: false,
+        run_state: {
+          blocking_reason_code: "CERBERUS_BLOCK",
+          result_code: "RUN_FOUND",
+        },
       }),
     });
     assert.equal(result.exitCode, 0);
