@@ -207,6 +207,11 @@ function buildOperatorDoctorJson(report) {
  *   modelPolicy?: string,
  *   live?: boolean,
  *   install?: boolean,
+ *   localProvider?: string,
+ *   ollamaHost?: string,
+ *   ollamaPort?: string | number,
+ *   ollamaBaseUrl?: string,
+ *   allowPublicLocalRuntime?: boolean,
  *   loadOperatorPreflightModule?: () => Promise<typeof import('../../../../scripts/operator-preflight.mjs')>,
  *   buildRunPreflightFn?: typeof buildRunPreflight,
  * }} [options]
@@ -219,8 +224,13 @@ async function runOperatorDoctor(options = {}) {
   const mod = await loadMod();
   const buildRunPreflightFn = options.buildRunPreflightFn ?? buildRunPreflight;
   const runnerPreflight = await buildRunPreflightFn({
-    cwd: path.join(repoRoot, 'orchestrator'),
+    cwd: repoRoot,
     modelPolicy,
+    localProvider: options.localProvider,
+    ollamaHost: options.ollamaHost,
+    ollamaPort: options.ollamaPort,
+    ollamaBaseUrl: options.ollamaBaseUrl,
+    allowPublicLocalRuntime: options.allowPublicLocalRuntime,
   });
 
   const report = await mod.runOperatorPreflight({

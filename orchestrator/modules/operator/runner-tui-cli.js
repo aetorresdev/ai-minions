@@ -80,6 +80,11 @@ function parseCommonArgs(argv) {
     else if (a === '--iterations' && argv[i + 1]) out.maxIterations = argv[++i];
     else if (a === '--skip-gates') out.skipGates = true;
     else if (a === '--interactive') out.interactive = true;
+    else if (a === '--local-provider' && argv[i + 1]) out.localProvider = argv[++i];
+    else if (a === '--ollama-host' && argv[i + 1]) out.ollamaHost = argv[++i];
+    else if (a === '--ollama-port' && argv[i + 1]) out.ollamaPort = argv[++i];
+    else if (a === '--ollama-base-url' && argv[i + 1]) out.ollamaBaseUrl = argv[++i];
+    else if (a === '--allow-public-local-runtime') out.allowPublicLocalRuntime = true;
     else if (a === '--show-routing') out.showRouting = true;
     else if (a === '--follow') out.follow = true;
     else if (a === '--worktree-isolated') out.worktreeIsolated = true;
@@ -130,6 +135,20 @@ async function resolveModelPolicyOption(opts) {
   return picked ?? undefined;
 }
 
+/**
+ * @param {Record<string, string | boolean>} opts
+ * @returns {Record<string, unknown>}
+ */
+function endpointOptionsFromCli(opts) {
+  return {
+    localProvider: opts.localProvider ? String(opts.localProvider) : undefined,
+    ollamaHost: opts.ollamaHost ? String(opts.ollamaHost) : undefined,
+    ollamaPort: opts.ollamaPort != null ? opts.ollamaPort : undefined,
+    ollamaBaseUrl: opts.ollamaBaseUrl ? String(opts.ollamaBaseUrl) : undefined,
+    allowPublicLocalRuntime: opts.allowPublicLocalRuntime === true,
+  };
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   if (!argv.length || argv.includes('-h') || argv.includes('--help')) {
@@ -148,6 +167,7 @@ async function main() {
       modelPolicy: modelPolicy ?? opts.modelPolicy,
       model: opts.model,
       interactive: opts.interactive === true,
+      ...endpointOptionsFromCli(opts),
     });
     console.log(formatPreflightText(preflight));
     process.exit(preflight.ok ? 0 : 2);
@@ -185,6 +205,7 @@ async function main() {
         modelPolicy: policy,
         model: opts.model,
         interactive: opts.interactive === true,
+        ...endpointOptionsFromCli(opts),
       });
       if (pf.model_policy === 'local_only' && pf.selected_model) {
         localModel = pf.selected_model;
@@ -223,6 +244,7 @@ async function main() {
         worktreeIsolated: opts.worktreeIsolated === true,
         taskId: opts.runId ? String(opts.runId) : undefined,
         worktreeBaseRef: opts.baseRef ? String(opts.baseRef) : undefined,
+        ...endpointOptionsFromCli(opts),
       });
       console.log(formatPreflightText(launched.preflight));
       if (launched.worktree) {
@@ -541,6 +563,7 @@ module.exports = {
   parseCommonArgs,
   parseMaxIterations,
   resolveModelPolicyOption,
+  endpointOptionsFromCli,
   main,
 };
 

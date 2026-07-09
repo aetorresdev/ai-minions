@@ -109,12 +109,13 @@ function buildProviderInferenceProfiles(modelPolicy) {
 
 /**
  * @param {{
- *   backends: Array<{ backend_id: string, support_status: string, host: string, port: number }>,
+ *   backends: Array<{ backend_id: string, support_status: string, host: string, port: number, base_url?: string, endpoint_scope?: string }>,
  *   models: Array<{ name: string, backend_id: string, family?: string | null, size_bytes?: number | null }>,
  * }} discovery
  * @param {'local_only' | 'remote_ok' | null} modelPolicy
+ * @param {{ defaultModelOverride?: string | null }} [options]
  */
-function buildInstallModelConfig(discovery, modelPolicy = null) {
+function buildInstallModelConfig(discovery, modelPolicy = null, options = {}) {
   const models = discovery.models ?? [];
   if (models.length === 0) {
     throw new Error('install-model-config: cannot build config without discovered models');
@@ -131,18 +132,31 @@ function buildInstallModelConfig(discovery, modelPolicy = null) {
     null,
     { taskHint: 'code' },
   );
-  const defaultModel = ranked[0].name;
+  const rankedDefault = ranked[0].name;
+  let resolvedDefault = rankedDefault;
+  if (options.defaultModelOverride) {
+    if (!models.some((m) => m.name === options.defaultModelOverride)) {
+      throw new Error(
+        `install-model-config: --model "${options.defaultModelOverride}" not found in discovered Ollama inventory`,
+      );
+    }
+    resolvedDefault = options.defaultModelOverride;
+  }
   const primaryBackend = discovery.backends?.[0];
+  const host = primaryBackend?.host ?? 'localhost';
+  const port = primaryBackend?.port ?? 11434;
   const families = [...new Set(models.map((m) => m.family).filter(Boolean))];
 
   const yamlPolicy = {
     model_policy_version: 1,
-    default_model: defaultModel,
+    default_model: resolvedDefault,
     local_backend: {
       backend_id: primaryBackend?.backend_id ?? 'ollama',
       support_status: primaryBackend?.support_status ?? 'supported',
-      host: primaryBackend?.host ?? 'localhost',
-      port: primaryBackend?.port ?? 11434,
+      host,
+      port,
+      base_url: primaryBackend?.base_url ?? `http://${host}:${port}`,
+      endpoint_scope: primaryBackend?.endpoint_scope ?? 'localhost',
     },
     ...(families.length > 0 ? { prefer_families: families } : {}),
   };
@@ -162,7 +176,7 @@ function buildInstallModelConfig(discovery, modelPolicy = null) {
     jsonPolicy,
     yamlText: yaml.dump(yamlPolicy, { lineWidth: 100, noRefs: true }),
     jsonText: `${JSON.stringify(jsonPolicy, null, 2)}\n`,
-    defaultModel,
+    defaultModel: resolvedDefault,
     degradedSingleModel,
     rankedModelNames: ranked.map((m) => m.name),
   };
@@ -178,10 +192,13 @@ function buildInstallModelConfig(discovery, modelPolicy = null) {
  * @param {{
  *   writeFiles?: (targetDir: string, files: Record<string, string>) => void,
  *   now?: () => string,
+ *   defaultModelOverride?: string | null,
  * }} [options]
  */
 function writeInstallModelConfig(repoRoot, discovery, modelPolicy, options = {}) {
-  const built = buildInstallModelConfig(discovery, modelPolicy);
+  const built = buildInstallModelConfig(discovery, modelPolicy, {
+    defaultModelOverride: options.defaultModelOverride ?? null,
+  });
   const targetDir = path.join(path.resolve(repoRoot), AI_MINIONS_DIR);
   const now = options.now ?? (() => new Date().toISOString());
 

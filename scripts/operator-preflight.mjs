@@ -67,6 +67,12 @@ export function classifyRunnerBlocker(blocker) {
   if (/^\[local-model-selection\]/i.test(text) || /model selection/i.test(text)) {
     return OPERATOR_REASON_CODES.MODEL_SELECTION_FAILED;
   }
+  if (/MODEL_NOT_FOUND/i.test(text)) {
+    return OPERATOR_REASON_CODES.MODEL_SELECTION_FAILED;
+  }
+  if (/MODEL_RUNTIME_UNREACHABLE/i.test(text)) {
+    return OPERATOR_REASON_CODES.OLLAMA_UNREACHABLE;
+  }
   return OPERATOR_REASON_CODES.RUNNER_PREFLIGHT_BLOCKED;
 }
 

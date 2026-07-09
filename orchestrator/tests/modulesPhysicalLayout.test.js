@@ -376,6 +376,7 @@ describe("modules physical layout", () => {
         "modules/model-runtime/model-tier-gate.js",
         "modules/model-runtime/local-model-discovery.js",
         "modules/model-runtime/local-model-selection.js",
+        "modules/model-runtime/local-runtime-endpoint.js",
         "modules/model-runtime/local-model-policy.js",
         "modules/model-runtime/runner-model-routing.js",
         "modules/model-runtime/flow-hook-bridge.js",

@@ -61,6 +61,15 @@ export const MODEL_POLICY_MODE = "declarative";
 /** @typedef {{ id: string, reason_code: string, status: CheckStatus, message: string }} CheckResult */
 
 /**
+ * @returns {typeof import('../orchestrator/local-runtime-endpoint.js').resolveLocalRuntimeEndpoint}
+ */
+function defaultResolveLocalRuntimeEndpoint() {
+  const require = createRequire(import.meta.url);
+  const { resolveLocalRuntimeEndpoint } = require(path.join(ORCHESTRATOR_DIR, "local-runtime-endpoint.js"));
+  return resolveLocalRuntimeEndpoint;
+}
+
+/**
  * @returns {typeof import('../orchestrator/local-model-discovery.js').discoverLocalModels}
  */
 function defaultDiscoverLocalModels() {
@@ -352,17 +361,41 @@ export async function runHostPrereqChecks(repoRoot, orchDir, options = {}) {
  *   commandExists?: (cmd: string) => boolean,
  *   runNpmCi?: (orchDir: string) => { status: number },
  *   discoverLocalModels?: (options?: object) => Promise<import('../orchestrator/local-model-discovery.js').LocalModelDiscoveryResult>,
+ *   resolveLocalRuntimeEndpoint?: typeof import('../orchestrator/local-runtime-endpoint.js').resolveLocalRuntimeEndpoint,
  *   normalizeInstallDiscovery?: (result: import('../orchestrator/local-model-discovery.js').LocalModelDiscoveryResult) => object,
  *   writeInstallModelConfig?: typeof import('../orchestrator/install-model-config.js').writeInstallModelConfig,
  *   configWriteOptions?: object,
  *   cliInstall?: boolean,
  *   cliInstallOptions?: object,
+ *   localProvider?: string | null,
+ *   ollamaHost?: string | null,
+ *   ollamaPort?: number | string | null,
+ *   ollamaBaseUrl?: string | null,
+ *   allowPublicLocalRuntime?: boolean,
+ *   model?: string | null,
  * }} [options]
  */
 export async function runInstallAiMinions(options = {}) {
   const repoRoot = options.repoRoot ?? REPO_ROOT;
   const orchDir = path.join(repoRoot, "orchestrator");
   const modelPolicy = normalizeModelPolicy(options.modelPolicy);
+
+  if (options.localProvider != null && String(options.localProvider).trim().toLowerCase() !== "ollama") {
+    return attachProductFields({
+      ok: false,
+      phase: "host_prereqs",
+      model_policy: modelPolicy,
+      model_policy_mode: MODEL_POLICY_MODE,
+      repo_root: repoRoot,
+      checks: [{
+        id: "local_provider",
+        reason_code: REASON_CODES.MODEL_POLICY_WRITE_FAILED,
+        status: "fail",
+        message: `unsupported --local-provider: ${String(options.localProvider).trim()} (only ollama is supported)`,
+      }],
+      discovery: null,
+    }, null);
+  }
 
   const { checks: hostChecks, hostOk } = await runHostPrereqChecks(repoRoot, orchDir, options);
 
@@ -391,8 +424,49 @@ export async function runInstallAiMinions(options = {}) {
     options.discoverLocalModels ?? defaultDiscoverLocalModels();
   const normalizeInstallDiscovery =
     options.normalizeInstallDiscovery ?? defaultNormalizeInstallDiscovery();
+  const resolveLocalRuntimeEndpoint =
+    options.resolveLocalRuntimeEndpoint ?? defaultResolveLocalRuntimeEndpoint();
 
-  const rawDiscovery = await discoverLocalModels({ cwd: repoRoot });
+  /** @type {import('../orchestrator/local-runtime-endpoint.js').resolveLocalRuntimeEndpoint extends (...args: infer A) => infer R ? R : never} */
+  let resolvedEndpoint;
+  try {
+    resolvedEndpoint = resolveLocalRuntimeEndpoint({
+      cwd: repoRoot,
+      ollamaHost: options.ollamaHost,
+      ollamaPort: options.ollamaPort,
+      ollamaBaseUrl: options.ollamaBaseUrl,
+      allowPublicLocalRuntime: options.allowPublicLocalRuntime === true,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return attachProductFields({
+      ok: false,
+      phase: "model_discovery",
+      model_policy: modelPolicy,
+      model_policy_mode: MODEL_POLICY_MODE,
+      repo_root: repoRoot,
+      checks: [
+        ...hostChecks,
+        {
+          id: "ollama_endpoint",
+          reason_code: REASON_CODES.OLLAMA_UNREACHABLE,
+          status: "fail",
+          message,
+        },
+      ],
+      discovery: null,
+    }, cliInstall);
+  }
+
+  const rawDiscovery = await discoverLocalModels({
+    cwd: repoRoot,
+    host: resolvedEndpoint.host,
+    port: resolvedEndpoint.port,
+  });
+  if (rawDiscovery.backends?.[0]) {
+    rawDiscovery.backends[0].base_url = resolvedEndpoint.base_url;
+    rawDiscovery.backends[0].endpoint_scope = resolvedEndpoint.endpoint_scope;
+  }
   const discovery = normalizeInstallDiscovery(rawDiscovery);
   const discoveryChecks = buildDiscoveryChecks(rawDiscovery, modelPolicy);
   const checks = [...hostChecks, ...discoveryChecks];
@@ -421,7 +495,10 @@ export async function runInstallAiMinions(options = {}) {
     options.writeInstallModelConfig ?? defaultWriteInstallModelConfig();
 
   try {
-    const writeResult = writeInstallModelConfig(repoRoot, discovery, modelPolicy, options.configWriteOptions);
+    const writeResult = writeInstallModelConfig(repoRoot, discovery, modelPolicy, {
+      ...(options.configWriteOptions ?? {}),
+      defaultModelOverride: options.model ?? null,
+    });
     const configChecks = buildConfigWriteChecks(writeResult);
     const allChecks = [...checks, ...configChecks];
     configWrite = writeResult;
@@ -604,6 +681,16 @@ export function parseArgs(argv) {
   let modelPolicyRaw = null;
   /** @type {string | null} */
   let binDir = null;
+  /** @type {string | null} */
+  let localProvider = null;
+  /** @type {string | null} */
+  let ollamaHost = null;
+  /** @type {string | null} */
+  let ollamaPort = null;
+  /** @type {string | null} */
+  let ollamaBaseUrl = null;
+  /** @type {string | null} */
+  let model = null;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--model-policy" && argv[i + 1]) {
@@ -611,6 +698,21 @@ export function parseArgs(argv) {
       i += 1;
     } else if (arg === "--bin-dir" && argv[i + 1]) {
       binDir = argv[i + 1];
+      i += 1;
+    } else if (arg === "--local-provider" && argv[i + 1]) {
+      localProvider = argv[i + 1];
+      i += 1;
+    } else if (arg === "--ollama-host" && argv[i + 1]) {
+      ollamaHost = argv[i + 1];
+      i += 1;
+    } else if (arg === "--ollama-port" && argv[i + 1]) {
+      ollamaPort = argv[i + 1];
+      i += 1;
+    } else if (arg === "--ollama-base-url" && argv[i + 1]) {
+      ollamaBaseUrl = argv[i + 1];
+      i += 1;
+    } else if (arg === "--model" && argv[i + 1]) {
+      model = argv[i + 1];
       i += 1;
     }
   }
@@ -620,10 +722,16 @@ export function parseArgs(argv) {
     install: argv.includes("--install"),
     noInstall: argv.includes("--no-install"),
     skipCli: argv.includes("--skip-cli"),
+    allowPublicLocalRuntime: argv.includes("--allow-public-local-runtime"),
     help: argv.includes("-h") || argv.includes("--help"),
     modelPolicy,
     modelPolicyRaw,
     binDir,
+    localProvider,
+    ollamaHost,
+    ollamaPort,
+    ollamaBaseUrl,
+    model,
   };
 }
 
@@ -674,6 +782,12 @@ See docs/orchestrator/model-config-ownership.md for YAML vs JSON ownership.
     cliInstall: !args.skipCli,
     cliInstallOptions: args.binDir ? { binDir: path.resolve(args.binDir) } : {},
     modelPolicy: args.modelPolicy,
+    localProvider: args.localProvider,
+    ollamaHost: args.ollamaHost,
+    ollamaPort: args.ollamaPort,
+    ollamaBaseUrl: args.ollamaBaseUrl,
+    allowPublicLocalRuntime: args.allowPublicLocalRuntime,
+    model: args.model,
   });
 
   if (args.json) {
