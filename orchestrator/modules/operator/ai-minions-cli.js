@@ -24,6 +24,7 @@ const {
 } = require('../../runner-model-routing');
 const { printAiMinionsCliHelp } = require('./operator-cli-help');
 const { runOperatorStatus, runOperatorExplain } = require('./operator-trace-command');
+const { runOperatorReport } = require('./operator-run-report');
 const { runOperatorDoctor, runOperatorEvidence } = require('./operator-doctor-evidence');
 const { runOperatorContext, runOperatorResume } = require('./operator-context-resume');
 const {
@@ -75,6 +76,12 @@ function parseAiMinionsArgs(argv) {
   out.json = argv.includes('--json');
   out.noInstall = argv.includes('--no-install');
   out.live = argv.includes('--live');
+  out.latest = argv.includes('--latest');
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--run' && argv[i + 1] && !out.runId) out.runId = argv[++i];
+    else if (a === '--out' && argv[i + 1]) out.out = argv[++i];
+  }
   return out;
 }
 
@@ -451,6 +458,29 @@ async function main() {
     const result = runOperatorExplain({
       runId: opts.runId ? String(opts.runId) : undefined,
       filePath: opts.file ? String(opts.file) : undefined,
+    });
+    if (opts.json === true && result.json) {
+      console.log(JSON.stringify(result.json, null, 2));
+    } else {
+      console.log(result.text);
+    }
+    if (!result.ok && result.reason_code) {
+      console.error(`reason_code: ${result.reason_code}`);
+    }
+    process.exit(result.exitCode);
+  }
+
+  if (cmd === 'report') {
+    if (!opts.runId && !opts.latest && !opts.file) {
+      console.error('report requires --run <id>, --run-id <id>, --latest, or --file <path>');
+      process.exit(1);
+    }
+    const result = runOperatorReport({
+      runId: opts.runId ? String(opts.runId) : undefined,
+      filePath: opts.file ? String(opts.file) : undefined,
+      latest: opts.latest === true,
+      outDir: opts.out ? String(opts.out) : undefined,
+      cwd: opts.cwd,
     });
     if (opts.json === true && result.json) {
       console.log(JSON.stringify(result.json, null, 2));
