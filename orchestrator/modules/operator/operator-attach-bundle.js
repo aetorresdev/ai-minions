@@ -75,7 +75,7 @@ function deriveBusinessImpact(summary) {
 
 /**
  * @param {Extract<ReturnType<typeof loadAttachBundleContext>, { ok: true }>} ctx
- * @param {{ inspectOk: boolean, repoCommit?: string | null, bundleDir: string }} meta
+ * @param {{ inspectOk: boolean, repoCommit?: string | null, bundleBasename?: string | null }} meta
  * @returns {string}
  */
 function buildAttachSummaryMd(ctx, meta) {
@@ -91,7 +91,7 @@ function buildAttachSummaryMd(ctx, meta) {
 - **Blocking reason:** ${rs.blocking_reason_code ?? '(none)'}
 - **Inspect verdict:** ${meta.inspectOk ? 'PASS' : 'FAIL'}
 - **Repo commit:** \`${meta.repoCommit ?? 'unknown'}\`
-- **Bundle (local):** \`${meta.bundleDir}\`
+- **Bundle ID:** \`${meta.bundleBasename ?? 'unknown'}\`
 
 ## Next safe action
 
@@ -105,13 +105,13 @@ ${rs.next_safe_action ?? summary.next_safe_action}
 
 ## Upload reminder
 
-Attach \`privacy-scan.json\`, \`redaction-report.json\`, and files under \`shareable/\` or \`evidence/\` only. Do **not** upload raw local \`trace/\` copies.
+Attach \`privacy-scan.json\`, \`redaction-report.json\`, and files under \`shareable/\` only. Do **not** upload raw local \`trace/\` or \`traces/\` copies.
 `;
 }
 
 /**
  * @param {Extract<ReturnType<typeof loadAttachBundleContext>, { ok: true }>} ctx
- * @param {{ inspectChecks: { reason_code: string, status: string, message: string }[] }} meta
+ * @param {{ inspectChecks: { reason_code: string, status: string, message: string }[], bundleDir?: string | null }} meta
  * @returns {string}
  */
 function buildAttachOperatorNotesMd(ctx, meta) {
@@ -125,7 +125,13 @@ function buildAttachOperatorNotesMd(ctx, meta) {
     ? summary.blocked_gates.map((g) => `- ${g}`).join('\n')
     : '- (none)';
 
+  const localPathBlock = meta.bundleDir
+    ? `\n## Local paths (do not upload)\n\n- **Bundle directory:** \`${meta.bundleDir}\`\n`
+    : '';
+
   return `# Operator notes
+
+> **Local-only** — not included in \`upload_files\`. Use \`shareable/SUMMARY.md\` and \`shareable/MANAGEMENT_SUMMARY.md\` for external upload.
 
 ## What happened
 
@@ -150,7 +156,7 @@ ${rs.evidence_paths?.length ? rs.evidence_paths.map((p) => `- \`${p}\``).join('\
 
 - **Attach available:** ${rs.attach_available}
 - **Privacy notice:** ${rs.privacy_notice_status}
-
+${localPathBlock}
 ## Commands for follow-up
 
 \`\`\`bash
@@ -248,6 +254,24 @@ function copyDirRecursive(srcDir, destDir) {
 }
 
 /**
+ * Upload list may only include privacy-scan.json, redaction-report.json, and shareable/*.
+ * OPERATOR_NOTES.md is scanned locally but never uploaded.
+ *
+ * @param {string[]} uploadFiles
+ * @returns {string[]}
+ */
+function filterAttachUploadFiles(uploadFiles) {
+  return uploadFiles.filter((f) => {
+    if (f === 'privacy-scan.json') return true;
+    if (!f.startsWith('shareable/')) return false;
+    if (f === 'shareable/OPERATOR_NOTES.md') return false;
+    return true;
+  });
+}
+
+/**
+ * Write local human-readable artifacts before privacy sanitize (phase 1).
+ *
  * @param {{
  *   bundleDir: string,
  *   taskId: string,
@@ -256,11 +280,9 @@ function copyDirRecursive(srcDir, destDir) {
  *   inspectOk: boolean,
  *   inspectChecks: { reason_code: string, status: string, message: string }[],
  *   repoCommit?: string | null,
- *   privacySummary?: object | null,
- *   shareableFiles?: string[],
  *   fsOps?: { existsSync?: typeof fs.existsSync, readFileSync?: typeof fs.readFileSync },
  * }} input
- * @returns {{ files: string[], redaction_report_path: string, operator_context_ok: boolean }}
+ * @returns {{ files: string[], operator_context_ok: boolean }}
  */
 function writeHumanReadableAttachArtifacts(input) {
   const {
@@ -271,21 +293,29 @@ function writeHumanReadableAttachArtifacts(input) {
     inspectOk,
     inspectChecks,
     repoCommit,
-    privacySummary,
-    shareableFiles = [],
   } = input;
 
   const ctx = loadAttachBundleContext(taskId, traceFile, repoRoot, input.fsOps);
+  const bundleBasename = path.basename(bundleDir);
   /** @type {string[]} */
   const added = [];
 
   if (ctx.ok) {
-    const summaryPath = path.join(bundleDir, 'SUMMARY.md');
-    const notesPath = path.join(bundleDir, 'OPERATOR_NOTES.md');
-    const mgmtPath = path.join(bundleDir, 'MANAGEMENT_SUMMARY.md');
-    fs.writeFileSync(summaryPath, buildAttachSummaryMd(ctx, { inspectOk, repoCommit, bundleDir }), 'utf8');
-    fs.writeFileSync(notesPath, buildAttachOperatorNotesMd(ctx, { inspectChecks }), 'utf8');
-    fs.writeFileSync(mgmtPath, buildAttachManagementSummaryMd(ctx, { inspectOk }), 'utf8');
+    fs.writeFileSync(
+      path.join(bundleDir, 'SUMMARY.md'),
+      buildAttachSummaryMd(ctx, { inspectOk, repoCommit, bundleBasename }),
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(bundleDir, 'OPERATOR_NOTES.md'),
+      buildAttachOperatorNotesMd(ctx, { inspectChecks, bundleDir }),
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(bundleDir, 'MANAGEMENT_SUMMARY.md'),
+      buildAttachManagementSummaryMd(ctx, { inspectOk }),
+      'utf8',
+    );
     added.push('SUMMARY.md', 'OPERATOR_NOTES.md', 'MANAGEMENT_SUMMARY.md');
   } else {
     const fallback = `# Run summary\n\nTrace context unavailable (\`${ctx.result_code ?? ctx.reason_code}\`).\n\n${ctx.next_safe_action ?? ''}\n`;
@@ -303,38 +333,52 @@ function writeHumanReadableAttachArtifacts(input) {
   if (fs.existsSync(inspectSrc)) {
     fs.copyFileSync(inspectSrc, path.join(evidenceDest, 'inspect-report.json'));
   }
+  added.push('evidence/');
+
+  return {
+    files: added,
+    operator_context_ok: ctx.ok === true,
+  };
+}
+
+/**
+ * After privacy sanitize: redaction report, evidence refresh, upload checksums.
+ *
+ * @param {{
+ *   bundleDir: string,
+ *   privacySummary: object,
+ *   uploadFiles: string[],
+ * }} input
+ * @returns {{ files: string[], redaction_report_path: string, checksums: Record<string, string>, upload_files: string[] }}
+ */
+function finalizeHumanReadableAttachBundle(input) {
+  const { bundleDir, privacySummary, uploadFiles } = input;
+
+  const evidenceDest = path.join(bundleDir, 'evidence');
+  fs.mkdirSync(evidenceDest, { recursive: true });
   const privacySrc = path.join(bundleDir, 'privacy-scan.json');
   if (fs.existsSync(privacySrc)) {
     fs.copyFileSync(privacySrc, path.join(evidenceDest, 'privacy-scan.json'));
   }
   copyDirRecursive(path.join(bundleDir, 'shareable'), path.join(evidenceDest, 'shareable'));
-  added.push('evidence/');
 
-  const checksumTargets = [
-    ...shareableFiles.filter((f) => f.startsWith('shareable/')),
-    'privacy-scan.json',
-    'SUMMARY.md',
-    'OPERATOR_NOTES.md',
-    'MANAGEMENT_SUMMARY.md',
-    'evidence/inspect-report.json',
-    'evidence/privacy-scan.json',
-  ].filter((f, i, arr) => arr.indexOf(f) === i);
-
+  const checksumTargets = uploadFiles.filter((f) => f !== 'privacy-scan.json');
   const checksums = computeBundleChecksums(bundleDir, checksumTargets);
-  const redactionReport = buildRedactionReportJson(
-    privacySummary ?? { privacy_scan_status: 'unknown' },
-    shareableFiles,
-    checksums,
+  const redactionReport = buildRedactionReportJson(privacySummary, uploadFiles, checksums);
+  const redactionRel = 'redaction-report.json';
+  fs.writeFileSync(
+    path.join(bundleDir, redactionRel),
+    `${JSON.stringify(redactionReport, null, 2)}\n`,
+    'utf8',
   );
-  const redactionPath = path.join(bundleDir, 'redaction-report.json');
-  fs.writeFileSync(redactionPath, `${JSON.stringify(redactionReport, null, 2)}\n`, 'utf8');
-  added.push('redaction-report.json');
+
+  const finalUpload = [...new Set([...uploadFiles, redactionRel])];
 
   return {
-    files: added,
-    redaction_report_path: 'redaction-report.json',
-    operator_context_ok: ctx.ok === true,
+    files: ['evidence/', redactionRel],
+    redaction_report_path: redactionRel,
     checksums,
+    upload_files: finalUpload,
   };
 }
 
@@ -346,5 +390,7 @@ module.exports = {
   buildAttachManagementSummaryMd,
   buildRedactionReportJson,
   computeBundleChecksums,
+  filterAttachUploadFiles,
   writeHumanReadableAttachArtifacts,
+  finalizeHumanReadableAttachBundle,
 };

@@ -303,7 +303,7 @@ function applyPrivacySanitizeToBundle(bundleDir) {
   let worstReason = REASON_CODES.OK;
   let worstStatus = "ok";
 
-  const skipNames = new Set(["shareable", "privacy-scan.json", "manifest.json", "ATTACH.md"]);
+  const skipNames = new Set(["shareable", "privacy-scan.json", "manifest.json", "ATTACH.md", "redaction-report.json"]);
 
   /**
    * @param {string} rel

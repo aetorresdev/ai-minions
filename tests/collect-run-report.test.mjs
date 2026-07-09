@@ -70,11 +70,61 @@ describe("collect-run-report", () => {
     assert.ok(fs.existsSync(path.join(out, "OPERATOR_NOTES.md")));
     assert.ok(fs.existsSync(path.join(out, "MANAGEMENT_SUMMARY.md")));
     assert.ok(fs.existsSync(path.join(out, "redaction-report.json")));
+    assert.ok(fs.existsSync(path.join(out, "shareable", "SUMMARY.md")));
+    assert.ok(fs.existsSync(path.join(out, "shareable", "MANAGEMENT_SUMMARY.md")));
     assert.ok(fs.existsSync(path.join(out, "traces", "task-ok.jsonl")));
     assert.ok(fs.existsSync(path.join(out, "evidence", "inspect-report.json")));
     assert.ok(fs.existsSync(path.join(out, "privacy-scan.json")));
     assert.ok(fs.existsSync(path.join(out, "shareable", "trace", "task-ok.jsonl")));
+    const manifest = JSON.parse(fs.readFileSync(path.join(out, "manifest.json"), "utf8"));
+    assert.ok(manifest.upload_files.includes("shareable/SUMMARY.md"));
+    assert.ok(!manifest.upload_files.includes("SUMMARY.md"));
+    assert.ok(!manifest.upload_files.includes("shareable/OPERATOR_NOTES.md"));
     assert.match(formatReportText(report), /BUNDLE_OK/);
+  });
+
+  it("redacts token-shaped secrets in uploadable shareable human-readable files", async () => {
+    const traces = fs.mkdtempSync(path.join(os.tmpdir(), "collect-traces-"));
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), "collect-out-"));
+    const sk = "sk-" + "x".repeat(21);
+    fs.writeFileSync(
+      path.join(traces, "task-hr-secret.jsonl"),
+      [
+        JSON.stringify({ event: "session_start", task_id: "task-hr-secret" }),
+        JSON.stringify({
+          event: "model_selection",
+          model: "test",
+          selection_reason: `default with ${sk}`,
+        }),
+        JSON.stringify({ event: "session_end", task_id: "task-hr-secret", done: true }),
+      ].join("\n") + "\n",
+    );
+
+    const report = await runCollectRunReport({
+      taskId: "task-hr-secret",
+      tracesDir: traces,
+      outDir: out,
+      skipPanels: true,
+      invokeStatus: () => ({ exitCode: 0, stdout: "ok\n", stderr: "" }),
+      invokeExplain: () => ({ exitCode: 0, stdout: "summary\n", stderr: "" }),
+    });
+
+    const manifest = JSON.parse(fs.readFileSync(path.join(out, "manifest.json"), "utf8"));
+    for (const f of manifest.upload_files) {
+      if (f === "privacy-scan.json" || f === "redaction-report.json") continue;
+      assert.ok(
+        f.startsWith("shareable/"),
+        `upload file must be shareable-scanned: ${f}`,
+      );
+    }
+    const shareableSummary = fs.readFileSync(path.join(out, "shareable", "SUMMARY.md"), "utf8");
+    assert.ok(!shareableSummary.includes(sk));
+    assert.ok(shareableSummary.includes("[REDACTED:api_token]") || !shareableSummary.includes("sk-"));
+    assert.doesNotMatch(shareableSummary, /\/home\//);
+    assert.doesNotMatch(shareableSummary, /\/tmp\/collect-out/);
+    const redaction = JSON.parse(fs.readFileSync(path.join(out, "redaction-report.json"), "utf8"));
+    assert.equal(redaction.privacy_scan.reason_code, report.checks.find((c) => c.id === "privacy_scan")?.reason_code
+      ?? redaction.privacy_scan.reason_code);
   });
 
   it("redacts sensitive shapes in shareable bundle copies", async () => {
