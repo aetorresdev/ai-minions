@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { loadOperatorTraceContext } = require('./operator-trace-command');
+const { formatRunCostLine, formatRunLatencyLine } = require('./operator-cost-token-summary');
 
 const ATTACH_BUNDLE_SCHEMA = '1';
 
@@ -40,18 +41,19 @@ function deriveConfidenceLevel(summary, inspectOk) {
 }
 
 /**
- * @param {object} summary
+ * @param {Extract<ReturnType<typeof loadAttachBundleContext>, { ok: true }>} ctx
  * @returns {string}
  */
-function formatBudgetLine(summary) {
-  const budget = summary.budget ?? {};
-  if (typeof budget.tokens === 'number') {
-    const cost = typeof budget.estimated_cost === 'number'
-      ? ` · est. cost USD ${budget.estimated_cost} (${budget.confidence ?? 'estimate'})`
-      : ' · cost: unavailable (not billing)';
-    return `${budget.tokens} tokens${cost}`;
-  }
-  return 'unavailable (trace has no token totals)';
+function formatBudgetLine(ctx) {
+  return formatRunCostLine(ctx.cost_token_summary);
+}
+
+/**
+ * @param {Extract<ReturnType<typeof loadAttachBundleContext>, { ok: true }>} ctx
+ * @returns {string}
+ */
+function formatLatencyLine(ctx) {
+  return formatRunLatencyLine(ctx.cost_token_summary);
 }
 
 /**
@@ -185,8 +187,8 @@ function buildAttachManagementSummaryMd(ctx, meta) {
 | **Outcome** | ${summary.outcome} |
 | **User-visible blocker** | ${blocker} |
 | **Business impact** | ${deriveBusinessImpact(summary)} |
-| **Cost / token estimate** | ${formatBudgetLine(summary)} |
-| **Time / latency estimate** | unavailable in this slice *(per-step latency deferred to cost summary slice)* |
+| **Cost / token estimate** | ${formatBudgetLine(ctx)} |
+| **Time / latency estimate** | ${formatLatencyLine(ctx)} |
 | **Recommended next action** | ${rs.next_safe_action ?? summary.next_safe_action} |
 | **Confidence level** | ${confidence} |
 

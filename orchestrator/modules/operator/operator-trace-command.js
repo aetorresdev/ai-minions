@@ -22,6 +22,10 @@ const {
   formatOperatorTraceSummaryLines,
   formatRunStateVisibilityLines,
 } = require('./operator-trace-summary');
+const {
+  buildCostTokenRunSummary,
+  formatCostTokenRunSummaryLines,
+} = require('./operator-cost-token-summary');
 
 /**
  * @param {object[]} rows
@@ -182,6 +186,7 @@ function loadOperatorTraceContext(options = {}) {
     ...artifactPaths,
     privacy_notice_status: redaction.status,
   });
+  const cost_token_summary = buildCostTokenRunSummary(sorted, { trace_file: filePath });
 
   return {
     ok: true,
@@ -190,6 +195,7 @@ function loadOperatorTraceContext(options = {}) {
     rows: sorted,
     summary,
     run_state,
+    cost_token_summary,
     status_label: statusLabel,
     explain,
     skipped,
@@ -229,6 +235,7 @@ function formatOperatorStatusText(ctx) {
   lines.push(`  cerberus:         ${summary.cerberus.verdict ?? '-'}`);
   lines.push(`  next_safe_action: ${summary.next_safe_action}`);
   lines.push('');
+  lines.push(...formatCostTokenRunSummaryLines(ctx.cost_token_summary));
   lines.push(...formatRunStateVisibilityLines(runState));
   lines.push(...formatOperatorTraceSummaryLines(summary));
   if (ctx.truncated) {
@@ -277,6 +284,7 @@ function formatOperatorExplainText(ctx) {
     lines.push(`  permission_denials: ${summary.permission_denials.length} (first reason: ${d0.reason_code ?? d0.decision})`);
   }
   lines.push('');
+  lines.push(...formatCostTokenRunSummaryLines(ctx.cost_token_summary));
   lines.push(...formatOperatorTraceSummaryLines(summary));
   return lines.join('\n');
 }
@@ -292,6 +300,7 @@ function buildOperatorStatusJson(ctx) {
     trace_file: ctx.trace_file,
     status: ctx.status_label,
     run_state_visibility: ctx.run_state,
+    cost_token_run_summary: ctx.cost_token_summary,
     operator_trace_summary: ctx.summary,
     truncated: ctx.truncated,
     skipped_lines: ctx.skipped,
@@ -321,6 +330,7 @@ function buildOperatorExplainJson(ctx) {
     what_not_to_do: deriveWhatNotToDo(ctx.summary),
     explain: ctx.explain,
     run_state_visibility: ctx.run_state,
+    cost_token_run_summary: ctx.cost_token_summary,
     operator_trace_summary: ctx.summary,
     truncated: ctx.truncated,
     skipped_lines: ctx.skipped,
