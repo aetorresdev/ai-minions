@@ -92,6 +92,39 @@ function evaluateNetwork(profile, input) {
     port = n;
   }
 
+  const opEp = pc.operator_configured_local_runtime;
+  if (opEp && typeof opEp === "object" && opEp !== null) {
+    const allowedTools = new Set(["ollama_health_check", "ollama_chat"]);
+    const tool = String(input.tool || "").trim();
+    if (tool && allowedTools.has(tool)) {
+      const epHost = normalizeClientHostnameForNetworkPolicy(String(opEp.host || "").trim().toLowerCase());
+      const epPort = Number(opEp.port);
+      const epScope = String(opEp.endpoint_scope || "");
+      const epSource = String(opEp.source || "");
+      const epProvider = String(opEp.provider || "ollama");
+      const allowedSources = new Set(["cli_host_port", "cli_base_url", "model_policy_yaml"]);
+      const allowedScopes = opEp.allow_public_local_runtime === true
+        ? new Set(["localhost", "private_lan", "public_endpoint"])
+        : new Set(["localhost", "private_lan"]);
+      if (
+        epProvider === "ollama"
+        && allowedSources.has(epSource)
+        && allowedScopes.has(epScope)
+        && epHost === hostname
+        && port != null
+        && Number.isFinite(epPort)
+        && epPort === port
+      ) {
+        return baseEnvelope(input, {
+          decision: "allow",
+          reason_code: "network_operator_configured_local_runtime_allowed",
+          requires_approval: false,
+          safe_to_continue: true,
+        });
+      }
+    }
+  }
+
   const allowHosts = Array.isArray(net.allow_hosts) ? net.allow_hosts : [];
   if (networkHostMatchesAllowlist(hostname, port, allowHosts)) {
     return baseEnvelope(input, {

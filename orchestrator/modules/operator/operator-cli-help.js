@@ -8,6 +8,7 @@ const DOCS_SLASH = "docs/how-to/operator-slash-commands.md";
 const DOCS_RUNNER = "docs/orchestrator/runner-tui-contract.md";
 const DOCS_GUIDED_RUN = "docs/how-to/operator-guided-run.md";
 const DOCS_PREFLIGHT_BRIDGE = "docs/how-to/operator-preflight-bridge.md";
+const { PRODUCT_VERSION } = require("./product-version");
 
 function printRunnerTuiHelp() {
   const lines = [
@@ -204,15 +205,18 @@ function printRunOrchestratorUsageBrief() {
 
 function printAiMinionsCliHelp() {
   const lines = [
-    "ai-minions — product CLI (v0.18 alpha)",
+    `ai-minions — product CLI (${PRODUCT_VERSION})`,
     "",
     "Entry:",
     "  ai-minions <command> [options]",
+    "  ai-minions --version",
     "",
     "Dev fallback (from clone, no PATH shim):",
     "  cd orchestrator && npm run ai-minions -- <command> [options]",
     "",
     "Commands:",
+    "  version    Product version, git commit, install/config paths",
+    "  about      Operator-readable app, runtime, and local backend config",
     "  first-run  Guided readiness check (doctor + config) with next_safe_action",
     "  smoke      Short smoke run (default goal, --skip-gates, 1 iteration)",
     "  attach     Collect local report bundle for GitHub feedback (wraps collect-run-report)",
@@ -225,6 +229,10 @@ function printAiMinionsCliHelp() {
     "  evidence   Trace/bundle paths + inspect panel for a run",
     "  context    Context package refs + trust classification from trace",
     "  resume     Honest resume capability probe (not implemented)",
+    "",
+    "Options (about / version):",
+    "  --cwd <dir>              Config lookup directory (default: cwd)",
+    "  --json                   Machine-readable JSON (about; version also accepts)",
     "",
     "Alpha limitations:",
     "  - Guided CLI only — not production TUI / Web UI",

@@ -254,6 +254,8 @@ function createDiscoverFn(options) {
       host: built.host,
       port: built.port,
       cwd,
+      endpoint: built.endpoint,
+      allowPublicLocalRuntime: options.allowPublicLocalRuntime,
       ...extra,
     }),
     endpoint: built.endpoint,

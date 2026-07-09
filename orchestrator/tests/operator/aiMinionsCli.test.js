@@ -3,6 +3,7 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
+const os = require("os");
 const path = require("node:path");
 
 const {
@@ -196,7 +197,7 @@ describe("ai-minions-cli runInit", () => {
     assert.match(result.text, /next_safe_action/);
   });
 
-  it("defaults repoRoot to REPO_ROOT when cwd omitted", async () => {
+  it("defaults repoRoot when cwd omitted (lifts orchestrator/ to clone root during npm test)", async () => {
     /** @type {string | undefined} */
     let capturedRepoRoot;
     await runInit({
@@ -216,7 +217,10 @@ describe("ai-minions-cli runInit", () => {
         },
       }),
     });
-    assert.equal(capturedRepoRoot, REPO_ROOT);
+    const expected = path.basename(process.cwd()) === "orchestrator"
+      ? path.dirname(process.cwd())
+      : process.cwd();
+    assert.equal(capturedRepoRoot, expected);
   });
 
   it("normalizes orchestrator/ cwd to clone root for install", async () => {
@@ -270,8 +274,17 @@ describe("ai-minions-cli runInit", () => {
 });
 
 describe("ai-minions-cli resolveInstallRepoRoot", () => {
-  it("returns REPO_ROOT when cwd omitted", () => {
-    assert.equal(resolveInstallRepoRoot(undefined), REPO_ROOT);
+  it("uses explicit cwd for config target", () => {
+    const custom = path.join(os.tmpdir(), "ai-minions-init-target");
+    assert.equal(resolveInstallRepoRoot(custom), custom);
+  });
+
+  it("when cwd omitted lifts orchestrator package dir to clone root", () => {
+    if (path.basename(process.cwd()) === "orchestrator") {
+      assert.equal(resolveInstallRepoRoot(undefined), path.dirname(process.cwd()));
+    } else {
+      assert.equal(resolveInstallRepoRoot(undefined), process.cwd());
+    }
   });
 
   it("lifts orchestrator package cwd to clone root", () => {
