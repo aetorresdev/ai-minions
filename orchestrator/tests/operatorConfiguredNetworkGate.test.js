@@ -107,6 +107,24 @@ describe('operator-configured Ollama network gate — evaluate-permission', () =
     assert.equal(r.reason_code, 'network_host_denied');
   });
 
+  it('denies public operatorConfiguredEndpoint even when endpoint_scope claims private_lan', () => {
+    const r = evaluatePermission(netInput('dev-local', 'ollama.example.com', 11434, {
+      precheck: {
+        network_hostname: 'ollama.example.com',
+        network_port: 11434,
+        operator_configured_local_runtime: {
+          provider: 'ollama',
+          host: 'ollama.example.com',
+          port: 11434,
+          endpoint_scope: 'private_lan',
+          source: 'cli_host_port',
+        },
+      },
+    }));
+    assert.equal(r.decision, 'deny');
+    assert.equal(r.reason_code, 'network_host_denied');
+  });
+
   it('allows public host only with explicit allow_public_local_runtime', () => {
     const r = evaluatePermission(netInput('dev-local', 'ollama.example.com', 11434, {
       precheck: {
@@ -196,6 +214,41 @@ describe('operator-configured Ollama network gate — runNetworkPermissionGate',
     assert.equal(ep.source, 'model_policy_yaml');
     assert.equal(ep.endpoint_scope, 'private_lan');
     fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('recomputes operatorConfiguredEndpoint scope from host', () => {
+    const ep = deriveOperatorConfiguredEndpoint({
+      repoRoot: REPO_ROOT,
+      hostname: 'ollama.example.com',
+      port: 11434,
+      operatorConfiguredEndpoint: {
+        provider: 'ollama',
+        host: 'ollama.example.com',
+        port: 11434,
+        endpoint_scope: 'private_lan',
+        source: 'cli_host_port',
+      },
+    });
+    assert.equal(ep, null);
+  });
+
+  it('allows public operatorConfiguredEndpoint with allowPublicLocalRuntime even if scope lied', () => {
+    const ep = deriveOperatorConfiguredEndpoint({
+      repoRoot: REPO_ROOT,
+      hostname: 'ollama.example.com',
+      port: 11434,
+      allowPublicLocalRuntime: true,
+      operatorConfiguredEndpoint: {
+        provider: 'ollama',
+        host: 'ollama.example.com',
+        port: 11434,
+        endpoint_scope: 'private_lan',
+        source: 'cli_host_port',
+      },
+    });
+    assert.ok(ep);
+    assert.equal(ep.endpoint_scope, 'public_endpoint');
+    assert.equal(ep.declared_endpoint_scope, 'private_lan');
   });
 
   it('dev-local profile allow_hosts unchanged (no wildcard expansion)', () => {

@@ -39,23 +39,29 @@ function toOperatorConfiguredGateEndpoint(endpoint, options = {}) {
   if (!endpoint || typeof endpoint !== "object") return null;
   const source = String(endpoint.source || "");
   if (!OPERATOR_GATE_SOURCES.has(source)) return null;
-  const scope = String(endpoint.endpoint_scope || "");
+  const host = String(endpoint.host || "").trim();
+  const port = Number(endpoint.port);
+  if (!host || !Number.isFinite(port) || port <= 0 || port > 65535) return null;
+
+  const declaredScope = String(endpoint.endpoint_scope || "").trim();
+  const computedScope = classifyEndpointScope(host);
   const allowPublic = options.allowPublicLocalRuntime === true
     || endpoint.allow_public_local_runtime === true;
   const scopes = allowPublic
     ? new Set([...OPERATOR_GATE_SCOPES_PRIVATE, "public_endpoint"])
     : OPERATOR_GATE_SCOPES_PRIVATE;
-  if (!scopes.has(scope)) return null;
-  const host = String(endpoint.host || "").trim();
-  const port = Number(endpoint.port);
-  if (!host || !Number.isFinite(port) || port <= 0 || port > 65535) return null;
+  if (!scopes.has(computedScope)) return null;
+
   return {
     provider: String(endpoint.provider || "ollama"),
     host,
     port,
-    endpoint_scope: scope,
+    endpoint_scope: computedScope,
+    ...(declaredScope ? { declared_endpoint_scope: declaredScope } : {}),
     source,
-    ...(allowPublic && scope === "public_endpoint" ? { allow_public_local_runtime: true } : {}),
+    ...(allowPublic && computedScope === "public_endpoint"
+      ? { allow_public_local_runtime: true }
+      : {}),
   };
 }
 

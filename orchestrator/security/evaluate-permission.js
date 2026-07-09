@@ -1,5 +1,7 @@
 "use strict";
 
+const { classifyEndpointScope } = require("./operator-configured-network-endpoint");
+
 /**
  * Pure permission evaluator: structured input → decision envelope.
  * No I/O, no side effects. Caller supplies the resolved profile object.
@@ -99,7 +101,7 @@ function evaluateNetwork(profile, input) {
     if (tool && allowedTools.has(tool)) {
       const epHost = normalizeClientHostnameForNetworkPolicy(String(opEp.host || "").trim().toLowerCase());
       const epPort = Number(opEp.port);
-      const epScope = String(opEp.endpoint_scope || "");
+      const epScope = classifyEndpointScope(epHost);
       const epSource = String(opEp.source || "");
       const epProvider = String(opEp.provider || "ollama");
       const allowedSources = new Set(["cli_host_port", "cli_base_url", "model_policy_yaml"]);
