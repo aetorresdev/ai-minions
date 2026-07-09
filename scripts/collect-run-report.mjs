@@ -27,6 +27,9 @@ const require = createRequire(import.meta.url);
 const { applyPrivacySanitizeToBundle, writeShareableManifest, REASON_CODES: PRIVACY_REASON_CODES } = require(
   "../orchestrator/security/sensitive-data-scanner.js",
 );
+const { writeHumanReadableAttachArtifacts } = require(
+  "../orchestrator/modules/operator/operator-attach-bundle.js",
+);
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -177,12 +180,13 @@ export function buildUploadFilesTableRows(uploadFiles, taskId) {
  *   inspectReport: Awaited<ReturnType<typeof runInspectRunEvidence>>,
  *   panelOutputs: Record<string, { exit_code: number, stdout: string, stderr: string }>,
  *   repoCommit?: string | null,
+ *   repoRoot?: string,
  *   tracesDir?: string,
  * }} input
  * @returns {{ manifestPath: string, attachPath: string, files: string[] }}
  */
 export function writeBundleFiles(input) {
-  const { taskId, traceFile, bundleDir, inspectReport, panelOutputs, repoCommit, tracesDir } =
+  const { taskId, traceFile, bundleDir, inspectReport, panelOutputs, repoCommit, repoRoot, tracesDir } =
     input;
   ensureBundleDir(bundleDir);
 
@@ -262,15 +266,46 @@ export function writeBundleFiles(input) {
   });
   fs.writeFileSync(attachPath, attachBody, "utf8");
 
+  const humanReadable = writeHumanReadableAttachArtifacts({
+    bundleDir,
+    taskId,
+    traceFile,
+    repoRoot: repoRoot ?? REPO_ROOT,
+    inspectOk: inspectReport.ok,
+    inspectChecks: inspectReport.checks,
+    repoCommit: repoCommit ?? null,
+    privacySummary: privacy.summary,
+    shareableFiles: uploadFiles,
+  });
+
   const allBundleFiles = [
-    ...new Set(["manifest.json", "ATTACH.md", ...files, ...uploadFiles]),
+    ...new Set([
+      "manifest.json",
+      "ATTACH.md",
+      ...files,
+      ...uploadFiles,
+      ...humanReadable.files,
+      humanReadable.redaction_report_path,
+    ]),
   ];
 
   const manifestFinal = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-  manifestFinal.upload_files = uploadFiles;
-  manifestFinal.shareable_files = uploadFiles;
+  manifestFinal.upload_files = [
+    ...new Set([...uploadFiles, "redaction-report.json", "SUMMARY.md", "MANAGEMENT_SUMMARY.md"]),
+  ];
+  manifestFinal.shareable_files = manifestFinal.upload_files;
   manifestFinal.local_only_files = files;
   manifestFinal.files = allBundleFiles;
+  manifestFinal.human_readable_bundle = {
+    schema_version: "1",
+    summary: "SUMMARY.md",
+    operator_notes: "OPERATOR_NOTES.md",
+    management_summary: "MANAGEMENT_SUMMARY.md",
+    redaction_report: humanReadable.redaction_report_path,
+    traces_dir: "traces/",
+    evidence_dir: "evidence/",
+    checksums_sha256: humanReadable.checksums,
+  };
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifestFinal, null, 2)}\n`, "utf8");
 
   return {
@@ -278,7 +313,8 @@ export function writeBundleFiles(input) {
     attachPath,
     files: allBundleFiles,
     privacy_scan: privacy.summary,
-    upload_files: uploadFiles,
+    upload_files: manifestFinal.upload_files,
+    human_readable: humanReadable,
   };
 }
 
@@ -501,6 +537,7 @@ export async function runCollectRunReport(options = {}) {
       inspectReport,
       panelOutputs,
       repoCommit: resolveRepoCommit(repoRoot),
+      repoRoot,
       tracesDir,
     });
   } catch (err) {
@@ -602,6 +639,7 @@ export function formatReportText(report) {
       lines.push(`    - ${f}`);
     }
   }
+  lines.push("  human_readable: SUMMARY.md · OPERATOR_NOTES.md · MANAGEMENT_SUMMARY.md · redaction-report.json");
   return lines.join("\n");
 }
 

@@ -66,6 +66,12 @@ describe("collect-run-report", () => {
     assert.ok(fs.existsSync(path.join(out, "trace", "task-ok.jsonl")));
     assert.ok(fs.existsSync(path.join(out, "artifacts", "status.txt")));
     assert.ok(fs.existsSync(path.join(out, "ATTACH.md")));
+    assert.ok(fs.existsSync(path.join(out, "SUMMARY.md")));
+    assert.ok(fs.existsSync(path.join(out, "OPERATOR_NOTES.md")));
+    assert.ok(fs.existsSync(path.join(out, "MANAGEMENT_SUMMARY.md")));
+    assert.ok(fs.existsSync(path.join(out, "redaction-report.json")));
+    assert.ok(fs.existsSync(path.join(out, "traces", "task-ok.jsonl")));
+    assert.ok(fs.existsSync(path.join(out, "evidence", "inspect-report.json")));
     assert.ok(fs.existsSync(path.join(out, "privacy-scan.json")));
     assert.ok(fs.existsSync(path.join(out, "shareable", "trace", "task-ok.jsonl")));
     assert.match(formatReportText(report), /BUNDLE_OK/);

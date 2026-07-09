@@ -72,6 +72,7 @@ const ENTRIES = {
   'tests/operator/operatorContextResume.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTraceSummary.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorRunStateVisibility.test.js': { owner: 'operator', kind: 'unit' },
+  'tests/operator/operatorAttachBundle.test.js': { owner: 'operator', kind: 'unit' },
   'tests/flowHookBridge.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/goldenPath.test.js': { owner: 'run-control', kind: 'integration' },
   'tests/governance-gate.test.js': { owner: 'gates', kind: 'unit' },
