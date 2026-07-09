@@ -26,24 +26,31 @@ const { printAiMinionsCliHelp } = require('./operator-cli-help');
 const { runOperatorStatus, runOperatorExplain } = require('./operator-trace-command');
 const { runOperatorDoctor, runOperatorEvidence } = require('./operator-doctor-evidence');
 const { runOperatorContext, runOperatorResume } = require('./operator-context-resume');
+const {
+  runOperatorVersion,
+  runOperatorAbout,
+  formatVersionOneLine,
+  buildAboutInfo,
+} = require('./operator-about');
+const { resolvePolicyCwd } = require('../model-runtime/local-runtime-endpoint');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const INSTALL_SCRIPT = path.join(REPO_ROOT, 'scripts', 'install-ai-minions.mjs');
 
 /**
- * Resolve clone root for install/config-write (not orchestrator package cwd).
+ * @param {string | undefined} cwd
+ * @returns {string}
+ */
+function resolveConfigRepoRoot(cwd) {
+  return resolvePolicyCwd(resolveInstallRepoRoot(cwd));
+}
+
+/**
+ * Resolve config-write target for init (operator project cwd, not product install home).
  * @param {string | undefined} cwd
  */
 function resolveInstallRepoRoot(cwd) {
-  const fromHome = process.env.AI_MINIONS_HOME;
-  if (fromHome && String(fromHome).trim()) {
-    const homeRoot = path.resolve(String(fromHome).trim());
-    if (fs.existsSync(path.join(homeRoot, 'orchestrator', 'package.json'))) {
-      return homeRoot;
-    }
-  }
-
-  const candidate = cwd ? path.resolve(String(cwd)) : REPO_ROOT;
+  const candidate = cwd ? path.resolve(String(cwd)) : process.cwd();
 
   if (fs.existsSync(path.join(candidate, 'orchestrator', 'package.json'))) {
     return candidate;
@@ -104,6 +111,7 @@ function formatInitText(report) {
 
   const lines = [
     'ai-minions init',
+    `  config_target:    ${report.repo_root}`,
     `  config_dir:       ${configDir}`,
     `  config_paths:`,
     ...configPaths.map((p) => `    - ${p}`),
@@ -306,6 +314,15 @@ async function runStart(options) {
 
 async function main() {
   const argv = process.argv.slice(2);
+
+  if (argv.includes('--version') || argv.includes('-V')) {
+    const info = buildAboutInfo({
+      resolveRepoRoot: resolveConfigRepoRoot,
+    });
+    console.log(formatVersionOneLine(info));
+    process.exit(0);
+  }
+
   if (!argv.length || argv.includes('-h') || argv.includes('--help')) {
     printAiMinionsCliHelp();
     process.exit(argv.length ? 0 : 1);
@@ -314,6 +331,29 @@ async function main() {
   const cmd = argv[0];
   const rest = argv.slice(1);
   const opts = parseAiMinionsArgs(rest);
+
+  if (cmd === 'version') {
+    const result = runOperatorVersion({
+      cwd: opts.cwd,
+      resolveRepoRoot: resolveConfigRepoRoot,
+    });
+    if (opts.json === true) {
+      console.log(JSON.stringify(result.json, null, 2));
+    } else {
+      console.log(result.text);
+    }
+    process.exit(result.exitCode);
+  }
+
+  if (cmd === 'about') {
+    const result = runOperatorAbout({
+      cwd: opts.cwd,
+      json: opts.json === true,
+      resolveRepoRoot: resolveConfigRepoRoot,
+    });
+    console.log(result.text);
+    process.exit(result.exitCode);
+  }
 
   if (cmd === 'doctor') {
     try {
@@ -589,6 +629,7 @@ module.exports = {
   deriveInitNextSafeAction,
   defaultTracePath,
   resolveInstallRepoRoot,
+  resolveConfigRepoRoot,
   runInit,
   runStart,
   runOperatorStatus,
@@ -597,6 +638,8 @@ module.exports = {
   runOperatorEvidence,
   runOperatorContext,
   runOperatorResume,
+  runOperatorVersion,
+  runOperatorAbout,
   main,
 };
 

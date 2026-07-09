@@ -121,7 +121,8 @@ async function defaultFetchOllamaTags(opts) {
     try {
       const { runNetworkPermissionGate } = require('../../security/network-permission-gate');
       const repoRoot = opts.cwd != null ? String(opts.cwd) : process.cwd();
-      const gate = runNetworkPermissionGate({
+      /** @type {Record<string, unknown>} */
+      const gateOpts = {
         repoRoot,
         role: 'ORCHESTRATOR',
         actor: 'orchestrator',
@@ -129,7 +130,12 @@ async function defaultFetchOllamaTags(opts) {
         port: opts.port,
         tool: 'ollama_health_check',
         pathLabel: '/api/tags',
-      });
+      };
+      if (opts.endpoint) {
+        gateOpts.operatorConfiguredEndpoint = opts.endpoint;
+        gateOpts.allowPublicLocalRuntime = opts.allowPublicLocalRuntime === true;
+      }
+      const gate = runNetworkPermissionGate(gateOpts);
       const out = gate.output;
       if (out.decision === 'deny' || out.decision === 'requires_approval' || !out.safe_to_continue) {
         return { ok: false, denied: true, error: out.reason_code || 'network_denied' };
@@ -186,6 +192,8 @@ async function discoverLocalModels(options = {}) {
       port,
       cwd: options.cwd,
       timeoutMs: options.timeoutMs,
+      endpoint: options.endpoint,
+      allowPublicLocalRuntime: options.allowPublicLocalRuntime,
     });
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);

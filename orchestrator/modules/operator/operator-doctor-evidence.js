@@ -22,7 +22,7 @@ const COLLECT_REPORT_SCRIPT = path.join(REPO_ROOT, 'scripts', 'collect-run-repor
  * @returns {string}
  */
 function resolveCloneRepoRoot(cwd) {
-  const candidate = cwd ? path.resolve(String(cwd)) : REPO_ROOT;
+  const candidate = cwd ? path.resolve(String(cwd)) : process.cwd();
 
   if (fs.existsSync(path.join(candidate, 'orchestrator', 'package.json'))) {
     return candidate;
@@ -51,7 +51,7 @@ function resolveOperatorRepoRoot(options = {}) {
 }
 
 const KNOWN_LIMITATIONS = [
-  'v0.18 alpha — doctor does not run npm test unless bootstrap --test is added later',
+  'v0.21 beta — doctor does not run npm test unless bootstrap --test is added later',
   'remote_ok skips local Ollama reachability checks in runner preflight',
   'evidence lists bundle paths only; collect via scripts/collect-run-report.mjs',
   'trace read path applies sanitizeTraceRowsForRead — raw trace may differ',
@@ -146,21 +146,36 @@ function deriveDoctorNextSafeAction(report) {
 
 /**
  * @param {Awaited<ReturnType<import('../../../../scripts/operator-preflight.mjs').runOperatorPreflight>>} report
+ * @param {Awaited<ReturnType<typeof buildRunPreflight>> | null} [runnerPreflight]
  * @returns {string}
  */
-function formatOperatorDoctorText(report) {
+function formatOperatorDoctorText(report, runnerPreflight = null) {
   const fields = deriveDoctorFieldSummary(report);
   const lines = [
     'ai-minions doctor',
     `  ok:                    ${report.ok}`,
     `  traces_dir:            ${report.traces_dir ?? '-'}`,
     `  layer_stopped:         ${report.layer_stopped ?? '(none)'}`,
+  ];
+  if (runnerPreflight?.config_target) {
+    lines.push(`  config_target:         ${runnerPreflight.config_target}`);
+  }
+  if (runnerPreflight?.config_path) {
+    lines.push(`  config_path:           ${runnerPreflight.config_path}`);
+  }
+  if (runnerPreflight?.policy_source) {
+    lines.push(`  policy_source:         ${runnerPreflight.policy_source}`);
+  }
+  if (runnerPreflight?.base_url) {
+    lines.push(`  local_backend_url:     ${runnerPreflight.base_url}`);
+  }
+  lines.push(
     `  host_prerequisites:    ${fields.host_prerequisites}`,
     `  provider_reachability: ${fields.provider_reachability}`,
     `  local_backend:         ${fields.local_backend}`,
     `  auth_status:           ${fields.auth_status}`,
     `  config_validity:       ${fields.config_validity}`,
-  ];
+  );
 
   if (report.ok && fields.config_validity === 'degraded') {
     lines.push(
@@ -186,14 +201,19 @@ function formatOperatorDoctorText(report) {
 
 /**
  * @param {Awaited<ReturnType<import('../../../../scripts/operator-preflight.mjs').runOperatorPreflight>>} report
+ * @param {Awaited<ReturnType<typeof buildRunPreflight>> | null} [runnerPreflight]
  */
-function buildOperatorDoctorJson(report) {
+function buildOperatorDoctorJson(report, runnerPreflight = null) {
   return {
     command: 'doctor',
     ok: report.ok,
     traces_dir: report.traces_dir ?? null,
     layer_stopped: report.layer_stopped ?? null,
     runtime_preflight: report.runtime_preflight ?? null,
+    config_target: runnerPreflight?.config_target ?? null,
+    config_path: runnerPreflight?.config_path ?? null,
+    policy_source: runnerPreflight?.policy_source ?? null,
+    local_backend_url: runnerPreflight?.base_url ?? null,
     summary: deriveDoctorFieldSummary(report),
     checks: report.checks,
     next_safe_action: deriveDoctorNextSafeAction(report),
@@ -245,8 +265,9 @@ async function runOperatorDoctor(options = {}) {
     ok: report.ok,
     exitCode: report.ok ? 0 : 2,
     report,
-    text: formatOperatorDoctorText(report),
-    json: buildOperatorDoctorJson(report),
+    runnerPreflight,
+    text: formatOperatorDoctorText(report, runnerPreflight),
+    json: buildOperatorDoctorJson(report, runnerPreflight),
   };
 }
 

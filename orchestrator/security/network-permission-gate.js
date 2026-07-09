@@ -3,9 +3,10 @@
 const { loadPermissionConfig, resolveProfile } = require("./load-permission-config");
 const { resolveActivePermissionProfileName } = require("./mcp-permission-gate");
 const { loadProjectPolicy, mergeProjectPolicy } = require("./load-project-policy");
-const { evaluatePermission } = require("./evaluate-permission");
+const { evaluatePermission, normalizeClientHostnameForNetworkPolicy } = require("./evaluate-permission");
 const { traceSecurityDecision } = require("./trace-security-decision");
 const { isDomainAllowedForCapabilityContext, syntheticDenyOutput } = require("./trace-role-capability");
+const { deriveOperatorConfiguredEndpoint } = require("./operator-configured-network-endpoint");
 
 /**
  * Ollama HTTP path: HTTP/TCP egress pre-check against `domains.network` (allow_hosts + default).
@@ -34,6 +35,16 @@ function runNetworkPermissionGate(opts) {
   const merged = mergeProjectPolicy(baseProfile, projectPolicy, profileName);
 
   const port = Number(opts.port);
+  /** @type {Record<string, unknown>} */
+  const precheck = {
+    network_hostname: String(opts.hostname),
+    network_port: port,
+  };
+  const operatorEndpoint = deriveOperatorConfiguredEndpoint(opts);
+  if (operatorEndpoint) {
+    precheck.operator_configured_local_runtime = operatorEndpoint;
+  }
+
   const input = {
     actor: opts.actor != null ? String(opts.actor) : "orchestrator",
     role: opts.role != null ? String(opts.role) : "ORCHESTRATOR",
@@ -44,10 +55,7 @@ function runNetworkPermissionGate(opts) {
     permission_profile: profileName,
     policy_source: merged.policy_source,
     profile: merged.profile,
-    precheck: {
-      network_hostname: String(opts.hostname),
-      network_port: port,
-    },
+    precheck,
   };
 
   if (process.env.ORCH_SKIP_ROLE_CAPABILITY_GATE !== "1") {
@@ -67,4 +75,4 @@ function runNetworkPermissionGate(opts) {
   return { input, output, tracePayload };
 }
 
-module.exports = { runNetworkPermissionGate };
+module.exports = { runNetworkPermissionGate, deriveOperatorConfiguredEndpoint };

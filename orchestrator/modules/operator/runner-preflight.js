@@ -4,6 +4,8 @@
  * Preflight checks before launching an orchestrator run from the runner TUI/CLI.
  */
 
+const path = require('path');
+
 const { discoverLocalModels } = require('../../local-model-discovery');
 const { selectLocalModel, MODEL_NOT_FOUND_PREFIX } = require('../../local-model-selection');
 const {
@@ -113,7 +115,10 @@ function classifySelectionReasonCode(message) {
  *   model_runtime_reason_code: string | null,
  *   endpoint_scope: string | null,
  *   base_url: string | null,
- *   resolved_endpoint: { host: string, port: number, base_url: string, endpoint_scope: string } | null,
+ *   resolved_endpoint: { host: string, port: number, base_url: string, endpoint_scope: string, source?: string } | null,
+ *   policy_source: string | null,
+ *   config_path: string | null,
+ *   config_target: string | null,
  *   selection_result: import('../../local-model-selection').LocalModelSelectionResult | null,
  *   next_safe_action: string | null,
  *   blockers: string[],
@@ -121,10 +126,16 @@ function classifySelectionReasonCode(message) {
  */
 async function buildRunPreflight(options = {}) {
   const policyCwd = resolvePolicyCwd(options.cwd || process.cwd());
+  const configPath = path.join(policyCwd, '.ai-minions', 'model-policy.yaml');
   const discover = options.discover ?? discoverLocalModels;
   const selectFn = options.selectLocalModel ?? selectLocalModel;
   /** @type {string[]} */
   const blockers = [];
+  const policyMeta = (resolvedEndpoint = null) => ({
+    policy_source: resolvedEndpoint?.source ?? null,
+    config_path: configPath,
+    config_target: policyCwd,
+  });
 
   if (options.localProvider != null && String(options.localProvider).trim().toLowerCase() !== 'ollama') {
     blockers.push(`unsupported --local-provider: ${String(options.localProvider).trim()} (only ollama is supported)`);
@@ -144,6 +155,7 @@ async function buildRunPreflight(options = {}) {
       selection_result: null,
       next_safe_action: deriveModelRuntimeNextSafeAction(MODEL_RUNTIME_REASON.UNREACHABLE, blockers),
       blockers,
+      ...policyMeta(),
     };
   }
 
@@ -166,6 +178,7 @@ async function buildRunPreflight(options = {}) {
       selection_result: null,
       next_safe_action: null,
       blockers,
+      ...policyMeta(),
     };
   }
 
@@ -188,6 +201,7 @@ async function buildRunPreflight(options = {}) {
       selection_result: null,
       next_safe_action: null,
       blockers,
+      ...policyMeta(),
     };
   }
 
@@ -220,6 +234,7 @@ async function buildRunPreflight(options = {}) {
       selection_result: null,
       next_safe_action: deriveModelRuntimeNextSafeAction(MODEL_RUNTIME_REASON.UNREACHABLE, blockers),
       blockers,
+      ...policyMeta(resolvedEndpoint),
     };
   }
 
@@ -227,6 +242,8 @@ async function buildRunPreflight(options = {}) {
     host: resolvedEndpoint.host,
     port: resolvedEndpoint.port,
     cwd: policyCwd,
+    endpoint: resolvedEndpoint,
+    allowPublicLocalRuntime: options.allowPublicLocalRuntime,
     ...extra,
   });
 
@@ -262,6 +279,7 @@ async function buildRunPreflight(options = {}) {
       selection_result: null,
       next_safe_action: deriveModelRuntimeNextSafeAction(reasonCode, blockers),
       blockers,
+      ...policyMeta(resolvedEndpoint),
     };
   }
 
@@ -298,6 +316,7 @@ async function buildRunPreflight(options = {}) {
     selection_result: selection,
     next_safe_action: deriveModelRuntimeNextSafeAction(modelRuntimeReason, blockers),
     blockers,
+    ...policyMeta(resolvedEndpoint),
   };
 }
 
@@ -315,6 +334,15 @@ function formatPreflightText(preflight) {
     `  ollama_reachable:  ${preflight.ollama_reachable == null ? '(not checked)' : preflight.ollama_reachable}`,
     `  ok:                ${preflight.ok}`,
   ];
+  if (preflight.config_target) {
+    lines.push(`  config_target:      ${preflight.config_target}`);
+  }
+  if (preflight.config_path) {
+    lines.push(`  config_path:       ${preflight.config_path}`);
+  }
+  if (preflight.policy_source) {
+    lines.push(`  policy_source:     ${preflight.policy_source}`);
+  }
   if (preflight.endpoint_scope) {
     lines.push(`  endpoint_scope:    ${preflight.endpoint_scope}`);
   }

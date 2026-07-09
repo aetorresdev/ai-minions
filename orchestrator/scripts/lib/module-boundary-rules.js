@@ -28,7 +28,7 @@ const ALLOWED_IMPORTS = {
 /** First match wins — order: specific paths before broad prefixes. */
 const MODULE_PATTERNS = [
   { id: "gates", patterns: [/^modules\/gates\//, /^governance-gate\.js$/, /^merge-governance\//, /^approval-policy-gate\.js$/, /^doubt-review\.js$/, /^review-record\.js$/] },
-  { id: "permissions", patterns: [/^modules\/permissions\//, /^agents\/permissions\.js$/, /^agents\/capability-matrix\.js$/, /^credential-broker\.js$/, /^environment-parser\.js$/, /^security\/(?:load-project-policy|trace-security-decision|action-classifiers|resolve-mcp-trust-level|classification-reasons|match-manifest-operation|sensitive-data-scanner|.*permission.*|.*-gate\.js|classified|claude-cli|network|mcp|trace-role-capability)/] },
+  { id: "permissions", patterns: [/^modules\/permissions\//, /^agents\/permissions\.js$/, /^agents\/capability-matrix\.js$/, /^credential-broker\.js$/, /^environment-parser\.js$/, /^security\/(?:load-project-policy|trace-security-decision|action-classifiers|resolve-mcp-trust-level|classification-reasons|match-manifest-operation|sensitive-data-scanner|operator-configured-network-endpoint|.*permission.*|.*-gate\.js|classified|claude-cli|network|mcp|trace-role-capability)/] },
   { id: "tools", patterns: [/^modules\/tools\//, /^security\/tool-eval/, /^security\/skill-registry/, /^security\/untrusted-context/, /^security\/load-tool-action-manifest/, /^mcp-client\.js$/] },
   { id: "model-runtime", patterns: [/^modules\/model-runtime\//, /^agents\/runtime\//, /^agents\/routing\//, /^local-model-/, /^local-runtime-endpoint/, /^runner-model-routing/, /^flow-hook-bridge/] },
   { id: "recovery", patterns: [/^modules\/recovery\//, /^recovery-sweep/, /^session-resume/] },
