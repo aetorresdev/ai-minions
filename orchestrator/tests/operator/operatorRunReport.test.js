@@ -31,6 +31,21 @@ function loadFixtureCtx(name) {
   });
 }
 
+function fixtureLoadContext(opts) {
+  return loadOperatorTraceContext({
+    ...opts,
+    existsSync: (p) => !String(p).includes("report-bundles"),
+    readFileSync: (p) => {
+      const base = path.basename(p);
+      if (fs.existsSync(path.join(FIXTURES, base))) {
+        return loadFixture(base);
+      }
+      return fs.readFileSync(p, "utf8");
+    },
+    repoRoot: "/tmp/repo",
+  });
+}
+
 test("deriveRunAnalystMetrics counts gate blocks and iterations from session_end", () => {
   const ctx = loadFixtureCtx("blocked.v1.jsonl");
   assert.equal(ctx.ok, true);
@@ -66,18 +81,7 @@ test("runOperatorReport writes three files to out dir", () => {
   const result = runOperatorReport({
     filePath: path.join(FIXTURES, "complete.v1.jsonl"),
     outDir: tmp,
-    loadContext: (opts) => loadOperatorTraceContext({
-      ...opts,
-      existsSync: (p) => !String(p).includes("report-bundles"),
-      readFileSync: (p) => {
-        const base = path.basename(p);
-        if (FIXTURES.endsWith(path.dirname(p)) || fs.existsSync(path.join(FIXTURES, base))) {
-          return loadFixture(base);
-        }
-        return fs.readFileSync(p, "utf8");
-      },
-      repoRoot: "/tmp/repo",
-    }),
+    loadContext: fixtureLoadContext,
   });
   assert.equal(result.ok, true);
   assert.equal(result.exitCode, 0);
@@ -86,6 +90,37 @@ test("runOperatorReport writes three files to out dir", () => {
     assert.ok(fs.existsSync(abs), `missing ${name}`);
     assert.ok(fs.statSync(abs).size > 0);
   }
+});
+
+test("runOperatorReport filePath overrides runId for run_id and default out_dir", () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "run-report-precedence-"));
+  const tracePath = path.join(FIXTURES, "complete.v1.jsonl");
+  const result = runOperatorReport({
+    runId: "old-run",
+    filePath: tracePath,
+    cwd,
+    loadContext: fixtureLoadContext,
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.run_id, "fix-complete");
+  assert.equal(result.out_dir, path.join(cwd, "report-fix-complete"));
+  assert.doesNotMatch(result.out_dir, /old-run/);
+});
+
+test("runOperatorReport passes undefined runId to loader when filePath is set", () => {
+  /** @type {Record<string, unknown> | null} */
+  let captured = null;
+  runOperatorReport({
+    runId: "old-run",
+    filePath: path.join(FIXTURES, "complete.v1.jsonl"),
+    outDir: fs.mkdtempSync(path.join(os.tmpdir(), "run-report-capture-")),
+    loadContext: (opts) => {
+      captured = opts;
+      return fixtureLoadContext(opts);
+    },
+  });
+  assert.equal(captured?.runId, undefined);
+  assert.ok(captured?.filePath);
 });
 
 test("runOperatorReport missing trace exits 2", () => {
@@ -125,6 +160,72 @@ test("ai-minions report --file writes artifacts", () => {
   assert.equal(r.status, 0, r.stderr || r.stdout);
   assert.match(r.stdout, /OPERATOR_REPORT\.md/);
   assert.ok(fs.existsSync(path.join(tmp, "MANAGEMENT_SUMMARY.md")));
+});
+
+test("ai-minions report --run with --file uses trace run_id not --run", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "run-report-cli-precedence-"));
+  const trace = path.join(FIXTURES, "complete.v1.jsonl");
+  const r = spawnSync(
+    process.execPath,
+    [CLI_PATH, "report", "--run", "old-run", "--file", trace, "--out", tmp],
+    { encoding: "utf8", cwd: ORCH_CWD },
+  );
+  assert.equal(r.status, 0, r.stderr || r.stdout);
+  assert.match(r.stdout, /run_id:\s+fix-complete/);
+  assert.doesNotMatch(r.stdout, /run_id:\s+old-run/);
+  assert.doesNotMatch(r.stdout, /report-old-run/);
+});
+
+test("ai-minions report --run-id resolves trace from ORCH_TRACES_DIR", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "run-report-cli-runid-"));
+  const tracesDir = fs.mkdtempSync(path.join(os.tmpdir(), "traces-runid-"));
+  fs.copyFileSync(
+    path.join(FIXTURES, "complete.v1.jsonl"),
+    path.join(tracesDir, "fix-complete.jsonl"),
+  );
+  const r = spawnSync(
+    process.execPath,
+    [CLI_PATH, "report", "--run-id", "fix-complete", "--out", tmp],
+    {
+      encoding: "utf8",
+      cwd: ORCH_CWD,
+      env: { ...process.env, ORCH_TRACES_DIR: tracesDir },
+    },
+  );
+  assert.equal(r.status, 0, r.stderr || r.stdout);
+  assert.match(r.stdout, /run_id:\s+fix-complete/);
+  assert.ok(fs.existsSync(path.join(tmp, "OPERATOR_REPORT.md")));
+});
+
+test("ai-minions report --latest picks newest trace by ts_ms", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "run-report-cli-latest-"));
+  const tracesDir = fs.mkdtempSync(path.join(os.tmpdir(), "traces-latest-"));
+  fs.writeFileSync(
+    path.join(tracesDir, "older.jsonl"),
+    [
+      '{"event":"session_start","task_id":"older-run","ts_ms":1}',
+      '{"event":"session_end","task_id":"older-run","done":true}',
+    ].join("\n") + "\n",
+  );
+  fs.writeFileSync(
+    path.join(tracesDir, "newer.jsonl"),
+    [
+      '{"event":"session_start","task_id":"newer-run","ts_ms":99999}',
+      '{"event":"session_end","task_id":"newer-run","done":true}',
+    ].join("\n") + "\n",
+  );
+  const r = spawnSync(
+    process.execPath,
+    [CLI_PATH, "report", "--latest", "--out", tmp],
+    {
+      encoding: "utf8",
+      cwd: ORCH_CWD,
+      env: { ...process.env, ORCH_TRACES_DIR: tracesDir },
+    },
+  );
+  assert.equal(r.status, 0, r.stderr || r.stdout);
+  assert.match(r.stdout, /run_id:\s+newer-run/);
+  assert.doesNotMatch(r.stdout, /run_id:\s+older-run/);
 });
 
 test("ai-minions --help documents report command", () => {

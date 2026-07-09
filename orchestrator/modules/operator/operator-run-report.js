@@ -269,10 +269,18 @@ function writeRunReportFiles(outDir, artifacts, fsOps = {}) {
  */
 function runOperatorReport(options = {}) {
   const loadContext = options.loadContext ?? loadOperatorTraceContext;
-  const useLatest = options.latest === true && !options.runId && !options.filePath;
+  const hasFile = Boolean(options.filePath);
+  const useLatest = options.latest === true && !options.runId && !hasFile;
+
+  /** --file fully overrides --run / --run-id for trace identity (help contract). */
+  const effectiveRunId = hasFile
+    ? undefined
+    : useLatest
+      ? undefined
+      : options.runId;
 
   const ctx = loadContext({
-    runId: useLatest ? undefined : options.runId,
+    runId: effectiveRunId,
     filePath: options.filePath,
   });
 
