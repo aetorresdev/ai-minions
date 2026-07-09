@@ -75,11 +75,11 @@ describe("local-model-selection — precedence", () => {
       process.env.ORCH_LOCAL_MODEL = "env-model";
       const result = await selectLocalModel({
         cwd: dir,
-        cliModel: "cli-model",
+        cliModel: "qwen2.5-coder:7b",
         discover: mockDiscover,
         interactive: false,
       });
-      assert.equal(result.selected_model, "cli-model");
+      assert.equal(result.selected_model, "qwen2.5-coder:7b");
       assert.equal(result.override_source, "cli");
     });
   });
@@ -111,14 +111,24 @@ describe("local-model-selection — precedence", () => {
   });
 
   it("model-policy.yaml default_model beats auto-detect", async () => {
-    await withTempPolicy(fixturePolicy, async (dir) => {
+    const policyYaml = fixturePolicy.replace("qwen2.5-coder:14b", "qwen2.5-coder:7b");
+    await withTempPolicy(policyYaml, async (dir) => {
       const result = await selectLocalModel({
         cwd: dir,
         discover: mockDiscover,
         interactive: false,
       });
-      assert.equal(result.selected_model, "qwen2.5-coder:14b");
+      assert.equal(result.selected_model, "qwen2.5-coder:7b");
       assert.equal(result.override_source, "model_policy_yaml");
+    });
+  });
+
+  it("non-TTY rejects default_model missing from Ollama inventory", async () => {
+    await withTempPolicy(fixturePolicy, async (dir) => {
+      await assert.rejects(
+        () => selectLocalModel({ cwd: dir, discover: mockDiscover, interactive: false }),
+        /MODEL_NOT_FOUND/,
+      );
     });
   });
 

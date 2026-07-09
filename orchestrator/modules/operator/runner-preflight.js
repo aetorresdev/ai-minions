@@ -5,7 +5,12 @@
  */
 
 const { discoverLocalModels } = require('../../local-model-discovery');
-const { selectLocalModel } = require('../../local-model-selection');
+const { selectLocalModel, MODEL_NOT_FOUND_PREFIX } = require('../../local-model-selection');
+const {
+  MODEL_RUNTIME_REASON,
+  resolvePolicyCwd,
+  buildDiscoverOptions,
+} = require('../../local-runtime-endpoint');
 
 const VALID_MODEL_POLICIES = new Set(['local_only', 'remote_ok']);
 
@@ -52,10 +57,47 @@ function resolveModelPolicyInput(rawPolicy) {
 }
 
 /**
+ * @param {string | null} reasonCode
+ * @param {string[]} blockers
+ * @returns {string | null}
+ */
+function deriveModelRuntimeNextSafeAction(reasonCode, blockers) {
+  if (reasonCode === MODEL_RUNTIME_REASON.OK) return null;
+  if (reasonCode === MODEL_RUNTIME_REASON.NOT_FOUND) {
+    return 'Pull the model on Ollama or pass --model with a name from doctor /api/tags inventory';
+  }
+  if (reasonCode === MODEL_RUNTIME_REASON.UNREACHABLE) {
+    if (blockers.some((b) => /public_endpoint blocked/i.test(b))) {
+      return 'Use a private LAN host or pass --allow-public-local-runtime to opt in explicitly';
+    }
+    return 'Verify Ollama is running at the configured host/port, then re-run: ai-minions doctor';
+  }
+  return 'Re-run: ai-minions doctor --model-policy local_only';
+}
+
+/**
+ * @param {string} message
+ * @returns {string | null}
+ */
+function classifySelectionReasonCode(message) {
+  if (message.includes(MODEL_NOT_FOUND_PREFIX)) return MODEL_RUNTIME_REASON.NOT_FOUND;
+  if (/missing local backend|unreachable|network egress denied/i.test(message)) {
+    return MODEL_RUNTIME_REASON.UNREACHABLE;
+  }
+  return null;
+}
+
+/**
+ * @param {{
  *   cwd?: string,
  *   modelPolicy?: string,
  *   model?: string | null,
  *   interactive?: boolean,
+ *   localProvider?: string | null,
+ *   ollamaHost?: string | null,
+ *   ollamaPort?: number | string | null,
+ *   ollamaBaseUrl?: string | null,
+ *   allowPublicLocalRuntime?: boolean,
  *   discover?: typeof discoverLocalModels,
  *   selectLocalModel?: typeof selectLocalModel,
  * }} [options]
@@ -68,15 +110,42 @@ function resolveModelPolicyInput(rawPolicy) {
  *   selection_reason: string | null,
  *   discovered_models: string[],
  *   ollama_reachable: boolean | null,
+ *   model_runtime_reason_code: string | null,
+ *   endpoint_scope: string | null,
+ *   base_url: string | null,
+ *   resolved_endpoint: { host: string, port: number, base_url: string, endpoint_scope: string } | null,
+ *   selection_result: import('../../local-model-selection').LocalModelSelectionResult | null,
+ *   next_safe_action: string | null,
  *   blockers: string[],
  * }>}
  */
 async function buildRunPreflight(options = {}) {
-  const cwd = options.cwd || process.cwd();
+  const policyCwd = resolvePolicyCwd(options.cwd || process.cwd());
   const discover = options.discover ?? discoverLocalModels;
   const selectFn = options.selectLocalModel ?? selectLocalModel;
   /** @type {string[]} */
   const blockers = [];
+
+  if (options.localProvider != null && String(options.localProvider).trim().toLowerCase() !== 'ollama') {
+    blockers.push(`unsupported --local-provider: ${String(options.localProvider).trim()} (only ollama is supported)`);
+    return {
+      ok: false,
+      model_policy: 'local_only',
+      provider: 'ollama',
+      selected_model: null,
+      override_source: null,
+      selection_reason: null,
+      discovered_models: [],
+      ollama_reachable: null,
+      model_runtime_reason_code: MODEL_RUNTIME_REASON.UNREACHABLE,
+      endpoint_scope: null,
+      base_url: null,
+      resolved_endpoint: null,
+      selection_result: null,
+      next_safe_action: deriveModelRuntimeNextSafeAction(MODEL_RUNTIME_REASON.UNREACHABLE, blockers),
+      blockers,
+    };
+  }
 
   const resolvedPolicyInput = resolveModelPolicyInput(options.modelPolicy);
   if (!resolvedPolicyInput.ok) {
@@ -90,6 +159,12 @@ async function buildRunPreflight(options = {}) {
       selection_reason: null,
       discovered_models: [],
       ollama_reachable: null,
+      model_runtime_reason_code: null,
+      endpoint_scope: null,
+      base_url: null,
+      resolved_endpoint: null,
+      selection_result: null,
+      next_safe_action: null,
       blockers,
     };
   }
@@ -106,20 +181,29 @@ async function buildRunPreflight(options = {}) {
       selection_reason: 'remote_ok policy — local model selection not required',
       discovered_models: [],
       ollama_reachable: null,
+      model_runtime_reason_code: null,
+      endpoint_scope: null,
+      base_url: null,
+      resolved_endpoint: null,
+      selection_result: null,
+      next_safe_action: null,
       blockers,
     };
   }
 
-  let selection;
+  /** @type {{ host: string, port: number, base_url: string, endpoint_scope: string } | null} */
+  let resolvedEndpoint = null;
   try {
-    selection = await selectFn({
-      cwd,
-      cliModel: options.model ?? null,
-      interactive: options.interactive === true,
-      discover,
+    const built = buildDiscoverOptions(policyCwd, {
+      ollamaHost: options.ollamaHost,
+      ollamaPort: options.ollamaPort,
+      ollamaBaseUrl: options.ollamaBaseUrl,
+      allowPublicLocalRuntime: options.allowPublicLocalRuntime,
     });
+    resolvedEndpoint = built.endpoint;
   } catch (err) {
-    blockers.push(err instanceof Error ? err.message : String(err));
+    const message = err instanceof Error ? err.message : String(err);
+    blockers.push(message);
     return {
       ok: false,
       model_policy: 'local_only',
@@ -129,16 +213,71 @@ async function buildRunPreflight(options = {}) {
       selection_reason: null,
       discovered_models: [],
       ollama_reachable: false,
+      model_runtime_reason_code: MODEL_RUNTIME_REASON.UNREACHABLE,
+      endpoint_scope: null,
+      base_url: null,
+      resolved_endpoint: null,
+      selection_result: null,
+      next_safe_action: deriveModelRuntimeNextSafeAction(MODEL_RUNTIME_REASON.UNREACHABLE, blockers),
       blockers,
     };
   }
 
-  const discovery = await discover({ cwd });
+  const discoverWithEndpoint = (extra = {}) => discover({
+    host: resolvedEndpoint.host,
+    port: resolvedEndpoint.port,
+    cwd: policyCwd,
+    ...extra,
+  });
+
+  let selection = null;
+  try {
+    selection = await selectFn({
+      cwd: policyCwd,
+      cliModel: options.model ?? null,
+      interactive: options.interactive === true,
+      discover: discoverWithEndpoint,
+      ollamaHost: options.ollamaHost,
+      ollamaPort: options.ollamaPort,
+      ollamaBaseUrl: options.ollamaBaseUrl,
+      allowPublicLocalRuntime: options.allowPublicLocalRuntime,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    blockers.push(message);
+    const reasonCode = classifySelectionReasonCode(message) ?? MODEL_RUNTIME_REASON.UNREACHABLE;
+    return {
+      ok: false,
+      model_policy: 'local_only',
+      provider: 'ollama',
+      selected_model: null,
+      override_source: null,
+      selection_reason: null,
+      discovered_models: [],
+      ollama_reachable: reasonCode === MODEL_RUNTIME_REASON.NOT_FOUND ? true : false,
+      model_runtime_reason_code: reasonCode,
+      endpoint_scope: resolvedEndpoint.endpoint_scope,
+      base_url: resolvedEndpoint.base_url,
+      resolved_endpoint: resolvedEndpoint,
+      selection_result: null,
+      next_safe_action: deriveModelRuntimeNextSafeAction(reasonCode, blockers),
+      blockers,
+    };
+  }
+
+  const discovery = await discoverWithEndpoint();
   const ollamaReachable = discovery.backends.some((b) => b.backend_id === 'ollama' && b.available);
   if (discovery.missing_local_backend) {
     blockers.push(discovery.missing_local_backend);
   } else if (!ollamaReachable) {
     blockers.push('ollama backend unreachable');
+  }
+
+  let modelRuntimeReason = MODEL_RUNTIME_REASON.OK;
+  if (!ollamaReachable) {
+    modelRuntimeReason = MODEL_RUNTIME_REASON.UNREACHABLE;
+  } else if (blockers.some((b) => b.includes(MODEL_NOT_FOUND_PREFIX))) {
+    modelRuntimeReason = MODEL_RUNTIME_REASON.NOT_FOUND;
   }
 
   return {
@@ -152,6 +291,12 @@ async function buildRunPreflight(options = {}) {
       ? selection.discovered_models
       : discovery.models.map((m) => m.name),
     ollama_reachable: ollamaReachable,
+    model_runtime_reason_code: modelRuntimeReason,
+    endpoint_scope: selection.endpoint_scope ?? resolvedEndpoint.endpoint_scope,
+    base_url: selection.base_url ?? resolvedEndpoint.base_url,
+    resolved_endpoint: resolvedEndpoint,
+    selection_result: selection,
+    next_safe_action: deriveModelRuntimeNextSafeAction(modelRuntimeReason, blockers),
     blockers,
   };
 }
@@ -170,11 +315,23 @@ function formatPreflightText(preflight) {
     `  ollama_reachable:  ${preflight.ollama_reachable == null ? '(not checked)' : preflight.ollama_reachable}`,
     `  ok:                ${preflight.ok}`,
   ];
+  if (preflight.endpoint_scope) {
+    lines.push(`  endpoint_scope:    ${preflight.endpoint_scope}`);
+  }
+  if (preflight.base_url) {
+    lines.push(`  base_url:          ${preflight.base_url}`);
+  }
+  if (preflight.model_runtime_reason_code) {
+    lines.push(`  model_runtime:     ${preflight.model_runtime_reason_code}`);
+  }
   if (preflight.selection_reason) {
     lines.push(`  selection_reason:  ${preflight.selection_reason}`);
   }
   if (preflight.discovered_models.length) {
     lines.push(`  discovered_models: ${preflight.discovered_models.join(', ')}`);
+  }
+  if (preflight.next_safe_action) {
+    lines.push(`  next_safe_action:  ${preflight.next_safe_action}`);
   }
   if (preflight.blockers.length) {
     lines.push('  blockers:');
@@ -185,8 +342,10 @@ function formatPreflightText(preflight) {
 
 module.exports = {
   VALID_MODEL_POLICIES,
+  MODEL_RUNTIME_REASON,
   normalizeModelPolicy,
   resolveModelPolicyInput,
   buildRunPreflight,
   formatPreflightText,
+  deriveModelRuntimeNextSafeAction,
 };

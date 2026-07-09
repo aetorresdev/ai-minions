@@ -39,6 +39,7 @@
     "explain-run.js": "shim",
     "flow-hook-bridge.js": "shim",
     "local-model-discovery.js": "shim",
+    "local-runtime-endpoint.js": "shim",
     "local-backend-adapter.js": "legacy",
     "install-model-config.js": "legacy",
     "runtime-preflight.js": "legacy",

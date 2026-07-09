@@ -64,6 +64,11 @@ function terminalStatusFromRunResult(result) {
  *   worktreeBaseRef?: string,
  *   skipBackendCheck?: boolean,
  *   interactive?: boolean,
+ *   localProvider?: string | null,
+ *   ollamaHost?: string | null,
+ *   ollamaPort?: number | string | null,
+ *   ollamaBaseUrl?: string | null,
+ *   allowPublicLocalRuntime?: boolean,
  *   run?: Function,
  *   buildRunPreflight?: typeof buildRunPreflight,
  * }} options
@@ -78,6 +83,11 @@ async function launchRun(options) {
     modelPolicy: options.modelPolicy,
     model: options.model,
     interactive: options.interactive === true,
+    localProvider: options.localProvider,
+    ollamaHost: options.ollamaHost,
+    ollamaPort: options.ollamaPort,
+    ollamaBaseUrl: options.ollamaBaseUrl,
+    allowPublicLocalRuntime: options.allowPublicLocalRuntime,
   });
 
   if (!preflight.ok) {
@@ -138,19 +148,25 @@ async function launchRun(options) {
 
   // Root path until run-control physical slice moves orchestrator.js.
   const runFn = options.run ?? require("../../orchestrator").run;
-  const envKeys = ['ORCH_MODEL_MODE', 'ORCH_ALLOW_REMOTE_MODELS', 'ORCH_NON_INTERACTIVE'];
+  const envKeys = ['ORCH_MODEL_MODE', 'ORCH_ALLOW_REMOTE_MODELS', 'ORCH_NON_INTERACTIVE', 'OLLAMA_HOST', 'OLLAMA_PORT'];
   const prevEnv = saveEnv(envKeys);
 
   try {
     if (preflight.model_policy === 'local_only') {
       process.env.ORCH_MODEL_MODE = 'local_only';
       process.env.ORCH_NON_INTERACTIVE = '1';
+      if (preflight.resolved_endpoint) {
+        process.env.OLLAMA_HOST = preflight.resolved_endpoint.host;
+        process.env.OLLAMA_PORT = String(preflight.resolved_endpoint.port);
+      }
     }
 
     configureLocalModelPolicy({
       cliModel: options.model ?? null,
       cwd: runCwd,
       skipBackendCheck: options.skipBackendCheck === true,
+      selectionResult: preflight.selection_result,
+      endpointMeta: preflight.resolved_endpoint,
     });
 
     const result = await runFn(goal, {

@@ -126,7 +126,7 @@ describe("local-model-policy — override precedence", () => {
 });
 
 describe("local-model-policy — prerequisites", () => {
-  const keys = ["ORCH_MODEL_MODE", "ORCH_LOCAL_MODEL", "OLLAMA_MODEL"];
+  const keys = ["ORCH_MODEL_MODE", "ORCH_LOCAL_MODEL", "OLLAMA_MODEL", "OLLAMA_HOST", "OLLAMA_PORT"];
   let prev;
 
   beforeEach(() => {
@@ -134,6 +134,8 @@ describe("local-model-policy — prerequisites", () => {
     process.env.ORCH_MODEL_MODE = "local_only";
     delete process.env.ORCH_LOCAL_MODEL;
     delete process.env.OLLAMA_MODEL;
+    delete process.env.OLLAMA_HOST;
+    delete process.env.OLLAMA_PORT;
     policy.resetLocalModelPolicy();
   });
 
@@ -338,6 +340,9 @@ describe("run() — session_start trace emission", () => {
     "ORCH_LOCAL_MODEL",
     "ORCH_TRACES_DIR",
     "ORCH_SKIP_NETWORK_PERMISSION_GATE",
+    "OLLAMA_HOST",
+    "OLLAMA_PORT",
+    "ORCH_NON_INTERACTIVE",
   ];
   let prev;
   let traceDir;
@@ -355,6 +360,9 @@ describe("run() — session_start trace emission", () => {
     process.env.ORCH_LOCAL_MODEL = "trace-fallback-model";
     process.env.ORCH_TRACES_DIR = traceDir;
     process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = "1";
+    delete process.env.OLLAMA_HOST;
+    delete process.env.OLLAMA_PORT;
+    delete process.env.ORCH_NON_INTERACTIVE;
     policy.resetLocalModelPolicy();
     policy.configureLocalModelPolicy({ skipBackendCheck: true });
 
@@ -392,7 +400,6 @@ describe("run() — session_start trace emission", () => {
         maxIterations: 1,
         skipStateMcp: true,
         stepSummary: false,
-        localModel: "cli-override-model",
       });
     } catch {
       // session_start is emitted before the agent loop; later steps may fail without a full mock chain.
@@ -402,8 +409,8 @@ describe("run() — session_start trace emission", () => {
     const start = events.find((e) => e.event === "session_start");
     assert.ok(start, `session_start missing; events: ${events.map((e) => e.event).join(",")}`);
     assert.equal(start.local_only_mode, true);
-    assert.equal(start.selected_model, "cli-override-model");
-    assert.equal(start.override_source, "cli");
+    assert.equal(start.selected_model, "trace-fallback-model");
+    assert.equal(start.override_source, "env_orchestr_local_model");
   });
 });
 

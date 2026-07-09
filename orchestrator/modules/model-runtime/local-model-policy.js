@@ -9,12 +9,13 @@ const GATE_ID = 'model_policy_block';
 
 const { selectLocalModel } = require('./local-model-selection');
 
-/** @type {{ cliModel: string | null, skipBackendCheck: boolean, selectionResult: import('./local-model-selection').LocalModelSelectionResult | null, cwd: string | null }} */
+/** @type {{ cliModel: string | null, skipBackendCheck: boolean, selectionResult: import('./local-model-selection').LocalModelSelectionResult | null, cwd: string | null, endpointMeta: { host: string, port: number, base_url: string, endpoint_scope: string } | null }} */
 let _runConfig = {
   cliModel: null,
   skipBackendCheck: false,
   selectionResult: null,
   cwd: null,
+  endpointMeta: null,
 };
 
 /** @type {((payload: Record<string, unknown>) => void) | null} */
@@ -88,6 +89,9 @@ function configureLocalModelPolicy(opts = {}) {
   if (Object.prototype.hasOwnProperty.call(opts, 'cwd')) {
     _runConfig.cwd = opts.cwd != null ? String(opts.cwd) : null;
   }
+  if (Object.prototype.hasOwnProperty.call(opts, 'endpointMeta')) {
+    _runConfig.endpointMeta = opts.endpointMeta ?? null;
+  }
 }
 
 function resetLocalModelPolicy() {
@@ -96,6 +100,7 @@ function resetLocalModelPolicy() {
     skipBackendCheck: false,
     selectionResult: null,
     cwd: null,
+    endpointMeta: null,
   };
   _traceReporter = null;
 }
@@ -157,8 +162,20 @@ function getLocalOnlySessionContext(opts = {}) {
     return { local_only_mode: false };
   }
   const resolved = resolveLocalModelOverride(opts);
+  const endpoint = _runConfig.endpointMeta
+    ?? (_runConfig.selectionResult?.base_url
+      ? {
+          base_url: _runConfig.selectionResult.base_url,
+          endpoint_scope: _runConfig.selectionResult.endpoint_scope,
+          host: null,
+          port: null,
+        }
+      : null);
   return {
     local_only_mode: true,
+    model_backend: 'ollama',
+    ...(endpoint?.endpoint_scope ? { endpoint_scope: endpoint.endpoint_scope } : {}),
+    ...(endpoint?.base_url ? { base_url: endpoint.base_url } : {}),
     ...(resolved
       ? {
           selected_model: resolved.model,

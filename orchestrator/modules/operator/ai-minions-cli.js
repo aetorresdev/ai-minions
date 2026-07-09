@@ -16,6 +16,7 @@ const {
   parseCommonArgs,
   parseMaxIterations,
   resolveModelPolicyOption,
+  endpointOptionsFromCli,
 } = require('./runner-tui-cli');
 const {
   buildRoleRoutingPreview,
@@ -199,6 +200,12 @@ function formatStartText(launched, meta = {}) {
  *   modelPolicy?: string | null,
  *   install?: boolean,
  *   json?: boolean,
+ *   localProvider?: string,
+ *   ollamaHost?: string,
+ *   ollamaPort?: string | number,
+ *   ollamaBaseUrl?: string,
+ *   allowPublicLocalRuntime?: boolean,
+ *   model?: string,
  *   loadInstallModule?: () => Promise<typeof import('../../../../scripts/install-ai-minions.mjs')>,
  * }} [options]
  */
@@ -211,6 +218,12 @@ async function runInit(options = {}) {
     repoRoot,
     install: options.install !== false,
     modelPolicy: options.modelPolicy ?? null,
+    localProvider: options.localProvider ?? null,
+    ollamaHost: options.ollamaHost ?? null,
+    ollamaPort: options.ollamaPort ?? null,
+    ollamaBaseUrl: options.ollamaBaseUrl ?? null,
+    allowPublicLocalRuntime: options.allowPublicLocalRuntime === true,
+    model: options.model ?? null,
   });
   return {
     report,
@@ -234,6 +247,11 @@ async function runInit(options = {}) {
  *   taskId?: string,
  *   worktreeBaseRef?: string,
  *   launchRunFn?: typeof launchRun,
+ *   localProvider?: string,
+ *   ollamaHost?: string,
+ *   ollamaPort?: string | number,
+ *   ollamaBaseUrl?: string,
+ *   allowPublicLocalRuntime?: boolean,
  * }} options
  */
 async function runStart(options) {
@@ -266,6 +284,11 @@ async function runStart(options) {
     worktreeIsolated: options.worktreeIsolated === true,
     taskId: options.taskId,
     worktreeBaseRef: options.worktreeBaseRef,
+    localProvider: options.localProvider,
+    ollamaHost: options.ollamaHost,
+    ollamaPort: options.ollamaPort,
+    ollamaBaseUrl: options.ollamaBaseUrl,
+    allowPublicLocalRuntime: options.allowPublicLocalRuntime,
   });
 
   return {
@@ -300,6 +323,7 @@ async function main() {
         modelPolicy: opts.modelPolicy ? String(opts.modelPolicy) : undefined,
         live: opts.live === true,
         install: opts.noInstall !== true,
+        ...endpointOptionsFromCli(opts),
       });
       if (opts.json === true && result.json) {
         console.log(JSON.stringify(result.json, null, 2));
@@ -409,6 +433,8 @@ async function main() {
       modelPolicy: opts.modelPolicy ? String(opts.modelPolicy) : null,
       install: opts.noInstall !== true,
       json: opts.json === true,
+      model: opts.model ? String(opts.model) : undefined,
+      ...endpointOptionsFromCli(opts),
     });
     if (result.json) {
       console.log(JSON.stringify(result.json, null, 2));
@@ -528,6 +554,7 @@ async function main() {
         worktreeIsolated: opts.worktreeIsolated === true,
         taskId: opts.runId ? String(opts.runId) : undefined,
         worktreeBaseRef: opts.baseRef ? String(opts.baseRef) : undefined,
+        ...endpointOptionsFromCli(opts),
       });
       console.log(result.preflightText);
       console.log('');

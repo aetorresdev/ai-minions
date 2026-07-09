@@ -10,8 +10,10 @@ const path = require('path');
 const readline = require('readline');
 const yaml = require('js-yaml');
 const { discoverLocalModels } = require('./local-model-discovery');
+const { buildDiscoverOptions, endpointFromYamlPolicy } = require('./local-runtime-endpoint');
 
 const SUPPORTED_POLICY_VERSION = 1;
+const MODEL_NOT_FOUND_PREFIX = 'MODEL_NOT_FOUND';
 
 /**
  * @typedef {Object} LocalModelSelectionResult
@@ -77,6 +79,19 @@ function validateModelPolicy(policy) {
     const port = Number(lb.port);
     if (!Number.isFinite(port) || port <= 0 || port > 65535) {
       throw new Error('model-policy.yaml: local_backend.port must be a valid TCP port');
+    }
+    if (lb.base_url != null) {
+      if (typeof lb.base_url !== 'string' || !lb.base_url.trim()) {
+        throw new Error('model-policy.yaml: local_backend.base_url must be a non-empty string when set');
+      }
+    }
+    if (lb.endpoint_scope != null) {
+      const scope = String(lb.endpoint_scope);
+      if (!['localhost', 'private_lan', 'public_endpoint'].includes(scope)) {
+        throw new Error(
+          'model-policy.yaml: local_backend.endpoint_scope must be localhost|private_lan|public_endpoint',
+        );
+      }
     }
   }
 }
@@ -178,11 +193,83 @@ function defaultPromptFn(question) {
 }
 
 /**
+ * @param {string} model
+ * @param {string[]} discoveredNames
+ */
+function assertModelInInventory(model, discoveredNames) {
+  if (discoveredNames.includes(model)) return;
+  const hint = discoveredNames.length
+    ? `available: ${discoveredNames.slice(0, 8).join(', ')}`
+    : 'no models returned from Ollama /api/tags';
+  throw new Error(
+    `[local-model-selection] ${MODEL_NOT_FOUND_PREFIX}: "${model}" not in Ollama inventory — ${hint}`,
+  );
+}
+
+/**
+ * @param {{
+ *   cwd?: string,
+ *   ollamaHost?: string | null,
+ *   ollamaPort?: number | string | null,
+ *   ollamaBaseUrl?: string | null,
+ *   allowPublicLocalRuntime?: boolean,
+ *   loadPolicy?: (cwd: string) => Record<string, unknown> | null,
+ * }} options
+ */
+function createDiscoverFn(options) {
+  const cwd = options.cwd || process.cwd();
+  const loadPolicy = options.loadPolicy ?? loadModelPolicy;
+  const baseDiscover = options.discover ?? discoverLocalModels;
+  const hasInjectedDiscover = Object.prototype.hasOwnProperty.call(options, 'discover');
+  const hasExplicitEndpoint = Boolean(
+    options.ollamaHost || options.ollamaPort != null || options.ollamaBaseUrl,
+  );
+  const policyEndpoint = endpointFromYamlPolicy(loadPolicy(cwd));
+
+  if (hasInjectedDiscover && !hasExplicitEndpoint && !policyEndpoint) {
+    const host = 'localhost';
+    const port = 11434;
+    return {
+      discover: (extra = {}) => baseDiscover({ host, port, cwd, ...extra }),
+      endpoint: {
+        provider: 'ollama',
+        host,
+        port,
+        base_url: `http://${host}:${port}`,
+        endpoint_scope: 'localhost',
+        source: 'test_localhost_default',
+      },
+    };
+  }
+
+  const built = buildDiscoverOptions(cwd, {
+    ollamaHost: options.ollamaHost,
+    ollamaPort: options.ollamaPort,
+    ollamaBaseUrl: options.ollamaBaseUrl,
+    allowPublicLocalRuntime: options.allowPublicLocalRuntime,
+    loadPolicy,
+  });
+  return {
+    discover: (extra = {}) => baseDiscover({
+      host: built.host,
+      port: built.port,
+      cwd,
+      ...extra,
+    }),
+    endpoint: built.endpoint,
+  };
+}
+
+/**
  * @param {{
  *   cwd?: string,
  *   cliModel?: string | null,
  *   taskHint?: string,
  *   interactive?: boolean,
+ *   ollamaHost?: string | null,
+ *   ollamaPort?: number | string | null,
+ *   ollamaBaseUrl?: string | null,
+ *   allowPublicLocalRuntime?: boolean,
  *   discover?: typeof discoverLocalModels,
  *   promptFn?: (question: string) => Promise<string>,
  *   loadPolicy?: (cwd: string) => Record<string, unknown> | null,
@@ -191,17 +278,50 @@ function defaultPromptFn(question) {
  */
 async function selectLocalModel(options = {}) {
   const cwd = options.cwd || process.cwd();
-  const discover = options.discover ?? discoverLocalModels;
   const loadPolicy = options.loadPolicy ?? loadModelPolicy;
   const promptFn = options.promptFn ?? defaultPromptFn;
+  const requireInventoryCheck = !isInteractiveSelectionAllowed(options);
+  /** @type {ReturnType<typeof createDiscoverFn> | null} */
+  let discoverBundle = null;
+  const getDiscoverBundle = () => {
+    if (!discoverBundle) discoverBundle = createDiscoverFn(options);
+    return discoverBundle;
+  };
+  const endpointFields = () => {
+    const { endpoint } = getDiscoverBundle();
+    return {
+      endpoint_scope: endpoint.endpoint_scope,
+      base_url: endpoint.base_url,
+      model_backend: 'ollama',
+    };
+  };
 
   const cliModel = normalizeModelName(options.cliModel);
   if (cliModel) {
+    if (requireInventoryCheck) {
+      const { discover, endpoint } = getDiscoverBundle();
+      const discovery = await discover();
+      if (discovery.missing_local_backend) {
+        throw new Error(`[local-model-selection] ${discovery.missing_local_backend}`);
+      }
+      const discoveredNames = discovery.models.map((m) => m.name).filter(Boolean);
+      assertModelInInventory(cliModel, discoveredNames);
+      return {
+        selected_model: cliModel,
+        override_source: 'cli',
+        selection_reason: 'explicit CLI --model override',
+        discovered_models: discoveredNames,
+        endpoint_scope: endpoint.endpoint_scope,
+        base_url: endpoint.base_url,
+        model_backend: 'ollama',
+      };
+    }
     return {
       selected_model: cliModel,
       override_source: 'cli',
       selection_reason: 'explicit CLI --model override',
       discovered_models: [],
+      ...endpointFields(),
     };
   }
 
@@ -212,6 +332,7 @@ async function selectLocalModel(options = {}) {
       override_source: 'env_orchestr_local_model',
       selection_reason: 'ORCH_LOCAL_MODEL environment override',
       discovered_models: [],
+      ...endpointFields(),
     };
   }
 
@@ -222,22 +343,45 @@ async function selectLocalModel(options = {}) {
       override_source: 'env_ollama_model',
       selection_reason: 'OLLAMA_MODEL environment override',
       discovered_models: [],
+      ...endpointFields(),
     };
   }
 
   let policy = null;
   policy = loadPolicy(cwd);
+  const { discover, endpoint } = getDiscoverBundle();
 
   if (policy && typeof policy.default_model === 'string' && policy.default_model.trim()) {
+    const defaultModel = policy.default_model.trim();
+    if (requireInventoryCheck) {
+      const discovery = await discover();
+      if (discovery.missing_local_backend) {
+        throw new Error(`[local-model-selection] ${discovery.missing_local_backend}`);
+      }
+      const discoveredNames = discovery.models.map((m) => m.name).filter(Boolean);
+      assertModelInInventory(defaultModel, discoveredNames);
+      return {
+        selected_model: defaultModel,
+        override_source: 'model_policy_yaml',
+        selection_reason: 'default_model from .ai-minions/model-policy.yaml',
+        discovered_models: discoveredNames,
+        endpoint_scope: endpoint.endpoint_scope,
+        base_url: endpoint.base_url,
+        model_backend: 'ollama',
+      };
+    }
     return {
-      selected_model: policy.default_model.trim(),
+      selected_model: defaultModel,
       override_source: 'model_policy_yaml',
       selection_reason: 'default_model from .ai-minions/model-policy.yaml',
       discovered_models: [],
+      endpoint_scope: endpoint.endpoint_scope,
+      base_url: endpoint.base_url,
+      model_backend: 'ollama',
     };
   }
 
-  const discovery = await discover({ cwd });
+  const discovery = await discover();
   const discoveredNames = discovery.models.map((m) => m.name).filter(Boolean);
 
   if (discovery.missing_local_backend) {
@@ -271,6 +415,9 @@ async function selectLocalModel(options = {}) {
           ? 'single model discovered via Ollama /api/tags'
           : 'deterministic auto-select (non-interactive): highest ranked discovered model',
       discovered_models: discoveredNames,
+      endpoint_scope: endpoint.endpoint_scope,
+      base_url: endpoint.base_url,
+      model_backend: 'ollama',
     };
   }
 
@@ -281,15 +428,21 @@ async function selectLocalModel(options = {}) {
     override_source: 'tty_prompt',
     selection_reason: 'operator selected model from interactive TTY prompt',
     discovered_models: discoveredNames,
+    endpoint_scope: endpoint.endpoint_scope,
+    base_url: endpoint.base_url,
+    model_backend: 'ollama',
   };
 }
 
 module.exports = {
   SUPPORTED_POLICY_VERSION,
+  MODEL_NOT_FOUND_PREFIX,
   loadModelPolicy,
   validateModelPolicy,
   isInteractiveSelectionAllowed,
   rankDiscoveredModels,
   selectLocalModel,
   promptForModel,
+  createDiscoverFn,
+  assertModelInInventory,
 };
