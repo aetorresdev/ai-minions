@@ -120,6 +120,18 @@ describe("operator-trace-command status labels", () => {
     assert.match(ctx.next_safe_action, /unreadable/);
   });
 
+  it("exposes cost_token_summary on complete fixture", () => {
+    const ctx = loadOperatorTraceContext({
+      filePath: path.join(FIXTURES, "complete.v1.jsonl"),
+      existsSync: (p) => !String(p).includes("report-bundles"),
+      readFileSync: (p) => loadFixture(path.basename(p)),
+      repoRoot: "/tmp/repo",
+    });
+    assert.equal(ctx.ok, true);
+    assert.equal(ctx.cost_token_summary.run.token_status, "available");
+    assert.equal(ctx.cost_token_summary.run.total_tokens, 28);
+  });
+
   it("exposes run_state on complete fixture", () => {
     const ctx = loadOperatorTraceContext({
       filePath: path.join(FIXTURES, "complete.v1.jsonl"),
@@ -186,11 +198,17 @@ describe("operator-trace-command runOperatorStatus", () => {
           model_backend: null,
           selection_reason: null,
         },
+        cost_token_summary: {
+          run: { token_status: "available", total_tokens: 10, cost_status: "not_billing", latency_status: "unavailable" },
+          by_phase: [],
+          by_step: [],
+        },
       }),
     });
     assert.equal(result.exitCode, 0);
     assert.match(result.text, /result_code:\s+RUN_FOUND/);
     assert.match(result.text, /run_state_visibility/);
+    assert.match(result.text, /cost_token_run_summary/);
     assert.match(result.text, /next_safe_action:/);
   });
 });
@@ -224,6 +242,11 @@ describe("operator-trace-command runOperatorExplain", () => {
         run_state: {
           blocking_reason_code: "CERBERUS_BLOCK",
           result_code: "RUN_FOUND",
+        },
+        cost_token_summary: {
+          run: { token_status: "unavailable", cost_status: "unavailable", latency_status: "unavailable" },
+          by_phase: [],
+          by_step: [],
         },
       }),
     });
