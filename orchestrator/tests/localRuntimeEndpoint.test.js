@@ -14,6 +14,7 @@ const {
   resolveLocalRuntimeEndpoint,
   resolvePolicyCwd,
   buildDiscoverOptions,
+  endpointFromYamlPolicy,
 } = require('../local-runtime-endpoint');
 const {
   buildRunPreflight,
@@ -76,18 +77,97 @@ describe('local-runtime-endpoint', () => {
         local_backend: {
           backend_id: 'ollama',
           support_status: 'supported',
-          host: 'studio.lan',
+          host: 'macstudio.local',
           port: 11434,
-          base_url: 'http://studio.lan:11434',
+          base_url: 'http://macstudio.local:11434',
           endpoint_scope: 'private_lan',
         },
       }),
       'utf8',
     );
     const ep = resolveLocalRuntimeEndpoint({ cwd: tmp });
-    assert.equal(ep.host, 'studio.lan');
+    assert.equal(ep.host, 'macstudio.local');
+    assert.equal(ep.endpoint_scope, 'private_lan');
     assert.equal(ep.source, 'model_policy_yaml');
     fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  function writeYamlPolicy(tmp, localBackend) {
+    const policyDir = path.join(tmp, '.ai-minions');
+    fs.mkdirSync(policyDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(policyDir, 'model-policy.yaml'),
+      yaml.dump({
+        model_policy_version: 1,
+        local_backend: localBackend,
+      }),
+      'utf8',
+    );
+  }
+
+  it('blocks YAML public base_url even when endpoint_scope claims private_lan', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-endpoint-public-'));
+    writeYamlPolicy(tmp, {
+      backend_id: 'ollama',
+      support_status: 'supported',
+      host: 'ollama.example.com',
+      port: 11434,
+      base_url: 'http://ollama.example.com:11434',
+      endpoint_scope: 'private_lan',
+    });
+    assert.throws(
+      () => resolveLocalRuntimeEndpoint({ cwd: tmp }),
+      /public_endpoint blocked in model-policy.yaml/,
+    );
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('allows YAML public base_url only with allowPublicLocalRuntime', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-endpoint-public-allow-'));
+    writeYamlPolicy(tmp, {
+      backend_id: 'ollama',
+      support_status: 'supported',
+      host: 'ollama.example.com',
+      port: 11434,
+      base_url: 'http://ollama.example.com:11434',
+      endpoint_scope: 'private_lan',
+    });
+    const ep = resolveLocalRuntimeEndpoint({
+      cwd: tmp,
+      allowPublicLocalRuntime: true,
+    });
+    assert.equal(ep.endpoint_scope, 'public_endpoint');
+    assert.equal(ep.host, 'ollama.example.com');
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('blocks YAML public host/port when endpoint_scope claims private_lan', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-endpoint-public-host-'));
+    writeYamlPolicy(tmp, {
+      backend_id: 'ollama',
+      support_status: 'supported',
+      host: 'ollama.example.com',
+      port: 11434,
+      endpoint_scope: 'private_lan',
+    });
+    assert.throws(
+      () => resolveLocalRuntimeEndpoint({ cwd: tmp }),
+      /public_endpoint blocked in model-policy.yaml/,
+    );
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('endpointFromYamlPolicy recomputes scope and preserves declared mismatch', () => {
+    const fromYaml = endpointFromYamlPolicy({
+      local_backend: {
+        host: 'ollama.example.com',
+        port: 11434,
+        base_url: 'http://ollama.example.com:11434',
+        endpoint_scope: 'private_lan',
+      },
+    });
+    assert.equal(fromYaml.endpoint_scope, 'public_endpoint');
+    assert.equal(fromYaml.declared_endpoint_scope, 'private_lan');
   });
 
   it('resolvePolicyCwd lifts orchestrator/ cwd to repo root policy', () => {

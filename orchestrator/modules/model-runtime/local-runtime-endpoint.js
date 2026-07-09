@@ -104,30 +104,40 @@ function loadRuntimeYamlPolicy(cwd) {
 
 /**
  * @param {Record<string, unknown> | null} policy
- * @returns {{ host: string, port: number, base_url: string, endpoint_scope: EndpointScope } | null}
+ * @returns {{
+ *   host: string,
+ *   port: number,
+ *   base_url: string,
+ *   endpoint_scope: EndpointScope,
+ *   declared_endpoint_scope?: EndpointScope,
+ * } | null}
  */
 function endpointFromYamlPolicy(policy) {
   if (!policy) return null;
   const lb = policy.local_backend;
   if (!lb || typeof lb !== 'object' || Array.isArray(lb)) return null;
   const rec = /** @type {Record<string, unknown>} */ (lb);
+  const declaredScope = typeof rec.endpoint_scope === 'string' && rec.endpoint_scope.trim()
+    ? /** @type {EndpointScope} */ (String(rec.endpoint_scope).trim())
+    : null;
+
   if (typeof rec.base_url === 'string' && rec.base_url.trim()) {
     const parsed = parseOllamaBaseUrl(rec.base_url);
+    const computedScope = classifyEndpointScope(parsed.host);
     return {
       ...parsed,
-      endpoint_scope: typeof rec.endpoint_scope === 'string'
-        ? /** @type {EndpointScope} */ (rec.endpoint_scope)
-        : classifyEndpointScope(parsed.host),
+      endpoint_scope: computedScope,
+      ...(declaredScope ? { declared_endpoint_scope: declaredScope } : {}),
     };
   }
   if (typeof rec.host === 'string' && rec.host.trim()) {
     const port = rec.port != null ? Number(rec.port) : 11434;
     const built = buildOllamaEndpoint(rec.host, port);
+    const computedScope = classifyEndpointScope(built.host);
     return {
       ...built,
-      endpoint_scope: typeof rec.endpoint_scope === 'string'
-        ? /** @type {EndpointScope} */ (rec.endpoint_scope)
-        : classifyEndpointScope(built.host),
+      endpoint_scope: computedScope,
+      ...(declaredScope ? { declared_endpoint_scope: declaredScope } : {}),
     };
   }
   return null;
