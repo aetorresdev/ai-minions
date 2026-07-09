@@ -25,6 +25,7 @@ const {
 const { printAiMinionsCliHelp } = require('./operator-cli-help');
 const { runOperatorStatus, runOperatorExplain } = require('./operator-trace-command');
 const { runOperatorReport } = require('./operator-run-report');
+const { runOperatorEvidenceTui } = require('./operator-evidence-tui');
 const { runOperatorDoctor, runOperatorEvidence } = require('./operator-doctor-evidence');
 const { runOperatorContext, runOperatorResume } = require('./operator-context-resume');
 const {
@@ -481,6 +482,27 @@ async function main() {
       latest: opts.latest === true,
       outDir: opts.out ? String(opts.out) : undefined,
       cwd: opts.cwd,
+    });
+    if (opts.json === true && result.json) {
+      console.log(JSON.stringify(result.json, null, 2));
+    } else {
+      console.log(result.text);
+    }
+    if (!result.ok && result.reason_code) {
+      console.error(`reason_code: ${result.reason_code}`);
+    }
+    process.exit(result.exitCode);
+  }
+
+  if (cmd === 'tui') {
+    if (!opts.runId && !opts.latest && !opts.file) {
+      console.error('tui requires --run <id>, --run-id <id>, --latest, or --file <path>');
+      process.exit(1);
+    }
+    const result = runOperatorEvidenceTui({
+      runId: opts.runId ? String(opts.runId) : undefined,
+      filePath: opts.file ? String(opts.file) : undefined,
+      latest: opts.latest === true,
     });
     if (opts.json === true && result.json) {
       console.log(JSON.stringify(result.json, null, 2));
