@@ -9,7 +9,7 @@ const {
   buildControlPlaneRunText,
   buildControlPlaneBatchText,
   na,
-} = require("../../control-plane-tui");
+} = require("../../modules/operator/control-plane-tui");
 
 /** @param {string} s @param {string} label */
 function assertAllCharsAscii(s, label) {

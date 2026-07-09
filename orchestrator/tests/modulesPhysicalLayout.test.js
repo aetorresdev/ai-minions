@@ -366,6 +366,25 @@ describe("modules physical layout", () => {
       assert.match(launcherSource, /require\(["']\.\.\/\.\.\/orchestrator["']\)/);
       assert.doesNotMatch(launcherSource, /require\(["']\.\/orchestrator["']\)/);
     });
+
+    it("operator visibility chain imports trace and run-state via canonical modules paths", () => {
+      const visibilityChain = [
+        "modules/operator/explain-run.js",
+        "modules/operator/operator-trace-command.js",
+        "modules/operator/operator-trace-summary.js",
+        "modules/operator/operator-attach-bundle.js",
+        "modules/operator/operator-run-report.js",
+        "modules/operator/operator-evidence-tui.js",
+        "modules/operator/operator-cost-token-summary.js",
+      ];
+      const rootTraceShim = /\.\.\/\.\.\/(trace-|run-outcome-summary)/;
+      const rootRunStateShim = /\.\.\/\.\.\/run-state/;
+      for (const rel of visibilityChain) {
+        const source = fs.readFileSync(path.join(ORCH, rel), "utf8");
+        assert.doesNotMatch(source, rootTraceShim, `${rel} must not import root trace shims`);
+        assert.doesNotMatch(source, rootRunStateShim, `${rel} must not import root run-state shim`);
+      }
+    });
   });
 
   describe("model-runtime", () => {
@@ -652,6 +671,22 @@ describe("modules physical layout", () => {
       assert.match(source, /require\(["']\.\.\/shared\/decision-engine["']\)/);
       assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/agents["']\)/);
       assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/decision-engine["']\)/);
+    });
+
+    it("canonical orchestrator imports trace module API not root trace shims", () => {
+      const source = fs.readFileSync(path.join(ORCH, "modules/run-control/orchestrator.js"), "utf8");
+      assert.match(source, /require\(["']\.\.\/trace\/trace-writer["']\)/);
+      assert.match(source, /require\(["']\.\.\/trace\/trace-redact["']\)/);
+      assert.match(source, /require\(["']\.\.\/trace\/trace-lifecycle-events["']\)/);
+      assert.match(source, /require\(["']\.\.\/trace\/context-hygiene-signals["']\)/);
+      assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/trace-writer["']\)/);
+      assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/trace-redact["']\)/);
+    });
+
+    it("canonical run-loop-helpers imports trace-writer via modules/trace", () => {
+      const source = fs.readFileSync(path.join(ORCH, "modules/run-control/run-loop-helpers.js"), "utf8");
+      assert.match(source, /require\(["']\.\.\/trace\/trace-writer["']\)/);
+      assert.doesNotMatch(source, /require\(["']\.\.\/\.\.\/trace-writer["']\)/);
     });
 
     it("modules/run-control index aggregates run-state exports", () => {

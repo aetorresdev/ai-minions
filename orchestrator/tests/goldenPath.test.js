@@ -4,8 +4,8 @@ const fs = require("fs");
 const path = require("path");
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { validateTraceLine, validateTraceRunGraph } = require("../trace-schema");
-const { deriveExplain } = require("../explain-run");
+const { validateTraceLine, validateTraceRunGraph } = require("../modules/trace/trace-schema");
+const { deriveExplain } = require("../modules/operator/explain-run");
 
 /** Expected event spine for golden-path baseline (single iteration, clean path). */
 const GOLDEN_PATH_EVENT_SPINE = [

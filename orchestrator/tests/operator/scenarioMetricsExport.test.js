@@ -13,7 +13,7 @@ const {
   RUN_EXPORT_ENTRY_KEYS,
   summarizeFailureTaxonomyFromRows,
   aggregateFailureTaxonomyAcrossRuns,
-} = require("../../scenario-metrics-export");
+} = require("../../modules/operator/scenario-metrics-export");
 
 test("collectRunsFromDir attaches failure_taxonomy for iteration_done rows", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-scen-tax-"));

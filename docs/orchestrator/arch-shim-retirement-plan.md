@@ -26,8 +26,9 @@ Counts from allowlist at v0.17 closeout; shrink monotonically per wave.
 | Wave | Bounded context | Shim files (representative) | Importers remaining | Status |
 |------|-----------------|----------------------------|---------------------|--------|
 | W0 | — | — | All contexts | **Baseline** — plan published |
-| W1 | `gates/` | `governance-gate.js`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js`, … | Tests + `orchestrator.js` cross-imports | Planned |
-| W2 | `trace/` | `trace-schema.js`, `trace-writer.js`, `run-outcome-summary.js`, … | Runner, explain-run, operator CLI | Planned |
+| W1 | `run-state` + `trace` + `attach` *(v0.21 E21-7)* | `run-state.js`, `trace-*.js`, `run-outcome-summary.js` | Operator visibility chain + run-control trace write path | **In progress** — importer migration @ E21-7 |
+| W1b | `gates/` | `governance-gate.js`, `approval-policy-gate.js`, `doubt-review.js`, `review-record.js`, … | Tests + `orchestrator.js` cross-imports | Planned |
+| W2 | `trace/` *(residual)* | Remaining root trace importers outside operator chain | Runner, explain-run CLI shim, worktree tests | Planned |
 | W3 | `worktree/` | `worktree-isolation.js`, `worktree-result-promotion.js`, … | `runner:tui` worktree commands | Planned |
 | W4 | `budget/` | `token-usage-summary.js`, `token-trace-report.js`, … | Dashboard + reports | Planned |
 | W5 | `run-control/` | `orchestrator.js`, `decision-engine.js`, `runner-*.js`, … | Entrypoints, E2E | **Deferred** — highest blast radius |

@@ -10,7 +10,7 @@ cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { redactSensitivePlaintext, sanitizeTraceRowsForRead } = require("../../trace-redact");
+const { redactSensitivePlaintext, sanitizeTraceRowsForRead } = require("../../modules/trace/trace-redact");
 const { _sanitize } = require("../../orchestrator");
 
 /** Runtime-built shapes only — GitHub push protection decodes Base64 and flags embedded tokens. */

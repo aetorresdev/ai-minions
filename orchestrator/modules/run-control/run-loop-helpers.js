@@ -4,7 +4,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { validateHandoffForMode } = require("./qa-spec-flow");
-const { _hashGoal, TRACE_REDACT_GOAL } = require("../../trace-writer");
+const { _hashGoal, TRACE_REDACT_GOAL } = require("../trace/trace-writer");
 const { runNetworkPermissionGate } = require("../../security/network-permission-gate");
 const { emitPermissionCheckTrace } = require("../tools");
 

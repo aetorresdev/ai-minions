@@ -20,7 +20,7 @@ const {
   terminalStatusFromRunResult,
 } = require("../../runner-launcher");
 const { parseCommonArgs, parseMaxIterations } = require("../../runner-tui-cli");
-const { traceFilePath } = require("../../trace-append");
+const { traceFilePath } = require("../../modules/trace/trace-append");
 
 /**
  * @returns {string}

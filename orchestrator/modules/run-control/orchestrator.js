@@ -103,17 +103,17 @@ const {
   failureAxisForIterationDone,
   traceIterationDone,
   composeIterationDonePayload,
-} = require("../../trace-writer");
-const { redactSensitivePlaintext } = require("../../trace-redact");
+} = require("../trace/trace-writer");
+const { redactSensitivePlaintext } = require("../trace/trace-redact");
 const {
   emitModelFallbackLifecycleIfNeeded,
   emitContextCompactionStarted,
   emitContextCompactionCompleted,
-} = require("../../trace-lifecycle-events");
+} = require("../trace/trace-lifecycle-events");
 const {
   createContextHygieneTracker,
   emitContextHygieneSignalsFromStats,
-} = require("../../context-hygiene-signals");
+} = require("../trace/context-hygiene-signals");
 const { buildReviewRecord, traceReviewRecord } = require("../../review-record");
 const {
   buildDoubtReviewCycleFromCerberusOutput,

@@ -8,7 +8,7 @@ const {
   mapTraceRowToOtelSpan,
   mapTraceRowsToOtelSpans,
   rowToSpanAttributes,
-} = require("../../otel-genai-trace-map");
+} = require("../../modules/trace/otel-genai-trace-map");
 
 describe("otel-genai-trace-map", () => {
   it("maps session_start to orchestrator.run root span with stable trace id", () => {

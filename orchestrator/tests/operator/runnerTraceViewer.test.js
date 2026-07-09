@@ -16,7 +16,7 @@ const {
   runTraceViewer,
   appendTraceChunk,
   followTraceFile,
-} = require("../../runner-trace-viewer");
+} = require("../../modules/operator/runner-trace-viewer");
 
 const goldenClean = fs.readFileSync(
   path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl"),

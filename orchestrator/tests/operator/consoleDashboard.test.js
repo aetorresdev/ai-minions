@@ -13,7 +13,7 @@ const {
   sortedEntries,
   resolveConsoleColorMode,
   shouldUseAnsiForStdout,
-} = require("../../console-dashboard");
+} = require("../../modules/operator/console-dashboard");
 
 /** @param {string} s */
 function assertAllCharsAscii(s, label) {
