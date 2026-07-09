@@ -108,7 +108,7 @@ describe("orchestrator facade — trace-writer parity", () => {
 
   it("re-exports redactSensitivePlaintext from trace-redact", () => {
     const orch = require("../orchestrator");
-    const { redactSensitivePlaintext } = require("../trace-redact");
+    const { redactSensitivePlaintext } = require("../modules/trace/trace-redact");
     assert.equal(orch.redactSensitivePlaintext, redactSensitivePlaintext);
   });
 });

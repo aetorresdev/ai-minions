@@ -10,7 +10,7 @@ const {
   setStepFailedAndClear,
   markStepRetryingAfterGate,
   getRunStatePublicView,
-} = require("../run-state");
+} = require("../modules/run-control/run-state");
 
 test("syncRunIteration sets current_iteration and clears step", () => {
   const rs = createRunState({ taskId: "t1", flowMode: "single_agent", goal: "g", maxIterations: 3 });

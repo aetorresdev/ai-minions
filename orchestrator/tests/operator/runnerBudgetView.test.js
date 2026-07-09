@@ -11,7 +11,7 @@ const {
   deriveBudgetStatus,
   formatBudgetViewText,
   runBudgetView,
-} = require("../../runner-budget-view");
+} = require("../../modules/operator/runner-budget-view");
 
 const goldenClean = fs.readFileSync(
   path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl"),
@@ -118,7 +118,7 @@ describe("runner-budget-view", () => {
   });
 
   it("findLastSessionEnd prefers latest session_end in concatenated traces", () => {
-    const { findLastSessionEnd } = require("../../runner-budget-view");
+    const { findLastSessionEnd } = require("../../modules/operator/runner-budget-view");
     const rows = [
       { event: "session_end", done: true, iterations: 1, ts_ms: 1 },
       { event: "session_start", task_id: "task-resume", ts_ms: 2 },

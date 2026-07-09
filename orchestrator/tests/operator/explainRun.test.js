@@ -12,7 +12,7 @@ const {
   deriveExplain,
   resolveLatestRunFile,
   composeExplainExport,
-} = require("../../explain-run");
+} = require("../../modules/operator/explain-run");
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 

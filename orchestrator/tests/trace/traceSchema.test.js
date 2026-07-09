@@ -5,7 +5,7 @@ const test = require("node:test");
 const cp = require("child_process");
 cp.spawnSync = () => ({ error: null, status: 0, stdout: "\n", stderr: "" });
 
-const { validateTraceLine, parseTraceLine, getValidationMetrics, resetValidationMetrics, REJECTION_REASONS } = require("../../trace-schema");
+const { validateTraceLine, parseTraceLine, getValidationMetrics, resetValidationMetrics, REJECTION_REASONS } = require("../../modules/trace/trace-schema");
 const { transitionReason, failureTypeForIterationDone, failureAxisForIterationDone } = require("../../orchestrator");
 
 test("validateTraceLine accepts session_start v2 envelope", () => {
@@ -670,7 +670,7 @@ test("FIFO overflow at exactly 50: entry 51 drops entry 1", () => {
 });
 
 // validateTraceRunGraph — run-level graph consistency
-const { validateTraceRunGraph } = require("../../trace-schema");
+const { validateTraceRunGraph } = require("../../modules/trace/trace-schema");
 
 test("validateTraceRunGraph passes on empty line array", () => {
   const r = validateTraceRunGraph([]);

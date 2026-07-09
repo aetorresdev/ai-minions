@@ -8,8 +8,8 @@ const fs = require("fs");
 const path = require("path");
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { validateTraceLine, validateTraceRunGraph } = require("../trace-schema");
-const { deriveExplain } = require("../explain-run");
+const { validateTraceLine, validateTraceRunGraph } = require("../modules/trace/trace-schema");
+const { deriveExplain } = require("../modules/operator/explain-run");
 
 const FIXTURE = path.join(__dirname, "fixtures", "golden-multi-role-chain-v1.jsonl");
 const META = path.join(__dirname, "fixtures", "golden-multi-role-chain-v1.meta.json");
