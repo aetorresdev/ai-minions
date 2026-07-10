@@ -25,6 +25,37 @@ const INJECTION_OPERATOR_SURFACE = Object.freeze({
   next_safe_action: "escalate_to_operator",
 });
 
+const VALID_CONTEXT_VARIANTS = Object.freeze(["benign", "injected"]);
+
+function buildUnclassifiedDecision(classified, meta = {}) {
+  return {
+    allowed: false,
+    skipped: false,
+    decision: "block_unclassified",
+    reason_code: "context_authority_unknown",
+    failure_type: "unclassified_context",
+    failure_axis: "context_authority",
+    authority_tier: classified && classified.ok ? classified.authority_tier : null,
+    instruction_source: classified && classified.ok ? classified.instruction_source : null,
+    operator_explanation: UNKNOWN_OPERATOR_SURFACE.operator_explanation,
+    next_safe_action: UNKNOWN_OPERATOR_SURFACE.next_safe_action,
+    injection_detected: false,
+    attempted_action: null,
+    variant: meta.variant != null ? String(meta.variant) : "unknown",
+  };
+}
+
+/**
+ * @param {unknown} variant
+ * @returns {"benign" | "injected" | null}
+ */
+function resolveDeclaredVariant(variant) {
+  if (variant === "benign" || variant === "injected") {
+    return variant;
+  }
+  return null;
+}
+
 /**
  * @param {object} input
  * @returns {{ allowed: boolean, decision: string, reason_code: string, failure_type: string, operator_explanation: string, next_safe_action: string }}
@@ -49,25 +80,15 @@ function evaluateContextAuthorityDecision(input) {
   const classified = classifyContextAuthority({ context_type });
 
   if (!classified.ok) {
-    return {
-      allowed: false,
-      skipped: false,
-      decision: "block_unclassified",
-      reason_code: "context_authority_unknown",
-      failure_type: "unclassified_context",
-      failure_axis: "context_authority",
-      authority_tier: null,
-      instruction_source: null,
-      operator_explanation: UNKNOWN_OPERATOR_SURFACE.operator_explanation,
-      next_safe_action: UNKNOWN_OPERATOR_SURFACE.next_safe_action,
-      injection_detected: false,
-      attempted_action: null,
-      variant: "unknown",
-    };
+    return buildUnclassifiedDecision(null);
   }
 
-  const variant = ca.variant === "injected" ? "injected" : "benign";
-  const injection_detected = variant === "injected" || ca.injection_detected === true;
+  const variant = resolveDeclaredVariant(ca.variant);
+  if (variant === null) {
+    return buildUnclassifiedDecision(classified, { variant: ca.variant != null ? String(ca.variant) : "missing" });
+  }
+
+  const injection_detected = variant === "injected";
   const attempted_action =
     injection_detected && ca.attempted_action != null ? String(ca.attempted_action) : null;
 
@@ -188,6 +209,8 @@ function enforceContextAuthorityGate(input = {}) {
 module.exports = {
   RUNTIME_EVIDENCE_SOURCE,
   RUNTIME_EVIDENCE_TRUST,
+  VALID_CONTEXT_VARIANTS,
+  resolveDeclaredVariant,
   evaluateContextAuthorityDecision,
   buildContextAuthorityRuntimeTrace,
   runContextAuthorityGate,
