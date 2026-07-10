@@ -7,7 +7,9 @@
  * Call-time `require("child_process").spawnSync` so tests can monkey-patch before invoke (same as run-claude.js).
  */
 
+const path = require("path");
 const { runClassifiedInvocationPermissionGate } = require("../../security/classified-invocation-permission-gate");
+const { runContextAuthorityGate } = require("../tools/context-authority-runtime-gate");
 
 /**
  * @param {string} executable
@@ -21,6 +23,7 @@ function spawnClassifiedSync(executable, args, options = {}) {
     cwd,
     permissionProfileName,
     traceAgentId,
+    context_authority,
     ...spawnOpts
   } = options;
   const repoRoot = cwd || process.cwd();
@@ -28,6 +31,27 @@ function spawnClassifiedSync(executable, args, options = {}) {
 
   if (process.env.ORCH_SKIP_CLASSIFIED_SHELL_GATE === "1") {
     return require("child_process").spawnSync(executable, argv, { cwd: repoRoot, ...spawnOpts });
+  }
+
+  if (process.env.ORCH_SKIP_CONTEXT_AUTHORITY_GATE !== "1") {
+    const caResult = runContextAuthorityGate({
+      context_authority,
+      tool: path.basename(String(executable || "shell")),
+    });
+    if (!caResult.skipped) {
+      try {
+        const { emitPermissionCheckTrace } = require("../../orchestrator.js");
+        emitPermissionCheckTrace(caResult.tracePayload);
+      } catch {
+        /* orchestrator not loaded or tests-only graph */
+      }
+    }
+    if (!caResult.allowed && !caResult.skipped) {
+      const err = new Error(`Context authority denied (${caResult.reason_code})`);
+      err.code = "CONTEXT_AUTHORITY_DENIED";
+      err.context_authority_decision = caResult;
+      throw err;
+    }
   }
 
   const gate = runClassifiedInvocationPermissionGate({

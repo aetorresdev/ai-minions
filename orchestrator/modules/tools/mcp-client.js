@@ -6,6 +6,7 @@ const path = require("path");
 const { traceEvent, setPermissionCheckAuditHook } = require("../../trace-writer");
 const { runMcpPermissionGate } = require("../../security/mcp-permission-gate");
 const { buildApprovalRequiredFromPermissionTrace } = require("../../governance-gate");
+const { runContextAuthorityGate } = require("./context-authority-runtime-gate");
 
 let _mcpAuditTaskId = null;
 /** @type {{ server: string, tool: string, transport: string, duration_ms: number, ok: boolean }[]} */
@@ -79,6 +80,22 @@ function recordMcpInvocation(entry) {
  * Set `ORCH_SKIP_MCP_PERMISSION_GATE=1` to bypass (tests / emergency only).
  */
 function gateMcpInvocation(server, toolName, cwd, gateOpts = {}) {
+  if (process.env.ORCH_SKIP_CONTEXT_AUTHORITY_GATE !== "1") {
+    const caResult = runContextAuthorityGate({
+      context_authority: gateOpts.context_authority,
+      tool: `${server}.${toolName}`,
+    });
+    if (_mcpAuditTaskId && caResult.tracePayload && !caResult.skipped) {
+      traceEvent(_mcpAuditTaskId, caResult.tracePayload);
+    }
+    if (!caResult.allowed && !caResult.skipped) {
+      const msg = `Context authority denied (${caResult.reason_code}): ${server}.${toolName}`;
+      const err = new Error(msg);
+      err.code = "CONTEXT_AUTHORITY_DENIED";
+      err.context_authority_decision = caResult;
+      throw err;
+    }
+  }
   if (process.env.ORCH_SKIP_MCP_PERMISSION_GATE === "1") return;
   const repoRoot = cwd || process.cwd();
   let result;
