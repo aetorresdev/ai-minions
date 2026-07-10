@@ -7,6 +7,7 @@ and code win**.
 **Related contracts (normative detail):**
 
 - [`runtime-permission-contract.md`](runtime-permission-contract.md)
+- [`shell-kernel-threat-model.md`](shell-kernel-threat-model.md) — gated shell paths, ungated limits, `ORCH_SKIP_*` hazard
 - [`trace-privacy-contract.md`](trace-privacy-contract.md)
 - [`strict-mode.md`](strict-mode.md)
 - [`failure-semantics-contract.md`](failure-semantics-contract.md)
@@ -153,6 +154,7 @@ under a malicious goal."
 
 - **Code:** `orchestrator/modules/model-runtime/run-classified-shell.js` (`spawnClassifiedSync`)
   plus manifest integration (see runtime permission contract).
+- **Threat model:** [shell-kernel-threat-model.md](shell-kernel-threat-model.md) — gated vs ungated paths, `ORCH_SKIP_*`, honest limits.
 - **Context authority:** when `context_authority.derived_from_untrusted === true`, MCP and classified shell paths emit `context_authority_check` and fail closed on unknown/injected variants (`modules/tools/context-authority-runtime-gate.js`).
 - **Tests:** `orchestrator/tests/classifiedInvocationPermissionGate.test.js`, `orchestrator/tests/contextAuthorityRuntimeGate.test.js`.
 
@@ -227,7 +229,7 @@ under a malicious goal."
 ### Unsafe shell or network access
 
 - **Helps:** gates on orchestrator paths; still needs host policy.
-- **Gaps:** user shells outside gated paths are not a full OS hardening story.
+- **Gaps:** user shells outside gated paths are not a full OS hardening story. See [shell-kernel-threat-model.md](shell-kernel-threat-model.md) for ungated honest limits.
 
 ### Incentive conflict (system vs user goal)
 
