@@ -49,7 +49,6 @@ describe('operator-about — buildAboutInfo', () => {
       spawnGit: () => ({ status: 0, stdout: 'abc1234\n' }),
     });
     assert.equal(info.version, PRODUCT_VERSION);
-    assert.equal(info.version, 'v0.21.0-beta.1');
     assert.equal(info.package_version, '1.0.0');
     assert.notEqual(info.version, info.package_version);
   });
@@ -125,7 +124,7 @@ describe('operator-about — formatters', () => {
     });
     const text = formatAboutText(info);
     assert.match(text, /^ai-minions\n/);
-    assert.match(text, /version:\s+v0\.21\.0-beta\.1/);
+    assert.match(text, new RegExp(`version:\\s+${PRODUCT_VERSION.replace(/\./g, '\\.')}`));
     assert.match(text, /package_version:\s+1\.0\.0/);
     assert.match(text, /node:\s+v/);
     assert.match(text, /platform:/);
@@ -200,6 +199,6 @@ describe('ai-minions-cli version/about integration', () => {
       shell: true,
     });
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /version:\s+v0\.21\.0-beta\.1/);
+    assert.match(r.stdout, new RegExp(`version:\\s+${PRODUCT_VERSION.replace(/\./g, '\\.')}`));
   });
 });

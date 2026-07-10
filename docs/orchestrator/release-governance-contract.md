@@ -85,6 +85,7 @@ In [alpha-release-checklist.md](alpha-release-checklist.md) per-version sections
 ## CERBERUS checks
 
 - Reject release-prep PR that marks post-tag items complete without artifacts
+- Reject release-prep PR missing `PRODUCT_VERSION` bump in `product-version.js` when changelog section is added
 - Reject docs claiming full release automation
 - Reject `evidence_status: complete` without matching `pre_release_url` and branch SHA
 

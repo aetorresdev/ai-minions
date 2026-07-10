@@ -41,6 +41,7 @@ const ENTRIES = {
   'tests/capability-matrix.test.js': { owner: 'permissions', kind: 'unit' },
   'tests/capability-plan-reject.test.js': { owner: 'run-control', kind: 'unit' },
   'tests/changelogReleaseFormat.test.js': { owner: 'contracts', kind: 'contract' },
+  'tests/productVersionSync.test.js': { owner: 'contracts', kind: 'contract' },
   'tests/classifiedInvocationPermissionGate.test.js': { owner: 'permissions', kind: 'unit' },
   'tests/classifiedSpawnCoverage.test.js': { owner: 'permissions', kind: 'unit' },
   'tests/claudeCliShellGate.test.js': { owner: 'permissions', kind: 'unit' },

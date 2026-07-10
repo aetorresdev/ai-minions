@@ -60,8 +60,9 @@ Checklist items and governance fields are **phase-bound**. Do not mark post-tag 
 ## Release-prep PR contents (template)
 
 1. `CHANGELOG.md` — new version section per [changelog-release-format.md](changelog-release-format.md) (full alpha layout for humans/CERBERUS; CI enforces mandatory markers only).
-2. `docs/orchestrator/alpha-release-checklist.md` — version block: scope, must-have SHAs, validation log placeholders, execution plan **targets** (worded as operator steps until Phase B).
-3. No tag · no GitHub release · no force-push to `release` in the PR itself.
+2. `orchestrator/modules/operator/product-version.js` — bump `PRODUCT_VERSION` to match the new changelog header (e.g. `v0.22.0-alpha.1` for `## [0.22.0-alpha.1]`). **Mandatory** — `ai-minions about` / `--version` read this constant; drift is blocked by `productVersionSync.test.js` and `verify-usage-docs.mjs`.
+3. `docs/orchestrator/alpha-release-checklist.md` — version block: scope, must-have SHAs, validation log placeholders, execution plan **targets** (worded as operator steps until Phase B).
+4. No tag · no GitHub release · no force-push to `release` in the PR itself.
 
 ---
 
