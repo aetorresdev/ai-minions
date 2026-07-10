@@ -90,6 +90,60 @@ describe("cohort-ux-friction-log", () => {
     assert.equal(funnel.conversions[0].rate, 0);
   });
 
+  it("buildSessionFunnel excludes smoke success from ineligible sessions", () => {
+    const rows = [
+      {
+        ...VALID_ENTRY,
+        session_id: "eligible",
+        step_index: 1,
+        command: "first-run",
+        outcome: "success",
+      },
+      {
+        ...VALID_ENTRY,
+        session_id: "eligible",
+        step_index: 2,
+        command: "smoke",
+        outcome: "success",
+      },
+      {
+        ...VALID_ENTRY,
+        session_id: "ineligible",
+        step_index: 1,
+        command: "first-run",
+        outcome: "fail",
+      },
+      {
+        ...VALID_ENTRY,
+        session_id: "ineligible",
+        step_index: 2,
+        command: "smoke",
+        outcome: "success",
+      },
+      {
+        ...VALID_ENTRY,
+        session_id: "out-of-order",
+        step_index: 1,
+        command: "smoke",
+        outcome: "success",
+      },
+      {
+        ...VALID_ENTRY,
+        session_id: "out-of-order",
+        step_index: 2,
+        command: "first-run",
+        outcome: "success",
+      },
+    ];
+    const funnel = buildSessionFunnel(rows);
+    const firstToSmoke = funnel.conversions[0];
+    assert.equal(funnel.per_stage.smoke.success, 3);
+    assert.equal(firstToSmoke.eligible_sessions, 2);
+    assert.equal(firstToSmoke.continued_sessions, 1);
+    assert.equal(firstToSmoke.success_sessions, 1);
+    assert.equal(firstToSmoke.rate, 0.5);
+  });
+
   it("summarizeFrictionLog derives promotion_hint from session funnel", () => {
     const example = fs.readFileSync(
       path.join("docs/how-to/evidence/cohort-friction-log.example.jsonl"),

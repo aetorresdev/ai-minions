@@ -227,6 +227,28 @@ function conversionRate(numerator, denominator) {
 }
 
 /**
+ * @param {object[]} sessionEntries
+ * @param {string} command
+ * @param {number} [afterStep]
+ */
+function commandEntriesAfter(sessionEntries, command, afterStep = -Infinity) {
+  return sessionEntries.filter(
+    (e) => String(e.command) === command && Number(e.step_index) > afterStep,
+  );
+}
+
+/**
+ * @param {object[]} sessionEntries
+ * @param {string} command
+ * @param {number} [afterStep]
+ */
+function firstSuccessfulCommandAfter(sessionEntries, command, afterStep = -Infinity) {
+  return commandEntriesAfter(sessionEntries, command, afterStep).find(
+    (e) => e.outcome === "success",
+  );
+}
+
+/**
  * @param {object[]} entries
  */
 export function buildSessionFunnel(entries) {
@@ -256,32 +278,40 @@ export function buildSessionFunnel(entries) {
       perStage[cmd][outcome] += 1;
     }
 
-    const firstRun = commandOutcomeInSession(sessionEntries, "first-run");
-    const smoke = commandOutcomeInSession(sessionEntries, "smoke");
-    const attach = commandOutcomeInSession(sessionEntries, "attach");
+    const firstRunSuccess = firstSuccessfulCommandAfter(sessionEntries, "first-run");
 
-    if (firstRun === "success") {
+    if (firstRunSuccess) {
       firstRunSuccessSessions += 1;
-      if (smoke !== "not_attempted") {
+      const smokeAfterFirstRun = commandEntriesAfter(
+        sessionEntries,
+        "smoke",
+        Number(firstRunSuccess.step_index),
+      );
+      const smokeSuccess = smokeAfterFirstRun.find((e) => e.outcome === "success");
+
+      if (smokeAfterFirstRun.length > 0) {
         smokeAttemptedAfterFirstRunSuccess += 1;
       }
-      if (smoke !== "success") {
+      if (smokeSuccess) {
+        smokeSuccessSessions += 1;
+        const attachAfterSmoke = commandEntriesAfter(
+          sessionEntries,
+          "attach",
+          Number(smokeSuccess.step_index),
+        );
+        const attachSuccess = attachAfterSmoke.find((e) => e.outcome === "success");
+
+        if (attachAfterSmoke.length > 0) {
+          attachAttemptedAfterSmokeSuccess += 1;
+        }
+        if (attachSuccess) {
+          attachSuccessSessions += 1;
+        } else {
+          dropOffAfterSmoke += 1;
+        }
+      } else {
         dropOffAfterFirstRun += 1;
       }
-    }
-
-    if (smoke === "success") {
-      smokeSuccessSessions += 1;
-      if (attach !== "not_attempted") {
-        attachAttemptedAfterSmokeSuccess += 1;
-      }
-      if (attach !== "success") {
-        dropOffAfterSmoke += 1;
-      }
-    }
-
-    if (attach === "success") {
-      attachSuccessSessions += 1;
     }
   }
 
