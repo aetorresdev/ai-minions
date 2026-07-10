@@ -1274,6 +1274,52 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 
 - [x] **Changelog:** section **[0.20.1-beta.1] - 2026-07-06**
 
+## v0.21.0-beta.1 — Operator Visibility + Management Evidence
+
+**Scope:** E21-1..8 lane on `master` @ `80b790f` — run state visibility, human-readable attach, cost/token honesty, Ollama LAN config, read-only `report`/`tui`, shim wave 1, trace evals + steering gate; E21-9 release-prep docs + changelog. **Prerequisite:** `v0.20.1-beta.1` @ `613dda9`. Not production TUI · not billing-accurate Ollama · not architecture complete · not cohort gate change.
+
+**Release claim:** trace-backed operator visibility and management handoff from product CLI — read-only surfaces with explicit **Not claimed** disclaimers; cohort invitation unchanged.
+
+### Must-have bundle
+
+- [x] Run state visibility — merged @ `16501a4` (PR #257)
+- [x] Human-readable attach bundle — merged @ `861c2b0` (PR #258)
+- [x] Cost/token run summary — merged @ `f769cc3` (PR #259)
+- [x] Ollama LAN endpoint + hotfix — merged @ `3eaa5c8` / #261
+- [x] RUN_ANALYST report — merged @ `ff19faf` (PR #262)
+- [x] Evidence TUI — merged @ `a3f1f1b` (PR #263)
+- [x] Shim retirement wave 1 — merged @ `1ce8253` (PR #264)
+- [x] Trace evals + steering gate — merged @ `80b790f` (PR #265)
+- [ ] Release-prep docs + changelog — release-prep PR (this branch)
+
+### v0.21 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-07-10 | `master` @ `80b790f` — E21-8 merge | CI: unit · trivy · e2e · Docker live — **green** |
+| 2026-07-10 | Workspace @ release-prep tree | `cd orchestrator && npm test` → **1346/1346** pass (1 skipped) |
+| 2026-07-10 | Workspace @ release-prep tree | `node scripts/verify-usage-docs.mjs` → **OK** |
+| 2026-07-10 | Workspace @ release-prep tree | `node scripts/audit-product-claims.mjs` → **OK** |
+
+**Phase A A3 — lane CI inheritance:** release-prep adds `CHANGELOG.md` and `docs/**`; orchestrator runtime unchanged since `80b790f`. Path-filtered orchestrator unit/e2e workflows inherit green from E21-8 merge unless release-prep touches `orchestrator/**`.
+
+### Forbidden release claims (v0.21)
+
+"production-ready" · "billing-accurate" (for local Ollama) · "production TUI shipped" · "architecture refactor complete" · "full modular monolith" · "external beta open" (without guard + LIVE_PASS) · "interactive operator approvals" · "ROI/productivity metrics" without evidence.
+
+### Release execution plan (Phase B — operator steps)
+
+**Wording:** do not mark `[x]` until Phase B complete.
+
+- [ ] **Tag target:** `v0.21.0-beta.1` on release-prep merge commit
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.21.0-beta.1`
+- [ ] **`release` branch:** aligned to tag commit
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.21.0-beta.1] - 2026-07-10** — draft on release-prep PR
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
