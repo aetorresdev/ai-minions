@@ -49,24 +49,24 @@ Default output: `report-bundles/<task_id>-<timestamp>/` under repo root (gitigno
 
 | Path | Contents | Upload? |
 |------|----------|---------|
-| `manifest.json` | Index: task id, commit, file list, inspect verdict, `human_readable_bundle` metadata |
-| `ATTACH.md` | Field values aligned with [operator feedback issue form](operator-feedback-issue.md) |
-| `SUMMARY.md` | Operator-facing run summary (local) |
-| `OPERATOR_NOTES.md` | Local-only operator notes — **not** for GitHub upload |
-| `MANAGEMENT_SUMMARY.md` | Management handoff summary (local) |
-| `shareable/SUMMARY.md` | Redacted summary for upload |
-| `shareable/MANAGEMENT_SUMMARY.md` | Redacted management summary for upload |
-| `shareable/shareable-manifest.json` | Upload manifest |
-| `privacy-scan.json` | Privacy scan outcome — **upload** |
-| `redaction-report.json` | Redaction details |
-| `trace/<task_id>.jsonl` | Trace copy (validate JSONL before collect) — **local only** |
-| `traces/` | Additional trace copies when present |
-| `evidence/` | Evidence artifacts |
-| `inspect-report.json` | Full `INSPECT_*` report from [inspect-run-evidence.mjs](../../scripts/inspect-run-evidence.mjs) |
-| `artifacts/status.txt` | Operator status capture |
-| `artifacts/trace-panel.txt` | Runner trace panel *(unless `--skip-panels`)* |
-| `artifacts/budget-panel.txt` | Runner budget panel *(unless `--skip-panels`)* |
-| `artifacts/explain-run.txt` | `explain-run` stdout/stderr |
+| `manifest.json` | Index: task id, commit, file list, inspect verdict, `human_readable_bundle` metadata | No |
+| `ATTACH.md` | Field values aligned with [operator feedback issue form](operator-feedback-issue.md) | No |
+| `SUMMARY.md` | Operator-facing run summary (local) | No |
+| `OPERATOR_NOTES.md` | Local-only operator notes | No |
+| `MANAGEMENT_SUMMARY.md` | Management handoff summary (local) | No |
+| `shareable/SUMMARY.md` | Redacted summary for upload | Yes |
+| `shareable/MANAGEMENT_SUMMARY.md` | Redacted management summary for upload | Yes |
+| `shareable/shareable-manifest.json` | Upload manifest | Yes |
+| `privacy-scan.json` | Privacy scan outcome | Yes |
+| `redaction-report.json` | Redaction details | Optional / review first |
+| `trace/<task_id>.jsonl` | Trace copy (validate JSONL before collect) | No |
+| `traces/` | Additional trace copies when present | No |
+| `evidence/` | Evidence artifacts | No |
+| `inspect-report.json` | Full `INSPECT_*` report from [inspect-run-evidence.mjs](../../scripts/inspect-run-evidence.mjs) | No |
+| `artifacts/status.txt` | Operator status capture | No |
+| `artifacts/trace-panel.txt` | Runner trace panel *(unless `--skip-panels`)* | No |
+| `artifacts/budget-panel.txt` | Runner budget panel *(unless `--skip-panels`)* | No |
+| `artifacts/explain-run.txt` | `explain-run` stdout/stderr | No |
 
 **Upload rule:** attach only `privacy-scan.json` and everything under `shareable/` (or zip those paths). Do **not** upload raw `trace/*.jsonl`, `OPERATOR_NOTES.md`, or unreviewed local-only files.
 
