@@ -11,10 +11,17 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createRequire } from "node:module";
+
 import {
   checkForbiddenClaims,
   mustNotHaveBacklogCaseIds,
 } from "./lib/operator-doc-claims.mjs";
+
+const require = createRequire(import.meta.url);
+const { validateProductVersionSync } = require(
+  "../orchestrator/scripts/lib/product-version-sync.js",
+);
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -950,6 +957,13 @@ function main() {
   if (operatorFeedbackText) checkOperatorFeedbackIssueDoc(operatorFeedbackText);
   if (operatorFeedbackTemplateText) checkOperatorFeedbackTemplate(operatorFeedbackTemplateText);
   if (readmeText) checkReadmeAlignment(readmeText, guideText);
+
+  const productVersionResult = validateProductVersionSync(REPO_ROOT);
+  if (!productVersionResult.ok) {
+    for (const err of productVersionResult.errors) {
+      fail(`product-version-sync: ${err}`);
+    }
+  }
 
   if (failures.length) {
     console.error("verify-usage-docs: FAILED\n");

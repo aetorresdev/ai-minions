@@ -4,6 +4,8 @@
 
 **Validator:** `orchestrator/scripts/lib/changelog-release-section.js` · contract tests in `changelogReleaseFormat.test.js`
 
+**Operator version sync:** `orchestrator/modules/operator/product-version.js` (`PRODUCT_VERSION`) must match the latest tagged changelog section — `orchestrator/scripts/lib/product-version-sync.js` · `productVersionSync.test.js` · `scripts/verify-usage-docs.mjs`
+
 **Related:** [release-workflow.md](release-workflow.md) step A5 · [alpha-release-checklist.md](alpha-release-checklist.md)
 
 ---
@@ -31,6 +33,7 @@
 | Evidence mentions `npm test` | yes |
 | Evidence mentions Trivy (`release-trivy-gate` or `security-trivy-scan`) | yes (alpha profile) |
 | No ticket/backlog IDs in section body | yes |
+| `PRODUCT_VERSION` matches latest tagged changelog section | yes (`productVersionSync.test.js`, `verify-usage-docs.mjs`) |
 | Delta table includes Focus + Unit tests rows | **no** — CERBERUS / operator review |
 | Every evidence bullet from [Evidence bullets](#evidence-bullets) | **no** — CERBERUS / operator review |
 | Forbidden claim phrases (production-ready, full automation, …) | **no** — CERBERUS / operator review |
