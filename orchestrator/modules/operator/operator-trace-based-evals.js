@@ -25,16 +25,47 @@ const FORBIDDEN_CLAIM_PATTERNS = [
 ];
 
 /**
+ * Strip ## Not claimed blocks and negation lines; resume scanning after next heading.
  * @param {string} text
+ * @returns {string}
+ */
+function stripIgnoredClaimSections(text) {
+  const lines = String(text).split('\n');
+  /** @type {string[]} */
+  const kept = [];
+  let inNotClaimed = false;
+
+  for (const line of lines) {
+    if (/^\s*##\s+Not claimed\b/i.test(line)) {
+      inNotClaimed = true;
+      continue;
+    }
+
+    if (/^\s*#{1,6}\s+/i.test(line)) {
+      inNotClaimed = false;
+    }
+
+    if (inNotClaimed) continue;
+    if (/do not|does not|not claim|not claimed|avoid claiming|without evidence|not billing|not production-ready|no unsupported/i.test(line)) continue;
+
+    kept.push(line);
+  }
+
+  return kept.join('\n');
+}
+
+/**
+ * @param {string | string[]} textOrSurfaces
  * @returns {RegExp | undefined}
  */
-function findForbiddenClaim(text) {
-  const positiveSections = text.split(/## Not claimed/i)[0];
-  const body = positiveSections
-    .split('\n')
-    .filter((line) => !/do not|does not|not claim|not claimed|avoid claiming|without evidence/i.test(line))
-    .join('\n');
-  return FORBIDDEN_CLAIM_PATTERNS.find((re) => re.test(body));
+function findForbiddenClaim(textOrSurfaces) {
+  const surfaces = Array.isArray(textOrSurfaces) ? textOrSurfaces : [textOrSurfaces];
+  for (const surface of surfaces) {
+    const body = stripIgnoredClaimSections(surface);
+    const hit = FORBIDDEN_CLAIM_PATTERNS.find((re) => re.test(body));
+    if (hit) return hit;
+  }
+  return undefined;
 }
 
 const PRECISE_USD_PATTERN = /\bUSD\s+\d+\.\d{2,}\b/i;
@@ -139,7 +170,13 @@ function evaluateOperatorTraceSurfaces(ctx, surfaces) {
     ));
   }
 
-  const forbiddenHit = findForbiddenClaim(allText);
+  const forbiddenHit = findForbiddenClaim([
+    surfaces.tuiText,
+    surfaces.managementMd,
+    surfaces.reportArtifacts.operator_report,
+    surfaces.reportArtifacts.management_summary,
+    surfaces.reportArtifacts.cerberus_review_input,
+  ]);
   checks.push(check(
     'no_forbidden_claims',
     !forbiddenHit,
@@ -171,7 +208,7 @@ function evaluateOperatorTraceSurfaces(ctx, surfaces) {
   });
   checks.push(check(
     'steering_policy_read_only',
-    steering.allowed || steering.reason_code === 'STEERING_ALLOWED',
+    steering.allowed,
     steering.reason_code,
   ));
 
@@ -250,6 +287,7 @@ function runTraceBasedEvalFixture(opts) {
 module.exports = {
   TRACE_BASED_EVAL_SCHEMA,
   FORBIDDEN_CLAIM_PATTERNS,
+  stripIgnoredClaimSections,
   findForbiddenClaim,
   collectTraceBlockingReasonCodes,
   evaluateOperatorTraceSurfaces,

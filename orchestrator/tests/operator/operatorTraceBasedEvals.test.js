@@ -11,6 +11,7 @@ const {
   evaluateLoadedOperatorContext,
   evaluateMissingTraceContext,
   collectTraceBlockingReasonCodes,
+  findForbiddenClaim,
 } = require('../../modules/operator/operator-trace-based-evals');
 
 const FIXTURES = path.join(__dirname, '..', 'fixtures', 'operator-trace-summary');
@@ -88,4 +89,41 @@ test('complete fixture management summary does not invent billing USD', () => {
   assert.equal(ctx.cost_token_summary.run.cost_status, 'not_billing');
   const result = evaluateLoadedOperatorContext(ctx);
   assert.equal(result.ok, true, result.failures.join('; '));
+});
+
+test('forbidden claim scan resumes after Not claimed section', () => {
+  const hit = findForbiddenClaim([
+    '## Not claimed',
+    '- Business ROI or productivity metrics',
+    '',
+    '## Management summary',
+    'This run is production-ready and guaranteed.',
+  ].join('\n'));
+  assert.ok(hit);
+});
+
+test('forbidden claim scan catches report text after attach Not claimed section', () => {
+  const hit = findForbiddenClaim([
+    '# Attach management',
+    '## Not claimed',
+    '- Production-ready operation',
+    '',
+    '# Operator report',
+    'This run is production-ready.',
+  ].join('\n'));
+  assert.ok(hit);
+});
+
+test('forbidden claim scan ignores negated billing-accurate disclaimers', () => {
+  const hit = findForbiddenClaim(
+    '> **Read-only RUN_ANALYST** — trace-derived narrative; not billing-accurate.',
+  );
+  assert.equal(hit, undefined);
+});
+
+test('forbidden claim scan ignores unsupported-claim checklist wording', () => {
+  const hit = findForbiddenClaim(
+    '[ ] No unsupported ROI/billing/productivity claims',
+  );
+  assert.equal(hit, undefined);
 });

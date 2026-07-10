@@ -11,15 +11,13 @@ const STEERING_HANDLER_POLICY_GATE_SCHEMA = '1';
 
 const READ_ONLY_SURFACES = new Set(['tui', 'report', 'attach', 'status', 'explain', 'evidence']);
 
-const MUTATION_ACTION_PREFIXES = [
-  'approve',
-  'rerun',
-  'mutate',
-  'merge',
-  'override',
-  'resume',
-  'restart',
-];
+/**
+ * @param {string} action
+ * @returns {boolean}
+ */
+function isNegatedSteering(action) {
+  return /\b(do not|don't|cannot|must not|avoid|until|before)\b/i.test(action);
+}
 
 /**
  * @param {string | null | undefined} action
@@ -28,8 +26,8 @@ const MUTATION_ACTION_PREFIXES = [
 function isMutationSteeringAction(action) {
   if (!action || typeof action !== 'string') return false;
   const norm = action.trim().toLowerCase();
-  if (/^(approve|rerun|mutate|merge|override|resume|restart)\b/.test(norm)) return true;
-  return /\b(please|must|should)\s+(approve|rerun|mutate|merge|override|resume|restart)\b/.test(norm);
+  if (isNegatedSteering(norm)) return false;
+  return /\b(approve|rerun|mutate|merge|override|resume|restart|advance|ship|release)\b/.test(norm);
 }
 
 /**
@@ -121,6 +119,7 @@ function evaluateSteeringHandlerPolicy(input) {
 module.exports = {
   STEERING_HANDLER_POLICY_GATE_SCHEMA,
   READ_ONLY_SURFACES,
+  isNegatedSteering,
   isMutationSteeringAction,
   suggestsBlockedAdvance,
   evaluateSteeringHandlerPolicy,

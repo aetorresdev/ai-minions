@@ -6,6 +6,7 @@ const test = require('node:test');
 const {
   evaluateSteeringHandlerPolicy,
   isMutationSteeringAction,
+  isNegatedSteering,
   suggestsBlockedAdvance,
 } = require('../../modules/operator/steering-handler-policy-gate');
 
@@ -50,9 +51,27 @@ test('suggestsBlockedAdvance ignores do-not-merge guidance', () => {
   );
 });
 
-test('isMutationSteeringAction detects approve prefix', () => {
-  assert.equal(isMutationSteeringAction('approve merge'), true);
+test('isMutationSteeringAction detects advance and ship on read-only surfaces', () => {
+  assert.equal(isMutationSteeringAction('advance to merge'), true);
+  assert.equal(isMutationSteeringAction('ship release'), true);
   assert.equal(isMutationSteeringAction('inspect trace only'), false);
+});
+
+test('isMutationSteeringAction ignores negated advance guidance', () => {
+  assert.equal(isMutationSteeringAction('Do not merge until blockers are resolved.'), false);
+});
+
+test('evaluateSteeringHandlerPolicy blocks advance to merge on read-only complete tui', () => {
+  const r = evaluateSteeringHandlerPolicy({
+    surface: 'tui',
+    trace_loaded: true,
+    read_only: true,
+    outcome: 'complete',
+    proposed_action: 'advance to merge',
+    trace_ref: '/traces/t.jsonl',
+  });
+  assert.equal(r.allowed, false);
+  assert.equal(r.reason_code, 'STEERING_READ_ONLY_SURFACE');
 });
 
 test('evaluateSteeringHandlerPolicy allows trace-backed informational steering', () => {
@@ -61,7 +80,7 @@ test('evaluateSteeringHandlerPolicy allows trace-backed informational steering',
     trace_loaded: true,
     read_only: true,
     outcome: 'complete',
-    proposed_action: 'Run may advance; attach trace and report bundle if handing off to review.',
+    proposed_action: 'Attach trace and report bundle for review.',
     trace_ref: '/traces/t.jsonl',
   });
   assert.equal(r.allowed, true);
