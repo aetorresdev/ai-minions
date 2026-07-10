@@ -1290,7 +1290,7 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 - [x] Evidence TUI — merged @ `a3f1f1b` (PR #263)
 - [x] Shim retirement wave 1 — merged @ `1ce8253` (PR #264)
 - [x] Trace evals + steering gate — merged @ `80b790f` (PR #265)
-- [ ] Release-prep docs + changelog — release-prep PR (this branch)
+- [x] Release-prep docs + changelog — merged @ `0230c23` (PR #266); CERBERUS Approve
 
 ### v0.21 validation log
 
@@ -1300,6 +1300,9 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 | 2026-07-10 | Workspace @ release-prep tree | `cd orchestrator && npm test` → **1346/1346** pass (1 skipped) |
 | 2026-07-10 | Workspace @ release-prep tree | `node scripts/verify-usage-docs.mjs` → **OK** |
 | 2026-07-10 | Workspace @ release-prep tree | `node scripts/audit-product-claims.mjs` → **OK** |
+| 2026-07-10 | Release-prep PR #266 @ `9d70b5f` | Markdown Lint · Link Check · Docs usage verify — **green** |
+| 2026-07-10 | `master` @ `0230c23` pre-tag | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-07-10 | Phase B operator cut @ `0230c23` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 **Phase A A3 — lane CI inheritance:** release-prep adds `CHANGELOG.md` and `docs/**`; orchestrator runtime unchanged since `80b790f`. Path-filtered orchestrator unit/e2e workflows inherit green from E21-8 merge unless release-prep touches `orchestrator/**`.
 
@@ -1311,14 +1314,14 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 
 **Wording:** do not mark `[x]` until Phase B complete.
 
-- [ ] **Tag target:** `v0.21.0-beta.1` on release-prep merge commit
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.21.0-beta.1`
-- [ ] **`release` branch:** aligned to tag commit
+- [x] **Tag target:** `v0.21.0-beta.1` on release-prep merge commit @ `0230c23`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.21.0-beta.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `0230c23`
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.21.0-beta.1] - 2026-07-10** — draft on release-prep PR
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record
+- [x] **Changelog:** section **[0.21.0-beta.1] - 2026-07-10**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 
