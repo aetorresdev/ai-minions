@@ -1325,7 +1325,7 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 
 ## v0.22.0-alpha.1 — Harness Resilience + Context Authority
 
-**Scope:** E22-1..4 merged on `master`; E22-5 release candidate — deterministic tool-failure chaos eval, untrusted-context authority runtime gate + REDTEAM fixture corpus, operator harness visibility on `status`/`explain`, harness docs + CI scripts. **Prerequisite:** `v0.21.0-beta.1` @ `0230c23`. Not production resilience · not sandbox immunity · not cohort gate change · not external/untrusted repos by default.
+**Scope:** E22-1..5 merged on `master` @ `3f5ff60` — deterministic tool-failure chaos eval, untrusted-context authority runtime gate + REDTEAM fixture corpus, operator harness visibility on `status`/`explain`, harness docs + CI scripts. **Prerequisite:** `v0.21.0-beta.1` @ `0230c23`. Not production resilience · not sandbox immunity · not cohort gate change · not external/untrusted repos by default.
 
 **Release claim:** deterministic harness evals for tool failure + context authority wired with honest operator surfaces — **not** beta UX expansion · **not** production SLA · **not** continuous red-team automation.
 
@@ -1334,8 +1334,8 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 - [x] Chaos tool failure eval harness — merged @ `dda781c` (PR #268)
 - [x] Context authority runtime gate + REDTEAM fixtures — merged @ `ed56146` (PR #269)
 - [x] Operator harness visibility (`tool_failure_summary` · `context_authority_status`) — merged @ `1ab85ba` (PR #270)
-- [ ] Harness docs + CI + security-posture wired — E22-5 (this slice)
-- [ ] Release-prep docs + changelog — E22-6
+- [x] Harness docs + CI + security-posture wired — merged @ `3f5ff60` (PR #271)
+- [x] Release-prep docs + changelog — E22-6 (release-prep PR; Phase B tag pending operator)
 
 ### v0.22 validation log
 
@@ -1345,6 +1345,8 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 | 2026-07-10 | E22-4 PR #270 | CERBERUS Approve with non-blocking notes |
 | 2026-07-10 | E22-5 docs slice | `node scripts/verify-usage-docs.mjs` → **OK** |
 | 2026-07-10 | E22-5 docs slice | `npm run test:eval:harness-resilience` → **29/29** pass |
+| 2026-07-10 | E22-6 release-prep | `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK** |
+| 2026-07-10 | E22-6 release-prep | `node scripts/audit-product-claims.mjs` → **OK** |
 
 ### Forbidden release claims (v0.22)
 
@@ -1360,7 +1362,7 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.22.0-alpha.1]**
+- [x] **Changelog:** section **[0.22.0-alpha.1] - 2026-07-10**
 - [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record
 
 ## Future alpha / beta gates (positioning)
