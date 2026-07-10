@@ -23,7 +23,7 @@ Twenty-second alpha pre-release: **Harness Resilience + Context Authority** — 
 | Operator path | `status`/`explain`/`report`/`tui`/`attach` run state | + `tool_failure_summary` · `context_authority_status` on `status`/`explain` |
 | Unit tests (orchestrator) | 1346/1346 pass (1 skipped) @ `0230c23` | **1383/1383** pass (1 skipped) @ `3f5ff60` |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.22.0-alpha.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.22.0-alpha.1` — pre-release published @ tag `52a7172`
 
 **Evidence (operator):**
 
@@ -31,10 +31,10 @@ Twenty-second alpha pre-release: **Harness Resilience + Context Authority** — 
 - Harness evals: `cd orchestrator && npm run test:eval:harness-resilience` → **29/29** pass
 - Usage docs: `node scripts/verify-usage-docs.mjs` → **OK**
 - Claim audit: `node scripts/audit-product-claims.mjs` → **OK**
-- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (operator pre-tag; doc-only release-prep)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** @ tag commit `52a7172`
 - Changelog format: `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK**
 - Contracts: `security-posture.md`, `tool-ergonomics-guidelines.md`, `operator-visibility-guide.md`, `alpha-release-checklist.md`
-- Lane merged on `master` @ `3f5ff60` (chaos eval · context gate · operator visibility · docs/CI); release-prep on this branch (pending merge)
+- Lane merged on `master` @ `3f5ff60` (chaos eval · context gate · operator visibility · docs/CI); release-prep merged @ `52a7172` (PR #272)
 
 **Alpha limitations (not production):**
 
@@ -61,7 +61,7 @@ Twenty-second alpha pre-release: **Harness Resilience + Context Authority** — 
 
 ### Notes
 
-- Post-tag checklist rows (git tag, GitHub pre-release URL, `release` branch) must not be marked complete until Phase B artifacts exist and `validateReleaseGovernanceRecord` returns `ok: true`.
+- Phase B completed @ `52a7172`: annotated tag, GitHub pre-release, and `release` branch aligned; governance validation returned `ok: true`.
 - v0.21.0-beta.1 beta claims and cohort guard semantics remain unchanged — this alpha cut is harness maturity only.
 
 ## [0.21.0-beta.1] - 2026-07-10

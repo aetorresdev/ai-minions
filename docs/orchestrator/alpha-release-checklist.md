@@ -1335,7 +1335,7 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 - [x] Context authority runtime gate + REDTEAM fixtures — merged @ `ed56146` (PR #269)
 - [x] Operator harness visibility (`tool_failure_summary` · `context_authority_status`) — merged @ `1ab85ba` (PR #270)
 - [x] Harness docs + CI + security-posture wired — merged @ `3f5ff60` (PR #271)
-- [x] Release-prep docs + changelog — E22-6 (release-prep PR; Phase B tag pending operator)
+- [x] Release-prep docs + changelog — merged @ `52a7172` (PR #272); CERBERUS Approve with non-blocking notes
 
 ### v0.22 validation log
 
@@ -1347,6 +1347,8 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 | 2026-07-10 | E22-5 docs slice | `npm run test:eval:harness-resilience` → **29/29** pass |
 | 2026-07-10 | E22-6 release-prep | `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK** |
 | 2026-07-10 | E22-6 release-prep | `node scripts/audit-product-claims.mjs` → **OK** |
+| 2026-07-10 | `master` @ `52a7172` pre-tag | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-07-10 | Phase B operator cut @ `52a7172` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 ### Forbidden release claims (v0.22)
 
@@ -1356,14 +1358,14 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 
 **Wording:** do not mark `[x]` until E22-6 Phase B complete.
 
-- [ ] **Tag target:** `v0.22.0-alpha.1` on release-prep merge commit
-- [ ] **Release URL:** publish pre-release on GitHub
-- [ ] **`release` branch:** aligned to tag commit
+- [x] **Tag target:** `v0.22.0-alpha.1` on release-prep merge commit @ `52a7172`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.22.0-alpha.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `52a7172`
 
 ### Release artifact (source snapshot)
 
 - [x] **Changelog:** section **[0.22.0-alpha.1] - 2026-07-10**
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 
