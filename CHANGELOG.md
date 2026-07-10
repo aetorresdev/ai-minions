@@ -22,7 +22,7 @@ Second beta feature pre-release: **Operator Visibility + Management Evidence** �
 | Operator path | Guided CLI · attach script · status/explain | + `report` · `tui` · human-readable attach · `run_state_visibility` · cost honesty |
 | Unit tests (orchestrator) | 1230/1230 pass (1 skipped) @ `cbf9823` | **1346/1346** pass (1 skipped) @ lane `80b790f` |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.21.0-beta.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.21.0-beta.1` — pre-release published
 
 **Evidence (operator):**
 
@@ -31,7 +31,7 @@ Second beta feature pre-release: **Operator Visibility + Management Evidence** �
 - Claim audit: `node scripts/audit-product-claims.mjs` → **OK**
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (operator pre-tag)
 - Contracts: `operator-visibility-guide.md`, `ai-minions-command-migration.md`, `collect-run-report.md`, `changelog-release-format.md`
-- Lane merged on `master` @ `80b790f` (E21-8); release-prep on this branch (pending merge)
+- Lane merged on `master` @ `80b790f` (E21-8); release-prep merged @ `0230c23` (PR #266)
 - CI: lint-and-unit, security-trivy-scan, orchestrator-e2e, Installed CLI Docker live — green on E21-8 merge @ `80b790f`
 
 **Alpha limitations (not production):**
@@ -62,7 +62,7 @@ Second beta feature pre-release: **Operator Visibility + Management Evidence** �
 
 ### Notes
 
-- Phase B (tag + pre-release + `release` branch) is operator-only after CERBERUS Approve on release-prep PR.
+- Phase B completed @ `0230c23`: annotated tag, GitHub pre-release, and `release` branch aligned; governance validation returned `ok: true`.
 - Point beta testers at operator visibility guide for post-smoke read-back (`report` / `tui` / `attach`).
 
 ## [0.20.1-beta.1] - 2026-07-06
