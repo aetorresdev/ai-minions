@@ -6,6 +6,7 @@ const path = require("path");
 const { traceEvent, setPermissionCheckAuditHook } = require("../../trace-writer");
 const { runMcpPermissionGate } = require("../../security/mcp-permission-gate");
 const { buildApprovalRequiredFromPermissionTrace } = require("../../governance-gate");
+const { runContextAuthorityGate } = require("./context-authority-runtime-gate");
 
 let _mcpAuditTaskId = null;
 /** @type {{ server: string, tool: string, transport: string, duration_ms: number, ok: boolean }[]} */
@@ -79,6 +80,22 @@ function recordMcpInvocation(entry) {
  * Set `ORCH_SKIP_MCP_PERMISSION_GATE=1` to bypass (tests / emergency only).
  */
 function gateMcpInvocation(server, toolName, cwd, gateOpts = {}) {
+  if (process.env.ORCH_SKIP_CONTEXT_AUTHORITY_GATE !== "1") {
+    const caResult = runContextAuthorityGate({
+      context_authority: gateOpts.context_authority,
+      tool: `${server}.${toolName}`,
+    });
+    if (_mcpAuditTaskId && caResult.tracePayload && !caResult.skipped) {
+      traceEvent(_mcpAuditTaskId, caResult.tracePayload);
+    }
+    if (!caResult.allowed && !caResult.skipped) {
+      const msg = `Context authority denied (${caResult.reason_code}): ${server}.${toolName}`;
+      const err = new Error(msg);
+      err.code = "CONTEXT_AUTHORITY_DENIED";
+      err.context_authority_decision = caResult;
+      throw err;
+    }
+  }
   if (process.env.ORCH_SKIP_MCP_PERMISSION_GATE === "1") return;
   const repoRoot = cwd || process.cwd();
   let result;
@@ -177,8 +194,9 @@ function extractJson(text) {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-function invokeMcpDirect(server, toolName, args, { cwd } = {}) {
-  gateMcpInvocation(server, toolName, cwd);
+function invokeMcpDirect(server, toolName, args, gateOpts = {}) {
+  const cwd = gateOpts.cwd;
+  gateMcpInvocation(server, toolName, cwd, gateOpts);
   const script = path.join(__dirname, "../../mcp-direct.py");
   if (!fs.existsSync(script)) {
     throw new Error(`mcp-direct.py not found at ${script}`);
@@ -220,9 +238,11 @@ function invokeMcpDirect(server, toolName, args, { cwd } = {}) {
   }
 }
 
-function callStateMcp(toolName, args, { cwd } = {}) {
+function callStateMcp(toolName, args, gateOpts = {}) {
+  const cwd = gateOpts.cwd;
   if (useMcpDirectTransport()) {
     const parsed = invokeMcpDirect("orchestrator-state", toolName, sanitizeOrchestratorStateArgs(toolName, args), {
+      ...gateOpts,
       cwd,
     });
     if (parsed === null || typeof parsed !== "object") {
@@ -230,7 +250,7 @@ function callStateMcp(toolName, args, { cwd } = {}) {
     }
     return parsed;
   }
-  gateMcpInvocation("orchestrator-state", toolName, cwd);
+  gateMcpInvocation("orchestrator-state", toolName, cwd, gateOpts);
   const argsStr = Object.entries(args)
     .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
     .join(", ");
@@ -296,7 +316,16 @@ function normalizeCompactHandoffResult(out) {
   throw new Error(`compact_handoff unexpected return shape: ${String(JSON.stringify(out)).slice(0, 200)}`);
 }
 
-function callCompactHandoff({ text, modeCompleted, nextMode, iteration, maxIterations, flowMode }, { cwd } = {}) {
+function callCompactHandoff(payload, gateOpts = {}) {
+  const {
+    text,
+    modeCompleted,
+    nextMode,
+    iteration,
+    maxIterations,
+    flowMode,
+  } = payload;
+  const cwd = gateOpts.cwd;
   if (useMcpDirectTransport()) {
     const out = invokeMcpDirect(
       "compact-handoff",
@@ -309,11 +338,11 @@ function callCompactHandoff({ text, modeCompleted, nextMode, iteration, maxItera
         max_iterations: maxIterations,
         flow_mode: flowMode,
       },
-      { cwd },
+      { ...gateOpts, cwd },
     );
     return normalizeCompactHandoffResult(out);
   }
-  gateMcpInvocation("compact-handoff", "compact_handoff", cwd);
+  gateMcpInvocation("compact-handoff", "compact_handoff", cwd, gateOpts);
   const prompt = `Call the MCP tool compact-handoff.compact_handoff with these arguments and return only the raw YAML string, no other text:
 compact_handoff(
   text=${JSON.stringify(text)},
@@ -366,6 +395,7 @@ module.exports = {
   sanitizeOrchestratorStateArgs,
   invokeMcpDirect,
   callStateMcp,
+  gateMcpInvocation,
   normalizeCompactHandoffResult,
   callCompactHandoff,
 };

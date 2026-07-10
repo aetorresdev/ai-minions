@@ -10,4 +10,5 @@ module.exports = {
   ...require("./tool-eval"),
   ...require("./skill-registry"),
   ...require("./untrusted-context-eval"),
+  ...require("./context-authority-runtime-gate"),
 };

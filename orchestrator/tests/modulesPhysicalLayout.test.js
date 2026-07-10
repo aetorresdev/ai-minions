@@ -524,6 +524,7 @@ describe("modules physical layout", () => {
         "modules/tools/tool-eval.js",
         "modules/tools/skill-registry.js",
         "modules/tools/untrusted-context-eval.js",
+        "modules/tools/context-authority-runtime-gate.js",
         "modules/tools/tool-eval-fixtures.v1.json",
         "modules/tools/skill-registry.v1.json",
         "modules/tools/untrusted-context-fixtures.v1.json",
@@ -554,6 +555,11 @@ describe("modules physical layout", () => {
       const canonUntrusted = require("../modules/tools/untrusted-context-eval");
       assert.equal(typeof shimUntrusted.runAllUntrustedContextFixtures, "function");
       assert.equal(shimUntrusted.runAllUntrustedContextFixtures, canonUntrusted.runAllUntrustedContextFixtures);
+
+      const shimContextGate = require("../security/context-authority-runtime-gate");
+      const canonContextGate = require("../modules/tools/context-authority-runtime-gate");
+      assert.equal(typeof shimContextGate.runContextAuthorityGate, "function");
+      assert.equal(shimContextGate.runContextAuthorityGate, canonContextGate.runContextAuthorityGate);
     });
 
     it("modules/tools index aggregates MCP exports for run-control API", () => {
