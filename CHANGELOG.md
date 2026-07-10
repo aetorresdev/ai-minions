@@ -48,7 +48,7 @@ Twenty-second alpha pre-release: **Harness Resilience + Context Authority** — 
 ### Added
 
 - Chaos tool-failure eval harness — `chaos-tool-failure-eval.js` + fixtures; stable `TOOL_FAILURE_*` classification without live MCP.
-- Context authority runtime gate — untrusted-context eval + REDTEAM fixture corpus; fail-closed on retrieved/tool_output paths.
+- Context authority runtime gate — untrusted-context eval + REDTEAM fixture corpus; fail-closed on explicitly marked untrusted-derived retrieved/tool_output paths.
 - Operator harness visibility — `tool_failure_summary` and `context_authority_status` on `ai-minions status`/`explain`.
 - `npm run test:eval:chaos-tool-failure` · `test:eval:untrusted-context` · `test:eval:context-authority` · `test:eval:harness-resilience` in `orchestrator/package.json`.
 - Operator visibility guide harness resilience section — canonical read-back for harness fields.
