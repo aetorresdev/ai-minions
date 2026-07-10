@@ -390,6 +390,7 @@ module.exports = {
   buildAttachSummaryMd,
   buildAttachOperatorNotesMd,
   buildAttachManagementSummaryMd,
+  deriveConfidenceLevel,
   buildRedactionReportJson,
   computeBundleChecksums,
   filterAttachUploadFiles,
