@@ -1323,6 +1323,46 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 - [x] **Changelog:** section **[0.21.0-beta.1] - 2026-07-10**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.22.0-alpha.1 — Harness Resilience + Context Authority
+
+**Scope:** E22-1..5 lane on `master` — deterministic tool-failure chaos eval, untrusted-context authority runtime gate + REDTEAM fixture corpus, operator harness visibility on `status`/`explain`, harness docs + CI scripts. **Prerequisite:** `v0.21.0-beta.1` @ `0230c23`. Not production resilience · not sandbox immunity · not cohort gate change · not external/untrusted repos by default.
+
+**Release claim:** deterministic harness evals for tool failure + context authority wired with honest operator surfaces — **not** beta UX expansion · **not** production SLA · **not** continuous red-team automation.
+
+### Must-have bundle
+
+- [x] Chaos tool failure eval harness — merged @ `dda781c` (PR #268)
+- [x] Context authority runtime gate + REDTEAM fixtures — merged @ `ed56146` (PR #269)
+- [x] Operator harness visibility (`tool_failure_summary` · `context_authority_status`) — merged @ `1ab85ba` (PR #270)
+- [ ] Harness docs + CI + security-posture wired — E22-5 (this slice)
+- [ ] Release-prep docs + changelog — E22-6
+
+### v0.22 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-07-10 | E22-1..4 merged on `master` | `cd orchestrator && npm test` → **1383/1383** pass (1 skip) |
+| 2026-07-10 | E22-4 PR #270 | CERBERUS Approve with non-blocking notes |
+| 2026-07-10 | E22-5 docs slice | `node scripts/verify-usage-docs.mjs` → **OK** |
+| 2026-07-10 | E22-5 docs slice | `npm run test:eval:harness-resilience` → **29/29** pass |
+
+### Forbidden release claims (v0.22)
+
+"production-ready" · "production resilience" · "full sandbox" · "prompt-injection immunity" · "continuous red-team" · "external beta open" (cohort guard unchanged) · "billing-accurate" · "architecture refactor complete".
+
+### Release execution plan (Phase B — operator steps)
+
+**Wording:** do not mark `[x]` until E22-6 Phase B complete.
+
+- [ ] **Tag target:** `v0.22.0-alpha.1` on release-prep merge commit
+- [ ] **Release URL:** publish pre-release on GitHub
+- [ ] **`release` branch:** aligned to tag commit
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.22.0-alpha.1]**
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.

@@ -85,7 +85,7 @@ Intent tags: `correct_tool_and_argv`, `permission_policy`, `wrong_tool`, `bad_pa
 ## Untrusted context fixtures
 
 Retrieved text (docs, web, memory, MCP results, generated artifacts) is **not** sovereign
-instruction. The harness in `security/untrusted-context-eval.js` validates deterministic
+instruction. The harness in `modules/tools/untrusted-context-eval.js` validates deterministic
 `context_authority_check` decisions — no live network, no LLM classifier.
 
 | `context_type` | `authority_tier` | `instruction_source` |
@@ -93,22 +93,53 @@ instruction. The harness in `security/untrusted-context-eval.js` validates deter
 | `document_text`, `fetched_web`, `memory_entry`, `generated_artifact` | `retrieved_context` | `retrieved_context` |
 | `mcp_tool_result` | `tool_output` | `tool_output` |
 
-- Fixtures: `security/untrusted-context-fixtures.v1.json`
+- Fixtures: `modules/tools/untrusted-context-fixtures.v1.json` (schema `untrusted-context-fixtures.orchestrator.v1`)
 - Benign rows → `decision: accept_as_data`
 - Injected rows → `decision: ignore_instruction` (permissions, shell, CERBERUS, role, secrets)
 
 ```bash
-cd orchestrator && node --test tests/untrustedContextEval.test.js
+cd orchestrator && npm run test:eval:untrusted-context
 ```
 
-Runtime wiring (orchestrator ingesting retrieved context through this evaluator) is **planned** —
-fixtures ship first so tests do not depend on model behavior.
+**Runtime gate (wired):** `modules/tools/context-authority-runtime-gate.js` blocks MCP and classified shell invocations when untrusted-derived context carries injected instructions or unknown variants. Opt-out for tests only: `ORCH_SKIP_CONTEXT_AUTHORITY_GATE=1`.
+
+```bash
+cd orchestrator && npm run test:eval:context-authority
+```
+
+## Chaos tool failure fixtures
+
+Deterministic stub scenarios for MCP/tool failure modes — extends the `tool-eval` pattern. No live network.
+
+| Scenario id | `failure_type` | `reason_code` (stable) |
+|-------------|----------------|-------------------------|
+| `mcp_timeout` | `timeout` | `TOOL_FAILURE_MCP_TIMEOUT` |
+| `mcp_unreachable` | `unreachable` | `TOOL_FAILURE_MCP_UNREACHABLE` |
+| `malformed_tool_response` | `malformed_payload` | `TOOL_FAILURE_MALFORMED_RESPONSE` |
+| `partial_truncated_response` | `malformed_payload` | `TOOL_FAILURE_PARTIAL_RESPONSE` |
+| `permission_denied_mid_invoke` | `permission_denied` | `TOOL_FAILURE_PERMISSION_DENIED` |
+| `empty_payload` | `empty_payload` | `TOOL_FAILURE_EMPTY_PAYLOAD` |
+
+- Fixtures: `modules/tools/chaos-tool-failure-fixtures.v1.json` (schema `chaos-tool-failure-fixtures.orchestrator.v1`)
+- Trace event: `tool_failure_eval` with `failure_axis: tool` · `decision: fail_closed`
+
+```bash
+cd orchestrator && npm run test:eval:chaos-tool-failure
+```
+
+Run all harness resilience evals:
+
+```bash
+cd orchestrator && npm run test:eval:harness-resilience
+```
 
 ## Related contracts
 
-- `security/tool-action-manifest.v1.json`
+- `modules/tools/tool-action-manifest.v1.json` (via `security/load-tool-action-manifest`)
 - `security/classified-invocation-permission-gate.js`
-- `security/untrusted-context-eval.js`
+- `modules/tools/untrusted-context-eval.js` (shim: `security/untrusted-context-eval.js`)
+- `modules/tools/chaos-tool-failure-eval.js` (shim: `security/chaos-tool-failure-eval.js`)
+- `modules/tools/context-authority-runtime-gate.js` (shim: `security/context-authority-runtime-gate.js`)
 - `docs/orchestrator/permission-check-trace.md`
 - `docs/orchestrator/runtime-permission-contract.md`
 - `docs/orchestrator/handoff-contract.md`

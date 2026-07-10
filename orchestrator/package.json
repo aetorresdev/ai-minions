@@ -37,7 +37,11 @@
     "test:e2e:strict:all": "npm run test:e2e:strict && npm run test:e2e:strict:harness",
     "test:e2e:system-path": "npm run test:e2e:strict",
     "test:e2e:all": "node --test --test-concurrency=1 tests/e2e.test.js",
-    "test:hooks": "python3 -m unittest discover -s ../scripts/hooks/tests -p 'test_*.py' -v"
+    "test:hooks": "python3 -m unittest discover -s ../scripts/hooks/tests -p 'test_*.py' -v",
+    "test:eval:chaos-tool-failure": "node --test tests/chaosToolFailureEval.test.js",
+    "test:eval:untrusted-context": "node --test tests/untrustedContextEval.test.js",
+    "test:eval:context-authority": "node --test tests/contextAuthorityRuntimeGate.test.js",
+    "test:eval:harness-resilience": "node --test tests/chaosToolFailureEval.test.js tests/untrustedContextEval.test.js tests/contextAuthorityRuntimeGate.test.js"
   },
   "devDependencies": {
     "ajv": "^8.18.0",

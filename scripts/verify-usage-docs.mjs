@@ -693,6 +693,8 @@ function checkOperatorVisibilityGuideDoc(docText) {
   mustInclude(docText, "ai-minions tui", "tui command", rel);
   mustInclude(docText, "ai-minions attach", "attach command", rel);
   mustInclude(docText, "run_state_visibility", "run state visibility section", rel);
+  mustInclude(docText, "tool_failure_summary", "harness tool failure summary", rel);
+  mustInclude(docText, "context_authority_status", "harness context authority status", rel);
   mustInclude(docText, "not_billing", "cost honesty wording", rel);
   mustInclude(docText, "Not claimed", "not claimed section reference", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
