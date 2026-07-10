@@ -144,7 +144,7 @@ describe("operator-trace-command status labels", () => {
     assert.equal(ctx.run_state.context_authority_status.availability, "unavailable");
     const status = runOperatorStatus({ loadContext: () => ctx });
     assert.match(status.text, /tool_failure:\s+unavailable/);
-    assert.match(status.text, /context_authority:unavailable/);
+    assert.match(status.text, /context_authority:\s+unavailable/);
     assert.match(status.text, /tool_failure_summary/);
     const explain = runOperatorExplain({ loadContext: () => ctx });
     assert.match(explain.text, /tool_failure:\s+unavailable/);

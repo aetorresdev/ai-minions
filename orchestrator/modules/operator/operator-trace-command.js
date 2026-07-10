@@ -234,7 +234,7 @@ function formatOperatorStatusText(ctx) {
   }
   lines.push(`  cerberus:         ${summary.cerberus.verdict ?? '-'}`);
   lines.push(`  tool_failure:     ${runState.tool_failure_summary?.availability ?? 'unavailable'}`);
-  lines.push(`  context_authority:${runState.context_authority_status?.availability ?? 'unavailable'}`);
+  lines.push(`  context_authority: ${runState.context_authority_status?.availability ?? 'unavailable'}`);
   lines.push(`  next_safe_action: ${summary.next_safe_action}`);
   lines.push('');
   lines.push(...formatCostTokenRunSummaryLines(ctx.cost_token_summary));
@@ -272,7 +272,7 @@ function formatOperatorExplainText(ctx) {
     `  blocking_gate:    ${summary.blocked_gates[0] ?? '-'}`,
     `  policy_source:    ${summary.policy_decision.policy_source ?? '-'}`,
     `  tool_failure:     ${ctx.run_state.tool_failure_summary?.availability ?? 'unavailable'}`,
-    `  context_authority:${ctx.run_state.context_authority_status?.availability ?? 'unavailable'}`,
+    `  context_authority: ${ctx.run_state.context_authority_status?.availability ?? 'unavailable'}`,
     `  remediation:      ${summary.next_safe_action}`,
     `  what_not_to_do:   ${deriveWhatNotToDo(summary)}`,
   ];
