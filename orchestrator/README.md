@@ -540,7 +540,15 @@ npm run test:e2e:strict:harness  # optional: `ORCH_TEST_SYSTEM_PATH_HARNESS` det
 npm run test:e2e:strict:all   # strict then harness (local / extended CI only)
 npm run test:e2e:system-path  # alias; name reflects intent better than “strict” alone
 npm run test:e2e:all  # E2E suite with all available Ollama models
+
+# Harness resilience fixture evals (deterministic — no Ollama, no live MCP):
+npm run test:eval:chaos-tool-failure   # tool_failure_eval scenarios (6 rows)
+npm run test:eval:untrusted-context      # context_authority_check fixture corpus
+npm run test:eval:context-authority      # runtime gate + REDTEAM integration tests
+npm run test:eval:harness-resilience     # all three suites above
 ```
+
+These evals are also included in `npm test` / CI **`orchestrator-unit-tests`**. See [tool-ergonomics-guidelines.md](../docs/orchestrator/tool-ergonomics-guidelines.md) and [security-posture.md](../docs/orchestrator/security-posture.md).
 
 `ORCH_MCP_TRANSPORT=direct` makes `orchestrator.js` call `mcp-direct.py` for `orchestrator-state` and `compact-handoff` instead of `claude -p`. **`ORCH_PYTHON`:** set when `python3` on `PATH` is the wrong binary or **ABI-mismatches** the MCP venv (symptom: `No module named 'pydantic_core._pydantic_core'` from `mcp-direct`). After `uv sync` in `mcp-servers/orchestrator-state` (and `compact-handoff` if you use it), point to that venv interpreter, e.g. `ORCH_PYTHON=/path/to/repo/mcp-servers/orchestrator-state/.venv/bin/python`. Optional: `ORCH_MCP_DIRECT_TIMEOUT_MS` (default 180000).
 

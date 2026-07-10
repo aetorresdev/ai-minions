@@ -48,6 +48,23 @@ Missing trace data → **`unavailable`**, not fabricated.
 
 ---
 
+## Harness resilience (`status` / `explain`)
+
+When trace rows include harness events, `run_state_visibility` also carries:
+
+| Field | Source trace event | Meaning |
+|-------|-------------------|---------|
+| `tool_failure_summary` | Latest `tool_failure_eval` | Last classified tool/MCP failure eval — **not** necessarily the active run failure |
+| `context_authority_status` | Latest `context_authority_check` | Last untrusted-context authority decision |
+
+Each summary includes `next_safe_action` and `evidence_path` when present in trace; otherwise `unavailable`. No event in trace → whole block `availability: unavailable`.
+
+**Not claimed:** production resilience · prompt-injection immunity · auto-remediation · live chaos injection.
+
+Fixture harness docs: [tool-ergonomics-guidelines.md](../orchestrator/tool-ergonomics-guidelines.md) · [security-posture.md](../orchestrator/security-posture.md).
+
+---
+
 ## Cost and token honesty
 
 Surfaces reuse `cost_token_run_summary` from trace rollups:

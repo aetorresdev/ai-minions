@@ -91,7 +91,9 @@ hosted control plane, or “safe for anonymous internet users.”
 | **Credential broker** (vault/proxy; no raw secret in model context) | **Planned** | [credential-broker-contract.md](credential-broker-contract.md); session modes today are not vaulting |
 | **Sandbox isolation** (kernel/container boundary for tool code) | **Planned** | Design-first only; not shipped in core runner |
 | **Egress control** (beyond Ollama HTTP gate) | **Planned** | See [runtime-permission-contract.md](runtime-permission-contract.md) gaps |
-| **Tool misuse evals** (untrusted context fixtures) | **Partial** | `untrusted-context-eval.js` + fixtures + tests; runtime context authority wiring pending |
+| **Tool misuse evals** (untrusted context fixtures + runtime authority gate) | **Wired** | `modules/tools/untrusted-context-eval.js`, `context-authority-runtime-gate.js`, fixtures, `tests/untrustedContextEval.test.js`, `tests/contextAuthorityRuntimeGate.test.js`; MCP/shell gate when `derived_from_untrusted` |
+| **Tool/MCP failure chaos evals** (deterministic fixture harness — not live chaos injection) | **Wired (fixture eval)** | `modules/tools/chaos-tool-failure-eval.js` + fixtures + `tests/chaosToolFailureEval.test.js`; no live network; does not inject failures into production runs |
+| **Harness resilience operator visibility** (`status`/`explain`) | **Wired** | `tool_failure_summary` · `context_authority_status` from trace; missing → `unavailable` — see [operator visibility guide](../how-to/operator-visibility-guide.md) |
 | **Handoff ownership envelope** | **Partial** | [handoff-contract.md](handoff-contract.md) design-only |
 | **Sandbox + credential isolation** | **Partial** | [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) design-only |
 | **Budget hard-stop v2** | **Planned** | Multi-dimensional limits exist; richer policy still evolving |
@@ -149,9 +151,17 @@ under a malicious goal."
 
 ### Classified shell / spawn gate
 
-- **Code:** `orchestrator/agents/runtime/run-classified-shell.js` (`spawnClassifiedSync`)
+- **Code:** `orchestrator/modules/model-runtime/run-classified-shell.js` (`spawnClassifiedSync`)
   plus manifest integration (see runtime permission contract).
-- **Tests:** `orchestrator/tests/classifiedInvocationPermissionGate.test.js`.
+- **Context authority:** when `context_authority.derived_from_untrusted === true`, MCP and classified shell paths emit `context_authority_check` and fail closed on unknown/injected variants (`modules/tools/context-authority-runtime-gate.js`).
+- **Tests:** `orchestrator/tests/classifiedInvocationPermissionGate.test.js`, `orchestrator/tests/contextAuthorityRuntimeGate.test.js`.
+
+### Deterministic harness resilience evals (fixture-only)
+
+- **Chaos tool failure:** `modules/tools/chaos-tool-failure-eval.js` + `chaos-tool-failure-fixtures.v1.json` → `tool_failure_eval` trace shape.
+- **Untrusted context / authority:** `modules/tools/untrusted-context-eval.js` + fixtures → `context_authority_check` trace shape.
+- **Tests:** `npm run test:eval:harness-resilience` (also in default `npm test` / CI unit job).
+- **Operator surfaces:** `ai-minions status` / `explain` read latest harness trace rows — see operator visibility guide.
 
 ### Role / capability matrix precheck
 
@@ -266,7 +276,7 @@ Planned or post-alpha unless code says otherwise:
 - Read-only run inspect — **CLI** [control-plane-tui-contract.md](control-plane-tui-contract.md): `npm run control-plane:tui`.
 - Sandbox boundary for arbitrary code separate from policy text only.
 - Credential isolation via vault or proxy patterns.
-- Tool misuse evaluations beyond static classification.
+- Continuous red-team automation or LLM-as-judge prompt regression (fixture harness only today).
 - Progressive disclosure **runtime** filter (design contract exists; enforcement pending skill registry).
 - Multi-tenant auth and hosted isolation (out of scope for alpha harness).
 

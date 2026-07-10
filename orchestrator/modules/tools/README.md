@@ -4,7 +4,7 @@ Bounded context for `modules/tools/`. **Partial physical slice** — MCP client,
 
 ## Ownership
 
-**Owns:** MCP transport and audit (`mcp-client`), tool manifest eval harness (`tool-eval`), skill registry loader (`skill-registry`), untrusted-context fixture harness (`untrusted-context-eval`).
+**Owns:** MCP transport and audit (`mcp-client`), tool manifest eval harness (`tool-eval`), skill registry loader (`skill-registry`), untrusted-context fixture harness (`untrusted-context-eval`), chaos tool failure eval (`chaos-tool-failure-eval`), context authority runtime gate (`context-authority-runtime-gate`).
 
 **Must not own:** Permission matrix SoT; gate verdict parsing; trace schema.
 
@@ -35,8 +35,12 @@ Per [module-boundaries.md](../../../docs/orchestrator/module-boundaries.md) adja
 ```javascript
 const { callStateMcp, beginMcpAudit } = require("./modules/tools");
 const { runToolEvalScenario, runAllToolEvalFixtures } = require("./modules/tools/tool-eval");
+const { runAllChaosToolFailureFixtures } = require("./modules/tools/chaos-tool-failure-eval");
+const { runAllUntrustedContextFixtures } = require("./modules/tools/untrusted-context-eval");
 ```
 
-**Root compat shims (deprecated):** `mcp-client.js` re-export. **`security/` compat shims:** `tool-eval.js`, `skill-registry.js`, `untrusted-context-eval.js`.
+**Harness resilience eval npm scripts:** `test:eval:chaos-tool-failure` · `test:eval:untrusted-context` · `test:eval:context-authority` · `test:eval:harness-resilience` (see orchestrator `package.json`).
+
+**Root compat shims (deprecated):** `mcp-client.js` re-export. **`security/` compat shims:** `tool-eval.js`, `skill-registry.js`, `untrusted-context-eval.js`, `chaos-tool-failure-eval.js`, `context-authority-runtime-gate.js`.
 
 **Run-control / operator:** import `./modules/tools` — do not import root `mcp-client` directly after this slice.
