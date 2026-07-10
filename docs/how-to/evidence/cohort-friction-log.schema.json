@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/aetorresdev/ai-minions/docs/how-to/evidence/cohort-friction-log.schema.json",
+  "title": "Cohort UX friction log entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "recorded_at",
+    "tester_id",
+    "session_id",
+    "step_index",
+    "command",
+    "outcome"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "recorded_at": {
+      "type": "string",
+      "description": "ISO 8601 timestamp when the operator recorded the step"
+    },
+    "tester_id": {
+      "type": "string",
+      "description": "Anonymous or maintainer-assigned tester label"
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Stable id for one cohort session (UUID recommended)"
+    },
+    "step_index": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonic step number within the session"
+    },
+    "command": {
+      "type": "string",
+      "enum": [
+        "install",
+        "init",
+        "doctor",
+        "first-run",
+        "smoke",
+        "start",
+        "status",
+        "explain",
+        "report",
+        "tui",
+        "attach",
+        "other"
+      ]
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["success", "fail", "abandon"]
+    },
+    "exit_code": {
+      "type": "integer"
+    },
+    "reason_code": {
+      "type": "string",
+      "description": "CLI reason_code when emitted"
+    },
+    "next_safe_action_observed": {
+      "type": "string",
+      "description": "Exact next_safe_action text shown to tester (if any)"
+    },
+    "next_safe_action_adequate": {
+      "type": "boolean",
+      "description": "Did the tester know what to do next without maintainer help?"
+    },
+    "needed_run_selection": {
+      "type": "boolean",
+      "description": "Did the tester need to pick among multiple runs?"
+    },
+    "missing_info": {
+      "type": "string",
+      "description": "What they could not find via status/explain/report/tui"
+    },
+    "operator_notes": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "ai_minions_version": {
+      "type": "string",
+      "description": "Tag or commit the tester ran"
+    },
+    "abandon_step": {
+      "type": "string",
+      "description": "Command where the session stopped (when outcome=abandon)"
+    }
+  }
+}

@@ -28,6 +28,8 @@ End-to-end runbook for an **internal operator** playing beta tester: product ins
 
 Formal checklist: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample issue](evidence/beta-dry-run-sample-issue.md) · [human-ready rehearsal evidence](human-ready-rehearsal-evidence.md) · [cohort guard](beta-cohort-guard.md) (`node scripts/run-beta-cohort-guard.mjs`). Gate matrix: [beta-smoke-matrix](beta-smoke-matrix.md).
 
+**External cohort UX discovery (after LIVE_PASS):** [cohort-ux-discovery-runbook](cohort-ux-discovery-runbook.md) — friction log protocol before any v0.24 Operator UX promotion.
+
 ---
 
 ## Not claimed
