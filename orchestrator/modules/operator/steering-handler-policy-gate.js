@@ -11,12 +11,15 @@ const STEERING_HANDLER_POLICY_GATE_SCHEMA = '1';
 
 const READ_ONLY_SURFACES = new Set(['tui', 'report', 'attach', 'status', 'explain', 'evidence']);
 
+const MUTATION_VERB_RE = /\b(approve|rerun|mutate|merge|override|resume|restart|advance|ship|release)\b/i;
+const NEGATED_MUTATION_RE = /\b(do not|don't|cannot|must not|avoid)\b[^.!?\n]*\b(approve|rerun|mutate|merge|override|resume|restart|advance|ship|release)\b/i;
+
 /**
  * @param {string} action
  * @returns {boolean}
  */
 function isNegatedSteering(action) {
-  return /\b(do not|don't|cannot|must not|avoid|until|before)\b/i.test(action);
+  return NEGATED_MUTATION_RE.test(String(action || ''));
 }
 
 /**
@@ -27,7 +30,7 @@ function isMutationSteeringAction(action) {
   if (!action || typeof action !== 'string') return false;
   const norm = action.trim().toLowerCase();
   if (isNegatedSteering(norm)) return false;
-  return /\b(approve|rerun|mutate|merge|override|resume|restart|advance|ship|release)\b/.test(norm);
+  return MUTATION_VERB_RE.test(norm);
 }
 
 /**
@@ -35,9 +38,7 @@ function isMutationSteeringAction(action) {
  * @returns {boolean}
  */
 function suggestsBlockedAdvance(action) {
-  const norm = action.trim().toLowerCase();
-  if (/do not|don't|cannot|must not|avoid|until|before/.test(norm)) return false;
-  return /advance|merge|approve|ship|release/i.test(norm);
+  return isMutationSteeringAction(action);
 }
 
 /**

@@ -59,6 +59,31 @@ test('isMutationSteeringAction detects advance and ship on read-only surfaces', 
 
 test('isMutationSteeringAction ignores negated advance guidance', () => {
   assert.equal(isMutationSteeringAction('Do not merge until blockers are resolved.'), false);
+  assert.equal(isMutationSteeringAction('Do not approve release before CERBERUS evidence is satisfied.'), false);
+});
+
+test('isMutationSteeringAction does not treat before as negation', () => {
+  assert.equal(isMutationSteeringAction('merge before final review'), true);
+  assert.equal(isMutationSteeringAction('approve before CERBERUS evidence is attached'), true);
+});
+
+test('isMutationSteeringAction does not treat until as negation without explicit do-not/cannot', () => {
+  assert.equal(isMutationSteeringAction('ship until QA objects'), true);
+  assert.equal(isMutationSteeringAction('advance until blockers appear'), true);
+});
+
+test('read-only surface blocks mutation wording with before/until', () => {
+  const r = evaluateSteeringHandlerPolicy({
+    surface: 'tui',
+    trace_loaded: true,
+    read_only: true,
+    outcome: 'complete',
+    proposed_action: 'merge before final review',
+    trace_ref: '/traces/t.jsonl',
+  });
+
+  assert.equal(r.allowed, false);
+  assert.equal(r.reason_code, 'STEERING_READ_ONLY_SURFACE');
 });
 
 test('evaluateSteeringHandlerPolicy blocks advance to merge on read-only complete tui', () => {
