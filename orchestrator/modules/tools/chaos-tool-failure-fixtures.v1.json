@@ -1,0 +1,81 @@
+{
+  "version": "chaos-tool-failure-fixtures.orchestrator.v1",
+  "scenarios": [
+    {
+      "id": "mcp_timeout",
+      "failure_mode": "mcp_timeout",
+      "description": "MCP tool call exceeds configured timeout — no live network",
+      "tool_id": "stub_mcp",
+      "timeout_ms": 30000,
+      "expected": {
+        "reason_code": "TOOL_FAILURE_MCP_TIMEOUT",
+        "failure_type": "timeout",
+        "decision": "fail_closed",
+        "trace_event": "tool_failure_eval"
+      }
+    },
+    {
+      "id": "mcp_unreachable",
+      "failure_mode": "mcp_unreachable",
+      "description": "MCP server unreachable — connection refused stub",
+      "tool_id": "stub_mcp",
+      "expected": {
+        "reason_code": "TOOL_FAILURE_MCP_UNREACHABLE",
+        "failure_type": "unreachable",
+        "decision": "fail_closed",
+        "trace_event": "tool_failure_eval"
+      }
+    },
+    {
+      "id": "malformed_tool_response",
+      "failure_mode": "malformed_tool_response",
+      "description": "Tool returns syntactically invalid payload",
+      "tool_id": "stub_mcp",
+      "response_hint": "{ invalid json",
+      "expected": {
+        "reason_code": "TOOL_FAILURE_MALFORMED_RESPONSE",
+        "failure_type": "malformed_payload",
+        "decision": "fail_closed",
+        "trace_event": "tool_failure_eval"
+      }
+    },
+    {
+      "id": "partial_truncated_response",
+      "failure_mode": "partial_truncated_response",
+      "description": "Tool returns truncated JSON — partial payload",
+      "tool_id": "stub_mcp",
+      "response_hint": "{\"result\": \"partial",
+      "expected": {
+        "reason_code": "TOOL_FAILURE_PARTIAL_RESPONSE",
+        "failure_type": "malformed_payload",
+        "decision": "fail_closed",
+        "trace_event": "tool_failure_eval"
+      }
+    },
+    {
+      "id": "permission_denied_mid_invoke",
+      "failure_mode": "permission_denied_mid_invoke",
+      "description": "Permission gate denies after classify — mid-invoke block",
+      "tool_id": "stub_mcp",
+      "permission_profile": "ci-safe",
+      "expected": {
+        "reason_code": "TOOL_FAILURE_PERMISSION_DENIED",
+        "failure_type": "permission_denied",
+        "decision": "fail_closed",
+        "trace_event": "tool_failure_eval"
+      }
+    },
+    {
+      "id": "empty_payload",
+      "failure_mode": "empty_payload",
+      "description": "Tool returns empty body — zero-length payload",
+      "tool_id": "stub_mcp",
+      "expected": {
+        "reason_code": "TOOL_FAILURE_EMPTY_PAYLOAD",
+        "failure_type": "empty_payload",
+        "decision": "fail_closed",
+        "trace_event": "tool_failure_eval"
+      }
+    }
+  ]
+}

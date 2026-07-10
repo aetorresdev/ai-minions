@@ -154,6 +154,7 @@ const ENTRIES = {
   'tests/budget/tokenTraceReport.test.js': { owner: 'budget', kind: 'unit' },
   'tests/budget/tokenUsageSummary.test.js': { owner: 'budget', kind: 'unit' },
   'tests/toolEval.test.js': { owner: 'tools', kind: 'unit' },
+  'tests/chaosToolFailureEval.test.js': { owner: 'tools', kind: 'unit' },
   'tests/trace/traceLifecycleEvents.test.js': { owner: 'trace', kind: 'unit' },
   'tests/trace/traceRoleCapability.test.js': { owner: 'trace', kind: 'unit' },
   'tests/trace/traceSchema.test.js': { owner: 'trace', kind: 'unit' },

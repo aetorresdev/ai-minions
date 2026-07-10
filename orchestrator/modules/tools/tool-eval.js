@@ -257,6 +257,11 @@ const {
   runAllUntrustedContextFixtures,
 } = require("./untrusted-context-eval");
 
+const {
+  loadChaosToolFailureFixtures,
+  runAllChaosToolFailureFixtures,
+} = require("./chaos-tool-failure-eval");
+
 module.exports = {
   DEFAULT_FIXTURES_PATH,
   LARGE_RESPONSE_CHAR_THRESHOLD,
@@ -271,4 +276,6 @@ module.exports = {
   listToolsMissingFixtureCoverage,
   loadUntrustedContextFixtures,
   runAllUntrustedContextFixtures,
+  loadChaosToolFailureFixtures,
+  runAllChaosToolFailureFixtures,
 };
