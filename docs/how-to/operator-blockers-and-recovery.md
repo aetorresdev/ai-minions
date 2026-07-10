@@ -58,11 +58,13 @@ ai-minions start --goal "Smoke: list three files under orchestrator/ and stop" \
 # 3 — read back outcome (replace <task_id> from start output)
 ai-minions status --run-id <task_id>
 ai-minions explain --run-id <task_id>
+ai-minions tui --run-id <task_id>          # optional read-only panels
+ai-minions report --run <task_id>          # optional markdown report
 ai-minions evidence --run-id <task_id>
 
-# 4 — ATTACH bundle for GitHub (unchanged script)
-cd ai-minions
-node scripts/collect-run-report.mjs <task_id>
+# 4 — ATTACH bundle for GitHub (product verb or script)
+ai-minions attach --run-id <task_id>
+# equivalent: node scripts/collect-run-report.mjs <task_id>
 ```
 
 If `doctor` fails, fix the **first FAIL line** in its check list, then re-run `doctor`. Bootstrap codes stay `PREFLIGHT_*`; launch codes stay `OPERATOR_*` — see the bridge doc for a full table.
@@ -117,13 +119,14 @@ Legacy `runner:tui` and script exit codes remain documented in their own guides 
 ## When to escalate
 
 1. Re-run the recovery ladder once with the same `task_id`.
-2. Collect evidence: `npm run ai-minions -- evidence --run-id <task_id>` then `collect-run-report.mjs`.
+2. Collect evidence: `ai-minions evidence --run-id <task_id>` then `ai-minions attach --run-id <task_id>` (or `collect-run-report.mjs`).
 3. File using [operator-feedback-issue](operator-feedback-issue.md) — read [PRIVACY.md](../../PRIVACY.md) first; include `reason_code`, **not** tokens or `.env` contents.
 
 ---
 
 ## Related
 
+- [operator-visibility-guide.md](operator-visibility-guide.md) — report · tui · attach · run state fields
 - [usage-smoke-guide — Happy path](usage-smoke-guide.md#happy-path-end-to-end-runbook)
 - [inspect-run-evidence](inspect-run-evidence.md) · [collect-run-report](collect-run-report.md)
 - [beta-known-limitations](beta-known-limitations.md)

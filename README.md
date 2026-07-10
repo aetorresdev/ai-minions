@@ -8,7 +8,7 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 
 | Goal | Where |
 |------|--------|
-| **Primary product CLI** (`init` / `doctor` / `start` / `status` / `explain` / `evidence` / `context`) | [Quickstart — Stage 2](#stage-2-product-cli-ai-minions) · [`ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md) |
+| **Primary product CLI** (`init` / `doctor` / `start` / `status` / `explain` / `report` / `tui` / `attach` / `evidence`) | [Quickstart — Stage 2](#stage-2-product-cli-ai-minions) · [`operator-visibility-guide.md`](docs/how-to/operator-visibility-guide.md) · [`ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md) |
 | Full staged path | [Quickstart](#quickstart) |
 | Complete smoke walkthrough | [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md) · [Happy path](docs/how-to/usage-smoke-guide.md#happy-path-end-to-end-runbook) |
 | Clone + install + unit tests | [Stage 1: Clone, bootstrap, and product install](#stage-1-clone-bootstrap-and-product-install) |
@@ -25,7 +25,8 @@ Trying to **install, run, and validate** without reading this whole page? Jump d
 | **Runner TUI guided run** (legacy) | [`docs/how-to/operator-guided-run.md`](docs/how-to/operator-guided-run.md) |
 | Operator preflight bridge (`PREFLIGHT_*` + `OPERATOR_*`) | [`docs/how-to/operator-preflight-bridge.md`](docs/how-to/operator-preflight-bridge.md) |
 | Inspect run evidence (`INSPECT_*`) | [`docs/how-to/inspect-run-evidence.md`](docs/how-to/inspect-run-evidence.md) · `node scripts/inspect-run-evidence.mjs <task_id>` |
-| Collect run report bundle (`BUNDLE_*`) | [`docs/how-to/collect-run-report.md`](docs/how-to/collect-run-report.md) · `node scripts/collect-run-report.mjs <task_id>` |
+| Collect run report bundle (`BUNDLE_*`) | [`collect-run-report.md`](docs/how-to/collect-run-report.md) · `ai-minions attach --run-id <id>` · `node scripts/collect-run-report.mjs <task_id>` |
+| Operator visibility (status · report · tui · attach) | [`operator-visibility-guide.md`](docs/how-to/operator-visibility-guide.md) |
 | File operator feedback (GitHub issue form) | [`docs/how-to/operator-feedback-issue.md`](docs/how-to/operator-feedback-issue.md) |
 | Internal beta dry-run (end-to-end runbook) | [`docs/how-to/beta-tester-guide.md`](docs/how-to/beta-tester-guide.md) |
 | Beta dry-run checklist + sample issue | [`docs/how-to/beta-dry-run-checklist.md`](docs/how-to/beta-dry-run-checklist.md) · [human-ready rehearsal](docs/how-to/human-ready-rehearsal-evidence.md) |
@@ -249,6 +250,9 @@ ai-minions status --run-id <task_id>
 ai-minions explain --run-id <task_id>
 ai-minions evidence --run-id <task_id>
 ai-minions context --run-id <task_id>
+ai-minions tui --run-id <task_id>       # optional — read-only stdout panels
+ai-minions report --run <task_id>       # optional — markdown report directory
+ai-minions attach --run-id <task_id>    # optional — feedback bundle (read PRIVACY.md first)
 ai-minions resume --run-id <task_id>   # honest probe: RUN_RESUME_NOT_IMPLEMENTED (exit 2)
 ```
 
@@ -261,6 +265,9 @@ ai-minions resume --run-id <task_id>   # honest probe: RUN_RESUME_NOT_IMPLEMENTE
 | Explain | `ai-minions explain --run-id <task_id>` | `0` + critical decision summary |
 | Evidence | `ai-minions evidence --run-id <task_id>` | `0` + inspect/bundle paths |
 | Context | `ai-minions context --run-id <task_id>` | `0` + disclosure panel |
+| TUI panels | `ai-minions tui --run-id <task_id>` | `0` + read-only stdout evidence *(optional)* |
+| Report | `ai-minions report --run <task_id>` | `0` + markdown files under `./report-<id>/` *(optional)* |
+| Attach | `ai-minions attach --run-id <task_id>` | `0` + bundle dir *(optional, before GitHub)* |
 | Resume probe | `ai-minions resume --run-id <task_id>` | `2` + `RUN_RESUME_NOT_IMPLEMENTED` — **not** durable resume |
 
 **Dev fallback** (from clone, no PATH shim): `cd orchestrator && npm run ai-minions -- <command>` — see [`ai-minions-command-migration.md`](docs/how-to/ai-minions-command-migration.md).
@@ -500,7 +507,7 @@ internet without your own auth, network controls, and secret handling.
 
 | Bucket | What it means here |
 |--------|---------------------|
-| **Implemented** | MODE protocol + YAML handoffs, `validateOutput`, JSONL traces, permission evaluator + runtime gates, token/cost reporting and run budget hard-stop, hook metrics, worktree isolation (v0.3), CERBERUS doubt cycle + `review_record`, **v0.18+ product CLI** (`ai-minions` installed shim — init/start/status/explain/doctor/evidence/context/resume as wrappers; `npm run ai-minions` dev fallback from `orchestrator/`), operator trace summary for status/explain, **v0.19 human-ready landing** (README/usage-smoke primary path, [`PRIVACY.md`](PRIVACY.md) before beta upload, blocker/recovery + rehearsal evidence docs), **v0.20 local CLI installer** (`install-ai-minions.mjs` → PATH shim), design contracts for BV gate and progressive disclosure (validators/tests). |
+| **Implemented** | MODE protocol + YAML handoffs, `validateOutput`, JSONL traces, permission evaluator + runtime gates, token/cost reporting and run budget hard-stop, hook metrics, worktree isolation (v0.3), CERBERUS doubt cycle + `review_record`, **v0.18+ product CLI** (`ai-minions` installed shim — init/start/status/explain/doctor/evidence/context/resume as wrappers; `npm run ai-minions` dev fallback from `orchestrator/`), operator trace summary for status/explain, **v0.19 human-ready landing** (README/usage-smoke primary path, [`PRIVACY.md`](PRIVACY.md) before beta upload, blocker/recovery + rehearsal evidence docs), **v0.20 local CLI installer** (`install-ai-minions.mjs` → PATH shim), **v0.21 operator visibility** (run state fields · human-readable attach · cost/token honesty · `report`/`tui` read-only surfaces · Ollama LAN config · trace-based evals for claim discipline — see [`operator-visibility-guide.md`](docs/how-to/operator-visibility-guide.md)), design contracts for BV gate and progressive disclosure (validators/tests). |
 | **Partial** | Skill registry allowlist (`skill-registry.v1.json`); untrusted-context fixture harness; handoff/sandbox **design** docs |
 | **Planned** | Durable session/resume semantics (beyond honest `RUN_RESUME_NOT_IMPLEMENTED` probe); skill router runtime; sandbox/credential broker runtime; progressive-disclosure **enforcement** in runner — see [`docs/orchestrator/README.md`](docs/orchestrator/README.md), not implied as shipped. |
 | **Not claimed** | Production SLA, OSI “open source” license, hosted control plane, turnkey marketplace, multi-tenant isolation, general AI workspace, fully sandboxed autonomous execution — see [`LICENSE`](LICENSE) and [`COMMERCIAL_LICENSE.md`](COMMERCIAL_LICENSE.md). |

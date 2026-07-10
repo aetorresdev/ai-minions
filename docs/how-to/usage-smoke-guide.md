@@ -17,6 +17,7 @@ Canonical **end-to-end happy path** for trying **ai-minions** without tribal kno
 - [Fresh-clone evidence and claim audit](fresh-clone-evidence.md) — v0.11 entry-path evidence + claim audit
 - [Operator guided run (`runner:tui`)](operator-guided-run.md) — terminal preflight → launch → status (not a v0.11 happy-path remix)
 - [ai-minions command migration](ai-minions-command-migration.md) — v0.18 product CLI mapping from shipped scripts
+- [Operator visibility (v0.21+)](operator-visibility-guide.md) — status · report · tui · attach · run state fields
 - [Operator preflight bridge](operator-preflight-bridge.md) — `PREFLIGHT_*` + `OPERATOR_*` chained script
 - [Environment access contract](../orchestrator/environment-access.md) — `ENVIRONMENT` block schema
 - [Orchestrator README](../../orchestrator/README.md) — CLI flags, env vars, traces, `explain-run`
@@ -39,6 +40,7 @@ Follow **in order**. You do not need prior chat context or maintainer hints. If 
 | **4** | `ai-minions start` (live smoke run) | `0` + `done: true` · record **Task ID** |
 | **5** | `status` + `explain` | `0` + terminal summary + critical decision fields |
 | **6** | `evidence` + `context` | `0` + inspect/bundle paths + disclosure panel |
+| **6b** *(optional)* | `tui` · `report` · `attach` | Read-only panels / markdown report / GitHub attach bundle — [operator visibility](operator-visibility-guide.md) |
 | **7** | `resume` (honest probe) | `2` + `RUN_RESUME_NOT_IMPLEMENTED` — **not** durable resume |
 | **8** *(optional)* | Claude Code skill / MODE / legacy scripts | See [Advanced paths](#advanced-paths-optional) |
 
@@ -126,6 +128,18 @@ ai-minions context --run-id <task_id>
 ```
 
 Pass: exit `0` with inspect/bundle paths and trace disclosure panel.
+
+### Step 6b — Operator visibility *(optional, v0.21+)*
+
+After a successful smoke, read back without raw JSONL:
+
+```bash
+ai-minions tui --run-id <task_id>
+ai-minions report --run <task_id>
+ai-minions attach --run-id <task_id>   # before GitHub feedback — read PRIVACY.md first
+```
+
+See [operator-visibility-guide.md](operator-visibility-guide.md). **`tui` and `report` are read-only** — they do not approve, rerun, or mutate runs.
 
 ### Step 7 — Resume (honest probe)
 
