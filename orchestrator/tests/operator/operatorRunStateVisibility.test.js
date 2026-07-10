@@ -7,6 +7,11 @@ const {
   deriveModelSelectionContext,
   deriveBlockingReasonCode,
   deriveLastSuccessfulPhase,
+  deriveToolFailureSummary,
+  deriveContextAuthorityStatus,
+  buildUnavailableToolFailureSummary,
+  buildUnavailableContextAuthorityStatus,
+  formatRunStateVisibilityLines,
 } = require("../../modules/operator/operator-trace-summary");
 const { buildOperatorTraceSummary } = require("../../modules/operator/operator-trace-summary");
 
@@ -87,4 +92,150 @@ test("deriveLastSuccessfulPhase returns complete phase for successful run", () =
     { event: "session_end", done: true },
   ];
   assert.equal(deriveLastSuccessfulPhase(rows), "complete");
+});
+
+test("deriveToolFailureSummary unavailable without tool_failure_eval events", () => {
+  const summary = deriveToolFailureSummary([
+    { event: "session_start", task_id: "plain" },
+    { event: "session_end", done: true },
+  ]);
+  assert.equal(summary.availability, "unavailable");
+  assert.equal(summary.reason_code, "unavailable");
+  assert.equal(summary.next_safe_action, "unavailable");
+  assert.equal(summary.evidence_path, "unavailable");
+});
+
+test("deriveToolFailureSummary reads latest tool_failure_eval row", () => {
+  const rows = [
+    {
+      event: "tool_failure_eval",
+      tool_id: "stub_mcp",
+      failure_mode: "mcp_timeout",
+      failure_type: "timeout",
+      failure_axis: "tool",
+      reason_code: "TOOL_FAILURE_MCP_TIMEOUT",
+      decision: "fail_closed",
+      operator_explanation: "MCP tool call timed out before a response was received.",
+      next_safe_action: "retry_with_backoff_or_check_mcp_server",
+      evidence_path: "fixture:mcp_timeout",
+    },
+    {
+      event: "tool_failure_eval",
+      tool_id: "stub_mcp",
+      failure_mode: "mcp_unreachable",
+      failure_type: "unreachable",
+      failure_axis: "tool",
+      reason_code: "TOOL_FAILURE_MCP_UNREACHABLE",
+      decision: "fail_closed",
+      operator_explanation: "MCP server was unreachable.",
+      next_safe_action: "verify_mcp_server_running_and_network_path",
+      evidence_path: "fixture:mcp_unreachable",
+    },
+  ];
+  const summary = deriveToolFailureSummary(rows);
+  assert.equal(summary.availability, "available");
+  assert.equal(summary.reason_code, "TOOL_FAILURE_MCP_UNREACHABLE");
+  assert.equal(summary.next_safe_action, "verify_mcp_server_running_and_network_path");
+  assert.equal(summary.evidence_path, "fixture:mcp_unreachable");
+});
+
+test("deriveToolFailureSummary marks missing trace fields unavailable", () => {
+  const summary = deriveToolFailureSummary([
+    {
+      event: "tool_failure_eval",
+      reason_code: "TOOL_FAILURE_UNKNOWN",
+      decision: "fail_closed",
+    },
+  ]);
+  assert.equal(summary.availability, "available");
+  assert.equal(summary.tool_id, "unavailable");
+  assert.equal(summary.operator_explanation, "unavailable");
+  assert.equal(summary.evidence_path, "unavailable");
+});
+
+test("deriveContextAuthorityStatus unavailable without context_authority_check events", () => {
+  const summary = deriveContextAuthorityStatus([
+    { event: "session_start", task_id: "plain" },
+  ]);
+  assert.equal(summary.availability, "unavailable");
+  assert.equal(summary.decision, "unavailable");
+  assert.equal(summary.evidence_path, "unavailable");
+});
+
+test("deriveContextAuthorityStatus reads latest context_authority_check row", () => {
+  const rows = [
+    {
+      event: "context_authority_check",
+      context_type: "document_text",
+      authority_tier: "retrieved_context",
+      instruction_source: "retrieved_context",
+      decision: "accept_as_data",
+      reason_code: "untrusted_context_data_only",
+      failure_axis: "context_authority",
+      failure_type: "none",
+      injection_detected: false,
+      attempted_action: null,
+      variant: "benign",
+      operator_explanation: "Untrusted context treated as reference data only.",
+      next_safe_action: "continue_with_sovereign_user_instruction",
+      evidence_path: "runtime:document_text",
+    },
+    {
+      event: "context_authority_check",
+      context_type: "fetched_web",
+      authority_tier: "retrieved_context",
+      instruction_source: "retrieved_context",
+      decision: "ignore_instruction",
+      reason_code: "injection_not_sovereign:invoke_shell",
+      failure_axis: "context_authority",
+      failure_type: "injection_not_sovereign",
+      injection_detected: true,
+      attempted_action: "invoke_shell",
+      variant: "injected",
+      operator_explanation: "Injected instruction from untrusted tier blocked.",
+      next_safe_action: "escalate_to_operator",
+      evidence_path: "runtime:fetched_web",
+    },
+  ];
+  const status = deriveContextAuthorityStatus(rows);
+  assert.equal(status.availability, "available");
+  assert.equal(status.reason_code, "injection_not_sovereign:invoke_shell");
+  assert.equal(status.injection_detected, true);
+  assert.equal(status.next_safe_action, "escalate_to_operator");
+});
+
+test("buildRunStateVisibility includes harness resilience fields", () => {
+  const rows = [
+    { event: "session_start", task_id: "harness-1", flow_mode: "single_agent" },
+    {
+      event: "tool_failure_eval",
+      tool_id: "stub_mcp",
+      failure_mode: "mcp_timeout",
+      failure_type: "timeout",
+      failure_axis: "tool",
+      reason_code: "TOOL_FAILURE_MCP_TIMEOUT",
+      decision: "fail_closed",
+      operator_explanation: "Timed out.",
+      next_safe_action: "retry_with_backoff_or_check_mcp_server",
+      evidence_path: "fixture:mcp_timeout",
+    },
+    { event: "session_end", task_id: "harness-1", done: true, iterations: 1, gate_blocks: 0 },
+  ];
+  const summary = buildOperatorTraceSummary(rows, { trace_file: "/traces/harness-1.jsonl" });
+  const runState = buildRunStateVisibility(summary, rows, {});
+  assert.equal(runState.tool_failure_summary.availability, "available");
+  assert.equal(runState.context_authority_status.availability, "unavailable");
+  const text = formatRunStateVisibilityLines(runState).join("\n");
+  assert.match(text, /tool_failure_summary/);
+  assert.match(text, /context_authority_status/);
+  assert.match(text, /TOOL_FAILURE_MCP_TIMEOUT/);
+});
+
+test("unavailable harness summaries use stable unavailable sentinel", () => {
+  const tf = buildUnavailableToolFailureSummary();
+  const ca = buildUnavailableContextAuthorityStatus();
+  assert.equal(tf.availability, "unavailable");
+  assert.equal(ca.availability, "unavailable");
+  assert.equal(tf.evidence_path, "unavailable");
+  assert.equal(ca.next_safe_action, "unavailable");
 });

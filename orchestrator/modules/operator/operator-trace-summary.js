@@ -10,6 +10,7 @@ const { buildRunOutcomeSummary } = require("../trace/run-outcome-summary");
 
 const OPERATOR_TRACE_SUMMARY_SCHEMA = "1";
 const RUN_STATE_VISIBILITY_SCHEMA = "1";
+const HARNESS_RESILIENCE_FIELD_UNAVAILABLE = "unavailable";
 
 /** @typedef {'RUN_FOUND'|'RUN_NOT_FOUND'|'RUN_TRACE_INVALID'|'RUN_STATE_UNKNOWN'} RunStateResultCode */
 
@@ -432,6 +433,122 @@ function deriveBlockingReasonCode(summary, rows) {
 }
 
 /**
+ * @param {object | null | undefined} row
+ * @param {string} key
+ * @returns {string | boolean | number}
+ */
+function readTraceField(row, key) {
+  if (!row || typeof row !== "object") return HARNESS_RESILIENCE_FIELD_UNAVAILABLE;
+  const val = row[key];
+  if (val == null) return HARNESS_RESILIENCE_FIELD_UNAVAILABLE;
+  if (typeof val === "string" && !val.length) return HARNESS_RESILIENCE_FIELD_UNAVAILABLE;
+  return val;
+}
+
+/**
+ * @param {object[]} rows
+ * @param {string} eventName
+ * @returns {object | null}
+ */
+function findLatestTraceEvent(rows, eventName) {
+  if (!Array.isArray(rows)) return null;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if (r && r.event === eventName) return r;
+  }
+  return null;
+}
+
+/**
+ * @returns {object}
+ */
+function buildUnavailableToolFailureSummary() {
+  return {
+    availability: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    tool_id: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    failure_mode: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    failure_type: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    failure_axis: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    reason_code: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    decision: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    operator_explanation: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    next_safe_action: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    evidence_path: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+  };
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {object}
+ */
+function deriveToolFailureSummary(rows) {
+  const row = findLatestTraceEvent(rows, "tool_failure_eval");
+  if (!row) return buildUnavailableToolFailureSummary();
+  return {
+    availability: "available",
+    tool_id: readTraceField(row, "tool_id"),
+    failure_mode: readTraceField(row, "failure_mode"),
+    failure_type: readTraceField(row, "failure_type"),
+    failure_axis: readTraceField(row, "failure_axis"),
+    reason_code: readTraceField(row, "reason_code"),
+    decision: readTraceField(row, "decision"),
+    operator_explanation: readTraceField(row, "operator_explanation"),
+    next_safe_action: readTraceField(row, "next_safe_action"),
+    evidence_path: readTraceField(row, "evidence_path"),
+  };
+}
+
+/**
+ * @returns {object}
+ */
+function buildUnavailableContextAuthorityStatus() {
+  return {
+    availability: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    context_type: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    authority_tier: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    instruction_source: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    decision: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    reason_code: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    failure_axis: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    failure_type: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    injection_detected: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    attempted_action: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    variant: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    operator_explanation: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    next_safe_action: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+    evidence_path: HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
+  };
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {object}
+ */
+function deriveContextAuthorityStatus(rows) {
+  const row = findLatestTraceEvent(rows, "context_authority_check");
+  if (!row) return buildUnavailableContextAuthorityStatus();
+  const injection = row.injection_detected;
+  let injection_detected = HARNESS_RESILIENCE_FIELD_UNAVAILABLE;
+  if (injection === true || injection === false) injection_detected = injection;
+  return {
+    availability: "available",
+    context_type: readTraceField(row, "context_type"),
+    authority_tier: readTraceField(row, "authority_tier"),
+    instruction_source: readTraceField(row, "instruction_source"),
+    decision: readTraceField(row, "decision"),
+    reason_code: readTraceField(row, "reason_code"),
+    failure_axis: readTraceField(row, "failure_axis"),
+    failure_type: readTraceField(row, "failure_type"),
+    injection_detected,
+    attempted_action: readTraceField(row, "attempted_action"),
+    variant: readTraceField(row, "variant"),
+    operator_explanation: readTraceField(row, "operator_explanation"),
+    next_safe_action: readTraceField(row, "next_safe_action"),
+    evidence_path: readTraceField(row, "evidence_path"),
+  };
+}
+
+/**
  * @param {object} summary
  * @param {object[]} rows
  * @param {{
@@ -462,6 +579,9 @@ function buildRunStateVisibility(summary, rows, meta = {}) {
     result_code = "RUN_STATE_UNKNOWN";
   }
 
+  const tool_failure_summary = deriveToolFailureSummary(rows);
+  const context_authority_status = deriveContextAuthorityStatus(rows);
+
   return {
     schema_version: RUN_STATE_VISIBILITY_SCHEMA,
     result_code,
@@ -479,6 +599,8 @@ function buildRunStateVisibility(summary, rows, meta = {}) {
     model_backend: modelCtx.model_backend,
     selection_reason: modelCtx.selection_reason,
     model_selection_availability: modelCtx.availability,
+    tool_failure_summary,
+    context_authority_status,
   };
 }
 
@@ -487,6 +609,8 @@ function buildRunStateVisibility(summary, rows, meta = {}) {
  * @returns {string[]}
  */
 function formatRunStateVisibilityLines(runState) {
+  const tf = runState.tool_failure_summary || buildUnavailableToolFailureSummary();
+  const ca = runState.context_authority_status || buildUnavailableContextAuthorityStatus();
   const lines = [
     "-- run_state_visibility --",
     `  result_code:           ${runState.result_code}`,
@@ -502,6 +626,25 @@ function formatRunStateVisibilityLines(runState) {
     `  selection_reason:      ${runState.selection_reason ?? "unavailable"}`,
     `  evidence_paths:        ${runState.evidence_paths.length ? runState.evidence_paths.join("; ") : "(none)"}`,
     `  next_safe_action:      ${runState.next_safe_action}`,
+    "-- tool_failure_summary --",
+    `  availability:          ${tf.availability}`,
+    `  tool_id:               ${tf.tool_id}`,
+    `  reason_code:           ${tf.reason_code}`,
+    `  failure_type:          ${tf.failure_type}`,
+    `  decision:              ${tf.decision}`,
+    `  operator_explanation:  ${tf.operator_explanation}`,
+    `  next_safe_action:      ${tf.next_safe_action}`,
+    `  evidence_path:         ${tf.evidence_path}`,
+    "-- context_authority_status --",
+    `  availability:          ${ca.availability}`,
+    `  context_type:          ${ca.context_type}`,
+    `  reason_code:           ${ca.reason_code}`,
+    `  decision:              ${ca.decision}`,
+    `  injection_detected:    ${ca.injection_detected}`,
+    `  attempted_action:      ${ca.attempted_action}`,
+    `  operator_explanation:  ${ca.operator_explanation}`,
+    `  next_safe_action:      ${ca.next_safe_action}`,
+    `  evidence_path:         ${ca.evidence_path}`,
     "",
   ];
   return lines;
@@ -593,9 +736,14 @@ function formatOperatorTraceSummaryLines(summary) {
 module.exports = {
   OPERATOR_TRACE_SUMMARY_SCHEMA,
   RUN_STATE_VISIBILITY_SCHEMA,
+  HARNESS_RESILIENCE_FIELD_UNAVAILABLE,
   buildOperatorTraceSummary,
   buildEmptyOperatorTraceSummary,
   buildRunStateVisibility,
+  buildUnavailableToolFailureSummary,
+  buildUnavailableContextAuthorityStatus,
+  deriveToolFailureSummary,
+  deriveContextAuthorityStatus,
   deriveLastSuccessfulPhase,
   deriveModelSelectionContext,
   deriveBlockingReasonCode,

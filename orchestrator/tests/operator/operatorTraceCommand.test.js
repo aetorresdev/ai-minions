@@ -132,6 +132,26 @@ describe("operator-trace-command status labels", () => {
     assert.equal(ctx.cost_token_summary.run.total_tokens, 28);
   });
 
+  it("exposes harness resilience as unavailable on complete fixture without E22 events", () => {
+    const ctx = loadOperatorTraceContext({
+      filePath: path.join(FIXTURES, "complete.v1.jsonl"),
+      existsSync: (p) => !String(p).includes("report-bundles"),
+      readFileSync: (p) => loadFixture(path.basename(p)),
+      repoRoot: "/tmp/repo",
+    });
+    assert.equal(ctx.ok, true);
+    assert.equal(ctx.run_state.tool_failure_summary.availability, "unavailable");
+    assert.equal(ctx.run_state.context_authority_status.availability, "unavailable");
+    const status = runOperatorStatus({ loadContext: () => ctx });
+    assert.match(status.text, /tool_failure:\s+unavailable/);
+    assert.match(status.text, /context_authority:unavailable/);
+    assert.match(status.text, /tool_failure_summary/);
+    const explain = runOperatorExplain({ loadContext: () => ctx });
+    assert.match(explain.text, /tool_failure:\s+unavailable/);
+    assert.equal(status.json.tool_failure_summary.availability, "unavailable");
+    assert.equal(explain.json.context_authority_status.availability, "unavailable");
+  });
+
   it("exposes run_state on complete fixture", () => {
     const ctx = loadOperatorTraceContext({
       filePath: path.join(FIXTURES, "complete.v1.jsonl"),
@@ -197,6 +217,18 @@ describe("operator-trace-command runOperatorStatus", () => {
           model: null,
           model_backend: null,
           selection_reason: null,
+          tool_failure_summary: {
+            availability: "unavailable",
+            reason_code: "unavailable",
+            next_safe_action: "unavailable",
+            evidence_path: "unavailable",
+          },
+          context_authority_status: {
+            availability: "unavailable",
+            reason_code: "unavailable",
+            next_safe_action: "unavailable",
+            evidence_path: "unavailable",
+          },
         },
         cost_token_summary: {
           run: { token_status: "available", total_tokens: 10, cost_status: "not_billing", latency_status: "unavailable" },
@@ -242,6 +274,8 @@ describe("operator-trace-command runOperatorExplain", () => {
         run_state: {
           blocking_reason_code: "CERBERUS_BLOCK",
           result_code: "RUN_FOUND",
+          tool_failure_summary: { availability: "unavailable" },
+          context_authority_status: { availability: "unavailable" },
         },
         cost_token_summary: {
           run: { token_status: "unavailable", cost_status: "unavailable", latency_status: "unavailable" },

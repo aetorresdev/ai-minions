@@ -233,6 +233,8 @@ function formatOperatorStatusText(ctx) {
     lines.push(`  blockers:         ${summary.blocked_gates.join('; ')}`);
   }
   lines.push(`  cerberus:         ${summary.cerberus.verdict ?? '-'}`);
+  lines.push(`  tool_failure:     ${runState.tool_failure_summary?.availability ?? 'unavailable'}`);
+  lines.push(`  context_authority:${runState.context_authority_status?.availability ?? 'unavailable'}`);
   lines.push(`  next_safe_action: ${summary.next_safe_action}`);
   lines.push('');
   lines.push(...formatCostTokenRunSummaryLines(ctx.cost_token_summary));
@@ -269,6 +271,8 @@ function formatOperatorExplainText(ctx) {
     `  missing_evidence: ${summary.missing_evidence.length ? summary.missing_evidence.join(', ') : '(none)'}`,
     `  blocking_gate:    ${summary.blocked_gates[0] ?? '-'}`,
     `  policy_source:    ${summary.policy_decision.policy_source ?? '-'}`,
+    `  tool_failure:     ${ctx.run_state.tool_failure_summary?.availability ?? 'unavailable'}`,
+    `  context_authority:${ctx.run_state.context_authority_status?.availability ?? 'unavailable'}`,
     `  remediation:      ${summary.next_safe_action}`,
     `  what_not_to_do:   ${deriveWhatNotToDo(summary)}`,
   ];
@@ -300,6 +304,8 @@ function buildOperatorStatusJson(ctx) {
     trace_file: ctx.trace_file,
     status: ctx.status_label,
     run_state_visibility: ctx.run_state,
+    tool_failure_summary: ctx.run_state.tool_failure_summary,
+    context_authority_status: ctx.run_state.context_authority_status,
     cost_token_run_summary: ctx.cost_token_summary,
     operator_trace_summary: ctx.summary,
     truncated: ctx.truncated,
@@ -328,6 +334,8 @@ function buildOperatorExplainJson(ctx) {
     policy_source: ctx.summary.policy_decision.policy_source,
     remediation: ctx.summary.next_safe_action,
     what_not_to_do: deriveWhatNotToDo(ctx.summary),
+    tool_failure_summary: ctx.run_state.tool_failure_summary,
+    context_authority_status: ctx.run_state.context_authority_status,
     explain: ctx.explain,
     run_state_visibility: ctx.run_state,
     cost_token_run_summary: ctx.cost_token_summary,
