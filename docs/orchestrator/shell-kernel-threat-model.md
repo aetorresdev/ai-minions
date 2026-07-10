@@ -52,8 +52,10 @@ with secrets nearby — see admin console framing in [security-posture.md](secur
 
 ## Gated execution paths (implemented)
 
-These paths **classify → evaluate policy → deny before execute** (or fail closed on
-unknown authority), and emit trace events when the orchestrator graph is loaded.
+These paths **evaluate policy** (and **classify** where a classifier runs) → **deny before
+execute** (or fail closed on unknown authority). **`permission_check` / `context_authority_check`
+trace rows are emitted only when the call site records them** — not on every deny path (see
+[Trace emission limits](#trace-emission-limits)).
 
 ### 1. Classified shell — `spawnClassifiedSync`
 
@@ -75,22 +77,33 @@ spawnClassifiedSync(executable, args, options)
 
 ### 2. MCP tool invocation
 
-**Code:** `orchestrator/security/mcp-permission-gate.js`
+**Code:** `orchestrator/security/mcp-permission-gate.js` · entry:
+`orchestrator/modules/tools/mcp-client.js` (`gateMcpInvocation`)
 
-**Flow:** MCP call → classify action → permission evaluator → deny or allow → audit trace.
+**Flow:** `gateMcpInvocation` → [optional] context authority gate → `runMcpPermissionGate`
+constructs permission input (`action_class: "external_side_effect"`, `domain: "mcp"`) →
+`evaluatePermission` → deny or allow → `permission_check` trace when MCP audit task is active.
 
-**Context authority:** When `context_authority.derived_from_untrusted === true`, the
-runtime gate runs before permission evaluation; injected variants fail closed with
-`injection_not_sovereign:<action>` (e.g. `invoke_shell`).
+**Note:** `runMcpPermissionGate` does **not** run the manifest action classifier; it fixes
+`action_class` to `external_side_effect` and evaluates policy against the MCP tool id.
+
+**Context authority:** When `context_authority.derived_from_untrusted === true`,
+`gateMcpInvocation` runs the context authority gate **before** `runMcpPermissionGate`;
+injected variants fail closed with `injection_not_sovereign:<action>` (e.g. `invoke_shell`).
 
 ### 3. Claude CLI shell transport
 
-**Code:** `orchestrator/modules/model-runtime/run-claude.js`
+**Code:** `orchestrator/modules/model-runtime/run-claude.js` ·
+`orchestrator/security/claude-cli-shell-gate.js`
 
-**Flow:** Claude CLI invocation with shell permission gate unless
-`ORCH_SKIP_SHELL_PERMISSION_GATE=1` (test/emergency only).
+**Flow:** `runClaudeCliPermissionGate` (skipped when `ORCH_SKIP_SHELL_PERMISSION_GATE=1`,
+test/emergency only) → deny or allow → `permission_check` trace **only on allow**
+(`emitPermissionCheckTrace` runs after the deny branch).
 
 **Scope:** The **Claude CLI transport** boundary — not a general OS shell wrapper.
+
+**Trace limit:** A `CLAUDE_CLI_SHELL_DENIED` throw does **not** necessarily leave a
+`permission_check` row in the run trace.
 
 ### 4. Context authority runtime gate
 
@@ -116,15 +129,25 @@ Related to model HTTP egress — not general shell, but part of the same permiss
 
 ## Gate path summary
 
-| `gate_path` (conceptual) | Entry | Trace event | Typical deny |
-|--------------------------|-------|-------------|--------------|
-| `classified_shell` | `spawnClassifiedSync` | `permission_check` | `CLASSIFIED_SHELL_DENIED` |
-| `mcp` | MCP permission gate | `permission_check` | policy `reason_code` |
-| `claude_cli` | Claude CLI shell gate (`claude-cli-shell-gate.js`) | `permission_check` | `CLAUDE_CLI_SHELL_DENIED` |
+| `gate_path` (conceptual) | Entry | Trace event (when recorded) | Typical deny |
+|--------------------------|-------|-----------------------------|--------------|
+| `classified_shell` | `spawnClassifiedSync` | `permission_check` · `context_authority_check` | `CLASSIFIED_SHELL_DENIED` |
+| `mcp` | `gateMcpInvocation` → `runMcpPermissionGate` | `permission_check` · `context_authority_check` (MCP audit active) | `MCP_PERMISSION_DENIED` |
+| `claude_cli` | `runClaudeCliPermissionGate` in `run-claude.js` | `permission_check` on **allow only** | `CLAUDE_CLI_SHELL_DENIED` |
 | `context_authority` | Derived untrusted context | `context_authority_check` | `CONTEXT_AUTHORITY_DENIED`, `injection_not_sovereign:*` |
 
+### Trace emission limits
+
+| Path | Deny traced? | Notes |
+|------|--------------|-------|
+| `spawnClassifiedSync` | Usually yes | `emitPermissionCheckTrace` before throw on context authority and classified-shell deny |
+| MCP (`gateMcpInvocation`) | When MCP audit task active | `traceEvent` on `result.tracePayload` before deny throw; context authority row when audit active |
+| Claude CLI (`runClaude`) | **No on deny** | Deny throws before `emitPermissionCheckTrace`; allow path may emit |
+| Context authority (standalone) | When parent path records it | Same gate module; emission depends on caller |
+
 Operator harness surfaces (`tool_failure_summary`, `context_authority_status`) read trace
-rows — missing data → `unavailable`. See [operator-visibility-guide.md](../how-to/operator-visibility-guide.md).
+rows when present — missing data → `unavailable`. See
+[operator-visibility-guide.md](../how-to/operator-visibility-guide.md).
 
 ---
 
