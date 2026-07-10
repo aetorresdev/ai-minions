@@ -89,3 +89,8 @@ scripts/sync-trello-backlog.py
 scripts/slim-backlog-groomed.py
 scripts/slim-backlog-groomed-phase2.py
 paste-cache/
+
+# Cohort UX discovery live friction logs (operator private — example file stays versioned)
+docs/how-to/evidence/cohort-friction-live.jsonl
+docs/how-to/evidence/cohort-friction-*.jsonl
+!docs/how-to/evidence/cohort-friction-log.example.jsonl

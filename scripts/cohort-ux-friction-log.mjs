@@ -157,12 +157,21 @@ export function runCohortUxFrictionLogCli(argv) {
     }
     const lines = [
       `entries: ${summary.entry_count} · sessions: ${summary.session_count} · testers: ${summary.tester_count}`,
-      "funnel:",
+      "session_funnel:",
     ];
-    for (const [cmdName, row] of Object.entries(summary.funnel)) {
+    for (const [cmdName, row] of Object.entries(summary.session_funnel.per_stage)) {
       lines.push(
-        `  ${cmdName}: attempts=${row.attempts} success=${row.success} fail=${row.fail} abandon=${row.abandon}`,
+        `  ${cmdName}: sessions_attempted=${row.attempted} success=${row.success} fail=${row.fail} abandon=${row.abandon}`,
       );
+    }
+    for (const conv of summary.session_funnel.conversions) {
+      const rate = conv.rate == null ? "n/a" : String(conv.rate);
+      lines.push(
+        `  conversion ${conv.from}→${conv.to}: eligible=${conv.eligible_sessions} continued=${conv.continued_sessions} success=${conv.success_sessions} rate=${rate}`,
+      );
+    }
+    for (const drop of summary.session_funnel.drop_offs) {
+      lines.push(`  drop_off after ${drop.after_stage}: sessions=${drop.sessions}`);
     }
     lines.push(
       `signals: inadequate_next_safe_action=${summary.signals.inadequate_next_safe_action} needed_run_selection=${summary.signals.needed_run_selection} missing_info=${summary.signals.missing_info_reports}`,

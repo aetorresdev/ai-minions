@@ -64,8 +64,9 @@ the tester deviates — log as `other` with notes.
 **Schema:** [cohort-friction-log.schema.json](evidence/cohort-friction-log.schema.json)  
 **Example:** [cohort-friction-log.example.jsonl](evidence/cohort-friction-log.example.jsonl)
 
-Store live logs **outside the repo** or in a private operator path (e.g.
-`docs/how-to/evidence/cohort-friction-live.jsonl` — gitignored if containing tester notes).
+Store live logs **outside the repo** or at `docs/how-to/evidence/cohort-friction-live.jsonl`
+(gitignored — see `.gitignore`). Pattern `cohort-friction-*.jsonl` is ignored except the
+versioned [example](evidence/cohort-friction-log.example.jsonl).
 
 ### Append one step
 
@@ -90,17 +91,20 @@ node scripts/cohort-ux-friction-log.mjs append --file /path/to/cohort-friction.j
 node scripts/cohort-ux-friction-log.mjs validate /path/to/cohort-friction.jsonl
 ```
 
-### Summarize funnel + signals
+### Summarize session funnel + signals
 
 ```bash
 node scripts/cohort-ux-friction-log.mjs summarize /path/to/cohort-friction.jsonl
 node scripts/cohort-ux-friction-log.mjs summarize /path/to/cohort-friction.jsonl --json
 ```
 
-**Funnel commands:** `first-run` → `smoke` → `attach`.  
-**Signals:** `inadequate_next_safe_action` · `needed_run_selection` · `missing_info_reports`.
+**Session funnel:** per `session_id`, stages `first-run` → `smoke` → `attach` with
+**conversion rates** and **drop-offs** (not global attempt totals).  
+**Signals:** entry-level counts for `inadequate_next_safe_action` · `needed_run_selection` ·
+`missing_info_reports`.
 
-`promotion_hint` is **advisory only** — maintainer + CERBERUS decide v0.24 grooming.
+`promotion_hint` derives from **session-level** drop-offs/conversions and signals (advisory
+only) — maintainer + CERBERUS decide v0.24 grooming.
 
 ---
 
@@ -125,7 +129,7 @@ Copy and complete after ≥2 sessions:
 
 - Multiple testers with `next_safe_action_adequate=false` on the same command
 - `needed_run_selection=true` on ≥2 sessions without a documented workaround
-- Funnel drop-off: `smoke` or `attach` fail+abandon rate blocks evidence goal
+- Funnel drop-off: session-level `first-run` → `smoke` → `attach` conversion or drop-off after a stage (see `summarize --json` → `session_funnel`)
 - Gap matrix shows missing info **not** covered by existing read surfaces
 
 **Defer** UX release when:

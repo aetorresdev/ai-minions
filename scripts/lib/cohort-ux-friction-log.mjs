@@ -28,6 +28,83 @@ export const TRACKED_COMMANDS = Object.freeze([
 
 export const OUTCOMES = Object.freeze(["success", "fail", "abandon"]);
 
+/** @type {ReadonlySet<string>} */
+export const ALLOWED_ENTRY_KEYS = new Set([
+  "schema_version",
+  "recorded_at",
+  "tester_id",
+  "session_id",
+  "step_index",
+  "command",
+  "outcome",
+  "exit_code",
+  "reason_code",
+  "next_safe_action_observed",
+  "next_safe_action_adequate",
+  "needed_run_selection",
+  "missing_info",
+  "operator_notes",
+  "task_id",
+  "ai_minions_version",
+  "abandon_step",
+]);
+
+const ISO_8601_TIMESTAMP_RE =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * @param {unknown} value
+ */
+export function isIso8601Timestamp(value) {
+  if (typeof value !== "string" || !ISO_8601_TIMESTAMP_RE.test(value)) {
+    return false;
+  }
+  const ms = Date.parse(value);
+  return Number.isFinite(ms);
+}
+
+/**
+ * @param {object[]} sessionEntries
+ * @param {string} command
+ * @returns {"not_attempted" | "success" | "fail" | "abandon"}
+ */
+export function commandOutcomeInSession(sessionEntries, command) {
+  const relevant = sessionEntries.filter((e) => String(e.command) === command);
+  if (relevant.length === 0) {
+    return "not_attempted";
+  }
+  if (relevant.some((e) => e.outcome === "success")) {
+    return "success";
+  }
+  if (relevant.some((e) => e.outcome === "fail")) {
+    return "fail";
+  }
+  if (relevant.some((e) => e.outcome === "abandon")) {
+    return "abandon";
+  }
+  return "not_attempted";
+}
+
+/**
+ * @param {object[]} entries
+ * @returns {Map<string, object[]>}
+ */
+export function groupEntriesBySession(entries) {
+  /** @type {Map<string, object[]>} */
+  const map = new Map();
+  for (const raw of entries) {
+    const sid = String(raw.session_id);
+    if (!map.has(sid)) {
+      map.set(sid, []);
+    }
+    map.get(sid).push(raw);
+  }
+  for (const rows of map.values()) {
+    rows.sort((a, b) => Number(a.step_index) - Number(b.step_index));
+  }
+  return map;
+}
+
 /**
  * @param {unknown} entry
  * @returns {{ ok: true, entry: object } | { ok: false, errors: string[] }}
@@ -40,11 +117,17 @@ export function validateFrictionEntry(entry) {
   }
   const e = /** @type {Record<string, unknown>} */ (entry);
 
+  for (const key of Object.keys(e)) {
+    if (!ALLOWED_ENTRY_KEYS.has(key)) {
+      errors.push(`unknown property: ${key}`);
+    }
+  }
+
   if (e.schema_version !== SCHEMA_VERSION) {
     errors.push(`schema_version must be ${SCHEMA_VERSION}`);
   }
-  if (typeof e.recorded_at !== "string" || !e.recorded_at.trim()) {
-    errors.push("recorded_at is required (ISO 8601 string)");
+  if (!isIso8601Timestamp(e.recorded_at)) {
+    errors.push("recorded_at must be a valid ISO 8601 timestamp (e.g. 2026-07-10T16:00:00Z)");
   }
   if (typeof e.tester_id !== "string" || !e.tester_id.trim()) {
     errors.push("tester_id is required");
@@ -133,6 +216,157 @@ export function parseFrictionLogLines(text) {
 }
 
 /**
+ * @param {number} numerator
+ * @param {number} denominator
+ */
+function conversionRate(numerator, denominator) {
+  if (denominator <= 0) {
+    return null;
+  }
+  return Number((numerator / denominator).toFixed(4));
+}
+
+/**
+ * @param {object[]} entries
+ */
+export function buildSessionFunnel(entries) {
+  const sessions = groupEntriesBySession(entries);
+
+  /** @type {Record<string, { attempted: number, success: number, fail: number, abandon: number }>} */
+  const perStage = {};
+  for (const cmd of FUNNEL_COMMANDS) {
+    perStage[cmd] = { attempted: 0, success: 0, fail: 0, abandon: 0 };
+  }
+
+  let dropOffAfterFirstRun = 0;
+  let dropOffAfterSmoke = 0;
+  let firstRunSuccessSessions = 0;
+  let smokeSuccessSessions = 0;
+  let attachSuccessSessions = 0;
+  let smokeAttemptedAfterFirstRunSuccess = 0;
+  let attachAttemptedAfterSmokeSuccess = 0;
+
+  for (const sessionEntries of sessions.values()) {
+    for (const cmd of FUNNEL_COMMANDS) {
+      const outcome = commandOutcomeInSession(sessionEntries, cmd);
+      if (outcome === "not_attempted") {
+        continue;
+      }
+      perStage[cmd].attempted += 1;
+      perStage[cmd][outcome] += 1;
+    }
+
+    const firstRun = commandOutcomeInSession(sessionEntries, "first-run");
+    const smoke = commandOutcomeInSession(sessionEntries, "smoke");
+    const attach = commandOutcomeInSession(sessionEntries, "attach");
+
+    if (firstRun === "success") {
+      firstRunSuccessSessions += 1;
+      if (smoke !== "not_attempted") {
+        smokeAttemptedAfterFirstRunSuccess += 1;
+      }
+      if (smoke !== "success") {
+        dropOffAfterFirstRun += 1;
+      }
+    }
+
+    if (smoke === "success") {
+      smokeSuccessSessions += 1;
+      if (attach !== "not_attempted") {
+        attachAttemptedAfterSmokeSuccess += 1;
+      }
+      if (attach !== "success") {
+        dropOffAfterSmoke += 1;
+      }
+    }
+
+    if (attach === "success") {
+      attachSuccessSessions += 1;
+    }
+  }
+
+  const sessionsTotal = sessions.size;
+
+  return {
+    sessions_total: sessionsTotal,
+    per_stage: perStage,
+    conversions: [
+      {
+        from: "first-run",
+        to: "smoke",
+        eligible_sessions: firstRunSuccessSessions,
+        continued_sessions: smokeAttemptedAfterFirstRunSuccess,
+        success_sessions: smokeSuccessSessions,
+        rate: conversionRate(smokeSuccessSessions, firstRunSuccessSessions),
+      },
+      {
+        from: "smoke",
+        to: "attach",
+        eligible_sessions: smokeSuccessSessions,
+        continued_sessions: attachAttemptedAfterSmokeSuccess,
+        success_sessions: attachSuccessSessions,
+        rate: conversionRate(attachSuccessSessions, smokeSuccessSessions),
+      },
+    ],
+    drop_offs: [
+      { after_stage: "first-run", sessions: dropOffAfterFirstRun },
+      { after_stage: "smoke", sessions: dropOffAfterSmoke },
+    ],
+  };
+}
+
+/**
+ * @param {object[]} entries
+ * @param {ReturnType<typeof buildSessionFunnel>} sessionFunnel
+ */
+function derivePromotionHint(entries, sessionFunnel) {
+  const sessions = groupEntriesBySession(entries);
+  /** @type {Set<string>} */
+  const inadequateSessions = new Set();
+  /** @type {Set<string>} */
+  const runSelectionSessions = new Set();
+  /** @type {Set<string>} */
+  const missingInfoSessions = new Set();
+
+  for (const raw of entries) {
+    const e = /** @type {Record<string, unknown>} */ (raw);
+    const sid = String(e.session_id);
+    if (e.next_safe_action_adequate === false) {
+      inadequateSessions.add(sid);
+    }
+    if (e.needed_run_selection === true) {
+      runSelectionSessions.add(sid);
+    }
+    if (e.missing_info && String(e.missing_info).trim()) {
+      missingInfoSessions.add(sid);
+    }
+  }
+
+  const sessionCount = sessions.size;
+  const smokeConversion = sessionFunnel.conversions.find((c) => c.from === "smoke");
+  const attachNeverReached =
+    sessionCount >= 2
+    && smokeConversion
+    && smokeConversion.eligible_sessions >= 1
+    && smokeConversion.success_sessions === 0;
+
+  if (
+    sessionCount >= 2
+    && (
+      sessionFunnel.drop_offs[0].sessions >= 2
+      || sessionFunnel.drop_offs[1].sessions >= 1
+      || inadequateSessions.size >= 2
+      || runSelectionSessions.size >= 2
+      || missingInfoSessions.size >= 2
+      || attachNeverReached
+    )
+  ) {
+    return "review_for_v024_operator_ux";
+  }
+  return "continue_cohort_collect_more";
+}
+
+/**
  * @param {object[]} entries
  */
 export function summarizeFrictionLog(entries) {
@@ -175,27 +409,8 @@ export function summarizeFrictionLog(entries) {
     }
   }
 
-  /** @type {Record<string, { attempts: number, success: number, fail: number, abandon: number }>} */
-  const funnel = {};
-  for (const cmd of FUNNEL_COMMANDS) {
-    const row = byCommand[cmd] || { success: 0, fail: 0, abandon: 0 };
-    funnel[cmd] = {
-      attempts: row.success + row.fail + row.abandon,
-      success: row.success,
-      fail: row.fail,
-      abandon: row.abandon,
-    };
-  }
-
-  const frictionSignals = inadequateNextAction + missingInfoReports + neededRunSelection;
-  const failAbandon = Object.values(byCommand).reduce(
-    (n, r) => n + r.fail + r.abandon,
-    0,
-  );
-  const promotion_hint =
-    frictionSignals >= 2 || failAbandon >= 3
-      ? "review_for_v024_operator_ux"
-      : "continue_cohort_collect_more";
+  const sessionFunnel = buildSessionFunnel(entries);
+  const promotion_hint = derivePromotionHint(entries, sessionFunnel);
 
   return {
     schema_version: SCHEMA_VERSION,
@@ -203,7 +418,7 @@ export function summarizeFrictionLog(entries) {
     session_count: sessions.size,
     tester_count: testers.size,
     by_command: byCommand,
-    funnel,
+    session_funnel: sessionFunnel,
     top_reason_codes: Object.entries(reasonCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
@@ -212,7 +427,6 @@ export function summarizeFrictionLog(entries) {
       inadequate_next_safe_action: inadequateNextAction,
       needed_run_selection: neededRunSelection,
       missing_info_reports: missingInfoReports,
-      fail_or_abandon_total: failAbandon,
     },
     promotion_hint,
   };

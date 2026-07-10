@@ -74,6 +74,7 @@ on:
       - "tests/run-modular-closeout-evidence.test.mjs"
       - "tests/beta-limitations-onboarding.test.mjs"
       - ".github/workflows/docs-usage-verify.yml"
+      - ".gitignore"
       - ".github/workflows/claude-doc-smoke.yml"
       - "orchestrator/operator-cli-help.js"
   workflow_dispatch:
