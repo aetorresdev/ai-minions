@@ -272,7 +272,7 @@ function deriveNextSafeAction(outcome, summary) {
   if (summary.missing_evidence.length) {
     return "Complete missing evidence checks before external beta claims; see missing_evidence list.";
   }
-  return "Run may advance; attach trace and report bundle if handing off to review.";
+  return "Attach trace and report bundle if handing off to review.";
 }
 
 /**
