@@ -92,7 +92,7 @@ hosted control plane, or “safe for anonymous internet users.”
 | **Sandbox isolation** (kernel/container boundary for tool code) | **Planned** | Design-first only; not shipped in core runner |
 | **Egress control** (beyond Ollama HTTP gate) | **Planned** | See [runtime-permission-contract.md](runtime-permission-contract.md) gaps |
 | **Tool misuse evals** (untrusted context fixtures + runtime authority gate) | **Wired** | `modules/tools/untrusted-context-eval.js`, `context-authority-runtime-gate.js`, fixtures, `tests/untrustedContextEval.test.js`, `tests/contextAuthorityRuntimeGate.test.js`; MCP/shell gate when `derived_from_untrusted` |
-| **Tool/MCP failure chaos evals** (deterministic fixture harness) | **Wired** | `modules/tools/chaos-tool-failure-eval.js` + fixtures + `tests/chaosToolFailureEval.test.js`; no live network |
+| **Tool/MCP failure chaos evals** (deterministic fixture harness — not live chaos injection) | **Wired (fixture eval)** | `modules/tools/chaos-tool-failure-eval.js` + fixtures + `tests/chaosToolFailureEval.test.js`; no live network; does not inject failures into production runs |
 | **Harness resilience operator visibility** (`status`/`explain`) | **Wired** | `tool_failure_summary` · `context_authority_status` from trace; missing → `unavailable` — see [operator visibility guide](../how-to/operator-visibility-guide.md) |
 | **Handoff ownership envelope** | **Partial** | [handoff-contract.md](handoff-contract.md) design-only |
 | **Sandbox + credential isolation** | **Partial** | [sandbox-credential-isolation-design.md](sandbox-credential-isolation-design.md) design-only |

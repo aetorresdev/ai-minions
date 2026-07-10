@@ -1325,7 +1325,7 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 
 ## v0.22.0-alpha.1 — Harness Resilience + Context Authority
 
-**Scope:** E22-1..5 lane on `master` — deterministic tool-failure chaos eval, untrusted-context authority runtime gate + REDTEAM fixture corpus, operator harness visibility on `status`/`explain`, harness docs + CI scripts. **Prerequisite:** `v0.21.0-beta.1` @ `0230c23`. Not production resilience · not sandbox immunity · not cohort gate change · not external/untrusted repos by default.
+**Scope:** E22-1..4 merged on `master`; E22-5 release candidate — deterministic tool-failure chaos eval, untrusted-context authority runtime gate + REDTEAM fixture corpus, operator harness visibility on `status`/`explain`, harness docs + CI scripts. **Prerequisite:** `v0.21.0-beta.1` @ `0230c23`. Not production resilience · not sandbox immunity · not cohort gate change · not external/untrusted repos by default.
 
 **Release claim:** deterministic harness evals for tool failure + context authority wired with honest operator surfaces — **not** beta UX expansion · **not** production SLA · **not** continuous red-team automation.
 
