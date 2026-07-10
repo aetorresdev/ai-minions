@@ -6,6 +6,9 @@ const {
   FAILURE_MODES,
   FAILURE_MODE_TAXONOMY,
   UNKNOWN_FAILURE,
+  UNKNOWN_OPERATOR_SURFACE,
+  FIXTURE_EVIDENCE_SOURCE,
+  FIXTURE_EVIDENCE_TRUST,
   simulateToolFailure,
   classifyToolFailure,
   loadChaosToolFailureFixtures,
@@ -36,13 +39,17 @@ describe("chaos-tool-failure-eval — fixture harness", () => {
     assert.equal(summary.passed, summary.total);
   });
 
-  it("each scenario emits tool_failure_eval trace payload", () => {
+  it("each scenario produces full tool_failure_eval trace payload", () => {
     const summary = runAllChaosToolFailureFixtures();
     for (const r of summary.results) {
-      assert.equal(r.tool_failure_eval_emitted, true, `${r.id} missing tool_failure_eval`);
+      assert.equal(r.tool_failure_eval_payload_produced, true, `${r.id} missing payload`);
       assert.equal(r.tracePayload.event, "tool_failure_eval");
       assert.equal(r.tracePayload.failure_axis, "tool");
       assert.equal(r.tracePayload.decision, "fail_closed");
+      assert.equal(r.tracePayload.source, FIXTURE_EVIDENCE_SOURCE);
+      assert.equal(r.tracePayload.trust, FIXTURE_EVIDENCE_TRUST);
+      assert.ok(r.tracePayload.operator_explanation.length > 0, `${r.id} operator_explanation`);
+      assert.ok(r.tracePayload.next_safe_action.length > 0, `${r.id} next_safe_action`);
       assert.ok(r.tracePayload.reason_code.startsWith("TOOL_FAILURE_"), `${r.id} reason_code`);
       assert.equal(r.tracePayload.evidence_path, `fixture:${r.id}`);
     }
@@ -60,7 +67,7 @@ describe("chaos-tool-failure-eval — fixture harness", () => {
     }
   });
 
-  it("unknown failure_mode fails closed with TOOL_FAILURE_UNKNOWN", () => {
+  it("unknown failure_mode fails closed with full evidence contract", () => {
     const scenario = { id: "unknown_mode", failure_mode: "not_a_real_mode", tool_id: "stub_mcp" };
     const sim = simulateToolFailure(scenario);
     const cls = classifyToolFailure(scenario, sim);
@@ -68,6 +75,14 @@ describe("chaos-tool-failure-eval — fixture harness", () => {
     assert.equal(cls.failure_type, UNKNOWN_FAILURE.failure_type);
     assert.equal(cls.decision, "fail_closed");
     assert.equal(sim.unclassified, true);
+
+    const r = evaluateChaosToolFailureScenario(scenario);
+    assert.equal(r.tracePayload.source, FIXTURE_EVIDENCE_SOURCE);
+    assert.equal(r.tracePayload.trust, FIXTURE_EVIDENCE_TRUST);
+    assert.equal(r.tracePayload.operator_explanation, UNKNOWN_OPERATOR_SURFACE.operator_explanation);
+    assert.equal(r.tracePayload.next_safe_action, UNKNOWN_OPERATOR_SURFACE.next_safe_action);
+    assert.equal(r.tracePayload.reason_code, "TOOL_FAILURE_UNKNOWN");
+    assert.equal(r.tracePayload.decision, "fail_closed");
   });
 
   it("simulation stubs never report ok:true for chaos scenarios", () => {
@@ -86,6 +101,10 @@ describe("chaos-tool-failure-eval — fixture harness", () => {
       assert.equal(r.reason_code, s.expected.reason_code);
       assert.equal(r.failure_type, s.expected.failure_type);
       assert.equal(r.decision, s.expected.decision);
+      assert.equal(r.tracePayload.source, s.expected.source);
+      assert.equal(r.tracePayload.trust, s.expected.trust);
+      assert.equal(r.tracePayload.operator_explanation, s.expected.operator_explanation);
+      assert.equal(r.tracePayload.next_safe_action, s.expected.next_safe_action);
     }
   });
 });

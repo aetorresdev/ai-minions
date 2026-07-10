@@ -47,6 +47,41 @@ const UNKNOWN_FAILURE = Object.freeze({
   decision: "fail_closed",
 });
 
+const FIXTURE_EVIDENCE_SOURCE = "fixture";
+const FIXTURE_EVIDENCE_TRUST = "deterministic_stub";
+
+const FAILURE_MODE_OPERATOR_SURFACE = Object.freeze({
+  mcp_timeout: {
+    operator_explanation: "MCP tool call timed out before a response was received.",
+    next_safe_action: "retry_with_backoff_or_check_mcp_server",
+  },
+  mcp_unreachable: {
+    operator_explanation: "MCP server was unreachable — connection refused in stub.",
+    next_safe_action: "verify_mcp_server_running_and_network_path",
+  },
+  malformed_tool_response: {
+    operator_explanation: "Tool returned a payload that could not be parsed as valid JSON.",
+    next_safe_action: "inspect_tool_contract_or_retry_with_valid_schema",
+  },
+  partial_truncated_response: {
+    operator_explanation: "Tool returned a truncated payload — incomplete JSON.",
+    next_safe_action: "request_compact_response_or_paginate_tool_output",
+  },
+  permission_denied_mid_invoke: {
+    operator_explanation: "Tool invoke was blocked by permission policy after classification.",
+    next_safe_action: "review_permission_profile_or_escalate_to_operator",
+  },
+  empty_payload: {
+    operator_explanation: "Tool returned an empty response body.",
+    next_safe_action: "verify_tool_implementation_or_retry_with_explicit_fields",
+  },
+});
+
+const UNKNOWN_OPERATOR_SURFACE = Object.freeze({
+  operator_explanation: "Tool failure could not be classified to a known failure mode.",
+  next_safe_action: "escalate_to_operator",
+});
+
 /**
  * Deterministic stub — simulates tool/MCP failure modes without live network.
  *
@@ -164,11 +199,33 @@ function classifyToolFailure(scenario, simulation) {
 }
 
 /**
+ * Stable operator-facing explanation and recovery action per failure mode.
+ *
+ * @param {string} failure_mode
+ * @returns {{ operator_explanation: string, next_safe_action: string }}
+ */
+function resolveToolFailureOperatorSurface(failure_mode) {
+  const mode = failure_mode != null ? String(failure_mode) : "";
+  const surface = FAILURE_MODE_OPERATOR_SURFACE[mode];
+  if (surface) {
+    return {
+      operator_explanation: surface.operator_explanation,
+      next_safe_action: surface.next_safe_action,
+    };
+  }
+  return {
+    operator_explanation: UNKNOWN_OPERATOR_SURFACE.operator_explanation,
+    next_safe_action: UNKNOWN_OPERATOR_SURFACE.next_safe_action,
+  };
+}
+
+/**
  * Build trace-safe payload for tool failure eval (no raw tool response bodies).
  *
  * @param {object} opts
  */
 function buildToolFailureTrace(opts) {
+  const operatorSurface = resolveToolFailureOperatorSurface(opts.failure_mode);
   return {
     event: "tool_failure_eval",
     scenario_id: opts.scenario_id != null ? String(opts.scenario_id) : "",
@@ -178,6 +235,14 @@ function buildToolFailureTrace(opts) {
     failure_type: opts.failure_type != null ? String(opts.failure_type) : "",
     reason_code: opts.reason_code != null ? String(opts.reason_code) : "",
     decision: opts.decision != null ? String(opts.decision) : "fail_closed",
+    source: opts.source != null ? String(opts.source) : FIXTURE_EVIDENCE_SOURCE,
+    trust: opts.trust != null ? String(opts.trust) : FIXTURE_EVIDENCE_TRUST,
+    operator_explanation:
+      opts.operator_explanation != null
+        ? String(opts.operator_explanation)
+        : operatorSurface.operator_explanation,
+    next_safe_action:
+      opts.next_safe_action != null ? String(opts.next_safe_action) : operatorSurface.next_safe_action,
     evidence_path: opts.evidence_path != null ? String(opts.evidence_path) : "",
     phase: opts.phase != null ? String(opts.phase) : "",
   };
@@ -212,9 +277,21 @@ function evaluateChaosToolFailureScenario(scenario) {
     reason_code: classification.reason_code,
     failure_type: classification.failure_type,
     decision: classification.decision,
+    source: tracePayload.source,
+    trust: tracePayload.trust,
+    operator_explanation: tracePayload.operator_explanation,
+    next_safe_action: tracePayload.next_safe_action,
   };
 
-  for (const field of ["reason_code", "failure_type", "decision"]) {
+  for (const field of [
+    "reason_code",
+    "failure_type",
+    "decision",
+    "source",
+    "trust",
+    "operator_explanation",
+    "next_safe_action",
+  ]) {
     if (expected[field] !== undefined && actualByField[field] !== expected[field]) {
       mismatches.push({ field, expected: expected[field], actual: actualByField[field] });
     }
@@ -250,7 +327,7 @@ function evaluateChaosToolFailureScenario(scenario) {
     decision: classification.decision,
     simulation,
     tracePayload,
-    tool_failure_eval_emitted: tracePayload.event === "tool_failure_eval",
+    tool_failure_eval_payload_produced: tracePayload.event === "tool_failure_eval",
   };
 }
 
@@ -291,8 +368,13 @@ module.exports = {
   FAILURE_MODES,
   FAILURE_MODE_TAXONOMY,
   UNKNOWN_FAILURE,
+  FIXTURE_EVIDENCE_SOURCE,
+  FIXTURE_EVIDENCE_TRUST,
+  FAILURE_MODE_OPERATOR_SURFACE,
+  UNKNOWN_OPERATOR_SURFACE,
   simulateToolFailure,
   classifyToolFailure,
+  resolveToolFailureOperatorSurface,
   buildToolFailureTrace,
   evaluateChaosToolFailureScenario,
   loadChaosToolFailureFixtures,
