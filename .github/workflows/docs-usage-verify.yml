@@ -57,6 +57,8 @@ on:
       - "scripts/run-beta-gate-hardening-evidence.mjs"
       - "scripts/run-beta-cohort-guard.mjs"
       - "scripts/lib/beta-cohort-guard-data.mjs"
+      - "scripts/cohort-ux-friction-log.mjs"
+      - "scripts/lib/cohort-ux-friction-log.mjs"
       - "scripts/run-modular-closeout-evidence.mjs"
       - "scripts/lib/modular-closeout-data.mjs"
       - "docs/how-to/beta-gate-hardening-evidence.md"
@@ -68,9 +70,11 @@ on:
       - "docs/orchestrator/module-boundaries.md"
       - "tests/run-beta-gate-hardening-evidence.test.mjs"
       - "tests/run-beta-cohort-guard.test.mjs"
+      - "tests/cohort-ux-friction-log.test.mjs"
       - "tests/run-modular-closeout-evidence.test.mjs"
       - "tests/beta-limitations-onboarding.test.mjs"
       - ".github/workflows/docs-usage-verify.yml"
+      - ".gitignore"
       - ".github/workflows/claude-doc-smoke.yml"
       - "orchestrator/operator-cli-help.js"
   workflow_dispatch:
@@ -161,6 +165,9 @@ jobs:
 
       - name: Beta cohort guard unit tests
         run: node --test tests/run-beta-cohort-guard.test.mjs
+
+      - name: Cohort UX friction log unit tests
+        run: node --test tests/cohort-ux-friction-log.test.mjs
 
       - name: Modular closeout evidence unit tests
         run: node --test tests/run-modular-closeout-evidence.test.mjs
