@@ -31,6 +31,7 @@ const OPERATOR_PREFLIGHT_SCRIPT = path.join(REPO_ROOT, "scripts/operator-preflig
 const OPERATOR_PREFLIGHT_BRIDGE = path.join(REPO_ROOT, "docs/how-to/operator-preflight-bridge.md");
 const OPERATOR_GUIDED_RUN = path.join(REPO_ROOT, "docs/how-to/operator-guided-run.md");
 const AI_MINIONS_MIGRATION = path.join(REPO_ROOT, "docs/how-to/ai-minions-command-migration.md");
+const OPERATOR_VISIBILITY_GUIDE = path.join(REPO_ROOT, "docs/how-to/operator-visibility-guide.md");
 const OPERATOR_BLOCKERS_RECOVERY = path.join(
   REPO_ROOT,
   "docs/how-to/operator-blockers-and-recovery.md",
@@ -169,6 +170,7 @@ function checkGuide(guideText) {
   mustInclude(guideText, "run-primary-smoke.mjs", "primary smoke script reference", rel);
   mustInclude(guideText, "fresh-clone-evidence.md", "fresh-clone evidence link", rel);
   mustInclude(guideText, "ai-minions-command-migration.md", "ai-minions migration link", rel);
+  mustInclude(guideText, "operator-visibility-guide.md", "operator visibility guide link", rel);
   mustInclude(guideText, "ai-minions init", "installed product CLI reference", rel);
   mustInclude(guideText, "install-ai-minions.mjs", "product install script", rel);
   mustInclude(guideText, "npm run ai-minions", "dev fallback reference", rel);
@@ -684,6 +686,19 @@ function checkBetaCohortGuardDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkOperatorVisibilityGuideDoc(docText) {
+  const rel = "docs/how-to/operator-visibility-guide.md";
+  if (!docText) return;
+  mustInclude(docText, "ai-minions report", "report command", rel);
+  mustInclude(docText, "ai-minions tui", "tui command", rel);
+  mustInclude(docText, "ai-minions attach", "attach command", rel);
+  mustInclude(docText, "run_state_visibility", "run state visibility section", rel);
+  mustInclude(docText, "not_billing", "cost honesty wording", rel);
+  mustInclude(docText, "Not claimed", "not claimed section reference", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkAiMinionsMigrationDoc(docText) {
   const rel = "docs/how-to/ai-minions-command-migration.md";
   if (!docText) return;
@@ -700,6 +715,10 @@ function checkAiMinionsMigrationDoc(docText) {
   mustInclude(docText, "bootstrap-preflight.mjs", "legacy bootstrap script", rel);
   mustInclude(docText, "runner:tui", "legacy runner tui", rel);
   mustInclude(docText, "collect-run-report.mjs", "unchanged bundle script", rel);
+  mustInclude(docText, "ai-minions attach", "attach product verb", rel);
+  mustInclude(docText, "ai-minions report", "report product verb", rel);
+  mustInclude(docText, "ai-minions tui", "tui product verb", rel);
+  mustInclude(docText, "operator-visibility-guide", "visibility guide link", rel);
   mustInclude(docText, "install-evidence", "v0.14 evidence chain link", rel);
   mustInclude(docText, "beta-gate-hardening-evidence", "v0.15 evidence chain link", rel);
   mustInclude(docText, "not a second runtime", "no duplicate SoT disclaimer", rel);
@@ -821,6 +840,7 @@ function main() {
   const operatorBridgeText = readUtf8(OPERATOR_PREFLIGHT_BRIDGE);
   const operatorGuidedText = readUtf8(OPERATOR_GUIDED_RUN);
   const aiMinionsMigrationText = readUtf8(AI_MINIONS_MIGRATION);
+  const operatorVisibilityText = readUtf8(OPERATOR_VISIBILITY_GUIDE);
   const operatorBlockersRecoveryText = readUtf8(OPERATOR_BLOCKERS_RECOVERY);
   const privacyNoticeText = readUtf8(PRIVACY_NOTICE);
   const betaClaimBlastRadiusText = readUtf8(BETA_CLAIM_BLAST_RADIUS);
@@ -911,6 +931,7 @@ function main() {
   if (operatorBridgeText) checkOperatorPreflightBridgeDoc(operatorBridgeText);
   if (operatorGuidedText) checkOperatorGuidedRunDoc(operatorGuidedText);
   if (aiMinionsMigrationText) checkAiMinionsMigrationDoc(aiMinionsMigrationText);
+  if (operatorVisibilityText) checkOperatorVisibilityGuideDoc(operatorVisibilityText);
   if (operatorBlockersRecoveryText) checkOperatorBlockersRecoveryDoc(operatorBlockersRecoveryText);
   if (privacyNoticeText) checkPrivacyNoticeDoc(privacyNoticeText);
   if (betaClaimBlastRadiusText) checkBetaClaimBlastRadiusDoc(betaClaimBlastRadiusText);

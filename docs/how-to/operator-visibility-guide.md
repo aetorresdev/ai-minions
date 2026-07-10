@@ -1,0 +1,167 @@
+# Operator visibility guide — v0.21+ beta
+
+Canonical **read-only** operator surfaces for explaining a run to yourself, management, or CERBERUS — without reading raw JSONL or inventing metrics.
+
+**Product CLI:** `ai-minions status` · `explain` · `report` · `tui` · `attach` · `evidence`  
+**Contract sources:** trace JSONL under `ORCH_TRACES_DIR` (default `~/.claude/metrics/traces/`) — same SoT as legacy `explain-run` and `collect-run-report.mjs`.
+
+**Not claimed:** production TUI / Web UI · interactive approvals or reruns from `tui` · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
+
+---
+
+## When to use which command
+
+| Need | Command | Output |
+|------|---------|--------|
+| Terminal summary + critical decision fields | `ai-minions status --run-id <id>` | Human text + optional `--json` with `run_state_visibility` and `operator_trace_summary` |
+| Why blocked / degraded / failed | `ai-minions explain --run-id <id>` | Reason codes + remediation narrative |
+| Markdown report bundle for review | `ai-minions report --run <id> [--out ./dir]` | `OPERATOR_REPORT.md` · `MANAGEMENT_SUMMARY.md` · `CERBERUS_REVIEW_INPUT.md` |
+| Stdout evidence panels (no file writes) | `ai-minions tui --run-id <id>` | Phase timeline · blockers · cost summary · management preview |
+| GitHub feedback bundle (privacy scan) | `ai-minions attach --run-id <id>` | Wraps `collect-run-report.mjs` — human-readable attach layout |
+| Paths + inspect panel | `ai-minions evidence --run-id <id>` | Bundle paths · inspect checks |
+
+**Selectors:** `--run-id` · `--run` (alias) · `--latest` (newest trace in metrics dir) · `--file <path>` (explicit JSONL — overrides run id).
+
+**Read-only rule:** `status`, `explain`, `report`, `tui`, and `evidence` do **not** approve, merge, rerun, or mutate runs. Steering that suggests mutation on these surfaces is blocked by policy (see eval fixtures in orchestrator tests).
+
+---
+
+## Run state visibility (`run_state_visibility`)
+
+Printed on `status` / `explain` / `tui` / `--json` payloads when trace loads successfully:
+
+| Field | Meaning |
+|-------|---------|
+| `result_code` | `RUN_FOUND` · `RUN_NOT_FOUND` · `RUN_TRACE_INVALID` · `RUN_STATE_UNKNOWN` · attach codes |
+| `run_id` | Trace basename / task id |
+| `current_phase` | Last known MODE phase from trace |
+| `last_successful_phase` | Last phase that completed without gate block |
+| `blocking_reason_code` | Primary blocker when outcome is blocked/failed |
+| `next_safe_action` | One suggested command — informational only on read-only surfaces |
+| `evidence_paths` | Trace, report, attach paths when known |
+| `attach_available` | Whether a collectable attach bundle path exists |
+| `privacy_notice_status` | Whether privacy notice was acknowledged for attach |
+| `model` · `model_backend` · `selection_reason` | From trace `model_selection` when present — else `unavailable` |
+| `model_tier` | Tier label when trace carries it |
+
+Missing trace data → **`unavailable`**, not fabricated.
+
+---
+
+## Cost and token honesty
+
+Surfaces reuse `cost_token_run_summary` from trace rollups:
+
+| `cost_status` | Display rule |
+|---------------|--------------|
+| `known` / `estimated` | Show token counts; USD only when operator supplied rates |
+| `not_billing` | Label local/Ollama — **not** provider billing API |
+| `unavailable` | No precise USD; latency may be unavailable without duration pairs |
+
+Management summaries include a **Not claimed** section (production-ready, billing-accurate cost, ROI, etc.). Forbidden-claim evals scan operator surfaces per section — disclaimers in **Not claimed** are not treated as product claims.
+
+---
+
+## `ai-minions report` (RUN_ANALYST)
+
+Read-only markdown from trace — no code analysis at generation time.
+
+```bash
+ai-minions report --run <task_id>
+ai-minions report --latest --out ./reports/latest
+ai-minions report --file ~/.claude/metrics/traces/<task_id>.jsonl
+```
+
+**Default output directory:** `./report-<run_id>/`
+
+| File | Audience |
+|------|----------|
+| `OPERATOR_REPORT.md` | Operator narrative · flow metrics · blockers · cost/latency (estimated) |
+| `MANAGEMENT_SUMMARY.md` | Outcome · business impact · recommended next action · confidence |
+| `CERBERUS_REVIEW_INPUT.md` | Paste-ready pre-merge brief skeleton |
+
+Header on operator report: *trace-derived narrative; not billing-accurate.*
+
+Exit `2` when trace missing — same fail-closed semantics as `status`.
+
+---
+
+## `ai-minions tui` (evidence surface)
+
+Stdout panels — **not** a fullscreen or interactive product UI.
+
+```bash
+ai-minions tui --run-id <task_id>
+ai-minions tui --latest
+ai-minions tui --file path/to/trace.jsonl --json
+```
+
+Panels include: run header · phase timeline · step graph · gate blocks · next safe action · evidence paths · cost/token summary · attach status · management preview (truncated).
+
+**Does not:** edit runs · approve merge · trigger reruns · ship releases.
+
+---
+
+## `ai-minions attach` (human-readable bundle)
+
+Preferred product verb over calling the script directly:
+
+```bash
+ai-minions attach --run-id <task_id>
+```
+
+Equivalent to `node scripts/collect-run-report.mjs <task_id>` from repo root — see [collect-run-report.md](collect-run-report.md).
+
+**Upload to GitHub:** `privacy-scan.json` and everything under `shareable/` only. Read [PRIVACY.md](../../PRIVACY.md) first.
+
+| Path | Role |
+|------|------|
+| `SUMMARY.md` | Operator-facing run summary |
+| `OPERATOR_NOTES.md` | Local-only operator notes |
+| `MANAGEMENT_SUMMARY.md` | Management handoff (shareable copy under `shareable/`) |
+| `shareable/` | Redacted upload subset |
+| `traces/` · `evidence/` | Local copies — do not upload raw trace without review |
+| `redaction-report.json` | Privacy scan outcome |
+| `ATTACH.md` | Issue form field alignment |
+
+---
+
+## Ollama LAN / remote studio (init / doctor / start)
+
+Configure non-default Ollama host for Mac Studio or LAN inference:
+
+```bash
+ai-minions init --ollama-host macstudio.local --ollama-port 11434
+ai-minions doctor --model-policy local_only
+ai-minions start --goal "..." --ollama-host macstudio.local
+```
+
+Persisted in `.ai-minions/model-policy.yaml` as `local_backend`. Doctor validates `GET /api/tags` reachability. Trace records endpoint scope and model selection when present.
+
+**Not in scope:** LM Studio · MLX · LAN scan · auth endpoints.
+
+---
+
+## Typical flow after a smoke run
+
+```bash
+# after ai-minions start … (record task_id)
+ai-minions status --run-id <task_id>
+ai-minions explain --run-id <task_id>
+ai-minions tui --run-id <task_id>          # optional stdout panels
+ai-minions report --run <task_id>          # optional markdown dir
+ai-minions attach --run-id <task_id>       # before GitHub feedback
+```
+
+For legacy/debug paths: `npm run explain-run`, `npm run runner:tui -- status`, `node scripts/collect-run-report.mjs` — see [ai-minions-command-migration.md](ai-minions-command-migration.md).
+
+---
+
+## Related
+
+- [ai-minions-command-migration.md](ai-minions-command-migration.md) — script → product CLI map
+- [usage-smoke-guide.md](usage-smoke-guide.md) — end-to-end happy path
+- [collect-run-report.md](collect-run-report.md) — bundle layout and `BUNDLE_*` codes
+- [operator-blockers-and-recovery.md](operator-blockers-and-recovery.md) — blocked vs degraded
+- [runner-tui-contract.md](../orchestrator/runner-tui-contract.md) — legacy `runner:tui` launcher
+- [PRIVACY.md](../../PRIVACY.md) — before uploading attach bundles

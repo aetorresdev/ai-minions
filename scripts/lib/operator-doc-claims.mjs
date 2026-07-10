@@ -54,6 +54,7 @@ export const CLAIM_AUDIT_PATHS = [
   "docs/how-to/evidence/beta-dry-run-sample-issue.md",
   "docs/how-to/operator-feedback-issue.md",
   "docs/how-to/ai-minions-command-migration.md",
+  "docs/how-to/operator-visibility-guide.md",
   "docs/how-to/operator-blockers-and-recovery.md",
   "docs/how-to/beta-claim-blast-radius.md",
   "docs/how-to/human-ready-rehearsal-evidence.md",

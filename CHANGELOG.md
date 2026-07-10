@@ -6,6 +6,65 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.21.0-beta.1] - 2026-07-10
+
+Second beta feature pre-release: **Operator Visibility + Management Evidence** — run state fields on `status`/`explain`, human-readable attach bundles, honest cost/token summaries, Ollama LAN endpoint config, read-only `report` and `tui` surfaces, shim import wave 1, trace-based evals and read-only steering policy gate, plus operator docs sync — without production TUI, billing-accurate cost, or architecture-complete modular claims.
+
+**Release claim:** beta operators can explain a run from trace-backed CLI surfaces (`status`, `explain`, `report`, `tui`, `attach`), hand off management summaries with explicit **Not claimed** sections, and collect privacy-scanned attach bundles — **not** production-ready, **not** billing-accurate Ollama cost, **not** production TUI/Web UI, **not** cohort gate change, **not** architecture refactor complete.
+
+**Prerequisite:** `v0.20.1-beta.1` @ `613dda9` (tag · cohort guard unchanged).
+
+**Since [0.20.1-beta.1]:** v0.20.1 hardened install/smoke/doctor operator surfacing. v0.21 adds visibility and management evidence across E21-1..8 (run state · attach · cost summary · LAN Ollama · RUN_ANALYST report · evidence TUI · shim wave 1 · trace evals) plus release-prep docs in E21-9.
+
+| Area | `v0.20.1-beta.1` | `v0.21.0-beta.1` (delta) |
+|------|------------------|---------------------------|
+| Focus | Dry-run UX patch — install/doctor/smoke surfacing | Operator visibility + management evidence from trace |
+| Operator path | Guided CLI · attach script · status/explain | + `report` · `tui` · human-readable attach · `run_state_visibility` · cost honesty |
+| Unit tests (orchestrator) | 1230/1230 pass (1 skipped) @ `cbf9823` | **1346/1346** pass (1 skipped) @ lane `80b790f` |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.21.0-beta.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1346/1346** pass (1 skipped) @ release-prep tree
+- Usage docs: `node scripts/verify-usage-docs.mjs` → **OK**
+- Claim audit: `node scripts/audit-product-claims.mjs` → **OK**
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** (operator pre-tag)
+- Contracts: `operator-visibility-guide.md`, `ai-minions-command-migration.md`, `collect-run-report.md`, `changelog-release-format.md`
+- Lane merged on `master` @ `80b790f` (E21-8); release-prep on this branch (pending merge)
+- CI: lint-and-unit, security-trivy-scan, orchestrator-e2e, Installed CLI Docker live — green on E21-8 merge @ `80b790f`
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready — beta visibility surfaces; read-only `tui` is stdout panels only.
+- **Not** billing-accurate cost for local Ollama — `not_billing` / `unavailable` when provider data missing.
+- **Not** ROI, productivity, or production-ready claims in management summaries — **Not claimed** sections are intentional disclaimers.
+- **Not** cohort gate change — `LIVE_PASS` @ `99233e0` still required for external cohort.
+- **Not** architecture refactor complete — shim wave 1 only; root shims retained.
+- **Not** interactive merge/approve/rerun from operator read-only surfaces.
+
+### Added
+
+- Run state visibility on `ai-minions status` / `explain` — `run_state_visibility` fields (phase, blocker, model, attach, evidence paths).
+- Human-readable attach bundle — `SUMMARY.md`, `OPERATOR_NOTES.md`, `MANAGEMENT_SUMMARY.md`, `shareable/`, privacy scan.
+- Cost/token run summary on operator surfaces — `cost_status` honest labeling (`known`, `estimated`, `not_billing`, `unavailable`).
+- Ollama LAN endpoint config — `--ollama-host` / `--ollama-port` / `--ollama-base-url` on init/doctor/start.
+- `ai-minions report` — read-only RUN_ANALYST markdown (`OPERATOR_REPORT.md`, `MANAGEMENT_SUMMARY.md`, `CERBERUS_REVIEW_INPUT.md`).
+- `ai-minions tui` — read-only stdout evidence panels (phase timeline, blockers, cost, management preview).
+- Trace-based evals + steering policy gate — fixture checks for forbidden claims and read-only steering.
+- `docs/how-to/operator-visibility-guide.md` — canonical v0.21 operator visibility runbook.
+
+### Changed
+
+- `ai-minions attach` documents as primary path over raw `collect-run-report.mjs` (script unchanged).
+- Migration guide, README Stage 2, usage-smoke happy path, and collect-run-report layout synced to E21 surfaces.
+- Shim retirement wave 1 — run-state/trace/attach importers use canonical `modules/` paths (root shims retained).
+
+### Notes
+
+- Phase B (tag + pre-release + `release` branch) is operator-only after CERBERUS Approve on release-prep PR.
+- Point beta testers at operator visibility guide for post-smoke read-back (`report` / `tui` / `attach`).
+
 ## [0.20.1-beta.1] - 2026-07-06
 
 Patch beta pre-release: **operator UX hardening after internal dry-run** — install blocked output for missing host prereqs (`ruff`/`uv`), doctor `beta_lane_note` for degraded MCP/hook WARNs, and smoke failure classification (`SMOKE_OUTPUT_CONTRACT`) with operator-facing `next_safe_action` — without reopening cohort gate semantics.

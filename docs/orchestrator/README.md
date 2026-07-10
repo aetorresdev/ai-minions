@@ -13,7 +13,7 @@ Flat paths below — grouped for discoverability only (no 1:1 module mirror). Se
 | **Architecture** | [module-boundaries.md](module-boundaries.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [arch-shim-retirement-plan.md](arch-shim-retirement-plan.md) · [root-file-inventory.md](root-file-inventory.md) · [run-control-hub-decision.md](run-control-hub-decision.md) |
 | **Contracts** | [agent-contract.md](agent-contract.md) · [governance-gates-contract.md](governance-gates-contract.md) · [review-record-contract.md](review-record-contract.md) · [context-package-contract.md](context-package-contract.md) · [skill-capability-boundary.md](skill-capability-boundary.md) · [runner-tui-contract.md](runner-tui-contract.md) |
 | **Operator / runbooks** | [run-outcome-consumption.md](run-outcome-consumption.md) · [control-plane-tui-contract.md](control-plane-tui-contract.md) · [token-hygiene-guide.md](token-hygiene-guide.md) · [alpha-release-checklist.md](alpha-release-checklist.md) |
-| **How-to (repo root)** | [ai-minions command migration](../how-to/ai-minions-command-migration.md) · [usage smoke guide](../how-to/usage-smoke-guide.md) · [operator guided run](../how-to/operator-guided-run.md) |
+| **How-to (repo root)** | [ai-minions command migration](../how-to/ai-minions-command-migration.md) · [operator visibility (v0.21+)](../how-to/operator-visibility-guide.md) · [usage smoke guide](../how-to/usage-smoke-guide.md) · [operator guided run](../how-to/operator-guided-run.md) |
 | **Release / governance** | [release-workflow.md](release-workflow.md) · [release-governance-contract.md](release-governance-contract.md) · [changelog-release-format.md](changelog-release-format.md) |
 
 | File | Purpose |
