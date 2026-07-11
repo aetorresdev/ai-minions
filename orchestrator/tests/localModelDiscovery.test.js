@@ -4,6 +4,7 @@ const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
+const http = require("http");
 
 const fixture = JSON.parse(
   fs.readFileSync(path.join(__dirname, "fixtures", "ollama-tags-sample.json"), "utf8"),
@@ -13,6 +14,7 @@ const {
   discoverLocalModels,
   normalizeOllamaTag,
   inferFamilyFromName,
+  httpGetTags,
 } = require("../local-model-discovery");
 
 describe("local-model-discovery — normalizeOllamaTag", () => {
@@ -97,6 +99,59 @@ describe("local-model-discovery — discoverLocalModels", () => {
     assert.equal(result.backends[0].available, false);
     assert.equal(result.backends[0].reason, "fetchTags boom");
     assert.deepEqual(result.models, []);
+  });
+
+  it("passes Olla base_path prefix to fetchTags", async () => {
+    /** @type {Record<string, unknown> | null} */
+    let captured = null;
+    await discoverLocalModels({
+      endpoint: {
+        host: "127.0.0.1",
+        port: 40114,
+        base_path: "/olla/ollama",
+        base_url: "http://127.0.0.1:40114/olla/ollama",
+        source: "cli_base_url",
+      },
+      fetchTags: async (opts) => {
+        captured = opts;
+        return { ok: true, statusCode: 200, body: JSON.stringify({ models: [] }) };
+      },
+    });
+    assert.equal(captured.base_path, "/olla/ollama");
+    assert.equal(captured.host, "127.0.0.1");
+    assert.equal(captured.port, 40114);
+  });
+});
+
+describe("local-model-discovery — httpGetTags path prefix", () => {
+  it("requests /olla/ollama/api/tags when base_path is configured", async () => {
+    const fixtureBody = JSON.stringify({ models: [] });
+    const server = http.createServer((req, res) => {
+      if (req.url === "/olla/ollama/api/tags" && req.method === "GET") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(fixtureBody);
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise((resolve, reject) => {
+      server.listen(0, "127.0.0.1", (err) => (err ? reject(err) : resolve()));
+    });
+    const port = /** @type {import('net').AddressInfo} */ (server.address()).port;
+    process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = "1";
+    try {
+      const response = await httpGetTags({
+        host: "127.0.0.1",
+        port,
+        base_path: "/olla/ollama",
+      });
+      assert.equal(response.ok, true);
+      assert.equal(response.body, fixtureBody);
+    } finally {
+      await new Promise((resolve) => server.close(() => resolve()));
+      delete process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE;
+    }
   });
 });
 

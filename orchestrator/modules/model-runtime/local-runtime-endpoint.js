@@ -48,8 +48,32 @@ function classifyEndpointScope(host) {
 }
 
 /**
+ * Normalize URL pathname for Ollama base_url prefix.
+ * Strips trailing slash (except bare "/"); empty string means API root.
+ * @param {string} pathname
+ * @returns {string}
+ */
+function normalizeOllamaBasePath(pathname) {
+  const raw = String(pathname ?? '').trim();
+  if (!raw || raw === '/') return '';
+  return raw.endsWith('/') ? raw.slice(0, -1) : raw;
+}
+
+/**
+ * Join configured base path with an Ollama API path (e.g. `/api/tags`).
+ * @param {string} basePath
+ * @param {string} apiPath
+ * @returns {string}
+ */
+function buildOllamaHttpPath(basePath, apiPath) {
+  const api = String(apiPath ?? '').startsWith('/') ? String(apiPath) : `/${apiPath}`;
+  const prefix = normalizeOllamaBasePath(basePath);
+  return prefix ? `${prefix}${api}` : api;
+}
+
+/**
  * @param {string} baseUrl
- * @returns {{ host: string, port: number, base_url: string }}
+ * @returns {{ host: string, port: number, base_url: string, base_path: string }}
  */
 function parseOllamaBaseUrl(baseUrl) {
   const raw = String(baseUrl ?? '').trim();
@@ -70,14 +94,16 @@ function parseOllamaBaseUrl(baseUrl) {
   if (!Number.isFinite(port) || port <= 0 || port > 65535) {
     throw new Error(`invalid port in ollama base_url: ${raw}`);
   }
-  const normalized = `${url.protocol}//${host}:${port}`;
-  return { host, port, base_url: normalized };
+  const base_path = normalizeOllamaBasePath(url.pathname);
+  const origin = `${url.protocol}//${host}:${port}`;
+  const base_url = base_path ? `${origin}${base_path}` : origin;
+  return { host, port, base_url, base_path };
 }
 
 /**
  * @param {string} host
  * @param {number} port
- * @returns {{ host: string, port: number, base_url: string }}
+ * @returns {{ host: string, port: number, base_url: string, base_path: string }}
  */
 function buildOllamaEndpoint(host, port) {
   const h = String(host ?? '').trim();
@@ -86,7 +112,7 @@ function buildOllamaEndpoint(host, port) {
   if (!Number.isFinite(p) || p <= 0 || p > 65535) {
     throw new Error('ollama port must be a valid TCP port');
   }
-  return { host: h, port: p, base_url: `http://${h}:${p}` };
+  return { host: h, port: p, base_url: `http://${h}:${p}`, base_path: '' };
 }
 
 /**
@@ -213,6 +239,7 @@ function resolveLocalRuntimeEndpoint(options = {}) {
       host: fromYaml.host,
       port: fromYaml.port,
       base_url: fromYaml.base_url,
+      base_path: fromYaml.base_path ?? '',
       endpoint_scope: fromYaml.endpoint_scope,
       source: 'model_policy_yaml',
     };
@@ -308,6 +335,8 @@ function resolvePolicyCwd(repoCwd) {
 module.exports = {
   MODEL_RUNTIME_REASON,
   classifyEndpointScope,
+  normalizeOllamaBasePath,
+  buildOllamaHttpPath,
   parseOllamaBaseUrl,
   buildOllamaEndpoint,
   resolveLocalRuntimeEndpoint,

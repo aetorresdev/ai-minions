@@ -10,6 +10,8 @@ const yaml = require('js-yaml');
 const {
   MODEL_RUNTIME_REASON,
   classifyEndpointScope,
+  normalizeOllamaBasePath,
+  buildOllamaHttpPath,
   parseOllamaBaseUrl,
   resolveLocalRuntimeEndpoint,
   resolvePolicyCwd,
@@ -36,6 +38,69 @@ describe('local-runtime-endpoint', () => {
     assert.equal(parsed.host, 'macstudio.local');
     assert.equal(parsed.port, 11434);
     assert.equal(parsed.base_url, 'http://macstudio.local:11434');
+    assert.equal(parsed.base_path, '');
+  });
+
+  it('parseOllamaBaseUrl preserves Olla path prefix without trailing slash', () => {
+    const parsed = parseOllamaBaseUrl('http://127.0.0.1:40114/olla/ollama');
+    assert.equal(parsed.host, '127.0.0.1');
+    assert.equal(parsed.port, 40114);
+    assert.equal(parsed.base_path, '/olla/ollama');
+    assert.equal(parsed.base_url, 'http://127.0.0.1:40114/olla/ollama');
+  });
+
+  it('parseOllamaBaseUrl strips trailing slash from path prefix', () => {
+    const parsed = parseOllamaBaseUrl('http://127.0.0.1:40114/olla/ollama/');
+    assert.equal(parsed.base_path, '/olla/ollama');
+    assert.equal(parsed.base_url, 'http://127.0.0.1:40114/olla/ollama');
+  });
+
+  it('buildOllamaHttpPath joins base path with Ollama API routes', () => {
+    assert.equal(buildOllamaHttpPath('', '/api/tags'), '/api/tags');
+    assert.equal(buildOllamaHttpPath('/olla/ollama', '/api/tags'), '/olla/ollama/api/tags');
+    assert.equal(buildOllamaHttpPath('/olla/ollama', 'api/chat'), '/olla/ollama/api/chat');
+  });
+
+  it('normalizeOllamaBasePath treats root path as empty prefix', () => {
+    assert.equal(normalizeOllamaBasePath('/'), '');
+    assert.equal(normalizeOllamaBasePath(''), '');
+    assert.equal(normalizeOllamaBasePath('/olla/ollama/'), '/olla/ollama');
+  });
+
+  it('resolveLocalRuntimeEndpoint preserves CLI ollamaBaseUrl path prefix', () => {
+    const ep = resolveLocalRuntimeEndpoint({
+      cwd: os.tmpdir(),
+      ollamaBaseUrl: 'http://127.0.0.1:40114/olla/ollama',
+    });
+    assert.equal(ep.host, '127.0.0.1');
+    assert.equal(ep.port, 40114);
+    assert.equal(ep.base_path, '/olla/ollama');
+    assert.equal(ep.base_url, 'http://127.0.0.1:40114/olla/ollama');
+    assert.equal(ep.source, 'cli_base_url');
+  });
+
+  it('resolveLocalRuntimeEndpoint reads model-policy.yaml base_url with path prefix', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-endpoint-olla-'));
+    const policyDir = path.join(tmp, '.ai-minions');
+    fs.mkdirSync(policyDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(policyDir, 'model-policy.yaml'),
+      yaml.dump({
+        model_policy_version: 1,
+        local_backend: {
+          backend_id: 'ollama',
+          support_status: 'supported',
+          base_url: 'http://127.0.0.1:40114/olla/ollama',
+          endpoint_scope: 'localhost',
+        },
+      }),
+      'utf8',
+    );
+    const ep = resolveLocalRuntimeEndpoint({ cwd: tmp });
+    assert.equal(ep.base_path, '/olla/ollama');
+    assert.equal(ep.base_url, 'http://127.0.0.1:40114/olla/ollama');
+    assert.equal(ep.source, 'model_policy_yaml');
+    fs.rmSync(tmp, { recursive: true, force: true });
   });
 
   it('parseOllamaBaseUrl rejects malformed URLs', () => {
