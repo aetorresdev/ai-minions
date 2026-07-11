@@ -1329,7 +1329,7 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 
 ### v0.22 tag snapshot reconciliation
 
-Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` from E22-6 release-prep. **`master`** @ `bbdc62b`+ corrects header + `PRODUCT_VERSION`. GitHub release uses beta.1. Checkout tag alone ≠ version truth — see CHANGELOG errata block.
+Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` from release-prep. **`master`** @ `bbdc62b`+ corrects header + `PRODUCT_VERSION`. GitHub release uses beta.1. Checkout tag alone ≠ version truth — see CHANGELOG errata block.
 
 **Scope:** E22-1..5 merged on `master` @ `3f5ff60` — deterministic tool-failure chaos eval, untrusted-context authority runtime gate + REDTEAM fixture corpus, operator harness visibility on `status`/`explain`, harness docs + CI scripts. **Prerequisite:** `v0.21.0-beta.1` @ `0230c23`. Not production resilience · not sandbox immunity · not cohort gate change · not external/untrusted repos by default.
 
@@ -1375,21 +1375,21 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 
 ## v0.23.0-beta.1 — Shell Threat Model + Model Routing Coherence
 
-**Scope:** E23-1 doc (shipped) + **E23-2..E23-6** model routing coherence closeout — Olla `base_url` path, v1 tier-by-role, per-role `model_selection` trace (REQ-010), config authority (REQ-011). **Prerequisite:** v0.22 @ `52a7172` *(canonical `v0.22.0-beta.1`)* · E23-1 @ PR #273 `9f12753`. **Beta continuity** — not alpha.
+**Scope:** Shell/kernel threat model doc (shipped) + **model routing coherence closeout** — Olla `base_url` path, v1 tier-by-role, per-role `model_selection` trace, config authority. **Prerequisite:** v0.22 @ `52a7172` *(canonical `v0.22.0-beta.1`)* · shell threat model @ PR #273 `9f12753`. **Beta continuity** — not alpha.
 
-### v0.23 coherence tickets
+### v0.23 coherence slices
 
-| Ticket | Scope | Status |
-|--------|-------|--------|
-| E23-1 | Shell/kernel threat model doc | [x] PR #273 `9f12753` |
-| E23-2 | Endpoint path (`base_url` + Olla) | [ ] |
-| E23-3 | Runtime wiring (discovery/chat/gate) | [ ] |
-| E23-6 | Config authority + safe migration | [ ] |
-| E23-4 | Tier-by-role (v1 tiers/role_defaults) | [ ] |
-| E23-5 | `model_selection` trace + read safeguard | [ ] |
-| E23-7 | Release-prep + tag | [ ] |
+| Slice | Scope | Status |
+|-------|-------|--------|
+| Shell threat model doc | `shell-kernel-threat-model.md` | [x] PR #273 `9f12753` |
+| Endpoint path | `base_url` + Olla prefix | [ ] |
+| Runtime wiring | Discovery/chat/network gate | [ ] |
+| Config authority | Canonical JSON · conflict fail-closed | [ ] |
+| Tier-by-role | v1 `tiers` / `role_defaults` | [ ] |
+| Routing trace | Per-invocation `model_selection` + read safeguard | [ ] |
+| Release-prep | Tag `v0.23.0-beta.1` | [ ] |
 
-**Merge order (CERBERUS lock):** E23-2 → E23-3 → **E23-6** → E23-4 → E23-5 → E23-7. Config authority before tier resolver.
+**Merge order:** endpoint path → runtime wiring → **config authority** → tier-by-role → routing trace → release-prep. Config authority before tier resolver.
 
 ### Forbidden release claims (v0.23)
 
@@ -1397,9 +1397,9 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 
 ### Release execution plan (Phase B — operator steps)
 
-**Wording:** do not mark `[x]` until E23-7 Phase B complete.
+**Wording:** do not mark `[x]` until release-prep Phase B complete.
 
-- [ ] **Tag target:** `v0.23.0-beta.1` on E23-7 merge commit
+- [ ] **Tag target:** `v0.23.0-beta.1` on release-prep merge commit
 - [ ] **Release URL:** pre-release published
 - [ ] **`release` branch:** aligned to tag commit
 
