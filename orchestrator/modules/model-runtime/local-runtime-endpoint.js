@@ -8,9 +8,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const https = require('https');
 const yaml = require('js-yaml');
 
-const { OLLAMA_BACKEND_ID } = require('./local-model-discovery');
+const OLLAMA_BACKEND_ID = 'ollama';
 
 const MODEL_RUNTIME_REASON = {
   OK: 'MODEL_RUNTIME_OK',
@@ -19,6 +21,90 @@ const MODEL_RUNTIME_REASON = {
 };
 
 /** @typedef {'localhost' | 'private_lan' | 'public_endpoint'} EndpointScope */
+
+/**
+ * @param {string} [protocol]
+ * @returns {'http' | 'https'}
+ */
+function normalizeOllamaProtocol(protocol) {
+  const raw = String(protocol ?? 'http').trim().toLowerCase().replace(/:$/, '');
+  if (raw !== 'http' && raw !== 'https') {
+    throw new Error(`ollama protocol must be http or https: ${protocol}`);
+  }
+  return raw;
+}
+
+/**
+ * @param {string} [protocol]
+ * @returns {typeof import('http') | typeof import('https')}
+ */
+function ollamaHttpTransport(protocol) {
+  return normalizeOllamaProtocol(protocol) === 'https' ? https : http;
+}
+
+/**
+ * Opt-in TLS verification bypass for Ollama HTTPS (self-signed local certs only).
+ * Never enabled by default — requires explicit YAML, option, or OLLAMA_TLS_INSECURE env.
+ * @param {{ tls_insecure?: boolean, tlsInsecure?: boolean }} [options]
+ * @returns {boolean}
+ */
+function resolveOllamaTlsInsecure(options = {}) {
+  if (options.tls_insecure === true || options.tlsInsecure === true) {
+    return true;
+  }
+  const raw = String(process.env.OLLAMA_TLS_INSECURE ?? '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
+/**
+ * Apply HTTPS TLS options to Node request config. Verification stays on unless opted in.
+ * @param {import('http').RequestOptions} requestOpts
+ * @param {{ protocol?: string, tls_insecure?: boolean, tlsInsecure?: boolean }} [tlsContext]
+ */
+function applyOllamaHttpsTlsOptions(requestOpts, tlsContext = {}) {
+  if (normalizeOllamaProtocol(tlsContext.protocol ?? 'http') !== 'https') {
+    return;
+  }
+  if (resolveOllamaTlsInsecure(tlsContext)) {
+    requestOpts.rejectUnauthorized = false;
+  }
+}
+
+/**
+ * Normalize client bind addresses used as HTTP hostnames (CI/Docker often sets 0.0.0.0).
+ * @param {string} host
+ * @returns {string}
+ */
+function normalizeOllamaClientHost(host) {
+  const h = String(host ?? '').trim().toLowerCase();
+  if (!h || h === '0.0.0.0') return '127.0.0.1';
+  return h;
+}
+
+/**
+ * @param {string} cwd
+ * @returns {boolean}
+ */
+function hasYamlLocalBackendEndpoint(cwd) {
+  return endpointFromYamlPolicy(loadRuntimeYamlPolicy(cwd)) != null;
+}
+
+/**
+ * Legacy env/default Ollama target — no operator YAML/CLI policy gate.
+ * @returns {{ host: string, port: number, base_path: string, protocol: 'http' | 'https', endpoint: null }}
+ */
+function resolveEnvOllamaHttpTarget() {
+  const host = normalizeOllamaClientHost(process.env.OLLAMA_HOST || 'localhost');
+  const port = parseInt(process.env.OLLAMA_PORT || '11434', 10);
+  return {
+    host,
+    port,
+    base_path: '',
+    protocol: 'http',
+    tls_insecure: resolveOllamaTlsInsecure({}),
+    endpoint: null,
+  };
+}
 
 /**
  * @param {string} host
@@ -48,8 +134,32 @@ function classifyEndpointScope(host) {
 }
 
 /**
+ * Normalize URL pathname for Ollama base_url prefix.
+ * Strips trailing slash (except bare "/"); empty string means API root.
+ * @param {string} pathname
+ * @returns {string}
+ */
+function normalizeOllamaBasePath(pathname) {
+  const raw = String(pathname ?? '').trim();
+  if (!raw || raw === '/') return '';
+  return raw.endsWith('/') ? raw.slice(0, -1) : raw;
+}
+
+/**
+ * Join configured base path with an Ollama API path (e.g. `/api/tags`).
+ * @param {string} basePath
+ * @param {string} apiPath
+ * @returns {string}
+ */
+function buildOllamaHttpPath(basePath, apiPath) {
+  const api = String(apiPath ?? '').startsWith('/') ? String(apiPath) : `/${apiPath}`;
+  const prefix = normalizeOllamaBasePath(basePath);
+  return prefix ? `${prefix}${api}` : api;
+}
+
+/**
  * @param {string} baseUrl
- * @returns {{ host: string, port: number, base_url: string }}
+ * @returns {{ host: string, port: number, base_url: string, base_path: string, protocol: 'http' | 'https' }}
  */
 function parseOllamaBaseUrl(baseUrl) {
   const raw = String(baseUrl ?? '').trim();
@@ -70,23 +180,26 @@ function parseOllamaBaseUrl(baseUrl) {
   if (!Number.isFinite(port) || port <= 0 || port > 65535) {
     throw new Error(`invalid port in ollama base_url: ${raw}`);
   }
-  const normalized = `${url.protocol}//${host}:${port}`;
-  return { host, port, base_url: normalized };
+  const base_path = normalizeOllamaBasePath(url.pathname);
+  const protocol = normalizeOllamaProtocol(url.protocol === 'https:' ? 'https' : 'http');
+  const origin = `${protocol}://${host}:${port}`;
+  const base_url = base_path ? `${origin}${base_path}` : origin;
+  return { host, port, base_url, base_path, protocol };
 }
 
 /**
  * @param {string} host
  * @param {number} port
- * @returns {{ host: string, port: number, base_url: string }}
+ * @returns {{ host: string, port: number, base_url: string, base_path: string, protocol: 'http' | 'https' }}
  */
 function buildOllamaEndpoint(host, port) {
-  const h = String(host ?? '').trim();
+  const h = normalizeOllamaClientHost(host);
   const p = Number(port);
   if (!h) throw new Error('ollama host is required');
   if (!Number.isFinite(p) || p <= 0 || p > 65535) {
     throw new Error('ollama port must be a valid TCP port');
   }
-  return { host: h, port: p, base_url: `http://${h}:${p}` };
+  return { host: h, port: p, base_url: `http://${h}:${p}`, base_path: '', protocol: 'http' };
 }
 
 /**
@@ -120,6 +233,7 @@ function endpointFromYamlPolicy(policy) {
   const declaredScope = typeof rec.endpoint_scope === 'string' && rec.endpoint_scope.trim()
     ? /** @type {EndpointScope} */ (String(rec.endpoint_scope).trim())
     : null;
+  const tls_insecure = rec.tls_insecure === true;
 
   if (typeof rec.base_url === 'string' && rec.base_url.trim()) {
     const parsed = parseOllamaBaseUrl(rec.base_url);
@@ -127,6 +241,7 @@ function endpointFromYamlPolicy(policy) {
     return {
       ...parsed,
       endpoint_scope: computedScope,
+      tls_insecure,
       ...(declaredScope ? { declared_endpoint_scope: declaredScope } : {}),
     };
   }
@@ -137,6 +252,7 @@ function endpointFromYamlPolicy(policy) {
     return {
       ...built,
       endpoint_scope: computedScope,
+      tls_insecure,
       ...(declaredScope ? { declared_endpoint_scope: declaredScope } : {}),
     };
   }
@@ -165,6 +281,7 @@ function resolveLocalRuntimeEndpoint(options = {}) {
   const cwd = options.cwd || process.cwd();
   const loadPolicy = options.loadPolicy ?? loadRuntimeYamlPolicy;
   const allowPublic = options.allowPublicLocalRuntime === true;
+  const cliTlsInsecure = options.ollamaTlsInsecure === true;
 
   if (options.ollamaBaseUrl) {
     const parsed = parseOllamaBaseUrl(String(options.ollamaBaseUrl));
@@ -178,6 +295,7 @@ function resolveLocalRuntimeEndpoint(options = {}) {
       provider: OLLAMA_BACKEND_ID,
       ...parsed,
       endpoint_scope: scope,
+      tls_insecure: cliTlsInsecure || resolveOllamaTlsInsecure({}),
       source: 'cli_base_url',
     };
   }
@@ -197,6 +315,7 @@ function resolveLocalRuntimeEndpoint(options = {}) {
       provider: OLLAMA_BACKEND_ID,
       ...built,
       endpoint_scope: scope,
+      tls_insecure: cliTlsInsecure || resolveOllamaTlsInsecure({}),
       source: 'cli_host_port',
     };
   }
@@ -213,14 +332,17 @@ function resolveLocalRuntimeEndpoint(options = {}) {
       host: fromYaml.host,
       port: fromYaml.port,
       base_url: fromYaml.base_url,
+      base_path: fromYaml.base_path ?? '',
+      protocol: fromYaml.protocol ?? 'http',
       endpoint_scope: fromYaml.endpoint_scope,
+      tls_insecure: fromYaml.tls_insecure === true,
       source: 'model_policy_yaml',
     };
   }
 
   const envHost = process.env.OLLAMA_HOST;
   const envPort = parseInt(process.env.OLLAMA_PORT || '11434', 10);
-  const host = envHost && String(envHost).trim() ? String(envHost).trim() : 'localhost';
+  const host = normalizeOllamaClientHost(envHost || 'localhost');
   const built = buildOllamaEndpoint(host, envPort);
   const scope = classifyEndpointScope(built.host);
   if (scope === 'public_endpoint' && !allowPublic) {
@@ -232,6 +354,7 @@ function resolveLocalRuntimeEndpoint(options = {}) {
     provider: OLLAMA_BACKEND_ID,
     ...built,
     endpoint_scope: scope,
+    tls_insecure: resolveOllamaTlsInsecure({}),
     source: envHost ? 'env_ollama_host' : 'default_localhost',
   };
 }
@@ -308,6 +431,15 @@ function resolvePolicyCwd(repoCwd) {
 module.exports = {
   MODEL_RUNTIME_REASON,
   classifyEndpointScope,
+  normalizeOllamaProtocol,
+  ollamaHttpTransport,
+  normalizeOllamaClientHost,
+  hasYamlLocalBackendEndpoint,
+  resolveEnvOllamaHttpTarget,
+  resolveOllamaTlsInsecure,
+  applyOllamaHttpsTlsOptions,
+  normalizeOllamaBasePath,
+  buildOllamaHttpPath,
   parseOllamaBaseUrl,
   buildOllamaEndpoint,
   resolveLocalRuntimeEndpoint,

@@ -232,7 +232,7 @@ async function validateLocalOnlyRunPrerequisites(deps = {}) {
     throw new Error('validateLocalOnlyRunPrerequisites requires checkOllama when backend check is enabled');
   }
 
-  const ok = await checkOllama();
+  const ok = await checkOllama({ cwd });
   if (!ok) {
     throw createLocalOnlyPolicyError(
       '[local-only] Local model backend unreachable. Start Ollama or fix OLLAMA_HOST/OLLAMA_PORT.',

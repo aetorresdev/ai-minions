@@ -3,10 +3,19 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const https = require("https");
 const { validateHandoffForMode } = require("./qa-spec-flow");
 const { _hashGoal, TRACE_REDACT_GOAL } = require("../trace/trace-writer");
 const { runNetworkPermissionGate } = require("../../security/network-permission-gate");
 const { emitPermissionCheckTrace } = require("../tools");
+const {
+  buildOllamaHttpPath,
+  ollamaHttpTransport,
+  resolveLocalRuntimeEndpoint,
+  hasYamlLocalBackendEndpoint,
+  resolveEnvOllamaHttpTarget,
+  applyOllamaHttpsTlsOptions,
+} = require("../model-runtime/local-runtime-endpoint");
 
 function stripLeadingOwnerArchitectForDegradedMultiAgent(steps) {
   if (!Array.isArray(steps) || steps.length === 0) return steps;
@@ -296,21 +305,54 @@ const VALID_WORKER_AGENTS = new Set(Object.keys(AGENT_TO_MODE));
 
 const AGENTS_REQUIRING_GATE = new Set(["architect", "dev-backend", "dev-frontend", "dev-devops", "qa", "cerberus"]);
 
-function checkOllama() {
-  const host = process.env.OLLAMA_HOST || "localhost";
-  const port = parseInt(process.env.OLLAMA_PORT || "11434", 10);
+function checkOllama(options = {}) {
+  const cwd = options.cwd ?? process.cwd();
+  /** @type {Record<string, unknown> | null} */
+  let endpoint = null;
+  let host;
+  let port;
+  let base_path;
+  let protocol;
+  let tls_insecure = false;
+
+  if (hasYamlLocalBackendEndpoint(cwd)) {
+    try {
+      endpoint = resolveLocalRuntimeEndpoint({ cwd });
+    } catch {
+      return Promise.resolve(false);
+    }
+    host = endpoint.host;
+    port = endpoint.port;
+    base_path = endpoint.base_path ?? '';
+    protocol = endpoint.protocol ?? 'http';
+    tls_insecure = endpoint.tls_insecure === true;
+  } else {
+    const envTarget = resolveEnvOllamaHttpTarget();
+    host = envTarget.host;
+    port = envTarget.port;
+    base_path = envTarget.base_path;
+    protocol = envTarget.protocol;
+    tls_insecure = envTarget.tls_insecure === true;
+  }
+  const tagsPath = buildOllamaHttpPath(base_path, '/api/tags');
+
   return new Promise((resolve) => {
     if (process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE !== "1") {
       try {
-        const gate = runNetworkPermissionGate({
-          repoRoot: process.cwd(),
+        /** @type {Record<string, unknown>} */
+        const gateOpts = {
+          repoRoot: cwd,
           role: "ORCHESTRATOR",
           actor: "orchestrator",
           hostname: host,
           port,
           tool: "ollama_health_check",
-          pathLabel: "/api/tags",
-        });
+          pathLabel: tagsPath,
+        };
+        if (endpoint && ["cli_host_port", "cli_base_url", "model_policy_yaml"].includes(endpoint.source)) {
+          gateOpts.operatorConfiguredEndpoint = endpoint;
+        }
+        const gate = runNetworkPermissionGate(gateOpts);
         emitPermissionCheckTrace(gate.tracePayload);
         const out = gate.output;
         if (out.decision === "deny" || out.decision === "requires_approval" || !out.safe_to_continue) {
@@ -322,8 +364,18 @@ function checkOllama() {
         return;
       }
     }
-    const http = require("http");
-    const req = http.request({ hostname: host, port, path: "/api/tags", method: "GET" }, (res) => {
+    const transport = ollamaHttpTransport(protocol);
+    /** @type {import('http').RequestOptions} */
+    const requestOpts = {
+      hostname: host,
+      port,
+      path: tagsPath,
+      method: "GET",
+    };
+    if (transport === https) {
+      applyOllamaHttpsTlsOptions(requestOpts, { protocol, tls_insecure });
+    }
+    const req = transport.request(requestOpts, (res) => {
       resolve(res.statusCode === 200);
     });
     req.setTimeout(3000, () => { req.destroy(); resolve(false); });

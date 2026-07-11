@@ -108,7 +108,7 @@ async function executeSessionStartPhase(deps) {
       `Local-only mode — model: ${localOnlyCtx.selected_model} (source: ${localOnlyCtx.override_source}${localOnlyCtx.selection_reason ? `; ${localOnlyCtx.selection_reason}` : ""})`,
     );
   } else if (ollamaModel) {
-    const ollamaOk = await checkOllama();
+    const ollamaOk = await checkOllama({ cwd });
     if (!ollamaOk) {
       log(
         "orchestrator",

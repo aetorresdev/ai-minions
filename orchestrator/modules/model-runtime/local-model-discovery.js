@@ -6,6 +6,9 @@
  */
 
 const http = require('http');
+const https = require('https');
+
+const { buildOllamaHttpPath, ollamaHttpTransport, applyOllamaHttpsTlsOptions } = require('./local-runtime-endpoint');
 
 const OLLAMA_BACKEND_ID = 'ollama';
 const DEFAULT_TIMEOUT_MS = 3000;
@@ -36,9 +39,26 @@ const DEFAULT_TIMEOUT_MS = 3000;
  */
 
 function resolveOllamaEndpoint(options = {}) {
+  if (options.endpoint && typeof options.endpoint === 'object') {
+    return {
+      host: String(options.endpoint.host ?? process.env.OLLAMA_HOST ?? 'localhost'),
+      port: Number(options.endpoint.port ?? parseInt(process.env.OLLAMA_PORT || '11434', 10)),
+      base_path: String(options.endpoint.base_path ?? ''),
+      protocol: String(options.endpoint.protocol ?? 'http'),
+      tls_insecure: options.endpoint.tls_insecure === true || options.tlsInsecure === true,
+    };
+  }
   const host = options.host ?? process.env.OLLAMA_HOST ?? 'localhost';
   const port = options.port ?? parseInt(process.env.OLLAMA_PORT || '11434', 10);
-  return { host, port };
+  const base_path = options.base_path != null ? String(options.base_path) : '';
+  const protocol = options.protocol != null ? String(options.protocol) : 'http';
+  return {
+    host,
+    port,
+    base_path,
+    protocol,
+    tls_insecure: options.tlsInsecure === true,
+  };
 }
 
 /**
@@ -81,14 +101,27 @@ function normalizeOllamaTag(tag) {
 }
 
 /**
- * @param {{ host: string, port: number, timeoutMs?: number }} opts
+ * @param {{ host: string, port: number, base_path?: string, protocol?: string, tls_insecure?: boolean, timeoutMs?: number }} opts
  * @returns {Promise<{ ok: boolean, statusCode?: number, body?: string, error?: string, denied?: boolean }>}
  */
 function httpGetTags(opts) {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const path = buildOllamaHttpPath(opts.base_path ?? '', '/api/tags');
+  const transport = ollamaHttpTransport(opts.protocol ?? 'http');
+  /** @type {import('http').RequestOptions} */
+  const requestOpts = {
+    hostname: opts.host,
+    port: opts.port,
+    path,
+    method: 'GET',
+  };
+  applyOllamaHttpsTlsOptions(requestOpts, {
+    protocol: opts.protocol,
+    tls_insecure: opts.tls_insecure,
+  });
   return new Promise((resolve) => {
-    const req = http.request(
-      { hostname: opts.host, port: opts.port, path: '/api/tags', method: 'GET' },
+    const req = transport.request(
+      requestOpts,
       (res) => {
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
@@ -117,6 +150,7 @@ function httpGetTags(opts) {
  * @returns {Promise<{ ok: boolean, statusCode?: number, body?: string, error?: string, denied?: boolean }>}
  */
 async function defaultFetchOllamaTags(opts) {
+  const tagsPath = buildOllamaHttpPath(opts.base_path ?? '', '/api/tags');
   if (process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE !== '1') {
     try {
       const { runNetworkPermissionGate } = require('../../security/network-permission-gate');
@@ -129,7 +163,7 @@ async function defaultFetchOllamaTags(opts) {
         hostname: opts.host,
         port: opts.port,
         tool: 'ollama_health_check',
-        pathLabel: '/api/tags',
+        pathLabel: tagsPath,
       };
       if (opts.endpoint) {
         gateOpts.operatorConfiguredEndpoint = opts.endpoint;
@@ -174,7 +208,7 @@ function discoveryFailure(backend, reason, missingMessage) {
  * @returns {Promise<LocalModelDiscoveryResult>}
  */
 async function discoverLocalModels(options = {}) {
-  const { host, port } = resolveOllamaEndpoint(options);
+  const { host, port, base_path, protocol, tls_insecure } = resolveOllamaEndpoint(options);
   const fetchTags = options.fetchTags ?? defaultFetchOllamaTags;
   /** @type {LocalBackendStatus} */
   const backend = {
@@ -190,6 +224,9 @@ async function discoverLocalModels(options = {}) {
     response = await fetchTags({
       host,
       port,
+      base_path,
+      protocol,
+      tls_insecure,
       cwd: options.cwd,
       timeoutMs: options.timeoutMs,
       endpoint: options.endpoint,
@@ -253,4 +290,5 @@ module.exports = {
   inferFamilyFromName,
   resolveOllamaEndpoint,
   defaultFetchOllamaTags,
+  httpGetTags,
 };

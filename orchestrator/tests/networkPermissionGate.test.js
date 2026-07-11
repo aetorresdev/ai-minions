@@ -92,4 +92,36 @@ describe("Network permission gate — Ollama trace", () => {
     assert.equal(gateLine.reason_code, "network_allowlist_allowed");
     assert.equal(gateLine.role, "DEV");
   });
+
+  it("runOllama uses Olla path prefix for /api/chat", async () => {
+    const { runOllama } = require("../agents/runtime/run-ollama.js");
+    const ollaPort = serverPort + 1;
+    const ollaServer = http.createServer((req, res) => {
+      if (req.url === "/olla/ollama/api/chat" && req.method === "POST") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ message: { content: "olla-ok" } }));
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise((resolve, reject) => {
+      ollaServer.listen(ollaPort, "127.0.0.1", (err) => (err ? reject(err) : resolve()));
+    });
+    try {
+      const out = await runOllama("sys", [{ role: "user", content: "hi" }], {
+        model: "m",
+        endpoint: {
+          host: "127.0.0.1",
+          port: ollaPort,
+          base_path: "/olla/ollama",
+          source: "cli_base_url",
+        },
+        timeoutMs: 5000,
+      });
+      assert.equal(out.content, "olla-ok");
+    } finally {
+      await new Promise((resolve) => ollaServer.close(() => resolve()));
+    }
+  });
 });
