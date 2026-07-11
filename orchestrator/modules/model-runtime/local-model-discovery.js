@@ -6,8 +6,9 @@
  */
 
 const http = require('http');
+const https = require('https');
 
-const { buildOllamaHttpPath } = require('./local-runtime-endpoint');
+const { buildOllamaHttpPath, ollamaHttpTransport } = require('./local-runtime-endpoint');
 
 const OLLAMA_BACKEND_ID = 'ollama';
 const DEFAULT_TIMEOUT_MS = 3000;
@@ -43,12 +44,14 @@ function resolveOllamaEndpoint(options = {}) {
       host: String(options.endpoint.host ?? process.env.OLLAMA_HOST ?? 'localhost'),
       port: Number(options.endpoint.port ?? parseInt(process.env.OLLAMA_PORT || '11434', 10)),
       base_path: String(options.endpoint.base_path ?? ''),
+      protocol: String(options.endpoint.protocol ?? 'http'),
     };
   }
   const host = options.host ?? process.env.OLLAMA_HOST ?? 'localhost';
   const port = options.port ?? parseInt(process.env.OLLAMA_PORT || '11434', 10);
   const base_path = options.base_path != null ? String(options.base_path) : '';
-  return { host, port, base_path };
+  const protocol = options.protocol != null ? String(options.protocol) : 'http';
+  return { host, port, base_path, protocol };
 }
 
 /**
@@ -91,15 +94,26 @@ function normalizeOllamaTag(tag) {
 }
 
 /**
- * @param {{ host: string, port: number, base_path?: string, timeoutMs?: number }} opts
+ * @param {{ host: string, port: number, base_path?: string, protocol?: string, timeoutMs?: number }} opts
  * @returns {Promise<{ ok: boolean, statusCode?: number, body?: string, error?: string, denied?: boolean }>}
  */
 function httpGetTags(opts) {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const path = buildOllamaHttpPath(opts.base_path ?? '', '/api/tags');
+  const transport = ollamaHttpTransport(opts.protocol ?? 'http');
+  /** @type {import('http').RequestOptions} */
+  const requestOpts = {
+    hostname: opts.host,
+    port: opts.port,
+    path,
+    method: 'GET',
+  };
+  if (transport === https) {
+    requestOpts.rejectUnauthorized = false;
+  }
   return new Promise((resolve) => {
-    const req = http.request(
-      { hostname: opts.host, port: opts.port, path, method: 'GET' },
+    const req = transport.request(
+      requestOpts,
       (res) => {
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
@@ -186,7 +200,7 @@ function discoveryFailure(backend, reason, missingMessage) {
  * @returns {Promise<LocalModelDiscoveryResult>}
  */
 async function discoverLocalModels(options = {}) {
-  const { host, port, base_path } = resolveOllamaEndpoint(options);
+  const { host, port, base_path, protocol } = resolveOllamaEndpoint(options);
   const fetchTags = options.fetchTags ?? defaultFetchOllamaTags;
   /** @type {LocalBackendStatus} */
   const backend = {
@@ -203,6 +217,7 @@ async function discoverLocalModels(options = {}) {
       host,
       port,
       base_path,
+      protocol,
       cwd: options.cwd,
       timeoutMs: options.timeoutMs,
       endpoint: options.endpoint,

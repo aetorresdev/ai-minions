@@ -2,6 +2,11 @@
 
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const http = require("http");
+const { execSync } = require("child_process");
 const {
   resolveMaxIterations,
   detectBlockers,
@@ -14,6 +19,7 @@ const {
   parseOptionalRatioWithInvalid,
   AGENT_TO_MODE,
   VALID_WORKER_AGENTS,
+  checkOllama,
 } = require("../run-loop-helpers");
 
 describe("run-loop-helpers — characterization", () => {
@@ -101,6 +107,44 @@ describe("run-loop-helpers — characterization", () => {
     ];
     for (const key of RUN_LOOP_FACADE_KEYS) {
       assert.equal(orch[key], rl[key], `orchestrator.${key}`);
+    }
+  });
+});
+
+describe("run-loop-helpers — checkOllama endpoint resolution", () => {
+  it("probes configured base_path from model-policy.yaml", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "check-ollama-"));
+    const policyDir = path.join(tmp, ".ai-minions");
+    fs.mkdirSync(policyDir, { recursive: true });
+    const fixtureBody = JSON.stringify({ models: [] });
+    const server = http.createServer((req, res) => {
+      if (req.url === "/olla/ollama/api/tags" && req.method === "GET") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(fixtureBody);
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise((resolve, reject) => {
+      server.listen(0, "127.0.0.1", (err) => (err ? reject(err) : resolve()));
+    });
+    const port = /** @type {import('net').AddressInfo} */ (server.address()).port;
+    fs.writeFileSync(
+      path.join(policyDir, "model-policy.yaml"),
+      `model_policy_version: 1\nlocal_backend:\n  backend_id: ollama\n  support_status: supported\n  base_url: http://127.0.0.1:${port}/olla/ollama\n  endpoint_scope: localhost\n`,
+      "utf8",
+    );
+    const prevSkip = process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE;
+    process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = "1";
+    try {
+      const ok = await checkOllama({ cwd: tmp });
+      assert.equal(ok, true);
+    } finally {
+      await new Promise((resolve) => server.close(() => resolve()));
+      if (prevSkip === undefined) delete process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE;
+      else process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = prevSkip;
+      fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
 });

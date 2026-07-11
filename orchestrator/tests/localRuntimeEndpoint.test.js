@@ -12,12 +12,16 @@ const {
   classifyEndpointScope,
   normalizeOllamaBasePath,
   buildOllamaHttpPath,
+  normalizeOllamaProtocol,
+  ollamaHttpTransport,
   parseOllamaBaseUrl,
   resolveLocalRuntimeEndpoint,
   resolvePolicyCwd,
   buildDiscoverOptions,
   endpointFromYamlPolicy,
 } = require('../local-runtime-endpoint');
+const http = require('http');
+const https = require('https');
 const {
   buildRunPreflight,
   formatPreflightText,
@@ -39,6 +43,20 @@ describe('local-runtime-endpoint', () => {
     assert.equal(parsed.port, 11434);
     assert.equal(parsed.base_url, 'http://macstudio.local:11434');
     assert.equal(parsed.base_path, '');
+  });
+
+  it('parseOllamaBaseUrl preserves https protocol', () => {
+    const parsed = parseOllamaBaseUrl('https://127.0.0.1:8443/olla/ollama');
+    assert.equal(parsed.protocol, 'https');
+    assert.equal(parsed.port, 8443);
+    assert.equal(parsed.base_url, 'https://127.0.0.1:8443/olla/ollama');
+  });
+
+  it('ollamaHttpTransport selects http or https module', () => {
+    assert.equal(ollamaHttpTransport('http'), http);
+    assert.equal(ollamaHttpTransport('https'), https);
+    assert.equal(ollamaHttpTransport('https:'), https);
+    assert.throws(() => normalizeOllamaProtocol('ftp'), /http or https/);
   });
 
   it('parseOllamaBaseUrl preserves Olla path prefix without trailing slash', () => {

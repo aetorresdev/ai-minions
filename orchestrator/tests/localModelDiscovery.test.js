@@ -2,9 +2,11 @@
 
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("fs");
-const path = require("path");
 const http = require("http");
+const https = require("https");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 
 const fixture = JSON.parse(
   fs.readFileSync(path.join(__dirname, "fixtures", "ollama-tags-sample.json"), "utf8"),
@@ -120,6 +122,26 @@ describe("local-model-discovery — discoverLocalModels", () => {
     assert.equal(captured.base_path, "/olla/ollama");
     assert.equal(captured.host, "127.0.0.1");
     assert.equal(captured.port, 40114);
+    assert.equal(captured.protocol, "http");
+  });
+
+  it("passes https protocol to fetchTags", async () => {
+    /** @type {Record<string, unknown> | null} */
+    let captured = null;
+    await discoverLocalModels({
+      endpoint: {
+        host: "127.0.0.1",
+        port: 8443,
+        base_path: "/olla/ollama",
+        protocol: "https",
+        source: "cli_base_url",
+      },
+      fetchTags: async (opts) => {
+        captured = opts;
+        return { ok: true, statusCode: 200, body: JSON.stringify({ models: [] }) };
+      },
+    });
+    assert.equal(captured.protocol, "https");
   });
 });
 
@@ -151,6 +173,56 @@ describe("local-model-discovery — httpGetTags path prefix", () => {
     } finally {
       await new Promise((resolve) => server.close(() => resolve()));
       delete process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE;
+    }
+  });
+
+  it("requests https /olla/ollama/api/tags when protocol is https", async (t) => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "https-tags-"));
+    const keyPath = path.join(tmp, "key.pem");
+    const certPath = path.join(tmp, "cert.pem");
+    try {
+      require("child_process").execSync(
+        `openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 1 -nodes -subj "/CN=localhost"`,
+        { stdio: "ignore" },
+      );
+    } catch {
+      t.skip("openssl unavailable for https transport test");
+      return;
+    }
+    const fixtureBody = JSON.stringify({ models: [] });
+    const server = https.createServer(
+      {
+        key: fs.readFileSync(keyPath),
+        cert: fs.readFileSync(certPath),
+      },
+      (req, res) => {
+        if (req.url === "/olla/ollama/api/tags" && req.method === "GET") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(fixtureBody);
+          return;
+        }
+        res.writeHead(404);
+        res.end();
+      },
+    );
+    await new Promise((resolve, reject) => {
+      server.listen(0, "127.0.0.1", (err) => (err ? reject(err) : resolve()));
+    });
+    const port = /** @type {import('net').AddressInfo} */ (server.address()).port;
+    process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = "1";
+    try {
+      const response = await httpGetTags({
+        host: "127.0.0.1",
+        port,
+        base_path: "/olla/ollama",
+        protocol: "https",
+      });
+      assert.equal(response.ok, true);
+      assert.equal(response.body, fixtureBody);
+    } finally {
+      await new Promise((resolve) => server.close(() => resolve()));
+      delete process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE;
+      fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
 });

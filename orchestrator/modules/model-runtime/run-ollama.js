@@ -5,8 +5,9 @@
 'use strict';
 
 const http = require('http');
+const https = require('https');
 
-const { buildOllamaHttpPath, resolveLocalRuntimeEndpoint } = require('./local-runtime-endpoint');
+const { buildOllamaHttpPath, resolveLocalRuntimeEndpoint, ollamaHttpTransport } = require('./local-runtime-endpoint');
 
 /**
  * @param {{
@@ -14,7 +15,7 @@ const { buildOllamaHttpPath, resolveLocalRuntimeEndpoint } = require('./local-ru
  *   host?: string,
  *   port?: number,
  *   base_path?: string,
- *   endpoint?: { host: string, port: number, base_path?: string, source?: string },
+ *   endpoint?: { host: string, port: number, base_path?: string, protocol?: string, source?: string },
  *   allowPublicLocalRuntime?: boolean,
  * }} [options]
  */
@@ -24,14 +25,16 @@ function resolveRunOllamaHttpTarget(options = {}) {
       host: String(options.endpoint.host),
       port: Number(options.endpoint.port),
       base_path: String(options.endpoint.base_path ?? ''),
+      protocol: String(options.endpoint.protocol ?? 'http'),
       endpoint: options.endpoint,
     };
   }
-  if (options.host != null || options.port != null || options.base_path != null) {
+  if (options.host != null || options.port != null || options.base_path != null || options.protocol != null) {
     return {
       host: String(options.host ?? process.env.OLLAMA_HOST ?? 'localhost'),
       port: Number(options.port ?? parseInt(process.env.OLLAMA_PORT || '11434', 10)),
       base_path: String(options.base_path ?? ''),
+      protocol: String(options.protocol ?? 'http'),
       endpoint: null,
     };
   }
@@ -44,6 +47,7 @@ function resolveRunOllamaHttpTarget(options = {}) {
       host: ep.host,
       port: ep.port,
       base_path: ep.base_path ?? '',
+      protocol: ep.protocol ?? 'http',
       endpoint: ep,
     };
   }
@@ -51,6 +55,7 @@ function resolveRunOllamaHttpTarget(options = {}) {
     host: process.env.OLLAMA_HOST || 'localhost',
     port: parseInt(process.env.OLLAMA_PORT || '11434', 10),
     base_path: '',
+    protocol: 'http',
     endpoint: null,
   };
 }
@@ -133,17 +138,23 @@ function runOllama(
 
   return new Promise((resolve, reject) => {
     const ms = timeoutMs ?? (parseInt(process.env.CLAUDE_CLI_TIMEOUT, 10) || 180000);
-    const req = http.request(
-      {
-        hostname: target.host,
-        port: target.port,
-        path: chatPath,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
-        },
+    const transport = ollamaHttpTransport(target.protocol);
+    /** @type {import('http').RequestOptions} */
+    const requestOpts = {
+      hostname: target.host,
+      port: target.port,
+      path: chatPath,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
       },
+    };
+    if (transport === https) {
+      requestOpts.rejectUnauthorized = false;
+    }
+    const req = transport.request(
+      requestOpts,
       (res) => {
         let data = '';
         res.on('data', (chunk) => { data += chunk; });

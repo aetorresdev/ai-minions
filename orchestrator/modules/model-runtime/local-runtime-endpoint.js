@@ -8,9 +8,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const https = require('https');
 const yaml = require('js-yaml');
 
-const { OLLAMA_BACKEND_ID } = require('./local-model-discovery');
+const OLLAMA_BACKEND_ID = 'ollama';
 
 const MODEL_RUNTIME_REASON = {
   OK: 'MODEL_RUNTIME_OK',
@@ -19,6 +21,26 @@ const MODEL_RUNTIME_REASON = {
 };
 
 /** @typedef {'localhost' | 'private_lan' | 'public_endpoint'} EndpointScope */
+
+/**
+ * @param {string} [protocol]
+ * @returns {'http' | 'https'}
+ */
+function normalizeOllamaProtocol(protocol) {
+  const raw = String(protocol ?? 'http').trim().toLowerCase().replace(/:$/, '');
+  if (raw !== 'http' && raw !== 'https') {
+    throw new Error(`ollama protocol must be http or https: ${protocol}`);
+  }
+  return raw;
+}
+
+/**
+ * @param {string} [protocol]
+ * @returns {typeof import('http') | typeof import('https')}
+ */
+function ollamaHttpTransport(protocol) {
+  return normalizeOllamaProtocol(protocol) === 'https' ? https : http;
+}
 
 /**
  * @param {string} host
@@ -73,7 +95,7 @@ function buildOllamaHttpPath(basePath, apiPath) {
 
 /**
  * @param {string} baseUrl
- * @returns {{ host: string, port: number, base_url: string, base_path: string }}
+ * @returns {{ host: string, port: number, base_url: string, base_path: string, protocol: 'http' | 'https' }}
  */
 function parseOllamaBaseUrl(baseUrl) {
   const raw = String(baseUrl ?? '').trim();
@@ -95,15 +117,16 @@ function parseOllamaBaseUrl(baseUrl) {
     throw new Error(`invalid port in ollama base_url: ${raw}`);
   }
   const base_path = normalizeOllamaBasePath(url.pathname);
-  const origin = `${url.protocol}//${host}:${port}`;
+  const protocol = normalizeOllamaProtocol(url.protocol === 'https:' ? 'https' : 'http');
+  const origin = `${protocol}://${host}:${port}`;
   const base_url = base_path ? `${origin}${base_path}` : origin;
-  return { host, port, base_url, base_path };
+  return { host, port, base_url, base_path, protocol };
 }
 
 /**
  * @param {string} host
  * @param {number} port
- * @returns {{ host: string, port: number, base_url: string, base_path: string }}
+ * @returns {{ host: string, port: number, base_url: string, base_path: string, protocol: 'http' | 'https' }}
  */
 function buildOllamaEndpoint(host, port) {
   const h = String(host ?? '').trim();
@@ -112,7 +135,7 @@ function buildOllamaEndpoint(host, port) {
   if (!Number.isFinite(p) || p <= 0 || p > 65535) {
     throw new Error('ollama port must be a valid TCP port');
   }
-  return { host: h, port: p, base_url: `http://${h}:${p}`, base_path: '' };
+  return { host: h, port: p, base_url: `http://${h}:${p}`, base_path: '', protocol: 'http' };
 }
 
 /**
@@ -240,6 +263,7 @@ function resolveLocalRuntimeEndpoint(options = {}) {
       port: fromYaml.port,
       base_url: fromYaml.base_url,
       base_path: fromYaml.base_path ?? '',
+      protocol: fromYaml.protocol ?? 'http',
       endpoint_scope: fromYaml.endpoint_scope,
       source: 'model_policy_yaml',
     };
@@ -335,6 +359,8 @@ function resolvePolicyCwd(repoCwd) {
 module.exports = {
   MODEL_RUNTIME_REASON,
   classifyEndpointScope,
+  normalizeOllamaProtocol,
+  ollamaHttpTransport,
   normalizeOllamaBasePath,
   buildOllamaHttpPath,
   parseOllamaBaseUrl,
