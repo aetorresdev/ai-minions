@@ -1327,6 +1327,10 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 
 **Semver errata:** GitHub tag `v0.22.0-alpha.1` removed 2026-07-10. Canonical **`v0.22.0-beta.1`** @ `52a7172` published.
 
+### v0.22 tag snapshot reconciliation
+
+Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` from E22-6 release-prep. **`master`** @ `bbdc62b`+ corrects header + `PRODUCT_VERSION`. GitHub release uses beta.1. Checkout tag alone ≠ version truth — see CHANGELOG errata block.
+
 **Scope:** E22-1..5 merged on `master` @ `3f5ff60` — deterministic tool-failure chaos eval, untrusted-context authority runtime gate + REDTEAM fixture corpus, operator harness visibility on `status`/`explain`, harness docs + CI scripts. **Prerequisite:** `v0.21.0-beta.1` @ `0230c23`. Not production resilience · not sandbox immunity · not cohort gate change · not external/untrusted repos by default.
 
 **Release claim:** deterministic harness evals for tool failure + context authority wired with honest operator surfaces — **not** beta UX expansion · **not** production SLA · **not** continuous red-team automation.
@@ -1380,10 +1384,12 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 | E23-1 | Shell/kernel threat model doc | [x] PR #273 `9f12753` |
 | E23-2 | Endpoint path (`base_url` + Olla) | [ ] |
 | E23-3 | Runtime wiring (discovery/chat/gate) | [ ] |
-| E23-4 | Tier-by-role (v1 tiers/role_defaults) | [ ] |
-| E23-5 | `model_selection` trace per invocation | [ ] |
 | E23-6 | Config authority + safe migration | [ ] |
+| E23-4 | Tier-by-role (v1 tiers/role_defaults) | [ ] |
+| E23-5 | `model_selection` trace + read safeguard | [ ] |
 | E23-7 | Release-prep + tag | [ ] |
+
+**Merge order (CERBERUS lock):** E23-2 → E23-3 → **E23-6** → E23-4 → E23-5 → E23-7. Config authority before tier resolver.
 
 ### Forbidden release claims (v0.23)
 
