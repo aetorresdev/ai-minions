@@ -43,6 +43,41 @@ function ollamaHttpTransport(protocol) {
 }
 
 /**
+ * Normalize client bind addresses used as HTTP hostnames (CI/Docker often sets 0.0.0.0).
+ * @param {string} host
+ * @returns {string}
+ */
+function normalizeOllamaClientHost(host) {
+  const h = String(host ?? '').trim().toLowerCase();
+  if (!h || h === '0.0.0.0') return '127.0.0.1';
+  return h;
+}
+
+/**
+ * @param {string} cwd
+ * @returns {boolean}
+ */
+function hasYamlLocalBackendEndpoint(cwd) {
+  return endpointFromYamlPolicy(loadRuntimeYamlPolicy(cwd)) != null;
+}
+
+/**
+ * Legacy env/default Ollama target — no operator YAML/CLI policy gate.
+ * @returns {{ host: string, port: number, base_path: string, protocol: 'http' | 'https', endpoint: null }}
+ */
+function resolveEnvOllamaHttpTarget() {
+  const host = normalizeOllamaClientHost(process.env.OLLAMA_HOST || 'localhost');
+  const port = parseInt(process.env.OLLAMA_PORT || '11434', 10);
+  return {
+    host,
+    port,
+    base_path: '',
+    protocol: 'http',
+    endpoint: null,
+  };
+}
+
+/**
  * @param {string} host
  * @returns {EndpointScope}
  */
@@ -129,7 +164,7 @@ function parseOllamaBaseUrl(baseUrl) {
  * @returns {{ host: string, port: number, base_url: string, base_path: string, protocol: 'http' | 'https' }}
  */
 function buildOllamaEndpoint(host, port) {
-  const h = String(host ?? '').trim();
+  const h = normalizeOllamaClientHost(host);
   const p = Number(port);
   if (!h) throw new Error('ollama host is required');
   if (!Number.isFinite(p) || p <= 0 || p > 65535) {
@@ -271,7 +306,7 @@ function resolveLocalRuntimeEndpoint(options = {}) {
 
   const envHost = process.env.OLLAMA_HOST;
   const envPort = parseInt(process.env.OLLAMA_PORT || '11434', 10);
-  const host = envHost && String(envHost).trim() ? String(envHost).trim() : 'localhost';
+  const host = normalizeOllamaClientHost(envHost || 'localhost');
   const built = buildOllamaEndpoint(host, envPort);
   const scope = classifyEndpointScope(built.host);
   if (scope === 'public_endpoint' && !allowPublic) {
@@ -361,6 +396,9 @@ module.exports = {
   classifyEndpointScope,
   normalizeOllamaProtocol,
   ollamaHttpTransport,
+  normalizeOllamaClientHost,
+  hasYamlLocalBackendEndpoint,
+  resolveEnvOllamaHttpTarget,
   normalizeOllamaBasePath,
   buildOllamaHttpPath,
   parseOllamaBaseUrl,

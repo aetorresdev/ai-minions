@@ -7,7 +7,14 @@
 const http = require('http');
 const https = require('https');
 
-const { buildOllamaHttpPath, resolveLocalRuntimeEndpoint, ollamaHttpTransport } = require('./local-runtime-endpoint');
+const {
+  buildOllamaHttpPath,
+  resolveLocalRuntimeEndpoint,
+  ollamaHttpTransport,
+  hasYamlLocalBackendEndpoint,
+  resolveEnvOllamaHttpTarget,
+  normalizeOllamaClientHost,
+} = require('./local-runtime-endpoint');
 
 /**
  * @param {{
@@ -31,14 +38,14 @@ function resolveRunOllamaHttpTarget(options = {}) {
   }
   if (options.host != null || options.port != null || options.base_path != null || options.protocol != null) {
     return {
-      host: String(options.host ?? process.env.OLLAMA_HOST ?? 'localhost'),
+      host: normalizeOllamaClientHost(options.host ?? process.env.OLLAMA_HOST ?? 'localhost'),
       port: Number(options.port ?? parseInt(process.env.OLLAMA_PORT || '11434', 10)),
       base_path: String(options.base_path ?? ''),
       protocol: String(options.protocol ?? 'http'),
       endpoint: null,
     };
   }
-  if (options.cwd) {
+  if (options.cwd && hasYamlLocalBackendEndpoint(options.cwd)) {
     const ep = resolveLocalRuntimeEndpoint({
       cwd: options.cwd,
       allowPublicLocalRuntime: options.allowPublicLocalRuntime === true,
@@ -51,13 +58,7 @@ function resolveRunOllamaHttpTarget(options = {}) {
       endpoint: ep,
     };
   }
-  return {
-    host: process.env.OLLAMA_HOST || 'localhost',
-    port: parseInt(process.env.OLLAMA_PORT || '11434', 10),
-    base_path: '',
-    protocol: 'http',
-    endpoint: null,
-  };
+  return resolveEnvOllamaHttpTarget();
 }
 
 function runOllama(

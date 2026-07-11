@@ -14,6 +14,9 @@ const {
   buildOllamaHttpPath,
   normalizeOllamaProtocol,
   ollamaHttpTransport,
+  normalizeOllamaClientHost,
+  hasYamlLocalBackendEndpoint,
+  resolveEnvOllamaHttpTarget,
   parseOllamaBaseUrl,
   resolveLocalRuntimeEndpoint,
   resolvePolicyCwd,
@@ -26,6 +29,7 @@ const {
   buildRunPreflight,
   formatPreflightText,
 } = require('../modules/operator/runner-preflight');
+const { resolveRunOllamaHttpTarget } = require('../modules/model-runtime/run-ollama');
 
 describe('local-runtime-endpoint', () => {
   it('classifyEndpointScope maps localhost and private LAN', () => {
@@ -119,6 +123,64 @@ describe('local-runtime-endpoint', () => {
     assert.equal(ep.base_url, 'http://127.0.0.1:40114/olla/ollama');
     assert.equal(ep.source, 'model_policy_yaml');
     fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('normalizeOllamaClientHost maps bind-all to loopback', () => {
+    assert.equal(normalizeOllamaClientHost('0.0.0.0'), '127.0.0.1');
+    assert.equal(normalizeOllamaClientHost(''), '127.0.0.1');
+    assert.equal(normalizeOllamaClientHost('macstudio.local'), 'macstudio.local');
+  });
+
+  it('resolveEnvOllamaHttpTarget uses env without public_endpoint gate', () => {
+    const prevHost = process.env.OLLAMA_HOST;
+    const prevPort = process.env.OLLAMA_PORT;
+    process.env.OLLAMA_HOST = '0.0.0.0';
+    process.env.OLLAMA_PORT = '11435';
+    try {
+      const target = resolveEnvOllamaHttpTarget();
+      assert.equal(target.host, '127.0.0.1');
+      assert.equal(target.port, 11435);
+      assert.equal(target.base_path, '');
+      assert.equal(target.protocol, 'http');
+      assert.equal(target.endpoint, null);
+    } finally {
+      if (prevHost === undefined) delete process.env.OLLAMA_HOST;
+      else process.env.OLLAMA_HOST = prevHost;
+      if (prevPort === undefined) delete process.env.OLLAMA_PORT;
+      else process.env.OLLAMA_PORT = prevPort;
+    }
+  });
+
+  it('hasYamlLocalBackendEndpoint is false without local_backend block', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-endpoint-'));
+    const policyDir = path.join(tmp, '.ai-minions');
+    fs.mkdirSync(policyDir, { recursive: true });
+    fs.writeFileSync(path.join(policyDir, 'model-policy.yaml'), 'model_policy_version: 1\n', 'utf8');
+    try {
+      assert.equal(hasYamlLocalBackendEndpoint(tmp), false);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('resolveRunOllamaHttpTarget falls back to env when cwd has no YAML policy', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'run-ollama-target-'));
+    const prevHost = process.env.OLLAMA_HOST;
+    const prevPort = process.env.OLLAMA_PORT;
+    process.env.OLLAMA_HOST = 'ollama.runner.internal';
+    process.env.OLLAMA_PORT = '11436';
+    try {
+      const target = resolveRunOllamaHttpTarget({ cwd: tmp });
+      assert.equal(target.host, 'ollama.runner.internal');
+      assert.equal(target.port, 11436);
+      assert.equal(target.endpoint, null);
+    } finally {
+      if (prevHost === undefined) delete process.env.OLLAMA_HOST;
+      else process.env.OLLAMA_HOST = prevHost;
+      if (prevPort === undefined) delete process.env.OLLAMA_PORT;
+      else process.env.OLLAMA_PORT = prevPort;
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 
   it('parseOllamaBaseUrl rejects malformed URLs', () => {

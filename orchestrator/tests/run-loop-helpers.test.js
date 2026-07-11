@@ -147,4 +147,41 @@ describe("run-loop-helpers — checkOllama endpoint resolution", () => {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  it("probes env OLLAMA_HOST when cwd has no model-policy local_backend", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "check-ollama-env-"));
+    const fixtureBody = JSON.stringify({ models: [] });
+    const server = http.createServer((req, res) => {
+      if (req.url === "/api/tags" && req.method === "GET") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(fixtureBody);
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise((resolve, reject) => {
+      server.listen(0, "127.0.0.1", (err) => (err ? reject(err) : resolve()));
+    });
+    const port = /** @type {import('net').AddressInfo} */ (server.address()).port;
+    const prevHost = process.env.OLLAMA_HOST;
+    const prevPort = process.env.OLLAMA_PORT;
+    const prevSkip = process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE;
+    process.env.OLLAMA_HOST = "0.0.0.0";
+    process.env.OLLAMA_PORT = String(port);
+    process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = "1";
+    try {
+      const ok = await checkOllama({ cwd: tmp });
+      assert.equal(ok, true);
+    } finally {
+      await new Promise((resolve) => server.close(() => resolve()));
+      if (prevHost === undefined) delete process.env.OLLAMA_HOST;
+      else process.env.OLLAMA_HOST = prevHost;
+      if (prevPort === undefined) delete process.env.OLLAMA_PORT;
+      else process.env.OLLAMA_PORT = prevPort;
+      if (prevSkip === undefined) delete process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE;
+      else process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = prevSkip;
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 });

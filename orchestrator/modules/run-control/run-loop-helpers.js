@@ -12,6 +12,8 @@ const {
   buildOllamaHttpPath,
   ollamaHttpTransport,
   resolveLocalRuntimeEndpoint,
+  hasYamlLocalBackendEndpoint,
+  resolveEnvOllamaHttpTarget,
 } = require("../model-runtime/local-runtime-endpoint");
 
 function stripLeadingOwnerArchitectForDegradedMultiAgent(steps) {
@@ -304,17 +306,30 @@ const AGENTS_REQUIRING_GATE = new Set(["architect", "dev-backend", "dev-frontend
 
 function checkOllama(options = {}) {
   const cwd = options.cwd ?? process.cwd();
-  let endpoint;
-  try {
-    endpoint = resolveLocalRuntimeEndpoint({ cwd });
-  } catch {
-    return Promise.resolve(false);
-  }
+  /** @type {Record<string, unknown> | null} */
+  let endpoint = null;
+  let host;
+  let port;
+  let base_path;
+  let protocol;
 
-  const host = endpoint.host;
-  const port = endpoint.port;
-  const base_path = endpoint.base_path ?? '';
-  const protocol = endpoint.protocol ?? 'http';
+  if (hasYamlLocalBackendEndpoint(cwd)) {
+    try {
+      endpoint = resolveLocalRuntimeEndpoint({ cwd });
+    } catch {
+      return Promise.resolve(false);
+    }
+    host = endpoint.host;
+    port = endpoint.port;
+    base_path = endpoint.base_path ?? '';
+    protocol = endpoint.protocol ?? 'http';
+  } else {
+    const envTarget = resolveEnvOllamaHttpTarget();
+    host = envTarget.host;
+    port = envTarget.port;
+    base_path = envTarget.base_path;
+    protocol = envTarget.protocol;
+  }
   const tagsPath = buildOllamaHttpPath(base_path, '/api/tags');
 
   return new Promise((resolve) => {
