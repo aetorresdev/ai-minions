@@ -1323,7 +1323,9 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 - [x] **Changelog:** section **[0.21.0-beta.1] - 2026-07-10**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
-## v0.22.0-alpha.1 — Harness Resilience + Context Authority
+## v0.22.0-beta.1 — Harness Resilience + Context Authority
+
+**Semver errata:** GitHub tag `v0.22.0-alpha.1` removed 2026-07-10. Canonical **`v0.22.0-beta.1`** @ `52a7172` published.
 
 **Scope:** E22-1..5 merged on `master` @ `3f5ff60` — deterministic tool-failure chaos eval, untrusted-context authority runtime gate + REDTEAM fixture corpus, operator harness visibility on `status`/`explain`, harness docs + CI scripts. **Prerequisite:** `v0.21.0-beta.1` @ `0230c23`. Not production resilience · not sandbox immunity · not cohort gate change · not external/untrusted repos by default.
 
@@ -1358,14 +1360,47 @@ Production TUI · Web UI · global npm package · automatic secret stripping · 
 
 **Wording:** do not mark `[x]` until E22-6 Phase B complete.
 
-- [x] **Tag target:** `v0.22.0-alpha.1` on release-prep merge commit @ `52a7172`
-- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.22.0-alpha.1` — pre-release published
+- [x] **Tag target:** `v0.22.0-beta.1` on release-prep merge commit @ `52a7172` *(semver errata — replaced `v0.22.0-alpha.1`)*
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.22.0-beta.1` — pre-release published
 - [x] **`release` branch:** aligned to tag commit @ `52a7172`
 
 ### Release artifact (source snapshot)
 
-- [x] **Changelog:** section **[0.22.0-alpha.1] - 2026-07-10**
+- [x] **Changelog:** section **[0.22.0-beta.1] - 2026-07-10**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+
+## v0.23.0-beta.1 — Shell Threat Model + Model Routing Coherence
+
+**Scope:** E23-1 doc (shipped) + **E23-2..E23-6** model routing coherence closeout — Olla `base_url` path, v1 tier-by-role, per-role `model_selection` trace (REQ-010), config authority (REQ-011). **Prerequisite:** v0.22 @ `52a7172` *(canonical `v0.22.0-beta.1`)* · E23-1 @ PR #273 `9f12753`. **Beta continuity** — not alpha.
+
+### v0.23 coherence tickets
+
+| Ticket | Scope | Status |
+|--------|-------|--------|
+| E23-1 | Shell/kernel threat model doc | [x] PR #273 `9f12753` |
+| E23-2 | Endpoint path (`base_url` + Olla) | [ ] |
+| E23-3 | Runtime wiring (discovery/chat/gate) | [ ] |
+| E23-4 | Tier-by-role (v1 tiers/role_defaults) | [ ] |
+| E23-5 | `model_selection` trace per invocation | [ ] |
+| E23-6 | Config authority + safe migration | [ ] |
+| E23-7 | Release-prep + tag | [ ] |
+
+### Forbidden release claims (v0.23)
+
+"multi-provider production-ready" · "billing-accurate remote cost" · "hybrid cloud routing shipped" · "architecture refactor complete" · hardened sandbox.
+
+### Release execution plan (Phase B — operator steps)
+
+**Wording:** do not mark `[x]` until E23-7 Phase B complete.
+
+- [ ] **Tag target:** `v0.23.0-beta.1` on E23-7 merge commit
+- [ ] **Release URL:** pre-release published
+- [ ] **`release` branch:** aligned to tag commit
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.23.0-beta.1]**
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record
 
 ## Future alpha / beta gates (positioning)
 

@@ -21,7 +21,7 @@ After **both** are true:
 1. `node scripts/run-beta-cohort-guard.mjs` → exit `0`
 2. [human-ready-rehearsal-record.json](evidence/human-ready-rehearsal-record.json) → `record.status` = `LIVE_PASS`
 
-Cohort may run on **`v0.21.0-beta.1`** and/or **`v0.22.0-alpha.1`** in parallel — record
+Cohort may run on **`v0.21.0-beta.1`** and/or **`v0.22.0-beta.1`** in parallel — record
 `ai_minions_version` per session.
 
 ---

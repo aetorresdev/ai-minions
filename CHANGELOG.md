@@ -6,9 +6,11 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
-## [0.22.0-alpha.1] - 2026-07-10
+## [0.22.0-beta.1] - 2026-07-10
 
-Twenty-second alpha pre-release: **Harness Resilience + Context Authority** — deterministic chaos tool-failure eval harness, untrusted-context authority runtime gate with REDTEAM fixture corpus, operator harness visibility on `status`/`explain`, security-posture and operator docs sync, and `test:eval:harness-resilience` CI scripts — without production resilience, sandbox immunity, continuous red-team automation, or cohort gate change.
+> **Semver errata (2026-07-10):** the GitHub tag was briefly published as `v0.22.0-alpha.1`. That label was a mistake — the external beta lane opened at `v0.20.0-beta.1` and harness maturity does not revert to alpha. Canonical version is **`v0.22.0-beta.1`** on commit `52a7172`. Post-`v0.20` cuts stay on `beta` unless CERBERUS explicitly closes external beta.
+
+Twenty-second beta pre-release: **Harness Resilience + Context Authority** — deterministic chaos tool-failure eval harness, untrusted-context authority runtime gate with REDTEAM fixture corpus, operator harness visibility on `status`/`explain`, security-posture and operator docs sync, and `test:eval:harness-resilience` CI scripts — without production resilience, sandbox immunity, continuous red-team automation, or cohort gate change.
 
 **Release claim:** deterministic tool-failure and context-authority evals wired with honest operator surfaces (`tool_failure_summary`, `context_authority_status`) — **not** beta UX expansion · **not** production resilience or SLA · **not** prompt-injection immunity · **not** continuous red-team automation · **not** cohort gate change.
 
@@ -16,14 +18,14 @@ Twenty-second alpha pre-release: **Harness Resilience + Context Authority** — 
 
 **Since [0.21.0-beta.1]:** v0.21 centered on **operator visibility and management evidence** (run state · attach · cost honesty · report/tui · trace evals). v0.22 adds **harness resilience evals** — chaos tool-failure fixtures, context-authority runtime gate, REDTEAM untrusted-context corpus, operator harness fields on status/explain, and wired security-posture/docs — without reopening beta UX or external cohort semantics.
 
-| Area | `v0.21.0-beta.1` | `v0.22.0-alpha.1` (delta) |
+| Area | `v0.21.0-beta.1` | `v0.22.0-beta.1` (delta) |
 |------|------------------|---------------------------|
 | Focus | Operator visibility + management evidence from trace | Harness resilience — chaos eval · context authority gate · operator harness surfacing |
 | Harness evals | Trace-based claim evals + read-only steering policy | + chaos tool-failure fixtures · untrusted-context gate · REDTEAM corpus · `test:eval:harness-resilience` |
 | Operator path | `status`/`explain`/`report`/`tui`/`attach` run state | + `tool_failure_summary` · `context_authority_status` on `status`/`explain` |
 | Unit tests (orchestrator) | 1346/1346 pass (1 skipped) @ `0230c23` | **1383/1383** pass (1 skipped) @ `3f5ff60` |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.22.0-alpha.1` — pre-release published @ tag `52a7172`
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.22.0-beta.1` — pre-release published @ tag `52a7172` *(replaces mislabeled `v0.22.0-alpha.1`)*
 
 **Evidence (operator):**
 
@@ -62,7 +64,7 @@ Twenty-second alpha pre-release: **Harness Resilience + Context Authority** — 
 ### Notes
 
 - Phase B completed @ `52a7172`: annotated tag, GitHub pre-release, and `release` branch aligned; governance validation returned `ok: true`.
-- v0.21.0-beta.1 beta claims and cohort guard semantics remain unchanged — this alpha cut is harness maturity only.
+- v0.21.0-beta.1 beta claims and cohort guard semantics remain unchanged — this beta cut is harness maturity only.
 
 ## [0.21.0-beta.1] - 2026-07-10
 
