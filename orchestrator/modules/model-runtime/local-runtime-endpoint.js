@@ -43,6 +43,34 @@ function ollamaHttpTransport(protocol) {
 }
 
 /**
+ * Opt-in TLS verification bypass for Ollama HTTPS (self-signed local certs only).
+ * Never enabled by default — requires explicit YAML, option, or OLLAMA_TLS_INSECURE env.
+ * @param {{ tls_insecure?: boolean, tlsInsecure?: boolean }} [options]
+ * @returns {boolean}
+ */
+function resolveOllamaTlsInsecure(options = {}) {
+  if (options.tls_insecure === true || options.tlsInsecure === true) {
+    return true;
+  }
+  const raw = String(process.env.OLLAMA_TLS_INSECURE ?? '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
+/**
+ * Apply HTTPS TLS options to Node request config. Verification stays on unless opted in.
+ * @param {import('http').RequestOptions} requestOpts
+ * @param {{ protocol?: string, tls_insecure?: boolean, tlsInsecure?: boolean }} [tlsContext]
+ */
+function applyOllamaHttpsTlsOptions(requestOpts, tlsContext = {}) {
+  if (normalizeOllamaProtocol(tlsContext.protocol ?? 'http') !== 'https') {
+    return;
+  }
+  if (resolveOllamaTlsInsecure(tlsContext)) {
+    requestOpts.rejectUnauthorized = false;
+  }
+}
+
+/**
  * Normalize client bind addresses used as HTTP hostnames (CI/Docker often sets 0.0.0.0).
  * @param {string} host
  * @returns {string}
@@ -73,6 +101,7 @@ function resolveEnvOllamaHttpTarget() {
     port,
     base_path: '',
     protocol: 'http',
+    tls_insecure: resolveOllamaTlsInsecure({}),
     endpoint: null,
   };
 }
@@ -204,6 +233,7 @@ function endpointFromYamlPolicy(policy) {
   const declaredScope = typeof rec.endpoint_scope === 'string' && rec.endpoint_scope.trim()
     ? /** @type {EndpointScope} */ (String(rec.endpoint_scope).trim())
     : null;
+  const tls_insecure = rec.tls_insecure === true;
 
   if (typeof rec.base_url === 'string' && rec.base_url.trim()) {
     const parsed = parseOllamaBaseUrl(rec.base_url);
@@ -211,6 +241,7 @@ function endpointFromYamlPolicy(policy) {
     return {
       ...parsed,
       endpoint_scope: computedScope,
+      tls_insecure,
       ...(declaredScope ? { declared_endpoint_scope: declaredScope } : {}),
     };
   }
@@ -221,6 +252,7 @@ function endpointFromYamlPolicy(policy) {
     return {
       ...built,
       endpoint_scope: computedScope,
+      tls_insecure,
       ...(declaredScope ? { declared_endpoint_scope: declaredScope } : {}),
     };
   }
@@ -249,6 +281,7 @@ function resolveLocalRuntimeEndpoint(options = {}) {
   const cwd = options.cwd || process.cwd();
   const loadPolicy = options.loadPolicy ?? loadRuntimeYamlPolicy;
   const allowPublic = options.allowPublicLocalRuntime === true;
+  const cliTlsInsecure = options.ollamaTlsInsecure === true;
 
   if (options.ollamaBaseUrl) {
     const parsed = parseOllamaBaseUrl(String(options.ollamaBaseUrl));
@@ -262,6 +295,7 @@ function resolveLocalRuntimeEndpoint(options = {}) {
       provider: OLLAMA_BACKEND_ID,
       ...parsed,
       endpoint_scope: scope,
+      tls_insecure: cliTlsInsecure || resolveOllamaTlsInsecure({}),
       source: 'cli_base_url',
     };
   }
@@ -281,6 +315,7 @@ function resolveLocalRuntimeEndpoint(options = {}) {
       provider: OLLAMA_BACKEND_ID,
       ...built,
       endpoint_scope: scope,
+      tls_insecure: cliTlsInsecure || resolveOllamaTlsInsecure({}),
       source: 'cli_host_port',
     };
   }
@@ -300,6 +335,7 @@ function resolveLocalRuntimeEndpoint(options = {}) {
       base_path: fromYaml.base_path ?? '',
       protocol: fromYaml.protocol ?? 'http',
       endpoint_scope: fromYaml.endpoint_scope,
+      tls_insecure: fromYaml.tls_insecure === true,
       source: 'model_policy_yaml',
     };
   }
@@ -318,6 +354,7 @@ function resolveLocalRuntimeEndpoint(options = {}) {
     provider: OLLAMA_BACKEND_ID,
     ...built,
     endpoint_scope: scope,
+    tls_insecure: resolveOllamaTlsInsecure({}),
     source: envHost ? 'env_ollama_host' : 'default_localhost',
   };
 }
@@ -399,6 +436,8 @@ module.exports = {
   normalizeOllamaClientHost,
   hasYamlLocalBackendEndpoint,
   resolveEnvOllamaHttpTarget,
+  resolveOllamaTlsInsecure,
+  applyOllamaHttpsTlsOptions,
   normalizeOllamaBasePath,
   buildOllamaHttpPath,
   parseOllamaBaseUrl,

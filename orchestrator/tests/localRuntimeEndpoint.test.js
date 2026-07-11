@@ -17,6 +17,8 @@ const {
   normalizeOllamaClientHost,
   hasYamlLocalBackendEndpoint,
   resolveEnvOllamaHttpTarget,
+  resolveOllamaTlsInsecure,
+  applyOllamaHttpsTlsOptions,
   parseOllamaBaseUrl,
   resolveLocalRuntimeEndpoint,
   resolvePolicyCwd,
@@ -181,6 +183,57 @@ describe('local-runtime-endpoint', () => {
       else process.env.OLLAMA_PORT = prevPort;
       fs.rmSync(tmp, { recursive: true, force: true });
     }
+  });
+
+  it('resolveOllamaTlsInsecure is opt-in only', () => {
+    const prev = process.env.OLLAMA_TLS_INSECURE;
+    delete process.env.OLLAMA_TLS_INSECURE;
+    try {
+      assert.equal(resolveOllamaTlsInsecure({}), false);
+      assert.equal(resolveOllamaTlsInsecure({ protocol: 'https' }), false);
+      assert.equal(resolveOllamaTlsInsecure({ tls_insecure: true }), true);
+      process.env.OLLAMA_TLS_INSECURE = '1';
+      assert.equal(resolveOllamaTlsInsecure({}), true);
+    } finally {
+      if (prev === undefined) delete process.env.OLLAMA_TLS_INSECURE;
+      else process.env.OLLAMA_TLS_INSECURE = prev;
+    }
+  });
+
+  it('applyOllamaHttpsTlsOptions skips rejectUnauthorized unless opted in', () => {
+    /** @type {import('http').RequestOptions} */
+    const strict = { hostname: '127.0.0.1', port: 443, path: '/api/tags', method: 'GET' };
+    applyOllamaHttpsTlsOptions(strict, { protocol: 'https' });
+    assert.equal(strict.rejectUnauthorized, undefined);
+
+    /** @type {import('http').RequestOptions} */
+    const insecure = { hostname: '127.0.0.1', port: 443, path: '/api/tags', method: 'GET' };
+    applyOllamaHttpsTlsOptions(insecure, { protocol: 'https', tls_insecure: true });
+    assert.equal(insecure.rejectUnauthorized, false);
+  });
+
+  it('resolveLocalRuntimeEndpoint reads tls_insecure from model-policy.yaml', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-endpoint-tls-'));
+    const policyDir = path.join(tmp, '.ai-minions');
+    fs.mkdirSync(policyDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(policyDir, 'model-policy.yaml'),
+      yaml.dump({
+        model_policy_version: 1,
+        local_backend: {
+          backend_id: 'ollama',
+          support_status: 'supported',
+          base_url: 'https://127.0.0.1:8443/olla/ollama',
+          endpoint_scope: 'localhost',
+          tls_insecure: true,
+        },
+      }),
+      'utf8',
+    );
+    const ep = resolveLocalRuntimeEndpoint({ cwd: tmp });
+    assert.equal(ep.protocol, 'https');
+    assert.equal(ep.tls_insecure, true);
+    fs.rmSync(tmp, { recursive: true, force: true });
   });
 
   it('parseOllamaBaseUrl rejects malformed URLs', () => {

@@ -14,6 +14,7 @@ const {
   hasYamlLocalBackendEndpoint,
   resolveEnvOllamaHttpTarget,
   normalizeOllamaClientHost,
+  applyOllamaHttpsTlsOptions,
 } = require('./local-runtime-endpoint');
 
 /**
@@ -24,6 +25,7 @@ const {
  *   base_path?: string,
  *   endpoint?: { host: string, port: number, base_path?: string, protocol?: string, source?: string },
  *   allowPublicLocalRuntime?: boolean,
+ *   tlsInsecure?: boolean,
  * }} [options]
  */
 function resolveRunOllamaHttpTarget(options = {}) {
@@ -33,6 +35,7 @@ function resolveRunOllamaHttpTarget(options = {}) {
       port: Number(options.endpoint.port),
       base_path: String(options.endpoint.base_path ?? ''),
       protocol: String(options.endpoint.protocol ?? 'http'),
+      tls_insecure: options.endpoint.tls_insecure === true || options.tlsInsecure === true,
       endpoint: options.endpoint,
     };
   }
@@ -42,6 +45,7 @@ function resolveRunOllamaHttpTarget(options = {}) {
       port: Number(options.port ?? parseInt(process.env.OLLAMA_PORT || '11434', 10)),
       base_path: String(options.base_path ?? ''),
       protocol: String(options.protocol ?? 'http'),
+      tls_insecure: options.tlsInsecure === true,
       endpoint: null,
     };
   }
@@ -55,10 +59,19 @@ function resolveRunOllamaHttpTarget(options = {}) {
       port: ep.port,
       base_path: ep.base_path ?? '',
       protocol: ep.protocol ?? 'http',
+      tls_insecure: ep.tls_insecure === true,
       endpoint: ep,
     };
   }
-  return resolveEnvOllamaHttpTarget();
+  const envTarget = resolveEnvOllamaHttpTarget();
+  return {
+    host: envTarget.host,
+    port: envTarget.port,
+    base_path: envTarget.base_path,
+    protocol: envTarget.protocol,
+    tls_insecure: envTarget.tls_insecure === true,
+    endpoint: null,
+  };
 }
 
 function runOllama(
@@ -75,6 +88,7 @@ function runOllama(
     base_path,
     endpoint,
     allowPublicLocalRuntime,
+    tlsInsecure,
   } = {},
 ) {
   const target = resolveRunOllamaHttpTarget({
@@ -84,6 +98,7 @@ function runOllama(
     base_path,
     endpoint,
     allowPublicLocalRuntime,
+    tlsInsecure,
   });
   const chatPath = buildOllamaHttpPath(target.base_path, '/api/chat');
 
@@ -152,7 +167,10 @@ function runOllama(
       },
     };
     if (transport === https) {
-      requestOpts.rejectUnauthorized = false;
+      applyOllamaHttpsTlsOptions(requestOpts, {
+        protocol: target.protocol,
+        tls_insecure: target.tls_insecure,
+      });
     }
     const req = transport.request(
       requestOpts,

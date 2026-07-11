@@ -216,12 +216,54 @@ describe("local-model-discovery — httpGetTags path prefix", () => {
         port,
         base_path: "/olla/ollama",
         protocol: "https",
+        tls_insecure: true,
       });
       assert.equal(response.ok, true);
       assert.equal(response.body, fixtureBody);
     } finally {
       await new Promise((resolve) => server.close(() => resolve()));
       delete process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE;
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects self-signed https unless tls_insecure is opted in", async (t) => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "https-tags-strict-"));
+    const keyPath = path.join(tmp, "key.pem");
+    const certPath = path.join(tmp, "cert.pem");
+    try {
+      require("child_process").execSync(
+        `openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 1 -nodes -subj "/CN=localhost"`,
+        { stdio: "ignore" },
+      );
+    } catch {
+      t.skip("openssl unavailable for https transport test");
+      return;
+    }
+    const server = https.createServer(
+      {
+        key: fs.readFileSync(keyPath),
+        cert: fs.readFileSync(certPath),
+      },
+      (req, res) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ models: [] }));
+      },
+    );
+    await new Promise((resolve, reject) => {
+      server.listen(0, "127.0.0.1", (err) => (err ? reject(err) : resolve()));
+    });
+    const port = /** @type {import('net').AddressInfo} */ (server.address()).port;
+    try {
+      const response = await httpGetTags({
+        host: "127.0.0.1",
+        port,
+        protocol: "https",
+      });
+      assert.equal(response.ok, false);
+      assert.match(String(response.error ?? ""), /certificate|self signed|unable to verify/i);
+    } finally {
+      await new Promise((resolve) => server.close(() => resolve()));
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });

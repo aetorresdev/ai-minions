@@ -14,6 +14,7 @@ const {
   resolveLocalRuntimeEndpoint,
   hasYamlLocalBackendEndpoint,
   resolveEnvOllamaHttpTarget,
+  applyOllamaHttpsTlsOptions,
 } = require("../model-runtime/local-runtime-endpoint");
 
 function stripLeadingOwnerArchitectForDegradedMultiAgent(steps) {
@@ -312,6 +313,7 @@ function checkOllama(options = {}) {
   let port;
   let base_path;
   let protocol;
+  let tls_insecure = false;
 
   if (hasYamlLocalBackendEndpoint(cwd)) {
     try {
@@ -323,12 +325,14 @@ function checkOllama(options = {}) {
     port = endpoint.port;
     base_path = endpoint.base_path ?? '';
     protocol = endpoint.protocol ?? 'http';
+    tls_insecure = endpoint.tls_insecure === true;
   } else {
     const envTarget = resolveEnvOllamaHttpTarget();
     host = envTarget.host;
     port = envTarget.port;
     base_path = envTarget.base_path;
     protocol = envTarget.protocol;
+    tls_insecure = envTarget.tls_insecure === true;
   }
   const tagsPath = buildOllamaHttpPath(base_path, '/api/tags');
 
@@ -345,7 +349,7 @@ function checkOllama(options = {}) {
           tool: "ollama_health_check",
           pathLabel: tagsPath,
         };
-        if (["cli_host_port", "cli_base_url", "model_policy_yaml"].includes(endpoint.source)) {
+        if (endpoint && ["cli_host_port", "cli_base_url", "model_policy_yaml"].includes(endpoint.source)) {
           gateOpts.operatorConfiguredEndpoint = endpoint;
         }
         const gate = runNetworkPermissionGate(gateOpts);
@@ -369,7 +373,7 @@ function checkOllama(options = {}) {
       method: "GET",
     };
     if (transport === https) {
-      requestOpts.rejectUnauthorized = false;
+      applyOllamaHttpsTlsOptions(requestOpts, { protocol, tls_insecure });
     }
     const req = transport.request(requestOpts, (res) => {
       resolve(res.statusCode === 200);
