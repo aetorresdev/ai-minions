@@ -246,6 +246,8 @@ function printAiMinionsCliHelp() {
     "Options (init / doctor):",
     "  --cwd <dir>              Project directory (default: clone root for init)",
     "  --model-policy <name>    local_only | remote_ok",
+    "  --migrate-model-policy   Explicit rewrite of model_policy.json (required to overwrite)",
+    "  --force                  Does not overwrite model_policy.json without --migrate-model-policy",
     "  --local-provider <name>  ollama (only supported provider)",
     "  --ollama-host <host>     Ollama host (e.g. macstudio.local)",
     "  --ollama-port <port>     Ollama port (default: 11434)",

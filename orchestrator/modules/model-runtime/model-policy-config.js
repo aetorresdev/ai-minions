@@ -1,14 +1,26 @@
 "use strict";
 
 /**
- * Versioned model tier policy loader — governance config only.
- * Does not change model selection or routing (policy loader slice).
+ * Versioned model tier policy loader + routing config authority.
+ * Canonical SoT for tiers/role_defaults is model_policy.json.
+ * model-policy.yaml may bootstrap local_backend / legacy default_model only.
  */
 
 const path = require("node:path");
 const fs = require("node:fs");
+const crypto = require("node:crypto");
+const yaml = require("js-yaml");
 
 const { MODEL_TIERS, TRACE_ROLES } = require("../trace/model-selection-trace");
+
+/** Stable fail-closed code when YAML/JSON routing keys disagree or YAML claims routing without JSON. */
+const MODEL_ROUTING_CONFIG_CONFLICT = "MODEL_ROUTING_CONFIG_CONFLICT";
+
+/** E23 routing authority keys — only these participate in conflict detection. */
+const ROUTING_AUTHORITY_KEYS = Object.freeze(["tiers", "role_defaults"]);
+
+const MODEL_POLICY_YAML_FILENAME = "model-policy.yaml";
+const MODEL_POLICY_YAML_REL_PATH = path.join(".ai-minions", MODEL_POLICY_YAML_FILENAME);
 
 /**
  * @param {ModelPolicyConfig} policy
@@ -393,19 +405,344 @@ function rulesForTier(policy, tier) {
   return policy.rules.filter((rule) => rule.when.model_tier === tier);
 }
 
+/**
+ * @param {string} [cwd]
+ * @returns {string}
+ */
+function resolveModelPolicyYamlPath(cwd = process.cwd()) {
+  return path.join(path.resolve(cwd), MODEL_POLICY_YAML_REL_PATH);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+function canonicalizeForCompare(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => canonicalizeForCompare(entry));
+  }
+  if (value && typeof value === "object") {
+    /** @type {Record<string, unknown>} */
+    const out = {};
+    for (const key of Object.keys(/** @type {Record<string, unknown>} */ (value)).sort()) {
+      out[key] = canonicalizeForCompare(/** @type {Record<string, unknown>} */ (value)[key]);
+    }
+    return out;
+  }
+  if (typeof value === "string") return value.trim();
+  return value;
+}
+
+/**
+ * Structural equality independent of key order.
+ * @param {unknown} a
+ * @param {unknown} b
+ * @returns {boolean}
+ */
+function routingValuesEqual(a, b) {
+  return JSON.stringify(canonicalizeForCompare(a)) === JSON.stringify(canonicalizeForCompare(b));
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} yamlPolicy
+ * @param {string} key
+ * @returns {boolean}
+ */
+function yamlDeclaresRoutingKey(yamlPolicy, key) {
+  if (!yamlPolicy || typeof yamlPolicy !== "object" || Array.isArray(yamlPolicy)) return false;
+  return Object.prototype.hasOwnProperty.call(yamlPolicy, key)
+    && yamlPolicy[key] !== undefined
+    && yamlPolicy[key] !== null;
+}
+
+/**
+ * @param {string} [cwd]
+ * @returns {{ path: string | null, policy: Record<string, unknown> | null, raw: string | null }}
+ */
+function loadModelPolicyYamlRaw(cwd = process.cwd()) {
+  const yamlPath = resolveModelPolicyYamlPath(cwd);
+  if (!fs.existsSync(yamlPath)) {
+    return { path: null, policy: null, raw: null };
+  }
+  const raw = fs.readFileSync(yamlPath, "utf8");
+  const parsed = yaml.load(raw);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`model-policy.yaml: root must be a YAML object (file: ${yamlPath})`);
+  }
+  return {
+    path: yamlPath,
+    policy: /** @type {Record<string, unknown>} */ (parsed),
+    raw,
+  };
+}
+
+/**
+ * @param {string} message
+ * @param {{
+ *   code?: string,
+ *   reason?: string,
+ *   fields?: string[],
+ * }} [detail]
+ * @returns {Error & { code: string, reason?: string, fields: string[] }}
+ */
+function createRoutingConfigError(message, detail = {}) {
+  const err = /** @type {Error & { code: string, reason?: string, fields: string[] }} */ (
+    new Error(message)
+  );
+  err.code = detail.code || MODEL_ROUTING_CONFIG_CONFLICT;
+  if (detail.reason) err.reason = detail.reason;
+  err.fields = Array.isArray(detail.fields) ? [...detail.fields] : [];
+  return err;
+}
+
+/**
+ * Detect YAML↔JSON conflict on routing authority keys only (`tiers`, `role_defaults`).
+ * JSON is always authority when present; YAML never wins or merges.
+ *
+ * @param {{
+ *   yamlPolicy?: Record<string, unknown> | null,
+ *   jsonPolicy?: ModelPolicyConfig | null,
+ *   jsonFilePresent?: boolean,
+ * }} input
+ * @returns {{
+ *   ok: true,
+ *   declared_fields: string[],
+ * } | {
+ *   ok: false,
+ *   code: string,
+ *   reason: string,
+ *   fields: string[],
+ *   message: string,
+ * }}
+ */
+function detectModelRoutingConfigConflict(input = {}) {
+  const yamlPolicy = input.yamlPolicy ?? null;
+  const jsonFilePresent = input.jsonFilePresent === true;
+  const jsonPolicy = input.jsonPolicy ?? null;
+
+  /** @type {string[]} */
+  const declared = [];
+  for (const key of ROUTING_AUTHORITY_KEYS) {
+    if (yamlDeclaresRoutingKey(yamlPolicy, key)) declared.push(key);
+  }
+
+  if (declared.length === 0) {
+    return { ok: true, declared_fields: [] };
+  }
+
+  if (!jsonFilePresent || !jsonPolicy) {
+    return {
+      ok: false,
+      code: MODEL_ROUTING_CONFIG_CONFLICT,
+      reason: "yaml_routing_without_canonical_json",
+      fields: declared,
+      message:
+        `${MODEL_ROUTING_CONFIG_CONFLICT}: model-policy.yaml declares routing keys (${declared.join(", ")}) `
+        + "but model_policy.json is absent — migrate explicitly; YAML cannot become routing SoT",
+    };
+  }
+
+  /** @type {string[]} */
+  const mismatched = [];
+  for (const key of declared) {
+    const yamlValue = /** @type {Record<string, unknown>} */ (yamlPolicy)[key];
+    const jsonValue = /** @type {Record<string, unknown>} */ (jsonPolicy)[key];
+    if (!routingValuesEqual(yamlValue, jsonValue)) {
+      mismatched.push(key);
+    }
+  }
+  if (mismatched.length > 0) {
+    return {
+      ok: false,
+      code: MODEL_ROUTING_CONFIG_CONFLICT,
+      reason: "yaml_json_routing_disagree",
+      fields: mismatched,
+      message:
+        `${MODEL_ROUTING_CONFIG_CONFLICT}: routing keys disagree between model-policy.yaml and model_policy.json: `
+        + mismatched.join(", "),
+    };
+  }
+
+  return { ok: true, declared_fields: declared };
+}
+
+/**
+ * @param {{
+ *   defaultModel?: string | null,
+ * }} [options]
+ * @returns {{
+ *   provider_id: string,
+ *   endpoint_ref: string,
+ *   model: string | null,
+ *   route_source: "legacy_default",
+ * }}
+ */
+function normalizeLegacyRouting(options = {}) {
+  const model = options.defaultModel != null && String(options.defaultModel).trim()
+    ? String(options.defaultModel).trim()
+    : null;
+  return {
+    provider_id: "ollama",
+    endpoint_ref: "default",
+    model,
+    route_source: "legacy_default",
+  };
+}
+
+/**
+ * Load canonical routing authority for a project cwd.
+ * Does not claim tier routing already drives invocations (that is a later slice).
+ *
+ * @param {string} [cwd]
+ * @returns {{
+ *   route_source: "model_policy_json" | "legacy_default",
+ *   json_present: boolean,
+ *   json_path: string | null,
+ *   yaml_path: string | null,
+ *   policy: ModelPolicyConfig | null,
+ *   legacy: ReturnType<typeof normalizeLegacyRouting> | null,
+ *   yaml_declared_routing_fields: string[],
+ * }}
+ */
+function loadCanonicalRoutingConfig(cwd = process.cwd()) {
+  const jsonPath = resolveModelPolicyPath(cwd);
+  const jsonPresent = fs.existsSync(jsonPath);
+  const yamlLoaded = loadModelPolicyYamlRaw(cwd);
+
+  let jsonPolicy = null;
+  if (jsonPresent) {
+    jsonPolicy = parseModelPolicyJson(jsonPath, fs.readFileSync(jsonPath, "utf8"));
+  }
+
+  const conflict = detectModelRoutingConfigConflict({
+    yamlPolicy: yamlLoaded.policy,
+    jsonPolicy,
+    jsonFilePresent: jsonPresent,
+  });
+  if (!conflict.ok) {
+    throw createRoutingConfigError(conflict.message, {
+      code: conflict.code,
+      reason: conflict.reason,
+      fields: conflict.fields,
+    });
+  }
+
+  if (jsonPresent && jsonPolicy) {
+    return {
+      route_source: "model_policy_json",
+      json_present: true,
+      json_path: jsonPath,
+      yaml_path: yamlLoaded.path,
+      policy: jsonPolicy,
+      legacy: null,
+      yaml_declared_routing_fields: conflict.declared_fields,
+    };
+  }
+
+  const defaultModel = yamlLoaded.policy
+    && typeof yamlLoaded.policy.default_model === "string"
+    ? yamlLoaded.policy.default_model
+    : null;
+
+  return {
+    route_source: "legacy_default",
+    json_present: false,
+    json_path: null,
+    yaml_path: yamlLoaded.path,
+    policy: null,
+    legacy: normalizeLegacyRouting({ defaultModel }),
+    yaml_declared_routing_fields: [],
+  };
+}
+
+/**
+ * Authorize whether install/init may rewrite model_policy.json.
+ * `--force` alone never grants permission to destroy hand-edited routing JSON.
+ *
+ * @param {{
+ *   migrateModelPolicy?: boolean,
+ *   force?: boolean,
+ *   jsonExists?: boolean,
+ * }} [options]
+ * @returns {{
+ *   allow_json_write: boolean,
+ *   allow_json_overwrite: boolean,
+ *   reason: string,
+ * }}
+ */
+function authorizeModelPolicyMigration(options = {}) {
+  const migrate = options.migrateModelPolicy === true;
+  const force = options.force === true;
+  const jsonExists = options.jsonExists === true;
+
+  if (!jsonExists) {
+    return {
+      allow_json_write: true,
+      allow_json_overwrite: false,
+      reason: "json_absent_create_allowed",
+    };
+  }
+
+  if (migrate) {
+    return {
+      allow_json_write: true,
+      allow_json_overwrite: true,
+      reason: "migrate_model_policy",
+    };
+  }
+
+  if (force) {
+    return {
+      allow_json_write: false,
+      allow_json_overwrite: false,
+      reason: "force_without_migrate_preserves_json",
+    };
+  }
+
+  return {
+    allow_json_write: false,
+    allow_json_overwrite: false,
+    reason: "preserve_existing_json",
+  };
+}
+
+/**
+ * @param {string} filePath
+ * @returns {string | null}
+ */
+function fileSha256OrNull(filePath) {
+  if (!fs.existsSync(filePath)) return null;
+  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+}
+
 module.exports = {
   SUPPORTED_MODEL_POLICY_VERSION,
   MODEL_POLICY_FILENAME,
   MODEL_POLICY_REL_PATH,
+  MODEL_POLICY_YAML_FILENAME,
+  MODEL_POLICY_YAML_REL_PATH,
+  MODEL_ROUTING_CONFIG_CONFLICT,
+  ROUTING_AUTHORITY_KEYS,
   DEFAULT_MODEL_POLICY,
   cloneDefaultModelPolicy,
   validateModelPolicy,
   parseModelPolicyJson,
   resolveModelPolicyPath,
+  resolveModelPolicyYamlPath,
   loadModelPolicyConfig,
+  loadModelPolicyYamlRaw,
   resolveRoleDefaultTier,
   listAllowedModelsForTier,
   rulesForTier,
   assertPolicyTierDefaultsAllowed,
   validateProviderInferenceProfiles,
+  canonicalizeForCompare,
+  routingValuesEqual,
+  yamlDeclaresRoutingKey,
+  detectModelRoutingConfigConflict,
+  normalizeLegacyRouting,
+  loadCanonicalRoutingConfig,
+  authorizeModelPolicyMigration,
+  createRoutingConfigError,
+  fileSha256OrNull,
 };

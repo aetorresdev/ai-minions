@@ -373,6 +373,8 @@ export async function runHostPrereqChecks(repoRoot, orchDir, options = {}) {
  *   ollamaBaseUrl?: string | null,
  *   allowPublicLocalRuntime?: boolean,
  *   model?: string | null,
+ *   migrateModelPolicy?: boolean,
+ *   force?: boolean,
  * }} [options]
  */
 export async function runInstallAiMinions(options = {}) {
@@ -498,6 +500,8 @@ export async function runInstallAiMinions(options = {}) {
     const writeResult = writeInstallModelConfig(repoRoot, discovery, modelPolicy, {
       ...(options.configWriteOptions ?? {}),
       defaultModelOverride: options.model ?? null,
+      migrateModelPolicy: options.migrateModelPolicy === true,
+      force: options.force === true,
     });
     const configChecks = buildConfigWriteChecks(writeResult);
     const allChecks = [...checks, ...configChecks];
@@ -723,6 +727,8 @@ export function parseArgs(argv) {
     noInstall: argv.includes("--no-install"),
     skipCli: argv.includes("--skip-cli"),
     allowPublicLocalRuntime: argv.includes("--allow-public-local-runtime"),
+    migrateModelPolicy: argv.includes("--migrate-model-policy"),
+    force: argv.includes("--force"),
     help: argv.includes("-h") || argv.includes("--help"),
     modelPolicy,
     modelPolicyRaw,
@@ -750,6 +756,8 @@ Options:
   --model-policy <mode>  local_only | remote_ok
                          local_only: fail when Ollama unreachable or no local models
                          remote_ok: warn when local inventory missing (not remote provider setup)
+  --migrate-model-policy Explicitly rewrite model_policy.json (never silent overwrite)
+  --force                Does NOT rewrite model_policy.json without --migrate-model-policy
   --json                 Machine-readable report on stdout
   -h, --help             Show this help
 
@@ -788,6 +796,8 @@ See docs/orchestrator/model-config-ownership.md for YAML vs JSON ownership.
     ollamaBaseUrl: args.ollamaBaseUrl,
     allowPublicLocalRuntime: args.allowPublicLocalRuntime,
     model: args.model,
+    migrateModelPolicy: args.migrateModelPolicy,
+    force: args.force,
   });
 
   if (args.json) {

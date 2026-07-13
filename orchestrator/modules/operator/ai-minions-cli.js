@@ -78,6 +78,8 @@ function parseAiMinionsArgs(argv) {
   out.noInstall = argv.includes('--no-install');
   out.live = argv.includes('--live');
   out.latest = argv.includes('--latest');
+  out.migrateModelPolicy = argv.includes('--migrate-model-policy');
+  out.force = argv.includes('--force');
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--run' && argv[i + 1] && !out.runId) out.runId = argv[++i];
@@ -222,6 +224,8 @@ function formatStartText(launched, meta = {}) {
  *   ollamaBaseUrl?: string,
  *   allowPublicLocalRuntime?: boolean,
  *   model?: string,
+ *   migrateModelPolicy?: boolean,
+ *   force?: boolean,
  *   loadInstallModule?: () => Promise<typeof import('../../../../scripts/install-ai-minions.mjs')>,
  * }} [options]
  */
@@ -240,6 +244,8 @@ async function runInit(options = {}) {
     ollamaBaseUrl: options.ollamaBaseUrl ?? null,
     allowPublicLocalRuntime: options.allowPublicLocalRuntime === true,
     model: options.model ?? null,
+    migrateModelPolicy: options.migrateModelPolicy === true,
+    force: options.force === true,
   });
   return {
     report,
@@ -526,6 +532,8 @@ async function main() {
       install: opts.noInstall !== true,
       json: opts.json === true,
       model: opts.model ? String(opts.model) : undefined,
+      migrateModelPolicy: opts.migrateModelPolicy === true,
+      force: opts.force === true,
       ...endpointOptionsFromCli(opts),
     });
     if (result.json) {
