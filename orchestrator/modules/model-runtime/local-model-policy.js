@@ -6,8 +6,21 @@
  */
 
 const GATE_ID = 'model_policy_block';
+const MODEL_NOT_FOUND = 'MODEL_NOT_FOUND';
 
 const { selectLocalModel } = require('./local-model-selection');
+const {
+  loadCanonicalRoutingConfig,
+  resolveRoleDefaultTier,
+  listAllowedModelsForTier,
+} = require('./model-policy-config');
+
+/** Sources from selectLocalModel / CLI that pin every role to one model. */
+const GLOBAL_PIN_SOURCES = new Set([
+  'cli',
+  'env_orchestr_local_model',
+  'env_ollama_model',
+]);
 
 /** @type {{ cliModel: string | null, skipBackendCheck: boolean, selectionResult: import('./local-model-selection').LocalModelSelectionResult | null, cwd: string | null, endpointMeta: { host: string, port: number, base_url: string, endpoint_scope: string } | null }} */
 let _runConfig = {
@@ -244,12 +257,227 @@ async function validateLocalOnlyRunPrerequisites(deps = {}) {
 }
 
 /**
+ * @param {string} message
+ * @param {Record<string, unknown>} [extra]
+ */
+function createModelNotFoundError(message, extra = {}) {
+  const err = new Error(message);
+  err.gate_id = GATE_ID;
+  err.code = MODEL_NOT_FOUND;
+  Object.assign(err, extra);
+  return err;
+}
+
+/**
+ * @param {unknown} role
+ * @returns {string}
+ */
+function normalizeRoleKey(role) {
+  return String(role ?? '').trim().toUpperCase().replace(/-/g, '_');
+}
+
+/**
+ * @param {string} roleKey
+ * @returns {string | null}
+ */
+function resolveRoleEnvOverride(roleKey) {
+  const key = `MODEL_OVERRIDE_${roleKey}`;
+  return normalizeModelName(process.env[key]);
+}
+
+/**
+ * Global pin: --model / ORCH_LOCAL_MODEL / OLLAMA_MODEL (or cached selection from those).
+ * Does not treat YAML default_model / auto_detect as a global pin so tier routing can apply.
+ * @param {{ cliModel?: string | null }} [opts]
+ * @returns {{ model: string, override_source: string, route_source: 'override' } | null}
+ */
+function resolveGlobalModelPin(opts = {}) {
+  const cliModel = normalizeModelName(opts.cliModel ?? _runConfig.cliModel);
+  if (cliModel) {
+    return { model: cliModel, override_source: 'cli', route_source: 'override' };
+  }
+  const envLocal = normalizeModelName(process.env.ORCH_LOCAL_MODEL);
+  if (envLocal) {
+    return {
+      model: envLocal,
+      override_source: 'env_orchestr_local_model',
+      route_source: 'override',
+    };
+  }
+  const ollamaModel = normalizeModelName(process.env.OLLAMA_MODEL);
+  if (ollamaModel) {
+    return {
+      model: ollamaModel,
+      override_source: 'env_ollama_model',
+      route_source: 'override',
+    };
+  }
+  const sel = _runConfig.selectionResult;
+  if (sel?.selected_model && GLOBAL_PIN_SOURCES.has(sel.override_source)) {
+    return {
+      model: sel.selected_model,
+      override_source: sel.override_source,
+      route_source: 'override',
+    };
+  }
+  return null;
+}
+
+/**
+ * @param {{ inventory?: string[] | null }} [opts]
+ * @returns {Set<string> | null} null when inventory is unknown
+ */
+function resolveInventorySet(opts = {}) {
+  if (Object.prototype.hasOwnProperty.call(opts, 'inventory')) {
+    if (opts.inventory == null) return null;
+    return new Set(Array.isArray(opts.inventory) ? opts.inventory : []);
+  }
+  const discovered = _runConfig.selectionResult?.discovered_models;
+  if (Array.isArray(discovered)) return new Set(discovered);
+  return null;
+}
+
+/**
+ * @param {string} model
+ * @param {Set<string> | null} inventory
+ * @param {string} roleKey
+ * @param {Record<string, unknown>} [extra]
+ */
+function assertModelInInventory(model, inventory, roleKey, extra = {}) {
+  if (inventory == null) return;
+  if (!inventory.has(model)) {
+    throw createModelNotFoundError(
+      `[local-only] MODEL_NOT_FOUND for role "${roleKey}": model "${model}" not in discovery inventory.`,
+      { role: roleKey, model, ...extra },
+    );
+  }
+}
+
+/**
+ * Resolve local Ollama model for a MODE role under local_only.
+ * Precedence: MODEL_OVERRIDE_<ROLE> → global CLI/env pin → role_defaults+tiers ∩ inventory → YAML default_model.
+ *
+ * @param {string} role
+ * @param {{ cwd?: string, inventory?: string[] | null, cliModel?: string | null }} [opts]
+ * @returns {{
+ *   model: string,
+ *   role: string,
+ *   tier: string | null,
+ *   route_source: 'override' | 'role_defaults' | 'legacy_default',
+ *   override_source: string | null,
+ * }}
+ */
+function selectModelForRole(role, opts = {}) {
+  const roleKey = normalizeRoleKey(role);
+  if (!roleKey) {
+    throw createModelNotFoundError(
+      '[local-only] MODEL_NOT_FOUND: role is required for tier-by-role routing.',
+      { role: role ?? null },
+    );
+  }
+
+  const cwd = opts.cwd ?? _runConfig.cwd ?? process.cwd();
+  const inventory = resolveInventorySet(opts);
+
+  const roleOverride = resolveRoleEnvOverride(roleKey);
+  if (roleOverride) {
+    assertModelInInventory(roleOverride, inventory, roleKey);
+    return {
+      model: roleOverride,
+      role: roleKey,
+      tier: null,
+      route_source: 'override',
+      override_source: `env_model_override_${roleKey.toLowerCase()}`,
+    };
+  }
+
+  const globalPin = resolveGlobalModelPin(opts);
+  if (globalPin) {
+    assertModelInInventory(globalPin.model, inventory, roleKey);
+    return {
+      model: globalPin.model,
+      role: roleKey,
+      tier: null,
+      route_source: 'override',
+      override_source: globalPin.override_source,
+    };
+  }
+
+  const auth = loadCanonicalRoutingConfig(cwd);
+
+  if (auth.route_source === 'model_policy_json' && auth.policy) {
+    const tier = resolveRoleDefaultTier(auth.policy, roleKey);
+    const candidates = listAllowedModelsForTier(auth.policy, tier);
+    if (!candidates.length) {
+      throw createModelNotFoundError(
+        `[local-only] MODEL_NOT_FOUND for role "${roleKey}": tier "${tier}" has no models configured.`,
+        { role: roleKey, tier },
+      );
+    }
+    if (inventory == null) {
+      throw createModelNotFoundError(
+        `[local-only] MODEL_NOT_FOUND for role "${roleKey}": discovery inventory unavailable for tier "${tier}".`,
+        { role: roleKey, tier },
+      );
+    }
+    const chosen = candidates.find((m) => inventory.has(m)) ?? null;
+    if (!chosen) {
+      throw createModelNotFoundError(
+        `[local-only] MODEL_NOT_FOUND for role "${roleKey}": no model from tier "${tier}" present in discovery inventory.`,
+        { role: roleKey, tier, candidates: [...candidates] },
+      );
+    }
+    return {
+      model: chosen,
+      role: roleKey,
+      tier,
+      route_source: 'role_defaults',
+      override_source: null,
+    };
+  }
+
+  const legacyModel =
+    normalizeModelName(auth.legacy?.model)
+    ?? normalizeModelName(_runConfig.selectionResult?.selected_model);
+  if (!legacyModel) {
+    throw createModelNotFoundError(
+      `[local-only] MODEL_NOT_FOUND for role "${roleKey}": no model_policy.json routing and no YAML default_model.`,
+      { role: roleKey, soft: true },
+    );
+  }
+  assertModelInInventory(legacyModel, inventory, roleKey);
+  return {
+    model: legacyModel,
+    role: roleKey,
+    tier: null,
+    route_source: 'legacy_default',
+    override_source: _runConfig.selectionResult?.override_source ?? 'model_policy_yaml',
+  };
+}
+
+/**
  * Ollama model name for the current agent invocation under local-only routing.
- * @param {{ forceOllama?: boolean, agentModel?: string }} [ctx]
+ * When `role` is set, resolves via tier-by-role (`selectModelForRole`).
+ * @param {{ forceOllama?: boolean, agentModel?: string, role?: string, cwd?: string, inventory?: string[] | null, cliModel?: string | null }} [ctx]
  * @returns {string | null}
  */
 function getEffectiveOllamaModel(ctx = {}) {
   if (isLocalOnlyModeEnabled()) {
+    const role = ctx.role != null && String(ctx.role).trim() !== '' ? ctx.role : null;
+    if (role) {
+      /** @type {{ cwd?: string, inventory?: string[] | null, cliModel?: string | null }} */
+      const selOpts = { cwd: ctx.cwd, cliModel: ctx.cliModel };
+      if (Object.prototype.hasOwnProperty.call(ctx, 'inventory')) {
+        selOpts.inventory = ctx.inventory;
+      }
+      try {
+        return selectModelForRole(role, selOpts).model;
+      } catch (err) {
+        // Soft miss (nothing configured) → null so assertRemoteProviderBlocked can fire.
+        if (err && err.code === MODEL_NOT_FOUND && err.soft === true) return null;
+        throw err;
+      }
+    }
     return resolveLocalModelOverride()?.model ?? null;
   }
   if (ctx.forceOllama) {
@@ -260,6 +488,7 @@ function getEffectiveOllamaModel(ctx = {}) {
 
 module.exports = {
   GATE_ID,
+  MODEL_NOT_FOUND,
   isLocalOnlyModeEnabled,
   resolveLocalModelOverride,
   configureLocalModelPolicy,
@@ -269,5 +498,6 @@ module.exports = {
   assertRemoteProviderBlocked,
   getLocalOnlySessionContext,
   validateLocalOnlyRunPrerequisites,
+  selectModelForRole,
   getEffectiveOllamaModel,
 };

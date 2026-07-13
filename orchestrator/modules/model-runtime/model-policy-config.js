@@ -591,7 +591,7 @@ function normalizeLegacyRouting(options = {}) {
 
 /**
  * Load canonical routing authority for a project cwd.
- * Does not claim tier routing already drives invocations (that is a later slice).
+ * Runtime tier-by-role resolution consumes this via local-model-policy.selectModelForRole.
  *
  * @param {string} [cwd]
  * @returns {{

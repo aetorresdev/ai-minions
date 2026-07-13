@@ -317,7 +317,12 @@ function buildModelSelectionFields(agentId, agent, opts = {}) {
   const localOnlyRoute = opts.localOnlyRoute === true;
   let model = agent.model;
   if (agent.provider === "ollama" || forceOllama || localOnlyRoute) {
-    model = getEffectiveOllamaModel({ forceOllama, agentModel: agent.model }) || agent.model;
+    model = getEffectiveOllamaModel({
+      forceOllama,
+      agentModel: agent.model,
+      role: agent.mode,
+      cwd: opts.cwd,
+    }) || agent.model;
   }
   const { selection_source, selection_reason } = describeModelSelectionSource(agentId);
   const stepId =
@@ -480,7 +485,12 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
     }
   }
   if (agent.provider === "ollama" || forceOllama || localOnlyRoute) {
-    const model = getEffectiveOllamaModel({ forceOllama, agentModel: agent.model });
+    const model = getEffectiveOllamaModel({
+      forceOllama,
+      agentModel: agent.model,
+      role: agent.mode,
+      cwd,
+    });
     if (!model) {
       assertRemoteProviderBlocked({ provider: agent.provider, agentId, backend: "claude" });
     }
@@ -601,7 +611,7 @@ async function chatWithAgent(agentId, userMessage, history = [], { cwd } = {}) {
       }
     }
     const chatModel = isLocalOnlyModeEnabled()
-      ? getEffectiveOllamaModel({ agentModel: agent.model })
+      ? getEffectiveOllamaModel({ agentModel: agent.model, role: agent.mode, cwd })
       : agent.model;
     const messages = [...history, { role: "user", content: userMessage }];
     const raw = await runOllama(agent.system, messages, {

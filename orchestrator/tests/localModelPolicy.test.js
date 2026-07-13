@@ -427,3 +427,182 @@ describe("run-orchestrator help — local-only flags", () => {
     assert.match(r.stdout, /ORCH_LOCAL_MODEL/);
   });
 });
+
+describe("local-model-policy — tier-by-role (selectModelForRole)", () => {
+  const os = require("os");
+  const ROLE_OVERRIDE_KEYS = [
+    "MODEL_OVERRIDE_DEV",
+    "MODEL_OVERRIDE_QA",
+    "MODEL_OVERRIDE_ARCHITECT",
+    "MODEL_OVERRIDE_OWNER",
+    "MODEL_OVERRIDE_CERBERUS",
+    "MODEL_OVERRIDE_ORCHESTRATOR",
+  ];
+  const keys = [
+    "ORCH_MODEL_MODE",
+    "ORCH_LOCAL_MODEL",
+    "OLLAMA_MODEL",
+    ...ROLE_OVERRIDE_KEYS,
+  ];
+  let prev;
+  /** @type {string | null} */
+  let tmpDir = null;
+
+  const SAMPLE_POLICY = {
+    model_policy_version: 1,
+    default_tier: "cheap",
+    tiers: {
+      cheap: ["qwen2.5-coder:7b", "tiny-fallback"],
+      standard: ["qwen2.5-coder:14b"],
+      strong: ["qwen3.6:35b-a3b"],
+      frontier: ["frontier-only"],
+    },
+    role_defaults: {
+      OWNER: "strong",
+      ARCHITECT: "strong",
+      DEV: "cheap",
+      QA: "cheap",
+      CERBERUS: "strong",
+      ORCHESTRATOR: "standard",
+    },
+    rules: [],
+  };
+
+  function writePolicyTree(dir, policy = SAMPLE_POLICY, yamlBody = "model_policy_version: 1\ndefault_model: qwen2.5-coder:7b\n") {
+    fs.mkdirSync(path.join(dir, ".ai-minions"), { recursive: true });
+    fs.writeFileSync(path.join(dir, ".ai-minions", "model_policy.json"), `${JSON.stringify(policy, null, 2)}\n`);
+    fs.writeFileSync(path.join(dir, ".ai-minions", "model-policy.yaml"), yamlBody);
+  }
+
+  beforeEach(() => {
+    prev = saveEnv(keys);
+    process.env.ORCH_MODEL_MODE = "local_only";
+    delete process.env.ORCH_LOCAL_MODEL;
+    delete process.env.OLLAMA_MODEL;
+    for (const k of ROLE_OVERRIDE_KEYS) delete process.env[k];
+    policy.resetLocalModelPolicy();
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "tier-by-role-"));
+    writePolicyTree(tmpDir);
+  });
+
+  afterEach(() => {
+    restoreEnv(prev);
+    policy.resetLocalModelPolicy();
+    if (tmpDir) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      tmpDir = null;
+    }
+  });
+
+  it("selects distinct models for cheap vs strong roles from inventory", () => {
+    const inventory = ["qwen2.5-coder:7b", "qwen3.6:35b-a3b", "qwen2.5-coder:14b"];
+    policy.configureLocalModelPolicy({
+      cwd: tmpDir,
+      selectionResult: {
+        selected_model: "qwen2.5-coder:7b",
+        override_source: "model_policy_yaml",
+        selection_reason: "yaml_default",
+        discovered_models: inventory,
+      },
+    });
+
+    const cheap = policy.selectModelForRole("DEV");
+    const strong = policy.selectModelForRole("ARCHITECT");
+    assert.equal(cheap.model, "qwen2.5-coder:7b");
+    assert.equal(cheap.tier, "cheap");
+    assert.equal(cheap.route_source, "role_defaults");
+    assert.equal(strong.model, "qwen3.6:35b-a3b");
+    assert.equal(strong.tier, "strong");
+    assert.notEqual(cheap.model, strong.model);
+
+    assert.equal(policy.getEffectiveOllamaModel({ role: "QA" }), "qwen2.5-coder:7b");
+    assert.equal(policy.getEffectiveOllamaModel({ role: "CERBERUS" }), "qwen3.6:35b-a3b");
+    assert.equal(policy.getEffectiveOllamaModel({ role: "OWNER" }), "qwen3.6:35b-a3b");
+  });
+
+  it("picks first inventory-present candidate in the role tier (skips missing head)", () => {
+    policy.configureLocalModelPolicy({ cwd: tmpDir });
+    const picked = policy.selectModelForRole("DEV", {
+      inventory: ["tiny-fallback", "other"],
+    });
+    assert.equal(picked.model, "tiny-fallback");
+    assert.equal(picked.tier, "cheap");
+  });
+
+  it("MODEL_OVERRIDE_<ROLE> beats role_defaults and global env", () => {
+    process.env.ORCH_LOCAL_MODEL = "global-pin";
+    process.env.MODEL_OVERRIDE_DEV = "dev-special";
+    const picked = policy.selectModelForRole("DEV", {
+      cwd: tmpDir,
+      inventory: ["dev-special", "global-pin", "qwen2.5-coder:7b"],
+    });
+    assert.equal(picked.model, "dev-special");
+    assert.equal(picked.route_source, "override");
+  });
+
+  it("global ORCH_LOCAL_MODEL pins every role when no per-role override", () => {
+    process.env.ORCH_LOCAL_MODEL = "global-pin";
+    const a = policy.selectModelForRole("DEV", {
+      cwd: tmpDir,
+      inventory: ["global-pin", "qwen2.5-coder:7b"],
+    });
+    const b = policy.selectModelForRole("ARCHITECT", {
+      cwd: tmpDir,
+      inventory: ["global-pin", "qwen3.6:35b-a3b"],
+    });
+    assert.equal(a.model, "global-pin");
+    assert.equal(b.model, "global-pin");
+    assert.equal(a.route_source, "override");
+  });
+
+  it("YAML default_model alone does not pin roles when JSON role_defaults exist", () => {
+    policy.configureLocalModelPolicy({
+      cwd: tmpDir,
+      selectionResult: {
+        selected_model: "qwen2.5-coder:7b",
+        override_source: "model_policy_yaml",
+        discovered_models: ["qwen2.5-coder:7b", "qwen3.6:35b-a3b"],
+      },
+    });
+    assert.equal(policy.selectModelForRole("ARCHITECT").model, "qwen3.6:35b-a3b");
+  });
+
+  it("fails closed with MODEL_NOT_FOUND when tier has no inventory match (no cross-tier)", () => {
+    assert.throws(
+      () =>
+        policy.selectModelForRole("ARCHITECT", {
+          cwd: tmpDir,
+          inventory: ["qwen2.5-coder:7b"],
+        }),
+      (err) => {
+        assert.equal(err.code, policy.MODEL_NOT_FOUND);
+        assert.equal(err.role, "ARCHITECT");
+        assert.equal(err.tier, "strong");
+        assert.match(err.message, /MODEL_NOT_FOUND/);
+        return true;
+      },
+    );
+  });
+
+  it("fails closed when discovery inventory is unavailable under JSON routing", () => {
+    policy.configureLocalModelPolicy({ cwd: tmpDir, selectionResult: null });
+    assert.throws(
+      () => policy.selectModelForRole("DEV", { cwd: tmpDir }),
+      (err) => {
+        assert.equal(err.code, policy.MODEL_NOT_FOUND);
+        assert.match(err.message, /inventory unavailable/);
+        return true;
+      },
+    );
+  });
+
+  it("falls back to YAML default_model when JSON is absent", () => {
+    fs.rmSync(path.join(tmpDir, ".ai-minions", "model_policy.json"));
+    const picked = policy.selectModelForRole("DEV", {
+      cwd: tmpDir,
+      inventory: ["qwen2.5-coder:7b"],
+    });
+    assert.equal(picked.model, "qwen2.5-coder:7b");
+    assert.equal(picked.route_source, "legacy_default");
+  });
+});
