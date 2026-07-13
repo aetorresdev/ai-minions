@@ -104,6 +104,7 @@ ${rs.next_safe_action ?? summary.next_safe_action}
 - **Model:** ${rs.model ?? 'unavailable'}
 - **Backend:** ${rs.model_backend ?? 'unavailable'}
 - **Selection reason:** ${rs.selection_reason ?? 'unavailable'}
+- **Model selection availability:** ${rs.model_selection_availability ?? 'unavailable'}
 
 ## Upload reminder
 

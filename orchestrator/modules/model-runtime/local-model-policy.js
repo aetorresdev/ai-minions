@@ -119,6 +119,14 @@ function resetLocalModelPolicy() {
 }
 
 /**
+ * Endpoint meta configured for the current local_only run (no secrets; may include scope only).
+ * @returns {{ host: string, port: number, base_url: string, endpoint_scope: string } | null}
+ */
+function getLocalModelEndpointMeta() {
+  return _runConfig.endpointMeta;
+}
+
+/**
  * @param {(payload: Record<string, unknown>) => void} fn
  */
 function setLocalModelTraceReporter(fn) {
@@ -493,6 +501,7 @@ module.exports = {
   resolveLocalModelOverride,
   configureLocalModelPolicy,
   resetLocalModelPolicy,
+  getLocalModelEndpointMeta,
   setLocalModelTraceReporter,
   createLocalOnlyPolicyError,
   assertRemoteProviderBlocked,

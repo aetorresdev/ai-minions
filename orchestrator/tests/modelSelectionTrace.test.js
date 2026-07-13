@@ -127,6 +127,36 @@ describe("model-selection trace", () => {
     });
     assert.equal(payload.estimated_cost_usd, 0);
     assert.equal(payload.model_tier, "standard");
+    assert.equal(payload.provider_id, "ollama");
+    assert.equal(payload.route_source, "legacy_default");
+    assert.equal(payload.usage_accounting_status, "unavailable");
+    assert.equal(payload.tier, null);
+    assert.equal(Object.prototype.hasOwnProperty.call(payload, "base_url"), false);
+  });
+
+  it("buildModelSelectionPayload emits Phase A routing fields", () => {
+    const payload = buildModelSelectionPayload({
+      role: "ARCHITECT",
+      step_id: "s-arch",
+      model: "qwen3.6:35b-a3b",
+      tier: "strong",
+      selection_source: "policy",
+      selection_reason: "role_defaults:tier=strong",
+      provider_id: "ollama",
+      model_backend: "ollama",
+      endpoint_ref: "default",
+      endpoint_scope: "localhost",
+      route_source: "role_defaults",
+      usage_accounting_status: "unavailable",
+    });
+    assert.equal(payload.tier, "strong");
+    assert.equal(payload.model_tier, "strong");
+    assert.equal(payload.route_source, "role_defaults");
+    assert.equal(payload.endpoint_scope, "localhost");
+    assert.equal(payload.provider_id, "ollama");
+    assert.equal(payload.model_backend, "ollama");
+    const v = validateTraceLine(traceEnvelopeBase(payload));
+    assert.equal(v.ok, true, (v.errors || []).join(" | "));
   });
 
   it("emitModelSelection writes schema-valid trace rows", () => {

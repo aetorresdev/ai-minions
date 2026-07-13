@@ -361,12 +361,12 @@ function deriveLastSuccessfulPhase(rows) {
  *   model_tier: string | null,
  *   model_backend: string | null,
  *   selection_reason: string | null,
- *   availability: 'available' | 'unavailable',
+ *   availability: 'available' | 'unavailable' | 'not_aggregated',
  * }}
  */
 function deriveModelSelectionContext(rows) {
-  /** @type {object | null} */
-  let lastSelection = null;
+  /** @type {object[]} */
+  const selections = [];
   /** @type {string | null} */
   let sessionBackend = null;
 
@@ -376,11 +376,11 @@ function deriveModelSelectionContext(rows) {
       sessionBackend = r.model_backend;
     }
     if (r.event === "model_selection") {
-      lastSelection = r;
+      selections.push(r);
     }
   }
 
-  if (!lastSelection) {
+  if (!selections.length) {
     return {
       model: null,
       model_tier: null,
@@ -390,6 +390,27 @@ function deriveModelSelectionContext(rows) {
     };
   }
 
+  const roles = new Set(
+    selections.map((s) => (typeof s.role === "string" ? s.role : "")).filter(Boolean),
+  );
+  const models = new Set(
+    selections.map((s) => (typeof s.model === "string" ? s.model : "")).filter(Boolean),
+  );
+  // Per-role routes must not collapse to a single run-level model description.
+  if (roles.size > 1 || models.size > 1) {
+    const last = selections[selections.length - 1];
+    return {
+      model: null,
+      model_tier: null,
+      model_backend: typeof last.model_backend === "string" && last.model_backend.length
+        ? last.model_backend
+        : sessionBackend,
+      selection_reason: null,
+      availability: "not_aggregated",
+    };
+  }
+
+  const lastSelection = selections[selections.length - 1];
   return {
     model: typeof lastSelection.model === "string" ? lastSelection.model : null,
     model_tier: typeof lastSelection.model_tier === "string" ? lastSelection.model_tier : null,
@@ -624,6 +645,7 @@ function formatRunStateVisibilityLines(runState) {
     `  model:                 ${runState.model ?? "unavailable"}`,
     `  model_backend:         ${runState.model_backend ?? "unavailable"}`,
     `  selection_reason:      ${runState.selection_reason ?? "unavailable"}`,
+    `  model_selection_availability: ${runState.model_selection_availability ?? "unavailable"}`,
     `  evidence_paths:        ${runState.evidence_paths.length ? runState.evidence_paths.join("; ") : "(none)"}`,
     `  next_safe_action:      ${runState.next_safe_action}`,
     "-- tool_failure_summary --",

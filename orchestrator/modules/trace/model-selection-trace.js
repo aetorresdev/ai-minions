@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 
 /**
  * Model selection trace helpers — observable model choice per agent invocation.
@@ -7,10 +7,32 @@
 
 /** @typedef {"cheap"|"standard"|"strong"|"frontier"} ModelTier */
 /** @typedef {"default"|"policy"|"manual"|"escalation"} SelectionSource */
+/** @typedef {"legacy_default"|"role_defaults"|"tier"|"role_routes"|"override"} RouteSource */
+/** @typedef {"known"|"estimated"|"unavailable"|"unknown_provider_usage"} UsageAccountingStatus */
 
 const MODEL_TIERS = /** @type {const} */ (["cheap", "standard", "strong", "frontier"]);
 const SELECTION_SOURCES = /** @type {const} */ (["default", "policy", "manual", "escalation"]);
 const TRACE_ROLES = /** @type {const} */ (["ORCHESTRATOR", "OWNER", "ARCHITECT", "DEV", "QA", "CERBERUS"]);
+const ROUTE_SOURCES = /** @type {const} */ ([
+  "legacy_default",
+  "role_defaults",
+  "tier",
+  "role_routes",
+  "override",
+]);
+const USAGE_ACCOUNTING_STATUSES = /** @type {const} */ ([
+  "known",
+  "estimated",
+  "unavailable",
+  "unknown_provider_usage",
+]);
+const ENDPOINT_SCOPES = /** @type {const} */ ([
+  "localhost",
+  "private_lan",
+  "tailscale",
+  "vpn",
+  "public_endpoint",
+]);
 
 /**
  * @param {string} modelName
@@ -35,13 +57,30 @@ function isTraceRole(role) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {ModelTier | null}
+ */
+function normalizePolicyTier(value) {
+  if (value == null || value === "") return null;
+  const t = String(value);
+  return MODEL_TIERS.includes(/** @type {ModelTier} */ (t)) ? /** @type {ModelTier} */ (t) : null;
+}
+
+/**
  * @param {{
  *   role: string,
  *   step_id: string,
  *   model: string,
  *   model_tier?: ModelTier,
+ *   tier?: ModelTier | null,
  *   selection_source: SelectionSource,
  *   selection_reason: string,
+ *   provider_id?: string,
+ *   model_backend?: string,
+ *   endpoint_ref?: string,
+ *   endpoint_scope?: string,
+ *   route_source?: RouteSource,
+ *   usage_accounting_status?: UsageAccountingStatus,
  *   iteration?: number,
  *   agent?: string,
  *   estimated_input_tokens?: number,
@@ -51,7 +90,8 @@ function isTraceRole(role) {
  * @returns {Record<string, unknown>}
  */
 function buildModelSelectionPayload(fields) {
-  const tier = fields.model_tier ?? inferModelTier(fields.model);
+  const policyTier = normalizePolicyTier(fields.tier);
+  const tier = policyTier ?? fields.model_tier ?? inferModelTier(fields.model);
   const reason = String(fields.selection_reason ?? "").trim().slice(0, 300);
   if (!reason) {
     throw new Error("model_selection: selection_reason is required");
@@ -62,14 +102,42 @@ function buildModelSelectionPayload(fields) {
     );
   }
 
+  const providerId = String(fields.provider_id ?? "ollama").trim() || "ollama";
+  const modelBackend = String(
+    fields.model_backend
+      ?? (providerId === "ollama" ? "ollama" : "claude"),
+  ).trim() || "ollama";
+  const endpointRef = String(fields.endpoint_ref ?? "default").trim() || "default";
+  const endpointScope = String(fields.endpoint_scope ?? "localhost").trim() || "localhost";
+  const routeSource = /** @type {RouteSource} */ (
+    ROUTE_SOURCES.includes(/** @type {RouteSource} */ (fields.route_source))
+      ? fields.route_source
+      : "legacy_default"
+  );
+  const usageStatus = /** @type {UsageAccountingStatus} */ (
+    USAGE_ACCOUNTING_STATUSES.includes(
+      /** @type {UsageAccountingStatus} */ (fields.usage_accounting_status),
+    )
+      ? fields.usage_accounting_status
+      : "unavailable"
+  );
+
+  // Never allow base_url / secrets on the payload surface.
   return {
     event: "model_selection",
     role: fields.role,
     step_id: fields.step_id,
     model: String(fields.model),
     model_tier: tier,
+    tier: policyTier,
     selection_source: fields.selection_source,
     selection_reason: reason,
+    provider_id: providerId,
+    model_backend: modelBackend,
+    endpoint_ref: endpointRef,
+    endpoint_scope: endpointScope,
+    route_source: routeSource,
+    usage_accounting_status: usageStatus,
     estimated_input_tokens: fields.estimated_input_tokens ?? 0,
     estimated_output_tokens: fields.estimated_output_tokens ?? 0,
     estimated_cost_usd: fields.estimated_cost_usd ?? 0,
@@ -92,6 +160,9 @@ module.exports = {
   MODEL_TIERS,
   SELECTION_SOURCES,
   TRACE_ROLES,
+  ROUTE_SOURCES,
+  USAGE_ACCOUNTING_STATUSES,
+  ENDPOINT_SCOPES,
   inferModelTier,
   isTraceRole,
   buildModelSelectionPayload,

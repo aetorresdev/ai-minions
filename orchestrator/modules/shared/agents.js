@@ -49,8 +49,10 @@ const {
   resolveLocalModelOverride,
   assertRemoteProviderBlocked,
   getEffectiveOllamaModel,
+  selectModelForRole,
+  getLocalModelEndpointMeta,
 } = require("../model-runtime/local-model-policy");
-const { buildModelSelectionPayload } = require("../trace/model-selection-trace");
+const { buildModelSelectionPayload, inferModelTier } = require("../trace/model-selection-trace");
 const { loadModelPolicyConfig } = require("../model-runtime/model-policy-config");
 const {
   evaluateModelTierGate,
@@ -306,17 +308,70 @@ function describeModelSelectionSource(role) {
  *   agent: string,
  *   step_id: string,
  *   model: string,
+ *   model_tier: string,
+ *   tier: string | null,
  *   selection_source: string,
  *   selection_reason: string,
- *   policy_source: string,
+ *   provider_id: string,
+ *   model_backend: string,
+ *   endpoint_ref: string,
+ *   endpoint_scope: string,
+ *   route_source: string,
+ *   usage_accounting_status: string,
  *   iteration?: number,
  * }}
  */
 function buildModelSelectionFields(agentId, agent, opts = {}) {
   const forceOllama = opts.forceOllama === true;
   const localOnlyRoute = opts.localOnlyRoute === true;
+  const usingOllama = agent.provider === "ollama" || forceOllama || localOnlyRoute || isLocalOnlyModeEnabled();
+
   let model = agent.model;
-  if (agent.provider === "ollama" || forceOllama || localOnlyRoute) {
+  /** @type {string | null} */
+  let tier = null;
+  /** @type {string} */
+  let route_source = "legacy_default";
+  /** @type {{ selection_source: "default"|"policy"|"manual", selection_reason: string }} */
+  let source = describeModelSelectionSource(agentId);
+
+  if (isLocalOnlyModeEnabled() && agent.mode) {
+    try {
+      const sel = selectModelForRole(agent.mode, { cwd: opts.cwd });
+      model = sel.model;
+      tier = sel.tier;
+      route_source = sel.route_source;
+      if (sel.route_source === "override") {
+        source = {
+          selection_source: "manual",
+          selection_reason: sel.override_source
+            ? `override:${sel.override_source}`
+            : `MODEL_OVERRIDE_${String(agent.mode).toUpperCase()}`,
+        };
+      } else if (sel.route_source === "role_defaults") {
+        source = {
+          selection_source: "policy",
+          selection_reason: `role_defaults:tier=${sel.tier}`,
+        };
+      } else {
+        source = {
+          selection_source: "policy",
+          selection_reason: sel.override_source
+            ? `legacy_default:${sel.override_source}`
+            : "legacy_default",
+        };
+      }
+    } catch (err) {
+      if (!(err && err.code === "MODEL_NOT_FOUND" && err.soft === true)) throw err;
+      model = getEffectiveOllamaModel({
+        forceOllama,
+        agentModel: agent.model,
+        role: agent.mode,
+        cwd: opts.cwd,
+      }) || agent.model;
+      source = describeModelSelectionSource(agentId);
+      route_source = "legacy_default";
+    }
+  } else if (usingOllama) {
     model = getEffectiveOllamaModel({
       forceOllama,
       agentModel: agent.model,
@@ -324,7 +379,16 @@ function buildModelSelectionFields(agentId, agent, opts = {}) {
       cwd: opts.cwd,
     }) || agent.model;
   }
-  const { selection_source, selection_reason } = describeModelSelectionSource(agentId);
+
+  const endpointMeta = getLocalModelEndpointMeta();
+  const endpoint_scope =
+    (endpointMeta && typeof endpointMeta.endpoint_scope === "string" && endpointMeta.endpoint_scope)
+      ? endpointMeta.endpoint_scope
+      : "localhost";
+  const provider_id = usingOllama ? "ollama" : "anthropic";
+  const model_backend = usingOllama ? "ollama" : "claude";
+  const model_tier = tier || inferModelTier(model);
+
   const stepId =
     opts.traceContext?.step_id
     ?? (opts.phase === "plan" ? "phase:plan" : opts.phase === "decide" ? "phase:decide" : `agent:${agentId}`);
@@ -333,8 +397,16 @@ function buildModelSelectionFields(agentId, agent, opts = {}) {
     agent: agentId,
     step_id: stepId,
     model,
-    selection_source,
-    selection_reason,
+    model_tier,
+    tier,
+    selection_source: source.selection_source,
+    selection_reason: source.selection_reason,
+    provider_id,
+    model_backend,
+    endpoint_ref: "default",
+    endpoint_scope,
+    route_source,
+    usage_accounting_status: "unavailable",
     ...(typeof opts.traceContext?.iteration === "number"
       ? { iteration: opts.traceContext.iteration }
       : {}),
@@ -395,8 +467,16 @@ function tryEmitModelSelection(agentId, agent, opts = {}) {
       agent: agentId,
       step_id: fields.step_id,
       model: fields.model,
-      selection_source: fields.selection_source,
+      model_tier: /** @type {any} */ (fields.model_tier),
+      tier: fields.tier,
+      selection_source: /** @type {any} */ (fields.selection_source),
       selection_reason: fields.selection_reason,
+      provider_id: fields.provider_id,
+      model_backend: fields.model_backend,
+      endpoint_ref: fields.endpoint_ref,
+      endpoint_scope: fields.endpoint_scope,
+      route_source: /** @type {any} */ (fields.route_source),
+      usage_accounting_status: /** @type {any} */ (fields.usage_accounting_status),
       ...(typeof fields.iteration === "number" ? { iteration: fields.iteration } : {}),
     }),
   );
