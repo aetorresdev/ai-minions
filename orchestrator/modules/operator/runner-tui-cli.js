@@ -89,6 +89,7 @@ function parseCommonArgs(argv) {
     else if (a === '--follow') out.follow = true;
     else if (a === '--worktree-isolated') out.worktreeIsolated = true;
     else if (a === '--force') out.force = true;
+    else if (a === '--migrate-model-policy') out.migrateModelPolicy = true;
     else if (a === '--base-ref' && argv[i + 1]) out.baseRef = argv[++i];
   }
   return out;

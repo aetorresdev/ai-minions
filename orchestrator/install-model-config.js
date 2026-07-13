@@ -13,6 +13,11 @@ const {
   cloneDefaultModelPolicy,
   validateModelPolicy,
   validateProviderInferenceProfiles,
+  detectModelRoutingConfigConflict,
+  authorizeModelPolicyMigration,
+  loadModelPolicyYamlRaw,
+  createRoutingConfigError,
+  MODEL_ROUTING_CONFIG_CONFLICT,
 } = require('./modules/model-runtime/model-policy-config');
 const { validateModelPolicy: validateRuntimeYamlPolicy } = require('./local-model-selection');
 
@@ -193,6 +198,8 @@ function buildInstallModelConfig(discovery, modelPolicy = null, options = {}) {
  *   writeFiles?: (targetDir: string, files: Record<string, string>) => void,
  *   now?: () => string,
  *   defaultModelOverride?: string | null,
+ *   migrateModelPolicy?: boolean,
+ *   force?: boolean,
  * }} [options]
  */
 function writeInstallModelConfig(repoRoot, discovery, modelPolicy, options = {}) {
@@ -201,7 +208,98 @@ function writeInstallModelConfig(repoRoot, discovery, modelPolicy, options = {})
   });
   const targetDir = path.join(path.resolve(repoRoot), AI_MINIONS_DIR);
   const now = options.now ?? (() => new Date().toISOString());
+  const migrate = options.migrateModelPolicy === true;
+  const force = options.force === true;
 
+  const yamlPath = path.join(targetDir, MODEL_POLICY_YAML);
+  const jsonPath = path.join(targetDir, MODEL_POLICY_JSON);
+  const profilePath = path.join(targetDir, INSTALL_PROFILE_JSON);
+  const yamlExists = fs.existsSync(yamlPath);
+  const jsonExists = fs.existsSync(jsonPath);
+  const profileExists = fs.existsSync(profilePath);
+
+  const auth = authorizeModelPolicyMigration({
+    migrateModelPolicy: migrate,
+    force,
+    jsonExists,
+  });
+
+  if (migrate) {
+    const yamlLoaded = loadModelPolicyYamlRaw(repoRoot);
+    const existingJson = jsonExists
+      ? validateModelPolicy(JSON.parse(fs.readFileSync(jsonPath, 'utf8')))
+      : null;
+    const againstExisting = detectModelRoutingConfigConflict({
+      yamlPolicy: yamlLoaded.policy,
+      jsonPolicy: existingJson,
+      jsonFilePresent: jsonExists,
+    });
+    if (!againstExisting.ok) {
+      throw createRoutingConfigError(againstExisting.message, {
+        code: againstExisting.code,
+        reason: againstExisting.reason,
+        fields: againstExisting.fields,
+      });
+    }
+    const againstNew = detectModelRoutingConfigConflict({
+      yamlPolicy: yamlLoaded.policy,
+      jsonPolicy: built.jsonPolicy,
+      jsonFilePresent: true,
+    });
+    if (!againstNew.ok) {
+      throw createRoutingConfigError(againstNew.message, {
+        code: againstNew.code,
+        reason: againstNew.reason,
+        fields: againstNew.fields,
+      });
+    }
+  } else if (yamlExists) {
+    // Fail closed before accidental dual SoT even when preserving files.
+    const yamlLoaded = loadModelPolicyYamlRaw(repoRoot);
+    const existingJson = jsonExists
+      ? validateModelPolicy(JSON.parse(fs.readFileSync(jsonPath, 'utf8')))
+      : null;
+    const conflict = detectModelRoutingConfigConflict({
+      yamlPolicy: yamlLoaded.policy,
+      jsonPolicy: existingJson,
+      jsonFilePresent: jsonExists,
+    });
+    if (!conflict.ok) {
+      throw createRoutingConfigError(conflict.message, {
+        code: conflict.code,
+        reason: conflict.reason,
+        fields: conflict.fields,
+      });
+    }
+  }
+
+  /** @type {Record<string, string>} */
+  const filesToWrite = {};
+  /** @type {string[]} */
+  const filesWritten = [];
+  /** @type {string[]} */
+  const filesPreserved = [];
+
+  // YAML: create if absent; never overwrite existing (protects local_backend).
+  if (!yamlExists) {
+    filesToWrite[MODEL_POLICY_YAML] = built.yamlText;
+    filesWritten.push(MODEL_POLICY_YAML);
+  } else {
+    filesPreserved.push(MODEL_POLICY_YAML);
+  }
+
+  // JSON: create if absent; overwrite only with --migrate-model-policy.
+  if (!jsonExists) {
+    filesToWrite[MODEL_POLICY_JSON] = built.jsonText;
+    filesWritten.push(MODEL_POLICY_JSON);
+  } else if (auth.allow_json_overwrite) {
+    filesToWrite[MODEL_POLICY_JSON] = built.jsonText;
+    filesWritten.push(MODEL_POLICY_JSON);
+  } else {
+    filesPreserved.push(MODEL_POLICY_JSON);
+  }
+
+  // install-profile: create if absent; refresh only on migrate.
   const installProfile = {
     install_profile_version: 1,
     installed_at: now(),
@@ -214,13 +312,14 @@ function writeInstallModelConfig(repoRoot, discovery, modelPolicy, options = {})
       degraded_single_model: built.degradedSingleModel,
     },
     files_written: [MODEL_POLICY_YAML, MODEL_POLICY_JSON, INSTALL_PROFILE_JSON],
+    migrate_model_policy: migrate,
   };
-
-  const files = {
-    [MODEL_POLICY_YAML]: built.yamlText,
-    [MODEL_POLICY_JSON]: built.jsonText,
-    [INSTALL_PROFILE_JSON]: `${JSON.stringify(installProfile, null, 2)}\n`,
-  };
+  if (!profileExists || migrate) {
+    filesToWrite[INSTALL_PROFILE_JSON] = `${JSON.stringify(installProfile, null, 2)}\n`;
+    filesWritten.push(INSTALL_PROFILE_JSON);
+  } else {
+    filesPreserved.push(INSTALL_PROFILE_JSON);
+  }
 
   const writeFiles =
     options.writeFiles ??
@@ -231,16 +330,24 @@ function writeInstallModelConfig(repoRoot, discovery, modelPolicy, options = {})
       }
     });
 
-  writeFiles(targetDir, files);
+  if (Object.keys(filesToWrite).length > 0) {
+    writeFiles(targetDir, filesToWrite);
+  } else {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
 
   return {
     config_dir: targetDir,
-    files_written: Object.keys(files),
+    files_written: filesWritten,
+    files_preserved: filesPreserved,
     default_model: built.defaultModel,
     degraded_single_model: built.degradedSingleModel,
-    inference_profiles_written: true,
+    inference_profiles_written: filesWritten.includes(MODEL_POLICY_JSON) || jsonExists,
     inference_profile_mode: 'declarative',
     ranked_model_names: built.rankedModelNames,
+    migrate_model_policy: migrate,
+    force_ignored_for_routing: force && !migrate && jsonExists,
+    routing_auth_reason: auth.reason,
   };
 }
 
@@ -254,4 +361,5 @@ module.exports = {
   buildProviderInferenceProfiles,
   buildInstallModelConfig,
   writeInstallModelConfig,
+  MODEL_ROUTING_CONFIG_CONFLICT,
 };

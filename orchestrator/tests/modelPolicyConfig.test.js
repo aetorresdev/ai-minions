@@ -9,12 +9,18 @@ const { describe, it } = require("node:test");
 const {
   DEFAULT_MODEL_POLICY,
   MODEL_POLICY_REL_PATH,
+  MODEL_ROUTING_CONFIG_CONFLICT,
   cloneDefaultModelPolicy,
   validateModelPolicy,
   loadModelPolicyConfig,
   resolveRoleDefaultTier,
   listAllowedModelsForTier,
   rulesForTier,
+  detectModelRoutingConfigConflict,
+  loadCanonicalRoutingConfig,
+  normalizeLegacyRouting,
+  authorizeModelPolicyMigration,
+  fileSha256OrNull,
 } = require("../modules/model-runtime/model-policy-config");
 
 const VALID_FIXTURE = path.join(__dirname, "fixtures", "model-policy-valid.json");
@@ -138,5 +144,139 @@ describe("model-policy-config", () => {
     const base = cloneDefaultModelPolicy();
     base.default_tier = "frontier";
     assert.throws(() => validateModelPolicy(base), /default_tier cannot be frontier/);
+  });
+});
+
+describe("model-policy-config — routing authority (REQ-011)", () => {
+  it("detectModelRoutingConfigConflict accepts YAML without routing keys", () => {
+    const json = validateModelPolicy(JSON.parse(fs.readFileSync(VALID_FIXTURE, "utf8")));
+    const result = detectModelRoutingConfigConflict({
+      yamlPolicy: { model_policy_version: 1, default_model: "qwen2.5-coder:7b" },
+      jsonPolicy: json,
+      jsonFilePresent: true,
+    });
+    assert.equal(result.ok, true);
+  });
+
+  it("YAML routing + JSON absent → fail-closed", () => {
+    const result = detectModelRoutingConfigConflict({
+      yamlPolicy: {
+        tiers: { cheap: [], standard: ["m"], strong: [], frontier: [] },
+        role_defaults: { DEV: "standard" },
+      },
+      jsonPolicy: null,
+      jsonFilePresent: false,
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.code, MODEL_ROUTING_CONFIG_CONFLICT);
+    assert.equal(result.reason, "yaml_routing_without_canonical_json");
+    assert.deepEqual(result.fields, ["tiers", "role_defaults"]);
+    assert.doesNotMatch(result.message, /qwen|secret|password/i);
+  });
+
+  it("YAML/JSON equivalent values → ok and JSON remains authority", () => {
+    const json = validateModelPolicy(JSON.parse(fs.readFileSync(VALID_FIXTURE, "utf8")));
+    const result = detectModelRoutingConfigConflict({
+      yamlPolicy: {
+        // Key order intentionally different from fixture JSON serialization
+        role_defaults: {
+          CERBERUS: "strong",
+          QA: "standard",
+          DEV: "standard",
+          ARCHITECT: "strong",
+          OWNER: "standard",
+        },
+        tiers: {
+          frontier: ["claude-opus-4"],
+          strong: ["opus"],
+          standard: ["sonnet"],
+          cheap: ["local-small", "haiku"],
+        },
+      },
+      jsonPolicy: json,
+      jsonFilePresent: true,
+    });
+    assert.equal(result.ok, true);
+  });
+
+  it("YAML/JSON disagree → conflict with stable code and fields", () => {
+    const json = validateModelPolicy(JSON.parse(fs.readFileSync(VALID_FIXTURE, "utf8")));
+    const result = detectModelRoutingConfigConflict({
+      yamlPolicy: {
+        role_defaults: { DEV: "cheap" },
+      },
+      jsonPolicy: json,
+      jsonFilePresent: true,
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.code, MODEL_ROUTING_CONFIG_CONFLICT);
+    assert.deepEqual(result.fields, ["role_defaults"]);
+  });
+
+  it("default_model + JSON routing → no conflict; JSON is authority", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "routing-auth-"));
+    try {
+      fs.mkdirSync(path.join(dir, ".ai-minions"), { recursive: true });
+      fs.writeFileSync(path.join(dir, MODEL_POLICY_REL_PATH), fs.readFileSync(VALID_FIXTURE), "utf8");
+      fs.writeFileSync(
+        path.join(dir, ".ai-minions", "model-policy.yaml"),
+        "model_policy_version: 1\ndefault_model: totally-different:99b\n",
+        "utf8",
+      );
+      const auth = loadCanonicalRoutingConfig(dir);
+      assert.equal(auth.route_source, "model_policy_json");
+      assert.equal(auth.legacy, null);
+      assert.ok(auth.policy);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("normalizeLegacyRouting maps global model with route_source legacy_default", () => {
+    assert.deepEqual(normalizeLegacyRouting({ defaultModel: "qwen2.5-coder:7b" }), {
+      provider_id: "ollama",
+      endpoint_ref: "default",
+      model: "qwen2.5-coder:7b",
+      route_source: "legacy_default",
+    });
+  });
+
+  it("loadCanonicalRoutingConfig yields legacy when JSON absent", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "routing-legacy-"));
+    try {
+      fs.mkdirSync(path.join(dir, ".ai-minions"), { recursive: true });
+      fs.writeFileSync(
+        path.join(dir, ".ai-minions", "model-policy.yaml"),
+        "model_policy_version: 1\ndefault_model: qwen2.5-coder:7b\n",
+        "utf8",
+      );
+      const auth = loadCanonicalRoutingConfig(dir);
+      assert.equal(auth.route_source, "legacy_default");
+      assert.equal(auth.legacy?.model, "qwen2.5-coder:7b");
+      assert.equal(auth.policy, null);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("authorizeModelPolicyMigration: force alone does not overwrite JSON", () => {
+    const denied = authorizeModelPolicyMigration({ force: true, jsonExists: true });
+    assert.equal(denied.allow_json_overwrite, false);
+    assert.equal(denied.reason, "force_without_migrate_preserves_json");
+    const migrate = authorizeModelPolicyMigration({ migrateModelPolicy: true, jsonExists: true });
+    assert.equal(migrate.allow_json_overwrite, true);
+  });
+
+  it("fileSha256OrNull is stable for unchanged bytes", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hash-"));
+    try {
+      const p = path.join(dir, "x.json");
+      fs.writeFileSync(p, '{"a":1}\n', "utf8");
+      const h1 = fileSha256OrNull(p);
+      const h2 = fileSha256OrNull(p);
+      assert.equal(h1, h2);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

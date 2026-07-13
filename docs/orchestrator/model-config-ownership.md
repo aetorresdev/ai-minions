@@ -14,12 +14,14 @@ How installer-generated files under `.ai-minions/` split responsibilities and av
 
 ## Ownership rules
 
-1. **`model-policy.yaml` owns local runtime selection** — which model is the default for local inference and which backend endpoint to use (`backend_id`, `support_status`, `host`, `port`).
-2. **`model_policy.json` owns governance tiers and roles** — which models belong to `cheap` / `standard` / `strong` / `frontier`, default tier per MODE role, and declarative provider inference profiles.
-3. **No duplicate role→model mapping in YAML** — YAML does not assign per-role models; roles map to tiers in JSON only.
-4. **Discovery is the source of truth for model names** — tier lists and `default_model` are derived from the same normalized discovery block (adapter contract shape).
-5. **Single-model degrade** — when only one model is discovered, all tiers reference that model and install emits `INSTALL_ROLE_MODEL_DEGRADED_SINGLE_MODEL` (warn).
-6. **`provider_inference_profiles` are declarative** — presence of a remote provider block (e.g. `anthropic`) does **not** enable that provider or override `model_policy` (`local_only` still means local-only runtime routing). Profiles record intended knobs for future trace/runtime slices only.
+1. **`model_policy.json` is canonical for routing authority** — `tiers` and `role_defaults` (and later schema fields). YAML never wins or merges into routing.
+2. **`model-policy.yaml` bootstraps runtime endpoint** — `local_backend` (and legacy `default_model`). It is not a second routing SoT.
+3. **Conflict fail-closed** — if YAML declares `tiers` / `role_defaults` and they disagree with JSON, or YAML declares them while JSON is absent → `MODEL_ROUTING_CONFIG_CONFLICT` (fields listed; no sensitive dump).
+4. **No duplicate role→model mapping in YAML** — YAML does not assign per-role models; roles map to tiers in JSON only.
+5. **Discovery is the source of truth for model names** — tier lists and `default_model` are derived from the same normalized discovery block (adapter contract shape).
+6. **Single-model degrade** — when only one model is discovered, all tiers reference that model and install emits `INSTALL_ROLE_MODEL_DEGRADED_SINGLE_MODEL` (warn).
+7. **`provider_inference_profiles` are declarative** — presence of a remote provider block (e.g. `anthropic`) does **not** enable that provider or override `model_policy` (`local_only` still means local-only runtime routing). Profiles record intended knobs for future trace/runtime slices only.
+8. **Init overwrite** — existing `model_policy.json` is preserved byte-for-byte unless `--migrate-model-policy` is set. `--force` alone does not rewrite routing JSON. Existing YAML is never overwritten (protects `local_backend`).
 
 ## Consistency check (install-time)
 

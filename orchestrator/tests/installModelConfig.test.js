@@ -20,6 +20,8 @@ const { validateModelPolicy: validateRuntimeYamlPolicy } = require('../local-mod
 const {
   validateModelPolicy,
   validateProviderInferenceProfiles,
+  fileSha256OrNull,
+  MODEL_ROUTING_CONFIG_CONFLICT,
 } = require('../modules/model-runtime/model-policy-config');
 
 const SAMPLE_DISCOVERY = {
@@ -119,6 +121,104 @@ describe('install-model-config — write', () => {
     assert.equal(parsedYaml.local_backend.backend_id, 'ollama');
     assert.ok(parsedJson.provider_inference_profiles);
     assert.equal(installProfile.inference_profile_mode, 'declarative');
+  });
+
+  it('init with existing files without migrate preserves JSON hash', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'install-preserve-'));
+    writeInstallModelConfig(tmp, SAMPLE_DISCOVERY, 'local_only', {
+      now: () => '2026-05-18T00:00:00.000Z',
+    });
+    const jsonPath = path.join(tmp, '.ai-minions', MODEL_POLICY_JSON);
+    const yamlPath = path.join(tmp, '.ai-minions', MODEL_POLICY_YAML);
+    const handEdit = `${JSON.stringify({
+      ...JSON.parse(fs.readFileSync(jsonPath, 'utf8')),
+      default_tier: 'cheap',
+    }, null, 2)}\n`;
+    fs.writeFileSync(jsonPath, handEdit, 'utf8');
+    fs.writeFileSync(
+      yamlPath,
+      `${fs.readFileSync(yamlPath, 'utf8')}# operator local_backend note\n`,
+      'utf8',
+    );
+    const jsonHashBefore = fileSha256OrNull(jsonPath);
+    const yamlHashBefore = fileSha256OrNull(yamlPath);
+
+    const result = writeInstallModelConfig(tmp, SAMPLE_DISCOVERY, 'local_only', {
+      now: () => '2026-05-18T01:00:00.000Z',
+    });
+    assert.ok(result.files_preserved.includes(MODEL_POLICY_JSON));
+    assert.ok(result.files_preserved.includes(MODEL_POLICY_YAML));
+    assert.equal(fileSha256OrNull(jsonPath), jsonHashBefore);
+    assert.equal(fileSha256OrNull(yamlPath), yamlHashBefore);
+  });
+
+  it('--force without --migrate-model-policy does not replace routing JSON', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'install-force-'));
+    writeInstallModelConfig(tmp, SAMPLE_DISCOVERY, 'local_only');
+    const jsonPath = path.join(tmp, '.ai-minions', MODEL_POLICY_JSON);
+    const marker = `${JSON.stringify({
+      ...JSON.parse(fs.readFileSync(jsonPath, 'utf8')),
+      default_tier: 'strong',
+    }, null, 2)}\n`;
+    fs.writeFileSync(jsonPath, marker, 'utf8');
+    const before = fileSha256OrNull(jsonPath);
+
+    const result = writeInstallModelConfig(tmp, SAMPLE_DISCOVERY, 'local_only', {
+      force: true,
+    });
+    assert.equal(result.force_ignored_for_routing, true);
+    assert.ok(result.files_preserved.includes(MODEL_POLICY_JSON));
+    assert.equal(fileSha256OrNull(jsonPath), before);
+  });
+
+  it('--migrate-model-policy rewrites JSON only and preserves YAML local_backend', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'install-migrate-'));
+    writeInstallModelConfig(tmp, SAMPLE_DISCOVERY, 'local_only');
+    const yamlPath = path.join(tmp, '.ai-minions', MODEL_POLICY_YAML);
+    const jsonPath = path.join(tmp, '.ai-minions', MODEL_POLICY_JSON);
+    const customYaml = yaml.dump({
+      model_policy_version: 1,
+      default_model: 'qwen2.5-coder:7b',
+      local_backend: {
+        backend_id: 'ollama',
+        support_status: 'supported',
+        host: '127.0.0.1',
+        port: 40114,
+        base_url: 'http://127.0.0.1:40114/olla/ollama',
+        endpoint_scope: 'localhost',
+      },
+    });
+    fs.writeFileSync(yamlPath, customYaml, 'utf8');
+    const yamlHash = fileSha256OrNull(yamlPath);
+    fs.writeFileSync(
+      jsonPath,
+      `${JSON.stringify({
+        ...JSON.parse(fs.readFileSync(jsonPath, 'utf8')),
+        default_tier: 'cheap',
+      }, null, 2)}\n`,
+      'utf8',
+    );
+
+    const result = writeInstallModelConfig(tmp, SAMPLE_DISCOVERY, 'local_only', {
+      migrateModelPolicy: true,
+    });
+    assert.ok(result.files_written.includes(MODEL_POLICY_JSON));
+    assert.ok(result.files_preserved.includes(MODEL_POLICY_YAML));
+    assert.equal(fileSha256OrNull(yamlPath), yamlHash);
+    assert.equal(JSON.parse(fs.readFileSync(jsonPath, 'utf8')).default_tier, 'standard');
+  });
+
+  it('migrate fails closed when YAML routing conflicts with JSON', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'install-conflict-'));
+    writeInstallModelConfig(tmp, SAMPLE_DISCOVERY, 'local_only');
+    const yamlPath = path.join(tmp, '.ai-minions', MODEL_POLICY_YAML);
+    const parsed = yaml.load(fs.readFileSync(yamlPath, 'utf8'));
+    parsed.role_defaults = { DEV: 'cheap' };
+    fs.writeFileSync(yamlPath, yaml.dump(parsed), 'utf8');
+    assert.throws(
+      () => writeInstallModelConfig(tmp, SAMPLE_DISCOVERY, 'local_only', { migrateModelPolicy: true }),
+      (err) => err && err.code === MODEL_ROUTING_CONFIG_CONFLICT,
+    );
   });
 });
 
