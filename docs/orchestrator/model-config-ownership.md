@@ -22,6 +22,7 @@ How installer-generated files under `.ai-minions/` split responsibilities and av
 6. **Single-model degrade** — when only one model is discovered, all tiers reference that model and install emits `INSTALL_ROLE_MODEL_DEGRADED_SINGLE_MODEL` (warn).
 7. **`provider_inference_profiles` are declarative** — presence of a remote provider block (e.g. `anthropic`) does **not** enable that provider or override `model_policy` (`local_only` still means local-only runtime routing). Profiles record intended knobs for future trace/runtime slices only.
 8. **Init overwrite** — existing `model_policy.json` is preserved byte-for-byte unless `--migrate-model-policy` is set. `--force` alone does not rewrite routing JSON. Existing YAML is never overwritten (protects `local_backend`).
+9. **Runtime tier-by-role (`local_only`)** — `getEffectiveOllamaModel({ role })` / `selectModelForRole` resolve per MODE role against discovery inventory. Precedence: `MODEL_OVERRIDE_<ROLE>` → global `--model` / `ORCH_LOCAL_MODEL` / `OLLAMA_MODEL` → first model in `tiers[role_defaults[role]]` present in scoped inventory → YAML `default_model`. Empty or non-matching tier inventory fails closed with `MODEL_NOT_FOUND` (no cross-tier silent escalation). YAML `default_model` alone does **not** pin every role when JSON `role_defaults` are present.
 
 ## Consistency check (install-time)
 
