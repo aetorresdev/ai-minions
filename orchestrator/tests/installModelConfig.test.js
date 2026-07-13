@@ -176,6 +176,7 @@ describe('install-model-config — write', () => {
     writeInstallModelConfig(tmp, SAMPLE_DISCOVERY, 'local_only');
     const yamlPath = path.join(tmp, '.ai-minions', MODEL_POLICY_YAML);
     const jsonPath = path.join(tmp, '.ai-minions', MODEL_POLICY_JSON);
+    const profilePath = path.join(tmp, '.ai-minions', INSTALL_PROFILE_JSON);
     const customYaml = yaml.dump({
       model_policy_version: 1,
       default_model: 'qwen2.5-coder:7b',
@@ -204,8 +205,27 @@ describe('install-model-config — write', () => {
     });
     assert.ok(result.files_written.includes(MODEL_POLICY_JSON));
     assert.ok(result.files_preserved.includes(MODEL_POLICY_YAML));
+    assert.ok(!result.files_written.includes(MODEL_POLICY_YAML));
+    assert.equal(result.inference_profiles_written, true);
     assert.equal(fileSha256OrNull(yamlPath), yamlHash);
     assert.equal(JSON.parse(fs.readFileSync(jsonPath, 'utf8')).default_tier, 'standard');
+
+    const profile = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
+    assert.ok(profile.files_written.includes(MODEL_POLICY_JSON));
+    assert.ok(profile.files_written.includes(INSTALL_PROFILE_JSON));
+    assert.ok(!profile.files_written.includes(MODEL_POLICY_YAML));
+    assert.ok(profile.files_preserved.includes(MODEL_POLICY_YAML));
+  });
+
+  it('re-init without migrate reports preserved YAML and inference_profiles_written false', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'install-reinit-'));
+    writeInstallModelConfig(tmp, SAMPLE_DISCOVERY, 'local_only');
+    const result = writeInstallModelConfig(tmp, SAMPLE_DISCOVERY, 'local_only');
+    assert.ok(result.files_preserved.includes(MODEL_POLICY_YAML));
+    assert.ok(result.files_preserved.includes(MODEL_POLICY_JSON));
+    assert.ok(!result.files_written.includes(MODEL_POLICY_YAML));
+    assert.ok(!result.files_written.includes(MODEL_POLICY_JSON));
+    assert.equal(result.inference_profiles_written, false);
   });
 
   it('migrate fails closed when YAML routing conflicts with JSON', () => {

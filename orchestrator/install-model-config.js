@@ -300,21 +300,25 @@ function writeInstallModelConfig(repoRoot, discovery, modelPolicy, options = {})
   }
 
   // install-profile: create if absent; refresh only on migrate.
-  const installProfile = {
-    install_profile_version: 1,
-    installed_at: now(),
-    model_policy: modelPolicy,
-    inference_profile_mode: 'declarative',
-    discovery: {
-      backend_ids: (discovery.backends ?? []).map((b) => b.backend_id),
-      model_count: discovery.models?.length ?? 0,
-      default_model: built.defaultModel,
-      degraded_single_model: built.degradedSingleModel,
-    },
-    files_written: [MODEL_POLICY_YAML, MODEL_POLICY_JSON, INSTALL_PROFILE_JSON],
-    migrate_model_policy: migrate,
-  };
-  if (!profileExists || migrate) {
+  // Evidence lists must reflect the actual write/preserve set for this call.
+  const writeProfile = !profileExists || migrate;
+  if (writeProfile) {
+    const writtenIncludingProfile = [...filesWritten, INSTALL_PROFILE_JSON];
+    const installProfile = {
+      install_profile_version: 1,
+      installed_at: now(),
+      model_policy: modelPolicy,
+      inference_profile_mode: 'declarative',
+      discovery: {
+        backend_ids: (discovery.backends ?? []).map((b) => b.backend_id),
+        model_count: discovery.models?.length ?? 0,
+        default_model: built.defaultModel,
+        degraded_single_model: built.degradedSingleModel,
+      },
+      files_written: writtenIncludingProfile,
+      files_preserved: [...filesPreserved],
+      migrate_model_policy: migrate,
+    };
     filesToWrite[INSTALL_PROFILE_JSON] = `${JSON.stringify(installProfile, null, 2)}\n`;
     filesWritten.push(INSTALL_PROFILE_JSON);
   } else {
@@ -342,7 +346,7 @@ function writeInstallModelConfig(repoRoot, discovery, modelPolicy, options = {})
     files_preserved: filesPreserved,
     default_model: built.defaultModel,
     degraded_single_model: built.degradedSingleModel,
-    inference_profiles_written: filesWritten.includes(MODEL_POLICY_JSON) || jsonExists,
+    inference_profiles_written: filesWritten.includes(MODEL_POLICY_JSON),
     inference_profile_mode: 'declarative',
     ranked_model_names: built.rankedModelNames,
     migrate_model_policy: migrate,

@@ -147,7 +147,7 @@ describe("model-policy-config", () => {
   });
 });
 
-describe("model-policy-config — routing authority (REQ-011)", () => {
+describe("model-policy-config — routing authority", () => {
   it("detectModelRoutingConfigConflict accepts YAML without routing keys", () => {
     const json = validateModelPolicy(JSON.parse(fs.readFileSync(VALID_FIXTURE, "utf8")));
     const result = detectModelRoutingConfigConflict({

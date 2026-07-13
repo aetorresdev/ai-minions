@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Versioned model tier policy loader + routing config authority (REQ-011).
+ * Versioned model tier policy loader + routing config authority.
  * Canonical SoT for tiers/role_defaults is model_policy.json.
  * model-policy.yaml may bootstrap local_backend / legacy default_model only.
  */
