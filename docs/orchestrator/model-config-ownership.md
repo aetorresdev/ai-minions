@@ -10,7 +10,7 @@ How installer-generated files under `.ai-minions/` split responsibilities and av
 |------|---------|-------------|
 | `model-policy.yaml` | **Endpoint / bootstrap** — `local_backend` adapter shape, optional `prefer_families`, and legacy `default_model` when JSON routing is absent | `orchestrator/modules/model-runtime/local-model-selection.js`, `model-policy-config.js` (conflict + legacy read) |
 | `model_policy.json` | **Routing authority + governance** — `tiers`, `role_defaults`, rules, `provider_inference_profiles` | `orchestrator/modules/model-runtime/model-policy-config.js` (canonical load) and `local-model-policy.js` (tier-by-role via `selectModelForRole`) |
-| `install-profile.json` | Installer evidence (timestamps, discovery summary, files written / preserved) | Operators / support — not runtime routing |
+| `install-profile.json` | Installer evidence (timestamps, discovery summary, files written / preserved); create-if-absent, refresh only on migrate | Operators / support — not runtime routing |
 
 ## Ownership rules
 
@@ -39,19 +39,21 @@ How installer-generated files under `.ai-minions/` split responsibilities and av
 |------|-------------------|
 | `model-policy.yaml` | `prefer_families`, `default_model` (must exist locally), `local_backend` fields |
 | `model_policy.json` | tier lists, `role_defaults`, `provider_inference_profiles` |
-| `install-profile.json` | read-only evidence — refreshed on install when the write phase updates evidence |
+| `install-profile.json` | read-only evidence; preserved by default and refreshed on explicit migration |
 
 ### Re-init / regenerate semantics
 
 Re-running `node scripts/install-ai-minions.mjs --install` does **not** mean “regenerate all three from discovery”:
 
-| Artifact | Default re-init | With `--migrate-model-policy` |
-|----------|-----------------|-------------------------------|
-| `model_policy.json` | **Preserved** (no rewrite) | Rewritten from current discovery |
-| `model-policy.yaml` | **Never overwritten** if it already exists | Still **never** overwritten |
-| `install-profile.json` | Updated as installer evidence (`files_written` / `files_preserved`) | Same |
+| Artifact | Default re-init (file already exists) | With `--migrate-model-policy` | First install / file absent |
+|----------|----------------------------------------|-------------------------------|-----------------------------|
+| `model_policy.json` | **Preserved** (no rewrite) | Rewritten from current discovery | **Created** |
+| `model-policy.yaml` | **Never overwritten** | Still **never** overwritten | **Created** |
+| `install-profile.json` | **Preserved** (no rewrite) | **Refreshed** | **Created** |
 
-To rebuild routing JSON after discovery changes, pass `--migrate-model-policy` explicitly. To change endpoint settings, edit YAML by hand (or remove it only if you intentionally want a fresh write on a clean tree).
+`install-profile.json` is written only when `!profileExists || migrate` (same authorize path as JSON migration). Default re-init with an existing profile leaves it byte-for-byte.
+
+To rebuild routing JSON (and refresh install-profile evidence) after discovery changes, pass `--migrate-model-policy` explicitly. To change endpoint settings, edit YAML by hand (or remove it only if you intentionally want a fresh write on a clean tree).
 
 ## Related docs
 
