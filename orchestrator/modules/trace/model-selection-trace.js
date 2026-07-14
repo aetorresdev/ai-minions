@@ -67,6 +67,19 @@ function normalizePolicyTier(value) {
 }
 
 /**
+ * Include a Phase A field only when the caller supplied a real value (no fabricated defaults).
+ * @param {Record<string, unknown>} target
+ * @param {string} key
+ * @param {unknown} value
+ */
+function assignOptionalString(target, key, value) {
+  if (typeof value !== "string") return;
+  const trimmed = value.trim();
+  if (!trimmed) return;
+  target[key] = trimmed;
+}
+
+/**
  * @param {{
  *   role: string,
  *   step_id: string,
@@ -90,60 +103,67 @@ function normalizePolicyTier(value) {
  * @returns {Record<string, unknown>}
  */
 function buildModelSelectionPayload(fields) {
-  const policyTier = normalizePolicyTier(fields.tier);
-  const tier = policyTier ?? fields.model_tier ?? inferModelTier(fields.model);
+  const policyTierProvided = Object.prototype.hasOwnProperty.call(fields, "tier");
+  const policyTier = policyTierProvided ? normalizePolicyTier(fields.tier) : undefined;
+  const modelTier = policyTier ?? fields.model_tier ?? inferModelTier(fields.model);
   const reason = String(fields.selection_reason ?? "").trim().slice(0, 300);
   if (!reason) {
     throw new Error("model_selection: selection_reason is required");
   }
-  if (tier === "frontier" && reason.length < 8) {
+  if (modelTier === "frontier" && reason.length < 8) {
     throw new Error(
       "model_selection: frontier tier requires selection_reason of at least 8 characters",
     );
   }
 
-  const providerId = String(fields.provider_id ?? "ollama").trim() || "ollama";
-  const modelBackend = String(
-    fields.model_backend
-      ?? (providerId === "ollama" ? "ollama" : "claude"),
-  ).trim() || "ollama";
-  const endpointRef = String(fields.endpoint_ref ?? "default").trim() || "default";
-  const endpointScope = String(fields.endpoint_scope ?? "localhost").trim() || "localhost";
-  const routeSource = /** @type {RouteSource} */ (
-    ROUTE_SOURCES.includes(/** @type {RouteSource} */ (fields.route_source))
-      ? fields.route_source
-      : "legacy_default"
-  );
-  const usageStatus = /** @type {UsageAccountingStatus} */ (
-    USAGE_ACCOUNTING_STATUSES.includes(
-      /** @type {UsageAccountingStatus} */ (fields.usage_accounting_status),
-    )
-      ? fields.usage_accounting_status
-      : "unavailable"
-  );
-
-  // Never allow base_url / secrets on the payload surface.
-  return {
+  /** @type {Record<string, unknown>} */
+  const payload = {
     event: "model_selection",
     role: fields.role,
     step_id: fields.step_id,
     model: String(fields.model),
-    model_tier: tier,
-    tier: policyTier,
+    model_tier: modelTier,
     selection_source: fields.selection_source,
     selection_reason: reason,
-    provider_id: providerId,
-    model_backend: modelBackend,
-    endpoint_ref: endpointRef,
-    endpoint_scope: endpointScope,
-    route_source: routeSource,
-    usage_accounting_status: usageStatus,
     estimated_input_tokens: fields.estimated_input_tokens ?? 0,
     estimated_output_tokens: fields.estimated_output_tokens ?? 0,
     estimated_cost_usd: fields.estimated_cost_usd ?? 0,
-    ...(typeof fields.iteration === "number" ? { iteration: fields.iteration } : {}),
-    ...(fields.agent ? { agent: fields.agent } : {}),
   };
+
+  // Phase A fields are optional — emit only when the caller resolved them honestly.
+  // Never invent provider_id=ollama, endpoint_scope=localhost, or route_source defaults.
+  if (policyTierProvided) {
+    payload.tier = policyTier;
+  }
+  assignOptionalString(payload, "provider_id", fields.provider_id);
+  assignOptionalString(payload, "model_backend", fields.model_backend);
+  assignOptionalString(payload, "endpoint_ref", fields.endpoint_ref);
+  if (
+    typeof fields.endpoint_scope === "string"
+    && ENDPOINT_SCOPES.includes(/** @type {typeof ENDPOINT_SCOPES[number]} */ (fields.endpoint_scope))
+  ) {
+    payload.endpoint_scope = fields.endpoint_scope;
+  }
+  if (
+    typeof fields.route_source === "string"
+    && ROUTE_SOURCES.includes(/** @type {RouteSource} */ (fields.route_source))
+  ) {
+    payload.route_source = fields.route_source;
+  }
+  if (
+    typeof fields.usage_accounting_status === "string"
+    && USAGE_ACCOUNTING_STATUSES.includes(
+      /** @type {UsageAccountingStatus} */ (fields.usage_accounting_status),
+    )
+  ) {
+    payload.usage_accounting_status = fields.usage_accounting_status;
+  }
+
+  if (typeof fields.iteration === "number") payload.iteration = fields.iteration;
+  if (fields.agent) payload.agent = fields.agent;
+
+  // Never allow base_url / secrets on the payload surface.
+  return payload;
 }
 
 /**

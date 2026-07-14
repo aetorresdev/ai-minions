@@ -26,7 +26,7 @@ Observable record of **which model** was selected for an agent invocation. Emiss
 | `route_source` | `legacy_default` \| `role_defaults` \| `tier` \| `role_routes` \| `override` | **A** | Declarative routing provenance |
 | `usage_accounting_status` | `known` \| `estimated` \| `unavailable` \| `unknown_provider_usage` | **A** | Pre-response emission uses `unavailable` |
 
-JSON Schema: `orchestrator/schemas/trace-v2-line.schema.json` (`model_selection` branch). New Phase A properties are **optional** for schema compatibility with pre-v0.23 traces; emitters under `local_only` **always** include them.
+JSON Schema: `orchestrator/schemas/trace-v2-line.schema.json` (`model_selection` branch). Phase A properties are **optional** for schema compatibility with pre-v0.23 and with Claude/remote legacy emitters. Emitters include Phase A fields **only** when `local_only` actually resolved a local route (`selectModelForRole`); they must not invent `provider_id=ollama`, `endpoint_scope=localhost`, or other defaults.
 
 ## Selection source semantics
 
@@ -39,7 +39,7 @@ JSON Schema: `orchestrator/schemas/trace-v2-line.schema.json` (`model_selection`
 
 ## Emission
 
-Emitted from `askAgent()` before model invocation when a run trace reporter is wired. Under `ORCH_MODEL_MODE=local_only`, fields are filled from `selectModelForRole` (`tier`, `route_source`) plus endpoint scope from local-model policy meta.
+Emitted from `askAgent()` before model invocation when a run trace reporter is wired. Under `ORCH_MODEL_MODE=local_only` **and** a successful `selectModelForRole` resolution, Phase A fields are filled from that result plus `endpoint_scope` **only when** local-model endpoint meta provides it (never assumed). Claude / non-`local_only` paths emit the legacy field set only.
 
 ## Read safeguard (Phase A)
 

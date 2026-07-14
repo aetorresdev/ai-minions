@@ -303,75 +303,15 @@ function describeModelSelectionSource(role) {
  * @param {string} agentId
  * @param {{ mode: string, model: string, provider?: string }} agent
  * @param {{ phase?: string, cwd?: string, traceContext?: { step_id?: string, iteration?: number }, forceOllama?: boolean, localOnlyRoute?: boolean }} opts
- * @returns {{
- *   role: string,
- *   agent: string,
- *   step_id: string,
- *   model: string,
- *   model_tier: string,
- *   tier: string | null,
- *   selection_source: string,
- *   selection_reason: string,
- *   provider_id: string,
- *   model_backend: string,
- *   endpoint_ref: string,
- *   endpoint_scope: string,
- *   route_source: string,
- *   usage_accounting_status: string,
- *   iteration?: number,
- * }}
+ * @returns {Record<string, unknown>}
  */
 function buildModelSelectionFields(agentId, agent, opts = {}) {
   const forceOllama = opts.forceOllama === true;
   const localOnlyRoute = opts.localOnlyRoute === true;
-  const usingOllama = agent.provider === "ollama" || forceOllama || localOnlyRoute || isLocalOnlyModeEnabled();
+  const usingOllama = agent.provider === "ollama" || forceOllama || localOnlyRoute;
 
   let model = agent.model;
-  /** @type {string | null} */
-  let tier = null;
-  /** @type {string} */
-  let route_source = "legacy_default";
-  /** @type {{ selection_source: "default"|"policy"|"manual", selection_reason: string }} */
-  let source = describeModelSelectionSource(agentId);
-
-  if (isLocalOnlyModeEnabled() && agent.mode) {
-    try {
-      const sel = selectModelForRole(agent.mode, { cwd: opts.cwd });
-      model = sel.model;
-      tier = sel.tier;
-      route_source = sel.route_source;
-      if (sel.route_source === "override") {
-        source = {
-          selection_source: "manual",
-          selection_reason: sel.override_source
-            ? `override:${sel.override_source}`
-            : `MODEL_OVERRIDE_${String(agent.mode).toUpperCase()}`,
-        };
-      } else if (sel.route_source === "role_defaults") {
-        source = {
-          selection_source: "policy",
-          selection_reason: `role_defaults:tier=${sel.tier}`,
-        };
-      } else {
-        source = {
-          selection_source: "policy",
-          selection_reason: sel.override_source
-            ? `legacy_default:${sel.override_source}`
-            : "legacy_default",
-        };
-      }
-    } catch (err) {
-      if (!(err && err.code === "MODEL_NOT_FOUND" && err.soft === true)) throw err;
-      model = getEffectiveOllamaModel({
-        forceOllama,
-        agentModel: agent.model,
-        role: agent.mode,
-        cwd: opts.cwd,
-      }) || agent.model;
-      source = describeModelSelectionSource(agentId);
-      route_source = "legacy_default";
-    }
-  } else if (usingOllama) {
+  if (usingOllama || isLocalOnlyModeEnabled()) {
     model = getEffectiveOllamaModel({
       forceOllama,
       agentModel: agent.model,
@@ -380,37 +320,65 @@ function buildModelSelectionFields(agentId, agent, opts = {}) {
     }) || agent.model;
   }
 
-  const endpointMeta = getLocalModelEndpointMeta();
-  const endpoint_scope =
-    (endpointMeta && typeof endpointMeta.endpoint_scope === "string" && endpointMeta.endpoint_scope)
-      ? endpointMeta.endpoint_scope
-      : "localhost";
-  const provider_id = usingOllama ? "ollama" : "anthropic";
-  const model_backend = usingOllama ? "ollama" : "claude";
-  const model_tier = tier || inferModelTier(model);
-
+  const source = describeModelSelectionSource(agentId);
   const stepId =
     opts.traceContext?.step_id
     ?? (opts.phase === "plan" ? "phase:plan" : opts.phase === "decide" ? "phase:decide" : `agent:${agentId}`);
-  return {
+
+  /** @type {Record<string, unknown>} */
+  const fields = {
     role: agent.mode,
     agent: agentId,
     step_id: stepId,
     model,
-    model_tier,
-    tier,
+    model_tier: inferModelTier(model),
     selection_source: source.selection_source,
     selection_reason: source.selection_reason,
-    provider_id,
-    model_backend,
-    endpoint_ref: "default",
-    endpoint_scope,
-    route_source,
-    usage_accounting_status: "unavailable",
     ...(typeof opts.traceContext?.iteration === "number"
       ? { iteration: opts.traceContext.iteration }
       : {}),
   };
+
+  // Phase A routing metadata only when local_only actually resolved a local route.
+  if (!isLocalOnlyModeEnabled() || !agent.mode) {
+    return fields;
+  }
+
+  try {
+    const sel = selectModelForRole(agent.mode, { cwd: opts.cwd });
+    fields.model = sel.model;
+    fields.model_tier = sel.tier || inferModelTier(sel.model);
+    fields.tier = sel.tier;
+    fields.route_source = sel.route_source;
+    fields.provider_id = "ollama";
+    fields.model_backend = "ollama";
+    fields.endpoint_ref = "default";
+    fields.usage_accounting_status = "unavailable";
+    if (sel.route_source === "override") {
+      fields.selection_source = "manual";
+      fields.selection_reason = sel.override_source
+        ? `override:${sel.override_source}`
+        : `MODEL_OVERRIDE_${String(agent.mode).toUpperCase()}`;
+    } else if (sel.route_source === "role_defaults") {
+      fields.selection_source = "policy";
+      fields.selection_reason = `role_defaults:tier=${sel.tier}`;
+    } else {
+      fields.selection_source = "policy";
+      fields.selection_reason = sel.override_source
+        ? `legacy_default:${sel.override_source}`
+        : "legacy_default";
+    }
+    const endpointMeta = getLocalModelEndpointMeta();
+    if (endpointMeta && typeof endpointMeta.endpoint_scope === "string" && endpointMeta.endpoint_scope) {
+      fields.endpoint_scope = endpointMeta.endpoint_scope;
+    }
+    // If scope is unknown, omit endpoint_scope — never assume localhost.
+  } catch (err) {
+    if (!(err && err.code === "MODEL_NOT_FOUND" && err.soft === true)) throw err;
+    // Soft miss: keep legacy fields only (no fabricated Phase A metadata).
+  }
+
+  return fields;
 }
 
 /**
@@ -461,25 +429,31 @@ function enforceModelTierGate(agentId, agent, opts = {}) {
 function tryEmitModelSelection(agentId, agent, opts = {}) {
   const fields = enforceModelTierGate(agentId, agent, opts);
   if (!_modelSelectionReporter) return;
-  _modelSelectionReporter(
-    buildModelSelectionPayload({
-      role: fields.role,
-      agent: agentId,
-      step_id: fields.step_id,
-      model: fields.model,
-      model_tier: /** @type {any} */ (fields.model_tier),
-      tier: fields.tier,
-      selection_source: /** @type {any} */ (fields.selection_source),
-      selection_reason: fields.selection_reason,
-      provider_id: fields.provider_id,
-      model_backend: fields.model_backend,
-      endpoint_ref: fields.endpoint_ref,
-      endpoint_scope: fields.endpoint_scope,
-      route_source: /** @type {any} */ (fields.route_source),
-      usage_accounting_status: /** @type {any} */ (fields.usage_accounting_status),
-      ...(typeof fields.iteration === "number" ? { iteration: fields.iteration } : {}),
-    }),
-  );
+  /** @type {Parameters<typeof buildModelSelectionPayload>[0]} */
+  const payloadFields = {
+    role: /** @type {string} */ (fields.role),
+    agent: agentId,
+    step_id: /** @type {string} */ (fields.step_id),
+    model: /** @type {string} */ (fields.model),
+    model_tier: /** @type {any} */ (fields.model_tier),
+    selection_source: /** @type {any} */ (fields.selection_source),
+    selection_reason: /** @type {string} */ (fields.selection_reason),
+  };
+  if (Object.prototype.hasOwnProperty.call(fields, "tier")) {
+    payloadFields.tier = /** @type {any} */ (fields.tier);
+  }
+  if (typeof fields.provider_id === "string") payloadFields.provider_id = fields.provider_id;
+  if (typeof fields.model_backend === "string") payloadFields.model_backend = fields.model_backend;
+  if (typeof fields.endpoint_ref === "string") payloadFields.endpoint_ref = fields.endpoint_ref;
+  if (typeof fields.endpoint_scope === "string") payloadFields.endpoint_scope = fields.endpoint_scope;
+  if (typeof fields.route_source === "string") {
+    payloadFields.route_source = /** @type {any} */ (fields.route_source);
+  }
+  if (typeof fields.usage_accounting_status === "string") {
+    payloadFields.usage_accounting_status = /** @type {any} */ (fields.usage_accounting_status);
+  }
+  if (typeof fields.iteration === "number") payloadFields.iteration = fields.iteration;
+  _modelSelectionReporter(buildModelSelectionPayload(payloadFields));
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
