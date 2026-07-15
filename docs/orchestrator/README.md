@@ -13,6 +13,7 @@ Flat paths below — grouped for discoverability only (no 1:1 module mirror). Se
 | **Architecture** | [module-boundaries.md](module-boundaries.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [arch-shim-retirement-plan.md](arch-shim-retirement-plan.md) · [root-file-inventory.md](root-file-inventory.md) · [run-control-hub-decision.md](run-control-hub-decision.md) |
 | **Contracts** | [agent-contract.md](agent-contract.md) · [governance-gates-contract.md](governance-gates-contract.md) · [review-record-contract.md](review-record-contract.md) · [context-package-contract.md](context-package-contract.md) · [skill-capability-boundary.md](skill-capability-boundary.md) · [runner-tui-contract.md](runner-tui-contract.md) |
 | **Operator / runbooks** | [run-outcome-consumption.md](run-outcome-consumption.md) · [control-plane-tui-contract.md](control-plane-tui-contract.md) · [token-hygiene-guide.md](token-hygiene-guide.md) · [alpha-release-checklist.md](alpha-release-checklist.md) |
+| **Product direction / research** | [post-beta-product-direction.md](post-beta-product-direction.md) · [market-validation-notes.md](market-validation-notes.md) · [eval-benchmark-triage.md](eval-benchmark-triage.md) |
 | **How-to (repo root)** | [ai-minions command migration](../how-to/ai-minions-command-migration.md) · [operator visibility (v0.21+)](../how-to/operator-visibility-guide.md) · [usage smoke guide](../how-to/usage-smoke-guide.md) · [operator guided run](../how-to/operator-guided-run.md) |
 | **Release / governance** | [release-workflow.md](release-workflow.md) · [release-governance-contract.md](release-governance-contract.md) · [changelog-release-format.md](changelog-release-format.md) |
 
@@ -33,6 +34,7 @@ Flat paths below — grouped for discoverability only (no 1:1 module mirror). Se
 | [cerberus-doubt-cycle-contract.md](cerberus-doubt-cycle-contract.md) | CERBERUS adversarial doubt cycle — trace `doubt_review_*`, claim matrix, pre-merge brief alignment |
 | [openspec-sdd-cross-check.md](openspec-sdd-cross-check.md) | OpenSpec SDD comparison (reference) — mapping table, no runtime dependency |
 | [market-validation-notes.md](market-validation-notes.md) | Control-first positioning research — allowed/forbidden claims, pain themes (doc-only) |
+| [post-beta-product-direction.md](post-beta-product-direction.md) | Post-beta sequencing for interactive TUI/GUI, local/external role routing, and constrained semantic specifications/DSL (reference only) |
 | [security-posture.md](security-posture.md) | Public security posture + threat model (honest) |
 | [production-boundary-guard.md](production-boundary-guard.md) | Production Boundary Guard — `agent_as_contributor`, privileged-op boundary, `production_boundary_check` trace contract |
 | [merge-governance-contract.md](merge-governance-contract.md) | PR-boundary governance — dry-run gate, config fallback, `production_boundary_check` emission library |
