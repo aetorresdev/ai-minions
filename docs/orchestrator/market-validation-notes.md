@@ -6,7 +6,7 @@
 
 **Canonical claims:** [harness-engineering-positioning.md](harness-engineering-positioning.md) § Claims matrix · § Execution modes.
 
-**Related:** [openspec-sdd-cross-check.md](openspec-sdd-cross-check.md) · [security-posture.md](security-posture.md) · [alpha-release-checklist.md](alpha-release-checklist.md).
+**Related:** [post-beta-product-direction.md](post-beta-product-direction.md) · [openspec-sdd-cross-check.md](openspec-sdd-cross-check.md) · [security-posture.md](security-posture.md) · [alpha-release-checklist.md](alpha-release-checklist.md).
 
 ---
 
@@ -74,6 +74,7 @@ Comparison is **positioning**, not feature parity scoring. Ecosystem breadth fav
 | Worktree isolation and permission gates (alpha scope) | [worktree-isolation-contract.md](worktree-isolation-contract.md), [runtime-permission-contract.md](runtime-permission-contract.md) |
 | Alpha / pre-release with documented limitations | [alpha-release-checklist.md](alpha-release-checklist.md), [CHANGELOG.md](../../CHANGELOG.md) |
 | Dynamic workflow **patterns** (doc only) | [dynamic-workflow-contract.md](dynamic-workflow-contract.md) |
+| Post-beta TUI/GUI, role routing, and semantic-specification work as **planned product direction** | [post-beta-product-direction.md](post-beta-product-direction.md) — reference only, no shipped-feature claim |
 
 ### Forbidden (overclaim)
 
@@ -87,6 +88,25 @@ Comparison is **positioning**, not feature parity scoring. Ecosystem breadth fav
 | Safe parallel subagents without contract + trace proof | No evidence claim |
 | Full sandbox / credential broker “solved” | [security-posture.md](security-posture.md) honest gaps |
 | Beta or GA from positioning research alone | Requires product checklist + release evidence |
+| Interactive TUI, GUI, general local/external routing, or DSL as shipped before implementation evidence exists | Planned direction is not runtime evidence |
+
+---
+
+## Post-beta market-value hypothesis
+
+Once the beta path is stable, three product tracks reinforce the control-first category:
+
+| Track | User-visible value | Control-first constraint |
+|-------|--------------------|--------------------------|
+| **Interactive TUI / optional GUI** | Makes runs, blockers, evidence, routing, and next actions legible without reading raw traces | Must consume the canonical read model; read-only first; gated mutations only |
+| **Local + external model routing by role/agent** | Balances privacy, capability, availability, latency, and cost across heterogeneous models | No silent fallback or escalation; every selection and rejection remains traceable |
+| **Semantic specifications / constrained DSL** | Converts repeated intent into compact, maintainable, validator-backed artifacts | Begin with narrow eval scenarios; no general workflow language or second authority |
+
+The market claim is not that any one feature is novel. The differentiated bundle is:
+
+> Legible operator control + outcome-aware model economics + executable governance contracts.
+
+Success must be evaluated by accepted outcomes and operator comprehension, not feature count, token price, or UI polish alone. Detailed sequencing and entry gates live in [post-beta-product-direction.md](post-beta-product-direction.md).
 
 ---
 
