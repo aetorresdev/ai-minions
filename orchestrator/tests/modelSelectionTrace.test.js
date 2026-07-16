@@ -367,21 +367,21 @@ describe("model-selection Phase A local_only emission", () => {
     });
     const events = [];
     setModelSelectionTraceReporter((payload) => events.push(payload));
-    process.env.ORCH_TEST_SYSTEM_PATH_HARNESS = "1";
+    // Emission runs before model invoke; ignore post-emit backend failures.
     try {
       await askAgent("dev-backend", "implement X", {
         cwd: tmpDir,
         traceContext: { step_id: "s-dev" },
       });
-      assert.equal(events.length, 1);
-      assert.equal(events[0].provider_id, "ollama");
-      assert.equal(events[0].model, "qwen2.5-coder:7b");
-      assert.equal(events[0].tier, "cheap");
-      assert.equal(events[0].route_source, "role_defaults");
-      assert.equal(Object.prototype.hasOwnProperty.call(events[0], "endpoint_scope"), false);
-      assert.equal(Object.prototype.hasOwnProperty.call(events[0], "base_url"), false);
-    } finally {
-      delete process.env.ORCH_TEST_SYSTEM_PATH_HARNESS;
+    } catch {
+      // ignore post-emit invoke failures
     }
+    assert.equal(events.length, 1);
+    assert.equal(events[0].provider_id, "ollama");
+    assert.equal(events[0].model, "qwen2.5-coder:7b");
+    assert.equal(events[0].tier, "cheap");
+    assert.equal(events[0].route_source, "role_defaults");
+    assert.equal(Object.prototype.hasOwnProperty.call(events[0], "endpoint_scope"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(events[0], "base_url"), false);
   });
 });
