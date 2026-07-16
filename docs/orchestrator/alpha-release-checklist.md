@@ -1385,7 +1385,7 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 - [x] Tier-by-role — merged @ `c65213c` (PR #278)
 - [x] Routing trace honesty + read safeguard — merged @ `f745d3b` (PR #279)
 - [x] Pre-release routing smoke (fixture CI + live Olla dual PASS @ `7e62c7b`) — merged @ `7e62c7b` (PR #281)
-- [ ] Release-prep docs + changelog — this cut; CERBERUS before tag
+- [x] Release-prep docs + changelog — merged @ `226ac80` (PR #282); CERBERUS Approve
 
 ### v0.23 coherence slices
 
@@ -1398,7 +1398,7 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 | Tier-by-role | v1 `tiers` / `role_defaults` | [x] PR #278 `c65213c` |
 | Routing trace | Per-invocation `model_selection` + read safeguard | [x] PR #279 `f745d3b` |
 | Routing smoke gate | `test:e2e:routing-release` dual evidence | [x] PR #281 `7e62c7b` |
-| Release-prep | Tag `v0.23.0-beta.1` | [ ] Phase B after merge |
+| Release-prep | Tag `v0.23.0-beta.1` | [x] Phase B @ `226ac80` |
 
 **Merge order (completed):** endpoint path → runtime wiring → config authority → tier-by-role → routing trace → smoke gate → release-prep.
 
@@ -1413,6 +1413,7 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 | 2026-07-16 | Release-prep tree | `node scripts/verify-usage-docs.mjs` → **OK** |
 | 2026-07-16 | Release-prep tree | `node scripts/audit-product-claims.mjs` → **OK** |
 | 2026-07-16 | Release-prep tree | `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK** |
+| 2026-07-16 | Phase B operator cut @ `226ac80` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 ### Forbidden release claims (v0.23)
 
@@ -1422,14 +1423,14 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 
 **Wording:** do not mark `[x]` until release-prep Phase B complete.
 
-- [ ] **Tag target:** `v0.23.0-beta.1` on release-prep merge commit
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.23.0-beta.1` — pre-release published
-- [ ] **`release` branch:** aligned to tag commit
+- [x] **Tag target:** `v0.23.0-beta.1` on release-prep merge commit @ `226ac80`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.23.0-beta.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `226ac80`
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.23.0-beta.1] - 2026-07-16** *(draft in release-prep PR; check after merge)*
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+- [x] **Changelog:** section **[0.23.0-beta.1] - 2026-07-16**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 

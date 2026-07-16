@@ -23,7 +23,7 @@ Twenty-third beta pre-release: **Shell Threat Model + Model Routing Coherence** 
 | Operator path | `status`/`explain` harness fields | + routing-release smoke docs · model-routing cross-link |
 | Unit tests (orchestrator) | 1383/1383 pass (1 skipped) @ `3f5ff60` | **1441/1441** pass (1 skipped) @ `7e62c7b` |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.23.0-beta.1` — *reserved until Phase B tag*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.23.0-beta.1` — pre-release published @ tag `226ac80`
 
 **Evidence (operator):**
 
@@ -35,8 +35,8 @@ Twenty-third beta pre-release: **Shell Threat Model + Model Routing Coherence** 
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** @ release-prep tree
 - Changelog format: `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK**
 - Contracts: `shell-kernel-threat-model.md`, `model-routing.md`, `routing-release-smoke.md`, `alpha-release-checklist.md`
-- Coherence lane on `master` @ `7e62c7b` (routing slices + smoke); release-prep follows this cut
-- CI: lint-and-unit (incl. fixture smoke), security-trivy-scan, orchestrator-e2e, Installed CLI Docker live — green on PR #281 @ `16de4f5`
+- Coherence lane on `master` @ `7e62c7b` (routing slices + smoke); release-prep merged @ `226ac80` (PR #282)
+- CI: lint-and-unit (incl. fixture smoke), security-trivy-scan, orchestrator-e2e, Installed CLI Docker live — green on PR #281 @ `16de4f5` and release-prep PR #282 @ `b416c50`
 
 **Alpha limitations (not production):**
 
@@ -65,8 +65,8 @@ Twenty-third beta pre-release: **Shell Threat Model + Model Routing Coherence** 
 ### Notes
 
 - **v0.22 semver errata (carried):** published tag briefly mislabeled alpha; canonical **`v0.22.0-beta.1`** @ `52a7172`. Tag-tree CHANGELOG header on that commit may still say alpha — operator truth is GitHub release + current `master` CHANGELOG + `PRODUCT_VERSION`.
-- Phase B (tag · GitHub pre-release · `release` branch · governance record) is operator-owned after CERBERUS Approve of this release-prep merge.
-- Dual-evidence routing smoke (GHA fixture + live Olla) must match the **same** candidate commit before tagging.
+- Phase B completed @ `226ac80`: annotated tag, GitHub pre-release, and `release` branch aligned; governance validation returned `ok: true`.
+- Dual-evidence routing smoke (GHA fixture + live Olla) matched candidate SHA `7e62c7b` before tagging release-prep merge `226ac80`.
 
 ## [0.22.0-beta.1] - 2026-07-10
 
