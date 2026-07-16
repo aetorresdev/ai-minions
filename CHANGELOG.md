@@ -6,6 +6,68 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.23.0-beta.1] - 2026-07-16
+
+Twenty-third beta pre-release: **Shell Threat Model + Model Routing Coherence** — shell/kernel gated-execution threat model doc, Ollama/Olla `base_url` path-prefix HTTP, config authority (`model_policy.json` canonical with YAML conflict fail-closed), tier-by-role local model selection, Phase A `model_selection` trace honesty with `not_aggregated` read safeguard, and dual-evidence routing-release smoke gate (fixture CI + live Olla) — without multi-provider production routing, hybrid cloud, billing-accurate remote cost, or cohort gate change.
+
+**Release claim:** operators on `local_only` can route through path-prefixed Ollama endpoints (e.g. Olla), keep JSON as routing SoT with fail-closed YAML conflicts, select distinct models per MODE role from inventory, emit honest per-invocation routing fields, and prove coherence with `npm run test:e2e:routing-release` — **not** multi-provider production-ready · **not** hybrid cloud routing shipped · **not** billing-accurate remote cost · **not** architecture refactor complete · **not** cohort gate change · **not** hardened sandbox.
+
+**Prerequisite:** `v0.22.0-beta.1` @ `52a7172` (canonical beta; see v0.22 semver errata below).
+
+**Since [0.22.0-beta.1]:** v0.22 centered on **harness resilience evals** (chaos tool-failure · context authority · operator harness fields). v0.23 closes **model routing coherence** for local Ollama/Olla path and policy — shell threat model documentation plus endpoint path, runtime wiring, config authority, tier-by-role, trace honesty, and pre-tag dual-evidence smoke — without reopening beta UX or external cohort semantics.
+
+| Area | `v0.22.0-beta.1` | `v0.23.0-beta.1` (delta) |
+|------|------------------|---------------------------|
+| Focus | Harness resilience — chaos eval · context authority · operator harness surfacing | Shell threat model + local model routing coherence (Olla path · policy authority · tier-by-role · routing smoke) |
+| Local routing | Legacy/default Ollama host:port; policy YAML selection | + `base_url` path prefix · JSON routing authority · role→tier→model · Phase A `model_selection` · `test:e2e:routing-release` |
+| Operator path | `status`/`explain` harness fields | + routing-release smoke docs · model-routing cross-link |
+| Unit tests (orchestrator) | 1383/1383 pass (1 skipped) @ `3f5ff60` | **1441/1441** pass (1 skipped) @ `7e62c7b` |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.23.0-beta.1` — *reserved until Phase B tag*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1441/1441** pass (1 skipped) @ `7e62c7b`
+- Routing smoke (fixture): `ROUTING_RELEASE_MODE=fixture npm run test:e2e:routing-release` → overall **PASS** (6/6) — CI artifact upload on orchestrator-unit-tests
+- Routing smoke (live): `ROUTING_RELEASE_MODE=live npm run test:e2e:routing-release` → overall **PASS** (6/6) @ `7e62c7b` — Olla `127.0.0.1:40114/olla/ollama`
+- Usage docs: `node scripts/verify-usage-docs.mjs` → **OK**
+- Claim audit: `node scripts/audit-product-claims.mjs` → **OK**
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** @ release-prep tree
+- Changelog format: `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK**
+- Contracts: `shell-kernel-threat-model.md`, `model-routing.md`, `routing-release-smoke.md`, `alpha-release-checklist.md`
+- Coherence lane on `master` @ `7e62c7b` (routing slices + smoke); release-prep follows this cut
+- CI: lint-and-unit (incl. fixture smoke), security-trivy-scan, orchestrator-e2e, Installed CLI Docker live — green on PR #281 @ `16de4f5`
+
+**Alpha limitations (not production):**
+
+- **Not** multi-provider production-ready — local Ollama/Olla path and v1 policy only; remote adapters and hybrid out of scope.
+- **Not** hybrid cloud routing shipped — no multi-cloud failover or managed routing mesh.
+- **Not** billing-accurate remote cost — local/token accounting honesty unchanged; no remote provider billing.
+- **Not** architecture refactor complete — modular layout continues; root shims may remain.
+- **Not** cohort gate change — `LIVE_PASS` @ `99233e0` still required for external cohort on beta lane.
+- **Not** hardened sandbox — shell threat model documents gated boundaries; not a full sandbox product claim.
+
+### Added
+
+- Shell/kernel threat model documentation for gated execution boundaries (`docs/orchestrator/shell-kernel-threat-model.md`).
+- Ollama HTTP client support for `base_url` path prefixes (Olla-style `/olla/ollama`) with HTTP/HTTPS and TLS verify by default.
+- Model routing config authority — `model_policy.json` canonical for `tiers`/`role_defaults`; YAML↔JSON disagreement → `MODEL_ROUTING_CONFIG_CONFLICT`; preserve/`--migrate-model-policy` semantics.
+- Tier-by-role local model selection — `selectModelForRole` / `getEffectiveOllamaModel({ role })` with fail-closed `MODEL_NOT_FOUND`.
+- Phase A `model_selection` routing fields only after real `local_only` resolution; `not_aggregated` read safeguard for incomplete summaries.
+- Pre-release routing smoke — `npm run test:e2e:routing-release` (fixture + live packs; PASS\|FAIL\|BLOCKED); CI fixture pack + artifact upload; operator doc `routing-release-smoke.md`.
+
+### Changed
+
+- `docs/orchestrator/model-routing.md` — link to routing-release smoke gate.
+- `docs/orchestrator/security-posture.md` / shell threat model cross-links (threat-model slice).
+- Install/ownership docs aligned with preserve vs migrate and JSON routing authority.
+
+### Notes
+
+- **v0.22 semver errata (carried):** published tag briefly mislabeled alpha; canonical **`v0.22.0-beta.1`** @ `52a7172`. Tag-tree CHANGELOG header on that commit may still say alpha — operator truth is GitHub release + current `master` CHANGELOG + `PRODUCT_VERSION`.
+- Phase B (tag · GitHub pre-release · `release` branch · governance record) is operator-owned after CERBERUS Approve of this release-prep merge.
+- Dual-evidence routing smoke (GHA fixture + live Olla) must match the **same** candidate commit before tagging.
+
 ## [0.22.0-beta.1] - 2026-07-10
 
 > **Semver errata (2026-07-10):** the GitHub tag was briefly published as `v0.22.0-alpha.1`. That label was a mistake — the external beta lane opened at `v0.20.0-beta.1` and harness maturity does not revert to alpha. Canonical version is **`v0.22.0-beta.1`** on commit `52a7172`. Post-`v0.20` cuts stay on `beta` unless CERBERUS explicitly closes external beta.

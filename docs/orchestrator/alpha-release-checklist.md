@@ -1375,38 +1375,61 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 
 ## v0.23.0-beta.1 — Shell Threat Model + Model Routing Coherence
 
-**Scope:** Shell/kernel threat model doc (shipped) + **model routing coherence closeout** — Olla `base_url` path, v1 tier-by-role, per-role `model_selection` trace, config authority. **Prerequisite:** v0.22 @ `52a7172` *(canonical `v0.22.0-beta.1`)* · shell threat model @ PR #273 `9f12753`. **Beta continuity** — not alpha.
+**Scope:** Shell/kernel threat model doc + **model routing coherence closeout** — Olla `base_url` path, v1 tier-by-role, per-role `model_selection` trace, config authority, dual-evidence routing-release smoke. **Prerequisite:** v0.22 @ `52a7172` *(canonical `v0.22.0-beta.1`)*. **Beta continuity** — not alpha.
+
+### Must-have bundle
+
+- [x] Shell threat model doc — merged @ `9f12753` (PR #273)
+- [x] Endpoint path + runtime wiring — merged @ `d081188` (PR #276)
+- [x] Config authority — merged @ `faac9dd` (PR #277)
+- [x] Tier-by-role — merged @ `c65213c` (PR #278)
+- [x] Routing trace honesty + read safeguard — merged @ `f745d3b` (PR #279)
+- [x] Pre-release routing smoke (fixture CI + live Olla dual PASS @ `7e62c7b`) — merged @ `7e62c7b` (PR #281)
+- [ ] Release-prep docs + changelog — this cut; CERBERUS before tag
 
 ### v0.23 coherence slices
 
 | Slice | Scope | Status |
 |-------|-------|--------|
 | Shell threat model doc | `shell-kernel-threat-model.md` | [x] PR #273 `9f12753` |
-| Endpoint path | `base_url` + Olla prefix | [ ] |
-| Runtime wiring | Discovery/chat/network gate | [ ] |
-| Config authority | Canonical JSON · conflict fail-closed | [ ] |
-| Tier-by-role | v1 `tiers` / `role_defaults` | [ ] |
-| Routing trace | Per-invocation `model_selection` + read safeguard | [ ] |
-| Release-prep | Tag `v0.23.0-beta.1` | [ ] |
+| Endpoint path | `base_url` + Olla prefix | [x] PR #276 `d081188` |
+| Runtime wiring | Discovery/chat/network gate | [x] PR #276 `d081188` |
+| Config authority | Canonical JSON · conflict fail-closed | [x] PR #277 `faac9dd` |
+| Tier-by-role | v1 `tiers` / `role_defaults` | [x] PR #278 `c65213c` |
+| Routing trace | Per-invocation `model_selection` + read safeguard | [x] PR #279 `f745d3b` |
+| Routing smoke gate | `test:e2e:routing-release` dual evidence | [x] PR #281 `7e62c7b` |
+| Release-prep | Tag `v0.23.0-beta.1` | [ ] Phase B after merge |
 
-**Merge order:** endpoint path → runtime wiring → **config authority** → tier-by-role → routing trace → release-prep. Config authority before tier resolver.
+**Merge order (completed):** endpoint path → runtime wiring → config authority → tier-by-role → routing trace → smoke gate → release-prep.
+
+### v0.23 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-07-16 | Coherence lane on `master` @ `7e62c7b` | `cd orchestrator && npm test` → **1441/1441** pass (1 skip) |
+| 2026-07-16 | Routing smoke fixture | `ROUTING_RELEASE_MODE=fixture npm run test:e2e:routing-release` → **PASS** 6/6 (CI + local) |
+| 2026-07-16 | Routing smoke live @ `7e62c7b` | `ROUTING_RELEASE_MODE=live` → **PASS** 6/6 — Olla `127.0.0.1:40114/olla/ollama` |
+| 2026-07-16 | Release-prep tree | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-07-16 | Release-prep tree | `node scripts/verify-usage-docs.mjs` → **OK** |
+| 2026-07-16 | Release-prep tree | `node scripts/audit-product-claims.mjs` → **OK** |
+| 2026-07-16 | Release-prep tree | `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK** |
 
 ### Forbidden release claims (v0.23)
 
-"multi-provider production-ready" · "billing-accurate remote cost" · "hybrid cloud routing shipped" · "architecture refactor complete" · hardened sandbox.
+"multi-provider production-ready" · "billing-accurate remote cost" · "hybrid cloud routing shipped" · "architecture refactor complete" · hardened sandbox · "cohort gate open" without `LIVE_PASS`.
 
 ### Release execution plan (Phase B — operator steps)
 
 **Wording:** do not mark `[x]` until release-prep Phase B complete.
 
 - [ ] **Tag target:** `v0.23.0-beta.1` on release-prep merge commit
-- [ ] **Release URL:** pre-release published
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.23.0-beta.1` — pre-release published
 - [ ] **`release` branch:** aligned to tag commit
 
 ### Release artifact (source snapshot)
 
-- [ ] **Changelog:** section **[0.23.0-beta.1]**
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record
+- [ ] **Changelog:** section **[0.23.0-beta.1] - 2026-07-16** *(draft in release-prep PR; check after merge)*
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 
