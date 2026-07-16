@@ -41,3 +41,21 @@ jobs:
         run: |
           cd orchestrator
           npm test
+
+      - name: Routing release smoke (fixture)
+        run: |
+          cd orchestrator
+          mkdir -p ../artifacts/routing-release
+          ROUTING_RELEASE_MODE=fixture \
+          ROUTING_RELEASE_ARTIFACT_DIR="$GITHUB_WORKSPACE/artifacts/routing-release" \
+          ROUTING_RELEASE_COMMIT_SHA="$GITHUB_SHA" \
+          npm run test:e2e:routing-release
+
+      - name: Upload routing-release fixture artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: routing-release-fixture-${{ github.sha }}
+          path: artifacts/routing-release/
+          if-no-files-found: warn
+          retention-days: 14

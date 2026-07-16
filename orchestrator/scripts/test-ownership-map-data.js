@@ -89,6 +89,7 @@ const ENTRIES = {
   'tests/iterationDoneEmitterContract.test.js': { owner: 'contracts', kind: 'contract' },
   'tests/localModelDiscovery.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/localRuntimeEndpoint.test.js': { owner: 'model-runtime', kind: 'unit' },
+  'tests/ollamaFixtureProxy.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/localBackendAdapter.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/installModelConfig.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/runtimePreflight.test.js': { owner: 'model-runtime', kind: 'unit' },
