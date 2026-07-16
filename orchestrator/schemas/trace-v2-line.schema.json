@@ -1095,7 +1095,31 @@
           "estimated_output_tokens": { "type": "number", "minimum": 0 },
           "estimated_cost_usd": { "type": "number", "minimum": 0 },
           "iteration": { "type": "integer", "minimum": 0 },
-          "agent": { "type": "string", "minLength": 1, "maxLength": 128 }
+          "agent": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "provider_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "model_backend": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "tier": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "string",
+                "enum": ["cheap", "standard", "strong", "frontier"]
+              }
+            ]
+          },
+          "endpoint_ref": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "endpoint_scope": {
+            "type": "string",
+            "enum": ["localhost", "private_lan", "tailscale", "vpn", "public_endpoint"]
+          },
+          "route_source": {
+            "type": "string",
+            "enum": ["legacy_default", "role_defaults", "tier", "role_routes", "override"]
+          },
+          "usage_accounting_status": {
+            "type": "string",
+            "enum": ["known", "estimated", "unavailable", "unknown_provider_usage"]
+          }
         }
       }
     },

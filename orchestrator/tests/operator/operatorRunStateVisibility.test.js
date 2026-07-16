@@ -45,6 +45,55 @@ test("deriveModelSelectionContext unavailable without model_selection", () => {
   assert.equal(ctx.model_backend, "ollama");
 });
 
+test("deriveModelSelectionContext not_aggregated when multiple roles present", () => {
+  const ctx = deriveModelSelectionContext([
+    { event: "session_start", model_backend: "ollama" },
+    {
+      event: "model_selection",
+      role: "DEV",
+      model: "qwen2.5-coder:7b",
+      model_tier: "cheap",
+      route_source: "role_defaults",
+      selection_reason: "role_defaults:tier=cheap",
+      model_backend: "ollama",
+    },
+    {
+      event: "model_selection",
+      role: "ARCHITECT",
+      model: "qwen3.6:35b-a3b",
+      model_tier: "strong",
+      route_source: "role_defaults",
+      selection_reason: "role_defaults:tier=strong",
+      model_backend: "ollama",
+    },
+  ]);
+  assert.equal(ctx.availability, "not_aggregated");
+  assert.equal(ctx.model, null);
+  assert.equal(ctx.selection_reason, null);
+  assert.equal(ctx.model_backend, "ollama");
+});
+
+test("deriveModelSelectionContext not_aggregated when same role but distinct models", () => {
+  const ctx = deriveModelSelectionContext([
+    {
+      event: "model_selection",
+      role: "DEV",
+      model: "a",
+      model_tier: "cheap",
+      selection_reason: "first",
+    },
+    {
+      event: "model_selection",
+      role: "DEV",
+      model: "b",
+      model_tier: "cheap",
+      selection_reason: "second",
+    },
+  ]);
+  assert.equal(ctx.availability, "not_aggregated");
+  assert.equal(ctx.model, null);
+});
+
 test("buildRunStateVisibility includes run state visibility contract fields", () => {
   const rows = [
     { event: "session_start", task_id: "rsv-1", flow_mode: "single_agent" },
