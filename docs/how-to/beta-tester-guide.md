@@ -84,7 +84,7 @@ cd ~
 ai-minions --help
 ```
 
-**Pass:** shim on PATH (or explicit `INSTALL_PATH_*` remediation). Set `AI_MINIONS_HOME` to your clone when working from another directory:
+**Pass:** shim on PATH, **or** install exited `0` with `install complete; activation required` plus explicit PATH export remediation (`INSTALL_PATH_NOT_ON_PATH` is an activation warning, not a failed write). Set `AI_MINIONS_HOME` to your clone when working from another directory:
 
 ```bash
 export AI_MINIONS_HOME=/path/to/ai-minions

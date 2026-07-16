@@ -225,6 +225,9 @@ function loadRunStatusFromTrace(taskId, options = {}) {
 
   const role_routing = extractRoleRoutingFromTrace(rows);
 
+  const { collectGateBlocks } = require("./runner-trace-viewer");
+  const gate_blocks = collectGateBlocks(rows);
+
   return {
     task_id: taskId,
     terminal_status,
@@ -233,6 +236,8 @@ function loadRunStatusFromTrace(taskId, options = {}) {
     done: ros.what?.done,
     iterations: ros.what?.iterations,
     role_routing,
+    gate_blocks,
+    rows,
   };
 }
 

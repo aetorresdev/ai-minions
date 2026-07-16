@@ -247,33 +247,46 @@ function deriveMissingEvidence(ros, rows) {
 }
 
 /**
+ * Evidence-first next action for operator CLI (status/explain/tui).
+ * Prefer capture/inspect over merge-oriented CERBERUS language.
  * @param {string} outcome
  * @param {object} summary
+ * @param {{ attach_bundle?: string | null }} [meta]
  * @returns {string}
  */
-function deriveNextSafeAction(outcome, summary) {
+function deriveNextSafeAction(outcome, summary, meta = {}) {
+  const runId = summary.run_id ? String(summary.run_id) : null;
+  const hasBundle = Boolean(meta.attach_bundle || summary.artifacts?.attach_bundle);
+  const explainCmd = runId
+    ? `ai-minions explain --run-id ${runId}`
+    : "ai-minions explain --run-id <task_id>";
+  const attachCmd = runId
+    ? `ai-minions attach --run-id ${runId}`
+    : "ai-minions attach --run-id <task_id>";
+
   if (outcome === "unknown") {
-    return "Inspect trace path and ensure run finished with session_end; use explain-run or doctor.";
+    return "Inspect trace path and ensure run finished with session_end; use explain or doctor.";
   }
-  if (outcome === "blocked") {
-    if (summary.cerberus.verdict === "block" || summary.cerberus.verdict === "request_changes") {
-      return "Read explain output for blockers; fix findings; do not merge until CERBERUS evidence is satisfied.";
+  if (outcome === "blocked" || outcome === "failed") {
+    if (!hasBundle) {
+      return `Run: ${explainCmd} then ${attachCmd} to capture evidence (bundle can be created even when attach_bundle is missing).`;
     }
-    if (summary.blocked_gates.length) {
-      return "Resolve blocked gates listed above; re-run with gates enabled or fix policy/config.";
-    }
-    return "Review blocked_gates and permission_denials; remediate before advancing the run.";
+    return `Run: ${explainCmd}; review shareable/ in the attach bundle before claiming gate-complete.`;
   }
   if (outcome === "degraded") {
-    return "Treat run as degraded: inspect reason_codes, attach trace to issue, avoid claiming full gate coverage.";
-  }
-  if (outcome === "failed") {
-    return "Run explain-run for failure taxonomy; fix root cause; start a new run with corrected goal/config.";
+    if (!hasBundle) {
+      return `Treat as degraded: ${explainCmd} then ${attachCmd}; avoid claiming full gate coverage.`;
+    }
+    return "Treat run as degraded: inspect reason_codes and attach bundle; avoid claiming full gate coverage.";
   }
   if (summary.missing_evidence.length) {
-    return "Complete missing evidence checks before external beta claims; see missing_evidence list.";
+    return hasBundle
+      ? "Complete missing evidence checks before external beta claims; see missing_evidence list."
+      : `Run: ${attachCmd} then complete missing evidence checks before external beta claims.`;
   }
-  return "Attach trace and report bundle if handing off to review.";
+  return hasBundle
+    ? "Review attach shareable/ bundle if handing off to review."
+    : `Run: ${attachCmd} if handing off evidence.`;
 }
 
 /**
@@ -593,11 +606,24 @@ function buildRunStateVisibility(summary, rows, meta = {}) {
     evidence_paths.push(summary.artifacts.report);
   }
 
-  const attach_available = Boolean(meta.attach_bundle);
+  const attach_bundle_available = Boolean(meta.attach_bundle);
+  // Trace exists ⇒ attach command can materialize a bundle (action available).
+  const attach_action_available = Boolean(summary.artifacts?.trace) || hasSessionStart(rows);
+  // Legacy field: historically meant "bundle already on disk". Keep that meaning for compat,
+  // and expose attach_action_available / attach_bundle_available for clear operator UX.
+  const attach_available = attach_bundle_available;
   /** @type {RunStateResultCode} */
   let result_code = meta.result_code ?? "RUN_FOUND";
   if (summary.outcome === "unknown" && hasSessionStart(rows) && !hasSessionEnd(rows)) {
     result_code = "RUN_STATE_UNKNOWN";
+  }
+
+  /** @type {string} */
+  let attach_result_code = "RUN_ATTACH_UNAVAILABLE";
+  if (attach_bundle_available) {
+    attach_result_code = "RUN_ATTACH_AVAILABLE";
+  } else if (attach_action_available) {
+    attach_result_code = "RUN_ATTACH_READY";
   }
 
   const tool_failure_summary = deriveToolFailureSummary(rows);
@@ -613,7 +639,9 @@ function buildRunStateVisibility(summary, rows, meta = {}) {
     next_safe_action: summary.next_safe_action,
     evidence_paths,
     attach_available,
-    attach_result_code: attach_available ? "RUN_ATTACH_AVAILABLE" : "RUN_ATTACH_MISSING",
+    attach_action_available,
+    attach_bundle_available,
+    attach_result_code,
     privacy_notice_status: meta.privacy_notice_status ?? "unknown",
     model: modelCtx.model,
     model_tier: modelCtx.model_tier,
@@ -640,6 +668,8 @@ function formatRunStateVisibilityLines(runState) {
     `  last_successful_phase: ${runState.last_successful_phase ?? "-"}`,
     `  blocking_reason_code:  ${runState.blocking_reason_code ?? "-"}`,
     `  attach_available:      ${runState.attach_available}`,
+    `  attach_action_available: ${runState.attach_action_available}`,
+    `  attach_bundle_available: ${runState.attach_bundle_available}`,
     `  attach_result_code:    ${runState.attach_result_code}`,
     `  privacy_notice_status: ${runState.privacy_notice_status}`,
     `  model:                 ${runState.model ?? "unavailable"}`,
@@ -715,7 +745,9 @@ function buildOperatorTraceSummary(rows, meta = {}) {
   };
 
   summary.risk_category = deriveRiskCategory(summary, ros);
-  summary.next_safe_action = deriveNextSafeAction(outcome, summary);
+  summary.next_safe_action = deriveNextSafeAction(outcome, summary, {
+    attach_bundle: meta.attach_bundle_path ?? null,
+  });
   return summary;
 }
 
@@ -769,6 +801,7 @@ module.exports = {
   deriveLastSuccessfulPhase,
   deriveModelSelectionContext,
   deriveBlockingReasonCode,
+  deriveNextSafeAction,
   formatOperatorTraceSummaryLines,
   formatRunStateVisibilityLines,
 };

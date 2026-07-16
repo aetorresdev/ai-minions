@@ -635,19 +635,22 @@ export async function runCollectRunReport(options = {}) {
 
 /**
  * @param {Awaited<ReturnType<typeof runCollectRunReport>>} report
+ * @param {{ useColor?: boolean }} [options]
  * @returns {string}
  */
-export function formatReportText(report) {
+export function formatReportText(report, options = {}) {
+  const useColor = options.useColor === true;
+  const { ansi, formatStatusTag } = require("../orchestrator/modules/operator/terminal-style.js");
   const lines = [
-    "ai-minions collect-run-report",
-    `  ok: ${report.ok}`,
+    ansi(useColor, "1", "ai-minions collect-run-report"),
+    `  ok: ${ansi(useColor, report.ok ? "32" : "1;31", String(report.ok))}`,
     `  task_id: ${report.task_id}`,
     `  bundle_dir: ${report.bundle_dir ?? "(none)"}`,
     `  traces_dir: ${report.traces_dir}`,
   ];
   for (const c of report.checks) {
-    const tag = c.status === "pass" ? "PASS" : c.status === "warn" ? "WARN" : "FAIL";
-    lines.push(`  [${tag}] ${c.reason_code} — [${c.layer}] ${c.message}`);
+    const tag = formatStatusTag(c.status, useColor);
+    lines.push(`  ${tag} ${c.reason_code} — [${c.layer}] ${c.message}`);
   }
   if (report.manifest?.files?.length) {
     lines.push("  files:");
@@ -676,7 +679,7 @@ export function writeBlockersToStderr(report) {
 }
 
 function parseArgs(argv) {
-  const positional = argv.filter((a) => !a.startsWith("-"));
+  const positional = argv.filter((a) => !a.startsWith("-") || a === "-h");
   let outDir = "";
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--out" && argv[i + 1]) {
@@ -685,11 +688,12 @@ function parseArgs(argv) {
     }
   }
   return {
-    taskId: positional[0] ?? "",
+    taskId: positional.filter((a) => a !== "-h")[0] ?? "",
     outDir,
     json: argv.includes("--json"),
     skipPanels: argv.includes("--skip-panels"),
     help: argv.includes("-h") || argv.includes("--help"),
+    argv,
   };
 }
 
@@ -704,12 +708,16 @@ Options:
   --out <dir>     Output directory (default: report-bundles/<task_id>-<timestamp> under repo root)
   --skip-panels   Skip runner:tui trace/budget panel captures
   --json          Machine-readable report on stdout
+  --color auto|always|never  ANSI on human stdout (default auto; NO_COLOR wins)
   -h, --help      Show this help
 
 Exit codes: 0 = all checks pass, 1 = blocker(s)
 `);
     process.exit(0);
   }
+
+  const { resolveUseColorForCli } = require("../orchestrator/modules/operator/terminal-style.js");
+  const useColor = resolveUseColorForCli(args.argv, { json: args.json === true });
 
   const report = await runCollectRunReport({
     taskId: args.taskId,
@@ -720,7 +728,7 @@ Exit codes: 0 = all checks pass, 1 = blocker(s)
   if (args.json) {
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   } else {
-    process.stdout.write(`${formatReportText(report)}\n`);
+    process.stdout.write(`${formatReportText(report, { useColor })}\n`);
   }
 
   if (!report.ok) {

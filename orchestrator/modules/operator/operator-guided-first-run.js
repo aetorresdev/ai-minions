@@ -10,6 +10,7 @@ const path = require('path');
 
 const { runOperatorDoctor } = require('./operator-doctor-evidence');
 const { loadRunStatusFromTrace } = require('./runner-launcher');
+const { ansi, colorOk } = require('./terminal-style');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const COLLECT_REPORT_SCRIPT = path.join(REPO_ROOT, 'scripts', 'collect-run-report.mjs');
@@ -51,12 +52,15 @@ const SMOKE_REASON_CODES = {
 };
 
 const DEFAULT_SMOKE_GOAL = [
-  'Beta smoke: read README.md and orchestrator/package.json.',
+  'MODE: QA',
+  'FLOW: single_agent',
+  'Beta smoke validation (QA role): read README.md and orchestrator/package.json.',
   'Your reply MUST START with YAML (no markdown fence before it) containing:',
   'files_read:, files_modified:, validation_run:',
   'List README.md and orchestrator/package.json under files_read.',
   'files_modified must only contain paths already listed in files_read.',
   'validation_run must cite a real command (e.g. test -f README.md).',
+  'Classify at least one finding as blocker | improvement | nice-to-have.',
   'After YAML, name one more file visible in the repo root in one sentence. Stop.',
 ].join(' ');
 
@@ -140,21 +144,23 @@ function deriveFirstRunNextSafeAction(reasonCode, needsInit) {
  * @param {{
  *   ok: boolean,
  *   reason_code: string,
- *   repo_root: string,
- *   doctor_ok: boolean,
- *   config_present: boolean,
+ *   repo_root?: string,
+ *   doctor_ok?: boolean,
+ *   config_present?: boolean,
  *   next_safe_action: string,
+ *   useColor?: boolean,
  * }} ctx
  */
 function formatFirstRunText(ctx) {
+  const useColor = ctx.useColor === true;
   const lines = [
-    'ai-minions first-run',
-    `  ok:               ${ctx.ok}`,
+    ansi(useColor, '1', 'ai-minions first-run'),
+    `  ok:               ${colorOk(ctx.ok, useColor)}`,
     `  reason_code:      ${ctx.reason_code}`,
     `  repo_root:        ${ctx.repo_root}`,
-    `  doctor_ok:        ${ctx.doctor_ok}`,
+    `  doctor_ok:        ${colorOk(!!ctx.doctor_ok, useColor)}`,
     `  config_present:   ${ctx.config_present}`,
-    `  next_safe_action: ${ctx.next_safe_action}`,
+    `  next_safe_action: ${ansi(useColor, '36', ctx.next_safe_action)}`,
     '',
     '  guided_chain:',
     '    1. ai-minions init --model-policy local_only   (if config missing)',
@@ -177,6 +183,7 @@ function formatFirstRunText(ctx) {
  *   message: string,
  *   gate_id: string | null,
  *   transition_reason: string | null,
+ *   gate_blocks?: object[],
  * }}
  */
 function classifySmokeFailure(traceStatus) {
@@ -187,29 +194,50 @@ function classifySmokeFailure(traceStatus) {
       message: traceStatus?.error || 'trace unavailable after smoke run',
       gate_id: null,
       transition_reason: null,
+      gate_blocks: [],
     };
   }
 
   const ros = traceStatus.summary;
   const tr = ros?.what?.last_transition_reason;
   const reasonCode = typeof tr?.reason_code === 'string' ? tr.reason_code : '';
-  const gateId = typeof tr?.gate_id === 'string' ? tr.gate_id : null;
-  const contractFails = ros?.why?.rollup_contract_fail_steps ?? 0;
+  /** @type {object[]} */
+  let gateBlocks = Array.isArray(traceStatus.gate_blocks) ? traceStatus.gate_blocks : [];
+  if (!gateBlocks.length && Array.isArray(traceStatus.rows)) {
+    const { collectGateBlocks } = require('./runner-trace-viewer');
+    gateBlocks = collectGateBlocks(traceStatus.rows);
+  }
 
-  if (
-    reasonCode === 'MAX_ITERATIONS_CERBERUS_BLOCKERS'
-    || gateId === 'files_read_vs_modified'
+  const contractBlocks = gateBlocks.filter(
+    (b) => b && (b.kind === 'contract_fail' || b.kind === 'decide_contract_fail'
+      || b.kind === 'review_blocker' || b.kind === 'review_record'),
+  );
+  const contractFails = ros?.why?.rollup_contract_fail_steps ?? 0;
+  const hasContractSignal = contractBlocks.length > 0
     || contractFails > 0
-  ) {
-    const message = gateId === 'files_read_vs_modified' || contractFails > 0
-      ? 'DEV output contract — files_modified must be declared in files_read'
+    || reasonCode === 'MAX_ITERATIONS_CERBERUS_BLOCKERS'
+    || reasonCode === 'MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS';
+
+  if (hasContractSignal) {
+    const primary = contractBlocks[0] || null;
+    const gateId = (primary && typeof primary.gate_id === 'string' && primary.gate_id)
+      || (typeof tr?.gate_id === 'string' ? tr.gate_id : null);
+    const agent = primary && typeof primary.agent === 'string' ? primary.agent : null;
+    const reviewer = primary && typeof primary.reviewer === 'string' ? primary.reviewer : null;
+    const role = agent || reviewer || 'unknown';
+    const reason = primary && typeof primary.reason === 'string'
+      ? primary.reason
       : (reasonCode || 'output contract failure');
+    const message = contractBlocks.length > 1
+      ? `${role}: ${reason} (+${contractBlocks.length - 1} more gate block(s))`
+      : `${role}: ${reason}`;
     return {
       reason_code: SMOKE_REASON_CODES.OUTPUT_CONTRACT,
       failure_class: 'output_contract',
       message,
-      gate_id: gateId || (contractFails > 0 ? 'files_read_vs_modified' : null),
+      gate_id: gateId,
       transition_reason: reasonCode || null,
+      gate_blocks: contractBlocks,
     };
   }
 
@@ -217,8 +245,9 @@ function classifySmokeFailure(traceStatus) {
     reason_code: SMOKE_REASON_CODES.RUNTIME_FAILED,
     failure_class: 'runtime',
     message: reasonCode || `terminal_status=${traceStatus.terminal_status}`,
-    gate_id: gateId,
+    gate_id: typeof tr?.gate_id === 'string' ? tr.gate_id : null,
     transition_reason: reasonCode || null,
+    gate_blocks: gateBlocks,
   };
 }
 
@@ -237,10 +266,10 @@ function deriveSmokeNextSafeAction(ctx) {
       : 'Run: ai-minions status --run-id <task_id> from smoke output';
   }
   if (ctx.reason_code === SMOKE_REASON_CODES.OUTPUT_CONTRACT && ctx.task_id) {
-    return `Run: ai-minions explain --run-id ${ctx.task_id} — failure captured counts for beta dry-run (checklist B.3)`;
+    return `Run: ai-minions explain --run-id ${ctx.task_id} then ai-minions attach --run-id ${ctx.task_id} — failure captured counts for beta dry-run (checklist B.3)`;
   }
   if (ctx.task_id) {
-    return `Run: ai-minions explain --run-id ${ctx.task_id}`;
+    return `Run: ai-minions explain --run-id ${ctx.task_id} then ai-minions attach --run-id ${ctx.task_id}`;
   }
   return 'Re-run: ai-minions doctor --model-policy local_only then ai-minions smoke';
 }
@@ -254,34 +283,45 @@ function deriveSmokeNextSafeAction(ctx) {
  *   skip_gates?: boolean,
  *   classification?: ReturnType<typeof classifySmokeFailure>,
  *   next_safe_action: string,
+ *   useColor?: boolean,
  * }} ctx
  * @returns {string}
  */
 function formatSmokeText(ctx) {
+  const useColor = ctx.useColor === true;
   const lines = [
-    'ai-minions smoke',
-    `  ok:               ${ctx.ok}`,
+    ansi(useColor, '1', 'ai-minions smoke'),
+    `  ok:               ${colorOk(ctx.ok, useColor)}`,
     `  reason_code:      ${ctx.reason_code}`,
   ];
   if (ctx.task_id) lines.push(`  run_id:           ${ctx.task_id}`);
   if (ctx.terminal_status) lines.push(`  terminal_status:  ${ctx.terminal_status}`);
   if (ctx.skip_gates) {
-    lines.push('  degraded_mode:    true (--skip-gates; MCP/hard gates off)');
+    lines.push(`  degraded_mode:    ${ansi(useColor, '33', 'true')} (--skip-gates; MCP/hard gates off)`);
   }
+  lines.push('  note:             max_iterations=1 is repair rounds, not role count; smoke targets QA validation');
   if (ctx.classification && !ctx.ok) {
     lines.push(`  failure_class:    ${ctx.classification.failure_class}`);
-    lines.push(`  blocker_summary:  ${ctx.classification.message}`);
+    lines.push(`  blocker_summary:  ${ansi(useColor, '1;31', ctx.classification.message)}`);
     if (ctx.classification.gate_id) {
       lines.push(`  gate_id:          ${ctx.classification.gate_id}`);
     }
     if (ctx.classification.transition_reason) {
       lines.push(`  transition_reason: ${ctx.classification.transition_reason}`);
     }
+    const blocks = Array.isArray(ctx.classification.gate_blocks)
+      ? ctx.classification.gate_blocks
+      : [];
+    for (const b of blocks.slice(0, 6)) {
+      const who = b.agent || b.reviewer || '?';
+      const gid = b.gate_id ? ` gate_id=${b.gate_id}` : '';
+      lines.push(`  gate_block:       ${ansi(useColor, '1;31', `[${who}] ${b.reason || b.kind}${gid}`)}`);
+    }
   }
   if (!ctx.ok && ctx.reason_code === SMOKE_REASON_CODES.OUTPUT_CONTRACT) {
     lines.push('  checklist_note:   failure captured — valid beta dry-run per checklist B.3');
   }
-  lines.push(`  next_safe_action: ${ctx.next_safe_action}`);
+  lines.push(`  next_safe_action: ${ansi(useColor, '36', ctx.next_safe_action)}`);
   return lines.join('\n');
 }
 
@@ -291,11 +331,13 @@ function formatSmokeText(ctx) {
  *   modelPolicy?: string,
  *   install?: boolean,
  *   json?: boolean,
+ *   useColor?: boolean,
  *   runOperatorDoctor?: typeof runOperatorDoctor,
  * }} [options]
  */
 async function runFirstRun(options = {}) {
   const repoRoot = resolveRepo(options.cwd);
+  const useColor = options.useColor === true && options.json !== true;
   const validate = validateTargetRepo(repoRoot);
   if (!validate.ok) {
     const reason_code = validate.reason_code ?? FIRST_RUN_REASON_CODES.UNSUPPORTED_CWD;
@@ -313,7 +355,7 @@ async function runFirstRun(options = {}) {
       ok: false,
       exitCode: 2,
       reason_code,
-      text: formatFirstRunText(payload),
+      text: formatFirstRunText({ ...payload, useColor }),
       json: options.json === true ? payload : null,
     };
   }
@@ -342,7 +384,7 @@ async function runFirstRun(options = {}) {
       ok: false,
       exitCode: 2,
       reason_code,
-      text: formatFirstRunText(payload),
+      text: formatFirstRunText({ ...payload, useColor }),
       json: options.json === true ? payload : null,
     };
   }
@@ -363,7 +405,7 @@ async function runFirstRun(options = {}) {
     ok: true,
     exitCode: 0,
     reason_code,
-    text: formatFirstRunText(payload),
+    text: formatFirstRunText({ ...payload, useColor }),
     json: options.json === true ? payload : null,
   };
 }
@@ -377,6 +419,7 @@ async function runFirstRun(options = {}) {
  *   skipGates?: boolean,
  *   maxIterations?: number | string,
  *   json?: boolean,
+ *   useColor?: boolean,
  *   runStart?: typeof getRunStart extends () => infer R ? R : never,
  *   loadRunStatusFromTrace?: typeof loadRunStatusFromTrace,
  * }} [options]
@@ -384,6 +427,7 @@ async function runFirstRun(options = {}) {
 async function runSmoke(options = {}) {
   const goal = String(options.goal ?? DEFAULT_SMOKE_GOAL).trim();
   const skipGates = options.skipGates !== false;
+  const useColor = options.useColor === true && options.json !== true;
   const runStart = options.runStart ?? getRunStart();
   const loadTrace = options.loadRunStatusFromTrace ?? loadRunStatusFromTrace;
   const result = await runStart({
@@ -418,6 +462,7 @@ async function runSmoke(options = {}) {
     skip_gates: skipGates,
     classification,
     next_safe_action,
+    useColor,
   });
 
   return {
@@ -440,12 +485,14 @@ async function runSmoke(options = {}) {
  *   cwd?: string,
  *   outDir?: string,
  *   json?: boolean,
+ *   useColor?: boolean,
  *   skipPanels?: boolean,
  *   loadCollectModule?: () => Promise<typeof import('../../../../scripts/collect-run-report.mjs')>,
  * }} [options]
  */
 async function runAttach(options = {}) {
   const runId = options.runId ? String(options.runId).trim() : '';
+  const useColor = options.useColor === true && options.json !== true;
   if (!runId) {
     return {
       ok: false,
@@ -467,7 +514,7 @@ async function runAttach(options = {}) {
     skipPanels: options.skipPanels === true,
   });
 
-  const text = mod.formatReportText(report);
+  const text = mod.formatReportText(report, { useColor });
   if (!report.ok) {
     mod.writeBlockersToStderr(report);
   }

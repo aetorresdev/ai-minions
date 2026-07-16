@@ -115,9 +115,25 @@ test("buildRunStateVisibility includes run state visibility contract fields", ()
   assert.equal(runState.result_code, "RUN_FOUND");
   assert.equal(runState.model, "llama3");
   assert.equal(runState.attach_available, true);
+  assert.equal(runState.attach_bundle_available, true);
+  assert.equal(runState.attach_action_available, true);
   assert.equal(runState.attach_result_code, "RUN_ATTACH_AVAILABLE");
   assert.equal(runState.privacy_notice_status, "privacy_scan_present");
   assert.ok(runState.evidence_paths.includes("/traces/rsv-1.jsonl"));
+});
+
+test("buildRunStateVisibility marks attach ready when bundle missing but trace exists", () => {
+  const rows = [
+    { event: "session_start", task_id: "rsv-2", flow_mode: "single_agent" },
+    { event: "session_end", task_id: "rsv-2", done: false, iterations: 1, gate_blocks: 1 },
+  ];
+  const summary = buildOperatorTraceSummary(rows, { trace_file: "/traces/rsv-2.jsonl" });
+  const runState = buildRunStateVisibility(summary, rows, {});
+  assert.equal(runState.attach_bundle_available, false);
+  assert.equal(runState.attach_action_available, true);
+  assert.equal(runState.attach_available, false);
+  assert.equal(runState.attach_result_code, "RUN_ATTACH_READY");
+  assert.match(runState.next_safe_action, /attach/);
 });
 
 test("deriveBlockingReasonCode prefers model_tier_gate_denied reason_code", () => {

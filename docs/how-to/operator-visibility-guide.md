@@ -37,9 +37,11 @@ Printed on `status` / `explain` / `tui` / `--json` payloads when trace loads suc
 | `current_phase` | Last known MODE phase from trace |
 | `last_successful_phase` | Last phase that completed without gate block |
 | `blocking_reason_code` | Primary blocker when outcome is blocked/failed |
-| `next_safe_action` | One suggested command — informational only on read-only surfaces |
+| `next_safe_action` | Evidence-first next step (prefer `explain` then `attach` when a run ended/blocked without a bundle) — informational only on read-only surfaces |
 | `evidence_paths` | Trace, report, attach paths when known |
-| `attach_available` | Whether a collectable attach bundle path exists |
+| `attach_available` | Legacy: whether an attach **bundle directory** already exists on disk |
+| `attach_action_available` | Whether `ai-minions attach` can collect a bundle from the loaded trace |
+| `attach_bundle_available` | Whether a materialized attach bundle path already exists |
 | `privacy_notice_status` | Whether privacy notice was acknowledged for attach |
 | `model` · `model_backend` · `selection_reason` | From trace `model_selection` when present — else `unavailable` |
 | `model_tier` | Tier label when trace carries it |
@@ -75,7 +77,17 @@ Surfaces reuse `cost_token_run_summary` from trace rollups:
 | `not_billing` | Label local/Ollama — **not** provider billing API |
 | `unavailable` | No precise USD; latency may be unavailable without duration pairs |
 
+When local/Ollama tokens are present, surfaces may also show **`same_count_cloud_projections`**: advisory same-count USD rows for one baseline each of OpenAI / Anthropic / Gemini from a versioned registry (rates + `checked_at` + official URL). This is **not** billing, not workload-equivalent, and not a cost-guard input. Stale rates are labeled by date; runtime does **not** fetch prices.
+
+Optional env-compatible `equivalent_cloud` remains when operator-supplied rates are configured.
+
 Management summaries include a **Not claimed** section (production-ready, billing-accurate cost, ROI, etc.). Forbidden-claim evals scan operator surfaces per section — disclaimers in **Not claimed** are not treated as product claims.
+
+---
+
+## Color (human stdout)
+
+Product CLI human text accepts `--color=auto|always|never` (default `auto`). `NO_COLOR` wins over `--color=always`. ANSI applies only to semantic tokens on human stdout — **not** to `--json`, Markdown report files, or attach/shareable bundle contents.
 
 ---
 

@@ -28,6 +28,7 @@ const { runOperatorReport } = require('./operator-run-report');
 const { runOperatorEvidenceTui } = require('./operator-evidence-tui');
 const { runOperatorDoctor, runOperatorEvidence } = require('./operator-doctor-evidence');
 const { runOperatorContext, runOperatorResume } = require('./operator-context-resume');
+const { resolveUseColorForCli } = require('./terminal-style');
 const {
   runOperatorVersion,
   runOperatorAbout,
@@ -338,13 +339,15 @@ async function main() {
   }
 
   if (!argv.length || argv.includes('-h') || argv.includes('--help')) {
-    printAiMinionsCliHelp();
+    const helpColor = resolveUseColorForCli(argv, { json: false });
+    printAiMinionsCliHelp({ useColor: helpColor });
     process.exit(argv.length ? 0 : 1);
   }
 
   const cmd = argv[0];
   const rest = argv.slice(1);
   const opts = parseAiMinionsArgs(rest);
+  const useColor = resolveUseColorForCli(rest, { json: opts.json === true });
 
   if (cmd === 'version') {
     const result = runOperatorVersion({
@@ -377,6 +380,8 @@ async function main() {
         modelPolicy: opts.modelPolicy ? String(opts.modelPolicy) : undefined,
         live: opts.live === true,
         install: opts.noInstall !== true,
+        json: opts.json === true,
+        useColor,
         ...endpointOptionsFromCli(opts),
       });
       if (opts.json === true && result.json) {
@@ -401,6 +406,8 @@ async function main() {
       runId: opts.runId ? String(opts.runId) : undefined,
       filePath: opts.file ? String(opts.file) : undefined,
       repoRoot: resolveInstallRepoRoot(opts.cwd),
+      json: opts.json === true,
+      useColor,
     });
     if (opts.json === true && result.json) {
       console.log(JSON.stringify(result.json, null, 2));
@@ -417,6 +424,8 @@ async function main() {
     const result = runOperatorContext({
       runId: opts.runId ? String(opts.runId) : undefined,
       filePath: opts.file ? String(opts.file) : undefined,
+      json: opts.json === true,
+      useColor,
     });
     if (opts.json === true && result.json) {
       console.log(JSON.stringify(result.json, null, 2));
@@ -433,6 +442,8 @@ async function main() {
     const result = runOperatorResume({
       runId: opts.runId ? String(opts.runId) : undefined,
       filePath: opts.file ? String(opts.file) : undefined,
+      json: opts.json === true,
+      useColor,
     });
     if (opts.json === true && result.json) {
       console.log(JSON.stringify(result.json, null, 2));
@@ -449,6 +460,8 @@ async function main() {
     const result = runOperatorStatus({
       runId: opts.runId ? String(opts.runId) : undefined,
       filePath: opts.file ? String(opts.file) : undefined,
+      json: opts.json === true,
+      useColor,
     });
     if (opts.json === true && result.json) {
       console.log(JSON.stringify(result.json, null, 2));
@@ -465,6 +478,8 @@ async function main() {
     const result = runOperatorExplain({
       runId: opts.runId ? String(opts.runId) : undefined,
       filePath: opts.file ? String(opts.file) : undefined,
+      json: opts.json === true,
+      useColor,
     });
     if (opts.json === true && result.json) {
       console.log(JSON.stringify(result.json, null, 2));
@@ -488,6 +503,8 @@ async function main() {
       latest: opts.latest === true,
       outDir: opts.out ? String(opts.out) : undefined,
       cwd: opts.cwd,
+      json: opts.json === true,
+      useColor,
     });
     if (opts.json === true && result.json) {
       console.log(JSON.stringify(result.json, null, 2));
@@ -509,6 +526,8 @@ async function main() {
       runId: opts.runId ? String(opts.runId) : undefined,
       filePath: opts.file ? String(opts.file) : undefined,
       latest: opts.latest === true,
+      json: opts.json === true,
+      useColor,
     });
     if (opts.json === true && result.json) {
       console.log(JSON.stringify(result.json, null, 2));
@@ -557,6 +576,7 @@ async function main() {
         modelPolicy: opts.modelPolicy ? String(opts.modelPolicy) : undefined,
         install: opts.noInstall !== true,
         json: opts.json === true,
+        useColor,
       });
       if (opts.json === true && result.json) {
         console.log(JSON.stringify(result.json, null, 2));
@@ -584,6 +604,7 @@ async function main() {
         model: opts.model ? String(opts.model) : undefined,
         skipGates: opts.skipGates !== false,
         maxIterations: opts.maxIterations ?? 1,
+        useColor,
       });
       console.log(result.preflightText);
       console.log('');
@@ -623,6 +644,7 @@ async function main() {
       runId: opts.runId ? String(opts.runId) : undefined,
       cwd: opts.cwd,
       json: opts.json === true,
+      useColor,
     });
     if (opts.json === true && result.json) {
       console.log(JSON.stringify(result.json, null, 2));
@@ -675,7 +697,7 @@ async function main() {
   }
 
   console.error(`Unknown command: ${cmd}`);
-  printAiMinionsCliHelp();
+  printAiMinionsCliHelp({ useColor });
   process.exit(1);
 }
 

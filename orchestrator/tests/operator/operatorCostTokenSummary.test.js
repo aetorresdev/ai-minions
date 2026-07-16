@@ -7,6 +7,7 @@ const {
   buildCostTokenRunSummary,
   formatRunCostLine,
   formatRunLatencyLine,
+  formatCostTokenRunSummaryLines,
   resolveStepCost,
 } = require("../../modules/operator/operator-cost-token-summary");
 
@@ -137,6 +138,28 @@ test("formatRunCostLine distinguishes not_billing for local backend", () => {
   });
   assert.match(line, /not_billing/);
   assert.match(line, /28 tokens/);
+});
+
+test("buildCostTokenRunSummary includes same-count cloud projections for ollama tokens", () => {
+  const rows = [
+    { event: "session_start", task_id: "proj-1", model_backend: "ollama" },
+    {
+      event: "session_end",
+      done: true,
+      ollama_prompt_tokens_total: 1000,
+      ollama_completion_tokens_total: 672,
+    },
+  ];
+  const summary = buildCostTokenRunSummary(rows);
+  assert.equal(summary.run.cost_status, "not_billing");
+  assert.equal(summary.run.same_count_cloud_projections.length, 3);
+  const line = formatRunCostLine(summary);
+  assert.match(line, /same-count cloud projection/);
+  assert.match(line, /openai\//);
+  const text = formatCostTokenRunSummaryLines(summary).join("\n");
+  assert.match(text, /same_count_cloud_projections/);
+  assert.match(text, /anthropic\//);
+  assert.match(text, /google\//);
 });
 
 test("formatRunLatencyLine reports unavailable without durations", () => {

@@ -24,6 +24,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import {
   CLI_INSTALL_REASON_CODES,
+  productCliActivationReady,
   productCliInstallOk,
   runCliInstall,
 } from "./lib/ai-minions-cli-install.mjs";
@@ -33,7 +34,12 @@ import {
   shouldUseAnsiStdout,
 } from "./lib/terminal-style.mjs";
 
-export { CLI_INSTALL_REASON_CODES, productCliInstallOk, runCliInstall };
+export {
+  CLI_INSTALL_REASON_CODES,
+  productCliActivationReady,
+  productCliInstallOk,
+  runCliInstall,
+};
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -552,9 +558,13 @@ export async function runInstallAiMinions(options = {}) {
  */
 function attachProductFields(report, cliInstall) {
   const withCli = { ...report, cli_install: cliInstall ?? null };
+  const productOk = productCliInstallOk(withCli);
+  const activationReady = productCliActivationReady(withCli);
   return {
     ...withCli,
-    product_cli_ok: productCliInstallOk(withCli),
+    product_cli_ok: productOk,
+    install_materialized_ok: productOk,
+    cli_activation_ready: activationReady,
   };
 }
 
@@ -563,8 +573,17 @@ function attachProductFields(report, cliInstall) {
  * @returns {string}
  */
 export function deriveInstallNextSafeAction(report) {
-  if (report.ok && report.phase === "config_write") {
+  const pathRemediation = report.cli_install?.path_remediation;
+  if (pathRemediation && report.cli_activation_ready !== true) {
+    return `Required next step: ${pathRemediation} — then run: ai-minions --help from outside orchestrator/`;
+  }
+
+  if (report.ok && report.phase === "config_write" && report.cli_activation_ready === true) {
     return "Run: ai-minions --help from outside orchestrator/ (product install complete)";
+  }
+
+  if (report.ok && report.phase === "config_write" && report.product_cli_ok === true) {
+    return "Run: ai-minions --help from outside orchestrator/ (product install complete; activate PATH if needed)";
   }
 
   const fails = report.checks.filter((c) => c.status === "fail");
@@ -616,9 +635,13 @@ export function formatReportText(report, options = {}) {
   const cliFails = (report.cli_install?.checks ?? []).filter((c) => c.status === "fail").length;
   const totalFails = checkFails + cliFails;
   const productOk = report.product_cli_ok === true;
+  const activationReady = report.cli_activation_ready === true;
+  const needsActivation = productOk && !activationReady && Boolean(report.cli_install?.path_remediation);
 
   if (!productOk && totalFails > 0) {
     lines.push(ansi(useColor, "1;31", `✗ INSTALL BLOCKED — ${totalFails} blocker(s)`));
+  } else if (needsActivation) {
+    lines.push(ansi(useColor, "33", "✓ install complete — activation required (PATH)"));
   } else if (report.ok && productOk) {
     lines.push(ansi(useColor, "1;32", "✓ install complete"));
   }
@@ -631,6 +654,8 @@ export function formatReportText(report, options = {}) {
     `  model_policy_mode: ${report.model_policy_mode} (declarative intent — discovery enforcement active for local inventory)`,
     `  ok: ${ansi(useColor, report.ok ? "32" : "1;31", String(report.ok))}`,
     `  product_cli_ok: ${ansi(useColor, productOk ? "32" : "1;31", String(productOk))}`,
+    `  install_materialized_ok: ${ansi(useColor, productOk ? "32" : "1;31", String(productOk))}`,
+    `  cli_activation_ready: ${ansi(useColor, activationReady ? "32" : "33", String(activationReady))}`,
   );
 
   if (report.cli_install) {
@@ -670,7 +695,7 @@ export function formatReportText(report, options = {}) {
     lines.push(`  ${tag} ${c.reason_code} — ${c.message}`);
   }
 
-  if (!productOk) {
+  if (!productOk || needsActivation) {
     lines.push(`  next_safe_action: ${deriveInstallNextSafeAction(report)}`);
   }
 
@@ -763,7 +788,9 @@ Options:
 
 Phases: host prereqs → CLI shim install (product) → model discovery (Ollama) → config write (.ai-minions/).
 
-Product install writes ~/.config/ai-minions/home and ~/.local/bin/ai-minions (PATH required).
+Product install writes ~/.config/ai-minions/home and ~/.local/bin/ai-minions.
+If the bin dir is not on PATH, install still exits 0 (materialized) with activation next step
+(INSTALL_PATH_NOT_ON_PATH as warn — required: export PATH=...; do not treat as write failure).
 CLI reason codes include INSTALL_PATH_NOT_ON_PATH, INSTALL_PATH_BIN_WRITE_FAILED,
 INSTALL_HOME_CONFIG_WRITE_FAILED, INSTALL_CLI_SHIM_VALIDATION_FAILED.
 
@@ -806,10 +833,11 @@ See docs/orchestrator/model-config-ownership.md for YAML vs JSON ownership.
     process.stdout.write(`${formatReportText(report)}\n`);
   }
 
+  // Exit 0 when host+shim materialized (PATH activation is a warn / next step).
   const exitOk = args.skipCli ? report.ok : report.product_cli_ok === true;
+  const useColor = shouldUseAnsiStdout();
 
   if (!exitOk) {
-    const useColor = shouldUseAnsiStdout();
     process.stderr.write(
       `${ansi(useColor, "1;31", "install failed")} — phase=${report.phase} exit=1\n`,
     );
@@ -822,6 +850,14 @@ See docs/orchestrator/model-config-ownership.md for YAML vs JSON ownership.
         process.stderr.write(`${ansi(useColor, "1;31", "blocker:")} ${b.reason_code}\n`);
       }
     }
+    process.stderr.write(`next_safe_action: ${deriveInstallNextSafeAction(report)}\n`);
+  } else if (report.cli_activation_ready !== true && report.cli_install?.path_remediation) {
+    process.stderr.write(
+      `${ansi(useColor, "33", "install complete — activation required")} — phase=${report.phase} exit=0\n`,
+    );
+    process.stderr.write(
+      `${ansi(useColor, "33", "activation:")} ${CLI_INSTALL_REASON_CODES.PATH_NOT_ON_PATH}\n`,
+    );
     process.stderr.write(`next_safe_action: ${deriveInstallNextSafeAction(report)}\n`);
   }
 

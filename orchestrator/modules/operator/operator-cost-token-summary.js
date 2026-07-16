@@ -8,6 +8,7 @@
 
 const { buildRunOutcomeSummary } = require("../trace/run-outcome-summary");
 const { rollupStepsCostOutcome, optionalOllamaUsdEstimate, buildReport } = require("../budget/token-trace-report");
+const { buildSameCountCloudProjections } = require("../budget/cloud-price-registry");
 
 const COST_TOKEN_RUN_SUMMARY_SCHEMA = "1";
 
@@ -296,6 +297,13 @@ function buildCostTokenRunSummary(rows, meta = {}) {
     }))
     .sort((a, b) => (b.total_tokens ?? 0) - (a.total_tokens ?? 0));
 
+  const same_count_cloud_projections = runTotal > 0
+    ? buildSameCountCloudProjections({
+      prompt_tokens: runInput > 0 ? runInput : 0,
+      completion_tokens: runOutput > 0 ? runOutput : 0,
+    })
+    : [];
+
   return {
     schema_version: COST_TOKEN_RUN_SUMMARY_SCHEMA,
     run: {
@@ -309,6 +317,7 @@ function buildCostTokenRunSummary(rows, meta = {}) {
       latency_status: latencySteps > 0 ? "available" : "unavailable",
       cost_basis: runCostBasis,
       model_backend: backend,
+      same_count_cloud_projections,
     },
     by_phase,
     by_step,
@@ -319,22 +328,36 @@ function buildCostTokenRunSummary(rows, meta = {}) {
  * @param {ReturnType<typeof buildCostTokenRunSummary>} summary
  * @returns {string}
  */
+/**
+ * @param {object[]} projections
+ * @returns {string}
+ */
+function formatSameCountProjectionSuffix(projections) {
+  if (!Array.isArray(projections) || projections.length === 0) return "";
+  const parts = projections.slice(0, 3).map((p) => {
+    const fresh = p.freshness === "stale" ? " stale" : "";
+    return `${p.provider}/${p.model}=$${p.total_usd}${fresh}`;
+  });
+  return ` · same-count cloud projection (advisory): ${parts.join("; ")}`;
+}
+
 function formatRunCostLine(summary) {
   const run = summary.run ?? {};
   if (run.token_status !== "available") {
     return "unavailable (trace has no token totals)";
   }
   const tokens = `${run.total_tokens} tokens (in=${run.input_tokens ?? "?"} out=${run.output_tokens ?? "?"})`;
+  const proj = formatSameCountProjectionSuffix(run.same_count_cloud_projections);
   if (run.cost_status === "known" && typeof run.estimated_cost_usd === "number") {
-    return `${tokens} · cost USD ${run.estimated_cost_usd} (known from trace)`;
+    return `${tokens} · cost USD ${run.estimated_cost_usd} (known from trace)${proj}`;
   }
   if (run.cost_status === "estimated" && typeof run.estimated_cost_usd === "number") {
-    return `${tokens} · est. cost USD ${run.estimated_cost_usd} (estimated from config rates)`;
+    return `${tokens} · est. cost USD ${run.estimated_cost_usd} (estimated from config rates)${proj}`;
   }
   if (run.cost_status === "not_billing") {
-    return `${tokens} · cost: not_billing (local backend — no provider billing API)`;
+    return `${tokens} · cost: not_billing (local backend — no provider billing API)${proj}`;
   }
-  return `${tokens} · cost: unavailable`;
+  return `${tokens} · cost: unavailable${proj}`;
 }
 
 /**
@@ -369,8 +392,22 @@ function formatCostTokenRunSummaryLines(summary) {
     `  model_backend:      ${run.model_backend ?? "unavailable"}`,
     `  phases:             ${summary.by_phase?.length ?? 0}`,
     `  steps:              ${summary.by_step?.length ?? 0}`,
-    "",
   ];
+  const projections = Array.isArray(run.same_count_cloud_projections)
+    ? run.same_count_cloud_projections
+    : [];
+  if (projections.length) {
+    lines.push("  same_count_cloud_projections (advisory; not billing):");
+    for (const p of projections) {
+      lines.push(
+        `    - ${p.provider}/${p.model}: $${p.total_usd}`
+          + ` (in=$${p.input_usd} out=$${p.output_usd}`
+          + ` · ${p.freshness} · checked ${p.checked_at})`,
+      );
+    }
+    lines.push("  projection_note:    same token counts ≠ tokenizer/workload equivalence");
+  }
+  lines.push("");
   return lines;
 }
 
@@ -380,5 +417,6 @@ module.exports = {
   formatRunCostLine,
   formatRunLatencyLine,
   formatCostTokenRunSummaryLines,
+  formatSameCountProjectionSuffix,
   resolveStepCost,
 };

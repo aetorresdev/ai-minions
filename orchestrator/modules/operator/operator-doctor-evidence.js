@@ -11,6 +11,7 @@ const path = require('path');
 const { buildRunPreflight, formatPreflightText } = require('./runner-preflight');
 const { loadOperatorTraceContext } = require('./operator-trace-command');
 const { buildControlPlaneRunText } = require('./control-plane-tui');
+const { ansi, formatStatusTag, colorOk } = require('./terminal-style');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const OPERATOR_PREFLIGHT_SCRIPT = path.join(REPO_ROOT, 'scripts', 'operator-preflight.mjs');
@@ -147,13 +148,15 @@ function deriveDoctorNextSafeAction(report) {
 /**
  * @param {Awaited<ReturnType<import('../../../../scripts/operator-preflight.mjs').runOperatorPreflight>>} report
  * @param {Awaited<ReturnType<typeof buildRunPreflight>> | null} [runnerPreflight]
+ * @param {{ useColor?: boolean }} [options]
  * @returns {string}
  */
-function formatOperatorDoctorText(report, runnerPreflight = null) {
+function formatOperatorDoctorText(report, runnerPreflight = null, options = {}) {
+  const useColor = options.useColor === true;
   const fields = deriveDoctorFieldSummary(report);
   const lines = [
-    'ai-minions doctor',
-    `  ok:                    ${report.ok}`,
+    ansi(useColor, '1', 'ai-minions doctor'),
+    `  ok:                    ${colorOk(report.ok, useColor)}`,
     `  traces_dir:            ${report.traces_dir ?? '-'}`,
     `  layer_stopped:         ${report.layer_stopped ?? '(none)'}`,
   ];
@@ -186,15 +189,15 @@ function formatOperatorDoctorText(report, runnerPreflight = null) {
   lines.push(
     '  known_limitations:',
     ...fields.known_limitations.map((l) => `    - ${l}`),
-    `  next_safe_action:      ${deriveDoctorNextSafeAction(report)}`,
+    `  next_safe_action:      ${ansi(useColor, '36', deriveDoctorNextSafeAction(report))}`,
     '',
     '-- checks (bootstrap → runtime → runner) --',
   );
 
   for (const c of report.checks) {
-    const tag = c.status === 'pass' ? 'PASS' : c.status === 'warn' ? 'WARN' : 'FAIL';
+    const tag = formatStatusTag(c.status, useColor);
     const shipCode = c.reason_code ? ` ${c.reason_code}` : '';
-    lines.push(`  [${tag}] ${c.operator_reason_code}${shipCode} — [${c.layer}] ${c.message}`);
+    lines.push(`  ${tag} ${c.operator_reason_code}${shipCode} — [${c.layer}] ${c.message}`);
   }
   return lines.join('\n');
 }
@@ -232,6 +235,8 @@ function buildOperatorDoctorJson(report, runnerPreflight = null) {
  *   ollamaPort?: string | number,
  *   ollamaBaseUrl?: string,
  *   allowPublicLocalRuntime?: boolean,
+ *   json?: boolean,
+ *   useColor?: boolean,
  *   loadOperatorPreflightModule?: () => Promise<typeof import('../../../../scripts/operator-preflight.mjs')>,
  *   buildRunPreflightFn?: typeof buildRunPreflight,
  * }} [options]
@@ -239,6 +244,7 @@ function buildOperatorDoctorJson(report, runnerPreflight = null) {
 async function runOperatorDoctor(options = {}) {
   const repoRoot = resolveOperatorRepoRoot(options);
   const modelPolicy = options.modelPolicy ?? 'local_only';
+  const useColor = options.useColor === true && options.json !== true;
   const loadMod = options.loadOperatorPreflightModule
     ?? (() => import(OPERATOR_PREFLIGHT_SCRIPT));
   const mod = await loadMod();
@@ -266,7 +272,7 @@ async function runOperatorDoctor(options = {}) {
     exitCode: report.ok ? 0 : 2,
     report,
     runnerPreflight,
-    text: formatOperatorDoctorText(report, runnerPreflight),
+    text: formatOperatorDoctorText(report, runnerPreflight, { useColor }),
     json: buildOperatorDoctorJson(report, runnerPreflight),
   };
 }
@@ -396,26 +402,27 @@ function buildEvidenceMissingList(ctx, meta = {}) {
 
 /**
  * @param {Extract<ReturnType<typeof loadOperatorTraceContext>, { ok: true }>} ctx
- * @param {{ repoRoot?: string, artifactPaths?: ReturnType<typeof resolveEvidenceArtifactPaths>, redaction?: ReturnType<typeof deriveRedactionStatus> }} meta
+ * @param {{ repoRoot?: string, artifactPaths?: ReturnType<typeof resolveEvidenceArtifactPaths>, redaction?: ReturnType<typeof deriveRedactionStatus>, useColor?: boolean }} meta
  * @returns {string}
  */
 function formatOperatorEvidenceText(ctx, meta = {}) {
+  const useColor = meta.useColor === true;
   const repoRoot = meta.repoRoot ?? REPO_ROOT;
   const artifactPaths = meta.artifactPaths ?? resolveEvidenceArtifactPaths(String(ctx.run_id), repoRoot);
   const redaction = meta.redaction ?? deriveRedactionStatus(artifactPaths.attach_bundle);
   const missing = buildEvidenceMissingList(ctx, { repoRoot, artifactPaths });
 
   const lines = [
-    'ai-minions evidence',
+    ansi(useColor, '1', 'ai-minions evidence'),
     `  run_id:              ${ctx.run_id}`,
     `  trace_path:          ${ctx.trace_file}`,
     `  report_path:         ${artifactPaths.report_path ?? '(not collected — run collect-run-report)'}`,
     `  attach_bundle:       ${artifactPaths.attach_bundle ?? '(not collected)'}`,
     `  attach_md:           ${artifactPaths.attach_md ?? '(not generated)'}`,
-    `  missing_evidence:    ${missing.length ? missing.join(', ') : '(none)'}`,
+    `  missing_evidence:    ${missing.length ? ansi(useColor, '33', missing.join(', ')) : '(none)'}`,
     `  redaction_status:    ${redaction.status}`,
     `  redaction_detail:    ${redaction.message}`,
-    `  next_safe_action:    ${deriveEvidenceNextSafeAction(ctx, artifactPaths, missing)}`,
+    `  next_safe_action:    ${ansi(useColor, '36', deriveEvidenceNextSafeAction(ctx, artifactPaths, missing))}`,
     '',
     '-- inspect (control-plane read-only) --',
     buildControlPlaneRunText(ctx.rows, { trace_file: ctx.trace_file }),
@@ -472,12 +479,15 @@ function buildOperatorEvidenceJson(ctx, meta = {}) {
  *   runId?: string,
  *   filePath?: string,
  *   repoRoot?: string,
+ *   json?: boolean,
+ *   useColor?: boolean,
  *   loadContext?: typeof loadOperatorTraceContext,
  * }} [options]
  */
 function runOperatorEvidence(options = {}) {
   const loadContext = options.loadContext ?? loadOperatorTraceContext;
   const repoRoot = resolveOperatorRepoRoot(options);
+  const useColor = options.useColor === true && options.json !== true;
   const ctx = loadContext({
     runId: options.runId,
     filePath: options.filePath,
@@ -490,9 +500,9 @@ function runOperatorEvidence(options = {}) {
       reason_code: ctx.reason_code,
       next_safe_action: ctx.next_safe_action,
       text: [
-        'ai-minions evidence',
+        ansi(useColor, '1', 'ai-minions evidence'),
         `  reason_code:      ${ctx.reason_code}`,
-        `  next_safe_action: ${ctx.next_safe_action}`,
+        `  next_safe_action: ${ansi(useColor, '36', ctx.next_safe_action)}`,
       ].join('\n'),
       json: ctx,
     };
@@ -513,7 +523,7 @@ function runOperatorEvidence(options = {}) {
   return {
     ok: true,
     exitCode: 0,
-    text: formatOperatorEvidenceText(enrichedCtx, { repoRoot, artifactPaths }),
+    text: formatOperatorEvidenceText(enrichedCtx, { repoRoot, artifactPaths, useColor }),
     json: buildOperatorEvidenceJson(enrichedCtx, { repoRoot, artifactPaths }),
   };
 }
