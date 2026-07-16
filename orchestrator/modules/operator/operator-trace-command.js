@@ -206,16 +206,19 @@ function loadOperatorTraceContext(options = {}) {
 
 /**
  * @param {Extract<ReturnType<typeof loadOperatorTraceContext>, { ok: true }>} ctx
+ * @param {{ useColor?: boolean }} [options]
  * @returns {string}
  */
-function formatOperatorStatusText(ctx) {
+function formatOperatorStatusText(ctx, options = {}) {
+  const { ansi, colorOutcome } = require('./terminal-style');
+  const useColor = options.useColor === true;
   const { summary, status_label: statusLabel, run_state: runState } = ctx;
   const lines = [
-    'ai-minions status',
-    `  status:           ${statusLabel}`,
+    ansi(useColor, '1', 'ai-minions status'),
+    `  status:           ${colorOutcome(statusLabel, useColor)}`,
     `  result_code:      ${runState.result_code}`,
     `  run_id:           ${ctx.run_id}`,
-    `  outcome:          ${summary.outcome}`,
+    `  outcome:          ${colorOutcome(summary.outcome, useColor)}`,
     `  current_phase:    ${summary.current_phase ?? '-'}`,
     `  last_successful_phase: ${runState.last_successful_phase ?? '-'}`,
     `  blocking_reason_code:  ${runState.blocking_reason_code ?? '-'}`,
@@ -223,37 +226,42 @@ function formatOperatorStatusText(ctx) {
     `  model_backend:    ${runState.model_backend ?? 'unavailable'}`,
     `  selection_reason: ${runState.selection_reason ?? 'unavailable'}`,
     `  attach_available: ${runState.attach_available}`,
+    `  attach_action_available: ${runState.attach_action_available}`,
+    `  attach_bundle_available: ${runState.attach_bundle_available}`,
     `  privacy_notice_status: ${runState.privacy_notice_status}`,
     `  trace_file:       ${ctx.trace_file}`,
   ];
   if (summary.degraded_mode.active) {
-    lines.push(`  degraded_codes:   ${summary.degraded_mode.reason_codes.join(', ')}`);
+    lines.push(`  degraded_codes:   ${ansi(useColor, '33', summary.degraded_mode.reason_codes.join(', '))}`);
   }
   if (summary.blocked_gates.length) {
-    lines.push(`  blockers:         ${summary.blocked_gates.join('; ')}`);
+    lines.push(`  blockers:         ${ansi(useColor, '1;31', summary.blocked_gates.join('; '))}`);
   }
   lines.push(`  cerberus:         ${summary.cerberus.verdict ?? '-'}`);
   lines.push(`  tool_failure:     ${runState.tool_failure_summary?.availability ?? 'unavailable'}`);
   lines.push(`  context_authority: ${runState.context_authority_status?.availability ?? 'unavailable'}`);
-  lines.push(`  next_safe_action: ${summary.next_safe_action}`);
+  lines.push(`  next_safe_action: ${ansi(useColor, '36', summary.next_safe_action)}`);
   lines.push('');
   lines.push(...formatCostTokenRunSummaryLines(ctx.cost_token_summary));
   lines.push(...formatRunStateVisibilityLines(runState));
   lines.push(...formatOperatorTraceSummaryLines(summary));
   if (ctx.truncated) {
-    lines.push('WARNING: trace truncated to last session_end segment (size limits)');
+    lines.push(ansi(useColor, '33', 'WARNING: trace truncated to last session_end segment (size limits)'));
   }
   if (ctx.skipped > 0) {
-    lines.push(`WARNING: ${ctx.skipped} invalid JSON line(s) skipped`);
+    lines.push(ansi(useColor, '33', `WARNING: ${ctx.skipped} invalid JSON line(s) skipped`));
   }
   return lines.join('\n');
 }
 
 /**
  * @param {Extract<ReturnType<typeof loadOperatorTraceContext>, { ok: true }>} ctx
+ * @param {{ useColor?: boolean }} [options]
  * @returns {string}
  */
-function formatOperatorExplainText(ctx) {
+function formatOperatorExplainText(ctx, options = {}) {
+  const { ansi, colorOutcome } = require('./terminal-style');
+  const useColor = options.useColor === true;
   const { summary, explain } = ctx;
   /** @type {string[]} */
   const reasonCodes = [];
@@ -263,17 +271,17 @@ function formatOperatorExplainText(ctx) {
   }
 
   const lines = [
-    'ai-minions explain',
+    ansi(useColor, '1', 'ai-minions explain'),
     `  run_id:           ${ctx.run_id}`,
-    `  outcome:          ${summary.outcome}`,
+    `  outcome:          ${colorOutcome(summary.outcome, useColor)}`,
     `  trace_file:       ${ctx.trace_file}`,
-    `  reason_codes:     ${reasonCodes.length ? reasonCodes.join(', ') : '(none recorded)'}`,
+    `  reason_codes:     ${reasonCodes.length ? ansi(useColor, '33', reasonCodes.join(', ')) : '(none recorded)'}`,
     `  missing_evidence: ${summary.missing_evidence.length ? summary.missing_evidence.join(', ') : '(none)'}`,
-    `  blocking_gate:    ${summary.blocked_gates[0] ?? '-'}`,
+    `  blocking_gate:    ${summary.blocked_gates[0] ? ansi(useColor, '1;31', summary.blocked_gates[0]) : '-'}`,
     `  policy_source:    ${summary.policy_decision.policy_source ?? '-'}`,
     `  tool_failure:     ${ctx.run_state.tool_failure_summary?.availability ?? 'unavailable'}`,
     `  context_authority: ${ctx.run_state.context_authority_status?.availability ?? 'unavailable'}`,
-    `  remediation:      ${summary.next_safe_action}`,
+    `  remediation:      ${ansi(useColor, '36', summary.next_safe_action)}`,
     `  what_not_to_do:   ${deriveWhatNotToDo(summary)}`,
   ];
 
@@ -346,10 +354,11 @@ function buildOperatorExplainJson(ctx) {
 }
 
 /**
- * @param {{ runId?: string, filePath?: string, json?: boolean, loadContext?: typeof loadOperatorTraceContext }} options
+ * @param {{ runId?: string, filePath?: string, json?: boolean, useColor?: boolean, loadContext?: typeof loadOperatorTraceContext }} options
  */
 function runOperatorStatus(options = {}) {
   const loadContext = options.loadContext ?? loadOperatorTraceContext;
+  const useColor = options.useColor === true && options.json !== true;
   const ctx = loadContext({
     runId: options.runId,
     filePath: options.filePath,
@@ -375,16 +384,17 @@ function runOperatorStatus(options = {}) {
   return {
     ok: true,
     exitCode: 0,
-    text: formatOperatorStatusText(ctx),
+    text: formatOperatorStatusText(ctx, { useColor }),
     json: buildOperatorStatusJson(ctx),
   };
 }
 
 /**
- * @param {{ runId?: string, filePath?: string, json?: boolean, loadContext?: typeof loadOperatorTraceContext }} options
+ * @param {{ runId?: string, filePath?: string, json?: boolean, useColor?: boolean, loadContext?: typeof loadOperatorTraceContext }} options
  */
 function runOperatorExplain(options = {}) {
   const loadContext = options.loadContext ?? loadOperatorTraceContext;
+  const useColor = options.useColor === true && options.json !== true;
   const ctx = loadContext({
     runId: options.runId,
     filePath: options.filePath,
@@ -408,7 +418,7 @@ function runOperatorExplain(options = {}) {
   return {
     ok: true,
     exitCode: 0,
-    text: formatOperatorExplainText(ctx),
+    text: formatOperatorExplainText(ctx, { useColor }),
     json: buildOperatorExplainJson(ctx),
   };
 }

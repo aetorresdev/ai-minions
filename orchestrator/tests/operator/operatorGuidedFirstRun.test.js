@@ -165,19 +165,37 @@ describe("operator-guided-first-run", () => {
     assert.match(result.smokeText, /next_safe_action/);
   });
 
-  it("classifySmokeFailure maps contract fail to SMOKE_OUTPUT_CONTRACT", () => {
+  it("classifySmokeFailure maps contract fail to SMOKE_OUTPUT_CONTRACT from real gate blocks", () => {
     const out = classifySmokeFailure({
       task_id: "task-abc",
       terminal_status: "failed",
       trace_file: "/tmp/task-abc.jsonl",
       summary: {
-        what: { last_transition_reason: { reason_code: "MAX_ITERATIONS_CERBERUS_BLOCKERS", gate_id: "files_read_vs_modified" } },
+        what: { last_transition_reason: { reason_code: "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS" } },
         why: { rollup_contract_fail_steps: 1 },
       },
+      gate_blocks: [
+        {
+          kind: "contract_fail",
+          agent: "qa",
+          gate_id: "finding_classification_missing",
+          reason: "[output contract] qa: output must classify at least one finding",
+          reviewer: null,
+        },
+        {
+          kind: "contract_fail",
+          agent: "cerberus",
+          gate_id: "empty_output",
+          reason: "[output contract] cerberus: empty output",
+          reviewer: null,
+        },
+      ],
     });
     assert.equal(out.reason_code, SMOKE_REASON_CODES.OUTPUT_CONTRACT);
     assert.equal(out.failure_class, "output_contract");
-    assert.match(out.message, /files_modified/);
+    assert.equal(out.gate_id, "finding_classification_missing");
+    assert.match(out.message, /qa:/);
+    assert.match(out.message, /\+1 more/);
   });
 
   it("formatSmokeText surfaces output contract failure for operators", () => {
@@ -190,9 +208,17 @@ describe("operator-guided-first-run", () => {
       classification: {
         reason_code: SMOKE_REASON_CODES.OUTPUT_CONTRACT,
         failure_class: "output_contract",
-        message: "DEV output contract — files_modified must be declared in files_read",
-        gate_id: "files_read_vs_modified",
-        transition_reason: "MAX_ITERATIONS_CERBERUS_BLOCKERS",
+        message: "qa: [output contract] qa: output must classify at least one finding (+1 more gate block(s))",
+        gate_id: "finding_classification_missing",
+        transition_reason: "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS",
+        gate_blocks: [
+          {
+            kind: "contract_fail",
+            agent: "qa",
+            gate_id: "finding_classification_missing",
+            reason: "[output contract] qa: output must classify at least one finding",
+          },
+        ],
       },
       next_safe_action: deriveSmokeNextSafeAction({
         ok: false,
@@ -201,9 +227,11 @@ describe("operator-guided-first-run", () => {
       }),
     });
     assert.match(text, /failure_class:\s+output_contract/);
-    assert.match(text, /gate_id:\s+files_read_vs_modified/);
+    assert.match(text, /gate_id:\s+finding_classification_missing/);
     assert.match(text, /checklist B\.3/);
     assert.match(text, /ai-minions explain --run-id task-abc/);
+    assert.match(text, /ai-minions attach --run-id task-abc/);
+    assert.match(text, /max_iterations=1 is repair rounds/);
   });
 
   it("runSmoke classifies trace contract failure as SMOKE_OUTPUT_CONTRACT", async () => {

@@ -7,6 +7,7 @@
 
 const { loadOperatorTraceContext } = require('./operator-trace-command');
 const { buildRunOutcomeSummary } = require('../trace/run-outcome-summary');
+const { ansi } = require('./terminal-style');
 
 const DISCLOSURE_ACTIONS = ['hidden', 'exposed', 'partial'];
 
@@ -153,12 +154,14 @@ function buildContextPackageSummary(rows) {
 
 /**
  * @param {Extract<ReturnType<typeof loadOperatorTraceContext>, { ok: true }>} ctx
+ * @param {{ useColor?: boolean }} [options]
  * @returns {string}
  */
-function formatOperatorContextText(ctx) {
+function formatOperatorContextText(ctx, options = {}) {
+  const useColor = options.useColor === true;
   const summary = buildContextPackageSummary(ctx.rows);
   const lines = [
-    'ai-minions context',
+    ansi(useColor, '1', 'ai-minions context'),
     `  run_id:              ${ctx.run_id}`,
     `  trace_file:          ${ctx.trace_file}`,
     `  freshness:           ${summary.freshness_marker}`,
@@ -166,7 +169,7 @@ function formatOperatorContextText(ctx) {
     `  package_refs:        ${summary.context_package_refs.length ? summary.context_package_refs.join(', ') : '(none recorded)'}`,
     '  limitations:',
     ...summary.limitations.map((l) => `    - ${l}`),
-    `  next_safe_action:    Inspect trace JSONL for context_disclosure; use explain for blockers — not raw transcript.`,
+    `  next_safe_action:    ${ansi(useColor, '36', 'Inspect trace JSONL for context_disclosure; use explain for blockers — not raw transcript.')}`,
     '',
     '-- context package refs (surface=context_package) --',
   ];
@@ -223,10 +226,11 @@ function buildOperatorContextJson(ctx) {
 }
 
 /**
- * @param {{ runId?: string, filePath?: string, loadContext?: typeof loadOperatorTraceContext }} [options]
+ * @param {{ runId?: string, filePath?: string, json?: boolean, useColor?: boolean, loadContext?: typeof loadOperatorTraceContext }} [options]
  */
 function runOperatorContext(options = {}) {
   const loadContext = options.loadContext ?? loadOperatorTraceContext;
+  const useColor = options.useColor === true && options.json !== true;
   const ctx = loadContext({
     runId: options.runId,
     filePath: options.filePath,
@@ -239,9 +243,9 @@ function runOperatorContext(options = {}) {
       reason_code: ctx.reason_code,
       next_safe_action: ctx.next_safe_action,
       text: [
-        'ai-minions context',
+        ansi(useColor, '1', 'ai-minions context'),
         `  reason_code:      ${ctx.reason_code}`,
-        `  next_safe_action: ${ctx.next_safe_action}`,
+        `  next_safe_action: ${ansi(useColor, '36', ctx.next_safe_action)}`,
       ].join('\n'),
       json: ctx,
     };
@@ -250,7 +254,7 @@ function runOperatorContext(options = {}) {
   return {
     ok: true,
     exitCode: 0,
-    text: formatOperatorContextText(ctx),
+    text: formatOperatorContextText(ctx, { useColor }),
     json: buildOperatorContextJson(ctx),
   };
 }
@@ -270,13 +274,15 @@ function deriveResumeInspectAlternatives(ctx) {
 
 /**
  * @param {Extract<ReturnType<typeof loadOperatorTraceContext>, { ok: true }> | null} ctx
+ * @param {{ useColor?: boolean }} [options]
  * @returns {string}
  */
-function formatOperatorResumeText(ctx) {
+function formatOperatorResumeText(ctx, options = {}) {
+  const useColor = options.useColor === true;
   const lines = [
-    'ai-minions resume',
-    `  supported:           false`,
-    `  reason_code:         ${RUN_RESUME_NOT_IMPLEMENTED}`,
+    ansi(useColor, '1', 'ai-minions resume'),
+    `  supported:           ${ansi(useColor, '33', 'false')}`,
+    `  reason_code:         ${ansi(useColor, '33', RUN_RESUME_NOT_IMPLEMENTED)}`,
     '  policy:              explicit_operator_resume_only (evaluate-only module exists; no product resume action)',
     `  contract_ref:        ${SESSION_RESUME_CONTRACT}`,
   ];
@@ -302,7 +308,7 @@ function formatOperatorResumeText(ctx) {
   for (const alt of deriveResumeInspectAlternatives(ctx)) {
     lines.push(`    - ${alt}`);
   }
-  lines.push(`  next_safe_action:    Do not claim resume — start a new run or inspect trace/checkpoint evidence above.`);
+  lines.push(`  next_safe_action:    ${ansi(useColor, '36', 'Do not claim resume — start a new run or inspect trace/checkpoint evidence above.')}`);
 
   return lines.join('\n');
 }
@@ -335,10 +341,11 @@ function buildOperatorResumeJson(ctx) {
 }
 
 /**
- * @param {{ runId?: string, filePath?: string, loadContext?: typeof loadOperatorTraceContext }} [options]
+ * @param {{ runId?: string, filePath?: string, json?: boolean, useColor?: boolean, loadContext?: typeof loadOperatorTraceContext }} [options]
  */
 function runOperatorResume(options = {}) {
   const loadContext = options.loadContext ?? loadOperatorTraceContext;
+  const useColor = options.useColor === true && options.json !== true;
   let ctx = null;
 
   if (options.runId || options.filePath) {
@@ -363,11 +370,11 @@ function runOperatorResume(options = {}) {
         reason_code: RUN_RESUME_NOT_IMPLEMENTED,
         next_safe_action: nextSafeAction,
         text: [
-          'ai-minions resume',
-          '  supported:           false',
-          `  reason_code:         ${RUN_RESUME_NOT_IMPLEMENTED}`,
+          ansi(useColor, '1', 'ai-minions resume'),
+          `  supported:           ${ansi(useColor, '33', 'false')}`,
+          `  reason_code:         ${ansi(useColor, '33', RUN_RESUME_NOT_IMPLEMENTED)}`,
           `  trace_reason_code:   ${loaded.reason_code}`,
-          `  next_safe_action:    ${nextSafeAction}`,
+          `  next_safe_action:    ${ansi(useColor, '36', nextSafeAction)}`,
         ].join('\n'),
         json,
       };
@@ -378,7 +385,7 @@ function runOperatorResume(options = {}) {
     ok: false,
     exitCode: 2,
     reason_code: RUN_RESUME_NOT_IMPLEMENTED,
-    text: formatOperatorResumeText(ctx),
+    text: formatOperatorResumeText(ctx, { useColor }),
     json: buildOperatorResumeJson(ctx),
   };
 }

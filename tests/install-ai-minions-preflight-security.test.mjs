@@ -216,7 +216,7 @@ describe("installer preflight/security negative matrix", () => {
     assertShellRcUnchanged(before);
   });
 
-  it("runCliInstall exits blocked with INSTALL_PATH_NOT_ON_PATH when bin dir missing from PATH", async () => {
+  it("runCliInstall materializes with INSTALL_PATH_NOT_ON_PATH activation warn when bin dir missing from PATH", async () => {
     const repoRoot = makeHostReadyRepo();
     const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "e20-3-home-"));
     const binDir = path.join(homeDir, "off-path-bin");
@@ -228,9 +228,12 @@ describe("installer preflight/security negative matrix", () => {
       pathEnv: "/usr/bin:/bin",
     });
 
-    assert.equal(report.ok, false);
+    assert.equal(report.ok, true);
+    assert.equal(report.install_materialized_ok, true);
+    assert.equal(report.cli_activation_ready, false);
     const pathCheck = report.checks.find((c) => c.id === "path");
     assert.equal(pathCheck?.reason_code, CLI_INSTALL_REASON_CODES.PATH_NOT_ON_PATH);
+    assert.equal(pathCheck?.status, "warn");
     assert.ok(report.path_remediation);
     assert.match(report.path_remediation, /export PATH=/);
   });

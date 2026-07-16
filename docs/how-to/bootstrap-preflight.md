@@ -12,9 +12,12 @@ Minimal **bootstrap + preflight** for a clean clone — fail-closed with **stabl
 
 `node scripts/install-ai-minions.mjs` (product install) is separate from bootstrap preflight:
 
-- Emits stable `INSTALL_*` reason codes on blocked paths:
-  `INSTALL_PATH_NOT_ON_PATH`, `INSTALL_HOME_UNSET`,
-  `INSTALL_CLI_SHIM_VALIDATION_FAILED`, …
+- Emits stable `INSTALL_*` reason codes:
+  `INSTALL_PATH_NOT_ON_PATH` (activation warning after shim/config write),
+  `INSTALL_HOME_UNSET`, `INSTALL_CLI_SHIM_VALIDATION_FAILED`, …
+- Separates **install materialized** (shim/config written → exit `0`) from **CLI activation**
+  (`cli_activation_ready` / PATH). Missing PATH after a successful write is
+  `install complete; activation required` — not a write failure.
 - Validates shim targets with `realpath` — product CLI must stay inside `AI_MINIONS_HOME`.
 - Does **not** write `.bashrc`, `.zshrc`, or profile files.
   PATH remediation is printed for the operator to apply manually.

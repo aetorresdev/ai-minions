@@ -125,11 +125,15 @@ node scripts/collect-run-report.mjs <task_id>
 
 ---
 
+## Color (human stdout)
+
+`--color=auto|always|never` (default `auto`). `NO_COLOR` wins. Applies to human stdout only — not `--json`, Markdown reports, or attach/shareable files.
+
 ## Exit codes (product CLI)
 
 | Code | Meaning |
 |------|---------|
-| `0` | Success (`init` ok, `start` done, `doctor` pass, trace found) |
+| `0` | Success (`init` ok, `start` done, `doctor` pass, trace found; product install write OK even if PATH activation still required) |
 | `1` | Usage or runtime error |
 | `2` | Blocked preflight, trace missing, or `resume` unsupported |
 | `3` | `start` finished with `done:false` |

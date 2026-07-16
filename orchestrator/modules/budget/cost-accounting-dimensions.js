@@ -3,8 +3,11 @@
 /**
  * Run-level cost accounting: **`actual`** = env-priced local token estimate used for reporting.
  * It is not new guard enforcement and does not change **`ORCH_MAX_COST_USD`** behavior.
- * **`equivalent_cloud`** = optional benchmark — not provider spend, not for hard-stop.
+ * **`equivalent_cloud`** = optional env benchmark — not provider spend, not for hard-stop.
+ * **`same_count_cloud_projections`** = registry baselines (OpenAI/Anthropic/Gemini) — advisory.
  */
+
+const { buildSameCountCloudProjections } = require("./cloud-price-registry");
 
 function parseEnvPositiveFloat(name) {
   const raw = process.env[name];
@@ -114,6 +117,11 @@ function buildRunCostAccountingFromReport(report) {
       is_billable: false,
     };
   }
+
+  run.same_count_cloud_projections = buildSameCountCloudProjections({
+    prompt_tokens: p,
+    completion_tokens: c,
+  });
 
   return { cost_accounting: { run } };
 }

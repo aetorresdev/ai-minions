@@ -18,6 +18,7 @@ const {
   formatRunCostLine,
   formatRunLatencyLine,
 } = require('./operator-cost-token-summary');
+const { ansi } = require('./terminal-style');
 
 const RUN_REPORT_SCHEMA = '1';
 
@@ -262,6 +263,8 @@ function writeRunReportFiles(outDir, artifacts, fsOps = {}) {
  *   latest?: boolean,
  *   outDir?: string,
  *   cwd?: string,
+ *   json?: boolean,
+ *   useColor?: boolean,
  *   loadContext?: typeof loadOperatorTraceContext,
  *   mkdirSync?: typeof fs.mkdirSync,
  *   writeFileSync?: typeof fs.writeFileSync,
@@ -269,6 +272,7 @@ function writeRunReportFiles(outDir, artifacts, fsOps = {}) {
  */
 function runOperatorReport(options = {}) {
   const loadContext = options.loadContext ?? loadOperatorTraceContext;
+  const useColor = options.useColor === true && options.json !== true;
   const hasFile = Boolean(options.filePath);
   const useLatest = options.latest === true && !options.runId && !hasFile;
 
@@ -292,10 +296,10 @@ function runOperatorReport(options = {}) {
       result_code: ctx.result_code ?? 'RUN_NOT_FOUND',
       next_safe_action: ctx.next_safe_action,
       text: [
-        'ai-minions report',
+        ansi(useColor, '1', 'ai-minions report'),
         `  result_code:      ${ctx.result_code ?? 'RUN_NOT_FOUND'}`,
         `  reason_code:      ${ctx.reason_code}`,
-        `  next_safe_action: ${ctx.next_safe_action}`,
+        `  next_safe_action: ${ansi(useColor, '36', ctx.next_safe_action)}`,
       ].join('\n'),
       json: ctx,
     };
@@ -323,7 +327,7 @@ function runOperatorReport(options = {}) {
     files: written.files,
     metrics: artifacts.metrics,
     text: [
-      'ai-minions report',
+      ansi(useColor, '1', 'ai-minions report'),
       `  run_id:           ${ctx.run_id}`,
       `  trace_file:       ${ctx.trace_file}`,
       `  out_dir:          ${written.out_dir}`,

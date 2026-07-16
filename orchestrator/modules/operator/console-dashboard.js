@@ -29,42 +29,11 @@ const {
 } = require("./scenario-metrics-export");
 const { sanitizeTraceRowsForRead } = require("../trace/trace-redact");
 const { buildRunOutcomeSummary, formatRunOutcomeSummaryLines } = require("../trace/run-outcome-summary");
-
-/** @param {boolean} u @param {number} c @param {string} s */
-function ansi(u, c, s) {
-  return u ? `\x1b[${c}m${s}\x1b[0m` : s;
-}
-
-/**
- * @param {string[]} argv
- * @param {Record<string, string | undefined>} [env]
- * @returns {'auto'|'always'|'never'}
- */
-function resolveConsoleColorMode(argv, env = process.env) {
-  if (env.NO_COLOR != null && String(env.NO_COLOR) !== "") return "never";
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a && a.startsWith("--color=")) {
-      const v = a.slice("--color=".length).trim().toLowerCase();
-      if (v === "auto" || v === "always" || v === "never") return v;
-    }
-    if (a === "--color" && argv[i + 1]) {
-      const v = String(argv[i + 1]).trim().toLowerCase();
-      if (v === "auto" || v === "always" || v === "never") return v;
-    }
-  }
-  return "auto";
-}
-
-/**
- * @param {'auto'|'always'|'never'} mode
- * @param {boolean} [isTTY]
- */
-function shouldUseAnsiForStdout(mode, isTTY = process.stdout.isTTY) {
-  if (mode === "never") return false;
-  if (mode === "always") return true;
-  return !!isTTY;
-}
+const {
+  ansi,
+  resolveColorMode: resolveConsoleColorMode,
+  shouldUseAnsi: shouldUseAnsiForStdout,
+} = require("./terminal-style");
 
 /** @param {Record<string, number>} obj */
 function sortedEntries(obj) {

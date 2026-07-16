@@ -314,11 +314,12 @@ export async function runCliInstall(options) {
   let pathRemediation = null;
   if (!onPath) {
     pathRemediation = `export PATH="${binDir}:\$PATH"`;
+    // Activation step — artifacts already written; warn, do not fail write phase.
     checks.push({
       id: "path",
       reason_code: CLI_INSTALL_REASON_CODES.PATH_NOT_ON_PATH,
-      status: "fail",
-      message: `${binDir} is not on PATH — ${pathRemediation}`,
+      status: "warn",
+      message: `${binDir} is not on PATH — required next step: ${pathRemediation}`,
     });
   } else {
     checks.push({
@@ -329,8 +330,14 @@ export async function runCliInstall(options) {
     });
   }
 
+  const writeChecks = checks.filter((c) => c.id !== "path");
+  const installMaterializedOk = cliChecksOk(writeChecks);
+  const cliActivationReady = installMaterializedOk && onPath;
+
   return {
-    ok: cliChecksOk(checks),
+    ok: installMaterializedOk,
+    install_materialized_ok: installMaterializedOk,
+    cli_activation_ready: cliActivationReady,
     phase: "cli_install",
     repo_root: repoRoot,
     bin_dir: binDir,
@@ -344,7 +351,8 @@ export async function runCliInstall(options) {
 }
 
 /**
- * Product install succeeds when host prereqs + CLI shim checks pass.
+ * Product install succeeds when host prereqs + CLI shim/config are written.
+ * PATH activation is a required next step (warn), not a write failure.
  * Model discovery failures do not block CLI availability.
  * @param {{
  *   checks: import('../install-ai-minions.mjs').CheckResult[],
@@ -358,7 +366,33 @@ export function productCliInstallOk(report) {
   if (!hostOk) {
     return false;
   }
-  return report.cli_install?.ok === true;
+  const cli = report.cli_install;
+  if (!cli) {
+    return false;
+  }
+  if (typeof cli.install_materialized_ok === "boolean") {
+    return cli.install_materialized_ok;
+  }
+  return cli.ok === true;
+}
+
+/**
+ * True when product install materialized and bin dir is on PATH.
+ * @param {{
+ *   checks?: import('../install-ai-minions.mjs').CheckResult[],
+ *   cli_install?: Awaited<ReturnType<typeof runCliInstall>> | null,
+ * }} report
+ * @returns {boolean}
+ */
+export function productCliActivationReady(report) {
+  if (!productCliInstallOk(report)) {
+    return false;
+  }
+  const cli = report.cli_install;
+  if (cli && typeof cli.cli_activation_ready === "boolean") {
+    return cli.cli_activation_ready;
+  }
+  return !cli?.path_remediation;
 }
 
 const isSelfTest =

@@ -162,7 +162,9 @@ describe("operator-trace-command status labels", () => {
     assert.equal(ctx.ok, true);
     assert.equal(ctx.run_state.result_code, "RUN_FOUND");
     assert.equal(ctx.run_state.run_id, "fix-complete");
-    assert.equal(ctx.run_state.attach_result_code, "RUN_ATTACH_MISSING");
+    assert.equal(ctx.run_state.attach_bundle_available, false);
+    assert.equal(ctx.run_state.attach_action_available, true);
+    assert.equal(ctx.run_state.attach_result_code, "RUN_ATTACH_READY");
   });
 
   it("maps blocked fixture blocking_reason_code", () => {

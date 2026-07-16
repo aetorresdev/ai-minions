@@ -197,7 +197,8 @@ function buildAttachManagementSummaryMd(ctx, meta) {
 
 - Production-ready or fully autonomous operation
 - Guaranteed privacy or sandbox isolation without reviewing \`redaction-report.json\`
-- Billing-accurate cost (provider estimates only when present)
+- Billing-accurate cost (local Ollama is \`not_billing\`; same-count cloud rows are advisory projections only)
+- Tokenizer/workload equivalence across providers
 - Business ROI or productivity metrics
 - Complete architecture or security audit coverage
 `;

@@ -69,9 +69,12 @@ function previewLines(lines, maxLines = 14) {
 
 /**
  * @param {Extract<ReturnType<typeof loadOperatorTraceContext>, { ok: true }>} ctx
+ * @param {{ useColor?: boolean }} [options]
  * @returns {string}
  */
-function buildOperatorEvidenceTuiText(ctx) {
+function buildOperatorEvidenceTuiText(ctx, options = {}) {
+  const { ansi, colorOutcome } = require('./terminal-style');
+  const useColor = options.useColor === true;
   const { summary, run_state: rs } = ctx;
   const phaseTimeline = derivePhaseTimeline(ctx.rows);
   const gateBlocks = collectGateBlocks(ctx.rows);
@@ -87,16 +90,18 @@ function buildOperatorEvidenceTuiText(ctx) {
   if (summary.cerberus?.verdict) blockerLines.push(`cerberus_verdict: ${summary.cerberus.verdict}`);
   if (!blockerLines.length) blockerLines.push('(none recorded)');
 
+  const section = (title) => ansi(useColor, '1;36', title);
+
   const lines = [
     '+----------------------------------------------------------------------+',
-    '|  ai-minions tui — read-only evidence (stdout; no interactive UI)     |',
+    `|  ${ansi(useColor, '1', 'ai-minions tui')} — read-only evidence (stdout; no interactive UI)     |`,
     '+----------------------------------------------------------------------+',
     'Policy: inspect only — no edits, approvals, reruns, or state mutation.',
     '',
-    '== Run status ==',
+    section('== Run status =='),
     `  run_id:                ${ctx.run_id}`,
-    `  status_label:          ${ctx.status_label}`,
-    `  outcome:               ${summary.outcome}`,
+    `  status_label:          ${colorOutcome(ctx.status_label, useColor)}`,
+    `  outcome:               ${colorOutcome(summary.outcome, useColor)}`,
     `  result_code:           ${rs.result_code}`,
     `  current_phase:         ${rs.current_phase ?? '-'}`,
     `  last_successful_phase: ${rs.last_successful_phase ?? '-'}`,
@@ -105,34 +110,36 @@ function buildOperatorEvidenceTuiText(ctx) {
     `  selection_reason:      ${rs.selection_reason ?? 'unavailable'}`,
     `  trace_file:            ${ctx.trace_file}`,
     '',
-    '== Phase timeline ==',
+    section('== Phase timeline =='),
     previewLines(phaseTimeline, 20),
     '',
-    '== Step graph (phase detail) ==',
+    section('== Step graph (phase detail) =='),
     formatStepGraphText(buildStepGraph(ctx.rows)),
     '',
-    '== Blockers ==',
+    section('== Blockers =='),
     previewLines(blockerLines, 12),
     '',
     formatGateBlocksText(gateBlocks),
     '',
-    '== Next safe action ==',
-    `  ${rs.next_safe_action ?? summary.next_safe_action}`,
+    section('== Next safe action =='),
+    `  ${ansi(useColor, '36', rs.next_safe_action ?? summary.next_safe_action)}`,
     `  what_not_to_do: ${deriveWhatNotToDo(summary)}`,
     '',
-    '== Evidence paths ==',
+    section('== Evidence paths =='),
     previewLines((rs.evidence_paths || []).map(String), 10),
     '',
-    '== Cost / token (estimated — not billing) ==',
+    section('== Cost / token (estimated — not billing) =='),
     ...formatCostTokenRunSummaryLines(ctx.cost_token_summary).map((l) => (l.startsWith('  ') ? l : `  ${l}`)),
     `  summary_cost: ${formatRunCostLine(ctx.cost_token_summary)}`,
     `  summary_latency: ${formatRunLatencyLine(ctx.cost_token_summary)}`,
     '',
-    '== Attach status ==',
+    section('== Attach status =='),
     `  attach_available:      ${rs.attach_available}`,
+    `  attach_action_available: ${rs.attach_action_available}`,
+    `  attach_bundle_available: ${rs.attach_bundle_available}`,
     `  privacy_notice_status: ${rs.privacy_notice_status}`,
     '',
-    '== Management preview ==',
+    section('== Management preview =='),
     managementPreview,
     '',
     'Commands: ai-minions status | explain | report --run-id <id>',
@@ -141,10 +148,10 @@ function buildOperatorEvidenceTuiText(ctx) {
 
   if (ctx.truncated) {
     lines.push('');
-    lines.push('WARNING: trace truncated to last session_end segment (size limits)');
+    lines.push(ansi(useColor, '33', 'WARNING: trace truncated to last session_end segment (size limits)'));
   }
   if (ctx.skipped > 0) {
-    lines.push(`WARNING: ${ctx.skipped} invalid JSON line(s) skipped`);
+    lines.push(ansi(useColor, '33', `WARNING: ${ctx.skipped} invalid JSON line(s) skipped`));
   }
 
   return lines.join('\n');
@@ -214,12 +221,13 @@ function runOperatorEvidenceTui(options = {}) {
     };
   }
 
+  const useColor = options.useColor === true && options.json !== true;
   return {
     ok: true,
     exitCode: 0,
     run_id: ctx.run_id,
     trace_file: ctx.trace_file,
-    text: buildOperatorEvidenceTuiText(ctx),
+    text: buildOperatorEvidenceTuiText(ctx, { useColor }),
     json: buildOperatorEvidenceTuiJson(ctx),
   };
 }

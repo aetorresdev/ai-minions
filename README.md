@@ -215,7 +215,7 @@ cd ~
 ai-minions --help
 ```
 
-Requires `~/.local/bin` (or your configured bin dir) on PATH. Blocked installs print stable `INSTALL_*` reason codes with remediation — see [`install-ai-minions.mjs`](scripts/install-ai-minions.mjs) header.
+Requires `~/.local/bin` (or your configured bin dir) on PATH for immediate activation. Successful shim/config write exits `0` even when PATH still needs a manual export (`install complete; activation required` + `INSTALL_PATH_NOT_ON_PATH`). True blockers print stable `INSTALL_*` reason codes — see [`install-ai-minions.mjs`](scripts/install-ai-minions.mjs) header. The installer does not edit shell rc files.
 
 `bootstrap-preflight` uses stable `reason_code` values (layout, Node, deps, trace dir) — [`bootstrap-preflight.md`](docs/how-to/bootstrap-preflight.md). Add `--live` before worker-agent runs.
 
