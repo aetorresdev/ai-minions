@@ -4,6 +4,8 @@ Defines which model each role uses, when local fallback is safe, and what struct
 
 **Operator-facing policy summary (matrix):** [model-role-routing-policy.md](model-role-routing-policy.md).
 
+**Pre-release routing smoke (fixture + live Olla):** [routing-release-smoke.md](routing-release-smoke.md).
+
 ---
 
 ## Model routing
