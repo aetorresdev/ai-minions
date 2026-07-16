@@ -47,5 +47,5 @@ Written under the artifact dir:
 ## Notes
 
 - Runs in a temporary cwd only; does not mutate the operator’s repo config.
-- Does **not** use `ORCH_TEST_SYSTEM_PATH_HARNESS`.
+- Does **not** enable the strict system-path test harness (real `askAgent` / Ollama HTTP path only).
 - Sets `ORCH_SKIP_NETWORK_PERMISSION_GATE=1` for the duration of the smoke so ARCHITECT can exercise `/api/chat` (this gate proves routing, not the network ACL matrix).
