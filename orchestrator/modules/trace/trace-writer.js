@@ -62,6 +62,9 @@ function _sanitize(event) {
   if ("task" in out) out.task = redactSensitivePlaintext(String(out.task)).slice(0, 120);
   if ("reason" in out) out.reason = redactSensitivePlaintext(String(out.reason)).slice(0, 300);
   if ("summary" in out) out.summary = redactSensitivePlaintext(String(out.summary)).slice(0, 300);
+  if ("sanitized_preview" in out && out.sanitized_preview != null) {
+    out.sanitized_preview = redactSensitivePlaintext(String(out.sanitized_preview)).slice(0, 500);
+  }
   if (typeof out.message === "string") out.message = redactSensitivePlaintext(out.message).slice(0, 400);
   if (Array.isArray(out.items)) out.items = _redactStringArray(out.items);
   if (Array.isArray(out.reasons)) out.reasons = _redactStringArray(out.reasons);

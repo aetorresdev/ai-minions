@@ -166,4 +166,54 @@ describe("run-phases/plan-resolution — executePlanResolutionPhase", () => {
     assert.equal(out.plan.steps[0].agentId, "dev-backend");
     assert.equal(traces.some((t) => t.event === "plan_normalized"), true);
   });
+
+  it("catches planner output-contract throw and emits terminal contract_fail without rethrow", async () => {
+    const err = new Error("[output contract] orchestrator: output is not valid JSON");
+    err.gate_id = "orchestrator_json";
+    err.rawModelOutput = "not json at all sk-abcdefghijklmnopqrstuvwxyz12";
+    err.context_stats = { ollama_prompt_tokens: 11, ollama_completion_tokens: 7 };
+    let emittedStats = null;
+    const { deps, traces } = makeDeps({
+      askAgent: async () => {
+        throw err;
+      },
+      emitContextStatsRows: (stats) => {
+        emittedStats = stats;
+      },
+    });
+    const out = await executePlanResolutionPhase(deps);
+    assert.equal(out.skipMainOrchestrationLoop, true);
+    assert.equal(out.manualReview, true);
+    assert.match(out.summary, /orchestrator_json/);
+    assert.deepEqual(emittedStats, err.context_stats);
+    const fail = traces.find((t) => t.event === "contract_fail");
+    assert.ok(fail);
+    assert.equal(fail.phase, "planning");
+    assert.equal(fail.gate_id, "orchestrator_json");
+    assert.equal(fail.failure_class, "output_contract");
+    assert.equal(fail.critical, true);
+    assert.match(String(fail.sanitized_preview || ""), /not json/);
+    assert.match(String(fail.sanitized_preview || ""), /\[REDACTED:api_token\]/);
+    assert.doesNotMatch(String(fail.sanitized_preview || ""), /sk-abcdefghijklmnopqrstuvwxyz12/);
+    const done = traces.find((t) => t.event === "iteration_done");
+    assert.equal(done.outcome, "abort");
+    assert.equal(done.phase, "planning");
+    assert.equal(done.gate_id, "orchestrator_json");
+  });
+
+  it("rethrows non-contract planner errors such as OLLAMA_NETWORK_DENIED", async () => {
+    const err = new Error("Ollama HTTP egress denied (NETWORK_EGRESS_DENIED)");
+    err.code = "OLLAMA_NETWORK_DENIED";
+    const { deps, traces } = makeDeps({
+      askAgent: async () => {
+        throw err;
+      },
+    });
+    await assert.rejects(
+      () => executePlanResolutionPhase(deps),
+      (e) => e && e.code === "OLLAMA_NETWORK_DENIED",
+    );
+    assert.equal(traces.some((t) => t.event === "contract_fail"), false);
+    assert.equal(traces.some((t) => t.event === "iteration_done"), false);
+  });
 });

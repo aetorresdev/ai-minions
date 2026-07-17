@@ -89,6 +89,7 @@ function runOllama(
     endpoint,
     allowPublicLocalRuntime,
     tlsInsecure,
+    format,
   } = {},
 ) {
   const target = resolveRunOllamaHttpTarget({
@@ -145,12 +146,17 @@ function runOllama(
   if (Number.isFinite(temperature)) options.temperature = temperature;
   else options.temperature = 0.2;
 
-  const body = JSON.stringify({
+  /** @type {Record<string, unknown>} */
+  const payload = {
     model,
     messages: [{ role: 'system', content: systemPrompt }, ...messages],
     stream: false,
     options,
-  });
+  };
+  if (format === 'json' || (format && typeof format === 'object')) {
+    payload.format = format;
+  }
+  const body = JSON.stringify(payload);
 
   return new Promise((resolve, reject) => {
     const ms = timeoutMs ?? (parseInt(process.env.CLAUDE_CLI_TIMEOUT, 10) || 180000);

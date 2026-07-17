@@ -270,7 +270,11 @@ function formatOperatorExplainText(ctx, options = {}) {
   const { summary, explain } = ctx;
   /** @type {string[]} */
   const reasonCodes = [];
-  if (summary.policy_decision.reason_code) reasonCodes.push(summary.policy_decision.reason_code);
+  const blocking = ctx.run_state?.blocking_reason_code;
+  if (typeof blocking === 'string' && blocking.length) reasonCodes.push(blocking);
+  if (summary.policy_decision.reason_code && !reasonCodes.includes(summary.policy_decision.reason_code)) {
+    reasonCodes.push(summary.policy_decision.reason_code);
+  }
   for (const code of summary.degraded_mode.reason_codes) {
     if (!reasonCodes.includes(code)) reasonCodes.push(code);
   }
@@ -283,6 +287,7 @@ function formatOperatorExplainText(ctx, options = {}) {
     `  reason_codes:     ${reasonCodes.length ? ansi(useColor, '33', reasonCodes.join(', ')) : '(none recorded)'}`,
     `  missing_evidence: ${summary.missing_evidence.length ? summary.missing_evidence.join(', ') : '(none)'}`,
     `  blocking_gate:    ${summary.blocked_gates[0] ? ansi(useColor, '1;31', summary.blocked_gates[0]) : '-'}`,
+    `  blocking_reason_code: ${ctx.run_state?.blocking_reason_code ?? '-'}`,
     `  policy_source:    ${summary.policy_decision.policy_source ?? '-'}`,
     `  tool_failure:     ${ctx.run_state.tool_failure_summary?.availability ?? 'unavailable'}`,
     `  context_authority: ${ctx.run_state.context_authority_status?.availability ?? 'unavailable'}`,
@@ -336,9 +341,14 @@ function buildOperatorExplainJson(ctx) {
     run_id: ctx.run_id,
     trace_file: ctx.trace_file,
     reason_codes: [
-      ...(ctx.summary.policy_decision.reason_code ? [ctx.summary.policy_decision.reason_code] : []),
+      ...(ctx.run_state.blocking_reason_code ? [ctx.run_state.blocking_reason_code] : []),
+      ...(ctx.summary.policy_decision.reason_code
+        && ctx.summary.policy_decision.reason_code !== ctx.run_state.blocking_reason_code
+        ? [ctx.summary.policy_decision.reason_code]
+        : []),
       ...ctx.summary.degraded_mode.reason_codes.filter(
-        (c) => c !== ctx.summary.policy_decision.reason_code,
+        (c) => c !== ctx.summary.policy_decision.reason_code
+          && c !== ctx.run_state.blocking_reason_code,
       ),
     ],
     blocking_reason_code: ctx.run_state.blocking_reason_code,

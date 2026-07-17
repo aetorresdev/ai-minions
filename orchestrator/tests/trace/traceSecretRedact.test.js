@@ -83,6 +83,16 @@ test("_sanitize applies redaction to reason, summary, task, and transition_reaso
   assert.ok(String(row.transition_reason.details).includes("[REDACTED:bearer]"));
 });
 
+test("_sanitize redacts sanitized_preview secrets", () => {
+  const sk = fakeSkOpenAI();
+  const row = _sanitize({
+    event: "contract_fail",
+    sanitized_preview: `planner said ${sk} then prose`,
+  });
+  assert.ok(String(row.sanitized_preview).includes("[REDACTED:api_token]"));
+  assert.ok(!String(row.sanitized_preview).includes(sk));
+});
+
 test("_sanitize redacts cerberus_check items and gate_blocked reasons", () => {
   const sk = fakeSkOpenAI();
   const out = _sanitize({

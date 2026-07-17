@@ -171,6 +171,48 @@ test("deriveBlockingReasonCode prefers model_tier_gate_denied reason_code", () =
   );
 });
 
+test("planner output-contract fail is terminal failed with attach next action", () => {
+  const rows = [
+    { event: "session_start", task_id: "task-plan-json", flow_mode: "single_agent" },
+    { event: "degraded_mode", reason: "skipStateMcp=true" },
+    {
+      event: "contract_fail",
+      agent: "orchestrator",
+      phase: "planning",
+      gate_id: "orchestrator_json",
+      failure_class: "output_contract",
+      critical: true,
+      reason: "[output contract] orchestrator: output is not valid JSON",
+    },
+    {
+      event: "iteration_done",
+      outcome: "abort",
+      phase: "planning",
+      gate_id: "orchestrator_json",
+      failure_class: "output_contract",
+      transition_reason: {
+        type: "CONTRACT_FAIL",
+        reason_code: "CONTRACT_OR_DECIDE_FAILURE",
+        details: "planner_output_contract",
+        gate_id: "orchestrator_json",
+      },
+    },
+    { event: "session_end", done: false },
+  ];
+  const summary = buildOperatorTraceSummary(rows, { trace_file: "/t.jsonl" });
+  assert.equal(summary.outcome, "failed");
+  assert.equal(summary.current_phase, "planning");
+  assert.equal(summary.policy_decision.reason_code, "CONTRACT_OR_DECIDE_FAILURE");
+  assert.equal(summary.blocking_reason_code, "orchestrator_json");
+  assert.match(summary.next_safe_action, /attach --run-id task-plan-json/);
+  assert.match(summary.next_safe_action, /planner output-contract evidence/);
+  assert.doesNotMatch(summary.next_safe_action, /Inspect via .*status/);
+  assert.equal(summary.budget.tokens, null);
+  const runState = buildRunStateVisibility(summary, rows);
+  assert.equal(runState.blocking_reason_code, "orchestrator_json");
+  assert.notEqual(runState.result_code, "RUN_STATE_UNKNOWN");
+});
+
 test("deriveLastSuccessfulPhase returns complete phase for successful run", () => {
   const rows = [
     { event: "session_start", task_id: "ok" },

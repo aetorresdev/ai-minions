@@ -1,5 +1,21 @@
 "use strict";
 
+const { redactSensitivePlaintext } = require("../../trace/trace-redact");
+
+/**
+ * True when askAgent failed the planner JSON/output contract (not runtime/network).
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+function isPlannerOutputContractError(err) {
+  if (!err || typeof err !== "object") return false;
+  const e = /** @type {Record<string, unknown>} */ (err);
+  if (typeof e.gate_id === "string" && e.gate_id.length) return true;
+  if (typeof e.rawModelOutput === "string") return true;
+  const msg = String(e.message || "");
+  return msg.includes("[output contract]");
+}
+
 /**
  * Plan resolution phase: orchestrator planning prompt, plan parse/normalize,
  * capability validation, optional cost-guard abort, first advance_mode.
@@ -105,12 +121,69 @@ Working directory: ${cwd}
 Decompose this goal into ordered execution steps following the MODE protocol.
 Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
 
-  const { output: planResponse, context_stats: planCtxStats } = await askAgent("orchestrator", planPrompt, {
-    cwd,
-    sessionEnv,
-    phase: "plan",
-    traceContext: { step_id: "phase:plan", iteration: 0 },
-  });
+  /** @type {string} */
+  let planResponse;
+  /** @type {object | null | undefined} */
+  let planCtxStats;
+  try {
+    ({ output: planResponse, context_stats: planCtxStats } = await askAgent("orchestrator", planPrompt, {
+      cwd,
+      sessionEnv,
+      phase: "plan",
+      traceContext: { step_id: "phase:plan", iteration: 0 },
+    }));
+  } catch (err) {
+    if (!isPlannerOutputContractError(err)) {
+      throw err;
+    }
+    const gateId = (err && typeof err.gate_id === "string" && err.gate_id)
+      ? err.gate_id
+      : "orchestrator_json";
+    const reason = String(err?.message || "plan output contract failed").slice(0, 300);
+    const stats = err && err.context_stats && typeof err.context_stats === "object"
+      ? err.context_stats
+      : null;
+    if (stats) {
+      emitModelFallbackLifecycleIfNeeded(traceEvent, taskId, "orchestrator", stats, { iteration: 0, phase: "plan" });
+      emitContextStatsRows(stats, "orchestrator", 0, {}, {}, { phase: "plan" });
+    }
+    /** @type {Record<string, unknown>} */
+    const failPayload = {
+      event: "contract_fail",
+      agent: "orchestrator",
+      phase: "planning",
+      iteration: 0,
+      step_id: "phase:plan",
+      reason,
+      critical: true,
+      gate_id: gateId,
+      failure_class: "output_contract",
+    };
+    if (typeof err?.rawModelOutput === "string") {
+      failPayload.sanitized_preview = redactSensitivePlaintext(String(err.rawModelOutput)).slice(0, 500);
+    }
+    traceEvent(taskId, failPayload);
+    summary = `Plan output contract failed (${gateId}): ${reason}`;
+    manualReview = true;
+    skipMainOrchestrationLoop = true;
+    traceIterationDone(
+      taskId,
+      0,
+      "abort",
+      transitionReason("CONTRACT_FAIL", "planner_output_contract", {
+        reason_code: "CONTRACT_OR_DECIDE_FAILURE",
+        gate_id: gateId,
+      }),
+      { phase: "planning", failure_class: "output_contract", gate_id: gateId },
+    );
+    return {
+      plan,
+      summary,
+      manualReview,
+      skipMainOrchestrationLoop,
+      currentMode,
+    };
+  }
   if (planCtxStats) {
     emitModelFallbackLifecycleIfNeeded(traceEvent, taskId, "orchestrator", planCtxStats, { iteration: 0, phase: "plan" });
     emitContextStatsRows(planCtxStats, "orchestrator", 0, {}, {}, { phase: "plan" });

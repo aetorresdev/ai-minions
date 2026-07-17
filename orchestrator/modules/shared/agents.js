@@ -566,6 +566,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       cwd,
       traceRole: agent.mode,
       traceAgentId: agentId,
+      ...(phase === "plan" || phase === "decide" ? { format: "json" } : {}),
     });
     const rawOut = raw.content == null ? "" : String(raw.content);
     const output = agentId.startsWith("dev-") ? normalizeDevContractText(rawOut) : rawOut;
@@ -574,6 +575,11 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       const err = new Error(`[output contract] ${check.reason}`);
       err.gate_id = check.gate_id;
       err.rawModelOutput = rawOut.slice(0, 8000);
+      /** @type {Record<string, number>} */
+      const failStats = { ...(check.context_stats || {}) };
+      if (raw.prompt_eval_count != null) failStats.ollama_prompt_tokens = raw.prompt_eval_count;
+      if (raw.eval_count != null) failStats.ollama_completion_tokens = raw.eval_count;
+      if (Object.keys(failStats).length) err.context_stats = failStats;
       throw err;
     }
     const extracted = extractContextStats(agentId, output).context_stats;
