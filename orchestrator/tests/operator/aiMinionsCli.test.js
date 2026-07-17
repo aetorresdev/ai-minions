@@ -35,6 +35,7 @@ describe("ai-minions-cli help", () => {
     assert.match(out, /ai-minions — product CLI/);
     assert.match(out, /init\s+Validate host prereqs/);
     assert.match(out, /start\s+Preflight then launch/);
+    assert.match(out, /runs\s+List recent runs/);
     assert.match(out, /status\s+Operator trace summary/);
     assert.match(out, /explain\s+Why blocked/);
     assert.match(out, /doctor\s+Bootstrap \+ runtime \+ runner preflight/);
@@ -143,6 +144,28 @@ describe("ai-minions-cli help", () => {
     assert.equal(r.status, 2);
     assert.match(r.stdout + r.stderr, /OPERATOR_TRACE_NOT_FOUND/);
   });
+
+  it("runs lists traces as structured JSON", () => {
+    const tracesDir = fs.mkdtempSync(path.join(os.tmpdir(), "ai-minions-runs-cli-"));
+    fs.writeFileSync(
+      path.join(tracesDir, "task-runs.jsonl"),
+      [
+        JSON.stringify({ event: "session_start", task_id: "task-runs", ts_ms: 1 }),
+        JSON.stringify({ event: "session_end", task_id: "task-runs", done: true, gate_blocks: 0, ts_ms: 2 }),
+      ].join("\n"),
+      "utf8",
+    );
+    const r = spawnSync(process.execPath, [CLI_PATH, "runs", "--json", "--limit", "1"], {
+      encoding: "utf8",
+      cwd: ORCH_CWD,
+      env: { ...process.env, ORCH_TRACES_DIR: tracesDir },
+    });
+    assert.equal(r.status, 0, r.stderr || r.stdout);
+    const payload = JSON.parse(r.stdout);
+    assert.equal(payload.result_code, "RUNS_FOUND");
+    assert.equal(payload.returned_count, 1);
+    assert.equal(payload.runs[0].run_id, "task-runs");
+  });
 });
 
 describe("ai-minions-cli args", () => {
@@ -156,6 +179,8 @@ describe("ai-minions-cli args", () => {
       "--no-install",
       "--goal",
       "smoke",
+      "--limit",
+      "5",
       "--skip-gates",
     ]);
     assert.equal(opts.cwd, "/tmp/proj");
@@ -163,6 +188,7 @@ describe("ai-minions-cli args", () => {
     assert.equal(opts.json, true);
     assert.equal(opts.noInstall, true);
     assert.equal(opts.goal, "smoke");
+    assert.equal(opts.limit, "5");
     assert.equal(opts.skipGates, true);
   });
 });

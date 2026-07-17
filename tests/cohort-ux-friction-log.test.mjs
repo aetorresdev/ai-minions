@@ -62,6 +62,11 @@ describe("cohort-ux-friction-log", () => {
     }
   });
 
+  it("validateFrictionEntry accepts the run selector command", () => {
+    const result = validateFrictionEntry({ ...VALID_ENTRY, command: "runs" });
+    assert.equal(result.ok, true);
+  });
+
   it("buildProductCliFrictionEntry copies only structured CLI result fields", () => {
     const result = buildProductCliFrictionEntry({
       command: "result",
@@ -96,6 +101,21 @@ describe("cohort-ux-friction-log", () => {
       next_safe_action_observed: "Provide --run-id <task_id>.",
     });
     assert.doesNotMatch(JSON.stringify(result.entry), /private-value|raw_argv/);
+  });
+
+  it("buildProductCliFrictionEntry keeps runs as a normalized command", () => {
+    const result = buildProductCliFrictionEntry({
+      command: "runs",
+      result: { ok: true, exitCode: 0, result_code: "RUNS_FOUND" },
+      env: {
+        AI_MINIONS_COHORT_TESTER_ID: "tester-opaque",
+        AI_MINIONS_COHORT_SESSION_ID: "session-opaque",
+        AI_MINIONS_COHORT_STEP_INDEX: "4",
+      },
+      recordedAt: "2026-07-17T19:01:00Z",
+    });
+    assert.equal(result.ok, true);
+    if (result.ok) assert.equal(result.entry.command, "runs");
   });
 
   it("appendProductCliFrictionEvent is opt-in and isolates invalid configuration", () => {

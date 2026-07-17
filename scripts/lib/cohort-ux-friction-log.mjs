@@ -27,6 +27,7 @@ export const TRACKED_COMMANDS = Object.freeze([
   "first-run",
   "smoke",
   "start",
+  "runs",
   "status",
   "explain",
   "report",

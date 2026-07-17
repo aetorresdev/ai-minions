@@ -44,6 +44,7 @@
         "first-run",
         "smoke",
         "start",
+        "runs",
         "status",
         "explain",
         "report",
