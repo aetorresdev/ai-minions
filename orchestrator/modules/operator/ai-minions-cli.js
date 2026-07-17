@@ -55,6 +55,12 @@ const FRICTION_LOG_LIB = path.join(REPO_ROOT, 'scripts', 'lib', 'cohort-ux-frict
  * }} [options]
  */
 async function recordProductCliFriction(command, result, options = {}) {
+  const env = options.env ?? process.env;
+  const configuredPath = env.AI_MINIONS_COHORT_FRICTION_LOG;
+  if (configuredPath == null || configuredPath === '') {
+    return { ok: true, enabled: false };
+  }
+
   const warn = options.warn ?? ((line) => console.error(line));
   try {
     const loadFrictionModule = options.loadFrictionModule
@@ -63,7 +69,7 @@ async function recordProductCliFriction(command, result, options = {}) {
     const recorded = friction.appendProductCliFrictionEvent({
       command,
       result,
-      env: options.env ?? process.env,
+      env,
     });
     if (!recorded.ok) {
       warn(`warning: ${recorded.reason_code}`);

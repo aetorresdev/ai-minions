@@ -168,9 +168,26 @@ describe("ai-minions-cli args", () => {
 });
 
 describe("ai-minions-cli friction boundary", () => {
+  it("skips module load and emits no warning without path opt-in", async () => {
+    let loadAttempts = 0;
+    const warnings = [];
+    const recorded = await recordProductCliFriction("status", { exitCode: 0 }, {
+      env: {},
+      loadFrictionModule: async () => {
+        loadAttempts += 1;
+        throw new Error("friction module should not load without opt-in");
+      },
+      warn: (line) => warnings.push(line),
+    });
+    assert.deepEqual(recorded, { ok: true, enabled: false });
+    assert.equal(loadAttempts, 0);
+    assert.deepEqual(warnings, []);
+  });
+
   it("keeps instrumentation failures observable without throwing or exposing paths", async () => {
     const warnings = [];
     const recorded = await recordProductCliFriction("status", { exitCode: 0 }, {
+      env: { AI_MINIONS_COHORT_FRICTION_LOG: "/tmp/friction.jsonl" },
       loadFrictionModule: async () => ({
         appendProductCliFrictionEvent: () => ({
           ok: false,
