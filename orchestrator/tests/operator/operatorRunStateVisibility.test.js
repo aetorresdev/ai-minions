@@ -7,6 +7,7 @@ const {
   deriveModelSelectionContext,
   deriveBlockingReasonCode,
   deriveLastSuccessfulPhase,
+  deriveNextSafeAction,
   deriveToolFailureSummary,
   deriveContextAuthorityStatus,
   buildUnavailableToolFailureSummary,
@@ -134,6 +135,26 @@ test("buildRunStateVisibility marks attach ready when bundle missing but trace e
   assert.equal(runState.attach_available, false);
   assert.equal(runState.attach_result_code, "RUN_ATTACH_READY");
   assert.match(runState.next_safe_action, /attach/);
+  assert.match(runState.next_safe_action, /attach_available=false only means no bundle on disk yet/);
+  assert.doesNotMatch(runState.next_safe_action, /merge|do not merge|CERBERUS evidence/i);
+  const visibilityText = formatRunStateVisibilityLines(runState).join("\n");
+  assert.match(visibilityText, /attach_note:/);
+  assert.match(visibilityText, /run attach to create one/);
+});
+
+test("deriveNextSafeAction for blocked run prefers attach evidence over merge language", () => {
+  const action = deriveNextSafeAction(
+    "blocked",
+    {
+      run_id: "task-blocked",
+      artifacts: { trace: "/t.jsonl", report: null, attach_bundle: null },
+      missing_evidence: [],
+    },
+    {},
+  );
+  assert.match(action, /ai-minions attach --run-id task-blocked/);
+  assert.doesNotMatch(action, /explain/);
+  assert.doesNotMatch(action, /merge|CERBERUS/i);
 });
 
 test("deriveBlockingReasonCode prefers model_tier_gate_denied reason_code", () => {

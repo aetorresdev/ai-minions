@@ -22,7 +22,7 @@ End-to-end runbook for an **internal operator** playing beta tester: product ins
 |------|-------------|
 | Product install works | `node scripts/install-ai-minions.mjs` → `ai-minions --help` from outside `orchestrator/` |
 | Guided first-run is followable | `ai-minions first-run` → `FIRST_RUN_READY` or clear `FIRST_RUN_*` + `next_safe_action` |
-| Operator path works | `ai-minions smoke` → status/explain completes or failure documented with `task_id` |
+| Operator path works | `ai-minions smoke` → follow `next_safe_action` to `status --run-id` then `attach --run-id` (ok or B.3 fail-with-`task_id`) |
 | Evidence chain works | `ai-minions attach` (or scripts) exit `0`; `ATTACH.md` fields copyable |
 | Feedback loop works | GitHub issue from bundle — **actionable without maintainer rewrite** |
 
@@ -116,10 +116,17 @@ Run smoke (default short goal, `--skip-gates`, 1 iteration):
 ai-minions smoke --model-policy local_only
 ```
 
-Read back (use `task_id` from smoke output):
+Read back (use `task_id` / `run_id` from smoke output — canonical guided chain):
 
 ```bash
 ai-minions status --run-id <task_id>
+```
+
+`next_safe_action` after smoke (success **or** B.3 fail with a `task_id`) points here first, then to `attach`. Do **not** treat `attach_available=false` on status as “skip attach” — that flag only means no bundle directory exists yet.
+
+Optional deep dive (not required for the guided chain):
+
+```bash
 ai-minions explain --run-id <task_id>
 ai-minions evidence --run-id <task_id>
 ```

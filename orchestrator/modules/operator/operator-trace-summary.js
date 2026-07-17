@@ -248,7 +248,8 @@ function deriveMissingEvidence(ros, rows) {
 
 /**
  * Evidence-first next action for operator CLI (status/explain/tui).
- * Prefer capture/inspect over merge-oriented CERBERUS language.
+ * Guided chain after smoke: status → attach. Prefer evidence capture over merge/CERBERUS language.
+ * attach_available=false only means no bundle on disk yet — attach can still create one.
  * @param {string} outcome
  * @param {object} summary
  * @param {{ attach_bundle?: string | null }} [meta]
@@ -257,36 +258,38 @@ function deriveMissingEvidence(ros, rows) {
 function deriveNextSafeAction(outcome, summary, meta = {}) {
   const runId = summary.run_id ? String(summary.run_id) : null;
   const hasBundle = Boolean(meta.attach_bundle || summary.artifacts?.attach_bundle);
-  const explainCmd = runId
-    ? `ai-minions explain --run-id ${runId}`
-    : "ai-minions explain --run-id <task_id>";
+  const statusCmd = runId
+    ? `ai-minions status --run-id ${runId}`
+    : "ai-minions status --run-id <task_id>";
   const attachCmd = runId
     ? `ai-minions attach --run-id ${runId}`
     : "ai-minions attach --run-id <task_id>";
+  const attachEvenIfMissing =
+    `${attachCmd} (attach_available=false only means no bundle on disk yet; attach can still create it)`;
 
   if (outcome === "unknown") {
-    return "Inspect trace path and ensure run finished with session_end; use explain or doctor.";
+    return `Inspect via ${statusCmd}; if the run finished, run ${attachCmd} for evidence.`;
   }
   if (outcome === "blocked" || outcome === "failed") {
     if (!hasBundle) {
-      return `Run: ${explainCmd} then ${attachCmd} to capture evidence (bundle can be created even when attach_bundle is missing).`;
+      return `Run: ${attachEvenIfMissing}`;
     }
-    return `Run: ${explainCmd}; review shareable/ in the attach bundle before claiming gate-complete.`;
+    return `Review shareable/ in the attach bundle; optional deep-dive: ai-minions explain --run-id ${runId || "<task_id>"}.`;
   }
   if (outcome === "degraded") {
     if (!hasBundle) {
-      return `Treat as degraded: ${explainCmd} then ${attachCmd}; avoid claiming full gate coverage.`;
+      return `Treat as degraded: run ${attachEvenIfMissing}; avoid claiming full gate coverage.`;
     }
     return "Treat run as degraded: inspect reason_codes and attach bundle; avoid claiming full gate coverage.";
   }
   if (summary.missing_evidence.length) {
     return hasBundle
       ? "Complete missing evidence checks before external beta claims; see missing_evidence list."
-      : `Run: ${attachCmd} then complete missing evidence checks before external beta claims.`;
+      : `Run: ${attachEvenIfMissing}; then complete missing evidence checks before external beta claims.`;
   }
   return hasBundle
     ? "Review attach shareable/ bundle if handing off to review."
-    : `Run: ${attachCmd} if handing off evidence.`;
+    : `Run: ${attachEvenIfMissing}`;
 }
 
 /**
@@ -671,6 +674,13 @@ function formatRunStateVisibilityLines(runState) {
     `  attach_action_available: ${runState.attach_action_available}`,
     `  attach_bundle_available: ${runState.attach_bundle_available}`,
     `  attach_result_code:    ${runState.attach_result_code}`,
+  ];
+  if (runState.attach_action_available && !runState.attach_available) {
+    lines.push(
+      "  attach_note:            attach_available=false means no bundle on disk yet; run attach to create one",
+    );
+  }
+  lines.push(
     `  privacy_notice_status: ${runState.privacy_notice_status}`,
     `  model:                 ${runState.model ?? "unavailable"}`,
     `  model_backend:         ${runState.model_backend ?? "unavailable"}`,
@@ -698,7 +708,7 @@ function formatRunStateVisibilityLines(runState) {
     `  next_safe_action:      ${ca.next_safe_action}`,
     `  evidence_path:         ${ca.evidence_path}`,
     "",
-  ];
+  );
   return lines;
 }
 

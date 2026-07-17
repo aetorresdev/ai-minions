@@ -138,11 +138,14 @@ function buildOperatorEvidenceTuiText(ctx, options = {}) {
     `  attach_action_available: ${rs.attach_action_available}`,
     `  attach_bundle_available: ${rs.attach_bundle_available}`,
     `  privacy_notice_status: ${rs.privacy_notice_status}`,
+    ...(rs.attach_action_available && !rs.attach_available
+      ? ['  attach_note:            attach_available=false means no bundle on disk yet; run attach to create one']
+      : []),
     '',
     section('== Management preview =='),
     managementPreview,
     '',
-    'Commands: ai-minions status | explain | report --run-id <id>',
+    'Commands: ai-minions status | explain | report --run-id <id> | attach --run-id <id>',
     'See also: docs/orchestrator/runner-tui-contract.md',
   ];
 
