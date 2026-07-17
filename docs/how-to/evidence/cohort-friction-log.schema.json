@@ -63,6 +63,10 @@
       "type": "string",
       "description": "CLI reason_code when emitted"
     },
+    "result_code": {
+      "type": "string",
+      "description": "CLI result_code when emitted"
+    },
     "next_safe_action_observed": {
       "type": "string",
       "description": "Exact next_safe_action text shown to tester (if any)"
