@@ -2,7 +2,7 @@
 
 Canonical **read-only** operator surfaces for explaining a run to yourself, management, or CERBERUS — without reading raw JSONL or inventing metrics.
 
-**Product CLI:** `ai-minions status` · `explain` · `report` · `tui` · `attach` · `evidence`  
+**Product CLI:** `ai-minions runs` · `status` · `explain` · `report` · `tui` · `attach` · `evidence`
 **Contract sources:** trace JSONL under `ORCH_TRACES_DIR` (default `~/.claude/metrics/traces/`) — same SoT as legacy `explain-run` and `collect-run-report.mjs`.
 
 **Not claimed:** production TUI / Web UI · interactive approvals or reruns from `tui` · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
@@ -13,6 +13,7 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 
 | Need | Command | Output |
 |------|---------|--------|
+| Discover and select a recent run | `ai-minions runs [--limit 20]` | Newest-first run list + explicit `status --run-id` command |
 | Terminal summary + critical decision fields | `ai-minions status --run-id <id>` | Human text + optional `--json` with `run_state_visibility` and `operator_trace_summary` |
 | Why blocked / degraded / failed | `ai-minions explain --run-id <id>` | Reason codes + remediation narrative |
 | Markdown report bundle for review | `ai-minions report --run <id> [--out ./dir]` | `OPERATOR_REPORT.md` · `MANAGEMENT_SUMMARY.md` · `CERBERUS_REVIEW_INPUT.md` |
@@ -20,9 +21,24 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 | GitHub feedback bundle (privacy scan) | `ai-minions attach --run-id <id>` | Wraps `collect-run-report.mjs` — human-readable attach layout |
 | Paths + inspect panel | `ai-minions evidence --run-id <id>` | Bundle paths · inspect checks |
 
-**Selectors:** `--run-id` · `--run` (alias) · `--latest` (newest trace in metrics dir) · `--file <path>` (explicit JSONL — overrides run id).
+**Selectors:** use `ai-minions runs` when the run id is unknown, then pass `--run-id`; `--run` is an alias on report/tui, `--latest` selects the newest trace, and `--file <path>` overrides run-id resolution.
 
-**Read-only rule:** `status`, `explain`, `report`, `tui`, and `evidence` do **not** approve, merge, rerun, or mutate runs. Steering that suggests mutation on these surfaces is blocked by policy (see eval fixtures in orchestrator tests).
+**Read-only rule:** `runs`, `status`, `explain`, `report`, `tui`, and `evidence` do **not** approve, merge, rerun, or mutate runs. Steering that suggests mutation on these surfaces is blocked by policy (see eval fixtures in orchestrator tests).
+
+### Run discovery and explicit selection
+
+```bash
+ai-minions runs
+ai-minions runs --limit 10 --json
+ai-minions status --run-id <selected_run_id>
+```
+
+`runs` reads the existing trace directory and returns at most 20 rows by default (maximum
+100), newest event first. Empty or invalid trace files remain visible as
+`RUN_TRACE_INVALID`; state is never inferred from malformed evidence. A missing/empty trace
+directory returns exit `0` with `RUNS_EMPTY` and a start-run `next_safe_action`.
+
+This is a non-interactive selector: it does not delete, resume, rerun, or mutate a run.
 
 ---
 

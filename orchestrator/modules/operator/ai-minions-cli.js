@@ -25,6 +25,7 @@ const {
 } = require('../../runner-model-routing');
 const { printAiMinionsCliHelp } = require('./operator-cli-help');
 const { runOperatorStatus, runOperatorExplain } = require('./operator-trace-command');
+const { runOperatorRuns } = require('./operator-run-list');
 const { runOperatorReport } = require('./operator-run-report');
 const { runOperatorEvidenceTui } = require('./operator-evidence-tui');
 const { runOperatorDoctor, runOperatorEvidence } = require('./operator-doctor-evidence');
@@ -140,6 +141,7 @@ function parseAiMinionsArgs(argv) {
     const a = argv[i];
     if (a === '--run' && argv[i + 1] && !out.runId) out.runId = argv[++i];
     else if (a === '--out' && argv[i + 1]) out.out = argv[++i];
+    else if (a === '--limit' && argv[i + 1]) out.limit = argv[++i];
   }
   return out;
 }
@@ -531,6 +533,23 @@ async function main() {
     return exitProductCli(cmd, result);
   }
 
+  if (cmd === 'runs') {
+    const result = runOperatorRuns({
+      limit: opts.limit,
+      json: opts.json === true,
+      useColor,
+    });
+    if (opts.json === true && result.json) {
+      console.log(JSON.stringify(result.json, null, 2));
+    } else {
+      console.log(result.text);
+    }
+    if (!result.ok && result.reason_code) {
+      console.error(`reason_code: ${result.reason_code}`);
+    }
+    return exitProductCli(cmd, result);
+  }
+
   if (cmd === 'explain') {
     const result = runOperatorExplain({
       runId: opts.runId ? String(opts.runId) : undefined,
@@ -776,6 +795,7 @@ module.exports = {
   recordProductCliFriction,
   runInit,
   runStart,
+  runOperatorRuns,
   runOperatorStatus,
   runOperatorExplain,
   runOperatorDoctor,
