@@ -234,6 +234,7 @@ describe("ai-minions-cli-install", () => {
     const binDir = path.join(homeDir, "bin");
 
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot,
       nodeVersion: "20.0.0",
       commandExists: () => true,

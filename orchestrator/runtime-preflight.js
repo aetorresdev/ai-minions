@@ -137,20 +137,22 @@ function checkMcpRegistration(serverId, modelPolicy, mcpState) {
     return {
       status: 'ok',
       reason_code: REASON_CODES.OK,
-      message: 'MCP server registered in Claude host',
+      message: 'MCP server registered via runtime host',
     };
   }
   if (mcpState.list_available === false) {
     return {
       status: modelPolicy === 'local_only' ? 'degraded' : 'warn',
       reason_code: REASON_CODES.DEGRADED,
-      message: `cannot verify MCP registration for ${serverId} (claude mcp list unavailable)`,
+      message: mcpState.host_unavailable
+        ? `cannot verify MCP registration for ${serverId} (runtime host claude_code unavailable)`
+        : `cannot verify MCP registration for ${serverId} (mcp list unavailable)`,
     };
   }
   return {
     status: modelPolicy === 'local_only' ? 'degraded' : 'warn',
     reason_code: REASON_CODES.MCP_MISSING,
-    message: `MCP server ${serverId} not registered (claude mcp add)`,
+    message: `MCP server ${serverId} not registered (runtime-host adapter: register via install)`,
   };
 }
 
@@ -188,13 +190,13 @@ function checkHookWiring(hookScript, settingsContents) {
     return {
       status: /** @type {RuntimeComponentStatus} */ ('ok'),
       reason_code: REASON_CODES.OK,
-      message: `${hookScript} referenced in Claude settings hooks`,
+      message: `${hookScript} referenced in runtime-host settings hooks`,
     };
   }
   return {
     status: 'warn',
     reason_code: REASON_CODES.HOOK_MISSING,
-    message: `${hookScript} not found in Claude settings hooks (MODE/handoff gates optional)`,
+    message: `${hookScript} not found in runtime-host settings hooks (MODE/handoff gates optional)`,
   };
 }
 
@@ -267,6 +269,9 @@ function runRuntimePreflight(options) {
     (() => {
       const { spawnSync } = require('node:child_process');
       const result = spawnSync('claude', ['mcp', 'list'], { encoding: 'utf8', stdio: 'pipe' });
+      if (result.error && result.error.code === 'ENOENT') {
+        return { available: false, servers: new Set(), host_unavailable: true };
+      }
       if (result.status !== 0) {
         return { available: false, servers: new Set() };
       }
@@ -279,6 +284,7 @@ function runRuntimePreflight(options) {
   const mcpState = {
     registered: mcpListed.servers,
     list_available: mcpListed.available,
+    host_unavailable: mcpListed.host_unavailable === true,
     ci_configured:
       process.env.ORCH_CI_MCP_CONFIGURED === '1' ||
       process.env.CI === 'true' ||
@@ -349,6 +355,8 @@ function runRuntimePreflight(options) {
       components,
       overall_status,
       model_policy: modelPolicy,
+      runtime_host: 'claude_code',
+      model_backend: 'ollama',
     },
   };
 }

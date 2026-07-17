@@ -176,6 +176,8 @@ function formatOperatorDoctorText(report, runnerPreflight = null, options = {}) 
     `  host_prerequisites:    ${fields.host_prerequisites}`,
     `  provider_reachability: ${fields.provider_reachability}`,
     `  local_backend:         ${fields.local_backend}`,
+    `  model_backend:         ${report.runtime_preflight?.model_backend ?? fields.local_backend}`,
+    `  runtime_host:          ${report.runtime_preflight?.runtime_host ?? 'claude_code'}`,
     `  auth_status:           ${fields.auth_status}`,
     `  config_validity:       ${fields.config_validity}`,
   );

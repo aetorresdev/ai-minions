@@ -33,6 +33,8 @@ import {
   formatStatusTag,
   shouldUseAnsiStdout,
 } from "./lib/terminal-style.mjs";
+import { runRuntimeIntegrationInstall } from "./lib/runtime-integration-install.mjs";
+import { RUNTIME_INTEGRATION_STATUS } from "./lib/runtime-host-contract.mjs";
 
 export {
   CLI_INSTALL_REASON_CODES,
@@ -381,6 +383,10 @@ export async function runHostPrereqChecks(repoRoot, orchDir, options = {}) {
  *   model?: string | null,
  *   migrateModelPolicy?: boolean,
  *   force?: boolean,
+ *   skipRuntimeIntegration?: boolean,
+ *   runtimeIntegrationInstall?: typeof runRuntimeIntegrationInstall,
+ *   runtimeHostAdapter?: object,
+ *   homeDir?: string,
  * }} [options]
  */
 export async function runInstallAiMinions(options = {}) {
@@ -513,18 +519,50 @@ export async function runInstallAiMinions(options = {}) {
     const allChecks = [...checks, ...configChecks];
     configWrite = writeResult;
 
+    const configOk = checksOk(allChecks);
+    /** @type {ReturnType<typeof runRuntimeIntegrationInstall> | null} */
+    let runtimeIntegration = null;
+    if (configOk) {
+      const runRuntime = options.runtimeIntegrationInstall ?? runRuntimeIntegrationInstall;
+      runtimeIntegration = runRuntime({
+        repoRoot,
+        skip: options.skipRuntimeIntegration === true,
+        homeDir: options.homeDir,
+        adapter: options.runtimeHostAdapter,
+        spawnSyncFn: options.spawnSyncFn,
+        syncMcpVenvFn: options.syncMcpVenvFn,
+        fsModule: options.fsModule,
+        env: options.env,
+      });
+    }
+
+    const runtimeOk = runtimeIntegration == null
+      || runtimeIntegration.ok
+      || runtimeIntegration.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.SKIPPED;
+    const combinedChecks = [
+      ...allChecks,
+      ...(runtimeIntegration?.checks ?? []),
+    ];
+
     return attachProductFields({
-      ok: checksOk(allChecks),
-      phase: "config_write",
+      ok: configOk && runtimeOk,
+      phase: runtimeIntegration
+        && runtimeIntegration.runtime_integration_status !== RUNTIME_INTEGRATION_STATUS.SKIPPED
+        ? "runtime_integration"
+        : "config_write",
       model_policy: modelPolicy,
       model_policy_mode: MODEL_POLICY_MODE,
       repo_root: repoRoot,
-      checks: allChecks,
+      checks: combinedChecks,
       discovery,
       config_write: configWrite,
       inference_profiles_written: writeResult.inference_profiles_written,
       inference_profile_mode: writeResult.inference_profile_mode,
       default_model: writeResult.default_model,
+      runtime_host: runtimeIntegration?.runtime_host ?? null,
+      runtime_integration_status: runtimeIntegration?.runtime_integration_status ?? null,
+      runtime_integration: runtimeIntegration,
+      model_backend: "ollama",
     }, cliInstall);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -578,11 +616,29 @@ export function deriveInstallNextSafeAction(report) {
     return `Required next step: ${pathRemediation} — then run: ai-minions --help from outside orchestrator/`;
   }
 
-  if (report.ok && report.phase === "config_write" && report.cli_activation_ready === true) {
+  if (
+    report.runtime_integration?.next_safe_action
+    && report.runtime_integration_status
+    && report.runtime_integration_status !== RUNTIME_INTEGRATION_STATUS.CONFIGURED
+    && report.runtime_integration_status !== RUNTIME_INTEGRATION_STATUS.SKIPPED
+    && report.product_cli_ok !== false
+  ) {
+    return report.runtime_integration.next_safe_action;
+  }
+
+  if (
+    report.ok
+    && (report.phase === "config_write" || report.phase === "runtime_integration")
+    && report.cli_activation_ready === true
+  ) {
     return "Run: ai-minions --help from outside orchestrator/ (product install complete)";
   }
 
-  if (report.ok && report.phase === "config_write" && report.product_cli_ok === true) {
+  if (
+    report.ok
+    && (report.phase === "config_write" || report.phase === "runtime_integration")
+    && report.product_cli_ok === true
+  ) {
     return "Run: ai-minions --help from outside orchestrator/ (product install complete; activate PATH if needed)";
   }
 
@@ -612,6 +668,11 @@ export function deriveInstallNextSafeAction(report) {
     return "Fix model discovery blockers, then re-run: node scripts/install-ai-minions.mjs";
   }
 
+  if (report.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.SKIPPED) {
+    return report.runtime_integration?.next_safe_action
+      ?? "Re-run install without --skip-runtime-integration to register MCP/hooks";
+  }
+
   return "Review blockers above, then re-run: node scripts/install-ai-minions.mjs";
 }
 
@@ -626,6 +687,7 @@ export function formatReportText(report, options = {}) {
     host_prereqs: "host prereqs",
     model_discovery: "model discovery",
     config_write: "config write",
+    runtime_integration: "runtime integration",
   };
   const phaseLabel = phaseLabels[report.phase] ?? report.phase;
   /** @type {string[]} */
@@ -652,6 +714,9 @@ export function formatReportText(report, options = {}) {
     `  repo_root: ${report.repo_root}`,
     `  model_policy: ${report.model_policy ?? "(not set)"}`,
     `  model_policy_mode: ${report.model_policy_mode} (declarative intent — discovery enforcement active for local inventory)`,
+    `  model_backend: ${report.model_backend ?? "ollama"}`,
+    `  runtime_host: ${report.runtime_host ?? "(not checked)"}`,
+    `  runtime_integration_status: ${report.runtime_integration_status ?? "(not checked)"}`,
     `  ok: ${ansi(useColor, report.ok ? "32" : "1;31", String(report.ok))}`,
     `  product_cli_ok: ${ansi(useColor, productOk ? "32" : "1;31", String(productOk))}`,
     `  install_materialized_ok: ${ansi(useColor, productOk ? "32" : "1;31", String(productOk))}`,
@@ -677,6 +742,19 @@ export function formatReportText(report, options = {}) {
   if (report.inference_profile_mode) {
     lines.push(`  inference_profile_mode: ${report.inference_profile_mode}`);
     lines.push(`  inference_profiles_written: ${report.inference_profiles_written}`);
+  }
+
+  if (report.runtime_integration?.mcp_registration) {
+    const mcp = report.runtime_integration.mcp_registration;
+    lines.push(
+      `  mcp_registration: ${Object.entries(mcp).map(([k, v]) => `${k}=${v}`).join(", ")}`,
+    );
+  }
+  if (report.runtime_integration?.hook_wiring) {
+    const hooks = report.runtime_integration.hook_wiring;
+    lines.push(
+      `  hook_wiring: ${Object.entries(hooks).map(([k, v]) => `${k}=${v}`).join(", ")}`,
+    );
   }
 
   if (report.discovery) {
@@ -751,6 +829,7 @@ export function parseArgs(argv) {
     install: argv.includes("--install"),
     noInstall: argv.includes("--no-install"),
     skipCli: argv.includes("--skip-cli"),
+    skipRuntimeIntegration: argv.includes("--skip-runtime-integration"),
     allowPublicLocalRuntime: argv.includes("--allow-public-local-runtime"),
     migrateModelPolicy: argv.includes("--migrate-model-policy"),
     force: argv.includes("--force"),
@@ -777,6 +856,7 @@ Options:
   --install              Run npm ci when orchestrator/node_modules is missing (also default for product install)
   --no-install           Skip npm ci even when node_modules is missing
   --skip-cli             Repo-local bootstrap only — do not install ~/.local/bin/ai-minions shim
+  --skip-runtime-integration  Skip MCP register + hook wiring (observable skipped; not "configured")
   --bin-dir <path>       Override CLI shim directory (default: ~/.local/bin)
   --model-policy <mode>  local_only | remote_ok
                          local_only: fail when Ollama unreachable or no local models
@@ -786,9 +866,10 @@ Options:
   --json                 Machine-readable report on stdout
   -h, --help             Show this help
 
-Phases: host prereqs → CLI shim install (product) → model discovery (Ollama) → config write (.ai-minions/).
+Phases: host prereqs → CLI shim → model discovery → config write → runtime integration (MCP + hooks).
 
 Product install writes ~/.config/ai-minions/home and ~/.local/bin/ai-minions.
+Runtime host (claude_code) is independent of model_policy/model_backend.
 If the bin dir is not on PATH, install still exits 0 (materialized) with activation next step
 (INSTALL_PATH_NOT_ON_PATH as warn — required: export PATH=...; do not treat as write failure).
 CLI reason codes include INSTALL_PATH_NOT_ON_PATH, INSTALL_PATH_BIN_WRITE_FAILED,
@@ -817,6 +898,7 @@ See docs/orchestrator/model-config-ownership.md for YAML vs JSON ownership.
     cliInstall: !args.skipCli,
     cliInstallOptions: args.binDir ? { binDir: path.resolve(args.binDir) } : {},
     modelPolicy: args.modelPolicy,
+    skipRuntimeIntegration: args.skipRuntimeIntegration === true,
     localProvider: args.localProvider,
     ollamaHost: args.ollamaHost,
     ollamaPort: args.ollamaPort,

@@ -137,6 +137,7 @@ function parseAiMinionsArgs(argv) {
   out.latest = argv.includes('--latest');
   out.migrateModelPolicy = argv.includes('--migrate-model-policy');
   out.force = argv.includes('--force');
+  out.skipRuntimeIntegration = argv.includes('--skip-runtime-integration');
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--run' && argv[i + 1] && !out.runId) out.runId = argv[++i];
@@ -184,6 +185,9 @@ function formatInitText(report) {
     `  config_paths:`,
     ...configPaths.map((p) => `    - ${p}`),
     `  model_policy:     ${report.model_policy ?? '(not set)'}`,
+    `  model_backend:    ${report.model_backend ?? '(unknown)'}`,
+    `  runtime_host:     ${report.runtime_host ?? '(not checked)'}`,
+    `  runtime_integration_status: ${report.runtime_integration_status ?? '(not checked)'}`,
     `  provider:         ${provider ?? '(unknown)'}`,
     `  phase:            ${report.phase}`,
     `  ok:               ${report.ok}`,
@@ -284,6 +288,7 @@ function formatStartText(launched, meta = {}) {
  *   model?: string,
  *   migrateModelPolicy?: boolean,
  *   force?: boolean,
+ *   skipRuntimeIntegration?: boolean,
  *   loadInstallModule?: () => Promise<typeof import('../../../../scripts/install-ai-minions.mjs')>,
  * }} [options]
  */
@@ -304,6 +309,7 @@ async function runInit(options = {}) {
     model: options.model ?? null,
     migrateModelPolicy: options.migrateModelPolicy === true,
     force: options.force === true,
+    skipRuntimeIntegration: options.skipRuntimeIntegration === true,
   });
   return {
     report,
@@ -629,6 +635,7 @@ async function main() {
       model: opts.model ? String(opts.model) : undefined,
       migrateModelPolicy: opts.migrateModelPolicy === true,
       force: opts.force === true,
+      skipRuntimeIntegration: opts.skipRuntimeIntegration === true,
       ...endpointOptionsFromCli(opts),
     });
     if (result.json) {

@@ -85,6 +85,7 @@ describe("install-ai-minions", () => {
   it("fails when orchestrator package.json is missing", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "install-ai-minions-"));
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       commandExists: () => true,
@@ -99,6 +100,7 @@ describe("install-ai-minions", () => {
   it("fails on old Node with INSTALL_NODE_MISSING", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "16.0.0",
       commandExists: () => true,
@@ -113,6 +115,7 @@ describe("install-ai-minions", () => {
   it("fails when ruff or uv are missing", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       commandExists: (cmd) => cmd === "node",
@@ -128,6 +131,7 @@ describe("install-ai-minions", () => {
   it("passes host prereqs and discovery when layout, tools, and models exist", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       modelPolicy: "local_only",
@@ -158,6 +162,7 @@ describe("install-ai-minions", () => {
 
     let npmCiCalled = false;
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       install: true,
       nodeVersion: "20.0.0",
@@ -179,6 +184,7 @@ describe("install-ai-minions", () => {
   it("records model_policy as declarative install intent", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       modelPolicy: "remote_ok",
@@ -193,6 +199,7 @@ describe("install-ai-minions", () => {
   it("fails discovery with INSTALL_OLLAMA_UNREACHABLE when local_only and ollama down", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       modelPolicy: "local_only",
@@ -219,6 +226,7 @@ describe("install-ai-minions", () => {
   it("warns with INSTALL_OLLAMA_UNREACHABLE when remote_ok and ollama down", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       modelPolicy: "remote_ok",
@@ -245,6 +253,7 @@ describe("install-ai-minions", () => {
   it("fails with INSTALL_LOCAL_MODELS_EMPTY when local_only and zero models", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       modelPolicy: "local_only",
@@ -270,6 +279,7 @@ describe("install-ai-minions", () => {
   it("fails with INSTALL_MODEL_DISCOVERY_DENIED when network gate denies", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       modelPolicy: "local_only",
@@ -317,6 +327,7 @@ describe("install-ai-minions", () => {
   it("warns INSTALL_ROLE_MODEL_DEGRADED_SINGLE_MODEL for single discovered model", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       commandExists: () => true,
@@ -331,6 +342,7 @@ describe("install-ai-minions", () => {
   it("fails config write with INSTALL_MODEL_POLICY_WRITE_FAILED", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       commandExists: () => true,
@@ -364,6 +376,7 @@ describe("install-ai-minions", () => {
   it("skips config write when discovery has no models", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       modelPolicy: "remote_ok",
@@ -390,6 +403,7 @@ describe("install-ai-minions", () => {
   it("formatReportText includes support_status and discovery codes", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       commandExists: () => true,
@@ -404,7 +418,8 @@ describe("install-ai-minions", () => {
 
   it("formatReportText shows host failure without discovery", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "install-ai-minions-"));
-    const report = await runInstallAiMinions({ repoRoot: tmp, nodeVersion: "20.0.0" });
+    const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true, repoRoot: tmp, nodeVersion: "20.0.0" });
     const text = formatReportText(report, { useColor: false });
     assert.match(text, /host prereqs/);
     assert.match(text, /INSTALL_NPM_CI_FAILED/);
@@ -413,6 +428,7 @@ describe("install-ai-minions", () => {
   it("formatReportText highlights blocked install and next_safe_action for missing ruff/uv", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot: tmp,
       nodeVersion: "20.0.0",
       commandExists: (cmd) => cmd === "node",
