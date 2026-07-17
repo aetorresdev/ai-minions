@@ -229,9 +229,30 @@ describe("operator-guided-first-run", () => {
     assert.match(text, /failure_class:\s+output_contract/);
     assert.match(text, /gate_id:\s+finding_classification_missing/);
     assert.match(text, /checklist B\.3/);
-    assert.match(text, /ai-minions explain --run-id task-abc/);
+    assert.match(text, /ai-minions status --run-id task-abc/);
     assert.match(text, /ai-minions attach --run-id task-abc/);
+    assert.doesNotMatch(text, /ai-minions explain --run-id/);
     assert.match(text, /max_iterations=1 is repair rounds/);
+  });
+
+  it("deriveSmokeNextSafeAction prefers status then attach for ok and B.3 fail", () => {
+    assert.match(
+      deriveSmokeNextSafeAction({
+        ok: true,
+        reason_code: SMOKE_REASON_CODES.OK,
+        task_id: "task-ok",
+      }),
+      /status --run-id task-ok then ai-minions attach --run-id task-ok/,
+    );
+    const b3 = deriveSmokeNextSafeAction({
+      ok: false,
+      reason_code: SMOKE_REASON_CODES.OUTPUT_CONTRACT,
+      task_id: "task-b3",
+    });
+    assert.match(b3, /status --run-id task-b3 then ai-minions attach --run-id task-b3/);
+    assert.match(b3, /checklist B\.3/);
+    assert.doesNotMatch(b3, /explain/);
+    assert.doesNotMatch(b3, /merge|CERBERUS/i);
   });
 
   it("runSmoke classifies trace contract failure as SMOKE_OUTPUT_CONTRACT", async () => {

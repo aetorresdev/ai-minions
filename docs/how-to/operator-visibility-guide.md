@@ -53,9 +53,9 @@ Printed on `status` / `explain` / `tui` / `--json` payloads when trace loads suc
 | `current_phase` | Last known MODE phase from trace |
 | `last_successful_phase` | Last phase that completed without gate block |
 | `blocking_reason_code` | Primary blocker when outcome is blocked/failed |
-| `next_safe_action` | Evidence-first next step (prefer `explain` then `attach` when a run ended/blocked without a bundle) — informational only on read-only surfaces |
+| `next_safe_action` | Guided evidence path after a run: prefer `status --run-id` then `attach --run-id` (bundle can be created even when `attach_available` is false) — informational only on read-only surfaces |
 | `evidence_paths` | Trace, report, attach paths when known |
-| `attach_available` | Legacy: whether an attach **bundle directory** already exists on disk |
+| `attach_available` | Legacy: whether an attach **bundle directory** already exists on disk — `false` does **not** mean “do not run attach” |
 | `attach_action_available` | Whether `ai-minions attach` can collect a bundle from the loaded trace |
 | `attach_bundle_available` | Whether a materialized attach bundle path already exists |
 | `privacy_notice_status` | Whether privacy notice was acknowledged for attach |

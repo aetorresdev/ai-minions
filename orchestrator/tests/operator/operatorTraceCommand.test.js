@@ -214,7 +214,9 @@ describe("operator-trace-command runOperatorStatus", () => {
           next_safe_action: "Run may advance",
           evidence_paths: ["/traces/task-1.jsonl"],
           attach_available: false,
-          attach_result_code: "RUN_ATTACH_MISSING",
+          attach_action_available: true,
+          attach_bundle_available: false,
+          attach_result_code: "RUN_ATTACH_READY",
           privacy_notice_status: "bundle_not_collected",
           model: null,
           model_backend: null,
@@ -244,6 +246,8 @@ describe("operator-trace-command runOperatorStatus", () => {
     assert.match(result.text, /run_state_visibility/);
     assert.match(result.text, /cost_token_run_summary/);
     assert.match(result.text, /next_safe_action:/);
+    assert.match(result.text, /attach_note:/);
+    assert.match(result.text, /run attach to create one/);
   });
 });
 

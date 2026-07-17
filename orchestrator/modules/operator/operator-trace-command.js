@@ -231,6 +231,11 @@ function formatOperatorStatusText(ctx, options = {}) {
     `  privacy_notice_status: ${runState.privacy_notice_status}`,
     `  trace_file:       ${ctx.trace_file}`,
   ];
+  if (runState.attach_action_available && !runState.attach_available) {
+    lines.push(
+      '  attach_note:      attach_available=false means no bundle on disk yet; run attach to create one',
+    );
+  }
   if (summary.degraded_mode.active) {
     lines.push(`  degraded_codes:   ${ansi(useColor, '33', summary.degraded_mode.reason_codes.join(', '))}`);
   }

@@ -260,16 +260,17 @@ function classifySmokeFailure(traceStatus) {
  * @returns {string}
  */
 function deriveSmokeNextSafeAction(ctx) {
-  if (ctx.ok) {
-    return ctx.task_id
-      ? `Run: ai-minions status --run-id ${ctx.task_id} then ai-minions attach --run-id ${ctx.task_id}`
-      : 'Run: ai-minions status --run-id <task_id> from smoke output';
-  }
-  if (ctx.reason_code === SMOKE_REASON_CODES.OUTPUT_CONTRACT && ctx.task_id) {
-    return `Run: ai-minions explain --run-id ${ctx.task_id} then ai-minions attach --run-id ${ctx.task_id} — failure captured counts for beta dry-run (checklist B.3)`;
-  }
+  // Guided chain: smoke → status → attach (ok or fail-with-task_id). No merge/CERBERUS language.
   if (ctx.task_id) {
-    return `Run: ai-minions explain --run-id ${ctx.task_id} then ai-minions attach --run-id ${ctx.task_id}`;
+    const chain =
+      `Run: ai-minions status --run-id ${ctx.task_id} then ai-minions attach --run-id ${ctx.task_id}`;
+    if (!ctx.ok && ctx.reason_code === SMOKE_REASON_CODES.OUTPUT_CONTRACT) {
+      return `${chain} — failure captured counts for beta dry-run (checklist B.3)`;
+    }
+    return chain;
+  }
+  if (ctx.ok) {
+    return 'Run: ai-minions status --run-id <task_id> from smoke output';
   }
   return 'Re-run: ai-minions doctor --model-policy local_only then ai-minions smoke';
 }
