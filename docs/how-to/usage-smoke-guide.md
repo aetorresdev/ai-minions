@@ -147,7 +147,7 @@ See [operator-visibility-guide.md](operator-visibility-guide.md). **`tui` and `r
 ai-minions resume --run-id <task_id>
 ```
 
-Pass: exit `2` with `RUN_RESUME_NOT_IMPLEMENTED`. **Not** durable session resume.
+Pass: exit `2` with `RUN_RESUME_NOT_IMPLEMENTED` and `supported: false`. If the trace shows `checkpoint_eligible: true`, that is **diagnostic only** — product resume is still not implemented. Prefer `next_safe_action` (`status` → `attach`, or `runs` / new `smoke` when no selector). **Not** durable session resume.
 
 ---
 
