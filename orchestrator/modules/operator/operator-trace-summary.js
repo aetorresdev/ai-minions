@@ -479,12 +479,33 @@ function deriveModelSelectionContext(rows) {
  * @returns {string | null}
  */
 function deriveBlockingReasonCode(summary, rows) {
+  // Output-contract failures: prefer concrete gate_id over generic CONTRACT_OR_DECIDE_FAILURE
+  // that derivePolicyDecision pulls from iteration_done.transition_reason.
+  const contractFail = findLatestContractFail(rows);
+  if (
+    contractFail
+    && (contractFail.failure_class === "output_contract" || contractFail.critical === true)
+    && typeof contractFail.gate_id === "string"
+    && contractFail.gate_id
+  ) {
+    return contractFail.gate_id;
+  }
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if (!r || r.event !== "iteration_done") continue;
+    const tr = r.transition_reason;
+    if (
+      (r.failure_class === "output_contract" || (tr && tr.type === "CONTRACT_FAIL"))
+      && tr
+      && typeof tr.gate_id === "string"
+      && tr.gate_id
+    ) {
+      return tr.gate_id;
+    }
+    break;
+  }
   if (summary.policy_decision?.reason_code) {
     return summary.policy_decision.reason_code;
-  }
-  const contractFail = findLatestContractFail(rows);
-  if (contractFail && typeof contractFail.gate_id === "string" && contractFail.gate_id) {
-    return contractFail.gate_id;
   }
   for (let i = rows.length - 1; i >= 0; i--) {
     const r = rows[i];

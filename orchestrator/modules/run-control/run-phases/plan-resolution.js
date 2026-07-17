@@ -1,5 +1,21 @@
 "use strict";
 
+const { redactSensitivePlaintext } = require("../../trace/trace-redact");
+
+/**
+ * True when askAgent failed the planner JSON/output contract (not runtime/network).
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+function isPlannerOutputContractError(err) {
+  if (!err || typeof err !== "object") return false;
+  const e = /** @type {Record<string, unknown>} */ (err);
+  if (typeof e.gate_id === "string" && e.gate_id.length) return true;
+  if (typeof e.rawModelOutput === "string") return true;
+  const msg = String(e.message || "");
+  return msg.includes("[output contract]");
+}
+
 /**
  * Plan resolution phase: orchestrator planning prompt, plan parse/normalize,
  * capability validation, optional cost-guard abort, first advance_mode.
@@ -117,6 +133,9 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       traceContext: { step_id: "phase:plan", iteration: 0 },
     }));
   } catch (err) {
+    if (!isPlannerOutputContractError(err)) {
+      throw err;
+    }
     const gateId = (err && typeof err.gate_id === "string" && err.gate_id)
       ? err.gate_id
       : "orchestrator_json";
@@ -128,7 +147,8 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       emitModelFallbackLifecycleIfNeeded(traceEvent, taskId, "orchestrator", stats, { iteration: 0, phase: "plan" });
       emitContextStatsRows(stats, "orchestrator", 0, {}, {}, { phase: "plan" });
     }
-    traceEvent(taskId, {
+    /** @type {Record<string, unknown>} */
+    const failPayload = {
       event: "contract_fail",
       agent: "orchestrator",
       phase: "planning",
@@ -138,10 +158,11 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
       critical: true,
       gate_id: gateId,
       failure_class: "output_contract",
-      ...(typeof err?.rawModelOutput === "string"
-        ? { sanitized_preview: String(err.rawModelOutput).slice(0, 500) }
-        : {}),
-    });
+    };
+    if (typeof err?.rawModelOutput === "string") {
+      failPayload.sanitized_preview = redactSensitivePlaintext(String(err.rawModelOutput)).slice(0, 500);
+    }
+    traceEvent(taskId, failPayload);
     summary = `Plan output contract failed (${gateId}): ${reason}`;
     manualReview = true;
     skipMainOrchestrationLoop = true;
