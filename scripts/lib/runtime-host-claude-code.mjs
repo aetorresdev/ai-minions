@@ -15,6 +15,15 @@ import {
 } from "./runtime-host-contract.mjs";
 
 /**
+ * POSIX-safe single-quote for embedding a path in a shell command string.
+ * @param {string} value
+ * @returns {string}
+ */
+export function posixShellSingleQuote(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+/**
  * @param {string} stdout
  * @returns {Set<string>}
  */
@@ -247,7 +256,7 @@ export function createClaudeCodeAdapter(options = {}) {
           });
           continue;
         }
-        const command = `python3 ${scriptPath}`;
+        const command = `python3 ${posixShellSingleQuote(scriptPath)}`;
         /** @type {unknown[]} */
         const eventHooks = Array.isArray(hooksRoot[hook.event])
           ? [...hooksRoot[hook.event]]

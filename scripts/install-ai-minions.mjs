@@ -616,11 +616,15 @@ export function deriveInstallNextSafeAction(report) {
     return `Required next step: ${pathRemediation} — then run: ai-minions --help from outside orchestrator/`;
   }
 
+  if (report.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.SKIPPED) {
+    return report.runtime_integration?.next_safe_action
+      ?? "Re-run install without --skip-runtime-integration to register MCP/hooks";
+  }
+
   if (
     report.runtime_integration?.next_safe_action
     && report.runtime_integration_status
     && report.runtime_integration_status !== RUNTIME_INTEGRATION_STATUS.CONFIGURED
-    && report.runtime_integration_status !== RUNTIME_INTEGRATION_STATUS.SKIPPED
     && report.product_cli_ok !== false
   ) {
     return report.runtime_integration.next_safe_action;
@@ -666,11 +670,6 @@ export function deriveInstallNextSafeAction(report) {
       return "Pull a local model: ollama pull qwen2.5-coder:7b — then re-run install";
     }
     return "Fix model discovery blockers, then re-run: node scripts/install-ai-minions.mjs";
-  }
-
-  if (report.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.SKIPPED) {
-    return report.runtime_integration?.next_safe_action
-      ?? "Re-run install without --skip-runtime-integration to register MCP/hooks";
   }
 
   return "Review blockers above, then re-run: node scripts/install-ai-minions.mjs";
