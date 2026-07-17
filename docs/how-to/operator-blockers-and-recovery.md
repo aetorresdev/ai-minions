@@ -85,7 +85,7 @@ If `doctor` fails, fix the **first FAIL line** in its check list, then re-run `d
 | `ai-minions smoke` → `SMOKE_OUTPUT_CONTRACT` | Degraded smoke | DEV output contract failed (`files_modified` ∉ `files_read`) | **Valid dry-run** per checklist B.3 — run `ai-minions explain --run-id <task_id>`; do not treat as install/doctor failure |
 | `ai-minions smoke` exit non-zero, generic `SMOKE_RUNTIME_FAILED` | Smoke run | Run failed without contract classification | `ai-minions explain --run-id <task_id>` from smoke output |
 | `status` / `explain` exit `2`, trace missing | Post-run | Wrong `task_id` or custom traces dir | Copy `task_id` from smoke/start output; check `ORCH_TRACES_DIR` |
-| `resume` exit `2`, `RUN_RESUME_NOT_IMPLEMENTED` | Probe | Durable resume **not shipped** | Use `status` / `explain` / new `start` — not “resume anyway” |
+| `resume` exit `2`, `RUN_RESUME_NOT_IMPLEMENTED` | Probe | Durable resume **not shipped** (`supported:false` even if `checkpoint_eligible=true`) | Prefer `status` → `attach` for the run id, or new `smoke`/`start` — not “resume anyway” |
 | Gate blocked mid-run | Trace `gate_result` | Contract or permission gate fired | `npm run ai-minions -- explain --run-id <task_id>` |
 
 Symptom-first table with legacy paths: [usage-smoke-guide — Troubleshooting](usage-smoke-guide.md#troubleshooting).

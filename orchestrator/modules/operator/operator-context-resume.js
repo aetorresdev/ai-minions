@@ -8,6 +8,7 @@
 const { loadOperatorTraceContext } = require('./operator-trace-command');
 const { buildRunOutcomeSummary } = require('../trace/run-outcome-summary');
 const { ansi } = require('./terminal-style');
+const { formatRunIdArg } = require('./operator-run-list');
 
 const DISCLOSURE_ACTIONS = ['hidden', 'exposed', 'partial'];
 
@@ -15,6 +16,10 @@ const CONTEXT_PACKAGE_CONTRACT = 'docs/orchestrator/context-package-contract.md'
 const SESSION_RESUME_CONTRACT = 'docs/orchestrator/session-resume-contract.md';
 
 const RUN_RESUME_NOT_IMPLEMENTED = 'RUN_RESUME_NOT_IMPLEMENTED';
+
+/** Honest probe banner when harness eligibility is true but product resume is not shipped. */
+const ELIGIBLE_NOT_SUPPORTED_BANNER =
+  'checkpoint_eligible=true only means trace/checkpoint evidence exists; product resume is not implemented';
 
 const KNOWN_CONTEXT_LIMITATIONS = [
   'Trace disclosure events only — no runtime context package builder in product CLI',
@@ -261,15 +266,58 @@ function runOperatorContext(options = {}) {
 
 /**
  * @param {Extract<ReturnType<typeof loadOperatorTraceContext>, { ok: true }> | null} ctx
+ * @returns {string}
+ */
+function deriveResumeNextSafeAction(ctx) {
+  if (ctx && ctx.run_id) {
+    const id = formatRunIdArg(String(ctx.run_id));
+    return (
+      `Run: ai-minions status --run-id ${id} then ai-minions attach --run-id ${id}; `
+      + 'start a new run (ai-minions smoke / start) if continuing work — product resume is not implemented'
+    );
+  }
+  return (
+    'Provide a selector: ai-minions runs --limit 10 then ai-minions resume --run-id <id>, '
+    + 'or start fresh with ai-minions smoke / ai-minions start'
+  );
+}
+
+/**
+ * @param {Extract<ReturnType<typeof loadOperatorTraceContext>, { ok: true }> | null} ctx
  */
 function deriveResumeInspectAlternatives(ctx) {
-  const runId = ctx && ctx.run_id ? ctx.run_id : '<task_id>';
+  if (ctx && ctx.run_id) {
+    const runId = formatRunIdArg(String(ctx.run_id));
+    return [
+      `ai-minions status --run-id ${runId}`,
+      `ai-minions attach --run-id ${runId}`,
+      `ai-minions explain --run-id ${runId}`,
+      'ai-minions smoke --model-policy local_only  # new run if continuing work',
+    ];
+  }
   return [
-    `ai-minions status --run-id ${runId}`,
-    `ai-minions explain --run-id ${runId}`,
-    `ai-minions evidence --run-id ${runId}`,
-    `grep 'session_' ${ctx?.trace_file ?? '~/.claude/metrics/traces/<task_id>.jsonl'}`,
+    'ai-minions runs --limit 10',
+    'ai-minions resume --run-id <selected_run_id>',
+    'ai-minions smoke --model-policy local_only',
+    'ai-minions start --goal "…" --model-policy local_only',
   ];
+}
+
+/**
+ * @param {Extract<ReturnType<typeof loadOperatorTraceContext>, { ok: true }> | null} ctx
+ * @returns {{ eligible: boolean | null, block_codes: string[], summary: string | null }}
+ */
+function readResumeEvaluation(ctx) {
+  if (!ctx) {
+    return { eligible: null, block_codes: [], summary: null };
+  }
+  const ros = buildRunOutcomeSummary(ctx.rows, { trace_file: ctx.trace_file });
+  const rs = ros.resume;
+  return {
+    eligible: rs?.eligible === true ? true : (rs?.eligible === false ? false : null),
+    block_codes: Array.isArray(rs?.block_codes) ? rs.block_codes.map(String) : [],
+    summary: typeof rs?.summary === 'string' ? rs.summary : null,
+  };
 }
 
 /**
@@ -279,6 +327,8 @@ function deriveResumeInspectAlternatives(ctx) {
  */
 function formatOperatorResumeText(ctx, options = {}) {
   const useColor = options.useColor === true;
+  const evaluation = readResumeEvaluation(ctx);
+  const nextSafeAction = deriveResumeNextSafeAction(ctx);
   const lines = [
     ansi(useColor, '1', 'ai-minions resume'),
     `  supported:           ${ansi(useColor, '33', 'false')}`,
@@ -288,27 +338,29 @@ function formatOperatorResumeText(ctx, options = {}) {
   ];
 
   if (ctx) {
-    const ros = buildRunOutcomeSummary(ctx.rows, { trace_file: ctx.trace_file });
-    const rs = ros.resume;
     lines.push(`  run_id:              ${ctx.run_id}`);
     lines.push(`  trace_file:          ${ctx.trace_file}`);
-    lines.push(`  checkpoint_eligible: ${rs?.eligible ?? '(unknown)'}`);
-    if (rs?.block_codes?.length) {
-      lines.push(`  block_codes:         ${rs.block_codes.join(', ')}`);
+    lines.push(`  checkpoint_eligible: ${evaluation.eligible ?? '(unknown)'}`);
+    if (evaluation.eligible === true) {
+      lines.push(`  eligibility_note:    ${ansi(useColor, '33', ELIGIBLE_NOT_SUPPORTED_BANNER)}`);
     }
-    if (rs?.summary) {
-      lines.push(`  eligibility_note:  ${rs.summary}`);
+    if (evaluation.block_codes.length) {
+      lines.push(`  block_codes:         ${evaluation.block_codes.join(', ')}`);
+    }
+    if (evaluation.summary) {
+      lines.push(`  evaluation_summary:  ${evaluation.summary}`);
     }
   } else {
-    lines.push('  run_id:              (not provided)');
+    lines.push('  run_id:              (selector required: --run-id / --file, or pick via ai-minions runs)');
     lines.push('  trace_file:          (not provided)');
+    lines.push('  checkpoint_eligible: (unknown — no selector)');
   }
 
   lines.push('  inspect_instead:');
   for (const alt of deriveResumeInspectAlternatives(ctx)) {
     lines.push(`    - ${alt}`);
   }
-  lines.push(`  next_safe_action:    ${ansi(useColor, '36', 'Do not claim resume — start a new run or inspect trace/checkpoint evidence above.')}`);
+  lines.push(`  next_safe_action:    ${ansi(useColor, '36', nextSafeAction)}`);
 
   return lines.join('\n');
 }
@@ -323,8 +375,11 @@ function buildOperatorResumeJson(ctx) {
     const ros = buildRunOutcomeSummary(ctx.rows, { trace_file: ctx.trace_file });
     resumeSummary = ros.resume ?? null;
   }
+  const evaluation = readResumeEvaluation(ctx);
+  const next_safe_action = deriveResumeNextSafeAction(ctx);
 
-  return {
+  /** @type {object} */
+  const payload = {
     command: 'resume',
     supported: false,
     reason_code: RUN_RESUME_NOT_IMPLEMENTED,
@@ -332,12 +387,17 @@ function buildOperatorResumeJson(ctx) {
     contract_ref: SESSION_RESUME_CONTRACT,
     run_id: ctx?.run_id ?? null,
     trace_file: ctx?.trace_file ?? null,
+    checkpoint_eligible: evaluation.eligible,
     resume_evaluation: resumeSummary,
     inspect_instead: deriveResumeInspectAlternatives(ctx),
-    next_safe_action: 'Durable product resume is not implemented — inspect trace or start a new guided run.',
+    next_safe_action,
     truncated: ctx?.truncated ?? false,
     skipped_lines: ctx?.skipped ?? 0,
   };
+  if (evaluation.eligible === true) {
+    payload.eligibility_note = ELIGIBLE_NOT_SUPPORTED_BANNER;
+  }
+  return payload;
 }
 
 /**
@@ -346,9 +406,13 @@ function buildOperatorResumeJson(ctx) {
 function runOperatorResume(options = {}) {
   const loadContext = options.loadContext ?? loadOperatorTraceContext;
   const useColor = options.useColor === true && options.json !== true;
+  const hasSelector = Boolean(
+    (options.runId && String(options.runId).trim())
+    || (options.filePath && String(options.filePath).trim()),
+  );
   let ctx = null;
 
-  if (options.runId || options.filePath) {
+  if (hasSelector) {
     const loaded = loadContext({
       runId: options.runId,
       filePath: options.filePath,
@@ -356,11 +420,15 @@ function runOperatorResume(options = {}) {
     if (loaded.ok) {
       ctx = loaded;
     } else if (loaded.reason_code === 'OPERATOR_TRACE_NOT_FOUND') {
-      const nextSafeAction = 'Resume is not implemented. Trace was also not found; inspect existing traces or start a new run.';
+      const nextSafeAction = (
+        'Resume is not implemented. Trace was also not found; '
+        + 'run ai-minions runs --limit 10 to pick a run, or start fresh with ai-minions smoke / start'
+      );
       const json = {
         ...buildOperatorResumeJson(null),
         trace_reason_code: loaded.reason_code,
         trace_missing: true,
+        selector_provided: true,
         next_safe_action: nextSafeAction,
       };
 
@@ -374,6 +442,7 @@ function runOperatorResume(options = {}) {
           `  supported:           ${ansi(useColor, '33', 'false')}`,
           `  reason_code:         ${ansi(useColor, '33', RUN_RESUME_NOT_IMPLEMENTED)}`,
           `  trace_reason_code:   ${loaded.reason_code}`,
+          '  checkpoint_eligible: (unknown — trace missing)',
           `  next_safe_action:    ${ansi(useColor, '36', nextSafeAction)}`,
         ].join('\n'),
         json,
@@ -381,12 +450,16 @@ function runOperatorResume(options = {}) {
     }
   }
 
+  const json = buildOperatorResumeJson(ctx);
+  json.selector_provided = hasSelector;
+
   return {
     ok: false,
     exitCode: 2,
     reason_code: RUN_RESUME_NOT_IMPLEMENTED,
+    next_safe_action: json.next_safe_action,
     text: formatOperatorResumeText(ctx, { useColor }),
-    json: buildOperatorResumeJson(ctx),
+    json,
   };
 }
 
@@ -394,12 +467,15 @@ module.exports = {
   CONTEXT_PACKAGE_CONTRACT,
   SESSION_RESUME_CONTRACT,
   RUN_RESUME_NOT_IMPLEMENTED,
+  ELIGIBLE_NOT_SUPPORTED_BANNER,
   KNOWN_CONTEXT_LIMITATIONS,
   deriveTrustClassification,
   buildContextPackageSummary,
   formatOperatorContextText,
   buildOperatorContextJson,
   runOperatorContext,
+  deriveResumeNextSafeAction,
+  deriveResumeInspectAlternatives,
   formatOperatorResumeText,
   buildOperatorResumeJson,
   runOperatorResume,

@@ -40,7 +40,7 @@ Formal checklist: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample
 | Production support SLA | Beta candidate — no support promise |
 | Production TUI / Web UI | Guided CLI only — `runner:tui` is advanced/legacy |
 | Automatic issue upload | Bundle is local; you open GitHub manually |
-| Durable `resume` | Inspect/status/explain only |
+| Durable `resume` | Honest probe only (`RUN_RESUME_NOT_IMPLEMENTED`); use `status` → `attach` or new run |
 
 ---
 

@@ -41,7 +41,7 @@ describe("ai-minions-cli help", () => {
     assert.match(out, /doctor\s+Bootstrap \+ runtime \+ runner preflight/);
     assert.match(out, /evidence\s+Trace\/bundle paths/);
     assert.match(out, /context\s+Context package refs/);
-    assert.match(out, /resume\s+Honest resume capability probe/);
+    assert.match(out, /resume\s+Honest resume probe/);
     assert.match(out, /RUN_RESUME_NOT_IMPLEMENTED/);
     assert.match(out, /ai-minions <command>/);
     assert.match(out, /Dev fallback/);

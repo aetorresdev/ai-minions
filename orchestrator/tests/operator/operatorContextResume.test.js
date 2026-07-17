@@ -12,6 +12,9 @@ const {
   runOperatorContext,
   runOperatorResume,
   RUN_RESUME_NOT_IMPLEMENTED,
+  ELIGIBLE_NOT_SUPPORTED_BANNER,
+  deriveResumeNextSafeAction,
+  deriveResumeInspectAlternatives,
 } = require("../../modules/operator/operator-context-resume");
 const { loadOperatorTraceContext } = require("../../modules/operator/operator-trace-command");
 
@@ -83,12 +86,15 @@ describe("operator-context-resume runOperatorResume", () => {
     assert.equal(result.exitCode, 2);
     assert.equal(result.reason_code, RUN_RESUME_NOT_IMPLEMENTED);
     assert.equal(result.json.supported, false);
+    assert.equal(result.json.selector_provided, false);
     assert.match(result.text, /supported:\s+false/);
     assert.match(result.text, /inspect_instead:/);
+    assert.match(result.text, /ai-minions runs --limit 10/);
+    assert.match(result.json.next_safe_action, /runs --limit 10/);
     assert.doesNotMatch(result.text, /resume launched/i);
   });
 
-  it("includes checkpoint eligibility when trace provided", () => {
+  it("includes checkpoint eligibility banner when eligible but supported false", () => {
     const rows = [
       { event: "session_start", task_id: "t-resume-1", goal: "ship feature", permission_profile: "dev-local" },
       { event: "agent_start", step_id: "s1", agent: "DEV", iteration: 1 },
@@ -108,8 +114,37 @@ describe("operator-context-resume runOperatorResume", () => {
       }),
     });
     assert.equal(result.reason_code, RUN_RESUME_NOT_IMPLEMENTED);
+    assert.equal(result.json.supported, false);
+    assert.equal(result.json.checkpoint_eligible, true);
+    assert.equal(result.json.eligibility_note, ELIGIBLE_NOT_SUPPORTED_BANNER);
     assert.match(result.text, /checkpoint_eligible:\s+true/);
+    assert.match(result.text, /eligibility_note:.*product resume is not implemented/);
     assert.match(result.text, /reason_code:\s+RUN_RESUME_NOT_IMPLEMENTED/);
+    assert.match(result.json.next_safe_action, /status --run-id t-resume-1 then ai-minions attach --run-id t-resume-1/);
+    assert.doesNotMatch(result.json.next_safe_action, /merge|CERBERUS/i);
+  });
+
+  it("deriveResumeNextSafeAction prefers status then attach with run-id", () => {
+    const withId = deriveResumeNextSafeAction({ run_id: "task-x" });
+    assert.match(withId, /status --run-id task-x then ai-minions attach --run-id task-x/);
+    assert.match(withId, /product resume is not implemented/);
+    const without = deriveResumeNextSafeAction(null);
+    assert.match(without, /runs --limit 10/);
+    assert.match(without, /smoke/);
+  });
+
+  it("shell-quotes unsafe run ids in next_safe_action and inspect_instead", () => {
+    const unsafeId = "weird run; touch SHOULD_NOT_COPY";
+    const ctx = { run_id: unsafeId };
+    const next = deriveResumeNextSafeAction(ctx);
+    const alts = deriveResumeInspectAlternatives(ctx);
+    assert.match(next, /status --run-id 'weird run; touch SHOULD_NOT_COPY'/);
+    assert.match(next, /attach --run-id 'weird run; touch SHOULD_NOT_COPY'/);
+    assert.doesNotMatch(next, /status --run-id weird run;/);
+    for (const cmd of alts.slice(0, 3)) {
+      assert.match(cmd, /--run-id 'weird run; touch SHOULD_NOT_COPY'/);
+      assert.doesNotMatch(cmd, /--run-id weird run;/);
+    }
   });
 
   it("resume with missing trace keeps RUN_RESUME_NOT_IMPLEMENTED as primary reason", () => {
@@ -129,6 +164,7 @@ describe("operator-context-resume runOperatorResume", () => {
     assert.match(result.text, /supported:\s+false/);
     assert.match(result.text, /reason_code:\s+RUN_RESUME_NOT_IMPLEMENTED/);
     assert.match(result.text, /trace_reason_code:\s+OPERATOR_TRACE_NOT_FOUND/);
+    assert.match(result.json.next_safe_action, /runs --limit 10/);
   });
 });
 
@@ -140,7 +176,7 @@ describe("ai-minions-cli context/resume integration", () => {
     });
     assert.equal(r.status, 0);
     assert.match(r.stdout, /context\s+Context package refs/);
-    assert.match(r.stdout, /resume\s+Honest resume capability probe/);
+    assert.match(r.stdout, /resume\s+Honest resume probe/);
     assert.doesNotMatch(r.stdout, /Planned \(not implemented/);
   });
 
@@ -151,6 +187,7 @@ describe("ai-minions-cli context/resume integration", () => {
     });
     assert.equal(r.status, 2);
     assert.match(r.stdout + r.stderr, /RUN_RESUME_NOT_IMPLEMENTED/);
+    assert.match(r.stdout, /runs --limit 10/);
   });
 
   it("resume with missing trace exits 2 with RUN_RESUME_NOT_IMPLEMENTED primary", () => {
