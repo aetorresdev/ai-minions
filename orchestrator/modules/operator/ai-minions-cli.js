@@ -9,6 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { pathToFileURL } = require('url');
 
 const { formatPreflightText } = require('./runner-preflight');
 const { launchRun } = require('./runner-launcher');
@@ -39,6 +40,54 @@ const { resolvePolicyCwd } = require('../model-runtime/local-runtime-endpoint');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const INSTALL_SCRIPT = path.join(REPO_ROOT, 'scripts', 'install-ai-minions.mjs');
+const FRICTION_LOG_LIB = path.join(REPO_ROOT, 'scripts', 'lib', 'cohort-ux-friction-log.mjs');
+
+/**
+ * Best-effort dispatch boundary for explicitly enabled cohort instrumentation.
+ * Only the structured handler result crosses this boundary; argv is never accepted.
+ *
+ * @param {string} command
+ * @param {object} result
+ * @param {{
+ *   env?: NodeJS.ProcessEnv,
+ *   loadFrictionModule?: () => Promise<{ appendProductCliFrictionEvent: Function }>,
+ *   warn?: (line: string) => void,
+ * }} [options]
+ */
+async function recordProductCliFriction(command, result, options = {}) {
+  const warn = options.warn ?? ((line) => console.error(line));
+  try {
+    const loadFrictionModule = options.loadFrictionModule
+      ?? (() => import(pathToFileURL(FRICTION_LOG_LIB).href));
+    const friction = await loadFrictionModule();
+    const recorded = friction.appendProductCliFrictionEvent({
+      command,
+      result,
+      env: options.env ?? process.env,
+    });
+    if (!recorded.ok) {
+      warn(`warning: ${recorded.reason_code}`);
+    }
+    return recorded;
+  } catch {
+    const recorded = {
+      ok: false,
+      enabled: true,
+      reason_code: 'FRICTION_INSTRUMENTATION_LOAD_FAILED',
+    };
+    warn(`warning: ${recorded.reason_code}`);
+    return recorded;
+  }
+}
+
+/**
+ * @param {string} command
+ * @param {{ exitCode?: number }} result
+ */
+async function exitProductCli(command, result) {
+  await recordProductCliFriction(command, result);
+  process.exit(Number.isInteger(result.exitCode) ? result.exitCode : 1);
+}
 
 /**
  * @param {string | undefined} cwd
@@ -252,6 +301,7 @@ async function runInit(options = {}) {
     report,
     text: formatInitText(report),
     exitCode: report.ok ? 0 : 1,
+    next_safe_action: deriveInitNextSafeAction(report),
     json: options.json === true ? report : null,
   };
 }
@@ -324,6 +374,7 @@ async function runStart(options) {
     })),
     text: formatStartText(launched, { flowMode: options.flowMode }),
     exitCode: launched.terminal_status === 'done' ? 0 : 3,
+    next_safe_action: `ai-minions status --run-id ${launched.task_id}`,
   };
 }
 
@@ -394,10 +445,10 @@ async function main() {
           console.error(`blocker: ${c.reason_code || c.operator_reason_code}`);
         }
       }
-      process.exit(result.exitCode);
+      return exitProductCli(cmd, result);
     } catch (err) {
       console.error(err instanceof Error ? err.message : String(err));
-      process.exit(1);
+      return exitProductCli(cmd, { ok: false, exitCode: 1 });
     }
   }
 
@@ -417,7 +468,7 @@ async function main() {
     if (!result.ok && result.reason_code) {
       console.error(`reason_code: ${result.reason_code}`);
     }
-    process.exit(result.exitCode);
+    return exitProductCli(cmd, result);
   }
 
   if (cmd === 'context') {
@@ -435,7 +486,7 @@ async function main() {
     if (!result.ok && result.reason_code) {
       console.error(`reason_code: ${result.reason_code}`);
     }
-    process.exit(result.exitCode);
+    return exitProductCli(cmd, result);
   }
 
   if (cmd === 'resume') {
@@ -453,7 +504,7 @@ async function main() {
     if (result.reason_code) {
       console.error(`reason_code: ${result.reason_code}`);
     }
-    process.exit(result.exitCode);
+    return exitProductCli(cmd, result);
   }
 
   if (cmd === 'status' || cmd === 'result') {
@@ -471,7 +522,7 @@ async function main() {
     if (!result.ok && result.reason_code) {
       console.error(`reason_code: ${result.reason_code}`);
     }
-    process.exit(result.exitCode);
+    return exitProductCli(cmd, result);
   }
 
   if (cmd === 'explain') {
@@ -489,13 +540,13 @@ async function main() {
     if (!result.ok && result.reason_code) {
       console.error(`reason_code: ${result.reason_code}`);
     }
-    process.exit(result.exitCode);
+    return exitProductCli(cmd, result);
   }
 
   if (cmd === 'report') {
     if (!opts.runId && !opts.latest && !opts.file) {
       console.error('report requires --run <id>, --run-id <id>, --latest, or --file <path>');
-      process.exit(1);
+      return exitProductCli(cmd, { ok: false, exitCode: 1 });
     }
     const result = runOperatorReport({
       runId: opts.runId ? String(opts.runId) : undefined,
@@ -514,13 +565,13 @@ async function main() {
     if (!result.ok && result.reason_code) {
       console.error(`reason_code: ${result.reason_code}`);
     }
-    process.exit(result.exitCode);
+    return exitProductCli(cmd, result);
   }
 
   if (cmd === 'tui') {
     if (!opts.runId && !opts.latest && !opts.file) {
       console.error('tui requires --run <id>, --run-id <id>, --latest, or --file <path>');
-      process.exit(1);
+      return exitProductCli(cmd, { ok: false, exitCode: 1 });
     }
     const result = runOperatorEvidenceTui({
       runId: opts.runId ? String(opts.runId) : undefined,
@@ -537,13 +588,13 @@ async function main() {
     if (!result.ok && result.reason_code) {
       console.error(`reason_code: ${result.reason_code}`);
     }
-    process.exit(result.exitCode);
+    return exitProductCli(cmd, result);
   }
 
   if (cmd === 'init') {
     if (opts.modelPolicy != null && !['local_only', 'remote_ok'].includes(String(opts.modelPolicy))) {
       console.error('blocker: unknown --model-policy value (expected local_only or remote_ok)');
-      process.exit(1);
+      return exitProductCli(cmd, { ok: false, exitCode: 1 });
     }
     const result = await runInit({
       cwd: opts.cwd,
@@ -565,7 +616,7 @@ async function main() {
         console.error(`blocker: ${b.reason_code}`);
       }
     }
-    process.exit(result.exitCode);
+    return exitProductCli(cmd, result);
   }
 
   if (cmd === 'first-run') {
@@ -586,10 +637,10 @@ async function main() {
       if (!result.ok && result.reason_code) {
         console.error(`reason_code: ${result.reason_code}`);
       }
-      process.exit(result.exitCode);
+      return exitProductCli(cmd, result);
     } catch (err) {
       console.error(err instanceof Error ? err.message : String(err));
-      process.exit(1);
+      return exitProductCli(cmd, { ok: false, exitCode: 1 });
     }
   }
 
@@ -625,7 +676,7 @@ async function main() {
           console.error(`next_safe_action: ${result.next_safe_action}`);
         }
       }
-      process.exit(result.exitCode);
+      return exitProductCli(cmd, result);
     } catch (err) {
       if (err && err.preflight) {
         console.error(formatPreflightText(err.preflight));
@@ -633,8 +684,10 @@ async function main() {
         console.error(err instanceof Error ? err.message : String(err));
       }
       const code = err && err.code;
-      if (code === 'AI_MINIONS_USAGE') process.exit(1);
-      process.exit(code === 'RUNNER_PREFLIGHT_BLOCKED' || code === 'RUNNER_WORKTREE_BLOCKED' ? 2 : 1);
+      const exitCode = code === 'RUNNER_PREFLIGHT_BLOCKED' || code === 'RUNNER_WORKTREE_BLOCKED'
+        ? 2
+        : 1;
+      return exitProductCli(cmd, { ok: false, exitCode });
     }
   }
 
@@ -654,13 +707,13 @@ async function main() {
     if (!result.ok && result.reason_code) {
       console.error(`reason_code: ${result.reason_code}`);
     }
-    process.exit(result.exitCode);
+    return exitProductCli(cmd, result);
   }
 
   if (cmd === 'start') {
     if (!opts.goal) {
       console.error('start requires --goal');
-      process.exit(1);
+      return exitProductCli(cmd, { ok: false, exitCode: 1 });
     }
     const modelPolicy = await resolveModelPolicyOption(opts);
     try {
@@ -683,7 +736,7 @@ async function main() {
       console.log(result.routingText);
       console.log('');
       console.log(result.text);
-      process.exit(result.exitCode);
+      return exitProductCli(cmd, result);
     } catch (err) {
       if (err && err.preflight) {
         console.error(formatPreflightText(err.preflight));
@@ -691,8 +744,10 @@ async function main() {
         console.error(err instanceof Error ? err.message : String(err));
       }
       const code = err && err.code;
-      if (code === 'AI_MINIONS_USAGE') process.exit(1);
-      process.exit(code === 'RUNNER_PREFLIGHT_BLOCKED' || code === 'RUNNER_WORKTREE_BLOCKED' ? 2 : 1);
+      const exitCode = code === 'RUNNER_PREFLIGHT_BLOCKED' || code === 'RUNNER_WORKTREE_BLOCKED'
+        ? 2
+        : 1;
+      return exitProductCli(cmd, { ok: false, exitCode });
     }
   }
 
@@ -712,6 +767,7 @@ module.exports = {
   defaultTracePath,
   resolveInstallRepoRoot,
   resolveConfigRepoRoot,
+  recordProductCliFriction,
   runInit,
   runStart,
   runOperatorStatus,

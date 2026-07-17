@@ -85,6 +85,28 @@ node scripts/cohort-ux-friction-log.mjs append --file /path/to/cohort-friction.j
 }'
 ```
 
+### Optional product CLI capture
+
+Product CLI command outcomes can append automatically when all four variables are set:
+
+```bash
+export AI_MINIONS_COHORT_FRICTION_LOG=/path/to/cohort-friction.jsonl
+export AI_MINIONS_COHORT_TESTER_ID=tester-opaque
+export AI_MINIONS_COHORT_SESSION_ID=session-opaque
+export AI_MINIONS_COHORT_STEP_INDEX=1
+ai-minions first-run
+```
+
+The path variable is the explicit opt-in; without it, CLI behavior is unchanged. Increment
+`AI_MINIONS_COHORT_STEP_INDEX` before each command. Capture records only the normalized command
+and structured result fields (`outcome`, exit/result/reason codes, task id, and observed
+`next_safe_action`). It never records raw argv, goals, prompts, cwd, host/user identity, or
+personal paths. A capture configuration/write failure emits only a
+`FRICTION_INSTRUMENTATION_*` warning and does not replace the product command exit result.
+
+Abandonment remains manual: automatic capture never infers `outcome=abandon`. Record that row
+with the collector command and explicitly set `abandon_step`.
+
 ### Validate log
 
 ```bash

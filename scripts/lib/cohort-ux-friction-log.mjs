@@ -3,7 +3,16 @@
  * Evidence-only; does not change operator CLI behavior.
  */
 
+import fs from "node:fs";
+import path from "node:path";
+
 export const SCHEMA_VERSION = 1;
+export const PRODUCT_CLI_FRICTION_ENV = Object.freeze({
+  file: "AI_MINIONS_COHORT_FRICTION_LOG",
+  testerId: "AI_MINIONS_COHORT_TESTER_ID",
+  sessionId: "AI_MINIONS_COHORT_SESSION_ID",
+  stepIndex: "AI_MINIONS_COHORT_STEP_INDEX",
+});
 
 export const FUNNEL_COMMANDS = Object.freeze([
   "first-run",
@@ -39,6 +48,7 @@ export const ALLOWED_ENTRY_KEYS = new Set([
   "outcome",
   "exit_code",
   "reason_code",
+  "result_code",
   "next_safe_action_observed",
   "next_safe_action_adequate",
   "needed_run_selection",
@@ -61,6 +71,157 @@ export function isIso8601Timestamp(value) {
   }
   const ms = Date.parse(value);
   return Number.isFinite(ms);
+}
+
+/**
+ * @param {unknown[]} values
+ * @returns {string | undefined}
+ */
+function firstNonEmptyString(values) {
+  return values.find((value) => typeof value === "string" && value.trim());
+}
+
+/**
+ * Build one privacy-safe event from a product CLI handler result.
+ * Raw argv and free-form command inputs are intentionally not accepted.
+ *
+ * @param {{
+ *   command: unknown,
+ *   result: unknown,
+ *   env?: Record<string, string | undefined>,
+ *   recordedAt?: string,
+ * }} options
+ * @returns {{ ok: true, entry: object } | { ok: false, reason_code: string }}
+ */
+export function buildProductCliFrictionEntry(options) {
+  const env = options.env ?? process.env;
+  const testerId = env[PRODUCT_CLI_FRICTION_ENV.testerId];
+  const sessionId = env[PRODUCT_CLI_FRICTION_ENV.sessionId];
+  const stepIndex = Number(env[PRODUCT_CLI_FRICTION_ENV.stepIndex]);
+  if (
+    typeof testerId !== "string"
+    || !testerId.trim()
+    || typeof sessionId !== "string"
+    || !sessionId.trim()
+    || !Number.isInteger(stepIndex)
+    || stepIndex < 1
+  ) {
+    return { ok: false, reason_code: "FRICTION_INSTRUMENTATION_CONFIG_INVALID" };
+  }
+
+  const rawResult = options.result;
+  const result = rawResult && typeof rawResult === "object"
+    ? /** @type {Record<string, any>} */ (rawResult)
+    : {};
+  const json = result.json && typeof result.json === "object" ? result.json : {};
+  const traceSummary = json.operator_trace_summary && typeof json.operator_trace_summary === "object"
+    ? json.operator_trace_summary
+    : {};
+  const runState = json.run_state_visibility && typeof json.run_state_visibility === "object"
+    ? json.run_state_visibility
+    : {};
+  const commandRaw = String(options.command ?? "");
+  const command = commandRaw === "result"
+    ? "status"
+    : (TRACKED_COMMANDS.includes(commandRaw) ? commandRaw : "other");
+  const exitCode = Number.isInteger(result.exitCode) ? result.exitCode : undefined;
+  const reasonCode = firstNonEmptyString([
+    result.reason_code,
+    json.reason_code,
+    json.blocking_reason_code,
+    runState.blocking_reason_code,
+  ]);
+  const resultCode = firstNonEmptyString([
+    result.result_code,
+    json.result_code,
+    runState.result_code,
+  ]);
+  const nextSafeAction = firstNonEmptyString([
+    result.next_safe_action,
+    json.next_safe_action,
+    traceSummary.next_safe_action,
+    runState.next_safe_action,
+    json.remediation,
+  ]);
+  const taskId = firstNonEmptyString([
+    result.task_id,
+    result.launched?.task_id,
+    json.run_id,
+    runState.run_id,
+  ]);
+
+  /** @type {Record<string, unknown>} */
+  const entry = {
+    schema_version: SCHEMA_VERSION,
+    recorded_at: options.recordedAt ?? new Date().toISOString(),
+    tester_id: testerId.trim(),
+    session_id: sessionId.trim(),
+    step_index: stepIndex,
+    command,
+    outcome: exitCode === 0 || (exitCode == null && result.ok === true) ? "success" : "fail",
+  };
+  if (exitCode != null) entry.exit_code = exitCode;
+  if (reasonCode) entry.reason_code = reasonCode;
+  if (resultCode) entry.result_code = resultCode;
+  if (nextSafeAction) entry.next_safe_action_observed = nextSafeAction;
+  if (taskId) entry.task_id = taskId;
+
+  const validated = validateFrictionEntry(entry);
+  if (!validated.ok) {
+    return { ok: false, reason_code: "FRICTION_INSTRUMENTATION_ENTRY_INVALID" };
+  }
+  return { ok: true, entry: validated.entry };
+}
+
+/**
+ * Best-effort append for explicitly enabled product CLI instrumentation.
+ * Failures are returned to the caller and never replace the command result.
+ *
+ * @param {{
+ *   command: unknown,
+ *   result: unknown,
+ *   env?: Record<string, string | undefined>,
+ *   recordedAt?: string,
+ *   mkdirSync?: typeof fs.mkdirSync,
+ *   appendFileSync?: typeof fs.appendFileSync,
+ * }} options
+ * @returns {{ ok: true, enabled: boolean } | { ok: false, enabled: true, reason_code: string }}
+ */
+export function appendProductCliFrictionEvent(options) {
+  const env = options.env ?? process.env;
+  const configuredPath = env[PRODUCT_CLI_FRICTION_ENV.file];
+  if (configuredPath == null || configuredPath === "") {
+    return { ok: true, enabled: false };
+  }
+  if (typeof configuredPath !== "string" || !configuredPath.trim()) {
+    return {
+      ok: false,
+      enabled: true,
+      reason_code: "FRICTION_INSTRUMENTATION_CONFIG_INVALID",
+    };
+  }
+
+  const built = buildProductCliFrictionEntry({ ...options, env });
+  if (!built.ok) {
+    return { ok: false, enabled: true, reason_code: built.reason_code };
+  }
+
+  try {
+    const outPath = path.resolve(configuredPath);
+    (options.mkdirSync ?? fs.mkdirSync)(path.dirname(outPath), { recursive: true });
+    (options.appendFileSync ?? fs.appendFileSync)(
+      outPath,
+      `${JSON.stringify(built.entry)}\n`,
+      "utf8",
+    );
+  } catch {
+    return {
+      ok: false,
+      enabled: true,
+      reason_code: "FRICTION_INSTRUMENTATION_WRITE_FAILED",
+    };
+  }
+  return { ok: true, enabled: true };
 }
 
 /**
@@ -149,6 +310,9 @@ export function validateFrictionEntry(entry) {
   }
   if (e.reason_code != null && typeof e.reason_code !== "string") {
     errors.push("reason_code must be a string when present");
+  }
+  if (e.result_code != null && typeof e.result_code !== "string") {
+    errors.push("result_code must be a string when present");
   }
   if (e.next_safe_action_observed != null && typeof e.next_safe_action_observed !== "string") {
     errors.push("next_safe_action_observed must be a string when present");

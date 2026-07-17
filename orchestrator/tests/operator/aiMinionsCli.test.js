@@ -3,6 +3,7 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
+const fs = require("node:fs");
 const os = require("os");
 const path = require("node:path");
 
@@ -16,6 +17,7 @@ const {
   runStart,
   defaultTracePath,
   resolveInstallRepoRoot,
+  recordProductCliFriction,
   REPO_ROOT,
 } = require("../../modules/operator/ai-minions-cli");
 
@@ -67,6 +69,61 @@ describe("ai-minions-cli help", () => {
     assert.match(r.stdout + r.stderr, /next_safe_action/);
   });
 
+  it("status appends one opt-in privacy-safe friction event", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ai-minions-friction-"));
+    const logFile = path.join(tmp, "friction.jsonl");
+    const r = spawnSync(
+      process.execPath,
+      [CLI_PATH, "status", "--run-id", "opaque-task"],
+      {
+        encoding: "utf8",
+        cwd: ORCH_CWD,
+        env: {
+          ...process.env,
+          ORCH_TRACES_DIR: path.join(ORCH_CWD, "tests", "fixtures", "no-traces-dir"),
+          AI_MINIONS_COHORT_FRICTION_LOG: logFile,
+          AI_MINIONS_COHORT_TESTER_ID: "tester-opaque",
+          AI_MINIONS_COHORT_SESSION_ID: "session-opaque",
+          AI_MINIONS_COHORT_STEP_INDEX: "2",
+        },
+      },
+    );
+    assert.equal(r.status, 2, r.stderr || r.stdout);
+    const rows = fs.readFileSync(logFile, "utf8").trim().split("\n").map(JSON.parse);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].command, "status");
+    assert.equal(rows[0].outcome, "fail");
+    assert.equal(rows[0].exit_code, 2);
+    assert.equal(rows[0].reason_code, "OPERATOR_TRACE_NOT_FOUND");
+    assert.equal(rows[0].result_code, "RUN_NOT_FOUND");
+    assert.equal(rows[0].task_id, undefined);
+    assert.doesNotMatch(JSON.stringify(rows[0]), /argv|cwd|hostname|username/);
+  });
+
+  it("instrumentation config failure preserves the product command exit", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ai-minions-friction-invalid-"));
+    const logFile = path.join(tmp, "friction.jsonl");
+    const r = spawnSync(
+      process.execPath,
+      [CLI_PATH, "status", "--run-id", "opaque-task"],
+      {
+        encoding: "utf8",
+        cwd: ORCH_CWD,
+        env: {
+          ...process.env,
+          ORCH_TRACES_DIR: path.join(ORCH_CWD, "tests", "fixtures", "no-traces-dir"),
+          AI_MINIONS_COHORT_FRICTION_LOG: logFile,
+          AI_MINIONS_COHORT_TESTER_ID: "",
+          AI_MINIONS_COHORT_SESSION_ID: "",
+          AI_MINIONS_COHORT_STEP_INDEX: "",
+        },
+      },
+    );
+    assert.equal(r.status, 2, r.stderr || r.stdout);
+    assert.match(r.stderr, /warning: FRICTION_INSTRUMENTATION_CONFIG_INVALID/);
+    assert.equal(fs.existsSync(logFile), false);
+  });
+
   it("result alias behaves like status", () => {
     const r = spawnSync(process.execPath, [CLI_PATH, "result", "--run-id", "no-such-task-e18"], {
       encoding: "utf8",
@@ -107,6 +164,26 @@ describe("ai-minions-cli args", () => {
     assert.equal(opts.noInstall, true);
     assert.equal(opts.goal, "smoke");
     assert.equal(opts.skipGates, true);
+  });
+});
+
+describe("ai-minions-cli friction boundary", () => {
+  it("keeps instrumentation failures observable without throwing or exposing paths", async () => {
+    const warnings = [];
+    const recorded = await recordProductCliFriction("status", { exitCode: 0 }, {
+      loadFrictionModule: async () => ({
+        appendProductCliFrictionEvent: () => ({
+          ok: false,
+          enabled: true,
+          reason_code: "FRICTION_INSTRUMENTATION_WRITE_FAILED",
+        }),
+      }),
+      warn: (line) => warnings.push(line),
+    });
+    assert.equal(recorded.ok, false);
+    assert.deepEqual(warnings, [
+      "warning: FRICTION_INSTRUMENTATION_WRITE_FAILED",
+    ]);
   });
 });
 

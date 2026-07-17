@@ -5,6 +5,8 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { runCohortUxFrictionLogCli } from "../scripts/cohort-ux-friction-log.mjs";
 import {
+  appendProductCliFrictionEvent,
+  buildProductCliFrictionEntry,
   buildSessionFunnel,
   isIso8601Timestamp,
   parseFrictionLogLines,
@@ -57,6 +59,88 @@ describe("cohort-ux-friction-log", () => {
     assert.equal(result.ok, false);
     if (!result.ok) {
       assert.ok(result.errors.some((e) => e.includes("command")));
+    }
+  });
+
+  it("buildProductCliFrictionEntry copies only structured CLI result fields", () => {
+    const result = buildProductCliFrictionEntry({
+      command: "result",
+      result: {
+        exitCode: 2,
+        reason_code: "OPERATOR_TRACE_NOT_FOUND",
+        result_code: "RUN_NOT_FOUND",
+        next_safe_action: "Provide --run-id <task_id>.",
+        json: { raw_argv: ["--run-id", "private-value"] },
+      },
+      env: {
+        AI_MINIONS_COHORT_FRICTION_LOG: "/tmp/friction.jsonl",
+        AI_MINIONS_COHORT_TESTER_ID: "tester-opaque",
+        AI_MINIONS_COHORT_SESSION_ID: "session-opaque",
+        AI_MINIONS_COHORT_STEP_INDEX: "3",
+      },
+      recordedAt: "2026-07-17T19:00:00Z",
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.entry, {
+      schema_version: 1,
+      recorded_at: "2026-07-17T19:00:00Z",
+      tester_id: "tester-opaque",
+      session_id: "session-opaque",
+      step_index: 3,
+      command: "status",
+      outcome: "fail",
+      exit_code: 2,
+      reason_code: "OPERATOR_TRACE_NOT_FOUND",
+      result_code: "RUN_NOT_FOUND",
+      next_safe_action_observed: "Provide --run-id <task_id>.",
+    });
+    assert.doesNotMatch(JSON.stringify(result.entry), /private-value|raw_argv/);
+  });
+
+  it("appendProductCliFrictionEvent is opt-in and isolates invalid configuration", () => {
+    const disabled = appendProductCliFrictionEvent({
+      command: "status",
+      result: { exitCode: 0 },
+      env: {},
+    });
+    assert.deepEqual(disabled, { ok: true, enabled: false });
+
+    const invalid = appendProductCliFrictionEvent({
+      command: "status",
+      result: { exitCode: 0 },
+      env: { AI_MINIONS_COHORT_FRICTION_LOG: "/tmp/friction.jsonl" },
+    });
+    assert.equal(invalid.ok, false);
+    assert.equal(invalid.reason_code, "FRICTION_INSTRUMENTATION_CONFIG_INVALID");
+  });
+
+  it("appendProductCliFrictionEvent writes one validated JSONL row", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "friction-product-"));
+    const logFile = path.join(tmp, "nested", "log.jsonl");
+    const result = appendProductCliFrictionEvent({
+      command: "first-run",
+      result: {
+        ok: true,
+        exitCode: 0,
+        reason_code: "FIRST_RUN_READY",
+        next_safe_action: "Run: ai-minions smoke",
+      },
+      env: {
+        AI_MINIONS_COHORT_FRICTION_LOG: logFile,
+        AI_MINIONS_COHORT_TESTER_ID: "tester-01",
+        AI_MINIONS_COHORT_SESSION_ID: "session-01",
+        AI_MINIONS_COHORT_STEP_INDEX: "1",
+      },
+      recordedAt: "2026-07-17T19:00:00Z",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.enabled, true);
+    const parsed = parseFrictionLogLines(fs.readFileSync(logFile, "utf8"));
+    assert.equal(parsed.ok, true);
+    if (parsed.ok) {
+      assert.equal(parsed.entries.length, 1);
+      assert.equal(parsed.entries[0].reason_code, "FIRST_RUN_READY");
     }
   });
 
