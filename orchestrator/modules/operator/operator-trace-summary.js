@@ -138,7 +138,12 @@ function deriveBlockedGates(rows, ros) {
     if (!gates.includes(label)) gates.push(label);
   }
   for (const r of rows) {
-    if (r && r.event === "budget_block" && typeof r.reason_code === "string") {
+    if (!r) continue;
+    if (r.event === "contract_fail" && typeof r.gate_id === "string" && r.gate_id) {
+      const label = `contract_fail:${r.gate_id}`;
+      if (!gates.includes(label)) gates.push(label);
+    }
+    if (r.event === "budget_block" && typeof r.reason_code === "string") {
       const label = `budget_block:${r.reason_code}`;
       if (!gates.includes(label)) gates.push(label);
     }
@@ -146,6 +151,19 @@ function deriveBlockedGates(rows, ros) {
   if (ros.review?.cerberus_verdict === "block") gates.push("cerberus:block");
   else if (ros.review?.cerberus_verdict === "request_changes") gates.push("cerberus:request_changes");
   return gates;
+}
+
+/**
+ * @param {object[]} rows
+ * @returns {object | null}
+ */
+function findLatestContractFail(rows) {
+  if (!Array.isArray(rows)) return null;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if (r && r.event === "contract_fail") return r;
+  }
+  return null;
 }
 
 /**
@@ -210,7 +228,10 @@ function derivePolicyDecision(rows, ros) {
  * @returns {{ tokens: number | null, estimated_cost: number | null, confidence: string | null }}
  */
 function deriveBudget(ros) {
-  const tokens = typeof ros.cost.ollama_total_tokens === "number" ? ros.cost.ollama_total_tokens : null;
+  // 0 means measured zero; unmeasured must stay null → operator UI "unavailable".
+  const tokens = typeof ros.cost.ollama_total_tokens === "number" && ros.cost.ollama_total_tokens > 0
+    ? ros.cost.ollama_total_tokens
+    : null;
   const usd = ros.cost.usd_estimate;
   const estimated_cost = usd && typeof usd.usd_total_estimate === "number"
     ? usd.usd_total_estimate
@@ -270,6 +291,9 @@ function deriveNextSafeAction(outcome, summary, meta = {}) {
   if (outcome === "unknown") {
     return `Inspect via ${statusCmd}; if the run finished, run ${attachCmd} for evidence.`;
   }
+  if (meta.output_contract_fail || summary.blocking_reason_code === "orchestrator_json") {
+    return `Run ${attachCmd} and inspect the planner output-contract evidence.`;
+  }
   if (outcome === "blocked" || outcome === "failed") {
     if (!hasBundle) {
       return `Run: ${attachEvenIfMissing}`;
@@ -301,6 +325,15 @@ function deriveNextSafeAction(outcome, summary, meta = {}) {
 function deriveOutcome(ros, rows, degraded) {
   if (!rows.length || !rows.some((r) => r && r.event === "session_start")) return "unknown";
   if (!hasSessionEnd(rows)) return "unknown";
+
+  const contractFail = findLatestContractFail(rows);
+  if (
+    contractFail
+    && (contractFail.failure_class === "output_contract" || contractFail.critical === true)
+    && ros.what.done !== true
+  ) {
+    return "failed";
+  }
 
   const blockedGates = deriveBlockedGates(rows, ros);
   const cerb = ros.review?.cerberus_verdict;
@@ -448,6 +481,10 @@ function deriveModelSelectionContext(rows) {
 function deriveBlockingReasonCode(summary, rows) {
   if (summary.policy_decision?.reason_code) {
     return summary.policy_decision.reason_code;
+  }
+  const contractFail = findLatestContractFail(rows);
+  if (contractFail && typeof contractFail.gate_id === "string" && contractFail.gate_id) {
+    return contractFail.gate_id;
   }
   for (let i = rows.length - 1; i >= 0; i--) {
     const r = rows[i];
@@ -755,8 +792,14 @@ function buildOperatorTraceSummary(rows, meta = {}) {
   };
 
   summary.risk_category = deriveRiskCategory(summary, ros);
+  const contractFail = findLatestContractFail(rows);
+  summary.blocking_reason_code = deriveBlockingReasonCode(summary, rows);
   summary.next_safe_action = deriveNextSafeAction(outcome, summary, {
     attach_bundle: meta.attach_bundle_path ?? null,
+    output_contract_fail: contractFail
+      && (contractFail.failure_class === "output_contract" || contractFail.critical === true)
+      ? contractFail
+      : null,
   });
   return summary;
 }
@@ -787,7 +830,7 @@ function formatOperatorTraceSummaryLines(summary) {
   }
   lines.push(`cerberus: ${summary.cerberus.verdict ?? "-"}  evidence_ref: ${summary.cerberus.evidence_ref ?? "-"}`);
   const b = summary.budget;
-  lines.push(`budget: tokens=${b.tokens ?? "?"}  cost~=${b.estimated_cost ?? "?"}  confidence=${b.confidence ?? "-"}`);
+  lines.push(`budget: tokens=${b.tokens ?? "unavailable"}  cost~=${b.estimated_cost ?? "unavailable"}  confidence=${b.confidence ?? "-"}`);
   lines.push(`artifacts: trace=${summary.artifacts.trace ?? "-"}  report=${summary.artifacts.report ?? "-"}  bundle=${summary.artifacts.attach_bundle ?? "-"}`);
   if (summary.missing_evidence.length) {
     lines.push(`missing_evidence: ${summary.missing_evidence.join(", ")}`);

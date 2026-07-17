@@ -103,6 +103,46 @@ describe("cohort-ux-friction-log", () => {
     assert.doesNotMatch(JSON.stringify(result.entry), /private-value|raw_argv/);
   });
 
+  it("buildProductCliFrictionEntry preserves smoke output-contract fields", () => {
+    const result = buildProductCliFrictionEntry({
+      command: "smoke",
+      result: {
+        exitCode: 3,
+        reason_code: "SMOKE_OUTPUT_CONTRACT",
+        failure_class: "output_contract",
+        gate_id: "orchestrator_json",
+        phase: "planning",
+        task_id: "task-friction-1",
+        model: "qwen2.5-coder:14b",
+        model_policy: "local_only",
+        next_safe_action: "Run: ai-minions attach --run-id task-friction-1 and inspect the planner output-contract evidence.",
+        launched: {
+          task_id: "task-friction-1",
+          preflight: {
+            selected_model: "qwen2.5-coder:14b",
+            model_policy: "local_only",
+          },
+        },
+      },
+      env: {
+        AI_MINIONS_COHORT_FRICTION_LOG: "/tmp/friction.jsonl",
+        AI_MINIONS_COHORT_TESTER_ID: "tester-opaque",
+        AI_MINIONS_COHORT_SESSION_ID: "session-opaque",
+        AI_MINIONS_COHORT_STEP_INDEX: "2",
+      },
+      recordedAt: "2026-07-17T19:02:00Z",
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.entry.reason_code, "SMOKE_OUTPUT_CONTRACT");
+    assert.equal(result.entry.failure_class, "output_contract");
+    assert.equal(result.entry.gate_id, "orchestrator_json");
+    assert.equal(result.entry.phase, "planning");
+    assert.equal(result.entry.model, "qwen2.5-coder:14b");
+    assert.equal(result.entry.model_policy, "local_only");
+    assert.equal(result.entry.task_id, "task-friction-1");
+  });
+
   it("buildProductCliFrictionEntry keeps runs as a normalized command", () => {
     const result = buildProductCliFrictionEntry({
       command: "runs",

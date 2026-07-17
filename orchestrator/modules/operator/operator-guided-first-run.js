@@ -216,7 +216,8 @@ function classifySmokeFailure(traceStatus) {
   const hasContractSignal = contractBlocks.length > 0
     || contractFails > 0
     || reasonCode === 'MAX_ITERATIONS_CERBERUS_BLOCKERS'
-    || reasonCode === 'MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS';
+    || reasonCode === 'MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS'
+    || reasonCode === 'CONTRACT_OR_DECIDE_FAILURE';
 
   if (hasContractSignal) {
     const primary = contractBlocks[0] || null;
@@ -231,11 +232,23 @@ function classifySmokeFailure(traceStatus) {
     const message = contractBlocks.length > 1
       ? `${role}: ${reason} (+${contractBlocks.length - 1} more gate block(s))`
       : `${role}: ${reason}`;
+    let phase = null;
+    if (Array.isArray(traceStatus.rows)) {
+      for (let i = traceStatus.rows.length - 1; i >= 0; i--) {
+        const row = traceStatus.rows[i];
+        if (row && row.event === 'contract_fail' && typeof row.phase === 'string' && row.phase) {
+          phase = row.phase;
+          break;
+        }
+      }
+    }
+    if (!phase && gateId === 'orchestrator_json') phase = 'planning';
     return {
       reason_code: SMOKE_REASON_CODES.OUTPUT_CONTRACT,
       failure_class: 'output_contract',
       message,
       gate_id: gateId,
+      phase,
       transition_reason: reasonCode || null,
       gate_blocks: contractBlocks,
     };
@@ -260,14 +273,12 @@ function classifySmokeFailure(traceStatus) {
  * @returns {string}
  */
 function deriveSmokeNextSafeAction(ctx) {
-  // Guided chain: smoke → status → attach (ok or fail-with-task_id). No merge/CERBERUS language.
+  // Guided chain: smoke → status → attach. Output-contract fails go straight to attach (no status loop).
   if (ctx.task_id) {
-    const chain =
-      `Run: ai-minions status --run-id ${ctx.task_id} then ai-minions attach --run-id ${ctx.task_id}`;
     if (!ctx.ok && ctx.reason_code === SMOKE_REASON_CODES.OUTPUT_CONTRACT) {
-      return `${chain} — failure captured counts for beta dry-run (checklist B.3)`;
+      return `Run: ai-minions attach --run-id ${ctx.task_id} and inspect the planner output-contract evidence.`;
     }
-    return chain;
+    return `Run: ai-minions status --run-id ${ctx.task_id} then ai-minions attach --run-id ${ctx.task_id}`;
   }
   if (ctx.ok) {
     return 'Run: ai-minions status --run-id <task_id> from smoke output';
@@ -306,6 +317,9 @@ function formatSmokeText(ctx) {
     lines.push(`  blocker_summary:  ${ansi(useColor, '1;31', ctx.classification.message)}`);
     if (ctx.classification.gate_id) {
       lines.push(`  gate_id:          ${ctx.classification.gate_id}`);
+    }
+    if (ctx.classification.phase) {
+      lines.push(`  phase:            ${ctx.classification.phase}`);
     }
     if (ctx.classification.transition_reason) {
       lines.push(`  transition_reason: ${ctx.classification.transition_reason}`);
@@ -466,6 +480,7 @@ async function runSmoke(options = {}) {
     useColor,
   });
 
+  const preflight = result.launched?.preflight;
   return {
     ...result,
     ok,
@@ -474,6 +489,9 @@ async function runSmoke(options = {}) {
     failure_class: classification?.failure_class ?? null,
     blocker_summary: classification?.message ?? null,
     gate_id: classification?.gate_id ?? null,
+    phase: classification?.phase ?? null,
+    model: typeof preflight?.selected_model === 'string' ? preflight.selected_model : null,
+    model_policy: typeof preflight?.model_policy === 'string' ? preflight.model_policy : null,
     next_safe_action,
     smokeText,
     traceStatus,

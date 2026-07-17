@@ -58,6 +58,11 @@ export const ALLOWED_ENTRY_KEYS = new Set([
   "task_id",
   "ai_minions_version",
   "abandon_step",
+  "failure_class",
+  "gate_id",
+  "phase",
+  "model",
+  "model_policy",
 ]);
 
 const ISO_8601_TIMESTAMP_RE =
@@ -166,6 +171,26 @@ export function buildProductCliFrictionEntry(options) {
   if (resultCode) entry.result_code = resultCode;
   if (nextSafeAction) entry.next_safe_action_observed = nextSafeAction;
   if (taskId) entry.task_id = taskId;
+
+  const failureClass = firstNonEmptyString([result.failure_class, json.failure_class]);
+  const gateId = firstNonEmptyString([result.gate_id, json.gate_id]);
+  const phase = firstNonEmptyString([result.phase, json.phase, traceSummary.current_phase]);
+  const model = firstNonEmptyString([
+    result.model,
+    json.model,
+    runState.model,
+    result.launched?.preflight?.selected_model,
+  ]);
+  const modelPolicy = firstNonEmptyString([
+    result.model_policy,
+    json.model_policy,
+    result.launched?.preflight?.model_policy,
+  ]);
+  if (failureClass) entry.failure_class = failureClass;
+  if (gateId) entry.gate_id = gateId;
+  if (phase) entry.phase = phase;
+  if (model) entry.model = model;
+  if (modelPolicy) entry.model_policy = modelPolicy;
 
   const validated = validateFrictionEntry(entry);
   if (!validated.ok) {

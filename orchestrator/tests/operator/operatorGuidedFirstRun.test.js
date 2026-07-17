@@ -229,13 +229,13 @@ describe("operator-guided-first-run", () => {
     assert.match(text, /failure_class:\s+output_contract/);
     assert.match(text, /gate_id:\s+finding_classification_missing/);
     assert.match(text, /checklist B\.3/);
-    assert.match(text, /ai-minions status --run-id task-abc/);
     assert.match(text, /ai-minions attach --run-id task-abc/);
+    assert.doesNotMatch(text, /ai-minions status --run-id task-abc then/);
     assert.doesNotMatch(text, /ai-minions explain --run-id/);
     assert.match(text, /max_iterations=1 is repair rounds/);
   });
 
-  it("deriveSmokeNextSafeAction prefers status then attach for ok and B.3 fail", () => {
+  it("deriveSmokeNextSafeAction prefers attach for OUTPUT_CONTRACT and status→attach otherwise", () => {
     assert.match(
       deriveSmokeNextSafeAction({
         ok: true,
@@ -249,8 +249,8 @@ describe("operator-guided-first-run", () => {
       reason_code: SMOKE_REASON_CODES.OUTPUT_CONTRACT,
       task_id: "task-b3",
     });
-    assert.match(b3, /status --run-id task-b3 then ai-minions attach --run-id task-b3/);
-    assert.match(b3, /checklist B\.3/);
+    assert.match(b3, /attach --run-id task-b3 and inspect the planner output-contract evidence/);
+    assert.doesNotMatch(b3, /status --run-id task-b3 then/);
     assert.doesNotMatch(b3, /explain/);
     assert.doesNotMatch(b3, /merge|CERBERUS/i);
   });
