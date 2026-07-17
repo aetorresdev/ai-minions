@@ -8,6 +8,7 @@
 const { loadOperatorTraceContext } = require('./operator-trace-command');
 const { buildRunOutcomeSummary } = require('../trace/run-outcome-summary');
 const { ansi } = require('./terminal-style');
+const { formatRunIdArg } = require('./operator-run-list');
 
 const DISCLOSURE_ACTIONS = ['hidden', 'exposed', 'partial'];
 
@@ -269,7 +270,7 @@ function runOperatorContext(options = {}) {
  */
 function deriveResumeNextSafeAction(ctx) {
   if (ctx && ctx.run_id) {
-    const id = ctx.run_id;
+    const id = formatRunIdArg(String(ctx.run_id));
     return (
       `Run: ai-minions status --run-id ${id} then ai-minions attach --run-id ${id}; `
       + 'start a new run (ai-minions smoke / start) if continuing work — product resume is not implemented'
@@ -286,7 +287,7 @@ function deriveResumeNextSafeAction(ctx) {
  */
 function deriveResumeInspectAlternatives(ctx) {
   if (ctx && ctx.run_id) {
-    const runId = ctx.run_id;
+    const runId = formatRunIdArg(String(ctx.run_id));
     return [
       `ai-minions status --run-id ${runId}`,
       `ai-minions attach --run-id ${runId}`,

@@ -264,7 +264,7 @@ Symptom-first reference below. Stable `reason_code` values and full check list: 
 | Agent used API without permission | No `ENVIRONMENT` block in header | Add `ENVIRONMENT` with names only — `.env` alone does **not** grant permission |
 | `multi_agent` hooks silent | Wrong `CWD` or hooks not installed | `CWD` must be absolute real path; check `logs/orchestrator.log` under clone if hooks enabled |
 | TUI ignores MODE header | Header not at **start** of chat or paraphrased | Paste exact block from [Advanced paths — orchestration header](#orchestration-header-claude-code) |
-| `resume` exit `2` | Durable resume not implemented | `RUN_RESUME_NOT_IMPLEMENTED` — use `status` / `explain` or new `start` ([blockers guide](operator-blockers-and-recovery.md)) |
+| `resume` exit `2` | Durable resume not implemented (`supported:false` wins even if `checkpoint_eligible=true`) | `RUN_RESUME_NOT_IMPLEMENTED` — use `status` → `attach` for the run id, or `runs` / new `smoke` when no selector ([blockers guide](operator-blockers-and-recovery.md)) |
 | Overclaim confusion | README vs runbook mismatch | Use **implemented / planned / not claimed** — [README maturity](../../README.md#maturity-implemented--planned--not-claimed) |
 
 ### Quick diagnostic commands

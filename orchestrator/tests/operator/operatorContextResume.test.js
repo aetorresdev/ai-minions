@@ -14,6 +14,7 @@ const {
   RUN_RESUME_NOT_IMPLEMENTED,
   ELIGIBLE_NOT_SUPPORTED_BANNER,
   deriveResumeNextSafeAction,
+  deriveResumeInspectAlternatives,
 } = require("../../modules/operator/operator-context-resume");
 const { loadOperatorTraceContext } = require("../../modules/operator/operator-trace-command");
 
@@ -130,6 +131,20 @@ describe("operator-context-resume runOperatorResume", () => {
     const without = deriveResumeNextSafeAction(null);
     assert.match(without, /runs --limit 10/);
     assert.match(without, /smoke/);
+  });
+
+  it("shell-quotes unsafe run ids in next_safe_action and inspect_instead", () => {
+    const unsafeId = "weird run; touch SHOULD_NOT_COPY";
+    const ctx = { run_id: unsafeId };
+    const next = deriveResumeNextSafeAction(ctx);
+    const alts = deriveResumeInspectAlternatives(ctx);
+    assert.match(next, /status --run-id 'weird run; touch SHOULD_NOT_COPY'/);
+    assert.match(next, /attach --run-id 'weird run; touch SHOULD_NOT_COPY'/);
+    assert.doesNotMatch(next, /status --run-id weird run;/);
+    for (const cmd of alts.slice(0, 3)) {
+      assert.match(cmd, /--run-id 'weird run; touch SHOULD_NOT_COPY'/);
+      assert.doesNotMatch(cmd, /--run-id weird run;/);
+    }
   });
 
   it("resume with missing trace keeps RUN_RESUME_NOT_IMPLEMENTED as primary reason", () => {
