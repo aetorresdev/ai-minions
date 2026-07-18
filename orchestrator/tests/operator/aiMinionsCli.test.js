@@ -33,7 +33,7 @@ describe("ai-minions-cli help", () => {
     assert.equal(r.status, 0, r.stderr || r.stdout);
     const out = r.stdout;
     assert.match(out, /ai-minions — product CLI/);
-    assert.match(out, /init\s+Validate host prereqs/);
+    assert.match(out, /init\s+Host prereqs \+ model discovery \+ config \+ runtime integration/);
     assert.match(out, /start\s+Preflight then launch/);
     assert.match(out, /runs\s+List recent runs/);
     assert.match(out, /status\s+Operator trace summary/);

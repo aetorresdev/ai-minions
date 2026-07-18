@@ -225,7 +225,7 @@ describe("ai-minions-cli-install", () => {
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stdout, /ai-minions — product CLI/);
-    assert.match(result.stdout, /init\s+Validate host prereqs/);
+    assert.match(result.stdout, /init\s+Host prereqs \+ model discovery \+ config \+ runtime integration/);
   });
 
   it("runInstallAiMinions attaches product_cli_ok when host + cli install succeed", async () => {
@@ -234,6 +234,7 @@ describe("ai-minions-cli-install", () => {
     const binDir = path.join(homeDir, "bin");
 
     const report = await runInstallAiMinions({
+      skipRuntimeIntegration: true,
       repoRoot,
       nodeVersion: "20.0.0",
       commandExists: () => true,
