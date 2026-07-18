@@ -52,7 +52,7 @@ node scripts/run-beta-cohort-guard.mjs --json
    - `node scripts/run-beta-cohort-guard.mjs` exits `0`
    - `human-ready-rehearsal-record.json` records `record.status` = `LIVE_PASS`
 
-5. **UX discovery (parallel):** while cohort runs, collect friction evidence per [cohort-ux-discovery-runbook](cohort-ux-discovery-runbook.md) before promoting v0.24 Operator UX.
+5. **UX discovery (parallel):** while cohort runs, collect friction evidence per [cohort-ux-discovery-runbook](cohort-ux-discovery-runbook.md). Operator UX cut ships in **`v0.24.0-beta.1`**; friction logs remain for ongoing cohort quality — not a substitute for `LIVE_PASS`.
 
 **Not sufficient alone:** doc-chain `DOC_CHAIN_PASS` or cohort guard exit `0` without `LIVE_PASS`.
 
