@@ -14,6 +14,12 @@ const {
   resolveRoleDefaultTier,
   listAllowedModelsForTier,
 } = require('./model-policy-config');
+const {
+  assertModelMeetsRoleCapability,
+  pickCapableModel,
+  MODEL_CAPABILITY_INSUFFICIENT,
+} = require('./role-capability-probes');
+const { isCriticalCapabilityRole } = require('./role-capability-profile');
 
 /** Sources from selectLocalModel / CLI that pin every role to one model. */
 const GLOBAL_PIN_SOURCES = new Set([
@@ -362,11 +368,43 @@ function assertModelInInventory(model, inventory, roleKey, extra = {}) {
 }
 
 /**
+ * @param {string} message
+ * @param {Record<string, unknown>} [extra]
+ */
+function createCapabilityInsufficientError(message, extra = {}) {
+  const err = new Error(message);
+  err.gate_id = 'model_capability';
+  err.code = MODEL_CAPABILITY_INSUFFICIENT;
+  Object.assign(err, extra);
+  return err;
+}
+
+/**
+ * Apply capability evidence when present (critical roles only).
+ * @param {string} model
+ * @param {string} roleKey
+ * @param {{ cwd?: string, capabilityByModel?: object }} opts
+ */
+function enforceRoleCapability(model, roleKey, opts) {
+  if (!isCriticalCapabilityRole(roleKey)) return;
+  try {
+    assertModelMeetsRoleCapability(model, roleKey, {
+      cwd: opts.cwd,
+      capabilityByModel: opts.capabilityByModel,
+    });
+  } catch (err) {
+    if (err && err.code === MODEL_CAPABILITY_INSUFFICIENT) throw err;
+    throw err;
+  }
+}
+
+/**
  * Resolve local Ollama model for a MODE role under local_only.
  * Precedence: MODEL_OVERRIDE_<ROLE> → global CLI/env pin → role_defaults+tiers ∩ inventory → YAML default_model.
+ * Critical roles skip models with failing capability evidence and prefer capable inventory hits.
  *
  * @param {string} role
- * @param {{ cwd?: string, inventory?: string[] | null, cliModel?: string | null }} [opts]
+ * @param {{ cwd?: string, inventory?: string[] | null, cliModel?: string | null, capabilityByModel?: object }} [opts]
  * @returns {{
  *   model: string,
  *   role: string,
@@ -386,10 +424,12 @@ function selectModelForRole(role, opts = {}) {
 
   const cwd = opts.cwd ?? _runConfig.cwd ?? process.cwd();
   const inventory = resolveInventorySet(opts);
+  const capOpts = { cwd, capabilityByModel: opts.capabilityByModel };
 
   const roleOverride = resolveRoleEnvOverride(roleKey);
   if (roleOverride) {
     assertModelInInventory(roleOverride, inventory, roleKey);
+    enforceRoleCapability(roleOverride, roleKey, capOpts);
     return {
       model: roleOverride,
       role: roleKey,
@@ -402,6 +442,7 @@ function selectModelForRole(role, opts = {}) {
   const globalPin = resolveGlobalModelPin(opts);
   if (globalPin) {
     assertModelInInventory(globalPin.model, inventory, roleKey);
+    enforceRoleCapability(globalPin.model, roleKey, capOpts);
     return {
       model: globalPin.model,
       role: roleKey,
@@ -428,13 +469,32 @@ function selectModelForRole(role, opts = {}) {
         { role: roleKey, tier },
       );
     }
-    const chosen = candidates.find((m) => inventory.has(m)) ?? null;
+
+    let chosen = null;
+    if (isCriticalCapabilityRole(roleKey)) {
+      chosen = pickCapableModel(candidates, inventory, roleKey, capOpts);
+      if (!chosen) {
+        const inInv = candidates.filter((m) => inventory.has(m));
+        if (inInv.length) {
+          throw createCapabilityInsufficientError(
+            `[local-only] ${MODEL_CAPABILITY_INSUFFICIENT} for role "${roleKey}": `
+              + `no inventory model from tier "${tier}" passed capability probes `
+              + `(selection is capability-based, not brand/size).`,
+            { role: roleKey, tier, candidates: inInv },
+          );
+        }
+      }
+    }
+    if (!chosen) {
+      chosen = candidates.find((m) => inventory.has(m)) ?? null;
+    }
     if (!chosen) {
       throw createModelNotFoundError(
         `[local-only] MODEL_NOT_FOUND for role "${roleKey}": no model from tier "${tier}" present in discovery inventory.`,
         { role: roleKey, tier, candidates: [...candidates] },
       );
     }
+    enforceRoleCapability(chosen, roleKey, capOpts);
     return {
       model: chosen,
       role: roleKey,
@@ -454,6 +514,7 @@ function selectModelForRole(role, opts = {}) {
     );
   }
   assertModelInInventory(legacyModel, inventory, roleKey);
+  enforceRoleCapability(legacyModel, roleKey, capOpts);
   return {
     model: legacyModel,
     role: roleKey,
@@ -497,6 +558,7 @@ function getEffectiveOllamaModel(ctx = {}) {
 module.exports = {
   GATE_ID,
   MODEL_NOT_FOUND,
+  MODEL_CAPABILITY_INSUFFICIENT,
   isLocalOnlyModeEnabled,
   resolveLocalModelOverride,
   configureLocalModelPolicy,

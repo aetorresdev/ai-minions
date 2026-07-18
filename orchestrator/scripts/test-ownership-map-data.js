@@ -96,6 +96,7 @@ const ENTRIES = {
   'tests/localBackendAdapter.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/installModelConfig.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/inferenceProfileResolve.test.js': { owner: 'model-runtime', kind: 'unit' },
+  'tests/roleCapabilityProbes.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/runtimePreflight.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/localCapGateTransportBudget.test.js': { owner: 'tools', kind: 'unit' },
   'tests/localModelPolicy.test.js': { owner: 'model-runtime', kind: 'unit' },
