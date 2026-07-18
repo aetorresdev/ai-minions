@@ -162,8 +162,24 @@ function isLocalOnlyModeEnabledEnv(env = process.env) {
 }
 
 /**
+ * True when callers force the Ollama agent backend (setBackend / forceOllama).
+ * Lazy-requires agents to avoid a hard tools↔agents cycle at load time.
+ * @param {{ forceOllama?: boolean }} options
+ * @returns {boolean}
+ */
+function isOllamaBackendForced(options = {}) {
+  if (options.forceOllama === true) return true;
+  try {
+    const { getBackendOverride } = require("../shared/agents");
+    return typeof getBackendOverride === "function" && getBackendOverride() === "ollama";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Resolve MCP gate transport.
- * Precedence: ORCH_MCP_TRANSPORT env → local_only default `direct` → `claude_cli`.
+ * Precedence: ORCH_MCP_TRANSPORT env → local_only / forceOllama default `direct` → `claude_cli`.
  * @param {{
  *   env?: NodeJS.ProcessEnv,
  *   modelPolicy?: string | null,
@@ -181,7 +197,11 @@ function resolveMcpTransport(options = {}) {
   const policy = options.modelPolicy != null
     ? String(options.modelPolicy).trim().toLowerCase()
     : null;
-  if (policy === "local_only" || options.forceOllama === true || isLocalOnlyModeEnabledEnv(env)) {
+  if (
+    policy === "local_only"
+    || isOllamaBackendForced(options)
+    || isLocalOnlyModeEnabledEnv(env)
+  ) {
     return "direct";
   }
   return "claude_cli";

@@ -50,6 +50,24 @@ describe("resolveMcpTransport", () => {
       "claude_cli",
     );
   });
+
+  it("defaults to direct when forceOllama option is set", () => {
+    assert.equal(
+      resolveMcpTransport({ env: {}, modelPolicy: "remote_ok", forceOllama: true }),
+      "direct",
+    );
+  });
+
+  it("defaults to direct when setBackend(ollama) is active", () => {
+    const { setBackend, getBackendOverride } = require("../modules/shared/agents");
+    const prev = getBackendOverride();
+    try {
+      setBackend("ollama");
+      assert.equal(resolveMcpTransport({ env: {}, modelPolicy: "remote_ok" }), "direct");
+    } finally {
+      setBackend(prev === "ollama" ? "ollama" : "claude");
+    }
+  });
 });
 
 describe("mapClaudeCliTransportError", () => {

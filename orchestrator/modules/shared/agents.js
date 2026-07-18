@@ -249,6 +249,8 @@ function buildEnvContext(agentId, sessionEnv) {
 // Never set via env var in production — this variable is module-scoped only.
 let _backendOverride = null;
 function setBackend(name) { _backendOverride = (name === "ollama") ? "ollama" : null; }
+/** @returns {"ollama" | null} */
+function getBackendOverride() { return _backendOverride; }
 
 /** @type {((payload: Record<string, unknown>) => void) | null} */
 let _modelSelectionReporter = null;
@@ -750,6 +752,7 @@ module.exports = {
   clearDegradedAgents,
   setModelProfile,
   setBackend,
+  getBackendOverride,
   setModelSelectionTraceReporter,
   describeModelSelectionSource,
   inferModelTier: require("../trace/model-selection-trace").inferModelTier,
