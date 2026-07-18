@@ -1,10 +1,10 @@
 # Provider inference profile contract
 
 Declarative provider inference knobs recorded at install time in `.ai-minions/model_policy.json`.
-**v0.14:** profiles are written and validated only — runtime does **not** enforce them.
+**Ollama runtime:** `max_tokens` is applied as `options.num_predict` via `resolveOllamaNumPredict` (precedence: `OLLAMA_NUM_PREDICT` → `by_role` → `default` → `2048`). Other providers remain declarative until their adapters enforce profiles.
 
-**Implementation:** `orchestrator/install-model-config.js` · `orchestrator/modules/model-runtime/model-policy-config.js`  
-**Consumer:** `scripts/install-ai-minions.mjs` (config-write phase)
+**Implementation:** `orchestrator/install-model-config.js` · `orchestrator/modules/model-runtime/model-policy-config.js` · `orchestrator/modules/model-runtime/inference-profile-resolve.js` · `orchestrator/modules/model-runtime/run-ollama.js`
+**Consumer:** `scripts/install-ai-minions.mjs` (config-write phase); Ollama chat path at runtime
 
 ## Problem
 
@@ -67,20 +67,21 @@ Install report adds:
 | `max_tokens` | positive number |
 | `profile_source` | optional string (e.g. `installer_default`) |
 
-## Profile application status (future runtime)
+## Profile application status
 
 | Value | Meaning |
 |-------|---------|
-| `declarative` | Recorded at install; not enforced in v0.14 |
-| `applied` | Runtime used profile values (post-v0.14) |
+| `declarative` | Recorded at install; not yet enforced for that provider |
+| `applied` | Runtime used profile values (Ollama `max_tokens` → `num_predict`) |
+| `env` | Operator override via `OLLAMA_NUM_PREDICT` |
+| `default` | Built-in fallback (`2048`) when no profile/env |
 | `provider_default` | Provider default used; must be traced |
 | `unsupported_provider` | No profile schema entry for provider |
 
-## Trace fields (minimum — future)
+## Trace fields (minimum)
 
-- `provider_id`, `role`, `effort`, `thinking_mode`, `thinking_display`, `max_tokens`
-- `profile_source` (`installer_default` \| `model_policy_json` \| `provider_default`)
-- `inference_profile_mode`
+- `num_predict`, `profile_source`, `inference_profile_mode` on Ollama responses
+- Empty content with `done_reason=length` → gate_id `OUTPUT_BUDGET_EXHAUSTED` (not generic `empty_output`)
 
 ## Failure / reason codes
 
@@ -88,14 +89,15 @@ Install report adds:
 |------|------|
 | `INSTALL_MODEL_POLICY_WRITE_FAILED` | Cannot write config including profile section |
 | `INSTALL_INFERENCE_PROFILE_INVALID` | Invalid enum/value during validation |
+| `OUTPUT_BUDGET_EXHAUSTED` | Ollama returned empty content with `done_reason=length` |
 
 ## Unsupported behavior
 
-- Runtime enforcement in v0.14
 - Adaptive routing based on effort/thinking
 - Auto-escalation to `effort: high` without trace + config visibility
 - Mutating provider accounts or API defaults
 - Credential collection
+- Enforcing anthropic/openai profile knobs at runtime (still declarative)
 
 ## Installer defaults (conservative)
 
@@ -108,4 +110,6 @@ Install report adds:
 
 - `orchestrator/tests/installModelConfig.test.js` — build/write + profile validation
 - `orchestrator/tests/modelPolicyConfig.test.js` — `validateProviderInferenceProfiles`
+- `orchestrator/tests/inferenceProfileResolve.test.js` — num_predict precedence
+- `orchestrator/tests/localCapGateTransportBudget.test.js` — applied budget + `done_reason`
 - `tests/install-ai-minions.test.mjs` — config-write phase and report fields

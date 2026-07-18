@@ -23,6 +23,7 @@ const EXPECTED_AGENT_EXPORT_KEYS = [
   "clearDegradedAgents",
   "describeModelSelectionSource",
   "effectiveMode",
+  "getBackendOverride",
   "getDegradedAgents",
   "inferModelFallbackReason",
   "inferModelTier",

@@ -613,7 +613,7 @@ Automated checks for **`skipStateMcp: false`** (hard gates on) without requiring
 4. **`npm run test:e2e:strict:harness`** — optional **`tests/e2e.strict.harness.test.js`** (same deps) for the deterministic harness path; run locally or in a custom job — **not** part of the default CI strict step.
 5. **Alignment telemetry:** after `test:e2e:strict`, the runner prints a line **`[e2e-strict] alignment_failure_rate: …`** to stdout — ratio of failed `gate_result` / `goal_alignment` rows (excluding `test_system_path_harness: true`) over sampled `run()` traces in that suite. `0/n` or `n/a` is valid when no alignment gate fired.
 
-This is **not** the same as registering MCPs inside the Anthropic Claude app: that path still uses `claude -p` when `ORCH_MCP_TRANSPORT` is unset. CI (`.github/workflows/orchestrator-e2e.yml`) runs both `test:e2e` (degraded) and **`test:e2e:strict`** (harness **excluded**) on the self-hosted Ollama runner.
+This is **not** the same as registering MCPs inside the Anthropic Claude app. Under **`local_only`** (or `ORCH_MODEL_MODE=local_only`), when **`ORCH_MCP_TRANSPORT` is unset**, the effective default is **`direct`** (`mcp-direct.py`). Explicit `ORCH_MCP_TRANSPORT=claude_cli` keeps the Claude CLI bridge. Missing Claude CLI on the `claude_cli` path fails closed with **`GATE_TRANSPORT_UNAVAILABLE`** (not a raw `spawn … ENOENT`). CI (`.github/workflows/orchestrator-e2e.yml`) runs both `test:e2e` (degraded) and **`test:e2e:strict`** (harness **excluded**) on the self-hosted Ollama runner.
 
 ### DEV first-shot metric vs strict path
 

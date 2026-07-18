@@ -1,6 +1,5 @@
 "use strict";
 
-const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const { traceEvent, setPermissionCheckAuditHook } = require("../../trace-writer");
@@ -8,6 +7,10 @@ const { runMcpPermissionGate } = require("../../security/mcp-permission-gate");
 const { buildApprovalRequiredFromPermissionTrace } = require("../../governance-gate");
 const { runContextAuthorityGate } = require("./context-authority-runtime-gate");
 
+/** Call-time spawnSync so tests can monkey-patch child_process before invoke. */
+function spawnSync(...args) {
+  return require("child_process").spawnSync(...args);
+}
 let _mcpAuditTaskId = null;
 /** @type {{ server: string, tool: string, transport: string, duration_ms: number, ok: boolean }[]} */
 let _mcpAuditCalls = [];
@@ -148,8 +151,93 @@ function emitPermissionCheckTrace(payload) {
   traceEvent(_mcpAuditTaskId, payload);
 }
 
-function useMcpDirectTransport() {
-  return process.env.ORCH_MCP_TRANSPORT === "direct";
+const GATE_TRANSPORT_UNAVAILABLE = "GATE_TRANSPORT_UNAVAILABLE";
+
+/** Mirrors local-model-policy env gate — inlined to avoid tools→model-runtime import. */
+function isLocalOnlyModeEnabledEnv(env = process.env) {
+  const mode = String(env.ORCH_MODEL_MODE ?? "").trim().toLowerCase();
+  if (mode === "local_only") return true;
+  const v = String(env.ORCH_ALLOW_REMOTE_MODELS ?? "").trim().toLowerCase();
+  return v === "0" || v === "false" || v === "no";
+}
+
+/**
+ * True when callers force the Ollama agent backend (setBackend / forceOllama).
+ * Lazy-requires agents to avoid a hard tools↔agents cycle at load time.
+ * @param {{ forceOllama?: boolean }} options
+ * @returns {boolean}
+ */
+function isOllamaBackendForced(options = {}) {
+  if (options.forceOllama === true) return true;
+  try {
+    const { getBackendOverride } = require("../shared/agents");
+    return typeof getBackendOverride === "function" && getBackendOverride() === "ollama";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve MCP gate transport.
+ * Precedence: ORCH_MCP_TRANSPORT env → local_only / forceOllama default `direct` → `claude_cli`.
+ * @param {{
+ *   env?: NodeJS.ProcessEnv,
+ *   modelPolicy?: string | null,
+ *   forceOllama?: boolean,
+ * }} [options]
+ * @returns {"direct" | "claude_cli"}
+ */
+function resolveMcpTransport(options = {}) {
+  const env = options.env ?? process.env;
+  const raw = String(env.ORCH_MCP_TRANSPORT ?? "").trim().toLowerCase();
+  if (raw === "direct" || raw === "claude_cli") return raw;
+  if (raw) {
+    // Unknown value: fail closed to direct when local_only, else claude_cli legacy.
+  }
+  const policy = options.modelPolicy != null
+    ? String(options.modelPolicy).trim().toLowerCase()
+    : null;
+  if (
+    policy === "local_only"
+    || isOllamaBackendForced(options)
+    || isLocalOnlyModeEnabledEnv(env)
+  ) {
+    return "direct";
+  }
+  return "claude_cli";
+}
+
+function useMcpDirectTransport(options = {}) {
+  return resolveMcpTransport(options) === "direct";
+}
+
+/**
+ * Map Claude CLI spawn failures to a stable transport reason code.
+ * @param {unknown} err
+ * @param {string} [context]
+ * @returns {Error}
+ */
+function mapClaudeCliTransportError(err, context = "MCP") {
+  if (err && typeof err === "object" && /** @type {{ code?: string }} */ (err).code === GATE_TRANSPORT_UNAVAILABLE) {
+    return /** @type {Error} */ (err);
+  }
+  const code = err && typeof err === "object" && "code" in err
+    ? /** @type {{ code?: string }} */ (err).code
+    : undefined;
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  const enoent = code === "ENOENT"
+    || /spawn\s+claude\s+ENOENT/i.test(msg)
+    || /claude.*ENOENT/i.test(msg);
+  if (!enoent) {
+    return err instanceof Error ? err : new Error(msg);
+  }
+  const mapped = new Error(
+    `${GATE_TRANSPORT_UNAVAILABLE}: Claude CLI unavailable for ${context} transport. `
+      + `Set ORCH_MCP_TRANSPORT=direct (recommended under local_only) or install/configure the runtime host, then retry.`,
+  );
+  mapped.code = GATE_TRANSPORT_UNAVAILABLE;
+  mapped.cause = err instanceof Error ? err : undefined;
+  return mapped;
 }
 
 /** Parse stdout from mcp-direct.py — JSON object, or last JSON line, or raw string (YAML). */
@@ -240,7 +328,7 @@ function invokeMcpDirect(server, toolName, args, gateOpts = {}) {
 
 function callStateMcp(toolName, args, gateOpts = {}) {
   const cwd = gateOpts.cwd;
-  if (useMcpDirectTransport()) {
+  if (useMcpDirectTransport(gateOpts)) {
     const parsed = invokeMcpDirect("orchestrator-state", toolName, sanitizeOrchestratorStateArgs(toolName, args), {
       ...gateOpts,
       cwd,
@@ -264,7 +352,7 @@ function callStateMcp(toolName, args, gateOpts = {}) {
       timeout: timeoutMs,
       cwd: cwd || process.cwd(),
     });
-    if (result.error) throw result.error;
+    if (result.error) throw mapClaudeCliTransportError(result.error, "orchestrator-state");
     if (result.status !== 0) throw new Error(result.stderr || "claude CLI error calling MCP");
     const parsed = extractJson(result.stdout.trim());
     if (!parsed) throw new Error(`orchestrator-state.${toolName} returned non-JSON: ${result.stdout.slice(0, 300)}`);
@@ -284,7 +372,7 @@ function callStateMcp(toolName, args, gateOpts = {}) {
       duration_ms: Date.now() - t0,
       ok: false,
     });
-    throw err;
+    throw mapClaudeCliTransportError(err, "orchestrator-state");
   }
 }
 
@@ -326,7 +414,7 @@ function callCompactHandoff(payload, gateOpts = {}) {
     flowMode,
   } = payload;
   const cwd = gateOpts.cwd;
-  if (useMcpDirectTransport()) {
+  if (useMcpDirectTransport(gateOpts)) {
     const out = invokeMcpDirect(
       "compact-handoff",
       "compact_handoff",
@@ -361,7 +449,7 @@ compact_handoff(
       timeout: timeoutMs,
       cwd: cwd || process.cwd(),
     });
-    if (result.error) throw result.error;
+    if (result.error) throw mapClaudeCliTransportError(result.error, "compact-handoff");
     if (result.status !== 0) throw new Error(result.stderr || "claude CLI error calling compact-handoff");
     recordMcpInvocation({
       server: "compact-handoff",
@@ -379,7 +467,7 @@ compact_handoff(
       duration_ms: Date.now() - t0,
       ok: false,
     });
-    throw err;
+    throw mapClaudeCliTransportError(err, "compact-handoff");
   }
 }
 
@@ -390,7 +478,10 @@ module.exports = {
   getPermissionCheckAuditBuffer,
   aggregateMcpUsage,
   emitPermissionCheckTrace,
+  GATE_TRANSPORT_UNAVAILABLE,
+  resolveMcpTransport,
   useMcpDirectTransport,
+  mapClaudeCliTransportError,
   parseMcpDirectStdout,
   sanitizeOrchestratorStateArgs,
   invokeMcpDirect,

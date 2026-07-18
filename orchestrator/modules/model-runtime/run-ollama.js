@@ -16,6 +16,7 @@ const {
   normalizeOllamaClientHost,
   applyOllamaHttpsTlsOptions,
 } = require('./local-runtime-endpoint');
+const { resolveOllamaNumPredict } = require('./inference-profile-resolve');
 
 /**
  * @param {{
@@ -90,6 +91,7 @@ function runOllama(
     allowPublicLocalRuntime,
     tlsInsecure,
     format,
+    numPredict: numPredictOverride,
   } = {},
 ) {
   const target = resolveRunOllamaHttpTarget({
@@ -137,12 +139,18 @@ function runOllama(
     }
   }
 
-  const numPredict = parseInt(process.env.OLLAMA_NUM_PREDICT, 10);
+  const budget = Number.isFinite(numPredictOverride) && numPredictOverride > 0
+    ? {
+        num_predict: Math.floor(numPredictOverride),
+        profile_source: 'call_override',
+        inference_profile_mode: 'applied',
+        role: traceRole ?? null,
+      }
+    : resolveOllamaNumPredict({ cwd, role: traceRole });
   const temperature = parseFloat(process.env.OLLAMA_TEMPERATURE || '');
   /** @type {Record<string, unknown>} */
   const options = {};
-  if (Number.isFinite(numPredict) && numPredict > 0) options.num_predict = numPredict;
-  else options.num_predict = 2048;
+  options.num_predict = budget.num_predict;
   if (Number.isFinite(temperature)) options.temperature = temperature;
   else options.temperature = 0.2;
 
@@ -191,8 +199,26 @@ function runOllama(
               return;
             }
             const content = parsed.message?.content?.trim() || '';
-            /** @type {{ content: string, prompt_eval_count?: number, eval_count?: number }} */
-            const out = { content };
+            /** @type {{
+             *   content: string,
+             *   prompt_eval_count?: number,
+             *   eval_count?: number,
+             *   done_reason?: string | null,
+             *   num_predict?: number,
+             *   profile_source?: string | null,
+             *   inference_profile_mode?: string,
+             * }} */
+            const out = {
+              content,
+              num_predict: budget.num_predict,
+              profile_source: budget.profile_source,
+              inference_profile_mode: budget.inference_profile_mode,
+            };
+            if (typeof parsed.done_reason === 'string' && parsed.done_reason) {
+              out.done_reason = parsed.done_reason;
+            } else if (parsed.done_reason == null) {
+              out.done_reason = null;
+            }
             if (typeof parsed.prompt_eval_count === 'number' && !Number.isNaN(parsed.prompt_eval_count)) {
               out.prompt_eval_count = parsed.prompt_eval_count;
             }
