@@ -569,6 +569,21 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       ...(phase === "plan" || phase === "decide" ? { format: "json" } : {}),
     });
     const rawOut = raw.content == null ? "" : String(raw.content);
+    if (!rawOut.trim() && raw.done_reason === "length") {
+      const err = new Error(
+        `[output contract] ${agentId}: output budget exhausted (done_reason=length; num_predict=${raw.num_predict ?? "?"})`,
+      );
+      err.gate_id = "OUTPUT_BUDGET_EXHAUSTED";
+      err.rawModelOutput = rawOut.slice(0, 8000);
+      /** @type {Record<string, number | string>} */
+      const failStats = {};
+      if (raw.prompt_eval_count != null) failStats.ollama_prompt_tokens = raw.prompt_eval_count;
+      if (raw.eval_count != null) failStats.ollama_completion_tokens = raw.eval_count;
+      if (raw.num_predict != null) failStats.num_predict = raw.num_predict;
+      if (raw.inference_profile_mode) failStats.inference_profile_mode = raw.inference_profile_mode;
+      if (Object.keys(failStats).length) err.context_stats = failStats;
+      throw err;
+    }
     const output = agentId.startsWith("dev-") ? normalizeDevContractText(rawOut) : rawOut;
     const check = validateOutput(agentId, output, { phase, qaPhase });
     if (!check.valid) {
