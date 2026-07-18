@@ -6,6 +6,65 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.24.0-beta.1] - 2026-07-17
+
+Twenty-fourth beta pre-release: **Operator UX cut + host/capability honesty** — opt-in cohort friction capture, non-interactive `ai-minions runs` selector, guided-chain `next_safe_action` alignment (`status` then `attach`), honest `resume` probe (no durable checkpoint), terminal planner JSON contract failures, Claude Code runtime-host install integration (MCP/hooks), and provider-neutral local critical-role capability probes with inference budgets and direct MCP transport — without production TUI, Web UI, durable resume, multi-provider production routing, or cohort gate change.
+
+**Release claim:** operators can discover runs (`runs`), follow guided first-run → smoke → status/attach with honest `next_safe_action`, probe `resume` without a checkpoint promise, install Claude Code runtime-host MCP/hooks idempotently, and gate critical local roles by capability/inference profile — **not** production TUI · **not** Web UI · **not** durable session resume · **not** multi-provider production-ready · **not** hybrid cloud routing · **not** cohort gate change · **not** hardened sandbox.
+
+**Prerequisite:** `v0.23.0-beta.1` @ `226ac80`.
+
+**Since [0.23.0-beta.1]:** v0.23 closed **local model routing coherence** (Olla path · policy authority · tier-by-role · routing smoke). v0.24 ships the **Operator UX evidence path** promoted from cohort friction plus tester-derived runtime-host and local capability/gate slices — without reopening multi-provider routing or production UI claims.
+
+| Area | `v0.23.0-beta.1` | `v0.24.0-beta.1` (delta) |
+|------|------------------|---------------------------|
+| Focus | Shell threat model + local model routing coherence | Operator UX cut + runtime-host install + local critical-role capability honesty |
+| Operator path | `status`/`explain` + routing smoke docs | + `runs` · guided `next_safe_action` · honest `resume` probe · opt-in friction capture |
+| Local host / capability | Routing coherence for Ollama/Olla | + Claude Code runtime-host MCP/hooks install · capability probes · inference budgets · direct MCP under local backend |
+| Unit tests (orchestrator) | 1441/1441 pass (1 skipped) @ `7e62c7b` | **1494/1495** pass (1 skipped) @ `dd8b8cc` |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.24.0-beta.1` — *reserved until Phase B tag*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1494/1495** pass (1 skipped) @ `dd8b8cc`
+- Usage docs: `node scripts/verify-usage-docs.mjs` → **OK**
+- Claim audit: `node scripts/audit-product-claims.mjs` → **OK**
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** @ release-prep tree
+- Changelog format: `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK**
+- Contracts: `alpha-release-checklist.md`, `role-capability-probes.md`, operator visibility / usage-smoke / beta-tester guides
+- Lane on `master` @ `dd8b8cc` (UX cut · planner terminalization · runtime-host · local capability gate); release-prep follows this cut
+- CI: lint-and-unit, security-trivy-scan, orchestrator-e2e — green on merged lane PRs through #296 @ `dd8b8cc`
+
+**Alpha limitations (not production):**
+
+- **Not** production TUI / Web UI — guided CLI + non-interactive `runs` only; `runner:tui` remains advanced/legacy.
+- **Not** durable session resume — `resume` stays an honest unsupported probe (`RUN_RESUME_NOT_IMPLEMENTED`).
+- **Not** multi-provider production-ready — local Ollama/Olla path and v1 policy only; remote adapters and hybrid out of scope.
+- **Not** hybrid cloud routing shipped — no multi-cloud failover or managed routing mesh.
+- **Not** cohort gate change — `LIVE_PASS` @ `99233e0` still required for external cohort on beta lane.
+- **Not** hardened sandbox — capability/gate and runtime-host slices document honest limits; not a full sandbox product claim.
+
+### Added
+
+- Opt-in cohort friction capture for operator command / result / abandon / `next_safe_action` evidence.
+- Non-interactive run discovery — `ai-minions runs` as an explicit run selector (not a navigable TUI).
+- Guided-chain `next_safe_action` alignment after first-run/smoke toward `status` then `attach`.
+- Honest `resume` probe copy clarifying unsupported product resume vs diagnostic checkpoint eligibility.
+- Terminal planner JSON contract failure classification so broken planner output does not leave runs stuck as `running`/`unknown`.
+- Claude Code runtime-host install integration — idempotent MCP/hook registration for clean-host operators.
+- Provider-neutral local critical-role capability probes, inference budgets, and direct MCP transport under local backend overrides (`docs/orchestrator/role-capability-probes.md`).
+
+### Changed
+
+- Beta tester / cohort UX discovery docs — friction protocol remains; Operator UX cut is no longer a future-only promotion gate.
+- Operator visibility and usage-smoke guides — document `runs` and honest resume probe behavior.
+
+### Notes
+
+- Phase B (tag · GitHub pre-release · `release` branch · governance record) is operator-owned after CERBERUS Approve of this release-prep merge.
+- Do **not** treat cohort friction evidence alone as a release tag — tag only after this Operator UX + host/capability cut merges.
+
 ## [0.23.0-beta.1] - 2026-07-16
 
 Twenty-third beta pre-release: **Shell Threat Model + Model Routing Coherence** — shell/kernel gated-execution threat model doc, Ollama/Olla `base_url` path-prefix HTTP, config authority (`model_policy.json` canonical with YAML conflict fail-closed), tier-by-role local model selection, Phase A `model_selection` trace honesty with `not_aggregated` read safeguard, and dual-evidence routing-release smoke gate (fixture CI + live Olla) — without multi-provider production routing, hybrid cloud, billing-accurate remote cost, or cohort gate change.

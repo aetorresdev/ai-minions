@@ -1,7 +1,8 @@
 # Cohort UX discovery runbook (parallel track)
 
-**Purpose:** collect **real external-tester friction evidence** before promoting
-**v0.24 Operator UX**. This is an **operator/cohort protocol** — not a product release.
+**Purpose:** collect **real external-tester friction evidence** for the Operator UX
+path. The guided-CLI cut ships in **`v0.24.0-beta.1`**; this runbook remains the
+**operator/cohort protocol** for ongoing sessions — not a product release by itself.
 
 **Success metric:** a tester reaches **useful evidence** (status → report → attach) without
 internal architecture knowledge; on failure they receive a **concrete** `next_safe_action`.
@@ -21,7 +22,8 @@ After **both** are true:
 1. `node scripts/run-beta-cohort-guard.mjs` → exit `0`
 2. [human-ready-rehearsal-record.json](evidence/human-ready-rehearsal-record.json) → `record.status` = `LIVE_PASS`
 
-Cohort may run on **`v0.21.0-beta.1`** and/or **`v0.22.0-beta.1`** in parallel — record
+Prefer **`v0.24.0-beta.1`** (or later) for sessions that exercise `runs` / guided chain /
+honest `resume`. Earlier betas may still record friction — always set
 `ai_minions_version` per session.
 
 ---

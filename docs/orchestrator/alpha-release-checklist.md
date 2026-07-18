@@ -1432,6 +1432,65 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 - [x] **Changelog:** section **[0.23.0-beta.1] - 2026-07-16**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.24.0-beta.1 — Operator UX cut + host/capability honesty
+
+**Scope:** Cohort friction instrumentation → Operator UX (`runs` · guided `next_safe_action` · honest `resume`) · planner JSON terminalization · Claude Code runtime-host install · provider-neutral local critical-role capability probes + budgets/transport. **Prerequisite:** v0.23 @ `226ac80`. **Beta continuity** — not alpha. **Tag only** after this full cut — never from cohort evidence alone.
+
+### Must-have bundle
+
+- [x] Opt-in cohort friction capture — merged @ `74beed7` (PR #285)
+- [x] Non-interactive run discovery (`ai-minions runs`) — merged @ `e5321ee` (PR #286)
+- [x] Guided-chain `next_safe_action` — merged @ `8be3644` (PR #287)
+- [x] Honest `resume` probe clarity — merged @ `9cba016` (PR #288)
+- [x] Terminal planner JSON contract failures — merged @ `4849b90` (PR #290)
+- [x] Claude Code runtime-host install integration — merged @ `f03bdc3` (PR #291)
+- [x] Local capability gate transport + inference budgets — merged @ `5e9b1df` (PR #295)
+- [x] Critical-role capability probes — merged @ `dd8b8cc` (PR #296)
+- [ ] Release-prep docs + changelog — this cut; CERBERUS before tag
+
+### v0.24 Operator UX + follow-up slices
+
+| Slice | Scope | Status |
+|-------|-------|--------|
+| Friction capture | Opt-in command / result / abandon / `next_safe_action` | [x] PR #285 `74beed7` |
+| Run selector | `ai-minions runs` | [x] PR #286 `e5321ee` |
+| Guided chain | `next_safe_action` → status then attach | [x] PR #287 `8be3644` |
+| Resume probe | Honest unsupported resume (no durable checkpoint) | [x] PR #288 `9cba016` |
+| Planner terminalization | JSON contract failure → terminal status | [x] PR #290 `4849b90` |
+| Runtime-host install | Claude Code MCP/hooks idempotent install | [x] PR #291 `f03bdc3` |
+| Capability transport/budgets | Direct MCP + inference budgets | [x] PR #295 `5e9b1df` |
+| Capability probes | Critical-role local probes | [x] PR #296 `dd8b8cc` |
+| Release-prep | Tag `v0.24.0-beta.1` | [ ] Phase B after merge |
+
+**Merge order (completed):** friction → runs → guided chain → resume probe → planner terminalization → runtime-host → capability transport/budgets → capability probes → release-prep.
+
+### v0.24 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-07-17 | Lane on `master` @ `dd8b8cc` | `cd orchestrator && npm test` → **1494/1495** pass (1 skip) |
+| 2026-07-17 | Release-prep tree | `bash scripts/release-trivy-gate.sh` → **OK** |
+| 2026-07-17 | Release-prep tree | `node scripts/verify-usage-docs.mjs` → **OK** |
+| 2026-07-17 | Release-prep tree | `node scripts/audit-product-claims.mjs` → **OK** |
+| 2026-07-17 | Release-prep tree | `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK** |
+
+### Forbidden release claims (v0.24)
+
+"production TUI" · "Web UI shipped" · "durable resume" · "multi-provider production-ready" · "hybrid cloud routing shipped" · hardened sandbox · "cohort gate open" without `LIVE_PASS`.
+
+### Release execution plan (Phase B — operator steps)
+
+**Wording:** do not mark `[x]` until release-prep Phase B complete.
+
+- [ ] **Tag target:** `v0.24.0-beta.1` on release-prep merge commit
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.24.0-beta.1` — pre-release published
+- [ ] **`release` branch:** aligned to tag commit
+
+### Release artifact (source snapshot)
+
+- [ ] **Changelog:** section **[0.24.0-beta.1] - 2026-07-17** *(draft in release-prep PR; check after merge)*
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
