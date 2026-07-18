@@ -128,7 +128,8 @@ node scripts/cohort-ux-friction-log.mjs summarize /path/to/cohort-friction.jsonl
 `missing_info_reports`.
 
 `promotion_hint` derives from **session-level** drop-offs/conversions and signals (advisory
-only) — maintainer + CERBERUS decide v0.24 grooming.
+only) — maintainer + CERBERUS decide whether friction warrants a **future backlog** slice
+(post-`v0.24.0-beta.1` Operator UX cut).
 
 ---
 
@@ -147,23 +148,29 @@ Copy and complete after ≥2 sessions:
 
 ---
 
-## Promotion gate (v0.24 Operator UX)
+## Cohort quality / future UX follow-up gate
 
-**Promote** to v0.24 grooming lock when evidence shows **repeatable friction**, e.g.:
+The guided-CLI Operator UX cut (`runs` · guided chain · honest `resume` · friction
+instrumentation · beta docs) **ships in `v0.24.0-beta.1`**. This gate is **not** a
+release-promotion or defer-of-v0.24 decision — it decides whether **new** cohort
+friction opens a **future** UX follow-up on the backlog.
+
+**Open a future UX follow-up** when evidence shows **repeatable friction**, e.g.:
 
 - Multiple testers with `next_safe_action_adequate=false` on the same command
 - `needed_run_selection=true` on ≥2 sessions without a documented workaround
 - Funnel drop-off: session-level `first-run` → `smoke` → `attach` conversion or drop-off after a stage (see `summarize --json` → `session_funnel`)
 - Gap matrix shows missing info **not** covered by existing read surfaces
 
-**Defer** UX release when:
+**Stay on collect / doc-only** when:
 
 - Friction is one-off environment issues (install, provider, model)
-- Testers complete attach with existing guided path and adequate `next_safe_action`
-- Gaps are doc typos fixable without UX-1..5 slice
+- Testers complete attach with the shipped guided path and adequate `next_safe_action`
+- Gaps are doc typos fixable without a product slice
 
-Contingent slices (grooming draft only): UX-1 `runs` selector · UX-2 guided chain · UX-3 honest
-`resume` · UX-4 instrumentation · UX-5 beta docs.
+Shipped in `v0.24.0-beta.1` (do not re-groom as contingent): `runs` selector · guided
+chain · honest `resume` · friction instrumentation · beta-doc honesty. New friction
+feeds **future** backlog grooming only.
 
 ---
 
@@ -172,8 +179,8 @@ Contingent slices (grooming draft only): UX-1 `runs` selector · UX-2 guided cha
 - [ ] ≥2 external sessions logged with validate → OK
 - [ ] Summarize JSON archived with review date
 - [ ] Gap matrix completed
-- [ ] Decision recorded: **promote v0.24** · **defer** · **collect more**
-- [ ] CERBERUS grooming lock requested if promoting
+- [ ] Decision recorded: **open future UX follow-up** · **doc-only fix** · **collect more**
+- [ ] CERBERUS grooming requested only if opening a future follow-up
 
 ---
 
