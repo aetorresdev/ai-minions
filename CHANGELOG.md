@@ -23,7 +23,7 @@ Twenty-fourth beta pre-release: **Operator UX cut + host/capability honesty** �
 | Local host / capability | Routing coherence for Ollama/Olla | + Claude Code runtime-host MCP/hooks install · capability probes · inference budgets · direct MCP under local backend |
 | Unit tests (orchestrator) | 1441/1441 pass (1 skipped) @ `7e62c7b` | **1494/1495** pass (1 skipped) @ `dd8b8cc` |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.24.0-beta.1` — *reserved until Phase B tag*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.24.0-beta.1` — pre-release published @ tag `8bcdcbe`
 
 **Evidence (operator):**
 
@@ -33,8 +33,8 @@ Twenty-fourth beta pre-release: **Operator UX cut + host/capability honesty** �
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** @ release-prep tree
 - Changelog format: `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK**
 - Contracts: `alpha-release-checklist.md`, `role-capability-probes.md`, operator visibility / usage-smoke / beta-tester guides
-- Lane on `master` @ `dd8b8cc` (UX cut · planner terminalization · runtime-host · local capability gate); release-prep follows this cut
-- CI: lint-and-unit, security-trivy-scan, orchestrator-e2e — green on merged lane PRs through #296 @ `dd8b8cc`
+- Lane on `master` @ `dd8b8cc` (UX cut · planner terminalization · runtime-host · local capability gate); release-prep merged @ `8bcdcbe` (PR #298)
+- CI: lint-and-unit, security-trivy-scan, orchestrator-e2e — green on merged lane PRs through #296 @ `dd8b8cc` and release-prep PR #298 @ `a1a8b65`
 
 **Alpha limitations (not production):**
 
@@ -62,7 +62,7 @@ Twenty-fourth beta pre-release: **Operator UX cut + host/capability honesty** �
 
 ### Notes
 
-- Phase B (tag · GitHub pre-release · `release` branch · governance record) is operator-owned after CERBERUS Approve of this release-prep merge.
+- Phase B completed @ `8bcdcbe`: annotated tag, GitHub pre-release, and `release` branch aligned; governance validation returned `ok: true`.
 - Do **not** treat cohort friction evidence alone as a release tag — tag only after this Operator UX + host/capability cut merges.
 
 ## [0.23.0-beta.1] - 2026-07-16
