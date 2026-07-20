@@ -42,6 +42,9 @@ function redactSensitivePlaintext(s) {
   if (traceSecretRedactDisabled()) return String(s);
   let t = String(s);
   t = t.replace(/\bBearer\s+[A-Za-z0-9\-._~+/=*]{16,}\b/gi, "[REDACTED:bearer]");
+  // Anthropic / OpenAI project keys use internal hyphens; match before generic sk-.
+  t = t.replace(/\bsk-ant-[a-zA-Z0-9_-]{10,}\b/g, "[REDACTED:api_token]");
+  t = t.replace(/\bsk-proj-[a-zA-Z0-9_-]{10,}\b/g, "[REDACTED:api_token]");
   t = t.replace(/\bsk-[a-zA-Z0-9]{20,}\b/g, "[REDACTED:api_token]");
   t = t.replace(/\bAKIA[0-9A-Z]{16}\b/g, "[REDACTED:aws_access_key]");
   t = t.replace(/\bghp_[A-Za-z0-9]{30,}\b/g, "[REDACTED:github_pat]");

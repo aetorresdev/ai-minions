@@ -17,6 +17,7 @@ import {
   normalizeMeasuredOrUnavailable,
   normalizeRowResult,
   validateEvidenceInput,
+  validatePassEvidenceMinimum,
   validateReportDoc,
 } from "../scripts/lib/mode-comparison-report-data.mjs";
 import { REASON_CODES as MATRIX_CODES } from "../scripts/lib/tester-six-mode-matrix-data.mjs";
@@ -254,8 +255,80 @@ describe("mode-comparison-report-data", () => {
     assert.equal(complete.ok, true, complete.errors.join("; "));
   });
 
+  it('rejects PASS when attach_available is the string "false"', () => {
+    const row = {
+      row_id: "sa-local_only",
+      result: "pass",
+      artifact_paths: ["sudoku.html"],
+      run_id: "run-1",
+      status_evidence: "status ok",
+      attach_available: "false",
+    };
+    const gate = validatePassEvidenceMinimum(/** @type {any} */ (row));
+    assert.equal(gate.ok, false);
+    assert.ok(
+      gate.errors.some((e) => e.includes("boolean")),
+      gate.errors.join("; "),
+    );
+    assert.ok(
+      gate.errors.some((e) => e.includes("attach_path or attach_available")),
+      gate.errors.join("; "),
+    );
+
+    const input = validateEvidenceInput({ rows: [/** @type {any} */ (row)] });
+    assert.equal(input.ok, false);
+    assert.ok(input.errors.some((e) => e.includes("boolean")));
+  });
+
+  it("buildComparisonReport demotes incomplete PASS to FAIL (central gate)", () => {
+    const report = buildComparisonReport({
+      matrixRows: [
+        {
+          id: "sa-local_only",
+          status: "ready",
+          reason_code: MATRIX_CODES.READY,
+          command: "ai-minions smoke --model-policy local_only",
+        },
+      ],
+      evidenceRows: [
+        {
+          row_id: "sa-local_only",
+          result: "pass",
+          reason_code: "MATRIX_OK",
+          // Intentionally incomplete — no artifacts / run / status / attach
+        },
+      ],
+      source: "from-matrix-json-bypass",
+    });
+    const row = report.rows.find((r) => r.row_id === "sa-local_only");
+    assert.equal(row.result, "fail");
+    assert.equal(row.reason_code, REASON_CODES.ROW_FAIL);
+    assert.match(row.message, /PASS rejected/);
+    assert.equal(report.counts.pass, 0);
+    assert.ok(report.counts.fail >= 1);
+
+    const coerced = buildComparisonReport({
+      evidenceRows: [
+        /** @type {any} */ ({
+          row_id: "sa-remote_ok",
+          result: "pass",
+          artifact_paths: ["out.html"],
+          run_id: "run-2",
+          status_evidence: "ok",
+          attach_available: "false",
+        }),
+      ],
+    });
+    const coercedRow = coerced.rows.find((r) => r.row_id === "sa-remote_ok");
+    assert.equal(coercedRow.result, "fail");
+    assert.equal(coercedRow.evidence.attach_available, false);
+    assert.equal(coercedRow.reason_code, REASON_CODES.ROW_FAIL);
+  });
+
   it("injected secret token never appears in Markdown or JSON report", () => {
-    const secret = "sk-abcdefghijklmnopqrstuvwxyz12";
+    const secret = "sk-" + "c".repeat(24);
+    const ant = "sk-ant-" + "d".repeat(20);
+    const proj = "sk-proj-" + "e".repeat(20);
     const report = buildComparisonReport({
       matrixRows: [
         {
@@ -270,20 +343,23 @@ describe("mode-comparison-report-data", () => {
           row_id: "sa-local_only",
           result: "fail",
           reason_code: "MATRIX_ROW_FAIL",
-          tester_notes: `leak ${secret} in notes`,
+          tester_notes: `leak ${secret} ant ${ant} proj ${proj}`,
           status_evidence: `Bearer ${"a".repeat(24)}`,
           command: `echo ${secret}`,
           selected_model: secret,
-          selected_provider: secret,
-          attach_path: `/tmp/${secret}/ATTACH.md`,
+          selected_provider: ant,
+          attach_path: `/tmp/${proj}/ATTACH.md`,
           message: `failed with ${secret}`,
         },
       ],
     });
     const md = formatComparisonMarkdown(report);
     const json = JSON.stringify(report, null, 2);
-    assert.doesNotMatch(md, new RegExp(secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    assert.doesNotMatch(json, new RegExp(secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    for (const s of [secret, ant, proj]) {
+      const re = new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+      assert.doesNotMatch(md, re);
+      assert.doesNotMatch(json, re);
+    }
     assert.match(md, /\[REDACTED:api_token\]/);
     assert.match(json, /\[REDACTED:api_token\]/);
   });

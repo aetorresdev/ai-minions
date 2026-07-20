@@ -192,9 +192,19 @@ export function validatePassEvidenceMinimum(row) {
       `PASS for ${row.row_id} requires status_evidence`,
     );
   }
+  if (
+    row.attach_available !== undefined &&
+    row.attach_available !== null &&
+    typeof row.attach_available !== "boolean"
+  ) {
+    errors.push(
+      `PASS for ${row.row_id} requires attach_available to be a boolean when set`,
+    );
+  }
   const attachPath =
     typeof row.attach_path === "string" && row.attach_path.trim() !== "";
-  if (!attachPath && !row.attach_available) {
+  // Strict boolean: reject truthy non-booleans like "false" or 1.
+  if (!attachPath && row.attach_available !== true) {
     errors.push(
       `PASS for ${row.row_id} requires attach_path or attach_available`,
     );
@@ -500,10 +510,30 @@ export function mergeEvidenceRows(seeds, overrides = []) {
 function finalizeRow(row) {
   const def = canonicalRowDef(row.row_id);
   const canonical = normalizeHybridEvidenceRow(applyCanonicalModeFields(row));
-  const result = normalizeRowResult(canonical.result);
-  const reasonCode = isHybridRowId(canonical.row_id)
+  let result = normalizeRowResult(canonical.result);
+  let reasonCode = isHybridRowId(canonical.row_id)
     ? HYBRID_SKIP_REASON
     : canonical.reason_code || (result === "pass" ? "MATRIX_OK" : "");
+  let message = canonical.message || "";
+  // Central PASS gate: demote incomplete PASS even when callers skip validateEvidenceInput
+  // (e.g. --from-matrix-json / direct buildComparisonReport).
+  if (result === "pass" && !isHybridRowId(canonical.row_id)) {
+    const passCheck = validatePassEvidenceMinimum({
+      ...canonical,
+      result: "pass",
+    });
+    if (!passCheck.ok) {
+      result = "fail";
+      reasonCode = REASON_CODES.ROW_FAIL;
+      const detail = passCheck.errors.join("; ");
+      message = message
+        ? `${message}; PASS rejected: ${detail}`
+        : `PASS rejected: ${detail}`;
+    }
+  }
+  const attachPath =
+    typeof canonical.attach_path === "string" &&
+    canonical.attach_path.trim() !== "";
   /** @type {Record<string, unknown>} */
   const finalized = {
     row_id: canonical.row_id,
@@ -513,7 +543,7 @@ function finalizeRow(row) {
     command: canonical.command ?? def?.command_template ?? "",
     result,
     reason_code: reasonCode,
-    message: canonical.message || "",
+    message,
     selected_model: canonical.selected_model ?? null,
     selected_provider: canonical.selected_provider ?? null,
     elapsed_ms:
@@ -527,9 +557,7 @@ function finalizeRow(row) {
       trace_path: canonical.trace_path ?? null,
       status_evidence: canonical.status_evidence ?? null,
       attach_path: canonical.attach_path ?? null,
-      attach_available: Boolean(
-        canonical.attach_available || canonical.attach_path,
-      ),
+      attach_available: attachPath || canonical.attach_available === true,
     },
     tokens: normalizeMeasuredOrUnavailable(canonical.tokens),
     cost: normalizeMeasuredOrUnavailable(canonical.cost),
