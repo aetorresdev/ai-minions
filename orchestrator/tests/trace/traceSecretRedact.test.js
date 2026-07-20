@@ -17,6 +17,12 @@ const { _sanitize } = require("../../orchestrator");
 function fakeSkOpenAI() {
   return "sk-" + "m".repeat(21);
 }
+function fakeSkAnthropic() {
+  return "sk-ant-" + "a".repeat(24);
+}
+function fakeSkProj() {
+  return "sk-proj-" + "b".repeat(24);
+}
 function fakeGithubPatPrefix() {
   return String.fromCharCode(103, 104, 112, 95);
 }
@@ -40,6 +46,20 @@ test("redactSensitivePlaintext redacts Bearer-shaped tokens", () => {
 
 test("redactSensitivePlaintext redacts sk- shaped API tokens", () => {
   const sk = fakeSkOpenAI();
+  const out = redactSensitivePlaintext(`x ${sk} y`);
+  assert.match(out, /\[REDACTED:api_token\]/);
+  assert.ok(!out.includes(sk));
+});
+
+test("redactSensitivePlaintext redacts Anthropic sk-ant- shaped keys", () => {
+  const sk = fakeSkAnthropic();
+  const out = redactSensitivePlaintext(`x ${sk} y`);
+  assert.match(out, /\[REDACTED:api_token\]/);
+  assert.ok(!out.includes(sk));
+});
+
+test("redactSensitivePlaintext redacts OpenAI sk-proj- shaped keys", () => {
+  const sk = fakeSkProj();
   const out = redactSensitivePlaintext(`x ${sk} y`);
   assert.match(out, /\[REDACTED:api_token\]/);
   assert.ok(!out.includes(sk));

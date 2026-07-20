@@ -39,6 +39,8 @@ on:
       - "scripts/lib/tester-six-mode-matrix-data.mjs"
       - "scripts/verify-canonical-real-task-fixtures.mjs"
       - "scripts/lib/canonical-real-task-fixtures-data.mjs"
+      - "scripts/generate-mode-comparison-report.mjs"
+      - "scripts/lib/mode-comparison-report-data.mjs"
       - "scripts/lib/degraded-mode-evidence.mjs"
       - "scripts/lib/operator-doc-claims.mjs"
       - "scripts/verify-usage-docs.mjs"
@@ -58,6 +60,7 @@ on:
       - "tests/run-beta-smoke-matrix.test.mjs"
       - "tests/run-tester-six-mode-matrix.test.mjs"
       - "tests/canonical-real-task-fixtures.test.mjs"
+      - "tests/mode-comparison-report.test.mjs"
       - "tests/fixtures/canonical-tasks/**"
       - "tests/degraded-mode-evidence.test.mjs"
       - "docs/orchestrator/beta-limitations-onboarding-contract.md"
@@ -156,6 +159,9 @@ jobs:
       - name: Canonical real-task fixtures structure gate
         run: node scripts/verify-canonical-real-task-fixtures.mjs
 
+      - name: Mode comparison report structure gate
+        run: node scripts/generate-mode-comparison-report.mjs --skip-live --json
+
       - name: Beta gate hardening evidence chain
         run: node scripts/run-beta-gate-hardening-evidence.mjs
 
@@ -179,6 +185,9 @@ jobs:
 
       - name: Canonical real-task fixtures unit tests
         run: node --test tests/canonical-real-task-fixtures.test.mjs
+
+      - name: Mode comparison report unit tests
+        run: node --test tests/mode-comparison-report.test.mjs
 
       - name: Beta gate hardening evidence unit tests
         run: node --test tests/run-beta-gate-hardening-evidence.test.mjs

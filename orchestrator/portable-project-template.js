@@ -31,6 +31,8 @@ const SENSITIVE_KEY_RE =
 
 const UNREDACTED_SECRET_PATTERNS = [
   /\bBearer\s+[A-Za-z0-9\-._~+/=*]{16,}\b/i,
+  /\bsk-ant-[a-zA-Z0-9_-]{10,}\b/,
+  /\bsk-proj-[a-zA-Z0-9_-]{10,}\b/,
   /\bsk-[a-zA-Z0-9]{20,}\b/,
   /\bAKIA[0-9A-Z]{16}\b/,
   /\bghp_[A-Za-z0-9]{30,}\b/,

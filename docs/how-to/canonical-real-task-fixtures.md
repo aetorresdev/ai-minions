@@ -2,7 +2,7 @@
 
 Stable **real-user** prompts and acceptance contracts for comparing the six-mode tester matrix (single/multi-agent × `local_only` / `remote_ok` / hybrid). Prefer these fixtures over ad hoc goals so local failures, remote improvements, and multi-agent regressions are judged against the same task.
 
-**Related:** [tester six-mode matrix](tester-six-mode-matrix.md) · [beta tester guide](beta-tester-guide.md) · [PRIVACY.md](../../PRIVACY.md) · [operator feedback issue](operator-feedback-issue.md)
+**Related:** [tester six-mode matrix](tester-six-mode-matrix.md) · [mode comparison report](mode-comparison-report.md) · [beta tester guide](beta-tester-guide.md) · [PRIVACY.md](../../PRIVACY.md) · [operator feedback issue](operator-feedback-issue.md)
 
 **Structure gate (CI-safe):**
 
@@ -256,4 +256,5 @@ Shipped reference (functional checks only — not a gold visual standard):
 | `scripts/verify-canonical-real-task-fixtures.mjs` | Doc + data + sample + optional artifact gate |
 | `scripts/lib/canonical-real-task-fixtures-data.mjs` | Prompt + check definitions |
 | `scripts/run-tester-six-mode-matrix.mjs` | Six-mode structure / skip assessment |
+| `scripts/generate-mode-comparison-report.mjs` | Mode comparison Markdown + JSON |
 | `scripts/verify-usage-docs.mjs` | Doc marker guards |
