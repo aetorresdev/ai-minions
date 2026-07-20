@@ -193,7 +193,10 @@ Multi-agent comparisons are **directional only** — see [beta known limitations
 | **Required services** | Remote provider path available |
 | **Required env / secrets** | **At least one** of `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` |
 | **Commands** | See copy block |
-| **SKIP** | `MATRIX_SKIP_REMOTE_CREDENTIALS_MISSING` |
+| **Follow-up** | `status` + `attach` |
+| **PASS** | Start completes under `remote_ok`; `run_id` / `task_id` recorded; evidence redacted |
+| **FAIL** | Attempted with tokens present and failed — open [operator feedback](operator-feedback-issue.md) |
+| **SKIP** | `MATRIX_SKIP_REMOTE_CREDENTIALS_MISSING` when neither token is present |
 
 ```bash
 ai-minions doctor --model-policy remote_ok
