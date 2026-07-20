@@ -216,7 +216,7 @@ test('runOperatorCockpit NO_COLOR path keeps home text without ANSI when useColo
     },
     pathActivation: { status: 'ready', on_path: true },
   });
-  assert.doesNotMatch(text, /\x1b\[/);
+  assert.equal(text.includes('\x1b['), false);
 });
 
 test('ai-minions tui without selector on non-TTY exits with CLI guidance', () => {
