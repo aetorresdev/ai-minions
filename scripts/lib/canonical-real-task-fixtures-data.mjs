@@ -249,6 +249,7 @@ export const FIXTURE_DOC_REQUIRED_MARKERS = Object.freeze([
   { needle: "ai-minions attach", label: "attach evidence" },
   { needle: "verify-canonical-real-task-fixtures.mjs", label: "fixture verifier script" },
   { needle: "tester-six-mode-matrix", label: "six-mode matrix link" },
+  { needle: "mode-comparison-report", label: "mode comparison report link" },
   { needle: "PRIVACY.md", label: "privacy prerequisite" },
   { needle: "Functional acceptance", label: "functional acceptance section" },
   { needle: "Visual/user acceptance", label: "visual acceptance section" },

@@ -94,6 +94,15 @@ const CANONICAL_REAL_TASK_FIXTURES_SCRIPT = path.join(
   REPO_ROOT,
   "scripts/verify-canonical-real-task-fixtures.mjs",
 );
+const MODE_COMPARISON_REPORT = path.join(REPO_ROOT, "docs/how-to/mode-comparison-report.md");
+const MODE_COMPARISON_REPORT_SCRIPT = path.join(
+  REPO_ROOT,
+  "scripts/generate-mode-comparison-report.mjs",
+);
+const MODE_COMPARISON_EVIDENCE_TEMPLATE = path.join(
+  REPO_ROOT,
+  "docs/how-to/evidence/mode-comparison-evidence.template.json",
+);
 const BETA_DEGRADED_POLICY = path.join(REPO_ROOT, "docs/how-to/beta-degraded-mode-policy.md");
 const BETA_LIMITATIONS_ONBOARDING_CONTRACT = path.join(
   REPO_ROOT,
@@ -202,6 +211,7 @@ function checkGuide(guideText) {
   mustInclude(guideText, "operator-blockers-and-recovery.md", "blockers recovery link", rel);
   mustInclude(guideText, "tester-six-mode-matrix.md", "six-mode tester matrix link", rel);
   mustInclude(guideText, "canonical-real-task-fixtures.md", "canonical real-task fixtures link", rel);
+  mustInclude(guideText, "mode-comparison-report.md", "mode comparison report link", rel);
   mustInclude(guideText, "## Advanced paths", "advanced paths section", rel);
 
   checkGuideHappyPathPrimaryOrdering(guideText);
@@ -364,6 +374,8 @@ function checkBetaTesterGuideDoc(docText) {
   mustInclude(docText, "run-tester-six-mode-matrix.mjs", "six-mode matrix script", rel);
   mustInclude(docText, "canonical-real-task-fixtures", "canonical real-task fixtures link", rel);
   mustInclude(docText, "verify-canonical-real-task-fixtures.mjs", "canonical fixtures script", rel);
+  mustInclude(docText, "mode-comparison-report", "mode comparison report link", rel);
+  mustInclude(docText, "generate-mode-comparison-report.mjs", "mode comparison report script", rel);
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy prerequisite", rel);
   mustInclude(docText, "ai-minions-command-migration", "migration doc link", rel);
   mustInclude(docText, "human-ready-rehearsal-evidence", "rehearsal evidence link", rel);
@@ -665,6 +677,8 @@ function checkTesterSixModeMatrixDoc(docText) {
   mustInclude(docText, "not a PR merge gate", "not merge gate disclaimer", rel);
   mustInclude(docText, "canonical-real-task-fixtures", "canonical fixtures link", rel);
   mustInclude(docText, "verify-canonical-real-task-fixtures.mjs", "canonical fixtures script", rel);
+  mustInclude(docText, "mode-comparison-report", "mode comparison report link", rel);
+  mustInclude(docText, "generate-mode-comparison-report.mjs", "mode comparison report script", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -691,11 +705,41 @@ function checkCanonicalRealTaskFixturesDoc(docText) {
   mustInclude(docText, "ai-minions attach", "attach evidence", rel);
   mustInclude(docText, "verify-canonical-real-task-fixtures.mjs", "fixture verifier", rel);
   mustInclude(docText, "tester-six-mode-matrix", "six-mode matrix link", rel);
+  mustInclude(docText, "mode-comparison-report", "mode comparison report link", rel);
   mustInclude(docText, "PRIVACY.md", "privacy prerequisite", rel);
   mustInclude(docText, "Functional acceptance", "functional acceptance", rel);
   mustInclude(docText, "Visual/user acceptance", "visual acceptance", rel);
   mustInclude(docText, "Allowed dependencies", "allowed dependencies", rel);
   mustInclude(docText, "Disallowed", "disallowed behavior", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
+function checkModeComparisonReportDoc(docText) {
+  const rel = "docs/how-to/mode-comparison-report.md";
+  if (!docText) return;
+  mustInclude(docText, "sa-local_only", "sa-local_only row", rel);
+  mustInclude(docText, "sa-remote_ok", "sa-remote_ok row", rel);
+  mustInclude(docText, "sa-hybrid", "sa-hybrid row", rel);
+  mustInclude(docText, "ma-local_only", "ma-local_only row", rel);
+  mustInclude(docText, "ma-remote_ok", "ma-remote_ok row", rel);
+  mustInclude(docText, "ma-hybrid", "ma-hybrid row", rel);
+  mustInclude(docText, "READY is not PASS", "ready≠pass honesty", rel);
+  mustInclude(docText, "unavailable", "tokens/cost unavailable", rel);
+  mustInclude(docText, "never fake", "never fake zero", rel);
+  mustInclude(docText, "MATRIX_SKIP_HYBRID_UNSUPPORTED", "hybrid skip reason", rel);
+  mustInclude(docText, "honest skip", "hybrid honest skip", rel);
+  mustInclude(docText, "any_provider", "credential sufficiency", rel);
+  mustInclude(docText, "never secret values", "no secret values", rel);
+  mustInclude(docText, "generate-mode-comparison-report.mjs", "report generator", rel);
+  mustInclude(docText, "run-tester-six-mode-matrix.mjs", "matrix runner", rel);
+  mustInclude(docText, "canonical-real-task-fixtures", "canonical fixtures link", rel);
+  mustInclude(docText, "tester-six-mode-matrix", "six-mode matrix link", rel);
+  mustInclude(docText, "PRIVACY.md", "privacy prerequisite", rel);
+  mustInclude(docText, "ai-minions attach", "attach evidence", rel);
+  mustInclude(docText, "ai-minions status", "status evidence", rel);
+  mustInclude(docText, "No invented cross-mode scores", "no fabricated scores", rel);
+  mustInclude(docText, "mode-comparison-evidence.template.json", "evidence template", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -930,6 +974,7 @@ function main() {
   const betaSmokeMatrixText = readUtf8(BETA_SMOKE_MATRIX);
   const testerSixModeMatrixText = readUtf8(TESTER_SIX_MODE_MATRIX);
   const canonicalRealTaskFixturesText = readUtf8(CANONICAL_REAL_TASK_FIXTURES);
+  const modeComparisonReportText = readUtf8(MODE_COMPARISON_REPORT);
   const betaDegradedPolicyText = readUtf8(BETA_DEGRADED_POLICY);
   const betaLimitationsContractText = readUtf8(BETA_LIMITATIONS_ONBOARDING_CONTRACT);
   const betaGateHardeningEvidenceText = readUtf8(BETA_GATE_HARDENING_EVIDENCE);
@@ -998,6 +1043,12 @@ function main() {
   if (!fs.existsSync(CANONICAL_REAL_TASK_FIXTURES_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, CANONICAL_REAL_TASK_FIXTURES_SCRIPT)}`);
   }
+  if (!fs.existsSync(MODE_COMPARISON_REPORT_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, MODE_COMPARISON_REPORT_SCRIPT)}`);
+  }
+  if (!fs.existsSync(MODE_COMPARISON_EVIDENCE_TEMPLATE)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, MODE_COMPARISON_EVIDENCE_TEMPLATE)}`);
+  }
   if (!fs.existsSync(DEGRADED_MODE_EVIDENCE)) {
     fail(`missing file: ${path.relative(REPO_ROOT, DEGRADED_MODE_EVIDENCE)}`);
   }
@@ -1025,6 +1076,7 @@ function main() {
   if (betaSmokeMatrixText) checkBetaSmokeMatrixDoc(betaSmokeMatrixText);
   if (testerSixModeMatrixText) checkTesterSixModeMatrixDoc(testerSixModeMatrixText);
   if (canonicalRealTaskFixturesText) checkCanonicalRealTaskFixturesDoc(canonicalRealTaskFixturesText);
+  if (modeComparisonReportText) checkModeComparisonReportDoc(modeComparisonReportText);
   if (betaDegradedPolicyText) checkBetaDegradedPolicyDoc(betaDegradedPolicyText);
   if (betaLimitationsContractText) checkBetaLimitationsOnboardingContract(betaLimitationsContractText);
   if (betaGateHardeningEvidenceText) checkBetaGateHardeningEvidenceDoc(betaGateHardeningEvidenceText);

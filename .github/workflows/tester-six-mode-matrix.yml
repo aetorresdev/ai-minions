@@ -56,11 +56,28 @@ jobs:
       - name: Structure + readiness assessment
         run: |
           set -euo pipefail
+          mkdir -p mode-comparison-out
           if [ "${{ inputs.probe_local }}" = "true" ]; then
-            node scripts/run-tester-six-mode-matrix.mjs --skip-live --probe-local --json
+            node scripts/run-tester-six-mode-matrix.mjs --skip-live --probe-local --json | tee mode-comparison-out/matrix-assessment.json
+            node scripts/generate-mode-comparison-report.mjs \
+              --from-matrix-json mode-comparison-out/matrix-assessment.json \
+              --out-dir mode-comparison-out
           else
-            node scripts/run-tester-six-mode-matrix.mjs --skip-live --json
+            node scripts/run-tester-six-mode-matrix.mjs --skip-live --json | tee mode-comparison-out/matrix-assessment.json
+            node scripts/generate-mode-comparison-report.mjs \
+              --from-matrix-json mode-comparison-out/matrix-assessment.json \
+              --out-dir mode-comparison-out
           fi
+
+      - name: Upload mode comparison report
+        uses: actions/upload-artifact@v4
+        with:
+          name: mode-comparison-report
+          path: mode-comparison-out/
+          if-no-files-found: error
 
       - name: Unit tests for matrix helpers
         run: node --test tests/run-tester-six-mode-matrix.test.mjs
+
+      - name: Unit tests for mode comparison report
+        run: node --test tests/mode-comparison-report.test.mjs

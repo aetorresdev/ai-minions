@@ -52,6 +52,7 @@ export const CLAIM_AUDIT_PATHS = [
   "docs/how-to/beta-smoke-matrix.md",
   "docs/how-to/tester-six-mode-matrix.md",
   "docs/how-to/canonical-real-task-fixtures.md",
+  "docs/how-to/mode-comparison-report.md",
   "docs/how-to/beta-degraded-mode-policy.md",
   "docs/how-to/evidence/beta-dry-run-sample-issue.md",
   "docs/how-to/operator-feedback-issue.md",
