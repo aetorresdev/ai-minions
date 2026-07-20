@@ -86,13 +86,14 @@ test("runOperatorEvidenceTui missing trace exits 2", () => {
   assert.equal(result.exitCode, 2);
 });
 
-test("ai-minions tui without selector exits 1", () => {
+test("ai-minions tui without selector on non-TTY exits with cockpit guidance", () => {
   const r = spawnSync(process.execPath, [CLI_PATH, "tui"], {
     encoding: "utf8",
     cwd: ORCH_CWD,
   });
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /requires --run/);
+  assert.match(r.stderr, /requires a TTY/i);
+  assert.match(r.stderr, /ai-minions smoke/);
 });
 
 test("ai-minions tui --file renders panels", () => {
@@ -159,5 +160,5 @@ test("ai-minions --help documents tui command", () => {
     cwd: ORCH_CWD,
   });
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /tui\s+Read-only evidence surface/);
+  assert.match(r.stdout, /tui\s+Interactive cockpit/);
 });

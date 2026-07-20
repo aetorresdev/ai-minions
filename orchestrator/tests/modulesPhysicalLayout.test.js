@@ -375,6 +375,7 @@ describe("modules physical layout", () => {
         "modules/operator/operator-attach-bundle.js",
         "modules/operator/operator-run-report.js",
         "modules/operator/operator-evidence-tui.js",
+        "modules/operator/operator-cockpit-tui.js",
         "modules/operator/operator-cost-token-summary.js",
       ];
       const rootTraceShim = /\.\.\/\.\.\/(trace-|run-outcome-summary)/;

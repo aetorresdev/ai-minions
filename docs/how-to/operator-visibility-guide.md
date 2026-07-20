@@ -5,7 +5,7 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 **Product CLI:** `ai-minions runs` · `status` · `explain` · `report` · `tui` · `attach` · `evidence`
 **Contract sources:** trace JSONL under `ORCH_TRACES_DIR` (default `~/.claude/metrics/traces/`) — same SoT as legacy `explain-run` and `collect-run-report.mjs`.
 
-**Not claimed:** production TUI / Web UI · interactive approvals or reruns from `tui` · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
+**Not claimed:** production TUI / Web UI · fullscreen navigable panes · interactive approvals or reruns from evidence panels · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
 
 ---
 
@@ -13,6 +13,7 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 
 | Need | Command | Output |
 |------|---------|--------|
+| Interactive action loop (TTY) | `ai-minions tui` | Cockpit home: product status + smoke/runs/status/attach/doctor/quit |
 | Discover and select a recent run | `ai-minions runs [--limit 20]` | Newest-first run list + explicit `status --run-id` command |
 | Terminal summary + critical decision fields | `ai-minions status --run-id <id>` | Human text + optional `--json` with `run_state_visibility` and `operator_trace_summary` |
 | Why blocked / degraded / failed | `ai-minions explain --run-id <id>` | Reason codes + remediation narrative |
@@ -21,9 +22,9 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 | GitHub feedback bundle (privacy scan) | `ai-minions attach --run-id <id>` | Wraps `collect-run-report.mjs` — human-readable attach layout |
 | Paths + inspect panel | `ai-minions evidence --run-id <id>` | Bundle paths · inspect checks |
 
-**Selectors:** use `ai-minions runs` when the run id is unknown, then pass `--run-id`; `--run` is an alias on report/tui, `--latest` selects the newest trace, and `--file <path>` overrides run-id resolution.
+**Selectors:** use `ai-minions runs` when the run id is unknown, then pass `--run-id`; `--run` is an alias on report/tui evidence mode, `--latest` selects the newest trace, and `--file <path>` overrides run-id resolution. Bare `ai-minions tui` (no selector) opens the interactive cockpit on a TTY; non-TTY exits with equivalent CLI verb guidance.
 
-**Read-only rule:** `runs`, `status`, `explain`, `report`, `tui`, and `evidence` do **not** approve, merge, rerun, or mutate runs. Steering that suggests mutation on these surfaces is blocked by policy (see eval fixtures in orchestrator tests).
+**Read-only rule:** `runs`, `status`, `explain`, `report`, `tui --run-id|--latest|--file`, and `evidence` do **not** approve, merge, rerun, or mutate runs. Cockpit **smoke** / **attach** / **doctor** call the same mutating or probe modules as the named CLI verbs. Steering that suggests mutation on read-only surfaces is blocked by policy (see eval fixtures in orchestrator tests).
 
 ### Run discovery and explicit selection
 
@@ -131,9 +132,23 @@ Exit `2` when trace missing — same fail-closed semantics as `status`.
 
 ---
 
-## `ai-minions tui` (evidence surface)
+## `ai-minions tui` (cockpit + evidence)
 
-Stdout panels — **not** a fullscreen or interactive product UI.
+### Interactive cockpit (TTY, no selector)
+
+```bash
+ai-minions tui
+```
+
+Persistent action loop: product status + smoke / runs / status / attach / doctor / quit. Calls the same modules as the named CLI verbs. Non-TTY bare `tui` exits with equivalent verb guidance (no hang).
+
+Contract: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md).
+
+**Not claimed:** production TUI · Web UI · fullscreen navigable panes · durable resume.
+
+### Evidence surface (selectors)
+
+Stdout panels — **not** a fullscreen product UI.
 
 ```bash
 ai-minions tui --run-id <task_id>

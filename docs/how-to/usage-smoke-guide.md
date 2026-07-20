@@ -166,7 +166,9 @@ ai-minions report --run <task_id>
 ai-minions attach --run-id <task_id>   # before GitHub feedback — read PRIVACY.md first
 ```
 
-See [operator-visibility-guide.md](operator-visibility-guide.md). **`tui` and `report` are read-only** — they do not approve, rerun, or mutate runs.
+Optional interactive loop (TTY): `ai-minions tui` — see [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md).
+
+See [operator-visibility-guide.md](operator-visibility-guide.md). **Evidence `tui --run-id` and `report` are read-only** — they do not approve, rerun, or mutate runs. Cockpit **smoke** / **attach** reuse the named CLI verbs.
 
 ### Step 7 — Resume (honest probe)
 

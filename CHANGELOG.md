@@ -6,6 +6,10 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- `ai-minions tui` interactive cockpit MVP (TTY action loop over smoke/runs/status/attach/doctor/quit). Non-TTY bare `tui` exits with equivalent CLI verb guidance. Selector flags (`--run-id` / `--latest` / `--file`) keep the existing read-only evidence surface. Contract: `docs/orchestrator/operator-cockpit-contract.md`.
+
 ## [0.24.0-beta.1] - 2026-07-17
 
 Twenty-fourth beta pre-release: **Operator UX cut + host/capability honesty** — opt-in cohort friction capture, non-interactive `ai-minions runs` selector, guided-chain `next_safe_action` alignment (`status` then `attach`), honest `resume` probe (no durable checkpoint), terminal planner JSON contract failures, Claude Code runtime-host install integration (MCP/hooks), and provider-neutral local critical-role capability probes with inference budgets and direct MCP transport — without production TUI, Web UI, durable resume, multi-provider production routing, or cohort gate change.
