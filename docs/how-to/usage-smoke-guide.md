@@ -37,7 +37,7 @@ Minimal tester path after clone. Prefer this when validating onboarding honesty 
 | 4–7 | `ai-minions doctor --model-policy local_only` | Runtime host, local backend endpoint, discovered models, provider credentials present/missing, `next_safe_action` |
 | 7–10 | Follow `next_safe_action` → usually `ai-minions smoke --model-policy local_only` | First smoke; then `status` / `attach` with the printed `run_id` |
 
-**Credentials honesty:** `local_only` does **not** require remote provider tokens. `remote_ok` (and future `hybrid`) require exporting provider env vars when remote providers are enabled. Doctor/init print `present` / `missing` / `not_checked` — never secret values. Do not put tokens in the repo.
+**Credentials honesty:** `local_only` does **not** require remote provider tokens. Under `remote_ok` (and future `hybrid`), sufficiency means **at least one** supported provider token is present (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`) — not both. Doctor labels that as `credential_sufficiency: any_provider`; it does **not** validate the selected provider or remote connectivity. Doctor/init print `present` / `missing` / `not_checked` — never secret values. Do not put tokens in the repo.
 
 **Supported env vars (names only):**
 
