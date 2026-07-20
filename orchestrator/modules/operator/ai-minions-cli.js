@@ -29,6 +29,11 @@ const { runOperatorRuns } = require('./operator-run-list');
 const { runOperatorReport } = require('./operator-run-report');
 const { runOperatorEvidenceTui } = require('./operator-evidence-tui');
 const { runOperatorDoctor, runOperatorEvidence } = require('./operator-doctor-evidence');
+const {
+  assessProviderCredentials,
+  assessPathActivation,
+  formatCredentialStatusLines,
+} = require('./operator-credential-readiness');
 const { runOperatorContext, runOperatorResume } = require('./operator-context-resume');
 const { resolveUseColorForCli } = require('./terminal-style');
 const {
@@ -160,9 +165,13 @@ function formatPlannedCommandMessage(cmd) {
 
 /**
  * @param {Awaited<ReturnType<import('../../../../scripts/install-ai-minions.mjs').runInstallAiMinions>>} report
+ * @param {{
+ *   credentials?: ReturnType<typeof assessProviderCredentials>,
+ *   pathActivation?: ReturnType<typeof assessPathActivation>,
+ * }} [meta]
  * @returns {string}
  */
-function formatInitText(report) {
+function formatInitText(report, meta = {}) {
   const configDir = path.join(report.repo_root, '.ai-minions');
   const configPaths = [
     path.join(configDir, 'model-policy.yaml'),
@@ -171,11 +180,37 @@ function formatInitText(report) {
   ];
   const failures = report.checks.filter((c) => c.status === 'fail');
   const warnings = report.checks.filter((c) => c.status === 'warn');
+  const modelPolicy = report.model_policy ?? 'local_only';
+  const credentials = meta.credentials
+    ?? assessProviderCredentials({ modelPolicy });
+  const pathActivation = meta.pathActivation
+    ?? (report.cli_install
+      ? {
+          status: report.cli_activation_ready === true
+            ? 'ready'
+            : report.cli_install.path_remediation
+              ? 'activation_required'
+              : 'shim_missing',
+          on_path: report.cli_activation_ready === true,
+          shim_present: Boolean(report.cli_install.shim_path),
+          path_remediation: report.cli_install.path_remediation ?? null,
+        }
+      : assessPathActivation());
 
   /** @type {string | null} */
   let provider = null;
   if (report.discovery && report.discovery.backends && report.discovery.backends.length) {
     provider = report.discovery.backends[0].backend_id;
+  }
+
+  /** @type {string[]} */
+  let discoveredModels = [];
+  if (report.discovery && Array.isArray(report.discovery.models)) {
+    discoveredModels = report.discovery.models
+      .map((m) => (typeof m === 'string' ? m : m?.name))
+      .filter(Boolean);
+  } else if (report.default_model) {
+    discoveredModels = [report.default_model];
   }
 
   const lines = [
@@ -184,11 +219,13 @@ function formatInitText(report) {
     `  config_dir:       ${configDir}`,
     `  config_paths:`,
     ...configPaths.map((p) => `    - ${p}`),
-    `  model_policy:     ${report.model_policy ?? '(not set)'}`,
+    `  model_policy:     ${modelPolicy}`,
     `  model_backend:    ${report.model_backend ?? '(unknown)'}`,
     `  runtime_host:     ${report.runtime_host ?? '(not checked)'}`,
     `  runtime_integration_status: ${report.runtime_integration_status ?? '(not checked)'}`,
     `  provider:         ${provider ?? '(unknown)'}`,
+    `  path_activation:  ${pathActivation.status}`,
+    `  discovered_models: ${discoveredModels.length ? discoveredModels.join(', ') : '(none)'}`,
     `  phase:            ${report.phase}`,
     `  ok:               ${report.ok}`,
   ];
@@ -196,6 +233,12 @@ function formatInitText(report) {
   if (report.default_model) {
     lines.push(`  default_model:    ${report.default_model}`);
   }
+
+  if (pathActivation.path_remediation) {
+    lines.push(`  path_remediation: ${pathActivation.path_remediation}`);
+  }
+
+  lines.push(...formatCredentialStatusLines(credentials));
 
   if (failures.length) {
     lines.push('  missing_prerequisites:');
@@ -213,16 +256,41 @@ function formatInitText(report) {
     }
   }
 
-  lines.push(`  next_safe_action: ${deriveInitNextSafeAction(report)}`);
+  lines.push(`  next_safe_action: ${deriveInitNextSafeAction(report, { credentials, pathActivation })}`);
   return lines.join('\n');
 }
 
 /**
  * @param {Awaited<ReturnType<import('../../../../scripts/install-ai-minions.mjs').runInstallAiMinions>>} report
+ * @param {{
+ *   credentials?: ReturnType<typeof assessProviderCredentials>,
+ *   pathActivation?: { status?: string, path_remediation?: string | null },
+ * }} [meta]
  */
-function deriveInitNextSafeAction(report) {
+function deriveInitNextSafeAction(report, meta = {}) {
+  const modelPolicy = String(
+    meta.credentials?.model_policy
+      ?? report.model_policy
+      ?? 'local_only',
+  ).trim() || 'local_only';
+
+  const pathActivation = meta.pathActivation;
+  if (pathActivation?.status === 'activation_required' && pathActivation.path_remediation) {
+    return `Activate PATH: ${pathActivation.path_remediation} — then run: ai-minions doctor --model-policy ${modelPolicy}`;
+  }
+
+  const credentials = meta.credentials;
+  if (
+    credentials
+    && credentials.remote_tokens_required
+    && credentials.missing_required_env_vars.length
+  ) {
+    const first = credentials.missing_required_env_vars[0];
+    return `Export missing provider credential (value not shown): export ${first}=<your-token> — then run: ai-minions doctor --model-policy ${modelPolicy}`;
+  }
+
   if (report.ok && report.phase === 'config_write') {
-    return 'Run: ai-minions start --goal "<goal>" (or npm run runner:tui -- preflight first)';
+    return `Run: ai-minions doctor --model-policy ${modelPolicy} then ai-minions smoke --model-policy ${modelPolicy}`;
   }
   if (report.phase === 'host_prereqs') {
     const codes = new Set(
@@ -311,12 +379,47 @@ async function runInit(options = {}) {
     force: options.force === true,
     skipRuntimeIntegration: options.skipRuntimeIntegration === true,
   });
+  const modelPolicy = report.model_policy ?? options.modelPolicy ?? 'local_only';
+  const credentials = assessProviderCredentials({
+    modelPolicy,
+    env: options.env,
+  });
+  const pathActivation = assessPathActivation({
+    homeDir: options.homeDir,
+    binDir: options.binDir ?? report.cli_install?.bin_dir,
+    pathEnv: options.pathEnv,
+    existsSync: options.existsSync,
+  });
   return {
     report,
-    text: formatInitText(report),
+    text: formatInitText(report, { credentials, pathActivation }),
     exitCode: report.ok ? 0 : 1,
-    next_safe_action: deriveInitNextSafeAction(report),
-    json: options.json === true ? report : null,
+    next_safe_action: deriveInitNextSafeAction(report, { credentials, pathActivation }),
+    json: options.json === true
+      ? {
+          ...report,
+          path_activation: {
+            status: pathActivation.status,
+            on_path: pathActivation.on_path,
+            shim_present: pathActivation.shim_present,
+            path_remediation: pathActivation.path_remediation,
+          },
+          provider_credentials: {
+            remote_tokens_required: credentials.remote_tokens_required,
+            local_only_tokens_not_required: credentials.local_only_tokens_not_required,
+            credential_sufficiency: credentials.credential_sufficiency,
+            note: credentials.note,
+            providers: credentials.providers.map((p) => ({
+              provider: p.provider,
+              env_var: p.env_var,
+              status: p.status,
+              required_for_policy: p.required_for_policy,
+            })),
+            missing_required_env_vars: credentials.missing_required_env_vars,
+          },
+          next_safe_action: deriveInitNextSafeAction(report, { credentials, pathActivation }),
+        }
+      : null,
   };
 }
 

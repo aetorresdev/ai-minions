@@ -12,6 +12,11 @@ const { buildRunPreflight, formatPreflightText } = require('./runner-preflight')
 const { loadOperatorTraceContext } = require('./operator-trace-command');
 const { buildControlPlaneRunText } = require('./control-plane-tui');
 const { ansi, formatStatusTag, colorOk } = require('./terminal-style');
+const {
+  assessProviderCredentials,
+  assessPathActivation,
+  formatCredentialStatusLines,
+} = require('./operator-credential-readiness');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const OPERATOR_PREFLIGHT_SCRIPT = path.join(REPO_ROOT, 'scripts', 'operator-preflight.mjs');
@@ -131,10 +136,54 @@ function deriveDoctorFieldSummary(report) {
 
 /**
  * @param {Awaited<ReturnType<import('../../../../scripts/operator-preflight.mjs').runOperatorPreflight>>} report
+ * @param {{
+ *   runnerPreflight?: Awaited<ReturnType<typeof buildRunPreflight>> | null,
+ *   pathActivation?: ReturnType<typeof assessPathActivation> | null,
+ *   credentials?: ReturnType<typeof assessProviderCredentials> | null,
+ * }} [meta]
  */
-function deriveDoctorNextSafeAction(report) {
+function deriveDoctorNextSafeAction(report, meta = {}) {
+  const modelPolicy = String(
+    meta.credentials?.model_policy
+      ?? meta.runnerPreflight?.model_policy
+      ?? report.model_policy
+      ?? 'local_only',
+  ).trim() || 'local_only';
+
+  const pathActivation = meta.pathActivation;
+  if (pathActivation && pathActivation.status === 'activation_required' && pathActivation.path_remediation) {
+    return `Activate PATH, then re-run doctor: ${pathActivation.path_remediation}`;
+  }
+  if (pathActivation && pathActivation.status === 'shim_missing') {
+    return 'Run product install first: node scripts/install-ai-minions.mjs — then re-run: ai-minions doctor';
+  }
+
+  const credentials = meta.credentials;
+  if (
+    credentials
+    && credentials.remote_tokens_required
+    && credentials.missing_required_env_vars.length
+  ) {
+    const first = credentials.missing_required_env_vars[0];
+    return `Export missing provider credential (value not shown): export ${first}=<your-token> — then re-run: ai-minions doctor --model-policy ${modelPolicy}`;
+  }
+
+  const runner = meta.runnerPreflight;
+  if (runner && !runner.ok) {
+    const blockers = (runner.blockers ?? []).join(' ').toLowerCase();
+    if (/unreachable|missing local backend|local backend/i.test(blockers)) {
+      return `Start Ollama (ollama serve), set OLLAMA_HOST/OLLAMA_PORT if remote, then re-run: ai-minions doctor --model-policy ${modelPolicy}`;
+    }
+    if (/model not found|no local models|empty/i.test(blockers)) {
+      return `Pull a local model (e.g. ollama pull qwen2.5-coder:7b), then re-run: ai-minions doctor --model-policy ${modelPolicy}`;
+    }
+    if (runner.next_safe_action) {
+      return runner.next_safe_action;
+    }
+  }
+
   if (report.ok) {
-    return 'Environment ready — run: ai-minions start --goal "<goal>" (or status after a run).';
+    return `Environment ready — run: ai-minions smoke --model-policy ${modelPolicy} (or start --goal after smoke).`;
   }
   if (report.layer_stopped === 'bootstrap') {
     return 'Fix host/bootstrap blockers above, then re-run: ai-minions doctor';
@@ -142,24 +191,54 @@ function deriveDoctorNextSafeAction(report) {
   if (report.layer_stopped === 'runtime') {
     return 'Fix runtime MCP/hook/config blockers, then re-run: ai-minions doctor';
   }
-  return 'Fix runner/model/Ollama blockers, then re-run: ai-minions doctor --model-policy local_only';
+  return `Fix runner/model/Ollama blockers, then re-run: ai-minions doctor --model-policy ${modelPolicy}`;
 }
 
 /**
  * @param {Awaited<ReturnType<import('../../../../scripts/operator-preflight.mjs').runOperatorPreflight>>} report
  * @param {Awaited<ReturnType<typeof buildRunPreflight>> | null} [runnerPreflight]
- * @param {{ useColor?: boolean }} [options]
+ * @param {{
+ *   useColor?: boolean,
+ *   pathActivation?: ReturnType<typeof assessPathActivation> | null,
+ *   credentials?: ReturnType<typeof assessProviderCredentials> | null,
+ * }} [options]
  * @returns {string}
  */
 function formatOperatorDoctorText(report, runnerPreflight = null, options = {}) {
   const useColor = options.useColor === true;
   const fields = deriveDoctorFieldSummary(report);
+  const pathActivation = options.pathActivation ?? null;
+  const credentials = options.credentials
+    ?? assessProviderCredentials({ modelPolicy: runnerPreflight?.model_policy });
+  const modelPolicy = runnerPreflight?.model_policy
+    ?? credentials.model_policy
+    ?? 'local_only';
+  const discovered = Array.isArray(runnerPreflight?.discovered_models)
+    ? runnerPreflight.discovered_models
+    : [];
+  const nextAction = deriveDoctorNextSafeAction(report, {
+    runnerPreflight,
+    pathActivation,
+    credentials,
+  });
+
   const lines = [
     ansi(useColor, '1', 'ai-minions doctor'),
     `  ok:                    ${colorOk(report.ok, useColor)}`,
     `  traces_dir:            ${report.traces_dir ?? '-'}`,
     `  layer_stopped:         ${report.layer_stopped ?? '(none)'}`,
+    `  model_policy:          ${modelPolicy}`,
   ];
+  if (pathActivation) {
+    lines.push(
+      `  path_activation:       ${pathActivation.status}`,
+      `  path_on_path:          ${pathActivation.on_path}`,
+      `  cli_shim_present:      ${pathActivation.shim_present}`,
+    );
+    if (pathActivation.path_remediation) {
+      lines.push(`  path_remediation:      ${pathActivation.path_remediation}`);
+    }
+  }
   if (runnerPreflight?.config_target) {
     lines.push(`  config_target:         ${runnerPreflight.config_target}`);
   }
@@ -180,7 +259,9 @@ function formatOperatorDoctorText(report, runnerPreflight = null, options = {}) 
     `  runtime_host:          ${report.runtime_preflight?.runtime_host ?? 'claude_code'}`,
     `  auth_status:           ${fields.auth_status}`,
     `  config_validity:       ${fields.config_validity}`,
+    `  discovered_models:     ${discovered.length ? discovered.join(', ') : '(none)'}`,
   );
+  lines.push(...formatCredentialStatusLines(credentials));
 
   if (report.ok && fields.config_validity === 'degraded') {
     lines.push(
@@ -191,7 +272,7 @@ function formatOperatorDoctorText(report, runnerPreflight = null, options = {}) 
   lines.push(
     '  known_limitations:',
     ...fields.known_limitations.map((l) => `    - ${l}`),
-    `  next_safe_action:      ${ansi(useColor, '36', deriveDoctorNextSafeAction(report))}`,
+    `  next_safe_action:      ${ansi(useColor, '36', nextAction)}`,
     '',
     '-- checks (bootstrap → runtime → runner) --',
   );
@@ -207,21 +288,60 @@ function formatOperatorDoctorText(report, runnerPreflight = null, options = {}) 
 /**
  * @param {Awaited<ReturnType<import('../../../../scripts/operator-preflight.mjs').runOperatorPreflight>>} report
  * @param {Awaited<ReturnType<typeof buildRunPreflight>> | null} [runnerPreflight]
+ * @param {{
+ *   pathActivation?: ReturnType<typeof assessPathActivation> | null,
+ *   credentials?: ReturnType<typeof assessProviderCredentials> | null,
+ * }} [meta]
  */
-function buildOperatorDoctorJson(report, runnerPreflight = null) {
+function buildOperatorDoctorJson(report, runnerPreflight = null, meta = {}) {
+  const credentials = meta.credentials
+    ?? assessProviderCredentials({ modelPolicy: runnerPreflight?.model_policy });
+  const pathActivation = meta.pathActivation ?? null;
+  const discovered = Array.isArray(runnerPreflight?.discovered_models)
+    ? runnerPreflight.discovered_models
+    : [];
   return {
     command: 'doctor',
     ok: report.ok,
     traces_dir: report.traces_dir ?? null,
     layer_stopped: report.layer_stopped ?? null,
     runtime_preflight: report.runtime_preflight ?? null,
+    model_policy: runnerPreflight?.model_policy ?? credentials.model_policy,
     config_target: runnerPreflight?.config_target ?? null,
     config_path: runnerPreflight?.config_path ?? null,
     policy_source: runnerPreflight?.policy_source ?? null,
     local_backend_url: runnerPreflight?.base_url ?? null,
+    discovered_models: discovered,
+    path_activation: pathActivation
+      ? {
+          status: pathActivation.status,
+          on_path: pathActivation.on_path,
+          shim_present: pathActivation.shim_present,
+          bin_dir: pathActivation.bin_dir,
+          path_remediation: pathActivation.path_remediation,
+          note: pathActivation.note,
+        }
+      : null,
+    provider_credentials: {
+      remote_tokens_required: credentials.remote_tokens_required,
+      local_only_tokens_not_required: credentials.local_only_tokens_not_required,
+      credential_sufficiency: credentials.credential_sufficiency,
+      note: credentials.note,
+      providers: credentials.providers.map((p) => ({
+        provider: p.provider,
+        env_var: p.env_var,
+        status: p.status,
+        required_for_policy: p.required_for_policy,
+      })),
+      missing_required_env_vars: credentials.missing_required_env_vars,
+    },
     summary: deriveDoctorFieldSummary(report),
     checks: report.checks,
-    next_safe_action: deriveDoctorNextSafeAction(report),
+    next_safe_action: deriveDoctorNextSafeAction(report, {
+      runnerPreflight,
+      pathActivation,
+      credentials,
+    }),
   };
 }
 
@@ -239,6 +359,13 @@ function buildOperatorDoctorJson(report, runnerPreflight = null) {
  *   allowPublicLocalRuntime?: boolean,
  *   json?: boolean,
  *   useColor?: boolean,
+ *   homeDir?: string,
+ *   binDir?: string,
+ *   pathEnv?: string,
+ *   env?: NodeJS.ProcessEnv,
+ *   existsSync?: typeof fs.existsSync,
+ *   pathActivation?: ReturnType<typeof assessPathActivation> | null,
+ *   credentials?: ReturnType<typeof assessProviderCredentials> | null,
  *   loadOperatorPreflightModule?: () => Promise<typeof import('../../../../scripts/operator-preflight.mjs')>,
  *   buildRunPreflightFn?: typeof buildRunPreflight,
  * }} [options]
@@ -269,13 +396,35 @@ async function runOperatorDoctor(options = {}) {
     invokeRunner: () => buildRunnerInvokeResult(runnerPreflight),
   });
 
+  const pathActivation = options.pathActivation
+    ?? assessPathActivation({
+      homeDir: options.homeDir,
+      binDir: options.binDir,
+      pathEnv: options.pathEnv,
+      existsSync: options.existsSync,
+    });
+  const credentials = options.credentials
+    ?? assessProviderCredentials({
+      modelPolicy: runnerPreflight?.model_policy ?? modelPolicy,
+      env: options.env,
+    });
+
   return {
     ok: report.ok,
     exitCode: report.ok ? 0 : 2,
     report,
     runnerPreflight,
-    text: formatOperatorDoctorText(report, runnerPreflight, { useColor }),
-    json: buildOperatorDoctorJson(report, runnerPreflight),
+    pathActivation,
+    credentials,
+    text: formatOperatorDoctorText(report, runnerPreflight, {
+      useColor,
+      pathActivation,
+      credentials,
+    }),
+    json: buildOperatorDoctorJson(report, runnerPreflight, {
+      pathActivation,
+      credentials,
+    }),
   };
 }
 

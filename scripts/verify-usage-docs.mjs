@@ -156,6 +156,10 @@ function mustNotMatch(text, pattern, label, fileRel) {
 function checkGuide(guideText) {
   const rel = "docs/how-to/usage-smoke-guide.md";
   mustInclude(guideText, "## Happy path", "end-to-end runbook section", rel);
+  mustInclude(guideText, "## First 10 minutes", "first-10-minutes install path", rel);
+  mustInclude(guideText, "ANTHROPIC_API_KEY", "provider credential env var", rel);
+  mustInclude(guideText, "OPENAI_API_KEY", "openai credential env var", rel);
+  mustInclude(guideText, "OLLAMA_HOST", "endpoint env var", rel);
   mustInclude(guideText, "## Troubleshooting", "troubleshooting section", rel);
   mustInclude(guideText, "MODE: ORCHESTRATOR", "canonical MODE header", rel);
   mustInclude(guideText, "FLOW: single_agent", "single_agent flow", rel);
