@@ -105,7 +105,7 @@ node scripts/generate-mode-comparison-report.mjs --write-template /tmp/mode-comp
 
 After each live row: set `result`, `reason_code`, `run_id` / `task_id`, artifact paths, and attach/status/trace references. Leave `tokens` / `cost` null when not measured.
 
-**PASS minimum evidence:** non-empty `artifact_paths`, `run_id` or `task_id`, `status_evidence`, and `attach_path` or `attach_available`. Incomplete PASS is rejected by `--from-evidence`.
+**PASS minimum evidence:** non-empty `artifact_paths`, `run_id` or `task_id`, `status_evidence`, and `attach_path` or `attach_available: true` (strict boolean — mere presence of the key is not enough). Incomplete PASS is rejected by `--from-evidence`.
 
 **Hybrid rows** (`sa-hybrid`, `ma-hybrid`) stay honest skip (`MATRIX_SKIP_HYBRID_UNSUPPORTED`). Evidence cannot promote them to PASS/READY, and `agent_flow` / inference mode always come from the canonical row id.
 

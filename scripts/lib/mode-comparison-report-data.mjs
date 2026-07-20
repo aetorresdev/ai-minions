@@ -206,7 +206,7 @@ export function validatePassEvidenceMinimum(row) {
   // Strict boolean: reject truthy non-booleans like "false" or 1.
   if (!attachPath && row.attach_available !== true) {
     errors.push(
-      `PASS for ${row.row_id} requires attach_path or attach_available`,
+      `PASS for ${row.row_id} requires attach_path or attach_available: true`,
     );
   }
   // When a fixture id is present, treat it as the applicable verifier label
