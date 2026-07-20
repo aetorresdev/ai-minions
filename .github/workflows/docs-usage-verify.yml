@@ -37,6 +37,8 @@ on:
       - "scripts/lib/beta-smoke-matrix-data.mjs"
       - "scripts/run-tester-six-mode-matrix.mjs"
       - "scripts/lib/tester-six-mode-matrix-data.mjs"
+      - "scripts/verify-canonical-real-task-fixtures.mjs"
+      - "scripts/lib/canonical-real-task-fixtures-data.mjs"
       - "scripts/lib/degraded-mode-evidence.mjs"
       - "scripts/lib/operator-doc-claims.mjs"
       - "scripts/verify-usage-docs.mjs"
@@ -55,6 +57,8 @@ on:
       - "tests/assert-docker-live-install-evidence.test.mjs"
       - "tests/run-beta-smoke-matrix.test.mjs"
       - "tests/run-tester-six-mode-matrix.test.mjs"
+      - "tests/canonical-real-task-fixtures.test.mjs"
+      - "tests/fixtures/canonical-tasks/**"
       - "tests/degraded-mode-evidence.test.mjs"
       - "docs/orchestrator/beta-limitations-onboarding-contract.md"
       - "scripts/run-beta-gate-hardening-evidence.mjs"
@@ -149,6 +153,9 @@ jobs:
       - name: Tester six-mode matrix structure gate
         run: node scripts/run-tester-six-mode-matrix.mjs --skip-live
 
+      - name: Canonical real-task fixtures structure gate
+        run: node scripts/verify-canonical-real-task-fixtures.mjs
+
       - name: Beta gate hardening evidence chain
         run: node scripts/run-beta-gate-hardening-evidence.mjs
 
@@ -169,6 +176,9 @@ jobs:
 
       - name: Tester six-mode matrix unit tests
         run: node --test tests/run-tester-six-mode-matrix.test.mjs
+
+      - name: Canonical real-task fixtures unit tests
+        run: node --test tests/canonical-real-task-fixtures.test.mjs
 
       - name: Beta gate hardening evidence unit tests
         run: node --test tests/run-beta-gate-hardening-evidence.test.mjs

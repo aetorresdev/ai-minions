@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Sudoku</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1.5rem; }
+    #board { display: grid; grid-template-columns: repeat(9, 2rem); gap: 0; border: 2px solid #222; width: max-content; }
+    .cell { width: 2rem; height: 2rem; text-align: center; border: 1px solid #999; font-size: 1rem; }
+    .cell:nth-child(9n+3), .cell:nth-child(9n+6) { border-right: 2px solid #222; }
+    .cell:nth-child(n+19):nth-child(-n+27),
+    .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid #222; }
+    .given { background: #f0f0f0; font-weight: 600; }
+    #status { margin-top: 0.75rem; min-height: 1.25rem; }
+    button { margin-right: 0.5rem; margin-top: 0.75rem; }
+  </style>
+</head>
+<body>
+  <h1>Sudoku</h1>
+  <p>Sample reference artifact for canonical fixture functional checks (offline, no network).</p>
+  <div id="board" aria-label="Sudoku board"></div>
+  <div>
+    <button type="button" id="checkBtn">Check</button>
+    <button type="button" id="resetBtn">Reset</button>
+    <button type="button" id="newPuzzleBtn">New puzzle</button>
+  </div>
+  <p id="status" role="status"></p>
+  <script>
+    // Minimal playable sample — not a production puzzle generator.
+    const PUZZLES = [
+      "530070000600195000098000060800060003400803001700020006060000280000419005000080079",
+      "000260701680070090190004500820100040004602900050003028009300074040090036703018000",
+    ];
+    let puzzleIndex = 0;
+    let givenMask = "";
+
+    function parsePuzzle(raw) {
+      return raw.split("").map((ch) => (ch === "0" ? "" : ch));
+    }
+
+    function render() {
+      const board = document.getElementById("board");
+      board.innerHTML = "";
+      const cells = parsePuzzle(PUZZLES[puzzleIndex]);
+      givenMask = cells.map((v) => (v ? "1" : "0")).join("");
+      cells.forEach((value, i) => {
+        const input = document.createElement("input");
+        input.className = "cell" + (value ? " given" : "");
+        input.maxLength = 1;
+        input.inputMode = "numeric";
+        input.value = value;
+        input.readOnly = Boolean(value);
+        input.dataset.index = String(i);
+        input.setAttribute("aria-label", "cell " + (i + 1));
+        board.appendChild(input);
+      });
+      document.getElementById("status").textContent = "";
+    }
+
+    function readBoard() {
+      return Array.from(document.querySelectorAll(".cell")).map((el) => el.value.trim());
+    }
+
+    function isValidGroup(values) {
+      const digits = values.filter(Boolean);
+      if (digits.some((d) => !/^[1-9]$/.test(d))) return false;
+      return new Set(digits).size === digits.length;
+    }
+
+    function validateBoard(values) {
+      if (values.some((v) => v === "")) return { ok: false, message: "Board incomplete." };
+      for (let r = 0; r < 9; r++) {
+        if (!isValidGroup(values.slice(r * 9, r * 9 + 9))) {
+          return { ok: false, message: "Invalid row " + (r + 1) };
+        }
+      }
+      for (let c = 0; c < 9; c++) {
+        const col = [];
+        for (let r = 0; r < 9; r++) col.push(values[r * 9 + c]);
+        if (!isValidGroup(col)) return { ok: false, message: "Invalid column " + (c + 1) };
+      }
+      for (let br = 0; br < 3; br++) {
+        for (let bc = 0; bc < 3; bc++) {
+          const box = [];
+          for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+              box.push(values[(br * 3 + r) * 9 + (bc * 3 + c)]);
+            }
+          }
+          if (!isValidGroup(box)) {
+            return { ok: false, message: "Invalid box " + (br * 3 + bc + 1) };
+          }
+        }
+      }
+      return { ok: true, message: "Board is complete and valid." };
+    }
+
+    document.getElementById("checkBtn").addEventListener("click", () => {
+      const result = validateBoard(readBoard());
+      document.getElementById("status").textContent = result.message;
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      render();
+      document.getElementById("status").textContent = "Board reset.";
+    });
+
+    document.getElementById("newPuzzleBtn").addEventListener("click", () => {
+      puzzleIndex = (puzzleIndex + 1) % PUZZLES.length;
+      render();
+      document.getElementById("status").textContent = "Loaded new puzzle.";
+    });
+
+    render();
+  </script>
+</body>
+</html>
