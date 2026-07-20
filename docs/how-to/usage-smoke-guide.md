@@ -26,6 +26,30 @@ Canonical **end-to-end happy path** for trying **ai-minions** without tribal kno
 
 ---
 
+## First 10 minutes (install → first smoke)
+
+Minimal tester path after clone. Prefer this when validating onboarding honesty (PATH, discovery, credentials) before a longer smoke.
+
+| Minute | Command | What you should learn |
+|--------|---------|------------------------|
+| 0–2 | `node scripts/install-ai-minions.mjs` | Shim written; if `activation required`, run the printed `export PATH=…` (installer never edits shell rc) |
+| 2–4 | `ai-minions init --model-policy local_only` | Config paths, discovered local models, PATH activation, credential **status** only |
+| 4–7 | `ai-minions doctor --model-policy local_only` | Runtime host, local backend endpoint, discovered models, provider credentials present/missing, `next_safe_action` |
+| 7–10 | Follow `next_safe_action` → usually `ai-minions smoke --model-policy local_only` | First smoke; then `status` / `attach` with the printed `run_id` |
+
+**Credentials honesty:** `local_only` does **not** require remote provider tokens. `remote_ok` (and future `hybrid`) require exporting provider env vars when remote providers are enabled. Doctor/init print `present` / `missing` / `not_checked` — never secret values. Do not put tokens in the repo.
+
+**Supported env vars (names only):**
+
+| Kind | Variables |
+|------|-----------|
+| Provider credentials | `ANTHROPIC_API_KEY` · `OPENAI_API_KEY` |
+| Endpoints / home | `AI_MINIONS_HOME` · `OLLAMA_HOST` · `OLLAMA_PORT` · `ORCHESTRATOR_OLLAMA_URL` |
+
+See also [install-ollama-docker-paths](install-ollama-docker-paths.md) for Docker `OLLAMA_HOST` tips.
+
+---
+
 ## Happy path (end-to-end runbook)
 
 **Primary path:** installed product CLI (`ai-minions`) — same sequence as [README Quickstart Stage 2](../../README.md#stage-2-product-cli-ai-minions).

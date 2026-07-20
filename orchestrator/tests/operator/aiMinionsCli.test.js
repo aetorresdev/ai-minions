@@ -251,9 +251,45 @@ describe("ai-minions-cli formatters", () => {
     assert.match(text, /next_safe_action:/);
   });
 
-  it("deriveInitNextSafeAction points to start after successful config write", () => {
-    const action = deriveInitNextSafeAction({ ok: true, phase: "config_write" });
-    assert.match(action, /start --goal/);
+  it("deriveInitNextSafeAction points to doctor then smoke after successful config write", () => {
+    const action = deriveInitNextSafeAction({ ok: true, phase: "config_write", model_policy: "local_only" });
+    assert.match(action, /ai-minions doctor/);
+    assert.match(action, /ai-minions smoke/);
+  });
+
+  it("formatInitText includes local_only credential note without secret values", () => {
+    const secret = "sk-init-leak-probe";
+    const text = formatInitText(
+      {
+        repo_root: "/tmp/repo",
+        model_policy: "local_only",
+        model_backend: "ollama",
+        runtime_host: "claude_code",
+        runtime_integration_status: "ok",
+        phase: "config_write",
+        ok: true,
+        checks: [],
+        discovery: { backends: [{ backend_id: "ollama" }], models: [{ name: "qwen2.5-coder:7b" }] },
+      },
+      {
+        credentials: {
+          model_policy: "local_only",
+          remote_tokens_required: false,
+          local_only_tokens_not_required: true,
+          providers: [
+            { provider: "anthropic", env_var: "ANTHROPIC_API_KEY", status: "present", required_for_policy: false },
+            { provider: "openai", env_var: "OPENAI_API_KEY", status: "missing", required_for_policy: false },
+          ],
+          missing_required_env_vars: [],
+          note: "local_only does not require remote provider tokens",
+        },
+        pathActivation: { status: "ready", on_path: true, shim_present: true, path_remediation: null },
+      },
+    );
+    assert.match(text, /local_only does not require remote provider tokens/);
+    assert.match(text, /path_activation:\s+ready/);
+    assert.match(text, /discovered_models:\s+qwen2\.5-coder:7b/);
+    assert.doesNotMatch(text, new RegExp(secret));
   });
 
   it("formatStartText includes run_id, mode, trace and evidence paths", () => {

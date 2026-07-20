@@ -72,6 +72,7 @@ const ENTRIES = {
   'tests/operator/operatorRunList.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTraceCommand.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorDoctorEvidence.test.js': { owner: 'operator', kind: 'unit' },
+  'tests/operator/operatorCredentialReadiness.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorGuidedFirstRun.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorContextResume.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTraceSummary.test.js': { owner: 'operator', kind: 'unit' },

@@ -96,7 +96,9 @@ export AI_MINIONS_HOME=/path/to/ai-minions
 
 ## Phase B — Guided operator path (installed CLI)
 
-**Depth:** [operator-blockers-and-recovery](operator-blockers-and-recovery.md) · [usage-smoke-guide](usage-smoke-guide.md)
+**Depth:** [operator-blockers-and-recovery](operator-blockers-and-recovery.md) · [usage-smoke-guide](usage-smoke-guide.md) · [First 10 minutes](usage-smoke-guide.md#first-10-minutes-install--first-smoke)
+
+After install, `ai-minions init` / `doctor` report PATH activation, runtime host, local backend endpoint, discovered models, model policy, and provider credential **status** (`present` / `missing` / `not_checked`) — never secret values. Under `local_only`, remote tokens are **not** required; under `remote_ok`, export `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` when remote providers are desired. Endpoint vars: `OLLAMA_HOST`, `OLLAMA_PORT`, `ORCHESTRATOR_OLLAMA_URL`, `AI_MINIONS_HOME`.
 
 From target repo (clone root or `$HOME` with `AI_MINIONS_HOME` set):
 

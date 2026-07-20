@@ -163,6 +163,8 @@ No competitor naming — category contrast only. See [`harness-engineering-posit
 
 **Goal:** clone → install → `ai-minions init` → `doctor` → `start` → `status`/`explain` → `evidence`/`context` → (optional) Claude Code skill, MODE header, or legacy scripts.
 
+**First 10 minutes:** install → init → doctor → smoke → status/attach — see [`usage-smoke-guide.md` § First 10 minutes](docs/how-to/usage-smoke-guide.md#first-10-minutes-install--first-smoke) (PATH activation, model discovery, credential status without secrets).
+
 Full walkthrough and troubleshooting: [`docs/how-to/usage-smoke-guide.md`](docs/how-to/usage-smoke-guide.md).
 
 ### Before you start
