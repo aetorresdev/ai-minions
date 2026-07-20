@@ -122,8 +122,8 @@ For every live row: run command → note printed `run_id` / `task_id` → status
 | **Optional endpoint env** | `OLLAMA_HOST` · `OLLAMA_PORT` · `ORCHESTRATOR_OLLAMA_URL` · `AI_MINIONS_HOME` |
 | **Commands** | See copy block |
 | **Follow-up** | `status` + `attach` |
-| **PASS** | Smoke exit `0` (or honest terminal failure with codes); attach/bundle without secrets |
-| **FAIL** | Crash / opaque failure without reason code |
+| **PASS** | Smoke exit `0`; `run_id` / `task_id` recorded; attach/bundle without secrets |
+| **FAIL** | Smoke attempted and failed (non-zero exit or incomplete evidence) — including failures that print reason codes |
 | **SKIP** | `MATRIX_SKIP_LOCAL_BACKEND_MISSING` when Ollama unreachable |
 
 ```bash
@@ -172,7 +172,8 @@ Record skip in your notes; do not invent a PASS.
 | **Required env / secrets** | None for remote providers — **no remote token is required**; **no silent remote fallback** |
 | **Commands** | `start` with `--flow multi_agent` (smoke defaults to single-agent) |
 | **Follow-up** | `status` + `attach` |
-| **PASS** | Start completes or fails with clear codes; evidence saved |
+| **PASS** | Start completes successfully; `run_id` / `task_id` recorded; evidence saved without secrets |
+| **FAIL** | Start attempted and failed (including clear reason codes) — open [operator feedback](operator-feedback-issue.md) |
 | **SKIP** | `MATRIX_SKIP_LOCAL_BACKEND_MISSING` |
 
 ```bash
@@ -220,10 +221,10 @@ After each **PASS** or actionable **FAIL**:
 3. Printed `run_id` / `task_id`
 4. `ai-minions attach --run-id <run_id>` **or**
 
-```bash
-node scripts/inspect-run-evidence.mjs <task_id>
-node scripts/collect-run-report.mjs <task_id>
-```
+   ```bash
+   node scripts/inspect-run-evidence.mjs <task_id>
+   node scripts/collect-run-report.mjs <task_id>
+   ```
 
 5. Confirm [PRIVACY.md](../../PRIVACY.md) before uploading — **never secret values** in logs, JSON, attach bundles, or summaries
 

@@ -17,12 +17,13 @@ import {
   SIX_MODE_ROWS,
   assessAllRows,
   assessCredentialPresence,
+  credentialRequirementByPolicy,
   validateMatrixDoc,
 } from "./lib/tester-six-mode-matrix-data.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-/** @typedef {'pass' | 'fail' | 'skip'} StepStatus */
+/** @typedef {'pass' | 'fail' | 'skip' | 'ready'} StepStatus */
 /** @typedef {{ id: string, reason_code: string, status: StepStatus, message: string }} StepResult */
 
 /**
@@ -47,6 +48,19 @@ export function probeLocalBackend(opts) {
     });
     req.on("error", () => resolve(false));
   });
+}
+
+/**
+ * Map row assessment status to step status.
+ * MATRIX_READY stays "ready" — never promoted to "pass" (eligibility ≠ executed PASS).
+ * @param {string} rowStatus
+ * @returns {StepStatus}
+ */
+export function rowStatusToStepStatus(rowStatus) {
+  if (rowStatus === "fail") return "fail";
+  if (rowStatus === "ready") return "ready";
+  if (rowStatus === "pass") return "pass";
+  return "skip";
 }
 
 /**
@@ -106,12 +120,10 @@ export async function runTesterSixModeMatrix(options = {}) {
   });
 
   for (const row of rowResults) {
-    const stepStatus =
-      row.status === "fail" ? "fail" : row.status === "ready" ? "pass" : "skip";
     steps.push({
       id: `row:${row.id}`,
       reason_code: row.reason_code,
-      status: stepStatus,
+      status: rowStatusToStepStatus(row.status),
       message: row.message,
     });
   }
@@ -125,9 +137,9 @@ export async function runTesterSixModeMatrix(options = {}) {
       anthropic: credentials.anthropic,
       openai: credentials.openai,
       any_provider: credentials.any_provider,
-      credential_sufficiency: "any_provider",
+      credential_requirement_by_policy: credentialRequirementByPolicy(),
       note:
-        "Status only (present/missing). Never prints secret values. any_provider does not validate selected provider or remote connectivity.",
+        "Status only (present/missing). Never prints secret values. remote_ok uses any_provider (at least one supported token); local_only is not_required. any_provider does not validate selected provider or remote connectivity.",
     },
     local_backend: {
       probed: options.probeLocal === true,
@@ -145,10 +157,12 @@ export async function runTesterSixModeMatrix(options = {}) {
  * @returns {string}
  */
 export function formatReportText(report) {
+  const policies = report.credential_status.credential_requirement_by_policy;
   const lines = [
     `tester-six-mode-matrix: ${report.ok ? "OK" : "FAIL"}`,
     `evidence_class: ${report.evidence_class}`,
     `credentials: anthropic=${report.credential_status.anthropic} openai=${report.credential_status.openai} any_provider=${report.credential_status.any_provider}`,
+    `credential_requirement_by_policy: local_only=${policies.local_only} remote_ok=${policies.remote_ok} hybrid=${policies.hybrid}`,
     `local_backend: probed=${report.local_backend.probed} reachable=${report.local_backend.reachable}`,
     "",
     "steps:",

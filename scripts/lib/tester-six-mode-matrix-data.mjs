@@ -9,6 +9,7 @@
 /** @typedef {'single_agent' | 'multi_agent'} AgentFlow */
 /** @typedef {'local_only' | 'remote_ok' | 'hybrid'} InferenceMode */
 /** @typedef {'pass' | 'fail' | 'skip' | 'ready'} RowStatus */
+/** @typedef {'not_required' | 'any_provider'} CredentialRequirement */
 
 /**
  * @typedef {Object} MatrixRowDef
@@ -17,7 +18,8 @@
  * @property {InferenceMode} inference_mode
  * @property {string} title
  * @property {boolean} hybrid_honest_skip
- * @property {string[]} required_env_vars
+ * @property {CredentialRequirement} credential_requirement
+ * @property {string[]} supported_provider_env_vars
  * @property {string[]} required_local_services
  * @property {string} command_template
  * @property {string} follow_up
@@ -36,6 +38,12 @@ export const REASON_CODES = Object.freeze({
   READY: "MATRIX_READY",
 });
 
+/** Provider env vars accepted under any_provider (either-or, not both required). */
+export const ANY_PROVIDER_ENV_VARS = Object.freeze([
+  "ANTHROPIC_API_KEY",
+  "OPENAI_API_KEY",
+]);
+
 /** @type {MatrixRowDef[]} */
 export const SIX_MODE_ROWS = Object.freeze([
   {
@@ -44,7 +52,8 @@ export const SIX_MODE_ROWS = Object.freeze([
     inference_mode: "local_only",
     title: "Single-agent + local_only",
     hybrid_honest_skip: false,
-    required_env_vars: [],
+    credential_requirement: "not_required",
+    supported_provider_env_vars: [],
     required_local_services: ["ollama"],
     command_template:
       "ai-minions smoke --model-policy local_only",
@@ -57,7 +66,8 @@ export const SIX_MODE_ROWS = Object.freeze([
     inference_mode: "remote_ok",
     title: "Single-agent + remote_ok (remote-only inference)",
     hybrid_honest_skip: false,
-    required_env_vars: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"],
+    credential_requirement: "any_provider",
+    supported_provider_env_vars: [...ANY_PROVIDER_ENV_VARS],
     required_local_services: [],
     command_template:
       "ai-minions smoke --model-policy remote_ok",
@@ -70,7 +80,8 @@ export const SIX_MODE_ROWS = Object.freeze([
     inference_mode: "hybrid",
     title: "Single-agent + hybrid",
     hybrid_honest_skip: true,
-    required_env_vars: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"],
+    credential_requirement: "any_provider",
+    supported_provider_env_vars: [...ANY_PROVIDER_ENV_VARS],
     required_local_services: ["ollama"],
     command_template:
       "(unsupported) — do not pass --model-policy hybrid",
@@ -82,7 +93,8 @@ export const SIX_MODE_ROWS = Object.freeze([
     inference_mode: "local_only",
     title: "Multi-agent + local_only",
     hybrid_honest_skip: false,
-    required_env_vars: [],
+    credential_requirement: "not_required",
+    supported_provider_env_vars: [],
     required_local_services: ["ollama"],
     command_template:
       'ai-minions start --flow multi_agent --model-policy local_only --skip-gates --iterations 1 --goal "List three files in repo root and stop"',
@@ -95,7 +107,8 @@ export const SIX_MODE_ROWS = Object.freeze([
     inference_mode: "remote_ok",
     title: "Multi-agent + remote_ok (remote-only inference)",
     hybrid_honest_skip: false,
-    required_env_vars: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"],
+    credential_requirement: "any_provider",
+    supported_provider_env_vars: [...ANY_PROVIDER_ENV_VARS],
     required_local_services: [],
     command_template:
       'ai-minions start --flow multi_agent --model-policy remote_ok --skip-gates --iterations 1 --goal "List three files in repo root and stop"',
@@ -108,7 +121,8 @@ export const SIX_MODE_ROWS = Object.freeze([
     inference_mode: "hybrid",
     title: "Multi-agent + hybrid",
     hybrid_honest_skip: true,
-    required_env_vars: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"],
+    credential_requirement: "any_provider",
+    supported_provider_env_vars: [...ANY_PROVIDER_ENV_VARS],
     required_local_services: ["ollama"],
     command_template:
       "(unsupported) — do not pass --model-policy hybrid",
@@ -205,6 +219,18 @@ export function assessCredentialPresence(env = process.env) {
 }
 
 /**
+ * Credential sufficiency policy keyed by inference mode (not a single global claim).
+ * @returns {{ local_only: CredentialRequirement, remote_ok: CredentialRequirement, hybrid: CredentialRequirement }}
+ */
+export function credentialRequirementByPolicy() {
+  return {
+    local_only: "not_required",
+    remote_ok: "any_provider",
+    hybrid: "any_provider",
+  };
+}
+
+/**
  * @param {MatrixRowDef} row
  * @param {{
  *   credentials?: ReturnType<typeof assessCredentialPresence>,
@@ -217,6 +243,7 @@ export function assessCredentialPresence(env = process.env) {
  *   reason_code: string,
  *   message: string,
  *   command: string,
+ *   credential_requirement: CredentialRequirement,
  * }}
  */
 export function assessMatrixRow(row, options = {}) {
@@ -232,6 +259,7 @@ export function assessMatrixRow(row, options = {}) {
       message:
         "hybrid model policy is not implemented — honest skip (do not claim pass)",
       command: row.command_template,
+      credential_requirement: row.credential_requirement,
     };
   }
 
@@ -244,18 +272,19 @@ export function assessMatrixRow(row, options = {}) {
       message:
         "local Ollama endpoint not reachable — skip (not a false pass)",
       command: row.command_template,
+      credential_requirement: row.credential_requirement,
     };
   }
 
-  const needsRemote = row.inference_mode === "remote_ok";
-  if (needsRemote && !credentials.any_provider) {
+  if (row.credential_requirement === "any_provider" && !credentials.any_provider) {
     return {
       id: row.id,
       status: "skip",
       reason_code: REASON_CODES.SKIP_REMOTE_CREDENTIALS_MISSING,
       message:
-        "no supported provider token present (need at least one of ANTHROPIC_API_KEY or OPENAI_API_KEY) — skip",
+        `no supported provider token present (need at least one of ${row.supported_provider_env_vars.join(" or ")}) — skip`,
       command: row.command_template,
+      credential_requirement: row.credential_requirement,
     };
   }
 
@@ -267,6 +296,7 @@ export function assessMatrixRow(row, options = {}) {
       message:
         "credentials/endpoints appear sufficient for a live attempt; live smoke not requested (--skip-live)",
       command: row.command_template,
+      credential_requirement: row.credential_requirement,
     };
   }
 
@@ -274,8 +304,10 @@ export function assessMatrixRow(row, options = {}) {
     id: row.id,
     status: "ready",
     reason_code: REASON_CODES.READY,
-    message: "row ready for live tester execution (manual or --run-ready)",
+    message:
+      "row eligible for live tester execution (manual runbook or --run-ready readiness only; does not execute smoke)",
     command: row.command_template,
+    credential_requirement: row.credential_requirement,
   };
 }
 
