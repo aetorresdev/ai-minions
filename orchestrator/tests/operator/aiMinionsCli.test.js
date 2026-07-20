@@ -253,8 +253,15 @@ describe("ai-minions-cli formatters", () => {
 
   it("deriveInitNextSafeAction points to doctor then smoke after successful config write", () => {
     const action = deriveInitNextSafeAction({ ok: true, phase: "config_write", model_policy: "local_only" });
-    assert.match(action, /ai-minions doctor/);
-    assert.match(action, /ai-minions smoke/);
+    assert.match(action, /ai-minions doctor --model-policy local_only/);
+    assert.match(action, /ai-minions smoke --model-policy local_only/);
+  });
+
+  it("deriveInitNextSafeAction preserves remote_ok on ready config_write path", () => {
+    const action = deriveInitNextSafeAction({ ok: true, phase: "config_write", model_policy: "remote_ok" });
+    assert.match(action, /ai-minions doctor --model-policy remote_ok/);
+    assert.match(action, /ai-minions smoke --model-policy remote_ok/);
+    assert.doesNotMatch(action, /--model-policy local_only/);
   });
 
   it("formatInitText includes local_only credential note without secret values", () => {

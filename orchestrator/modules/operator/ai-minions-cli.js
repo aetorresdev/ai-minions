@@ -268,9 +268,15 @@ function formatInitText(report, meta = {}) {
  * }} [meta]
  */
 function deriveInitNextSafeAction(report, meta = {}) {
+  const modelPolicy = String(
+    meta.credentials?.model_policy
+      ?? report.model_policy
+      ?? 'local_only',
+  ).trim() || 'local_only';
+
   const pathActivation = meta.pathActivation;
   if (pathActivation?.status === 'activation_required' && pathActivation.path_remediation) {
-    return `Activate PATH: ${pathActivation.path_remediation} — then run: ai-minions doctor --model-policy ${report.model_policy ?? 'local_only'}`;
+    return `Activate PATH: ${pathActivation.path_remediation} — then run: ai-minions doctor --model-policy ${modelPolicy}`;
   }
 
   const credentials = meta.credentials;
@@ -280,11 +286,11 @@ function deriveInitNextSafeAction(report, meta = {}) {
     && credentials.missing_required_env_vars.length
   ) {
     const first = credentials.missing_required_env_vars[0];
-    return `Export missing provider credential (value not shown): export ${first}=<your-token> — then run: ai-minions doctor --model-policy ${credentials.model_policy}`;
+    return `Export missing provider credential (value not shown): export ${first}=<your-token> — then run: ai-minions doctor --model-policy ${modelPolicy}`;
   }
 
   if (report.ok && report.phase === 'config_write') {
-    return 'Run: ai-minions doctor --model-policy local_only then ai-minions smoke --model-policy local_only';
+    return `Run: ai-minions doctor --model-policy ${modelPolicy} then ai-minions smoke --model-policy ${modelPolicy}`;
   }
   if (report.phase === 'host_prereqs') {
     const codes = new Set(
@@ -401,6 +407,7 @@ async function runInit(options = {}) {
           provider_credentials: {
             remote_tokens_required: credentials.remote_tokens_required,
             local_only_tokens_not_required: credentials.local_only_tokens_not_required,
+            credential_sufficiency: credentials.credential_sufficiency,
             note: credentials.note,
             providers: credentials.providers.map((p) => ({
               provider: p.provider,

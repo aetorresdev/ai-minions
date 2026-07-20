@@ -87,14 +87,22 @@ function assessProviderCredentials(options = {}) {
     ? providers.filter((p) => p.status === 'missing')
     : [];
 
+  /** @type {'not_required' | 'any_provider' | 'insufficient'} */
+  let credentialSufficiency = 'not_required';
+  if (tokensRequired) {
+    credentialSufficiency = anyPresent ? 'any_provider' : 'insufficient';
+  }
+
   return {
     model_policy: modelPolicy,
     remote_tokens_required: tokensRequired,
     local_only_tokens_not_required: modelPolicy === 'local_only',
     providers,
     missing_required_env_vars: missingRequired.map((p) => p.env_var),
+    // any_provider: one supported token clears the list — not selected-provider or connectivity proof
+    credential_sufficiency: credentialSufficiency,
     note: tokensRequired
-      ? 'remote_ok/hybrid requires at least one provider credential when remote providers are enabled'
+      ? 'remote_ok/hybrid: any one supported provider token satisfies status (does not validate selected provider or remote connectivity)'
       : 'local_only does not require remote provider tokens',
   };
 }
@@ -183,12 +191,19 @@ function formatCredentialStatusLines(assessment) {
   const lines = [
     `  model_policy:           ${assessment.model_policy}`,
     `  remote_tokens_required: ${assessment.remote_tokens_required}`,
+    `  credential_sufficiency: ${assessment.credential_sufficiency}`,
     `  credential_note:        ${assessment.note}`,
     '  provider_credentials:',
   ];
   for (const p of assessment.providers) {
     const req = p.required_for_policy ? 'required' : 'optional';
     lines.push(`    - ${p.env_var}: ${p.status} (${req} for ${assessment.model_policy})`);
+  }
+  if (
+    assessment.credential_sufficiency === 'any_provider'
+    && assessment.missing_required_env_vars.length === 0
+  ) {
+    lines.push('  missing_required_env_vars: [] (any_provider sufficiency)');
   }
   return lines;
 }

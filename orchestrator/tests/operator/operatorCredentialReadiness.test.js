@@ -67,8 +67,14 @@ describe('operator-credential-readiness', () => {
       env: { ANTHROPIC_API_KEY: 'sk-present-not-logged' },
     });
     assert.deepEqual(assessment.missing_required_env_vars, []);
+    assert.equal(assessment.credential_sufficiency, 'any_provider');
+    assert.match(assessment.note, /does not validate selected provider or remote connectivity/);
     const blob = JSON.stringify(assessment);
     assert.doesNotMatch(blob, /sk-present/);
+
+    const lines = formatCredentialStatusLines(assessment).join('\n');
+    assert.match(lines, /missing_required_env_vars: \[\] \(any_provider sufficiency\)/);
+    assert.match(lines, /credential_sufficiency:\s+any_provider/);
   });
 
   it('formatCredentialStatusLines never embeds env values', () => {
@@ -178,7 +184,54 @@ describe('doctor credential + next_safe_action surfaces', () => {
       runnerPreflight: { ok: true, model_policy: 'remote_ok', blockers: [], discovered_models: [] },
     });
     assert.match(action, /export ANTHROPIC_API_KEY=/);
+    assert.match(action, /--model-policy remote_ok/);
     assert.doesNotMatch(action, /sk-/);
+  });
+
+  it('remote_ok ready path recommends smoke with remote_ok (not local_only)', () => {
+    const credentials = assessProviderCredentials({
+      modelPolicy: 'remote_ok',
+      env: { ANTHROPIC_API_KEY: 'sk-should-not-appear' },
+    });
+    assert.equal(credentials.credential_sufficiency, 'any_provider');
+    assert.deepEqual(credentials.missing_required_env_vars, []);
+
+    const action = deriveDoctorNextSafeAction(baseReport, {
+      credentials,
+      pathActivation: { status: 'ready', path_remediation: null },
+      runnerPreflight: {
+        ok: true,
+        model_policy: 'remote_ok',
+        blockers: [],
+        discovered_models: ['qwen2.5-coder:7b'],
+      },
+    });
+    assert.match(action, /ai-minions smoke --model-policy remote_ok/);
+    assert.doesNotMatch(action, /--model-policy local_only/);
+
+    const text = formatOperatorDoctorText(baseReport, {
+      ok: true,
+      model_policy: 'remote_ok',
+      provider: 'ollama',
+      selected_model: 'qwen2.5-coder:7b',
+      discovered_models: ['qwen2.5-coder:7b'],
+      base_url: 'http://127.0.0.1:11434',
+      blockers: [],
+    }, {
+      pathActivation: {
+        status: 'ready',
+        on_path: true,
+        shim_present: true,
+        bin_dir: '/tmp/bin',
+        path_remediation: null,
+        note: 'ok',
+      },
+      credentials,
+    });
+    assert.match(text, /model_policy:\s+remote_ok/);
+    assert.match(text, /does not validate selected provider or remote connectivity/);
+    assert.match(text, /ai-minions smoke --model-policy remote_ok/);
+    assert.doesNotMatch(text, /sk-should-not-appear/);
   });
 
   it('unreachable local backend yields Ollama remediation', () => {

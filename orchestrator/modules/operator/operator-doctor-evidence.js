@@ -143,6 +143,13 @@ function deriveDoctorFieldSummary(report) {
  * }} [meta]
  */
 function deriveDoctorNextSafeAction(report, meta = {}) {
+  const modelPolicy = String(
+    meta.credentials?.model_policy
+      ?? meta.runnerPreflight?.model_policy
+      ?? report.model_policy
+      ?? 'local_only',
+  ).trim() || 'local_only';
+
   const pathActivation = meta.pathActivation;
   if (pathActivation && pathActivation.status === 'activation_required' && pathActivation.path_remediation) {
     return `Activate PATH, then re-run doctor: ${pathActivation.path_remediation}`;
@@ -158,17 +165,17 @@ function deriveDoctorNextSafeAction(report, meta = {}) {
     && credentials.missing_required_env_vars.length
   ) {
     const first = credentials.missing_required_env_vars[0];
-    return `Export missing provider credential (value not shown): export ${first}=<your-token> — then re-run: ai-minions doctor --model-policy ${credentials.model_policy}`;
+    return `Export missing provider credential (value not shown): export ${first}=<your-token> — then re-run: ai-minions doctor --model-policy ${modelPolicy}`;
   }
 
   const runner = meta.runnerPreflight;
   if (runner && !runner.ok) {
     const blockers = (runner.blockers ?? []).join(' ').toLowerCase();
     if (/unreachable|missing local backend|local backend/i.test(blockers)) {
-      return 'Start Ollama (ollama serve), set OLLAMA_HOST/OLLAMA_PORT if remote, then re-run: ai-minions doctor --model-policy local_only';
+      return `Start Ollama (ollama serve), set OLLAMA_HOST/OLLAMA_PORT if remote, then re-run: ai-minions doctor --model-policy ${modelPolicy}`;
     }
     if (/model not found|no local models|empty/i.test(blockers)) {
-      return 'Pull a local model (e.g. ollama pull qwen2.5-coder:7b), then re-run: ai-minions doctor --model-policy local_only';
+      return `Pull a local model (e.g. ollama pull qwen2.5-coder:7b), then re-run: ai-minions doctor --model-policy ${modelPolicy}`;
     }
     if (runner.next_safe_action) {
       return runner.next_safe_action;
@@ -176,7 +183,7 @@ function deriveDoctorNextSafeAction(report, meta = {}) {
   }
 
   if (report.ok) {
-    return 'Environment ready — run: ai-minions smoke --model-policy local_only (or start --goal after smoke).';
+    return `Environment ready — run: ai-minions smoke --model-policy ${modelPolicy} (or start --goal after smoke).`;
   }
   if (report.layer_stopped === 'bootstrap') {
     return 'Fix host/bootstrap blockers above, then re-run: ai-minions doctor';
@@ -184,7 +191,7 @@ function deriveDoctorNextSafeAction(report, meta = {}) {
   if (report.layer_stopped === 'runtime') {
     return 'Fix runtime MCP/hook/config blockers, then re-run: ai-minions doctor';
   }
-  return 'Fix runner/model/Ollama blockers, then re-run: ai-minions doctor --model-policy local_only';
+  return `Fix runner/model/Ollama blockers, then re-run: ai-minions doctor --model-policy ${modelPolicy}`;
 }
 
 /**
@@ -318,6 +325,7 @@ function buildOperatorDoctorJson(report, runnerPreflight = null, meta = {}) {
     provider_credentials: {
       remote_tokens_required: credentials.remote_tokens_required,
       local_only_tokens_not_required: credentials.local_only_tokens_not_required,
+      credential_sufficiency: credentials.credential_sufficiency,
       note: credentials.note,
       providers: credentials.providers.map((p) => ({
         provider: p.provider,
