@@ -105,7 +105,11 @@ node scripts/generate-mode-comparison-report.mjs --write-template /tmp/mode-comp
 
 After each live row: set `result`, `reason_code`, `run_id` / `task_id`, artifact paths, and attach/status/trace references. Leave `tokens` / `cost` null when not measured.
 
-Follow [PRIVACY.md](../../PRIVACY.md) before sharing — **never secret values** in the evidence file or report.
+**PASS minimum evidence:** non-empty `artifact_paths`, `run_id` or `task_id`, `status_evidence`, and `attach_path` or `attach_available`. Incomplete PASS is rejected by `--from-evidence`.
+
+**Hybrid rows** (`sa-hybrid`, `ma-hybrid`) stay honest skip (`MATRIX_SKIP_HYBRID_UNSUPPORTED`). Evidence cannot promote them to PASS/READY, and `agent_flow` / inference mode always come from the canonical row id.
+
+Follow [PRIVACY.md](../../PRIVACY.md) before sharing — **never secret values** in the evidence file or report. The generator rejects secret-shaped evidence fields and redacts with the shared trace privacy sanitizer before Markdown/JSON serialize.
 
 Use `ai-minions status --run-id <run_id>` and `ai-minions attach --run-id <run_id>` (or inspect / collect-run-report) to gather paths.
 

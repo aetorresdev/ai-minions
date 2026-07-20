@@ -5,10 +5,17 @@
  * Consumes matrix row assessments + optional per-row evidence records.
  * Does not invent hybrid runtime, cross-mode scores, or fake tokens/cost.
  * READY is never promoted to PASS.
+ * Hybrid rows stay skip (MATRIX_SKIP_HYBRID_UNSUPPORTED) — evidence cannot override.
+ * PASS requires minimum execution evidence. String fields are privacy-sanitized.
  */
 
-import { SIX_MODE_ROWS } from "./tester-six-mode-matrix-data.mjs";
+import { createRequire } from "node:module";
+import { SIX_MODE_ROWS, REASON_CODES as MATRIX_REASON_CODES } from "./tester-six-mode-matrix-data.mjs";
 import { FIXTURE_MATRIX_ROW_IDS } from "./canonical-real-task-fixtures-data.mjs";
+import { SECRET_PATTERNS } from "./operator-doc-claims.mjs";
+
+const require = createRequire(import.meta.url);
+const { redactSensitivePlaintext } = require("../../orchestrator/modules/trace/trace-redact.js");
 
 /** @typedef {'pass' | 'fail' | 'skip' | 'ready'} ReportResult */
 /** @typedef {'unavailable' | number} MeasuredOrUnavailable */
@@ -80,6 +87,167 @@ export const REPORT_DOC_REQUIRED_MARKERS = Object.freeze([
 ]);
 
 const CANONICAL_ROW_IDS = Object.freeze(SIX_MODE_ROWS.map((r) => r.id));
+
+const HYBRID_SKIP_REASON = MATRIX_REASON_CODES.SKIP_HYBRID_UNSUPPORTED;
+
+/** String fields scanned for secret-shaped values and sanitized before serialize. */
+const EVIDENCE_STRING_FIELDS = Object.freeze([
+  "command",
+  "reason_code",
+  "message",
+  "selected_model",
+  "selected_provider",
+  "run_id",
+  "task_id",
+  "trace_path",
+  "status_evidence",
+  "attach_path",
+  "tester_notes",
+  "reviewer_checklist",
+  "fixture_id",
+]);
+
+/**
+ * @param {string} rowId
+ * @returns {import("./tester-six-mode-matrix-data.mjs").MatrixRowDef | undefined}
+ */
+export function canonicalRowDef(rowId) {
+  return SIX_MODE_ROWS.find((r) => r.id === rowId);
+}
+
+/**
+ * @param {string} rowId
+ * @returns {boolean}
+ */
+export function isHybridRowId(rowId) {
+  return Boolean(canonicalRowDef(rowId)?.hybrid_honest_skip);
+}
+
+/**
+ * Hybrid evidence cannot become PASS/READY — always honest skip.
+ * @param {RowEvidenceInput} row
+ * @returns {RowEvidenceInput}
+ */
+export function normalizeHybridEvidenceRow(row) {
+  if (!isHybridRowId(row.row_id)) return row;
+  const def = canonicalRowDef(row.row_id);
+  return {
+    ...row,
+    result: "skip",
+    reason_code: HYBRID_SKIP_REASON,
+    agent_flow: def?.agent_flow ?? row.agent_flow ?? null,
+    model_policy: def?.inference_mode ?? null,
+  };
+}
+
+/**
+ * agent_flow / inference (model_policy) come only from canonical row_id.
+ * @param {RowEvidenceInput} row
+ * @returns {RowEvidenceInput}
+ */
+export function applyCanonicalModeFields(row) {
+  const def = canonicalRowDef(row.row_id);
+  if (!def) return row;
+  return {
+    ...row,
+    agent_flow: def.agent_flow,
+    model_policy: def.inference_mode,
+  };
+}
+
+/**
+ * PASS requires artifact + identifiable run/task + status + attach evidence.
+ * @param {RowEvidenceInput} row
+ * @returns {{ ok: boolean, errors: string[] }}
+ */
+export function validatePassEvidenceMinimum(row) {
+  /** @type {string[]} */
+  const errors = [];
+  const result = row.result != null ? normalizeRowResult(row.result) : null;
+  if (result !== "pass") return { ok: true, errors };
+  if (isHybridRowId(row.row_id)) {
+    // Hybrid PASS is handled separately (normalize / reject).
+    return { ok: true, errors };
+  }
+  const artifacts = Array.isArray(row.artifact_paths)
+    ? row.artifact_paths.filter((p) => typeof p === "string" && p.trim() !== "")
+    : [];
+  if (artifacts.length === 0) {
+    errors.push(
+      `PASS for ${row.row_id} requires non-empty artifact_paths`,
+    );
+  }
+  const runId = typeof row.run_id === "string" && row.run_id.trim() !== "";
+  const taskId = typeof row.task_id === "string" && row.task_id.trim() !== "";
+  if (!runId && !taskId) {
+    errors.push(
+      `PASS for ${row.row_id} requires run_id or task_id`,
+    );
+  }
+  if (
+    typeof row.status_evidence !== "string" ||
+    row.status_evidence.trim() === ""
+  ) {
+    errors.push(
+      `PASS for ${row.row_id} requires status_evidence`,
+    );
+  }
+  const attachPath =
+    typeof row.attach_path === "string" && row.attach_path.trim() !== "";
+  if (!attachPath && !row.attach_available) {
+    errors.push(
+      `PASS for ${row.row_id} requires attach_path or attach_available`,
+    );
+  }
+  // When a fixture id is present, treat it as the applicable verifier label
+  // (canonical fixture verify scripts consume artifact_paths + fixture_id).
+  if (row.fixture_id != null && String(row.fixture_id).trim() === "") {
+    errors.push(
+      `PASS for ${row.row_id} has empty fixture_id — omit or set a real fixture id`,
+    );
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export function valueContainsSecretPattern(value) {
+  if (value == null) return false;
+  if (typeof value === "string") {
+    return SECRET_PATTERNS.some(({ re }) => re.test(value));
+  }
+  if (Array.isArray(value)) {
+    return value.some((v) => valueContainsSecretPattern(v));
+  }
+  if (typeof value === "object") {
+    return Object.values(value).some((v) => valueContainsSecretPattern(v));
+  }
+  return false;
+}
+
+/**
+ * Deep-sanitize JSON-like values with the shared trace privacy redactor.
+ * @param {unknown} value
+ * @param {number} [depth]
+ * @returns {unknown}
+ */
+export function sanitizeComparisonValue(value, depth = 0) {
+  if (depth > 32) return value;
+  if (value == null) return value;
+  if (typeof value === "string") return redactSensitivePlaintext(value);
+  if (typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    return value.map((v) => sanitizeComparisonValue(v, depth + 1));
+  }
+  /** @type {Record<string, unknown>} */
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    out[k] = sanitizeComparisonValue(v, depth + 1);
+  }
+  return out;
+}
 
 /**
  * @param {unknown} value
@@ -179,6 +347,27 @@ export function validateEvidenceInput(input) {
     if (r.result != null && !isAllowedResult(r.result)) {
       errors.push(`invalid result for ${r.row_id}: ${String(r.result)}`);
     }
+    const result = r.result != null ? normalizeRowResult(r.result) : null;
+    if (isHybridRowId(r.row_id) && (result === "pass" || result === "ready")) {
+      errors.push(
+        `hybrid row ${r.row_id} cannot be ${result} — must remain skip (${HYBRID_SKIP_REASON})`,
+      );
+    }
+    const passCheck = validatePassEvidenceMinimum(r);
+    if (!passCheck.ok) errors.push(...passCheck.errors);
+    for (const field of EVIDENCE_STRING_FIELDS) {
+      const v = /** @type {Record<string, unknown>} */ (r)[field];
+      if (valueContainsSecretPattern(v)) {
+        errors.push(
+          `secret-shaped value in ${r.row_id}.${field} — redact before --from-evidence`,
+        );
+      }
+    }
+    if (valueContainsSecretPattern(r.artifact_paths)) {
+      errors.push(
+        `secret-shaped value in ${r.row_id}.artifact_paths — redact before --from-evidence`,
+      );
+    }
   }
   return { ok: errors.length === 0, errors };
 }
@@ -250,7 +439,11 @@ export function mergeEvidenceRows(seeds, overrides = []) {
       artifact_paths: [],
       attach_available: false,
     };
-    const merged = { ...base, ...ov, row_id: ov.row_id };
+    // Ignore evidence agent_flow / model_policy — canonical row_id wins.
+    const ovSafe = { ...ov };
+    delete ovSafe.agent_flow;
+    delete ovSafe.model_policy;
+    const merged = { ...base, ...ovSafe, row_id: ov.row_id };
     if (ov.result != null) {
       merged.result = normalizeRowResult(ov.result);
     }
@@ -263,13 +456,16 @@ export function mergeEvidenceRows(seeds, overrides = []) {
     if (!Array.isArray(merged.artifact_paths)) {
       merged.artifact_paths = [];
     }
-    byId.set(ov.row_id, merged);
+    const normalized = normalizeHybridEvidenceRow(applyCanonicalModeFields(merged));
+    byId.set(ov.row_id, normalized);
   }
   // Preserve canonical six-mode order
   return CANONICAL_ROW_IDS.map((id) => {
     const row = byId.get(id);
-    if (row) return row;
-    const def = SIX_MODE_ROWS.find((r) => r.id === id);
+    const def = canonicalRowDef(id);
+    if (row) {
+      return normalizeHybridEvidenceRow(applyCanonicalModeFields(row));
+    }
     return {
       row_id: id,
       result: "skip",
@@ -302,35 +498,46 @@ export function mergeEvidenceRows(seeds, overrides = []) {
  * @returns {object}
  */
 function finalizeRow(row) {
-  const def = SIX_MODE_ROWS.find((r) => r.id === row.row_id);
-  const result = normalizeRowResult(row.result);
-  return {
-    row_id: row.row_id,
-    agent_flow: row.agent_flow ?? def?.agent_flow ?? null,
-    inference_mode: row.model_policy ?? def?.inference_mode ?? null,
-    title: def?.title ?? row.row_id,
-    command: row.command ?? def?.command_template ?? "",
+  const def = canonicalRowDef(row.row_id);
+  const canonical = normalizeHybridEvidenceRow(applyCanonicalModeFields(row));
+  const result = normalizeRowResult(canonical.result);
+  const reasonCode = isHybridRowId(canonical.row_id)
+    ? HYBRID_SKIP_REASON
+    : canonical.reason_code || (result === "pass" ? "MATRIX_OK" : "");
+  /** @type {Record<string, unknown>} */
+  const finalized = {
+    row_id: canonical.row_id,
+    agent_flow: def?.agent_flow ?? null,
+    inference_mode: def?.inference_mode ?? null,
+    title: def?.title ?? canonical.row_id,
+    command: canonical.command ?? def?.command_template ?? "",
     result,
-    reason_code: row.reason_code || (result === "pass" ? "MATRIX_OK" : ""),
-    message: row.message || "",
-    selected_model: row.selected_model ?? null,
-    selected_provider: row.selected_provider ?? null,
-    elapsed_ms: typeof row.elapsed_ms === "number" ? row.elapsed_ms : null,
-    artifact_paths: Array.isArray(row.artifact_paths) ? row.artifact_paths : [],
-    run_id: row.run_id ?? null,
-    task_id: row.task_id ?? null,
+    reason_code: reasonCode,
+    message: canonical.message || "",
+    selected_model: canonical.selected_model ?? null,
+    selected_provider: canonical.selected_provider ?? null,
+    elapsed_ms:
+      typeof canonical.elapsed_ms === "number" ? canonical.elapsed_ms : null,
+    artifact_paths: Array.isArray(canonical.artifact_paths)
+      ? canonical.artifact_paths
+      : [],
+    run_id: canonical.run_id ?? null,
+    task_id: canonical.task_id ?? null,
     evidence: {
-      trace_path: row.trace_path ?? null,
-      status_evidence: row.status_evidence ?? null,
-      attach_path: row.attach_path ?? null,
-      attach_available: Boolean(row.attach_available || row.attach_path),
+      trace_path: canonical.trace_path ?? null,
+      status_evidence: canonical.status_evidence ?? null,
+      attach_path: canonical.attach_path ?? null,
+      attach_available: Boolean(
+        canonical.attach_available || canonical.attach_path,
+      ),
     },
-    tokens: normalizeMeasuredOrUnavailable(row.tokens),
-    cost: normalizeMeasuredOrUnavailable(row.cost),
-    fixture_id: row.fixture_id ?? null,
-    tester_notes: row.tester_notes || "",
-    reviewer_checklist: row.reviewer_checklist || "",
+    tokens: normalizeMeasuredOrUnavailable(canonical.tokens),
+    cost: normalizeMeasuredOrUnavailable(canonical.cost),
+    fixture_id: canonical.fixture_id ?? null,
+    tester_notes: canonical.tester_notes || "",
+    reviewer_checklist: canonical.reviewer_checklist || "",
   };
+  return /** @type {object} */ (sanitizeComparisonValue(finalized));
 }
 
 /**
@@ -356,7 +563,7 @@ export function buildComparisonReport(options = {}) {
   }
 
   const ok = counts.fail === 0;
-  return {
+  const report = {
     schema_version: REPORT_SCHEMA_VERSION,
     ok,
     evidence_class: options.source || "matrix_comparison",
@@ -382,6 +589,7 @@ export function buildComparisonReport(options = {}) {
     counts,
     rows,
   };
+  return /** @type {typeof report} */ (sanitizeComparisonValue(report));
 }
 
 /**
@@ -389,23 +597,25 @@ export function buildComparisonReport(options = {}) {
  * @returns {string}
  */
 export function formatComparisonMarkdown(report) {
+  // Defense-in-depth: never serialize secret-shaped strings into Markdown.
+  const safe = /** @type {typeof report} */ (sanitizeComparisonValue(report));
   const lines = [
     "# Mode comparison report",
     "",
-    `Generated: \`${report.generated_at}\``,
-    report.repo_commit ? `Commit: \`${report.repo_commit}\`` : "Commit: _(not recorded)_",
-    report.fixture_id ? `Fixture: \`${report.fixture_id}\`` : "Fixture: _(none / mixed)_",
-    `Evidence class: \`${report.evidence_class}\``,
-    `Overall: **${report.ok ? "OK (no FAIL rows)" : "HAS FAIL"}**`,
+    `Generated: \`${safe.generated_at}\``,
+    safe.repo_commit ? `Commit: \`${safe.repo_commit}\`` : "Commit: _(not recorded)_",
+    safe.fixture_id ? `Fixture: \`${safe.fixture_id}\`` : "Fixture: _(none / mixed)_",
+    `Evidence class: \`${safe.evidence_class}\``,
+    `Overall: **${safe.ok ? "OK (no FAIL rows)" : "HAS FAIL"}**`,
     "",
     "## Score vocabulary",
     "",
     "| Result | Meaning |",
     "| --- | --- |",
-    `| PASS | ${report.vocabulary.pass} |`,
-    `| FAIL | ${report.vocabulary.fail} |`,
-    `| SKIP | ${report.vocabulary.skip} |`,
-    `| READY | ${report.vocabulary.ready} |`,
+    `| PASS | ${safe.vocabulary.pass} |`,
+    `| FAIL | ${safe.vocabulary.fail} |`,
+    `| SKIP | ${safe.vocabulary.skip} |`,
+    `| READY | ${safe.vocabulary.ready} |`,
     "",
     "**READY is not PASS.** Tokens/cost render as `unavailable` when not measured — never fake `0`. No invented cross-mode scores.",
     "",
@@ -413,7 +623,7 @@ export function formatComparisonMarkdown(report) {
     "",
     `| PASS | FAIL | SKIP | READY |`,
     `| --- | --- | --- | --- |`,
-    `| ${report.counts.pass} | ${report.counts.fail} | ${report.counts.skip} | ${report.counts.ready} |`,
+    `| ${safe.counts.pass} | ${safe.counts.fail} | ${safe.counts.skip} | ${safe.counts.ready} |`,
     "",
     "## Matrix rows",
     "",
@@ -421,7 +631,7 @@ export function formatComparisonMarkdown(report) {
     "| --- | --- | --- | --- | --- |",
   ];
 
-  for (const r of rowsForTable(report)) {
+  for (const r of rowsForTable(safe)) {
     const evidenceBits = [];
     if (r.evidence.trace_path) evidenceBits.push(`trace: \`${r.evidence.trace_path}\``);
     if (r.evidence.status_evidence) {
@@ -441,7 +651,7 @@ export function formatComparisonMarkdown(report) {
   }
 
   lines.push("", "## Row detail", "");
-  for (const r of report.rows) {
+  for (const r of safe.rows) {
     lines.push(`### \`${r.row_id}\` — ${r.title}`);
     lines.push("");
     lines.push(`- **Result:** ${String(r.result).toUpperCase()}`);

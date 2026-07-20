@@ -152,10 +152,151 @@ describe("mode-comparison-report-data", () => {
     assert.equal(report.counts.pass, 1);
   });
 
-  it("validateEvidenceInput rejects unknown row ids and bad results", () => {
+  it("hybrid evidence overrides pass/ready stay skip (sa-hybrid and ma-hybrid)", () => {
+    for (const rowId of ["sa-hybrid", "ma-hybrid"]) {
+      for (const override of ["pass", "ready"]) {
+        const seeds = evidenceFromMatrixRows([
+          {
+            id: rowId,
+            status: "skip",
+            reason_code: MATRIX_CODES.SKIP_HYBRID_UNSUPPORTED,
+            command: "(unsupported)",
+          },
+        ]);
+        const merged = mergeEvidenceRows(seeds, [
+          {
+            row_id: rowId,
+            result: /** @type {'pass'|'ready'} */ (override),
+            reason_code: "MATRIX_OK",
+            agent_flow: "forged_flow",
+            model_policy: "remote_ok",
+            run_id: "run-x",
+            task_id: "task-x",
+            artifact_paths: ["x.html"],
+            status_evidence: "ok",
+            attach_available: true,
+          },
+        ]);
+        const row = merged.find((r) => r.row_id === rowId);
+        assert.equal(row.result, "skip", `${rowId} override ${override}`);
+        assert.equal(row.reason_code, MATRIX_CODES.SKIP_HYBRID_UNSUPPORTED);
+        assert.equal(row.model_policy, "hybrid");
+        assert.ok(
+          row.agent_flow === "single_agent" || row.agent_flow === "multi_agent",
+        );
+        assert.notEqual(row.agent_flow, "forged_flow");
+
+        const report = buildComparisonReport({
+          matrixRows: [
+            {
+              id: rowId,
+              status: "skip",
+              reason_code: MATRIX_CODES.SKIP_HYBRID_UNSUPPORTED,
+            },
+          ],
+          evidenceRows: [
+            {
+              row_id: rowId,
+              result: /** @type {'pass'|'ready'} */ (override),
+              model_policy: "local_only",
+              agent_flow: "forged_flow",
+            },
+          ],
+        });
+        const out = report.rows.find((r) => r.row_id === rowId);
+        assert.equal(out.result, "skip");
+        assert.equal(out.reason_code, MATRIX_CODES.SKIP_HYBRID_UNSUPPORTED);
+        assert.equal(out.inference_mode, "hybrid");
+        assert.notEqual(out.agent_flow, "forged_flow");
+      }
+    }
+  });
+
+  it("validateEvidenceInput rejects hybrid pass/ready overrides", () => {
+    for (const rowId of ["sa-hybrid", "ma-hybrid"]) {
+      for (const result of ["pass", "ready"]) {
+        const check = validateEvidenceInput({
+          rows: [{ row_id: rowId, result }],
+        });
+        assert.equal(check.ok, false, `${rowId} ${result}`);
+        assert.ok(
+          check.errors.some((e) => e.includes("must remain skip")),
+          check.errors.join("; "),
+        );
+      }
+    }
+  });
+
+  it("validateEvidenceInput rejects incomplete PASS without minimum evidence", () => {
+    const incomplete = validateEvidenceInput({
+      rows: [{ row_id: "sa-local_only", result: "pass" }],
+    });
+    assert.equal(incomplete.ok, false);
+    assert.ok(incomplete.errors.some((e) => e.includes("artifact_paths")));
+    assert.ok(incomplete.errors.some((e) => e.includes("run_id or task_id")));
+    assert.ok(incomplete.errors.some((e) => e.includes("status_evidence")));
+    assert.ok(
+      incomplete.errors.some((e) => e.includes("attach_path or attach_available")),
+    );
+
+    const complete = validateEvidenceInput({
+      rows: [
+        {
+          row_id: "sa-local_only",
+          result: "pass",
+          artifact_paths: ["sudoku.html"],
+          run_id: "run-1",
+          status_evidence: "status ok",
+          attach_available: true,
+        },
+      ],
+    });
+    assert.equal(complete.ok, true, complete.errors.join("; "));
+  });
+
+  it("injected secret token never appears in Markdown or JSON report", () => {
+    const secret = "sk-abcdefghijklmnopqrstuvwxyz12";
+    const report = buildComparisonReport({
+      matrixRows: [
+        {
+          id: "sa-local_only",
+          status: "ready",
+          reason_code: MATRIX_CODES.READY,
+          command: "ai-minions smoke --model-policy local_only",
+        },
+      ],
+      evidenceRows: [
+        {
+          row_id: "sa-local_only",
+          result: "fail",
+          reason_code: "MATRIX_ROW_FAIL",
+          tester_notes: `leak ${secret} in notes`,
+          status_evidence: `Bearer ${"a".repeat(24)}`,
+          command: `echo ${secret}`,
+          selected_model: secret,
+          selected_provider: secret,
+          attach_path: `/tmp/${secret}/ATTACH.md`,
+          message: `failed with ${secret}`,
+        },
+      ],
+    });
+    const md = formatComparisonMarkdown(report);
+    const json = JSON.stringify(report, null, 2);
+    assert.doesNotMatch(md, new RegExp(secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.doesNotMatch(json, new RegExp(secret.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(md, /\[REDACTED:api_token\]/);
+    assert.match(json, /\[REDACTED:api_token\]/);
+  });
+
+  it("validateEvidenceInput rejects unknown row ids, bad results, and secret-shaped fields", () => {
     assert.equal(
       validateEvidenceInput({
-        rows: [{ row_id: "sa-local_only", result: "pass" }],
+        rows: [
+          {
+            row_id: "sa-local_only",
+            result: "ready",
+          },
+        ],
       }).ok,
       true,
     );
@@ -171,6 +312,17 @@ describe("mode-comparison-report-data", () => {
       }).ok,
       false,
     );
+    const secretCheck = validateEvidenceInput({
+      rows: [
+        {
+          row_id: "sa-local_only",
+          result: "fail",
+          tester_notes: "ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+        },
+      ],
+    });
+    assert.equal(secretCheck.ok, false);
+    assert.ok(secretCheck.errors.some((e) => e.includes("secret-shaped")));
   });
 
   it("emptyEvidenceTemplate covers six rows and schema version", () => {
