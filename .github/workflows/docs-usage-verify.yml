@@ -35,6 +35,8 @@ on:
       - "scripts/lib/installed-cli-evidence.mjs"
       - "scripts/run-beta-smoke-matrix.mjs"
       - "scripts/lib/beta-smoke-matrix-data.mjs"
+      - "scripts/run-tester-six-mode-matrix.mjs"
+      - "scripts/lib/tester-six-mode-matrix-data.mjs"
       - "scripts/lib/degraded-mode-evidence.mjs"
       - "scripts/lib/operator-doc-claims.mjs"
       - "scripts/verify-usage-docs.mjs"
@@ -52,6 +54,7 @@ on:
       - "tests/installed-cli-evidence.test.mjs"
       - "tests/assert-docker-live-install-evidence.test.mjs"
       - "tests/run-beta-smoke-matrix.test.mjs"
+      - "tests/run-tester-six-mode-matrix.test.mjs"
       - "tests/degraded-mode-evidence.test.mjs"
       - "docs/orchestrator/beta-limitations-onboarding-contract.md"
       - "scripts/run-beta-gate-hardening-evidence.mjs"
@@ -74,6 +77,7 @@ on:
       - "tests/run-modular-closeout-evidence.test.mjs"
       - "tests/beta-limitations-onboarding.test.mjs"
       - ".github/workflows/docs-usage-verify.yml"
+      - ".github/workflows/tester-six-mode-matrix.yml"
       - ".gitignore"
       - ".github/workflows/claude-doc-smoke.yml"
       - "orchestrator/operator-cli-help.js"
@@ -142,6 +146,9 @@ jobs:
       - name: Beta smoke matrix structure gate
         run: node scripts/run-beta-smoke-matrix.mjs --skip-live
 
+      - name: Tester six-mode matrix structure gate
+        run: node scripts/run-tester-six-mode-matrix.mjs --skip-live
+
       - name: Beta gate hardening evidence chain
         run: node scripts/run-beta-gate-hardening-evidence.mjs
 
@@ -159,6 +166,9 @@ jobs:
 
       - name: Beta smoke matrix unit tests
         run: node --test tests/run-beta-smoke-matrix.test.mjs
+
+      - name: Tester six-mode matrix unit tests
+        run: node --test tests/run-tester-six-mode-matrix.test.mjs
 
       - name: Beta gate hardening evidence unit tests
         run: node --test tests/run-beta-gate-hardening-evidence.test.mjs

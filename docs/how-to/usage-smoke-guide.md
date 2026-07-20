@@ -23,6 +23,7 @@ Canonical **end-to-end happy path** for trying **ai-minions** without tribal kno
 - [Orchestrator README](../../orchestrator/README.md) — CLI flags, env vars, traces, `explain-run`
 - [Skill registry contract](../orchestrator/skill-registry-contract.md) — allowlist + opt-in PreToolUse hook
 - [Alpha release checklist](../orchestrator/alpha-release-checklist.md) — release bar (not required for a casual smoke)
+- [Tester six-mode matrix](tester-six-mode-matrix.md) — single/multi-agent × local_only / remote_ok / hybrid (hybrid honest skip)
 
 ---
 

@@ -1,0 +1,66 @@
+# Tester six-mode matrix — structure + credential-aware skip assessment.
+# Manual / optional. Not a PR merge gate.
+# Does not echo secret values. Hybrid rows always honest-skip.
+name: Tester six-mode matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      probe_local:
+        description: Probe OLLAMA_HOST/PORT reachability (still no live smoke)
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tester-six-mode-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  assess-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Pass through secret presence only via shell test — never print values
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OLLAMA_HOST: ${{ vars.OLLAMA_HOST || '127.0.0.1' }}
+      OLLAMA_PORT: ${{ vars.OLLAMA_PORT || '11434' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Credential presence notice (names only)
+        run: |
+          set -euo pipefail
+          if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "ANTHROPIC_API_KEY: present"
+          else
+            echo "ANTHROPIC_API_KEY: missing"
+          fi
+          if [ -n "${OPENAI_API_KEY:-}" ]; then
+            echo "OPENAI_API_KEY: present"
+          else
+            echo "OPENAI_API_KEY: missing"
+          fi
+          echo "Hybrid rows: always MATRIX_SKIP_HYBRID_UNSUPPORTED"
+          echo "Remote rows without tokens: MATRIX_SKIP_REMOTE_CREDENTIALS_MISSING"
+          echo "Local rows without reachable Ollama: MATRIX_SKIP_LOCAL_BACKEND_MISSING (when --probe-local)"
+
+      - name: Structure + readiness assessment
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.probe_local }}" = "true" ]; then
+            node scripts/run-tester-six-mode-matrix.mjs --skip-live --probe-local --json
+          else
+            node scripts/run-tester-six-mode-matrix.mjs --skip-live --json
+          fi
+
+      - name: Unit tests for matrix helpers
+        run: node --test tests/run-tester-six-mode-matrix.test.mjs

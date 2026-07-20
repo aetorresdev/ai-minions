@@ -81,6 +81,11 @@ const BETA_SMOKE_MATRIX_RECORD = path.join(
   "docs/how-to/evidence/beta-smoke-matrix-record.json",
 );
 const BETA_SMOKE_MATRIX_SCRIPT = path.join(REPO_ROOT, "scripts/run-beta-smoke-matrix.mjs");
+const TESTER_SIX_MODE_MATRIX = path.join(REPO_ROOT, "docs/how-to/tester-six-mode-matrix.md");
+const TESTER_SIX_MODE_MATRIX_SCRIPT = path.join(
+  REPO_ROOT,
+  "scripts/run-tester-six-mode-matrix.mjs",
+);
 const BETA_DEGRADED_POLICY = path.join(REPO_ROOT, "docs/how-to/beta-degraded-mode-policy.md");
 const BETA_LIMITATIONS_ONBOARDING_CONTRACT = path.join(
   REPO_ROOT,
@@ -187,6 +192,7 @@ function checkGuide(guideText) {
   mustInclude(guideText, "npm run ai-minions", "dev fallback reference", rel);
   mustInclude(guideText, "RUN_RESUME_NOT_IMPLEMENTED", "resume honest probe", rel);
   mustInclude(guideText, "operator-blockers-and-recovery.md", "blockers recovery link", rel);
+  mustInclude(guideText, "tester-six-mode-matrix.md", "six-mode tester matrix link", rel);
   mustInclude(guideText, "## Advanced paths", "advanced paths section", rel);
 
   checkGuideHappyPathPrimaryOrdering(guideText);
@@ -345,6 +351,8 @@ function checkBetaTesterGuideDoc(docText) {
   mustInclude(docText, "internal", "internal dry-run audience", rel);
   mustInclude(docText, "beta-dry-run-checklist", "dry-run checklist link", rel);
   mustInclude(docText, "beta-smoke-matrix", "smoke matrix link", rel);
+  mustInclude(docText, "tester-six-mode-matrix", "six-mode tester matrix link", rel);
+  mustInclude(docText, "run-tester-six-mode-matrix.mjs", "six-mode matrix script", rel);
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy prerequisite", rel);
   mustInclude(docText, "ai-minions-command-migration", "migration doc link", rel);
   mustInclude(docText, "human-ready-rehearsal-evidence", "rehearsal evidence link", rel);
@@ -618,6 +626,36 @@ function checkBetaSmokeMatrixDoc(docText) {
   checkForbiddenClaimsForDoc(docText, rel);
 }
 
+function checkTesterSixModeMatrixDoc(docText) {
+  const rel = "docs/how-to/tester-six-mode-matrix.md";
+  if (!docText) return;
+  mustInclude(docText, "sa-local_only", "sa-local_only row", rel);
+  mustInclude(docText, "sa-remote_ok", "sa-remote_ok row", rel);
+  mustInclude(docText, "sa-hybrid", "sa-hybrid row", rel);
+  mustInclude(docText, "ma-local_only", "ma-local_only row", rel);
+  mustInclude(docText, "ma-remote_ok", "ma-remote_ok row", rel);
+  mustInclude(docText, "ma-hybrid", "ma-hybrid row", rel);
+  mustInclude(docText, "MATRIX_SKIP_HYBRID_UNSUPPORTED", "hybrid skip reason", rel);
+  mustInclude(docText, "MATRIX_SKIP_REMOTE_CREDENTIALS_MISSING", "remote skip reason", rel);
+  mustInclude(docText, "MATRIX_SKIP_LOCAL_BACKEND_MISSING", "local skip reason", rel);
+  mustInclude(docText, "run-tester-six-mode-matrix.mjs", "matrix script reference", rel);
+  mustInclude(docText, "local_only", "local_only policy", rel);
+  mustInclude(docText, "remote_ok", "remote_ok policy", rel);
+  mustInclude(docText, "any_provider", "credential sufficiency", rel);
+  mustInclude(docText, "at least one", "at-least-one token copy", rel);
+  mustInclude(docText, "no remote token is required", "local_only no-token rule", rel);
+  mustInclude(docText, "no silent remote fallback", "local_only no-fallback rule", rel);
+  mustInclude(docText, "never secret values", "no secret values rule", rel);
+  mustInclude(docText, "honest skip", "hybrid honest skip", rel);
+  mustInclude(docText, "operator-feedback-issue", "feedback issue link", rel);
+  mustInclude(docText, "PRIVACY.md", "privacy prerequisite", rel);
+  mustInclude(docText, "ai-minions doctor", "doctor preflight", rel);
+  mustInclude(docText, "ai-minions attach", "attach follow-up", rel);
+  mustInclude(docText, "not a PR merge gate", "not merge gate disclaimer", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
 function checkPrivacyNoticeDoc(docText) {
   const rel = "PRIVACY.md";
   if (!docText) return;
@@ -846,6 +884,7 @@ function main() {
   const freshCloneText = readUtf8(FRESH_CLONE_EVIDENCE);
   const installEvidenceText = readUtf8(INSTALL_EVIDENCE);
   const betaSmokeMatrixText = readUtf8(BETA_SMOKE_MATRIX);
+  const testerSixModeMatrixText = readUtf8(TESTER_SIX_MODE_MATRIX);
   const betaDegradedPolicyText = readUtf8(BETA_DEGRADED_POLICY);
   const betaLimitationsContractText = readUtf8(BETA_LIMITATIONS_ONBOARDING_CONTRACT);
   const betaGateHardeningEvidenceText = readUtf8(BETA_GATE_HARDENING_EVIDENCE);
@@ -908,6 +947,9 @@ function main() {
   if (!fs.existsSync(BETA_SMOKE_MATRIX_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, BETA_SMOKE_MATRIX_SCRIPT)}`);
   }
+  if (!fs.existsSync(TESTER_SIX_MODE_MATRIX_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, TESTER_SIX_MODE_MATRIX_SCRIPT)}`);
+  }
   if (!fs.existsSync(DEGRADED_MODE_EVIDENCE)) {
     fail(`missing file: ${path.relative(REPO_ROOT, DEGRADED_MODE_EVIDENCE)}`);
   }
@@ -933,6 +975,7 @@ function main() {
   if (freshCloneText) checkFreshCloneEvidenceDoc(freshCloneText);
   if (installEvidenceText) checkInstallEvidenceDoc(installEvidenceText);
   if (betaSmokeMatrixText) checkBetaSmokeMatrixDoc(betaSmokeMatrixText);
+  if (testerSixModeMatrixText) checkTesterSixModeMatrixDoc(testerSixModeMatrixText);
   if (betaDegradedPolicyText) checkBetaDegradedPolicyDoc(betaDegradedPolicyText);
   if (betaLimitationsContractText) checkBetaLimitationsOnboardingContract(betaLimitationsContractText);
   if (betaGateHardeningEvidenceText) checkBetaGateHardeningEvidenceDoc(betaGateHardeningEvidenceText);
