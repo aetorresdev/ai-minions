@@ -86,6 +86,14 @@ const TESTER_SIX_MODE_MATRIX_SCRIPT = path.join(
   REPO_ROOT,
   "scripts/run-tester-six-mode-matrix.mjs",
 );
+const CANONICAL_REAL_TASK_FIXTURES = path.join(
+  REPO_ROOT,
+  "docs/how-to/canonical-real-task-fixtures.md",
+);
+const CANONICAL_REAL_TASK_FIXTURES_SCRIPT = path.join(
+  REPO_ROOT,
+  "scripts/verify-canonical-real-task-fixtures.mjs",
+);
 const BETA_DEGRADED_POLICY = path.join(REPO_ROOT, "docs/how-to/beta-degraded-mode-policy.md");
 const BETA_LIMITATIONS_ONBOARDING_CONTRACT = path.join(
   REPO_ROOT,
@@ -193,6 +201,7 @@ function checkGuide(guideText) {
   mustInclude(guideText, "RUN_RESUME_NOT_IMPLEMENTED", "resume honest probe", rel);
   mustInclude(guideText, "operator-blockers-and-recovery.md", "blockers recovery link", rel);
   mustInclude(guideText, "tester-six-mode-matrix.md", "six-mode tester matrix link", rel);
+  mustInclude(guideText, "canonical-real-task-fixtures.md", "canonical real-task fixtures link", rel);
   mustInclude(guideText, "## Advanced paths", "advanced paths section", rel);
 
   checkGuideHappyPathPrimaryOrdering(guideText);
@@ -353,6 +362,8 @@ function checkBetaTesterGuideDoc(docText) {
   mustInclude(docText, "beta-smoke-matrix", "smoke matrix link", rel);
   mustInclude(docText, "tester-six-mode-matrix", "six-mode tester matrix link", rel);
   mustInclude(docText, "run-tester-six-mode-matrix.mjs", "six-mode matrix script", rel);
+  mustInclude(docText, "canonical-real-task-fixtures", "canonical real-task fixtures link", rel);
+  mustInclude(docText, "verify-canonical-real-task-fixtures.mjs", "canonical fixtures script", rel);
   mustInclude(docText, "beta-degraded-mode-policy", "degraded policy prerequisite", rel);
   mustInclude(docText, "ai-minions-command-migration", "migration doc link", rel);
   mustInclude(docText, "human-ready-rehearsal-evidence", "rehearsal evidence link", rel);
@@ -652,6 +663,39 @@ function checkTesterSixModeMatrixDoc(docText) {
   mustInclude(docText, "ai-minions doctor", "doctor preflight", rel);
   mustInclude(docText, "ai-minions attach", "attach follow-up", rel);
   mustInclude(docText, "not a PR merge gate", "not merge gate disclaimer", rel);
+  mustInclude(docText, "canonical-real-task-fixtures", "canonical fixtures link", rel);
+  mustInclude(docText, "verify-canonical-real-task-fixtures.mjs", "canonical fixtures script", rel);
+  mustNotHaveBacklogCaseIdsForDoc(docText, rel);
+  checkForbiddenClaimsForDoc(docText, rel);
+}
+
+function checkCanonicalRealTaskFixturesDoc(docText) {
+  const rel = "docs/how-to/canonical-real-task-fixtures.md";
+  if (!docText) return;
+  mustInclude(docText, "sudoku-html-app", "sudoku fixture id", rel);
+  mustInclude(docText, "solar-system-html-demo", "solar fixture id", rel);
+  mustInclude(docText, "sudoku.html", "sudoku artifact", rel);
+  mustInclude(docText, "sa-local_only", "sa-local_only row", rel);
+  mustInclude(docText, "sa-remote_ok", "sa-remote_ok row", rel);
+  mustInclude(docText, "sa-hybrid", "sa-hybrid row", rel);
+  mustInclude(docText, "ma-local_only", "ma-local_only row", rel);
+  mustInclude(docText, "ma-remote_ok", "ma-remote_ok row", rel);
+  mustInclude(docText, "ma-hybrid", "ma-hybrid row", rel);
+  mustInclude(docText, "MATRIX_SKIP_HYBRID_UNSUPPORTED", "hybrid skip reason", rel);
+  mustInclude(docText, "any_provider", "credential sufficiency", rel);
+  mustInclude(docText, "at least one", "at-least-one token copy", rel);
+  mustInclude(docText, "no silent remote fallback", "local_only no-fallback", rel);
+  mustInclude(docText, "never secret values", "no secret values", rel);
+  mustInclude(docText, "honest skip", "hybrid honest skip", rel);
+  mustInclude(docText, "ai-minions status", "status evidence", rel);
+  mustInclude(docText, "ai-minions attach", "attach evidence", rel);
+  mustInclude(docText, "verify-canonical-real-task-fixtures.mjs", "fixture verifier", rel);
+  mustInclude(docText, "tester-six-mode-matrix", "six-mode matrix link", rel);
+  mustInclude(docText, "PRIVACY.md", "privacy prerequisite", rel);
+  mustInclude(docText, "Functional acceptance", "functional acceptance", rel);
+  mustInclude(docText, "Visual/user acceptance", "visual acceptance", rel);
+  mustInclude(docText, "Allowed dependencies", "allowed dependencies", rel);
+  mustInclude(docText, "Disallowed", "disallowed behavior", rel);
   mustNotHaveBacklogCaseIdsForDoc(docText, rel);
   checkForbiddenClaimsForDoc(docText, rel);
 }
@@ -885,6 +929,7 @@ function main() {
   const installEvidenceText = readUtf8(INSTALL_EVIDENCE);
   const betaSmokeMatrixText = readUtf8(BETA_SMOKE_MATRIX);
   const testerSixModeMatrixText = readUtf8(TESTER_SIX_MODE_MATRIX);
+  const canonicalRealTaskFixturesText = readUtf8(CANONICAL_REAL_TASK_FIXTURES);
   const betaDegradedPolicyText = readUtf8(BETA_DEGRADED_POLICY);
   const betaLimitationsContractText = readUtf8(BETA_LIMITATIONS_ONBOARDING_CONTRACT);
   const betaGateHardeningEvidenceText = readUtf8(BETA_GATE_HARDENING_EVIDENCE);
@@ -950,6 +995,9 @@ function main() {
   if (!fs.existsSync(TESTER_SIX_MODE_MATRIX_SCRIPT)) {
     fail(`missing file: ${path.relative(REPO_ROOT, TESTER_SIX_MODE_MATRIX_SCRIPT)}`);
   }
+  if (!fs.existsSync(CANONICAL_REAL_TASK_FIXTURES_SCRIPT)) {
+    fail(`missing file: ${path.relative(REPO_ROOT, CANONICAL_REAL_TASK_FIXTURES_SCRIPT)}`);
+  }
   if (!fs.existsSync(DEGRADED_MODE_EVIDENCE)) {
     fail(`missing file: ${path.relative(REPO_ROOT, DEGRADED_MODE_EVIDENCE)}`);
   }
@@ -976,6 +1024,7 @@ function main() {
   if (installEvidenceText) checkInstallEvidenceDoc(installEvidenceText);
   if (betaSmokeMatrixText) checkBetaSmokeMatrixDoc(betaSmokeMatrixText);
   if (testerSixModeMatrixText) checkTesterSixModeMatrixDoc(testerSixModeMatrixText);
+  if (canonicalRealTaskFixturesText) checkCanonicalRealTaskFixturesDoc(canonicalRealTaskFixturesText);
   if (betaDegradedPolicyText) checkBetaDegradedPolicyDoc(betaDegradedPolicyText);
   if (betaLimitationsContractText) checkBetaLimitationsOnboardingContract(betaLimitationsContractText);
   if (betaGateHardeningEvidenceText) checkBetaGateHardeningEvidenceDoc(betaGateHardeningEvidenceText);

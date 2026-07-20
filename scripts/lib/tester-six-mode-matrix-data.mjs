@@ -163,6 +163,7 @@ export const MATRIX_DOC_REQUIRED_MARKERS = Object.freeze([
   { needle: "FAIL", label: "fail criteria" },
   { needle: "SKIP", label: "skip criteria" },
   { needle: "run-tester-six-mode-matrix.mjs", label: "matrix runner script" },
+  { needle: "canonical-real-task-fixtures", label: "canonical real-task fixtures link" },
 ]);
 
 /**

@@ -24,6 +24,7 @@ Canonical **end-to-end happy path** for trying **ai-minions** without tribal kno
 - [Skill registry contract](../orchestrator/skill-registry-contract.md) — allowlist + opt-in PreToolUse hook
 - [Alpha release checklist](../orchestrator/alpha-release-checklist.md) — release bar (not required for a casual smoke)
 - [Tester six-mode matrix](tester-six-mode-matrix.md) — single/multi-agent × local_only / remote_ok / hybrid (hybrid honest skip)
+- [Canonical real-task fixtures](canonical-real-task-fixtures.md) — Sudoku / solar-system prompts for comparable matrix runs
 
 ---
 

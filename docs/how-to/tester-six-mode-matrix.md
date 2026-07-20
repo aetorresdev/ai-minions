@@ -2,7 +2,7 @@
 
 Copyable end-to-end matrix for beta testers: **agent flow** × **inference policy**. Validates the product as an end user — install → doctor → run → status → attach — without maintainer tribal knowledge.
 
-**Related:** [beta tester guide](beta-tester-guide.md) · [usage smoke guide](usage-smoke-guide.md) · [beta smoke matrix](beta-smoke-matrix.md) (OS × provider gate) · [operator feedback issue](operator-feedback-issue.md) · [PRIVACY.md](../../PRIVACY.md)
+**Related:** [beta tester guide](beta-tester-guide.md) · [usage smoke guide](usage-smoke-guide.md) · [canonical real-task fixtures](canonical-real-task-fixtures.md) (Sudoku / solar-system prompts) · [beta smoke matrix](beta-smoke-matrix.md) (OS × provider gate) · [operator feedback issue](operator-feedback-issue.md) · [PRIVACY.md](../../PRIVACY.md)
 
 **Structure gate (CI-safe):**
 
@@ -112,6 +112,8 @@ Supported env var **names** (set outside the repo; never commit values):
 ## Row procedures
 
 For every live row: run command → note printed `run_id` / `task_id` → status → attach → save evidence (below). On blocker, **SKIP** or **FAIL** with reason — do not mark PASS.
+
+For **comparable real-task** runs across modes, use the stable prompts in [canonical real-task fixtures](canonical-real-task-fixtures.md) (start with `sudoku-html-app`) as `--goal` instead of the trivial list-files goals below. Hybrid rows stay **honest skip**.
 
 ### `sa-local_only` — Single-agent + local_only
 
@@ -282,6 +284,7 @@ cd orchestrator && npm run ai-minions -- smoke --model-policy local_only
 | Script | Role |
 |--------|------|
 | `scripts/run-tester-six-mode-matrix.mjs` | Structure + skip assessment |
+| `scripts/verify-canonical-real-task-fixtures.mjs` | Canonical fixture prompts + artifact checks |
 | `scripts/run-beta-smoke-matrix.mjs` | Separate OS × provider gate |
 | `scripts/verify-usage-docs.mjs` | Doc marker guards |
 | `scripts/audit-product-claims.mjs` | Forbidden claim / secret-shaped scan |
