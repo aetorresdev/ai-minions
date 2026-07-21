@@ -6,13 +6,72 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.25.0-beta.1] - 2026-07-20
+
+Twenty-fifth beta pre-release: **Beta Tester Evidence + Operator TUI MVP** — install/discovery/credential readiness honesty, six-mode tester matrix runbook, canonical real-task fixtures, mode-comparison report, interactive `ai-minions tui` cockpit MVP with run selector/status · evidence/attach · config/credentials readiness panes, and a mandatory TUI quality-gate harness — without production TUI, fullscreen navigable panes, TUI next-wave actions, multi-provider production routing, hybrid cloud routing, durable resume, or cohort gate change.
+
+**Release claim:** beta operators can clarify install → discovery → credentials → smoke, run the six-mode tester matrix with honest hybrid skips, exercise canonical fixtures and a mode-comparison report, and use an interactive TTY cockpit (`ai-minions tui`) for smoke/runs/select/evidence/status/attach/config with non-TTY CLI fallback and `npm run test:tui-quality` — **not** production TUI · **not** Web UI · **not** fullscreen navigable panes · **not** TUI next-wave approvals/rerun/diff panes · **not** durable session resume · **not** multi-provider production-ready · **not** hybrid cloud routing shipped · **not** cohort gate change · **not** hardened sandbox.
+
+**Prerequisite:** `v0.24.0-beta.1` @ `8bcdcbe`.
+
+**Since [0.24.0-beta.1]:** v0.24 closed the **Operator UX cut** (friction · `runs` · guided chain · honest `resume` · runtime-host · local capability probes). v0.25 ships **tester evidence surfaces** plus an **Operator TUI MVP** on that path — without claiming production UI, multi-provider routing, or cohort-open.
+
+| Area | `v0.24.0-beta.1` | `v0.25.0-beta.1` (delta) |
+|------|------------------|---------------------------|
+| Focus | Operator UX cut + host/capability honesty | Beta tester evidence + Operator TUI MVP |
+| Tester evidence | Guided CLI + friction protocol | + install/discovery/credentials clarity · six-mode matrix · canonical fixtures · mode-comparison report |
+| Operator TUI | Guided CLI + non-interactive `runs` only | + interactive cockpit MVP · selector/status · evidence/attach · config/readiness · `test:tui-quality` |
+| Unit tests (orchestrator) | 1494/1495 pass (1 skipped) @ `dd8b8cc` | **1553/1554** pass (1 skipped) @ `bc6cf2c` |
+
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.25.0-beta.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → **1553/1554** pass (1 skipped) @ `bc6cf2c`
+- TUI quality: `cd orchestrator && npm run test:tui-quality` → **OK** @ `bc6cf2c`
+- Usage docs: `node scripts/verify-usage-docs.mjs` → **OK**
+- Claim audit: `node scripts/audit-product-claims.mjs` → **OK**
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** @ release-prep tree
+- Changelog format: `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK**
+- Contracts: `alpha-release-checklist.md`, `operator-cockpit-contract.md`, tester matrix / fixtures / mode-comparison how-tos, beta-tester / cohort guides
+- Lane on `master` @ `bc6cf2c` (evidence + TUI MVP + quality gate); release-prep on this commit (pending merge)
+- CI: lint-and-unit, security-trivy-scan, orchestrator-e2e — green on merged lane PRs through #321 @ `bc6cf2c`
+
+**Alpha limitations (not production):**
+
+- **Not** production TUI / Web UI — interactive cockpit MVP only; not fullscreen navigable panes or hosted UI.
+- **Not** TUI next-wave — approvals, rerun, diff, or additional panes beyond selector/status · evidence/attach · config/readiness stay deferred.
+- **Not** durable session resume — `resume` stays an honest unsupported probe (`RUN_RESUME_NOT_IMPLEMENTED`).
+- **Not** multi-provider production-ready — local Ollama/Olla path and v1 policy only; remote adapters and hybrid out of scope.
+- **Not** hybrid cloud routing shipped — six-mode matrix may honest-skip hybrid rows; no multi-cloud failover.
+- **Not** cohort gate change — `LIVE_PASS` still required for external cohort on beta lane.
+- **Not** hardened sandbox — capability/gate and TUI honesty document limits; not a full sandbox product claim.
+
 ### Added
 
+- Install / model discovery / endpoint / credential readiness clarity for beta operators (PATH, local backend, discovered models, credential `present`/`missing`/`not_checked` only).
+- Tester six-mode matrix runbook (single/multi-agent × local/remote/hybrid) with honest hybrid skips.
+- Canonical real-task fixtures for comparable tester matrix runs.
+- Mode-comparison report generator for cross-mode matrix evidence.
 - `ai-minions tui` interactive cockpit MVP (TTY action loop over smoke/runs/select/evidence/status/attach/config/quit). Non-TTY bare `tui` exits with equivalent CLI verb guidance. Selector flags (`--run-id` / `--latest` / `--file`) keep the existing read-only evidence surface. Contract: `docs/orchestrator/operator-cockpit-contract.md`.
 - Cockpit **run selector + status pane**: newest-first list from existing run discovery; index / keyboard nav selection; compact pane (run id, outcome/status, reason code, next safe action, attach hint); invalid traces stay `RUN_TRACE_INVALID` without inferred state.
 - Cockpit **evidence / attach pane**: selected-run evidence status (trace path, bundle availability, attach note when missing, next safe action); run or copy attach command; copyable attach output paths; `attach_available=false` stays bundle-on-disk semantics.
 - Cockpit **config / credentials readiness pane**: PATH, runtime host, local backend, discovered models, model policy, and provider credential status (`present`/`missing`/`not_checked` only); `local_only` token-not-required copy; remediations mapped to start backend / pull model / export env / smoke; reuses doctor + credential-readiness.
 - Operator TUI MVP **quality gate** harness (`npm run test:tui-quality`): render/state acceptance matrix for cockpit/selector/evidence/readiness — empty store, invalid/success/fail/blocked runs, attach present/missing, credentials + `local_only` honesty, non-TTY fallback, unknown action, no ANSI in shareables, `NO_COLOR` policy, no-secret surfaces, claim honesty, no shell-rc mutation. Not a new product pane; not fullscreen TUI.
+
+### Changed
+
+- Beta tester / cohort / visibility docs — Operator TUI MVP and tester evidence surfaces ship in this tag; production TUI and TUI next-wave remain out of scope.
+- Cohort UX discovery runbook — prefer this tag (or later) when exercising cockpit MVP; follow-up gate stays post-ship friction triage, not a defer-of-v0.25 claim.
+
+### Security
+
+- Bump direct dependency `js-yaml` to `^4.3.0` (CVE-2026-59869 DoS via crafted YAML; published-scope Trivy HIGH).
+
+### Notes
+
+- Phase B (annotated tag, GitHub pre-release, `release` branch align) is **not** claimed until CERBERUS Approve + merge + operator cut.
+- Do **not** treat TUI MVP as production UI, and do **not** claim the deferred next-wave cockpit panes (approvals, rerun, diff) as shipped.
 
 ## [0.24.0-beta.1] - 2026-07-17
 

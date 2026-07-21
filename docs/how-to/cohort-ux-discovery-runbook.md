@@ -1,13 +1,15 @@
 # Cohort UX discovery runbook (parallel track)
 
 **Purpose:** collect **real external-tester friction evidence** for the Operator UX
-path. The guided-CLI cut ships in **`v0.24.0-beta.1`**; this runbook remains the
+path. The guided-CLI cut ships in **`v0.24.0-beta.1`**; the Operator TUI MVP and
+tester evidence surfaces ship in **`v0.25.0-beta.1`**. This runbook remains the
 **operator/cohort protocol** for ongoing sessions — not a product release by itself.
 
 **Success metric:** a tester reaches **useful evidence** (status → report → attach) without
 internal architecture knowledge; on failure they receive a **concrete** `next_safe_action`.
 
-**Not in scope:** Web UI · navigable/fullscreen TUI · RAG/index/memory · production TUI claims.
+**Not in scope:** Web UI · fullscreen navigable panes · deferred next-wave TUI actions
+(approvals/rerun/diff) · RAG/index/memory · production TUI claims.
 
 **Related:** [beta-tester-guide](beta-tester-guide.md) · [beta-cohort-guard](beta-cohort-guard.md) ·
 [operator-visibility-guide](operator-visibility-guide.md) ·
@@ -22,9 +24,10 @@ After **both** are true:
 1. `node scripts/run-beta-cohort-guard.mjs` → exit `0`
 2. [human-ready-rehearsal-record.json](evidence/human-ready-rehearsal-record.json) → `record.status` = `LIVE_PASS`
 
-Prefer **`v0.24.0-beta.1`** (or later) for sessions that exercise `runs` / guided chain /
-honest `resume`. Earlier betas may still record friction — always set
-`ai_minions_version` per session.
+Prefer **`v0.25.0-beta.1`** (or later) for sessions that exercise tester evidence
+surfaces or the Operator TUI MVP cockpit. Prefer **`v0.24.0-beta.1`** (or later) for
+`runs` / guided chain / honest `resume`. Earlier betas may still record friction —
+always set `ai_minions_version` per session.
 
 ---
 
@@ -129,7 +132,7 @@ node scripts/cohort-ux-friction-log.mjs summarize /path/to/cohort-friction.jsonl
 
 `promotion_hint` derives from **session-level** drop-offs/conversions and signals (advisory
 only) — maintainer + CERBERUS decide whether friction warrants a **future backlog** slice
-(post-`v0.24.0-beta.1` Operator UX cut).
+(post-`v0.25.0-beta.1` evidence + Operator TUI MVP cut).
 
 ---
 
@@ -142,7 +145,7 @@ Copy and complete after ≥2 sessions:
 | `status` | Run state + reason codes | yes/no | |
 | `explain` | Human-readable failure | yes/no | |
 | `report` | Inspect bundle path | yes/no | |
-| `tui` | Single-run stdout evidence | yes/no | |
+| `tui` | Interactive cockpit MVP / single-run evidence | yes/no | |
 | `attach` | Shareable bundle | yes/no | |
 | Run selection | Pick run when multiple exist | yes/no | |
 
@@ -151,16 +154,19 @@ Copy and complete after ≥2 sessions:
 ## Cohort quality / future UX follow-up gate
 
 The guided-CLI Operator UX cut (`runs` · guided chain · honest `resume` · friction
-instrumentation · beta docs) **ships in `v0.24.0-beta.1`**. This gate is **not** a
-release-promotion or defer-of-v0.24 decision — it decides whether **new** cohort
-friction opens a **future** UX follow-up on the backlog.
+instrumentation · beta docs) **ships in `v0.24.0-beta.1`**. Tester evidence surfaces and
+the Operator TUI MVP (**`ai-minions tui`** cockpit · selector/status · evidence/attach ·
+config/readiness · quality gate) **ship in `v0.25.0-beta.1`**. This gate is **not** a
+release-promotion or defer-of-v0.25 decision — it decides whether **new** cohort
+friction opens a **future** UX follow-up on the backlog (including deferred next-wave
+panes).
 
 **Open a future UX follow-up** when evidence shows **repeatable friction**, e.g.:
 
 - Multiple testers with `next_safe_action_adequate=false` on the same command
 - `needed_run_selection=true` on ≥2 sessions without a documented workaround
 - Funnel drop-off: session-level `first-run` → `smoke` → `attach` conversion or drop-off after a stage (see `summarize --json` → `session_funnel`)
-- Gap matrix shows missing info **not** covered by existing read surfaces
+- Gap matrix shows missing info **not** covered by existing read surfaces or the shipped cockpit MVP
 
 **Stay on collect / doc-only** when:
 
@@ -169,8 +175,11 @@ friction opens a **future** UX follow-up on the backlog.
 - Gaps are doc typos fixable without a product slice
 
 Shipped in `v0.24.0-beta.1` (do not re-groom as contingent): `runs` selector · guided
-chain · honest `resume` · friction instrumentation · beta-doc honesty. New friction
-feeds **future** backlog grooming only.
+chain · honest `resume` · friction instrumentation · beta-doc honesty.
+Shipped in `v0.25.0-beta.1` (do not re-groom as contingent): tester evidence matrix /
+fixtures / mode-comparison · Operator TUI MVP cockpit panes listed above · TUI quality
+gate. New friction feeds **future** backlog grooming only (deferred next-wave stays
+deferred until groomed).
 
 ---
 

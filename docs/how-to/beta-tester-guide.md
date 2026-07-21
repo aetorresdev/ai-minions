@@ -4,7 +4,7 @@ End-to-end runbook for an **internal operator** playing beta tester: product ins
 
 **Audience:** you already know Git, Node, and basic terminal use. You are **not** validating a production deployment.
 
-**Primary path (v0.20):** installed **`ai-minions`** on PATH — guided CLI verbs `first-run` · `smoke` · `attach`. **Not** production TUI.
+**Primary path (v0.20+):** installed **`ai-minions`** on PATH — guided CLI verbs `first-run` · `smoke` · `attach`, plus optional interactive cockpit `ai-minions tui` (Operator TUI MVP from **`v0.25.0-beta.1`**). **Not** production TUI / Web UI / fullscreen panes.
 
 **Positioning:** control-first harness (roles, gates, trace evidence) — not a workflow-only chat or DAG runtime. See README § *How this differs from workflow-only harnesses*.
 
@@ -28,7 +28,7 @@ End-to-end runbook for an **internal operator** playing beta tester: product ins
 
 Formal checklist: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample issue](evidence/beta-dry-run-sample-issue.md) · [human-ready rehearsal evidence](human-ready-rehearsal-evidence.md) · [cohort guard](beta-cohort-guard.md) (`node scripts/run-beta-cohort-guard.mjs`). Gate matrix: [beta-smoke-matrix](beta-smoke-matrix.md). Six-mode tester matrix (agent × inference): [tester-six-mode-matrix](tester-six-mode-matrix.md) (`node scripts/run-tester-six-mode-matrix.mjs --skip-live`). Comparable real-task prompts: [canonical-real-task-fixtures](canonical-real-task-fixtures.md) (`node scripts/verify-canonical-real-task-fixtures.mjs`). Cross-mode summary: [mode-comparison-report](mode-comparison-report.md) (`node scripts/generate-mode-comparison-report.mjs --skip-live`).
 
-**External cohort UX discovery (after LIVE_PASS):** [cohort-ux-discovery-runbook](cohort-ux-discovery-runbook.md) — friction log protocol for ongoing cohort sessions. The Operator UX cut (`runs` · guided chain · honest `resume` probe) ships in **`v0.24.0-beta.1`**; keep collecting friction evidence — do not treat the kit alone as a cohort-open claim.
+**External cohort UX discovery (after LIVE_PASS):** [cohort-ux-discovery-runbook](cohort-ux-discovery-runbook.md) — friction log protocol for ongoing cohort sessions. The Operator UX cut (`runs` · guided chain · honest `resume` probe) ships in **`v0.24.0-beta.1`**; tester evidence surfaces + Operator TUI MVP ship in **`v0.25.0-beta.1`**. Keep collecting friction evidence — do not treat the kit alone as a cohort-open claim.
 
 ---
 
@@ -38,7 +38,7 @@ Formal checklist: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample
 |------|-----|
 | External beta cohort | [Cohort guard](beta-cohort-guard.md) exit `0` **and** rehearsal record `status` is `LIVE_PASS` — maintainer opens cohort; dry-run alone is insufficient |
 | Production support SLA | Beta candidate — no support promise |
-| Production TUI / Web UI | Guided CLI only — `runner:tui` is advanced/legacy |
+| Production TUI / Web UI | Guided CLI + Operator TUI MVP (`ai-minions tui`) only — not production/fullscreen UI; `runner:tui` remains advanced/legacy |
 | Automatic issue upload | Bundle is local; you open GitHub manually |
 | Durable `resume` | Honest probe only (`RUN_RESUME_NOT_IMPLEMENTED`); use `status` → `attach` or new run |
 

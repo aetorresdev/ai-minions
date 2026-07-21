@@ -1492,6 +1492,69 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 - [x] **Changelog:** section **[0.24.0-beta.1] - 2026-07-17**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.25.0-beta.1 — Beta Tester Evidence + Operator TUI MVP
+
+**Scope:** Install/discovery/credential honesty · six-mode tester matrix · canonical fixtures · mode-comparison report · interactive `ai-minions tui` cockpit MVP (selector/status · evidence/attach · config/readiness) · TUI quality-gate harness. **Prerequisite:** v0.24 @ `8bcdcbe`. **Beta continuity** — not alpha. **Tag only** after this full cut — never from evidence docs alone.
+
+### Must-have bundle
+
+- [x] Install / discovery / credentials UX clarity — merged @ `ecfea04` (PR #313)
+- [x] Tester six-mode matrix runbook — merged @ `d9c5357` (PR #314)
+- [x] Canonical real-task fixtures — merged @ `0873916` (PR #315)
+- [x] Mode-comparison report — merged @ `ff20984` (PR #316)
+- [x] Interactive cockpit MVP — merged @ `10bceca` (PR #317)
+- [x] Run selector + status pane — merged @ `89faf36` (PR #318)
+- [x] Evidence / attach pane — merged @ `61ccc53` (PR #319)
+- [x] Config / credentials readiness pane — merged @ `1349534` (PR #320)
+- [x] TUI MVP quality gate harness — merged @ `bc6cf2c` (PR #321)
+- [ ] Release-prep docs + changelog — this PR (Phase A); CERBERUS Approve before merge
+
+### v0.25 evidence + TUI MVP slices
+
+| Slice | Scope | Status |
+|-------|-------|--------|
+| Install/discovery/credentials | Operator readiness honesty | [x] PR #313 `ecfea04` |
+| Six-mode tester matrix | Agent × inference runbook + honest hybrid skip | [x] PR #314 `d9c5357` |
+| Canonical fixtures | Real-task prompts for matrix runs | [x] PR #315 `0873916` |
+| Mode-comparison report | Cross-mode evidence summary | [x] PR #316 `ff20984` |
+| Cockpit MVP | Interactive `ai-minions tui` action loop | [x] PR #317 `10bceca` |
+| Selector + status | Run list + compact status pane | [x] PR #318 `89faf36` |
+| Evidence / attach | Selected-run evidence + attach paths | [x] PR #319 `61ccc53` |
+| Config / readiness | Credentials + local readiness pane | [x] PR #320 `1349534` |
+| TUI quality gate | `npm run test:tui-quality` harness | [x] PR #321 `bc6cf2c` |
+| Release-prep | Tag `v0.25.0-beta.1` | [ ] Phase A (this PR); Phase B post-Approve |
+
+**Merge order (completed through quality gate):** install clarity → six-mode matrix → fixtures → mode-comparison → cockpit → selector/status → evidence/attach → config/readiness → quality gate → release-prep.
+
+### v0.25 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-07-20 | Lane on `master` @ `bc6cf2c` | `cd orchestrator && npm test` → **1553/1554** pass (1 skip) |
+| 2026-07-20 | Lane on `master` @ `bc6cf2c` | `cd orchestrator && npm run test:tui-quality` → **OK** (73/73) |
+| 2026-07-20 | Release-prep tree | `bash scripts/release-trivy-gate.sh` → **OK** (after `js-yaml` ^4.3.0) |
+| 2026-07-20 | Release-prep tree | `node scripts/verify-usage-docs.mjs` → **OK** |
+| 2026-07-20 | Release-prep tree | `node scripts/audit-product-claims.mjs` → **OK** |
+| 2026-07-20 | Release-prep tree | `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK** |
+| 2026-07-20 | Release-prep tree | `node --test orchestrator/tests/productVersionSync.test.js` → **OK** |
+
+### Forbidden release claims (v0.25)
+
+"production TUI" · "Web UI shipped" · "fullscreen navigable panes" · "deferred next-wave TUI panes shipped" · "durable resume" · "multi-provider production-ready" · "hybrid cloud routing shipped" · hardened sandbox · "cohort gate open" without `LIVE_PASS`.
+
+### Release execution plan (Phase B — operator steps)
+
+**Wording:** do not mark `[x]` until release-prep Phase B complete.
+
+- [ ] **Tag target:** `v0.25.0-beta.1` on release-prep merge commit *(SHA after merge)*
+- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.25.0-beta.1` — pre-release *(not live until Phase B)*
+- [ ] **`release` branch:** align to tag commit after Approve + merge
+
+### Release artifact (source snapshot)
+
+- [x] **Changelog:** section **[0.25.0-beta.1] - 2026-07-20** (Phase A)
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete` *(Phase B)*
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.
