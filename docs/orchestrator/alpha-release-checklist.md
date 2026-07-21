@@ -1507,7 +1507,7 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 - [x] Evidence / attach pane — merged @ `61ccc53` (PR #319)
 - [x] Config / credentials readiness pane — merged @ `1349534` (PR #320)
 - [x] TUI MVP quality gate harness — merged @ `bc6cf2c` (PR #321)
-- [ ] Release-prep docs + changelog — this PR (Phase A); CERBERUS Approve before merge
+- [x] Release-prep docs + changelog — merged @ `95f084e` (PR #322); CERBERUS Approve with non-blocking notes
 
 ### v0.25 evidence + TUI MVP slices
 
@@ -1522,7 +1522,7 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 | Evidence / attach | Selected-run evidence + attach paths | [x] PR #319 `61ccc53` |
 | Config / readiness | Credentials + local readiness pane | [x] PR #320 `1349534` |
 | TUI quality gate | `npm run test:tui-quality` harness | [x] PR #321 `bc6cf2c` |
-| Release-prep | Tag `v0.25.0-beta.1` | [ ] Phase A (this PR); Phase B post-Approve |
+| Release-prep | Tag `v0.25.0-beta.1` | [x] Phase B @ `95f084e` |
 
 **Merge order (completed through quality gate):** install clarity → six-mode matrix → fixtures → mode-comparison → cockpit → selector/status → evidence/attach → config/readiness → quality gate → release-prep.
 
@@ -1537,6 +1537,7 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 | 2026-07-20 | Release-prep tree | `node scripts/audit-product-claims.mjs` → **OK** |
 | 2026-07-20 | Release-prep tree | `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK** |
 | 2026-07-20 | Release-prep tree | `node --test orchestrator/tests/productVersionSync.test.js` → **OK** |
+| 2026-07-21 | Phase B operator cut @ `95f084e` | Tag pushed · pre-release published · `release` branch aligned · `validateReleaseGovernanceRecord` → `ok: true` |
 
 ### Forbidden release claims (v0.25)
 
@@ -1546,14 +1547,14 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 
 **Wording:** do not mark `[x]` until release-prep Phase B complete.
 
-- [ ] **Tag target:** `v0.25.0-beta.1` on release-prep merge commit *(SHA after merge)*
-- [ ] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.25.0-beta.1` — pre-release *(not live until Phase B)*
-- [ ] **`release` branch:** align to tag commit after Approve + merge
+- [x] **Tag target:** `v0.25.0-beta.1` on release-prep merge commit @ `95f084e`
+- [x] **Release URL:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.25.0-beta.1` — pre-release published
+- [x] **`release` branch:** aligned to tag commit @ `95f084e`
 
 ### Release artifact (source snapshot)
 
-- [x] **Changelog:** section **[0.25.0-beta.1] - 2026-07-20** (Phase A)
-- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete` *(Phase B)*
+- [x] **Changelog:** section **[0.25.0-beta.1] - 2026-07-20**
+- [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
 

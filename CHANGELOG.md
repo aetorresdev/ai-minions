@@ -23,7 +23,7 @@ Twenty-fifth beta pre-release: **Beta Tester Evidence + Operator TUI MVP** — i
 | Operator TUI | Guided CLI + non-interactive `runs` only | + interactive cockpit MVP · selector/status · evidence/attach · config/readiness · `test:tui-quality` |
 | Unit tests (orchestrator) | 1494/1495 pass (1 skipped) @ `dd8b8cc` | **1553/1554** pass (1 skipped) @ `bc6cf2c` |
 
-**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.25.0-beta.1` — *URL reserved on release-prep commit (not live until tag + pre-release)*
+**Release:** `https://github.com/aetorresdev/ai-minions/releases/tag/v0.25.0-beta.1` — pre-release published @ tag `95f084e`
 
 **Evidence (operator):**
 
@@ -34,8 +34,8 @@ Twenty-fifth beta pre-release: **Beta Tester Evidence + Operator TUI MVP** — i
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **OK** @ release-prep tree
 - Changelog format: `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK**
 - Contracts: `alpha-release-checklist.md`, `operator-cockpit-contract.md`, tester matrix / fixtures / mode-comparison how-tos, beta-tester / cohort guides
-- Lane on `master` @ `bc6cf2c` (evidence + TUI MVP + quality gate); release-prep on this commit (pending merge)
-- CI: lint-and-unit, security-trivy-scan, orchestrator-e2e — green on merged lane PRs through #321 @ `bc6cf2c`
+- Lane on `master` @ `bc6cf2c` (evidence + TUI MVP + quality gate); release-prep merged @ `95f084e` (PR #322)
+- CI: lint-and-unit, security-trivy-scan, orchestrator-e2e — green on merged lane PRs through #321 @ `bc6cf2c` and release-prep PR #322 @ `5126ba8`
 
 **Alpha limitations (not production):**
 
@@ -70,7 +70,7 @@ Twenty-fifth beta pre-release: **Beta Tester Evidence + Operator TUI MVP** — i
 
 ### Notes
 
-- Phase B (annotated tag, GitHub pre-release, `release` branch align) is **not** claimed until CERBERUS Approve + merge + operator cut.
+- Phase B completed @ `95f084e`: annotated tag, GitHub pre-release, and `release` branch aligned; governance validation returned `ok: true`.
 - Do **not** treat TUI MVP as production UI, and do **not** claim the deferred next-wave cockpit panes (approvals, rerun, diff) as shipped.
 
 ## [0.24.0-beta.1] - 2026-07-17
