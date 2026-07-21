@@ -81,6 +81,27 @@ Read-only stdout evidence panels (`operator-evidence-tui`). `--json` applies onl
 
 Human cockpit text follows `terminal-style` / `NO_COLOR` / `--color`. JSON, Markdown, and attach bundles remain ANSI-free via existing writers (`useColor: false` on shareable paths).
 
+## Quality gate (mandatory when TUI ships)
+
+Focused harness — render/state models and command dispatch, not pixel-perfect terminal screenshots:
+
+| Surface | Module | Unit tests |
+|---------|--------|------------|
+| Cockpit home / non-TTY / unknown action | `operator-cockpit-tui.js` | `tests/operator/operatorCockpitTui.test.js` |
+| Run selector + status pane | `operator-run-selector-tui.js` | `tests/operator/operatorRunSelectorTui.test.js` |
+| Evidence / attach pane | `operator-evidence-attach-pane-tui.js` | `tests/operator/operatorEvidenceAttachPaneTui.test.js` |
+| Config / credentials readiness | `operator-config-readiness-pane-tui.js` | `tests/operator/operatorConfigReadinessPaneTui.test.js` |
+| Read-only evidence panels | `operator-evidence-tui.js` | `tests/operator/operatorEvidenceTui.test.js` |
+| Acceptance matrix (empty store · invalid/success/fail/blocked · attach present/missing · credentials · non-TTY · unknown action · no ANSI in shareables · `NO_COLOR` · no secrets · claim honesty · no shell-rc mutation) | `operator-tui-quality-harness.js` | `tests/operator/operatorTuiQualityGate.test.js` |
+
+Run locally / CI:
+
+```bash
+cd orchestrator && npm run test:tui-quality
+```
+
+`npm test` / `npm run test:unit` include the quality-gate file. Ownership: [test-ownership-map.md](test-ownership-map.md) (`operator` / `unit`).
+
 ## Not claimed
 
 - Production TUI or Web UI

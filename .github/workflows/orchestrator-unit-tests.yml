@@ -42,6 +42,11 @@ jobs:
           cd orchestrator
           npm test
 
+      - name: Operator TUI MVP quality gate
+        run: |
+          cd orchestrator
+          npm run test:tui-quality
+
       - name: Routing release smoke (fixture)
         run: |
           cd orchestrator

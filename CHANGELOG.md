@@ -12,6 +12,7 @@ All notable changes to this repository are documented here. Format follows [Keep
 - Cockpit **run selector + status pane**: newest-first list from existing run discovery; index / keyboard nav selection; compact pane (run id, outcome/status, reason code, next safe action, attach hint); invalid traces stay `RUN_TRACE_INVALID` without inferred state.
 - Cockpit **evidence / attach pane**: selected-run evidence status (trace path, bundle availability, attach note when missing, next safe action); run or copy attach command; copyable attach output paths; `attach_available=false` stays bundle-on-disk semantics.
 - Cockpit **config / credentials readiness pane**: PATH, runtime host, local backend, discovered models, model policy, and provider credential status (`present`/`missing`/`not_checked` only); `local_only` token-not-required copy; remediations mapped to start backend / pull model / export env / smoke; reuses doctor + credential-readiness.
+- Operator TUI MVP **quality gate** harness (`npm run test:tui-quality`): render/state acceptance matrix for cockpit/selector/evidence/readiness — empty store, invalid/success/fail/blocked runs, attach present/missing, credentials + `local_only` honesty, non-TTY fallback, unknown action, no ANSI in shareables, `NO_COLOR` policy, no-secret surfaces, claim honesty, no shell-rc mutation. Not a new product pane; not fullscreen TUI.
 
 ## [0.24.0-beta.1] - 2026-07-17
 
