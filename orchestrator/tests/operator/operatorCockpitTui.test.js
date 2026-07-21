@@ -65,10 +65,11 @@ test('buildCockpitHomeText shows status and actions without secrets', () => {
   assert.match(text, /\[e\].*evidence \/ attach pane/);
   assert.match(text, /\[3\].*status/);
   assert.match(text, /\[4\].*attach/);
-  assert.match(text, /\[5\].*doctor/);
+  assert.match(text, /\[5\].*config \/ credentials readiness/);
   assert.match(text, /\[q\].*quit/);
   assert.match(text, /RUN_TRACE_INVALID/);
   assert.match(text, /disk-only/);
+  assert.match(text, /Config \(5\):/);
   assert.match(text, /not fullscreen/i);
   assert.doesNotMatch(text, /sk-ant-/);
   assert.doesNotMatch(text, /sk-proj-/);
@@ -87,8 +88,11 @@ test('resolveCockpitAction accepts keys and aliases', () => {
   assert.equal(resolveCockpitAction('attach-pane').id, 'evidence');
   assert.equal(resolveCockpitAction('q').id, 'quit');
   assert.equal(resolveCockpitAction('quit').id, 'quit');
-  assert.equal(resolveCockpitAction('doctor').id, 'doctor');
-  assert.equal(resolveCockpitAction('config').id, 'doctor');
+  assert.equal(resolveCockpitAction('5').id, 'config');
+  assert.equal(resolveCockpitAction('doctor').id, 'config');
+  assert.equal(resolveCockpitAction('config').id, 'config');
+  assert.equal(resolveCockpitAction('readiness').id, 'config');
+  assert.equal(resolveCockpitAction('c').id, 'config');
   assert.equal(resolveCockpitAction(''), null);
   assert.equal(resolveCockpitAction('9'), null);
   assert.equal(COCKPIT_ACTIONS.length, 8);
@@ -104,7 +108,7 @@ test('runOperatorCockpit non-TTY exits with guidance', async () => {
 
 test('runOperatorCockpit quit exits cleanly without invoking operators', async () => {
   let smokeCalls = 0;
-  let doctorCalls = 0;
+  let configCalls = 0;
   let runsCalls = 0;
   const result = await runOperatorCockpit({
     isTTY: true,
@@ -115,9 +119,9 @@ test('runOperatorCockpit quit exits cleanly without invoking operators', async (
       smokeCalls += 1;
       return { ok: true, exitCode: 0, text: 'smoke' };
     },
-    runDoctor: async () => {
-      doctorCalls += 1;
-      return { ok: true, exitCode: 0, text: 'doctor' };
+    runConfigPane: async () => {
+      configCalls += 1;
+      return { ok: true, exitCode: 0, text: 'config' };
     },
     runRuns: () => {
       runsCalls += 1;
@@ -142,8 +146,48 @@ test('runOperatorCockpit quit exits cleanly without invoking operators', async (
   assert.equal(result.exitCode, 0);
   assert.equal(result.reason_code, 'COCKPIT_QUIT');
   assert.equal(smokeCalls, 0);
-  assert.equal(doctorCalls, 0);
+  assert.equal(configCalls, 0);
   assert.equal(runsCalls, 0);
+});
+
+test('runOperatorCockpit config action opens readiness pane', async () => {
+  /** @type {string[]} */
+  const answers = ['5', 'q'];
+  let configCalls = 0;
+  /** @type {string[]} */
+  const out = [];
+  const result = await runOperatorCockpit({
+    isTTY: true,
+    useColor: false,
+    question: async () => answers.shift() ?? 'q',
+    write: (t) => out.push(String(t)),
+    runConfigPane: async () => {
+      configCalls += 1;
+      return {
+        ok: true,
+        exitCode: 0,
+        reason_code: 'CONFIG_READINESS_PANE_BACK',
+        text: 'config-pane',
+      };
+    },
+    buildAbout: () => ({
+      version: 'test',
+      git_commit: 'abc',
+      model_policy: 'local_only',
+    }),
+    assessCredentials: () => ({
+      model_policy: 'local_only',
+      remote_tokens_required: false,
+      credential_sufficiency: 'not_required',
+      note: 'n',
+      providers: [],
+      missing_required_env_vars: [],
+    }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+  });
+  assert.equal(result.reason_code, 'COCKPIT_QUIT');
+  assert.equal(configCalls, 1);
+  assert.ok(out.some((l) => l.includes('config / credentials readiness')));
 });
 
 test('runOperatorCockpit runs action reuses runOperatorRuns contract', async () => {
