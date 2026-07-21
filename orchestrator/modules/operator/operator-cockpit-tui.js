@@ -18,6 +18,7 @@ const { runOperatorRuns } = require('./operator-run-list');
 const { runOperatorStatus } = require('./operator-trace-command');
 const { runOperatorDoctor } = require('./operator-doctor-evidence');
 const { runSmoke, runAttach } = require('./operator-guided-first-run');
+const { runOperatorRunSelector } = require('./operator-run-selector-tui');
 
 const COCKPIT_SCHEMA = '1';
 
@@ -25,6 +26,7 @@ const COCKPIT_SCHEMA = '1';
 const COCKPIT_ACTIONS = Object.freeze([
   { key: '1', id: 'smoke', label: 'smoke / new run' },
   { key: '2', id: 'runs', label: 'runs' },
+  { key: 's', id: 'select', label: 'select run / status pane' },
   { key: '3', id: 'status', label: 'status (--run-id)' },
   { key: '4', id: 'attach', label: 'attach (--run-id)' },
   { key: '5', id: 'doctor', label: 'doctor / config readiness' },
@@ -88,6 +90,7 @@ function buildCockpitHomeText(options = {}) {
     '',
     'Policy: actions call existing operator modules (smoke/runs/status/attach/doctor).',
     'Quit exits cleanly with no side effects. Evidence panels: tui --run-id|--latest|--file.',
+    'Select (s): newest-first run list + status pane (basename-safe; invalid → RUN_TRACE_INVALID).',
     'Not claimed: production TUI · Web UI · durable resume · navigable fullscreen panes.',
   ];
   return lines.join('\n');
@@ -110,21 +113,11 @@ function resolveCockpitAction(raw) {
     if (action.id === 'doctor' && (token === 'config' || token === 'readiness')) {
       return { id: 'doctor' };
     }
+    if (action.id === 'select' && (token === 'selector' || token === 'pick')) {
+      return { id: 'select' };
+    }
   }
   return null;
-}
-
-/**
- * @param {{
- *   question: (prompt: string) => Promise<string>,
- *   write: (text: string) => void,
- * }} io
- * @param {string} label
- * @returns {Promise<string | null>}
- */
-async function promptRequired(io, label) {
-  const value = String(await io.question(label)).trim();
-  return value || null;
 }
 
 /**
@@ -142,6 +135,7 @@ async function promptRequired(io, label) {
  *   runDoctor?: typeof runOperatorDoctor,
  *   runSmokeFn?: typeof runSmoke,
  *   runAttachFn?: typeof runAttach,
+ *   runSelector?: typeof runOperatorRunSelector,
  *   buildAbout?: typeof buildAboutInfo,
  *   assessCredentials?: typeof assessProviderCredentials,
  *   assessPath?: typeof assessPathActivation,
@@ -186,6 +180,7 @@ async function runOperatorCockpit(options = {}) {
   const runDoctor = options.runDoctor ?? runOperatorDoctor;
   const runSmokeFn = options.runSmokeFn ?? runSmoke;
   const runAttachFn = options.runAttachFn ?? runAttach;
+  const runSelector = options.runSelector ?? runOperatorRunSelector;
   const buildAbout = options.buildAbout ?? buildAboutInfo;
   const assessCredentials = options.assessCredentials ?? assessProviderCredentials;
   const assessPath = options.assessPath ?? assessPathActivation;
@@ -197,6 +192,8 @@ async function runOperatorCockpit(options = {}) {
   let loops = 0;
   /** @type {number} */
   let lastExitCode = 0;
+  /** @type {string | null} */
+  let selectedRunId = null;
 
   try {
     while (loops < maxLoops) {
@@ -209,11 +206,14 @@ async function runOperatorCockpit(options = {}) {
         pathActivation: assessPath(),
       });
       write(`${home}\n`);
+      if (selectedRunId) {
+        write(`Selected run: ${selectedRunId}\n`);
+      }
 
-      const raw = await question('Select action [1-5, q]: ');
+      const raw = await question('Select action [1-5, s, q]: ');
       const resolved = resolveCockpitAction(raw);
       if (!resolved) {
-        write('Unknown action. Choose 1-5 or q.\n');
+        write('Unknown action. Choose 1-5, s, or q.\n');
         continue;
       }
 
@@ -258,8 +258,27 @@ async function runOperatorCockpit(options = {}) {
         continue;
       }
 
+      if (resolved.id === 'select') {
+        write('\n— select run / status pane —\n');
+        const result = await runSelector({
+          question,
+          write,
+          useColor,
+          cwd: options.cwd,
+        });
+        if (result.selected_run_id) {
+          selectedRunId = result.selected_run_id;
+        }
+        lastExitCode = Number.isInteger(result.exitCode) ? result.exitCode : (result.ok ? 0 : 1);
+        continue;
+      }
+
       if (resolved.id === 'status') {
-        const runId = await promptRequired(io, 'run-id: ');
+        const promptLabel = selectedRunId
+          ? `run-id [${selectedRunId}]: `
+          : 'run-id: ';
+        const typed = String(await io.question(promptLabel)).trim();
+        const runId = typed || selectedRunId;
         if (!runId) {
           write('status skipped: run-id required (or use: ai-minions status --run-id <id>).\n');
           continue;
@@ -273,7 +292,11 @@ async function runOperatorCockpit(options = {}) {
       }
 
       if (resolved.id === 'attach') {
-        const runId = await promptRequired(io, 'run-id: ');
+        const promptLabel = selectedRunId
+          ? `run-id [${selectedRunId}]: `
+          : 'run-id: ';
+        const typed = String(await io.question(promptLabel)).trim();
+        const runId = typed || selectedRunId;
         if (!runId) {
           write('attach skipped: run-id required (or use: ai-minions attach --run-id <id>).\n');
           continue;

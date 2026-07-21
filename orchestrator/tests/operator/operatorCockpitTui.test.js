@@ -61,10 +61,12 @@ test('buildCockpitHomeText shows status and actions without secrets', () => {
   assert.match(text, /ANTHROPIC_API_KEY: missing/);
   assert.match(text, /\[1\].*smoke/);
   assert.match(text, /\[2\].*runs/);
+  assert.match(text, /\[s\].*select run/);
   assert.match(text, /\[3\].*status/);
   assert.match(text, /\[4\].*attach/);
   assert.match(text, /\[5\].*doctor/);
   assert.match(text, /\[q\].*quit/);
+  assert.match(text, /RUN_TRACE_INVALID/);
   assert.match(text, /not fullscreen/i);
   assert.doesNotMatch(text, /sk-ant-/);
   assert.doesNotMatch(text, /sk-proj-/);
@@ -75,13 +77,16 @@ test('resolveCockpitAction accepts keys and aliases', () => {
   assert.equal(resolveCockpitAction('smoke').id, 'smoke');
   assert.equal(resolveCockpitAction('new-run').id, 'smoke');
   assert.equal(resolveCockpitAction('2').id, 'runs');
+  assert.equal(resolveCockpitAction('s').id, 'select');
+  assert.equal(resolveCockpitAction('select').id, 'select');
+  assert.equal(resolveCockpitAction('pick').id, 'select');
   assert.equal(resolveCockpitAction('q').id, 'quit');
   assert.equal(resolveCockpitAction('quit').id, 'quit');
   assert.equal(resolveCockpitAction('doctor').id, 'doctor');
   assert.equal(resolveCockpitAction('config').id, 'doctor');
   assert.equal(resolveCockpitAction(''), null);
   assert.equal(resolveCockpitAction('9'), null);
-  assert.equal(COCKPIT_ACTIONS.length, 6);
+  assert.equal(COCKPIT_ACTIONS.length, 7);
 });
 
 test('runOperatorCockpit non-TTY exits with guidance', async () => {
@@ -200,6 +205,48 @@ test('runOperatorCockpit status prompts for run-id then calls status module', as
   });
   assert.equal(result.reason_code, 'COCKPIT_QUIT');
   assert.equal(seenRunId, 'task-from-cockpit');
+});
+
+test('runOperatorCockpit select action remembers run for status default', async () => {
+  /** @type {string[]} */
+  const answers = ['s', '3', '', 'q'];
+  let seenRunId = null;
+  /** @type {string[]} */
+  const out = [];
+  const result = await runOperatorCockpit({
+    isTTY: true,
+    useColor: false,
+    question: async () => answers.shift() ?? 'q',
+    write: (t) => out.push(String(t)),
+    runSelector: async () => ({
+      ok: true,
+      exitCode: 0,
+      reason_code: 'RUN_SELECTOR_SELECTED',
+      selected_run_id: 'from-selector',
+      text: 'pane',
+    }),
+    runStatus: ({ runId }) => {
+      seenRunId = runId;
+      return { ok: true, exitCode: 0, text: `status:${runId}` };
+    },
+    buildAbout: () => ({
+      version: 'test',
+      git_commit: 'abc',
+      model_policy: 'local_only',
+    }),
+    assessCredentials: () => ({
+      model_policy: 'local_only',
+      remote_tokens_required: false,
+      credential_sufficiency: 'not_required',
+      note: 'n',
+      providers: [],
+      missing_required_env_vars: [],
+    }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+  });
+  assert.equal(result.reason_code, 'COCKPIT_QUIT');
+  assert.equal(seenRunId, 'from-selector');
+  assert.ok(out.some((l) => l.includes('Selected run: from-selector')));
 });
 
 test('runOperatorCockpit NO_COLOR path keeps home text without ANSI when useColor false', () => {

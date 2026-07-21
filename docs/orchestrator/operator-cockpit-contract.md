@@ -20,10 +20,24 @@ Shows product status (version, model policy, PATH activation, credential **statu
 |--------|---------------------------|
 | smoke / new run | `runSmoke` (`ai-minions smoke`) |
 | runs | `runOperatorRuns` (`ai-minions runs`) |
-| status | prompts `--run-id` → `runOperatorStatus` |
-| attach | prompts `--run-id` → `runAttach` |
+| select run / status pane | `runOperatorRunSelector` — newest-first list + compact status pane |
+| status | prompts `--run-id` (defaults to last selected) → `runOperatorStatus` |
+| attach | prompts `--run-id` (defaults to last selected) → `runAttach` |
 | doctor / config readiness | `runOperatorDoctor` |
 | quit | exit `0`, no operator side effects |
+
+## Run selector + status pane
+
+Cockpit action **`s` / select**:
+
+- Lists runs **newest-first** via the same discovery as `ai-minions runs`.
+- Selection by **index**, **run id**, or **keyboard nav** (`n`/`j` next, `p`/`k` prev, Enter selects cursor).
+- Selected run shows a compact **status pane**: run id / trace basename · outcome/status · reason code · next safe action · attach/bundle hint.
+- Invalid traces stay visible as `RUN_TRACE_INVALID` with **no inferred** outcome/state.
+- Selector commands resolve **trace basenames** safely (same quoting rules as `runs`).
+- **No** trace or gate mutation.
+
+Module: `orchestrator/modules/operator/operator-run-selector-tui.js`.
 
 ## Evidence path (unchanged selectors)
 

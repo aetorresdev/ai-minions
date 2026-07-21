@@ -43,7 +43,7 @@ npm run ai-minions -- <command> [options]
 | `npm run runner:tui -- status --run-id <id>` | `ai-minions status --run-id <id>` | Operator trace summary + `run_state_visibility` |
 | `npm run explain-run -- --run-id <id>` | `ai-minions explain --run-id <id>` | Reason codes + remediation from trace |
 | *(new v0.21)* — | `ai-minions report --run <id>` | Read-only RUN_ANALYST markdown (`OPERATOR_REPORT.md`, etc.) |
-| *(new)* — | `ai-minions tui` | Interactive cockpit MVP (TTY); selectors keep read-only evidence panels |
+| *(new)* — | `ai-minions tui` | Interactive cockpit MVP (TTY) with run selector + status pane; `--run-id`/`--latest`/`--file` keep read-only evidence panels |
 | *(new v0.21)* — | `ai-minions tui --run-id <id>` | Read-only stdout evidence panels |
 | `node scripts/collect-run-report.mjs <id>` | `ai-minions attach --run-id <id>` | Human-readable attach bundle (wraps collect script) |
 | `node scripts/inspect-run-evidence.mjs <id>` | `ai-minions evidence --run-id <id>` | Inspect panel + bundle paths (does not replace collect script) |

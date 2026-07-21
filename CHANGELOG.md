@@ -8,7 +8,8 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ### Added
 
-- `ai-minions tui` interactive cockpit MVP (TTY action loop over smoke/runs/status/attach/doctor/quit). Non-TTY bare `tui` exits with equivalent CLI verb guidance. Selector flags (`--run-id` / `--latest` / `--file`) keep the existing read-only evidence surface. Contract: `docs/orchestrator/operator-cockpit-contract.md`.
+- `ai-minions tui` interactive cockpit MVP (TTY action loop over smoke/runs/select/status/attach/doctor/quit). Non-TTY bare `tui` exits with equivalent CLI verb guidance. Selector flags (`--run-id` / `--latest` / `--file`) keep the existing read-only evidence surface. Contract: `docs/orchestrator/operator-cockpit-contract.md`.
+- Cockpit **run selector + status pane**: newest-first list from existing run discovery; index / keyboard nav selection; compact pane (run id, outcome/status, reason code, next safe action, attach hint); invalid traces stay `RUN_TRACE_INVALID` without inferred state.
 
 ## [0.24.0-beta.1] - 2026-07-17
 
