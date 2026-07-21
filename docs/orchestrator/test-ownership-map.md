@@ -46,9 +46,20 @@ cd orchestrator && node -e "const m=require('./scripts/test-ownership-map'); con
 
 ---
 
+## Operator TUI MVP test surface
+
+When Operator TUI MVP modules ship, the **quality gate** inventory lives under `operator` / `unit`:
+
+- `tests/operator/operatorTuiQualityGate.test.js` — acceptance matrix (mandatory if any TUI code ships)
+- Pane/cockpit units: `operatorCockpitTui` · `operatorRunSelectorTui` · `operatorEvidenceAttachPaneTui` · `operatorConfigReadinessPaneTui` · `operatorEvidenceTui`
+- Shared helpers: `modules/operator/operator-tui-quality-harness.js`
+- Contract: [operator-cockpit-contract.md](operator-cockpit-contract.md) § Quality gate
+- npm: `npm run test:tui-quality` (also covered by `test` / `test:unit`)
+
 ## Revision
 
 | Date | Change |
 |------|--------|
+| 2026-07-20 | Operator TUI MVP quality-gate surface + `test:tui-quality` |
 | 2026-06-12 | Wave-1 layout: trace · budget · worktree · operator unit tests under `tests/<context>/` |
 | 2026-06-12 | Initial test ownership map + validator (v0.10 coherence closeout) |

@@ -144,7 +144,7 @@ Persistent action loop: product status + smoke / runs / **select run + status pa
 
 **Select (`s`):** newest-first run list (same discovery as `runs`); pick by index, run id, or `n`/`p` navigation; shows compact status pane (basename, outcome/status, reason code, next safe action, attach hint). Invalid traces stay `RUN_TRACE_INVALID` with no inferred state.
 
-Contract: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md).
+Contract: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md). Quality gate (mandatory when TUI ships): `cd orchestrator && npm run test:tui-quality`.
 
 **Not claimed:** production TUI · Web UI · fullscreen navigable panes · durable resume.
 

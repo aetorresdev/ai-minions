@@ -125,12 +125,13 @@
 
 | | |
 |--|--|
-| **Owns** | CLI/TUI, explain-run, export, preflight, help, templates — **read-mostly** surfaces |
+| **Owns** | CLI/TUI, explain-run, export, preflight, help, templates — **read-mostly** surfaces; Operator TUI MVP quality-gate harness helpers |
 | **Must not own** | Domain policy; gate bypass |
-| **Current paths** | `modules/operator/` · root shims (`explain-run.js`, `control-plane-tui.js`, `runner-*.js`, …) · `portable-project-template.js` at root |
+| **Current paths** | `modules/operator/` · root shims (`explain-run.js`, `control-plane-tui.js`, `runner-*.js`, …) · `portable-project-template.js` at root · TUI panes + `operator-tui-quality-harness.js` |
 | **Target paths** | `modules/operator/` *(achieved for operator surfaces)* |
 | **Coordinates with** | run-control (start runs), trace/budget/worktree (read) |
 | **Physical module** | **Implemented** — `runner-model-routing.js` stays root (model-runtime) |
+| **TUI tests** | [test-ownership-map.md](test-ownership-map.md) § Operator TUI MVP · [operator-cockpit-contract.md](operator-cockpit-contract.md) § Quality gate |
 
 ### recovery *(proposed — physical refactor)*
 
