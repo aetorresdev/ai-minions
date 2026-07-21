@@ -140,7 +140,9 @@ Exit `2` when trace missing — same fail-closed semantics as `status`.
 ai-minions tui
 ```
 
-Persistent action loop: product status + smoke / runs / status / attach / doctor / quit. Calls the same modules as the named CLI verbs. Non-TTY bare `tui` exits with equivalent verb guidance (no hang).
+Persistent action loop: product status + smoke / runs / **select run + status pane** / status / attach / doctor / quit. Calls the same modules as the named CLI verbs. Non-TTY bare `tui` exits with equivalent verb guidance (no hang).
+
+**Select (`s`):** newest-first run list (same discovery as `runs`); pick by index, run id, or `n`/`p` navigation; shows compact status pane (basename, outcome/status, reason code, next safe action, attach hint). Invalid traces stay `RUN_TRACE_INVALID` with no inferred state.
 
 Contract: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md).
 

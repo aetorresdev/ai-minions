@@ -81,6 +81,7 @@ const ENTRIES = {
   'tests/operator/operatorRunReport.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorEvidenceTui.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorCockpitTui.test.js': { owner: 'operator', kind: 'unit' },
+  'tests/operator/operatorRunSelectorTui.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorCostTokenSummary.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTraceBasedEvals.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/steeringHandlerPolicyGate.test.js': { owner: 'operator', kind: 'unit' },
