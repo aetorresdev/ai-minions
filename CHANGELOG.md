@@ -8,9 +8,10 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ### Added
 
-- `ai-minions tui` interactive cockpit MVP (TTY action loop over smoke/runs/select/evidence/status/attach/doctor/quit). Non-TTY bare `tui` exits with equivalent CLI verb guidance. Selector flags (`--run-id` / `--latest` / `--file`) keep the existing read-only evidence surface. Contract: `docs/orchestrator/operator-cockpit-contract.md`.
+- `ai-minions tui` interactive cockpit MVP (TTY action loop over smoke/runs/select/evidence/status/attach/config/quit). Non-TTY bare `tui` exits with equivalent CLI verb guidance. Selector flags (`--run-id` / `--latest` / `--file`) keep the existing read-only evidence surface. Contract: `docs/orchestrator/operator-cockpit-contract.md`.
 - Cockpit **run selector + status pane**: newest-first list from existing run discovery; index / keyboard nav selection; compact pane (run id, outcome/status, reason code, next safe action, attach hint); invalid traces stay `RUN_TRACE_INVALID` without inferred state.
 - Cockpit **evidence / attach pane**: selected-run evidence status (trace path, bundle availability, attach note when missing, next safe action); run or copy attach command; copyable attach output paths; `attach_available=false` stays bundle-on-disk semantics.
+- Cockpit **config / credentials readiness pane**: PATH, runtime host, local backend, discovered models, model policy, and provider credential status (`present`/`missing`/`not_checked` only); `local_only` token-not-required copy; remediations mapped to start backend / pull model / export env / smoke; reuses doctor + credential-readiness.
 
 ## [0.24.0-beta.1] - 2026-07-17
 

@@ -24,7 +24,7 @@ Shows product status (version, model policy, PATH activation, credential **statu
 | evidence / attach pane | prompts for run-id (Enter accepts previously selected run) → `runOperatorEvidenceAttachPane` |
 | status | prompts `--run-id` (defaults to last selected) → `runOperatorStatus` |
 | attach | prompts `--run-id` (defaults to last selected) → `runAttach` |
-| doctor / config readiness | `runOperatorDoctor` |
+| config / credentials readiness | `runOperatorConfigReadinessPane` (reuses doctor + credential readiness) |
 | quit | exit `0`, no operator side effects |
 
 ## Run selector + status pane
@@ -53,6 +53,19 @@ Cockpit action **`e` / evidence**:
 - **No** secrets in pane text; shareable bundles stay on the existing attach writers.
 
 Module: `orchestrator/modules/operator/operator-evidence-attach-pane-tui.js`.
+
+## Config / credentials readiness pane
+
+Cockpit action **`5` / config** (aliases: `doctor`, `readiness`, `credentials`, `c`):
+
+- Summarizes **PATH/activation**, **runtime host**, **local backend** endpoint status, **discovered models**, **model policy**, and **provider credential status** (`present` / `missing` / `not_checked` only — never secret values).
+- `local_only` copy states that remote provider tokens are **not required**.
+- `remote_ok` and `hybrid` surface missing required credentials / remediations when insufficient.
+- Maps readiness to concrete next actions (start backend, pull/configure model, export provider env var, run smoke) via the same doctor `next_safe_action` rules.
+- Pane commands: **refresh** (`r`), **copy remediations** (`c`), **full doctor text** (`d`), **back** (`b`).
+- Reuses `runOperatorDoctor` + `operator-credential-readiness` (including `any_provider` sufficiency and model_policy passthrough).
+
+Module: `orchestrator/modules/operator/operator-config-readiness-pane-tui.js`.
 
 ## Evidence path (unchanged selectors)
 

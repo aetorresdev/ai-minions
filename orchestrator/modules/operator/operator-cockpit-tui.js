@@ -16,10 +16,10 @@ const {
 } = require('./operator-credential-readiness');
 const { runOperatorRuns } = require('./operator-run-list');
 const { runOperatorStatus } = require('./operator-trace-command');
-const { runOperatorDoctor } = require('./operator-doctor-evidence');
 const { runSmoke, runAttach } = require('./operator-guided-first-run');
 const { runOperatorRunSelector } = require('./operator-run-selector-tui');
 const { runOperatorEvidenceAttachPane } = require('./operator-evidence-attach-pane-tui');
+const { runOperatorConfigReadinessPane } = require('./operator-config-readiness-pane-tui');
 
 const COCKPIT_SCHEMA = '1';
 
@@ -31,7 +31,7 @@ const COCKPIT_ACTIONS = Object.freeze([
   { key: 'e', id: 'evidence', label: 'evidence / attach pane' },
   { key: '3', id: 'status', label: 'status (--run-id)' },
   { key: '4', id: 'attach', label: 'attach (--run-id)' },
-  { key: '5', id: 'doctor', label: 'doctor / config readiness' },
+  { key: '5', id: 'config', label: 'config / credentials readiness' },
   { key: 'q', id: 'quit', label: 'quit' },
 ]);
 
@@ -48,6 +48,7 @@ function formatNonTtyGuidance() {
     '  ai-minions status --run-id <task_id>',
     '  ai-minions attach --run-id <task_id>',
     '  ai-minions doctor [--model-policy local_only]',
+    'Interactive config/readiness pane (TTY cockpit action 5 / config).',
     'Read-only evidence panels (non-interactive):',
     '  ai-minions tui --run-id <task_id>',
     '  ai-minions tui --latest',
@@ -90,10 +91,11 @@ function buildCockpitHomeText(options = {}) {
     section('== Actions =='),
     ...COCKPIT_ACTIONS.map((a) => `  [${a.key}]  ${a.label}`),
     '',
-    'Policy: actions call existing operator modules (smoke/runs/status/attach/doctor).',
+    'Policy: actions call existing operator modules (smoke/runs/status/attach/config pane).',
     'Quit exits cleanly with no side effects. Evidence panels: tui --run-id|--latest|--file.',
     'Select (s): newest-first run list + status pane (basename-safe; invalid → RUN_TRACE_INVALID).',
     'Evidence (e): attach/bundle status for selected run; attach_available=false is disk-only semantics.',
+    'Config (5): PATH, backend, models, credentials status (never secrets) + next_safe_action.',
     'Not claimed: production TUI · Web UI · durable resume · navigable fullscreen panes.',
   ];
   return lines.join('\n');
@@ -113,8 +115,13 @@ function resolveCockpitAction(raw) {
     if (action.id === 'smoke' && (token === 'new' || token === 'run' || token === 'new-run')) {
       return { id: 'smoke' };
     }
-    if (action.id === 'doctor' && (token === 'config' || token === 'readiness')) {
-      return { id: 'doctor' };
+    if (action.id === 'config' && (
+      token === 'doctor'
+      || token === 'readiness'
+      || token === 'credentials'
+      || token === 'c'
+    )) {
+      return { id: 'config' };
     }
     if (action.id === 'select' && (token === 'selector' || token === 'pick')) {
       return { id: 'select' };
@@ -138,11 +145,11 @@ function resolveCockpitAction(raw) {
  *   buildHome?: typeof buildCockpitHomeText,
  *   runRuns?: typeof runOperatorRuns,
  *   runStatus?: typeof runOperatorStatus,
- *   runDoctor?: typeof runOperatorDoctor,
  *   runSmokeFn?: typeof runSmoke,
  *   runAttachFn?: typeof runAttach,
  *   runSelector?: typeof runOperatorRunSelector,
  *   runEvidencePane?: typeof runOperatorEvidenceAttachPane,
+ *   runConfigPane?: typeof runOperatorConfigReadinessPane,
  *   buildAbout?: typeof buildAboutInfo,
  *   assessCredentials?: typeof assessProviderCredentials,
  *   assessPath?: typeof assessPathActivation,
@@ -184,11 +191,11 @@ async function runOperatorCockpit(options = {}) {
   const buildHome = options.buildHome ?? buildCockpitHomeText;
   const runRuns = options.runRuns ?? runOperatorRuns;
   const runStatus = options.runStatus ?? runOperatorStatus;
-  const runDoctor = options.runDoctor ?? runOperatorDoctor;
   const runSmokeFn = options.runSmokeFn ?? runSmoke;
   const runAttachFn = options.runAttachFn ?? runAttach;
   const runSelector = options.runSelector ?? runOperatorRunSelector;
   const runEvidencePane = options.runEvidencePane ?? runOperatorEvidenceAttachPane;
+  const runConfigPane = options.runConfigPane ?? runOperatorConfigReadinessPane;
   const buildAbout = options.buildAbout ?? buildAboutInfo;
   const assessCredentials = options.assessCredentials ?? assessProviderCredentials;
   const assessPath = options.assessPath ?? assessPathActivation;
@@ -345,20 +352,22 @@ async function runOperatorCockpit(options = {}) {
         continue;
       }
 
-      if (resolved.id === 'doctor') {
-        write('\n— doctor / config readiness —\n');
+      if (resolved.id === 'config') {
+        write('\n— config / credentials readiness —\n');
         try {
-          const result = await runDoctor({
-            cwd: options.cwd,
-            json: false,
+          const result = await runConfigPane({
+            question,
+            write,
             useColor,
+            cwd: options.cwd,
+            modelPolicy: aboutInfo.model_policy,
           });
-          write(`${result.text}\n`);
           lastExitCode = Number.isInteger(result.exitCode) ? result.exitCode : (result.ok ? 0 : 1);
         } catch (err) {
           write(`${err instanceof Error ? err.message : String(err)}\n`);
           lastExitCode = 1;
         }
+        continue;
       }
     }
 
