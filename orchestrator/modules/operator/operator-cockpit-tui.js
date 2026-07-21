@@ -19,6 +19,7 @@ const { runOperatorStatus } = require('./operator-trace-command');
 const { runOperatorDoctor } = require('./operator-doctor-evidence');
 const { runSmoke, runAttach } = require('./operator-guided-first-run');
 const { runOperatorRunSelector } = require('./operator-run-selector-tui');
+const { runOperatorEvidenceAttachPane } = require('./operator-evidence-attach-pane-tui');
 
 const COCKPIT_SCHEMA = '1';
 
@@ -27,6 +28,7 @@ const COCKPIT_ACTIONS = Object.freeze([
   { key: '1', id: 'smoke', label: 'smoke / new run' },
   { key: '2', id: 'runs', label: 'runs' },
   { key: 's', id: 'select', label: 'select run / status pane' },
+  { key: 'e', id: 'evidence', label: 'evidence / attach pane' },
   { key: '3', id: 'status', label: 'status (--run-id)' },
   { key: '4', id: 'attach', label: 'attach (--run-id)' },
   { key: '5', id: 'doctor', label: 'doctor / config readiness' },
@@ -91,6 +93,7 @@ function buildCockpitHomeText(options = {}) {
     'Policy: actions call existing operator modules (smoke/runs/status/attach/doctor).',
     'Quit exits cleanly with no side effects. Evidence panels: tui --run-id|--latest|--file.',
     'Select (s): newest-first run list + status pane (basename-safe; invalid → RUN_TRACE_INVALID).',
+    'Evidence (e): attach/bundle status for selected run; attach_available=false is disk-only semantics.',
     'Not claimed: production TUI · Web UI · durable resume · navigable fullscreen panes.',
   ];
   return lines.join('\n');
@@ -116,6 +119,9 @@ function resolveCockpitAction(raw) {
     if (action.id === 'select' && (token === 'selector' || token === 'pick')) {
       return { id: 'select' };
     }
+    if (action.id === 'evidence' && (token === 'ev' || token === 'attach-pane' || token === 'evidence-pane')) {
+      return { id: 'evidence' };
+    }
   }
   return null;
 }
@@ -136,6 +142,7 @@ function resolveCockpitAction(raw) {
  *   runSmokeFn?: typeof runSmoke,
  *   runAttachFn?: typeof runAttach,
  *   runSelector?: typeof runOperatorRunSelector,
+ *   runEvidencePane?: typeof runOperatorEvidenceAttachPane,
  *   buildAbout?: typeof buildAboutInfo,
  *   assessCredentials?: typeof assessProviderCredentials,
  *   assessPath?: typeof assessPathActivation,
@@ -181,6 +188,7 @@ async function runOperatorCockpit(options = {}) {
   const runSmokeFn = options.runSmokeFn ?? runSmoke;
   const runAttachFn = options.runAttachFn ?? runAttach;
   const runSelector = options.runSelector ?? runOperatorRunSelector;
+  const runEvidencePane = options.runEvidencePane ?? runOperatorEvidenceAttachPane;
   const buildAbout = options.buildAbout ?? buildAboutInfo;
   const assessCredentials = options.assessCredentials ?? assessProviderCredentials;
   const assessPath = options.assessPath ?? assessPathActivation;
@@ -210,10 +218,10 @@ async function runOperatorCockpit(options = {}) {
         write(`Selected run: ${selectedRunId}\n`);
       }
 
-      const raw = await question('Select action [1-5, s, q]: ');
+      const raw = await question('Select action [1-5, s, e, q]: ');
       const resolved = resolveCockpitAction(raw);
       if (!resolved) {
-        write('Unknown action. Choose 1-5, s, or q.\n');
+        write('Unknown action. Choose 1-5, s, e, or q.\n');
         continue;
       }
 
@@ -269,6 +277,29 @@ async function runOperatorCockpit(options = {}) {
         if (result.selected_run_id) {
           selectedRunId = result.selected_run_id;
         }
+        lastExitCode = Number.isInteger(result.exitCode) ? result.exitCode : (result.ok ? 0 : 1);
+        continue;
+      }
+
+      if (resolved.id === 'evidence') {
+        const promptLabel = selectedRunId
+          ? `run-id [${selectedRunId}]: `
+          : 'run-id: ';
+        const typed = String(await io.question(promptLabel)).trim();
+        const runId = typed || selectedRunId;
+        if (!runId) {
+          write('evidence/attach pane skipped: run-id required (or use select first).\n');
+          continue;
+        }
+        selectedRunId = runId;
+        write('\n— evidence / attach pane —\n');
+        const result = await runEvidencePane({
+          runId,
+          question,
+          write,
+          useColor,
+          cwd: options.cwd,
+        });
         lastExitCode = Number.isInteger(result.exitCode) ? result.exitCode : (result.ok ? 0 : 1);
         continue;
       }

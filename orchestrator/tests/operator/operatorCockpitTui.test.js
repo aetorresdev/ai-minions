@@ -62,11 +62,13 @@ test('buildCockpitHomeText shows status and actions without secrets', () => {
   assert.match(text, /\[1\].*smoke/);
   assert.match(text, /\[2\].*runs/);
   assert.match(text, /\[s\].*select run/);
+  assert.match(text, /\[e\].*evidence \/ attach pane/);
   assert.match(text, /\[3\].*status/);
   assert.match(text, /\[4\].*attach/);
   assert.match(text, /\[5\].*doctor/);
   assert.match(text, /\[q\].*quit/);
   assert.match(text, /RUN_TRACE_INVALID/);
+  assert.match(text, /disk-only/);
   assert.match(text, /not fullscreen/i);
   assert.doesNotMatch(text, /sk-ant-/);
   assert.doesNotMatch(text, /sk-proj-/);
@@ -80,13 +82,16 @@ test('resolveCockpitAction accepts keys and aliases', () => {
   assert.equal(resolveCockpitAction('s').id, 'select');
   assert.equal(resolveCockpitAction('select').id, 'select');
   assert.equal(resolveCockpitAction('pick').id, 'select');
+  assert.equal(resolveCockpitAction('e').id, 'evidence');
+  assert.equal(resolveCockpitAction('evidence').id, 'evidence');
+  assert.equal(resolveCockpitAction('attach-pane').id, 'evidence');
   assert.equal(resolveCockpitAction('q').id, 'quit');
   assert.equal(resolveCockpitAction('quit').id, 'quit');
   assert.equal(resolveCockpitAction('doctor').id, 'doctor');
   assert.equal(resolveCockpitAction('config').id, 'doctor');
   assert.equal(resolveCockpitAction(''), null);
   assert.equal(resolveCockpitAction('9'), null);
-  assert.equal(COCKPIT_ACTIONS.length, 7);
+  assert.equal(COCKPIT_ACTIONS.length, 8);
 });
 
 test('runOperatorCockpit non-TTY exits with guidance', async () => {
@@ -247,6 +252,54 @@ test('runOperatorCockpit select action remembers run for status default', async 
   assert.equal(result.reason_code, 'COCKPIT_QUIT');
   assert.equal(seenRunId, 'from-selector');
   assert.ok(out.some((l) => l.includes('Selected run: from-selector')));
+});
+
+test('runOperatorCockpit evidence action uses selected run default', async () => {
+  /** @type {string[]} */
+  const answers = ['s', 'e', '', 'q'];
+  let seenRunId = null;
+  /** @type {string[]} */
+  const out = [];
+  const result = await runOperatorCockpit({
+    isTTY: true,
+    useColor: false,
+    question: async () => answers.shift() ?? 'q',
+    write: (t) => out.push(String(t)),
+    runSelector: async () => ({
+      ok: true,
+      exitCode: 0,
+      reason_code: 'RUN_SELECTOR_SELECTED',
+      selected_run_id: 'ev-selected',
+      text: 'pane',
+    }),
+    runEvidencePane: async ({ runId }) => {
+      seenRunId = runId;
+      return {
+        ok: true,
+        exitCode: 0,
+        reason_code: 'EVIDENCE_ATTACH_PANE_BACK',
+        selected_run_id: runId,
+        text: 'evidence-pane',
+      };
+    },
+    buildAbout: () => ({
+      version: 'test',
+      git_commit: 'abc',
+      model_policy: 'local_only',
+    }),
+    assessCredentials: () => ({
+      model_policy: 'local_only',
+      remote_tokens_required: false,
+      credential_sufficiency: 'not_required',
+      note: 'n',
+      providers: [],
+      missing_required_env_vars: [],
+    }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+  });
+  assert.equal(result.reason_code, 'COCKPIT_QUIT');
+  assert.equal(seenRunId, 'ev-selected');
+  assert.ok(out.some((l) => l.includes('evidence / attach pane')));
 });
 
 test('runOperatorCockpit NO_COLOR path keeps home text without ANSI when useColor false', () => {
