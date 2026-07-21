@@ -21,6 +21,7 @@ Shows product status (version, model policy, PATH activation, credential **statu
 | smoke / new run | `runSmoke` (`ai-minions smoke`) |
 | runs | `runOperatorRuns` (`ai-minions runs`) |
 | select run / status pane | `runOperatorRunSelector` — newest-first list + compact status pane |
+| evidence / attach pane | `runOperatorEvidenceAttachPane` — bundle status, attach note, copyable command/paths |
 | status | prompts `--run-id` (defaults to last selected) → `runOperatorStatus` |
 | attach | prompts `--run-id` (defaults to last selected) → `runAttach` |
 | doctor / config readiness | `runOperatorDoctor` |
@@ -38,6 +39,18 @@ Cockpit action **`s` / select**:
 - **No** trace or gate mutation.
 
 Module: `orchestrator/modules/operator/operator-run-selector-tui.js`.
+
+## Evidence / attach pane
+
+Cockpit action **`e` / evidence** (defaults to last selected run):
+
+- Shows **evidence status** for the run: trace path/basename · attach bundle availability · next safe action.
+- `attach_available=false` remains **bundle-on-disk** semantics only; copy does not discourage attach when `attach_action_available` is true.
+- Operator can **run attach** (`a`) or show a **copyable** attach command + output paths (`c`).
+- After attach, bundle / report / `ATTACH.md` paths are listed as copyable output paths.
+- **No** secrets in pane text; shareable bundles stay on the existing attach writers.
+
+Module: `orchestrator/modules/operator/operator-evidence-attach-pane-tui.js`.
 
 ## Evidence path (unchanged selectors)
 
