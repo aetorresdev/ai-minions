@@ -6,10 +6,13 @@
 #   2. Ollama listening at localhost:11434 (or set OLLAMA_HOST / OLLAMA_PORT on the runner env)
 #   3. Recommended: ollama pull qwen2.5-coder:7b (workflow default; override via dispatch input)
 #
-# Suites executed:
+# Suites executed (PR / blocking gate):
 #   - npm run test:e2e        → standard Ollama E2E (skipStateMcp=true); DEV contract smoke defaults to maxIterations=2
-#   - npm run test:e2e:dev-first-shot-report → informational N runs with maxIterations=1 only (non-blocking step)
 #   - npm run test:e2e:strict → system-path MCP-on-disk (ORCH_MCP_TRANSPORT=direct + mcp-direct.py)
+#
+# Optional (workflow_dispatch only — not on PR critical path):
+#   - npm run test:e2e:dev-first-shot-report → informational N runs with maxIterations=1
+#     (was ~9 min of wall-clock on self-hosted with E2E_FIRST_SHOT_RUNS=5; keep available via dispatch)
 #
 # Fork PRs: this job is skipped when head repo ≠ base repo so the workflow does not wait forever
 # for a runner that forks never receive. Same-repo PRs and pushes still run E2E when paths match.
@@ -30,6 +33,11 @@ on:
         description: "Ollama model to use (default: qwen2.5-coder:7b)"
         required: false
         default: "qwen2.5-coder:7b"
+      run_first_shot_report:
+        description: "Run informational DEV first-shot metric (adds ~N×Ollama latency; non-blocking)"
+        type: boolean
+        required: false
+        default: true
   pull_request:
     branches: [main, master]
     paths:
@@ -59,6 +67,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: orchestrator/package-lock.json
 
       - uses: astral-sh/setup-uv@v5
         with:
@@ -100,7 +110,10 @@ jobs:
           cd orchestrator
           npm run test:e2e
 
-      - name: DEV contract first-shot rate (informational, non-blocking)
+      - name: DEV contract first-shot rate (informational, dispatch-only)
+        # Non-blocking metric. Kept off the PR critical path: measured ~9m wall-clock for
+        # 5 serial Ollama runs on the self-hosted runner. Use Actions → Run workflow for trends.
+        if: github.event_name == 'workflow_dispatch' && inputs.run_first_shot_report
         continue-on-error: true
         env:
           OLLAMA_MODEL: ${{ github.event.inputs.ollama_model || 'qwen2.5-coder:7b' }}
@@ -124,7 +137,8 @@ jobs:
           {
             echo "## orchestrator-e2e"
             echo "- **Model:** \`$OLLAMA_MODEL\`"
-            echo "- **Suites:** \`npm run test:e2e\` → optional \`npm run test:e2e:dev-first-shot-report\` (metric) → \`npm run test:e2e:strict\`"
+            echo "- **Blocking suites:** \`npm run test:e2e\` → \`npm run test:e2e:strict\`"
+            echo "- **First-shot metric:** workflow_dispatch only (input \`run_first_shot_report\`)"
             echo "- **Runner:** self-hosted, labels \`self-hosted\` + \`ollama\`"
             echo "- **On failure:** artifact \`e2e-failure-*\` uploads traces + npm-debug.log (if present)"
           } >> "$GITHUB_STEP_SUMMARY"

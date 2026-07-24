@@ -171,7 +171,7 @@ E2E and local harnesses may route **all** roles through Ollama when **`OLLAMA_MO
 **Two lanes (review standard — do not conflate them):**
 
 1. **Default / blocking CI lane:** the DEV output-contract smoke in `tests/e2e.test.js` uses **`maxIterations: 2`**. That proves the **orchestrator loop can recover** after a bad first DEV reply (e.g. CERBERUS-driven iterate). It is **not** proof that the first DEV attempt always satisfies **`validateOutput()`**.
-2. **First-shot lane (metric):** set **`E2E_DEV_CONTRACT_FIRST_SHOT=1`** to run the **same** smoke with **`maxIterations: 1`**. Use **`npm run test:e2e:dev-first-shot-report`** (runs several attempts; prints **`first_shot_pass_rate`**; optional in GitHub Actions after **`npm run test:e2e`**). **Promotion idea:** when that rate is stable over time, consider making single-iteration smoke mandatory in CI — not before.
+2. **First-shot lane (metric):** set **`E2E_DEV_CONTRACT_FIRST_SHOT=1`** to run the **same** smoke with **`maxIterations: 1`**. Use **`npm run test:e2e:dev-first-shot-report`** (runs several attempts; prints **`first_shot_pass_rate`**). In GitHub Actions this metric is **`workflow_dispatch` only** (input `run_first_shot_report`) — not on the PR critical path — because five serial Ollama runs cost ~9 min wall-clock on the self-hosted runner. **Promotion idea:** when that rate is stable over time, consider making single-iteration smoke mandatory in CI — not before.
 
 **Implementation detail:** prompts and **`normalizeDevContractText()`** improve first-shot odds but do not, by themselves, guarantee first-shot compliance under local models.
 
