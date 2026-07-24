@@ -31,6 +31,12 @@ describe("bootstrap-preflight", () => {
     const node = report.checks.find((c) => c.id === "node_version");
     assert.equal(layout?.status, "pass");
     assert.equal(node?.status, "pass");
+    assert.equal(node?.reason_code, REASON_CODES.OK);
+  });
+
+  it("maps unsupported Node major to NODE_VERSION_UNSUPPORTED when below minimum", () => {
+    assert.equal(REASON_CODES.NODE_VERSION_UNSUPPORTED, "NODE_VERSION_UNSUPPORTED");
+    assert.equal(REASON_CODES.NODE_VERSION, REASON_CODES.NODE_VERSION_UNSUPPORTED);
   });
 
   it("detects non-writable trace dir", () => {

@@ -11,7 +11,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+
+const require = createRequire(import.meta.url);
+const {
+  MIN_NODE_MAJOR,
+  NODE_VERSION_UNSUPPORTED,
+  assessNodeRuntime,
+} = require("./lib/node-runtime-policy.cjs");
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -23,7 +31,9 @@ export const ORCHESTRATOR_DIR = path.join(REPO_ROOT, "orchestrator");
 export const REASON_CODES = {
   OK: "PREFLIGHT_OK",
   REPO_LAYOUT: "PREFLIGHT_REPO_LAYOUT",
-  NODE_VERSION: "PREFLIGHT_NODE_VERSION",
+  /** @deprecated Prefer NODE_VERSION_UNSUPPORTED — kept as alias for older docs/tests. */
+  NODE_VERSION: NODE_VERSION_UNSUPPORTED,
+  NODE_VERSION_UNSUPPORTED,
   NPM_CI: "PREFLIGHT_NPM_CI",
   NPM_TEST: "PREFLIGHT_NPM_TEST",
   CLAUDE_CLI: "PREFLIGHT_CLAUDE_CLI_MISSING",
@@ -31,7 +41,7 @@ export const REASON_CODES = {
   TRACE_DIR: "PREFLIGHT_TRACE_DIR_NOT_WRITABLE",
 };
 
-const MIN_NODE_MAJOR = 18;
+export { MIN_NODE_MAJOR };
 
 /**
  * @param {string} tracesDir
@@ -94,20 +104,20 @@ export async function runBootstrapPreflight(options = {}) {
     message: "orchestrator/package.json present",
   });
 
-  const nodeMajor = Number.parseInt(String(process.versions.node).split(".")[0], 10);
-  if (!Number.isFinite(nodeMajor) || nodeMajor < MIN_NODE_MAJOR) {
+  const nodeAssessment = assessNodeRuntime(process.versions.node, { minMajor: MIN_NODE_MAJOR });
+  if (!nodeAssessment.ok) {
     checks.push({
       id: "node_version",
-      reason_code: REASON_CODES.NODE_VERSION,
+      reason_code: REASON_CODES.NODE_VERSION_UNSUPPORTED,
       status: "fail",
-      message: `Node.js >= ${MIN_NODE_MAJOR} required (got ${process.versions.node})`,
+      message: nodeAssessment.message,
     });
   } else {
     checks.push({
       id: "node_version",
       reason_code: REASON_CODES.OK,
       status: "pass",
-      message: `Node.js ${process.versions.node}`,
+      message: nodeAssessment.message,
     });
   }
 

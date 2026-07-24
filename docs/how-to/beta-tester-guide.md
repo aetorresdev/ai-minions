@@ -64,7 +64,7 @@ git rev-parse --short HEAD
 
 | Tool | Why | Typical install |
 |------|-----|-----------------|
-| **Node.js ≥ 18** | orchestrator runtime | `brew install node` or nvm |
+| **Node.js ≥ 22** | orchestrator runtime | `brew install node` or nvm (Node 22 LTS) |
 | **ruff** | Python lint in `npm test` | `brew install ruff` |
 | **uv** | MCP server venv sync (strict mode) | `brew install uv` |
 | **Ollama** | local model discovery (`local_only`) | [install-ollama-docker-paths](install-ollama-docker-paths.md) — start app or `ollama serve` before install |

@@ -44,10 +44,35 @@ const {
   buildAboutInfo,
 } = require('./operator-about');
 const { resolvePolicyCwd } = require('../model-runtime/local-runtime-endpoint');
+const {
+  MIN_NODE_MAJOR,
+  NODE_VERSION_UNSUPPORTED,
+  assessNodeRuntime,
+} = require('../../../scripts/lib/node-runtime-policy.cjs');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const INSTALL_SCRIPT = path.join(REPO_ROOT, 'scripts', 'install-ai-minions.mjs');
 const FRICTION_LOG_LIB = path.join(REPO_ROOT, 'scripts', 'lib', 'cohort-ux-friction-log.mjs');
+
+/**
+ * Fail closed when the host Node major is below the supported minimum.
+ * @param {{ nodeVersion?: string, exit?: (code: number) => void, error?: (line: string) => void }} [options]
+ * @returns {{ ok: true } | { ok: false, reason_code: string, assessment: object }}
+ */
+function enforceNodeRuntimeOrExit(options = {}) {
+  const assessment = assessNodeRuntime(options.nodeVersion ?? process.versions.node);
+  if (assessment.ok) {
+    return { ok: true };
+  }
+  const error = options.error ?? ((line) => console.error(line));
+  const exit = options.exit ?? ((code) => process.exit(code));
+  error(`blocker: ${NODE_VERSION_UNSUPPORTED}`);
+  error(assessment.message);
+  error(`remediation: ${assessment.remediation}`);
+  error(`detected=${assessment.detected} required_minimum=${assessment.required_minimum}`);
+  exit(1);
+  return { ok: false, reason_code: NODE_VERSION_UNSUPPORTED, assessment };
+}
 
 /**
  * Best-effort dispatch boundary for explicitly enabled cohort instrumentation.
@@ -497,6 +522,7 @@ async function runStart(options) {
 }
 
 async function main() {
+  enforceNodeRuntimeOrExit();
   const argv = process.argv.slice(2);
 
   if (argv.includes('--version') || argv.includes('-V')) {
@@ -910,6 +936,9 @@ async function main() {
 module.exports = {
   REPO_ROOT,
   INSTALL_SCRIPT,
+  MIN_NODE_MAJOR,
+  NODE_VERSION_UNSUPPORTED,
+  enforceNodeRuntimeOrExit,
   parseAiMinionsArgs,
   formatInitText,
   formatStartText,

@@ -236,7 +236,7 @@ describe("ai-minions-cli-install", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       commandExists: () => true,
       install: false,
       cliInstall: true,

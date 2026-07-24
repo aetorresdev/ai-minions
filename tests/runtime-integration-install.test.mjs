@@ -60,7 +60,7 @@ function collectHookCommands(settings) {
 /** Shared happy-path mocks for full install through config + runtime. */
 function installHappyPathMocks(home) {
   return {
-    nodeVersion: "20.0.0",
+    nodeVersion: "22.0.0",
     commandExists: () => true,
     homeDir: home,
     discoverLocalModels: async () => ({

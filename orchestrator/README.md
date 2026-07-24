@@ -83,7 +83,7 @@ All worker agents run via the **`claude` CLI** using your active Claude Code ses
 |---|---|
 | Claude Code CLI | `claude --version` |
 | Active Claude session | `claude auth status` |
-| Node.js ≥ 18 | `node --version` |
+| Node.js ≥ 22 | `node --version` |
 | Ollama running | `curl http://localhost:11434/api/tags` |
 | `qwen2.5-coder:7b` pulled | `ollama list` |
 
@@ -238,7 +238,7 @@ See [`docs/orchestrator/dashboard-failure-taxonomy.md`](../docs/orchestrator/das
 
 ### From a terminal (without the Claude Code chat UI)
 
-You do **not** need the Claude Code **desktop app** or a chat with the `MODE: ORCHESTRATOR` header. From this directory, **`node run-orchestrator.js`** (or **`node cli.js`**) runs the same runner. You **do** need **Node ≥ 18** and the **`claude` CLI** with a valid session (`claude auth status`), because DEV/QA/CERBERUS/… steps spawn `claude` as a subprocess (except tests that stub `askAgent`).
+You do **not** need the Claude Code **desktop app** or a chat with the `MODE: ORCHESTRATOR` header. From this directory, **`node run-orchestrator.js`** (or **`node cli.js`**) runs the same runner. You **do** need **Node ≥ 22** and the **`claude` CLI** with a valid session (`claude auth status`), because DEV/QA/CERBERUS/… steps spawn `claude` as a subprocess (except tests that stub `askAgent`).
 
 **Changing default models:** precedence and examples are in [`docs/orchestrator/model-routing.md`](../docs/orchestrator/model-routing.md). **Default strategy by role (summary matrix):** [`docs/orchestrator/model-role-routing-policy.md`](../docs/orchestrator/model-role-routing-policy.md). Short map: **`OLLAMA_MODEL`** (orchestrator/summarizer via Ollama); **`MODEL_OVERRIDE_<ROLE>`** (e.g. `MODEL_OVERRIDE_QA`); **`models.json`** profiles + **`--profile`** on `run-orchestrator.js`; hardcoded routing table in **`agents/routing/model-routing.js`**.
 

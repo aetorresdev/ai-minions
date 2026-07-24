@@ -52,7 +52,7 @@ jobs:
       OLLAMA_MODEL: qwen2.5-coder:7b
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Verify Docker available
         run: docker version
@@ -85,7 +85,7 @@ jobs:
             -e OLLAMA_HOST="${OLLAMA_HOST}" \
             -e OLLAMA_PORT="${OLLAMA_PORT}" \
             -e OLLAMA_MODEL="${OLLAMA_MODEL}" \
-            node:20-bookworm \
+            node:22-bookworm \
             bash -lc '
               set -euo pipefail
               node --version
@@ -110,7 +110,7 @@ jobs:
             echo "## Installed CLI Docker live evidence"
             echo "- **Evidence class:** \`mac_docker_live_installed_cli\`"
             echo "- **Runner:** self-hosted, labels \`self-hosted\` + \`ollama\`"
-            echo "- **Container:** \`node:20-bookworm\` with \`--network=host\`"
+            echo "- **Container:** \`node:22-bookworm\` with \`--network=host\`"
             echo "- **Ollama:** \`${OLLAMA_HOST}:${OLLAMA_PORT}\`"
             echo "- **Gate:** product CLI install + help + doctor inside Docker"
           } >> "$GITHUB_STEP_SUMMARY"

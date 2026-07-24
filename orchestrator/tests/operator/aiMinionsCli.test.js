@@ -18,11 +18,46 @@ const {
   defaultTracePath,
   resolveInstallRepoRoot,
   recordProductCliFriction,
+  enforceNodeRuntimeOrExit,
+  NODE_VERSION_UNSUPPORTED,
   REPO_ROOT,
 } = require("../../modules/operator/ai-minions-cli");
 
 const CLI_PATH = path.join(__dirname, "..", "..", "ai-minions-cli.js");
 const ORCH_CWD = path.join(__dirname, "..", "..");
+
+describe("ai-minions-cli node runtime gate", () => {
+  it("rejects Node below 22 with NODE_VERSION_UNSUPPORTED", () => {
+    const lines = [];
+    let exitCode = null;
+    const result = enforceNodeRuntimeOrExit({
+      nodeVersion: "20.11.0",
+      error: (line) => lines.push(line),
+      exit: (code) => {
+        exitCode = code;
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason_code, NODE_VERSION_UNSUPPORTED);
+    assert.equal(exitCode, 1);
+    assert.ok(lines.some((l) => l.includes(NODE_VERSION_UNSUPPORTED)));
+    assert.ok(lines.some((l) => /Node\.js >= 22/.test(l)));
+    assert.ok(lines.some((l) => /remediation:/.test(l)));
+  });
+
+  it("accepts Node 22+", () => {
+    const result = enforceNodeRuntimeOrExit({
+      nodeVersion: "22.0.0",
+      error: () => {
+        throw new Error("should not error");
+      },
+      exit: () => {
+        throw new Error("should not exit");
+      },
+    });
+    assert.equal(result.ok, true);
+  });
+});
 
 describe("ai-minions-cli help", () => {
   it("--help exits 0 and documents init/start and alpha limitations", () => {
