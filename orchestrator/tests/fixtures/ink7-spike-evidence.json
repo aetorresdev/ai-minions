@@ -1,0 +1,36 @@
+{
+  "collected_at": "2026-07-24T22:31:05.840Z",
+  "node": "v22.23.1",
+  "platform": "linux",
+  "arch": "x64",
+  "probe": {
+    "ink_version": "7.1.1",
+    "ink_engines": {
+      "node": ">=22"
+    },
+    "react_version": "19.2.8",
+    "ink_type": "module"
+  },
+  "installed_size_kb": {
+    "ink": 1236,
+    "react": 260,
+    "node_modules": 41920
+  },
+  "cold_import": {
+    "ms": 227,
+    "status": 0
+  },
+  "non_tty": {
+    "reason_code": "INK7_SPIKE_NON_TTY",
+    "ink_loaded": false,
+    "react_loaded": false
+  },
+  "windows": {
+    "status": "deferred",
+    "note": "Windows interactive spike not exercised in this evidence run; treat as unsupported until dedicated evidence lands."
+  },
+  "macos": {
+    "status": "deferred_host",
+    "note": "macOS interactive evidence required before release-tag closeout; Linux exercised in CI/unit hosts."
+  }
+}

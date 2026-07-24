@@ -2,6 +2,8 @@
 
 Interactive **cockpit MVP** for the product CLI. Reuses existing operator modules; does not replace CLI verbs.
 
+**Framework decision:** fullscreen TUI work targets **Ink 7** — see [ink7-framework-decision.md](ink7-framework-decision.md). The production entrypoint below remains the readline cockpit until the foundation slice wires Ink.
+
 ## Entrypoint
 
 ```bash
