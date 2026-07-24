@@ -1,6 +1,6 @@
 # Lint + unit tests for orchestrator/ (no Claude auth or Ollama required).
-# push: path-filtered to save CI on unrelated commits.
-# pull_request: no path filter — every PR gets lint + unit.
+# Parallel jobs: lint once on Node 22; unit matrix on Node 22 + 24.
+# pull_request: path-filtered; every matching PR gets lint + unit.
 name: orchestrator-unit-tests
 
 on:
@@ -14,12 +14,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  lint-and-unit:
+  lint:
+    name: lint
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: ["22", "24"]
     steps:
       - uses: actions/checkout@v6
 
@@ -28,7 +25,9 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: orchestrator/package-lock.json
 
       - uses: actions/setup-python@v5
         with:
@@ -43,10 +42,40 @@ jobs:
         # Pin: ruff 0.16+ enables new defaults (e.g. PLW1510) that fail this tree.
         run: pip install "ruff==0.15.22"
 
-      - name: Lint + unit tests
+      - name: Static lint (eslint, ruff, docs-claims, boundaries, hooks)
         run: |
           cd orchestrator
-          npm test
+          npm run lint:static
+          npm run test:hooks
+
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["22", "24"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify harness env name scope
+        run: bash orchestrator/scripts/ci-check-harness-scope.sh
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: orchestrator/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd orchestrator
+          npm ci
+
+      - name: Unit tests (Node)
+        run: |
+          cd orchestrator
+          npm run test:node
 
       - name: Operator TUI MVP quality gate
         run: |

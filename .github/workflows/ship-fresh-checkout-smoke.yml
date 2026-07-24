@@ -4,7 +4,8 @@
 # on an ephemeral runner (satisfies "CI from clean checkout" in
 # `docs/orchestrator/alpha-release-checklist.md` § *Fresh checkout* for the gates below).
 #
-# Scope: same lint + unit path as `orchestrator-unit-tests.yml` (Node + eslint + ruff `lint:py`).
+# Scope: full local gate (`npm test` = lint:static + hooks + test:node), same as a developer
+# checkout. Parallel PR CI splits lint vs unit in `orchestrator-unit-tests.yml`.
 # Out of scope here: `npm run test:e2e:strict` (needs Ollama + MCP venv — use self-hosted
 # `orchestrator-e2e.yml` or documented operator workspace per checklist).
 #
