@@ -42,7 +42,8 @@ jobs:
           npm ci
 
       - name: Install Python linter (for npm run lint:py)
-        run: pip install ruff
+        # Pin: ruff 0.16+ enables new defaults (e.g. PLW1510) that fail this tree.
+        run: pip install "ruff==0.15.22"
 
       - name: Lint + unit tests
         run: |
