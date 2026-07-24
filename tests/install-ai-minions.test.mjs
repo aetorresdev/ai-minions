@@ -16,6 +16,7 @@ import {
   normalizeModelPolicy,
   parseArgs,
   parseNodeMajor,
+  runHostPrereqChecks,
   runInstallAiMinions,
 } from "../scripts/install-ai-minions.mjs";
 
@@ -113,6 +114,32 @@ describe("install-ai-minions", () => {
     assert.equal(report.ok, false);
     assert.equal(report.phase, "host_prereqs");
     assert.match(node?.message || "", /Node\.js >= 22/);
+  });
+
+  it("short-circuits on Node 20 and does not invoke npm ci with --install", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "install-ai-minions-"));
+    const orch = path.join(tmp, "orchestrator");
+    fs.mkdirSync(orch, { recursive: true });
+    fs.writeFileSync(path.join(orch, "package.json"), '{"name":"test"}\n');
+
+    let npmCiCalled = false;
+    const { checks, hostOk } = await runHostPrereqChecks(tmp, orch, {
+      install: true,
+      nodeVersion: "20.0.0",
+      commandExists: () => true,
+      runNpmCi: () => {
+        npmCiCalled = true;
+        return { status: 0 };
+      },
+    });
+    assert.equal(hostOk, false);
+    assert.equal(npmCiCalled, false);
+    const node = checks.find((c) => c.id === "node_version");
+    assert.equal(node?.reason_code, REASON_CODES.NODE_VERSION_UNSUPPORTED);
+    assert.equal(
+      checks.some((c) => c.id === "npm_ci" || c.id === "ruff" || c.id === "uv"),
+      false,
+    );
   });
 
   it("fails when ruff or uv are missing", async () => {

@@ -24,6 +24,25 @@ describe("node-runtime-policy", () => {
     assert.equal(parseNodeMajor(null), null);
   });
 
+  it("rejects malformed 22-prefixed and incomplete version shapes", () => {
+    for (const version of [
+      "22garbage",
+      "v22garbage",
+      "22.11.0garbage",
+      "22",
+      "22.11",
+      "22.",
+      "v22",
+      "22.x.0",
+      "not-a-version",
+    ]) {
+      assert.equal(parseNodeMajor(version), null, version);
+      const result = assessNodeRuntime(version);
+      assert.equal(result.ok, false, version);
+      assert.equal(result.reason_code, NODE_VERSION_UNSUPPORTED, version);
+    }
+  });
+
   it("rejects Node 18 and 20 with NODE_VERSION_UNSUPPORTED", () => {
     for (const version of ["18.20.0", "v20.11.1", "20.0.0-pre"]) {
       const result = assessNodeRuntime(version);

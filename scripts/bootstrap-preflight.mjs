@@ -77,13 +77,40 @@ function commandExists(cmd) {
 }
 
 /**
- * @param {{ install?: boolean, runTest?: boolean, live?: boolean, repoRoot?: string }} [options]
+ * @param {string} orchDir
+ * @returns {{ status: number | null }}
+ */
+function defaultRunNpmCi(orchDir) {
+  return spawnSync("npm", ["ci"], { cwd: orchDir, encoding: "utf8", stdio: "pipe" });
+}
+
+/**
+ * @param {string} orchDir
+ * @returns {{ status: number | null }}
+ */
+function defaultRunNpmTest(orchDir) {
+  return spawnSync("npm", ["test"], { cwd: orchDir, encoding: "utf8", stdio: "pipe" });
+}
+
+/**
+ * @param {{
+ *   install?: boolean,
+ *   runTest?: boolean,
+ *   live?: boolean,
+ *   repoRoot?: string,
+ *   nodeVersion?: string,
+ *   runNpmCi?: (orchDir: string) => { status: number | null },
+ *   runNpmTest?: (orchDir: string) => { status: number | null },
+ * }} [options]
  * @returns {Promise<{ ok: boolean, checks: CheckResult[], traces_dir: string }>}
  */
 export async function runBootstrapPreflight(options = {}) {
   const repoRoot = options.repoRoot ?? REPO_ROOT;
   const orchDir = path.join(repoRoot, "orchestrator");
   const tracesDir = resolveTracesDir();
+  const nodeVersion = options.nodeVersion ?? process.versions.node;
+  const runNpmCi = options.runNpmCi ?? defaultRunNpmCi;
+  const runNpmTest = options.runNpmTest ?? defaultRunNpmTest;
   /** @type {CheckResult[]} */
   const checks = [];
 
@@ -104,7 +131,7 @@ export async function runBootstrapPreflight(options = {}) {
     message: "orchestrator/package.json present",
   });
 
-  const nodeAssessment = assessNodeRuntime(process.versions.node, { minMajor: MIN_NODE_MAJOR });
+  const nodeAssessment = assessNodeRuntime(nodeVersion, { minMajor: MIN_NODE_MAJOR });
   if (!nodeAssessment.ok) {
     checks.push({
       id: "node_version",
@@ -112,19 +139,19 @@ export async function runBootstrapPreflight(options = {}) {
       status: "fail",
       message: nodeAssessment.message,
     });
-  } else {
-    checks.push({
-      id: "node_version",
-      reason_code: REASON_CODES.OK,
-      status: "pass",
-      message: nodeAssessment.message,
-    });
+    return { ok: false, checks, traces_dir: tracesDir };
   }
+  checks.push({
+    id: "node_version",
+    reason_code: REASON_CODES.OK,
+    status: "pass",
+    message: nodeAssessment.message,
+  });
 
   const nodeModules = path.join(orchDir, "node_modules");
   if (!fs.existsSync(nodeModules)) {
     if (options.install) {
-      const npmCi = spawnSync("npm", ["ci"], { cwd: orchDir, encoding: "utf8", stdio: "pipe" });
+      const npmCi = runNpmCi(orchDir);
       if (npmCi.status !== 0) {
         checks.push({
           id: "npm_ci",
@@ -219,7 +246,7 @@ export async function runBootstrapPreflight(options = {}) {
   }
 
   if (options.runTest) {
-    const npmTest = spawnSync("npm", ["test"], { cwd: orchDir, encoding: "utf8", stdio: "pipe" });
+    const npmTest = runNpmTest(orchDir);
     if (npmTest.status !== 0) {
       checks.push({
         id: "npm_test",

@@ -285,14 +285,14 @@ export async function runHostPrereqChecks(repoRoot, orchDir, options = {}) {
       status: "fail",
       message: nodeAssessment.message,
     });
-  } else {
-    checks.push({
-      id: "node_version",
-      reason_code: REASON_CODES.OK,
-      status: "pass",
-      message: nodeAssessment.message,
-    });
+    return { checks, hostOk: false };
   }
+  checks.push({
+    id: "node_version",
+    reason_code: REASON_CODES.OK,
+    status: "pass",
+    message: nodeAssessment.message,
+  });
 
   if (commandExists("ruff")) {
     checks.push({

@@ -26,7 +26,7 @@ Use this **before** starting an ai-minions orchestrator run. It does not change 
 
 Run from your **target project** (or from `orchestrator/` for repo self-checks):
 
-- `node --version` (≥ 18)
+- `node --version` (≥ 22) — below minimum → `NODE_VERSION_UNSUPPORTED` (install Node 22+ LTS)
 - `claude --version` / `claude auth status` if using Claude CLI workers
 - `curl -sS http://127.0.0.1:11434/api/tags` if using local Ollama (or your configured host)
 

@@ -12,15 +12,18 @@ const MIN_NODE_MAJOR = 22;
 const NODE_VERSION_UNSUPPORTED = 'NODE_VERSION_UNSUPPORTED';
 
 /**
+ * Complete Node version shape: optional `v`, MAJOR.MINOR.PATCH, optional
+ * prerelease (`-…`) or build (`+…`). Loose prefixes like `22garbage` are rejected.
  * @param {string | null | undefined} nodeVersion
  * @returns {number | null}
  */
 function parseNodeMajor(nodeVersion) {
   if (nodeVersion == null) return null;
-  const raw = String(nodeVersion).trim().replace(/^v/i, '');
+  const raw = String(nodeVersion).trim();
   if (!raw) return null;
-  const majorToken = raw.split(/[.\-+]/)[0];
-  const major = Number.parseInt(majorToken, 10);
+  const match = raw.match(/^v?(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?$/i);
+  if (!match) return null;
+  const major = Number.parseInt(match[1], 10);
   return Number.isFinite(major) ? major : null;
 }
 
