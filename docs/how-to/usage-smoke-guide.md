@@ -280,7 +280,7 @@ Symptom-first reference below. Stable `reason_code` values and full check list: 
 | Symptom | Likely cause | What to do |
 |---------|--------------|------------|
 | `ai-minions doctor` exit `2` | Bootstrap or launch preflight failed | Read FAIL lines + `next_safe_action`; fix first `PREFLIGHT_*` or `OPERATOR_*` — [blockers guide](operator-blockers-and-recovery.md#common-blockers-symptom--meaning--fix) |
-| `npm test` fails on clone | Node under 18, stale `node_modules`, network during `npm ci` | `ai-minions doctor` or `node scripts/bootstrap-preflight.mjs --install` → `PREFLIGHT_NPM_CI`; or `node --version` (≥ 18) |
+| `npm test` fails on clone | Node under 22, stale `node_modules`, network during `npm ci` | `ai-minions doctor` or `node scripts/bootstrap-preflight.mjs --install` → `PREFLIGHT_NPM_CI` / `NODE_VERSION_UNSUPPORTED`; or `node --version` (≥ 22) |
 | `npm test` passes but `start` hangs/fails | `claude` CLI missing or not authenticated | `ai-minions doctor --live`; `claude --version`; `claude auth status` |
 | Ollama / planner errors | Ollama not running or model missing | `ai-minions doctor --model-policy local_only`; `curl -sS http://127.0.0.1:11434/api/tags`; or `--skip-gates` for a **degraded** learning run only |
 | **⚠ DEGRADED MODE** banner | `--skip-gates` and/or MCPs not registered | **Expected** for learning smokes; not a bug — [degraded vs blocked](operator-blockers-and-recovery.md#blocked-vs-degraded-vs-failed) · strict gates: [strict-mode](../orchestrator/strict-mode.md) |
@@ -355,7 +355,7 @@ The [happy path](#happy-path-end-to-end-runbook) Step 1 is the canonical clone f
 
 | Check | Command |
 |-------|---------|
-| Node ≥ 18 | `node --version` |
+| Node ≥ 22 | `node --version` |
 | Claude CLI (worker agents) | `claude --version` / `claude auth status` |
 | Ollama (planner/summarizer) | `curl -sS http://127.0.0.1:11434/api/tags` |
 | Model | `ollama list` (e.g. `qwen2.5-coder:7b`) |

@@ -36,6 +36,14 @@ import {
 import { runRuntimeIntegrationInstall } from "./lib/runtime-integration-install.mjs";
 import { RUNTIME_INTEGRATION_STATUS } from "./lib/runtime-host-contract.mjs";
 
+const require = createRequire(import.meta.url);
+const {
+  MIN_NODE_MAJOR: SHARED_MIN_NODE_MAJOR,
+  NODE_VERSION_UNSUPPORTED,
+  parseNodeMajor: sharedParseNodeMajor,
+  assessNodeRuntime,
+} = require("./lib/node-runtime-policy.cjs");
+
 export {
   CLI_INSTALL_REASON_CODES,
   productCliActivationReady,
@@ -50,6 +58,7 @@ export const ORCHESTRATOR_DIR = path.join(REPO_ROOT, "orchestrator");
 export const REASON_CODES = {
   OK: "INSTALL_OK",
   NODE_MISSING: "INSTALL_NODE_MISSING",
+  NODE_VERSION_UNSUPPORTED,
   NPM_CI_FAILED: "INSTALL_NPM_CI_FAILED",
   RUFF_MISSING: "INSTALL_RUFF_MISSING",
   UV_MISSING: "INSTALL_UV_MISSING",
@@ -61,7 +70,7 @@ export const REASON_CODES = {
   ROLE_MODEL_DEGRADED_SINGLE_MODEL: "INSTALL_ROLE_MODEL_DEGRADED_SINGLE_MODEL",
 };
 
-export const MIN_NODE_MAJOR = 18;
+export const MIN_NODE_MAJOR = SHARED_MIN_NODE_MAJOR;
 export const MODEL_POLICIES = new Set(["local_only", "remote_ok"]);
 export const MODEL_POLICY_MODE = "declarative";
 
@@ -126,8 +135,7 @@ export function defaultRunNpmCi(orchDir) {
  * @returns {number | null}
  */
 export function parseNodeMajor(nodeVersion) {
-  const major = Number.parseInt(String(nodeVersion).split(".")[0], 10);
-  return Number.isFinite(major) ? major : null;
+  return sharedParseNodeMajor(nodeVersion);
 }
 
 /**
@@ -269,22 +277,22 @@ export async function runHostPrereqChecks(repoRoot, orchDir, options = {}) {
     message: "orchestrator/package.json present",
   });
 
-  const nodeMajor = parseNodeMajor(nodeVersion);
-  if (nodeMajor == null || nodeMajor < MIN_NODE_MAJOR) {
+  const nodeAssessment = assessNodeRuntime(nodeVersion, { minMajor: MIN_NODE_MAJOR });
+  if (!nodeAssessment.ok) {
     checks.push({
       id: "node_version",
-      reason_code: REASON_CODES.NODE_MISSING,
+      reason_code: REASON_CODES.NODE_VERSION_UNSUPPORTED,
       status: "fail",
-      message: `Node.js >= ${MIN_NODE_MAJOR} required (got ${nodeVersion})`,
+      message: nodeAssessment.message,
     });
-  } else {
-    checks.push({
-      id: "node_version",
-      reason_code: REASON_CODES.OK,
-      status: "pass",
-      message: `Node.js ${nodeVersion}`,
-    });
+    return { checks, hostOk: false };
   }
+  checks.push({
+    id: "node_version",
+    reason_code: REASON_CODES.OK,
+    status: "pass",
+    message: nodeAssessment.message,
+  });
 
   if (commandExists("ruff")) {
     checks.push({
@@ -653,8 +661,8 @@ export function deriveInstallNextSafeAction(report) {
     if (codes.has(REASON_CODES.RUFF_MISSING) || codes.has(REASON_CODES.UV_MISSING)) {
       return "Install host tools: brew install ruff uv — then re-run: node scripts/install-ai-minions.mjs";
     }
-    if (codes.has(REASON_CODES.NODE_MISSING)) {
-      return "Install Node.js 18+, then re-run: node scripts/install-ai-minions.mjs";
+    if (codes.has(REASON_CODES.NODE_VERSION_UNSUPPORTED) || codes.has(REASON_CODES.NODE_MISSING)) {
+      return `Install Node.js ${MIN_NODE_MAJOR}+ (LTS), then re-run: node scripts/install-ai-minions.mjs`;
     }
     if (codes.has(REASON_CODES.NPM_CI_FAILED)) {
       return "Run: cd orchestrator && npm ci  (or re-run install with --install)";

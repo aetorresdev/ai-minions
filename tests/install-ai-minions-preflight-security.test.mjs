@@ -246,7 +246,7 @@ describe("installer preflight/security negative matrix", () => {
       const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
         repoRoot,
-        nodeVersion: "20.0.0",
+        nodeVersion: "22.0.0",
         commandExists: () => true,
         install: false,
         cliInstall: false,

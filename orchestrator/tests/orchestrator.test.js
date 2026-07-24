@@ -1,6 +1,6 @@
 /**
  * Unit tests for detectBlockers() and validateHandoffStructure().
- * Uses Node.js built-in test runner (node:test). Requires Node >= 18.
+ * Uses Node.js built-in test runner (node:test). Requires Node >= 22.
  */
 
 const { describe, it } = require("node:test");

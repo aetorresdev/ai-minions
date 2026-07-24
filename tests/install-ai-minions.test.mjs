@@ -16,6 +16,7 @@ import {
   normalizeModelPolicy,
   parseArgs,
   parseNodeMajor,
+  runHostPrereqChecks,
   runInstallAiMinions,
 } from "../scripts/install-ai-minions.mjs";
 
@@ -64,7 +65,9 @@ function makeHostReadyRepo() {
 
 describe("install-ai-minions", () => {
   it("parseNodeMajor reads major version", () => {
-    assert.equal(parseNodeMajor("20.11.0"), 20);
+    assert.equal(parseNodeMajor("22.11.0"), 22);
+    assert.equal(parseNodeMajor("v22.0.0"), 22);
+    assert.equal(parseNodeMajor("22.0.0-rc.1"), 22);
     assert.equal(parseNodeMajor("invalid"), null);
   });
 
@@ -87,7 +90,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       commandExists: () => true,
     });
     assert.equal(report.ok, false);
@@ -97,19 +100,46 @@ describe("install-ai-minions", () => {
     assert.equal(layout?.reason_code, REASON_CODES.NPM_CI_FAILED);
   });
 
-  it("fails on old Node with INSTALL_NODE_MISSING", async () => {
+  it("fails on old Node with NODE_VERSION_UNSUPPORTED", async () => {
     const tmp = makeHostReadyRepo();
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "16.0.0",
+      nodeVersion: "20.0.0",
       commandExists: () => true,
       discoverLocalModels: mockDiscoverSuccess(),
     });
     const node = report.checks.find((c) => c.id === "node_version");
-    assert.equal(node?.reason_code, REASON_CODES.NODE_MISSING);
+    assert.equal(node?.reason_code, REASON_CODES.NODE_VERSION_UNSUPPORTED);
     assert.equal(report.ok, false);
     assert.equal(report.phase, "host_prereqs");
+    assert.match(node?.message || "", /Node\.js >= 22/);
+  });
+
+  it("short-circuits on Node 20 and does not invoke npm ci with --install", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "install-ai-minions-"));
+    const orch = path.join(tmp, "orchestrator");
+    fs.mkdirSync(orch, { recursive: true });
+    fs.writeFileSync(path.join(orch, "package.json"), '{"name":"test"}\n');
+
+    let npmCiCalled = false;
+    const { checks, hostOk } = await runHostPrereqChecks(tmp, orch, {
+      install: true,
+      nodeVersion: "20.0.0",
+      commandExists: () => true,
+      runNpmCi: () => {
+        npmCiCalled = true;
+        return { status: 0 };
+      },
+    });
+    assert.equal(hostOk, false);
+    assert.equal(npmCiCalled, false);
+    const node = checks.find((c) => c.id === "node_version");
+    assert.equal(node?.reason_code, REASON_CODES.NODE_VERSION_UNSUPPORTED);
+    assert.equal(
+      checks.some((c) => c.id === "npm_ci" || c.id === "ruff" || c.id === "uv"),
+      false,
+    );
   });
 
   it("fails when ruff or uv are missing", async () => {
@@ -117,7 +147,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       commandExists: (cmd) => cmd === "node",
       discoverLocalModels: mockDiscoverSuccess(),
     });
@@ -133,7 +163,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       modelPolicy: "local_only",
       commandExists: () => true,
       discoverLocalModels: mockDiscoverSuccess(),
@@ -165,7 +195,7 @@ describe("install-ai-minions", () => {
       skipRuntimeIntegration: true,
       repoRoot: tmp,
       install: true,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       commandExists: () => true,
       discoverLocalModels: mockDiscoverSuccess(),
       runNpmCi: (dir) => {
@@ -186,7 +216,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       modelPolicy: "remote_ok",
       commandExists: () => true,
       discoverLocalModels: mockDiscoverSuccess(),
@@ -201,7 +231,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       modelPolicy: "local_only",
       commandExists: () => true,
       discoverLocalModels: mockDiscoverResult({
@@ -228,7 +258,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       modelPolicy: "remote_ok",
       commandExists: () => true,
       discoverLocalModels: mockDiscoverResult({
@@ -255,7 +285,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       modelPolicy: "local_only",
       commandExists: () => true,
       discoverLocalModels: mockDiscoverResult({
@@ -281,7 +311,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       modelPolicy: "local_only",
       commandExists: () => true,
       discoverLocalModels: mockDiscoverResult({
@@ -329,7 +359,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       commandExists: () => true,
       discoverLocalModels: mockDiscoverSuccess(["only-model:7b"]),
     });
@@ -344,7 +374,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       commandExists: () => true,
       discoverLocalModels: mockDiscoverSuccess(),
       writeInstallModelConfig: () => {
@@ -378,7 +408,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       modelPolicy: "remote_ok",
       commandExists: () => true,
       discoverLocalModels: mockDiscoverResult({
@@ -405,7 +435,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       commandExists: () => true,
       discoverLocalModels: mockDiscoverSuccess(),
     });
@@ -419,7 +449,7 @@ describe("install-ai-minions", () => {
   it("formatReportText shows host failure without discovery", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "install-ai-minions-"));
     const report = await runInstallAiMinions({
-      skipRuntimeIntegration: true, repoRoot: tmp, nodeVersion: "20.0.0" });
+      skipRuntimeIntegration: true, repoRoot: tmp, nodeVersion: "22.0.0" });
     const text = formatReportText(report, { useColor: false });
     assert.match(text, /host prereqs/);
     assert.match(text, /INSTALL_NPM_CI_FAILED/);
@@ -430,7 +460,7 @@ describe("install-ai-minions", () => {
     const report = await runInstallAiMinions({
       skipRuntimeIntegration: true,
       repoRoot: tmp,
-      nodeVersion: "20.0.0",
+      nodeVersion: "22.0.0",
       commandExists: (cmd) => cmd === "node",
       discoverLocalModels: mockDiscoverSuccess(),
       cliInstall: false,

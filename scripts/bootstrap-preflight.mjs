@@ -11,7 +11,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+
+const require = createRequire(import.meta.url);
+const {
+  MIN_NODE_MAJOR,
+  NODE_VERSION_UNSUPPORTED,
+  assessNodeRuntime,
+} = require("./lib/node-runtime-policy.cjs");
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -23,7 +31,9 @@ export const ORCHESTRATOR_DIR = path.join(REPO_ROOT, "orchestrator");
 export const REASON_CODES = {
   OK: "PREFLIGHT_OK",
   REPO_LAYOUT: "PREFLIGHT_REPO_LAYOUT",
-  NODE_VERSION: "PREFLIGHT_NODE_VERSION",
+  /** @deprecated Prefer NODE_VERSION_UNSUPPORTED — kept as alias for older docs/tests. */
+  NODE_VERSION: NODE_VERSION_UNSUPPORTED,
+  NODE_VERSION_UNSUPPORTED,
   NPM_CI: "PREFLIGHT_NPM_CI",
   NPM_TEST: "PREFLIGHT_NPM_TEST",
   CLAUDE_CLI: "PREFLIGHT_CLAUDE_CLI_MISSING",
@@ -31,7 +41,7 @@ export const REASON_CODES = {
   TRACE_DIR: "PREFLIGHT_TRACE_DIR_NOT_WRITABLE",
 };
 
-const MIN_NODE_MAJOR = 18;
+export { MIN_NODE_MAJOR };
 
 /**
  * @param {string} tracesDir
@@ -67,13 +77,40 @@ function commandExists(cmd) {
 }
 
 /**
- * @param {{ install?: boolean, runTest?: boolean, live?: boolean, repoRoot?: string }} [options]
+ * @param {string} orchDir
+ * @returns {{ status: number | null }}
+ */
+function defaultRunNpmCi(orchDir) {
+  return spawnSync("npm", ["ci"], { cwd: orchDir, encoding: "utf8", stdio: "pipe" });
+}
+
+/**
+ * @param {string} orchDir
+ * @returns {{ status: number | null }}
+ */
+function defaultRunNpmTest(orchDir) {
+  return spawnSync("npm", ["test"], { cwd: orchDir, encoding: "utf8", stdio: "pipe" });
+}
+
+/**
+ * @param {{
+ *   install?: boolean,
+ *   runTest?: boolean,
+ *   live?: boolean,
+ *   repoRoot?: string,
+ *   nodeVersion?: string,
+ *   runNpmCi?: (orchDir: string) => { status: number | null },
+ *   runNpmTest?: (orchDir: string) => { status: number | null },
+ * }} [options]
  * @returns {Promise<{ ok: boolean, checks: CheckResult[], traces_dir: string }>}
  */
 export async function runBootstrapPreflight(options = {}) {
   const repoRoot = options.repoRoot ?? REPO_ROOT;
   const orchDir = path.join(repoRoot, "orchestrator");
   const tracesDir = resolveTracesDir();
+  const nodeVersion = options.nodeVersion ?? process.versions.node;
+  const runNpmCi = options.runNpmCi ?? defaultRunNpmCi;
+  const runNpmTest = options.runNpmTest ?? defaultRunNpmTest;
   /** @type {CheckResult[]} */
   const checks = [];
 
@@ -94,27 +131,27 @@ export async function runBootstrapPreflight(options = {}) {
     message: "orchestrator/package.json present",
   });
 
-  const nodeMajor = Number.parseInt(String(process.versions.node).split(".")[0], 10);
-  if (!Number.isFinite(nodeMajor) || nodeMajor < MIN_NODE_MAJOR) {
+  const nodeAssessment = assessNodeRuntime(nodeVersion, { minMajor: MIN_NODE_MAJOR });
+  if (!nodeAssessment.ok) {
     checks.push({
       id: "node_version",
-      reason_code: REASON_CODES.NODE_VERSION,
+      reason_code: REASON_CODES.NODE_VERSION_UNSUPPORTED,
       status: "fail",
-      message: `Node.js >= ${MIN_NODE_MAJOR} required (got ${process.versions.node})`,
+      message: nodeAssessment.message,
     });
-  } else {
-    checks.push({
-      id: "node_version",
-      reason_code: REASON_CODES.OK,
-      status: "pass",
-      message: `Node.js ${process.versions.node}`,
-    });
+    return { ok: false, checks, traces_dir: tracesDir };
   }
+  checks.push({
+    id: "node_version",
+    reason_code: REASON_CODES.OK,
+    status: "pass",
+    message: nodeAssessment.message,
+  });
 
   const nodeModules = path.join(orchDir, "node_modules");
   if (!fs.existsSync(nodeModules)) {
     if (options.install) {
-      const npmCi = spawnSync("npm", ["ci"], { cwd: orchDir, encoding: "utf8", stdio: "pipe" });
+      const npmCi = runNpmCi(orchDir);
       if (npmCi.status !== 0) {
         checks.push({
           id: "npm_ci",
@@ -209,7 +246,7 @@ export async function runBootstrapPreflight(options = {}) {
   }
 
   if (options.runTest) {
-    const npmTest = spawnSync("npm", ["test"], { cwd: orchDir, encoding: "utf8", stdio: "pipe" });
+    const npmTest = runNpmTest(orchDir);
     if (npmTest.status !== 0) {
       checks.push({
         id: "npm_test",

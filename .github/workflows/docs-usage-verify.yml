@@ -16,6 +16,7 @@ on:
       - "install.sh"
       - "scripts/install-ai-minions.mjs"
       - "scripts/lib/ai-minions-cli-install.mjs"
+      - "scripts/lib/node-runtime-policy.cjs"
       - "docs/orchestrator/local-backend-adapter-contract.md"
       - "docs/how-to/install-ollama-docker-paths.md"
       - "orchestrator/local-backend-adapter.js"
@@ -45,6 +46,7 @@ on:
       - "scripts/lib/operator-doc-claims.mjs"
       - "scripts/verify-usage-docs.mjs"
       - "tests/bootstrap-preflight.test.mjs"
+      - "tests/node-runtime-policy.test.mjs"
       - "tests/install-ai-minions.test.mjs"
       - "tests/install-ai-minions-cli-install.test.mjs"
       - "tests/install-ai-minions-preflight-security.test.mjs"
@@ -102,11 +104,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: orchestrator/package-lock.json
 
@@ -119,6 +121,9 @@ jobs:
 
       - name: Bootstrap preflight unit tests
         run: node --test tests/bootstrap-preflight.test.mjs
+
+      - name: Node runtime policy unit tests
+        run: node --test tests/node-runtime-policy.test.mjs
 
       - name: Install ai-minions unit tests
         run: node --test tests/install-ai-minions.test.mjs tests/install-ai-minions-cli-install.test.mjs tests/install-ai-minions-preflight-security.test.mjs

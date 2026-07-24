@@ -1,7 +1,7 @@
 /**
  * Unit tests for orchestrator internals: _sanitize and _hashGoal (trace redaction).
  *
- * Uses Node.js built-in test runner (node:test). Requires Node >= 18.
+ * Uses Node.js built-in test runner (node:test). Requires Node >= 22.
  * No Claude auth, no Ollama, no MCPs required.
  *
  * Degraded-agent tracking (getDegradedAgents/clearDegradedAgents) is tested

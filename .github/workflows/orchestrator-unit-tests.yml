@@ -9,21 +9,26 @@ on:
     paths:
       - "orchestrator/**"
       - "scripts/hooks/**"
+      - "scripts/lib/node-runtime-policy.cjs"
       - ".github/workflows/orchestrator-unit-tests.yml"
   workflow_dispatch:
 
 jobs:
   lint-and-unit:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["22", "24"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Verify harness env name scope
         run: bash orchestrator/scripts/ci-check-harness-scope.sh
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: ${{ matrix.node-version }}
 
       - uses: actions/setup-python@v5
         with:
@@ -35,7 +40,8 @@ jobs:
           npm ci
 
       - name: Install Python linter
-        run: pip install ruff
+        # Pin: ruff 0.16+ enables new defaults (e.g. PLW1510) that fail this tree.
+        run: pip install "ruff==0.15.22"
 
       - name: Lint + unit tests
         run: |
@@ -60,7 +66,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: routing-release-fixture-${{ github.sha }}
+          name: routing-release-fixture-node${{ matrix.node-version }}-${{ github.sha }}
           path: artifacts/routing-release/
           if-no-files-found: warn
           retention-days: 14

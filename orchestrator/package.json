@@ -2,6 +2,9 @@
   "name": "ai-minions-orchestrator",
   "version": "1.0.0",
   "description": "MODE protocol orchestrator for ai-minions — state store gates, traces, optional MCP",
+  "engines": {
+    "node": ">=22"
+  },
   "main": "agents.js",
   "scripts": {
     "start": "node cli.js",

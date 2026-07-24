@@ -67,7 +67,7 @@ Exit codes: **0** = all required checks pass · **1** = one or more blockers (st
 | Check | Default | `--live` | `reason_code` on failure |
 |-------|---------|----------|---------------------------|
 | Clone layout (`orchestrator/package.json`) | ✓ | ✓ | `PREFLIGHT_REPO_LAYOUT` |
-| Node.js ≥ 18 | ✓ | ✓ | `PREFLIGHT_NODE_VERSION` |
+| Node.js ≥ 22 | ✓ | ✓ | `NODE_VERSION_UNSUPPORTED` |
 | `orchestrator/node_modules` (or `--install` → `npm ci`) | ✓ | ✓ | `PREFLIGHT_NPM_CI` |
 | Trace dir writable (`ORCH_TRACES_DIR` or `~/.claude/metrics/traces`) | ✓ | ✓ | `PREFLIGHT_TRACE_DIR_NOT_WRITABLE` |
 | `claude` CLI in PATH | warn | ✓ required | `PREFLIGHT_CLAUDE_CLI_MISSING` |
@@ -85,7 +85,7 @@ Use these in issues and smoke reports — not free-form paraphrase.
 | `reason_code` | Meaning | Typical fix |
 |---------------|---------|-------------|
 | `PREFLIGHT_REPO_LAYOUT` | Not an ai-minions clone (missing `orchestrator/package.json`) | Clone repo; run from `ai-minions/` root |
-| `PREFLIGHT_NODE_VERSION` | Node under 18 | Install Node 18+ |
+| `NODE_VERSION_UNSUPPORTED` | Node under 22 | Install Node 22+ (LTS) |
 | `PREFLIGHT_NPM_CI` | Dependencies missing or `npm ci` failed | `cd ai-minions/orchestrator && npm ci` or `--install` |
 | `PREFLIGHT_NPM_TEST` | Unit suite failed | Fix failing tests; see CI badge |
 | `PREFLIGHT_CLAUDE_CLI_MISSING` | `claude` not in PATH (`--live`) | Install Claude Code CLI |

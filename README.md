@@ -171,7 +171,7 @@ Full walkthrough and troubleshooting: [`docs/how-to/usage-smoke-guide.md`](docs/
 
 | Check | Command / note |
 |-------|----------------|
-| Node.js ≥ 18 | `node --version` |
+| Node.js ≥ 22 | `node --version` |
 | Claude Code + `claude` CLI | `claude --version` · `claude auth status` (required for live orchestration) |
 | Editor (typical) | Cursor or Warp — paste MODE headers in chat |
 | Ollama (optional) | Planner/summarizer — [`local-model-discovery.md`](docs/orchestrator/local-model-discovery.md) |

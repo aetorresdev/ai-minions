@@ -20,7 +20,7 @@ fi
 
 if ! command -v node >/dev/null 2>&1; then
   echo "blocker: INSTALL_NODE_MISSING" >&2
-  echo "Node.js not found in PATH — install Node 18+ first" >&2
+  echo "Node.js not found in PATH — install Node 22+ (LTS) first" >&2
   exit 1
 fi
 

@@ -31,6 +31,44 @@ describe("bootstrap-preflight", () => {
     const node = report.checks.find((c) => c.id === "node_version");
     assert.equal(layout?.status, "pass");
     assert.equal(node?.status, "pass");
+    assert.equal(node?.reason_code, REASON_CODES.OK);
+  });
+
+  it("maps unsupported Node major to NODE_VERSION_UNSUPPORTED when below minimum", () => {
+    assert.equal(REASON_CODES.NODE_VERSION_UNSUPPORTED, "NODE_VERSION_UNSUPPORTED");
+    assert.equal(REASON_CODES.NODE_VERSION, REASON_CODES.NODE_VERSION_UNSUPPORTED);
+  });
+
+  it("fails immediately on injected Node 20 and skips install/test", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orch-preflight-"));
+    const orch = path.join(tmp, "orchestrator");
+    fs.mkdirSync(orch, { recursive: true });
+    fs.writeFileSync(path.join(orch, "package.json"), '{"name":"test"}\n');
+
+    let npmCiCalled = false;
+    let npmTestCalled = false;
+    const report = await runBootstrapPreflight({
+      repoRoot: tmp,
+      install: true,
+      runTest: true,
+      nodeVersion: "20.0.0",
+      runNpmCi: () => {
+        npmCiCalled = true;
+        return { status: 0 };
+      },
+      runNpmTest: () => {
+        npmTestCalled = true;
+        return { status: 0 };
+      },
+    });
+
+    assert.equal(report.ok, false);
+    assert.equal(npmCiCalled, false);
+    assert.equal(npmTestCalled, false);
+    const node = report.checks.find((c) => c.id === "node_version");
+    assert.equal(node?.reason_code, REASON_CODES.NODE_VERSION_UNSUPPORTED);
+    assert.match(node?.message || "", /Node\.js >= 22/);
+    assert.equal(report.checks.some((c) => c.id === "npm_ci" || c.id === "npm_test"), false);
   });
 
   it("detects non-writable trace dir", () => {
