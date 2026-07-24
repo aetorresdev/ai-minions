@@ -15,7 +15,8 @@
 #     (was ~9 min of wall-clock on self-hosted with E2E_FIRST_SHOT_RUNS=5; keep available via dispatch)
 #
 # Fork PRs: this job is skipped when head repo ≠ base repo so the workflow does not wait forever
-# for a runner that forks never receive. Same-repo PRs and pushes still run E2E when paths match.
+# for a runner that forks never receive. Same-repo PRs still run E2E when paths match
+# (triggers: pull_request + workflow_dispatch only — no push trigger).
 #
 name: orchestrator-e2e
 
