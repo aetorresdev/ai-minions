@@ -396,17 +396,19 @@ test('Ink renderToString shows shell chrome', async () => {
       { run_id: 'shell-run', status: 'running', result_code: 'RUN_FOUND' },
     ]),
     columns: 80,
-    rows: 24,
+    rows: 40,
   });
   const out = renderOperatorTuiShellToString(model, { columns: 80 });
   assert.match(out, /ai-minions/);
   assert.match(out, /shell-run/);
   assert.match(out, /Actions/);
+  assert.match(out, /live run monitor/);
 });
 
 test('resolveShellActionToken maps cockpit keys', () => {
   assert.equal(resolveShellActionToken('1'), 'smoke');
   assert.equal(resolveShellActionToken('s'), 'select');
+  assert.equal(resolveShellActionToken('m'), 'monitor');
   assert.equal(resolveShellActionToken('q'), 'quit');
   assert.equal(resolveShellActionToken('', 'config'), 'config');
   assert.equal(resolveShellActionToken('nope'), null);

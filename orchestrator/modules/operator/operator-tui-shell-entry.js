@@ -136,6 +136,8 @@ async function runOperatorTuiShell(options = {}) {
   let actionResult = null;
   /** @type {object | null} */
   let lifecycleSource = null;
+  /** @type {object | null} */
+  let monitorSource = null;
   let runsPayload = runsResult;
   let model = buildShellModel({
     aboutInfo,
@@ -147,6 +149,7 @@ async function runOperatorTuiShell(options = {}) {
     configModel,
     actionResult,
     lifecycleSource,
+    monitorSource,
     selectedRunId,
     selectedNavId: 'smoke',
     contentSurface,
@@ -261,7 +264,7 @@ async function runOperatorTuiShell(options = {}) {
           ok: false,
           exitCode: 1,
           reason_code: 'TUI_SHELL_UNKNOWN_ACTION',
-          text: `Unknown action. Choose 1-5, s, e, or q.`,
+          text: `Unknown action. Choose 1-5, s, e, m, or q.`,
         };
         contentSurface = 'action_result';
         model = buildShellModel({
@@ -274,6 +277,7 @@ async function runOperatorTuiShell(options = {}) {
           configModel,
           actionResult,
           lifecycleSource,
+          monitorSource,
           selectedRunId,
           selectedNavId: model.selectedNavId,
           contentSurface,
@@ -323,7 +327,9 @@ async function runOperatorTuiShell(options = {}) {
         statusResult = actionOutcome.statusResult;
         lifecycleSource = actionOutcome.statusResult.json
           ?? actionOutcome.statusResult;
+        monitorSource = actionOutcome.statusResult;
       }
+      if (actionOutcome.monitorSource) monitorSource = actionOutcome.monitorSource;
       if (actionOutcome.evidenceModel) evidenceModel = actionOutcome.evidenceModel;
       if (actionOutcome.configModel) configModel = actionOutcome.configModel;
       lastExitCode = actionResult?.exit_code ?? lastExitCode;
@@ -354,6 +360,7 @@ async function runOperatorTuiShell(options = {}) {
         configModel,
         actionResult,
         lifecycleSource,
+        monitorSource,
         selectedRunId,
         selectedNavId: actionId === 'quit' ? model.selectedNavId : actionId,
         contentSurface,

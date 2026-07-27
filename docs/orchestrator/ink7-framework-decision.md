@@ -109,7 +109,7 @@ Collected via unit tests + `npm run evidence:ink7-spike` (JSON fixture under `or
 | Operator modules unchanged | Same modules; shell adapters + panes only |
 | Rollback | `AI_MINIONS_TUI_LEGACY=1` → readline cockpit |
 
-**Not in this ADR alone:** guided launcher, live monitor, slash commands, Web UI.
+**Not in this ADR alone:** guided launcher, slash commands, Web UI. Live run monitor ships as a follow-on shell pane (same operator SoT); it is not claimed by the foundation ADR text alone.
 
 ---
 
@@ -148,7 +148,7 @@ Collected via unit tests + `npm run evidence:ink7-spike` (JSON fixture under `or
 - Framework choice is locked for v0.26 TUI completion planning.
 - Production `ai-minions tui` uses the Ink 7 fullscreen foundation shell.
 - Docs and reviews reject Ink-only popularity arguments and OpenTUI re-opens without Ink failure evidence.
-- **Not claimed:** guided launcher; live monitor; slash commands; Web UI; cross-platform interactive support complete.
+- **Not claimed:** guided launcher; slash commands; Web UI; cross-platform interactive support complete.
 
 ---
 
@@ -159,3 +159,4 @@ Collected via unit tests + `npm run evidence:ink7-spike` (JSON fixture under `or
 | 2026-07-24 | Initial ADR — Ink 7 accepted with spike evidence |
 | 2026-07-27 | Foundation slice wires production `ai-minions tui`; spike remains disposable |
 | 2026-07-27 | D3 migration note: TTY gate lives on `runOperatorTuiShell`; spike remains evidence-only |
+| 2026-07-27 | Live run monitor claimed as follow-on shell pane; guided launcher still unclaimed |

@@ -16,6 +16,10 @@ const {
   adaptNavigationActions,
   formatProvenanceField,
 } = require('./operator-tui-adapters');
+const {
+  adaptLiveMonitor,
+  formatLiveMonitorLines,
+} = require('./operator-tui-live-monitor');
 
 const SHELL_SCHEMA = '1';
 const FOCUS_TARGETS = Object.freeze(['nav', 'content', 'input']);
@@ -27,6 +31,7 @@ const CONTENT_SURFACES = Object.freeze([
   'config',
   'action_result',
   'lifecycle',
+  'monitor',
 ]);
 
 /**
@@ -50,6 +55,7 @@ function layoutModeForColumns(columns) {
  *   configModel?: object | null,
  *   actionResult?: object | null,
  *   lifecycleSource?: object | null,
+ *   monitorSource?: object | null,
  *   selectedRunId?: string | null,
  *   selectedNavId?: string | null,
  *   contentSurface?: string,
@@ -75,6 +81,12 @@ function buildShellModel(options = {}) {
     ? adaptActionResult(options.actionResult)
     : null;
   const lifecycle = adaptLifecycleSummary(options.lifecycleSource);
+  const monitor = adaptLiveMonitor(
+    options.monitorSource
+      ?? (options.lifecycleSource
+        ? { json: options.lifecycleSource, loop_envelope: options.lifecycleSource }
+        : null),
+  );
   const navItems = adaptNavigationActions();
   const selectedNavId = options.selectedNavId == null
     ? (navItems[0]?.id ?? 'smoke')
@@ -85,7 +97,10 @@ function buildShellModel(options = {}) {
   const focusRaw = String(options.focus ?? 'nav').toLowerCase();
   const focus = FOCUS_TARGETS.includes(focusRaw) ? focusRaw : 'nav';
   const surfaceRaw = String(options.contentSurface ?? 'home').toLowerCase();
-  const contentSurface = CONTENT_SURFACES.includes(surfaceRaw) ? surfaceRaw : 'home';
+  // lifecycle remains an alias for the live monitor surface.
+  const contentSurface = surfaceRaw === 'lifecycle'
+    ? 'monitor'
+    : (CONTENT_SURFACES.includes(surfaceRaw) ? surfaceRaw : 'home');
   const columns = Number.isFinite(Number(options.columns)) ? Number(options.columns) : 80;
   const rows = Number.isFinite(Number(options.rows)) ? Number(options.rows) : 24;
   const layout = layoutModeForColumns(columns);
@@ -116,10 +131,14 @@ function buildShellModel(options = {}) {
     config,
     actionResult,
     lifecycle,
+    monitor,
+    monitorSource: options.monitorSource ?? null,
     footerHints: layout === 'narrow'
       ? '↑↓ nav · Enter run · Tab focus · q quit'
       : '↑/↓ navigate  Enter=run action  Tab=focus  /=command  q=quit  Ctrl+C=abort',
-    disclaimer: 'Fullscreen foundation shell — operator modules remain authoritative.',
+    disclaimer:
+      'Live run monitor — operator modules remain authoritative. '
+      + 'Not claimed: guided launcher · slash commands · Web UI · durable resume.',
   };
 }
 
@@ -233,6 +252,7 @@ function shellModelToOptions(model) {
       terminal_stop_reason: model.lifecycle.terminal_stop_reason,
       human_action_required: model.lifecycle.human_action_required,
     },
+    monitorSource: model.monitorSource,
     selectedRunId: model.selectedRunId,
     selectedNavId: model.selectedNavId,
     contentSurface: model.contentSurface,
@@ -280,14 +300,8 @@ function formatShellText(model) {
       + `outcome=${model.status.outcome ?? '-'} reason=${model.status.reason_code ?? '-'}`,
     );
   }
-  if (model.contentSurface === 'lifecycle') {
-    lines.push(
-      `lifecycle: iter=${formatProvenanceField(model.lifecycle.current_iteration)}/`
-      + `${formatProvenanceField(model.lifecycle.max_iteration)} `
-      + `phase=${formatProvenanceField(model.lifecycle.current_role_phase)} `
-      + `blocker=${formatProvenanceField(model.lifecycle.latest_blocker)} `
-      + `cost=${formatProvenanceField(model.lifecycle.measured_cost)}`,
-    );
+  if (model.contentSurface === 'lifecycle' || model.contentSurface === 'monitor') {
+    lines.push(...formatLiveMonitorLines(model.monitor));
   }
   if (model.actionResult) {
     lines.push(

@@ -26,6 +26,7 @@ const {
   buildCostTokenRunSummary,
   formatCostTokenRunSummaryLines,
 } = require('./operator-cost-token-summary');
+const { buildLoopEnvelopeFromRows } = require('./operator-tui-loop-envelope');
 
 /**
  * @param {object[]} rows
@@ -316,6 +317,13 @@ function formatOperatorExplainText(ctx, options = {}) {
  * @returns {object}
  */
 function buildOperatorStatusJson(ctx) {
+  const loop_envelope = buildLoopEnvelopeFromRows(ctx.rows, {
+    explain: ctx.explain,
+    summary: ctx.summary,
+    cost: ctx.cost_token_summary,
+    run_state: ctx.run_state,
+    status_label: ctx.status_label,
+  });
   return {
     command: 'status',
     run_id: ctx.run_id,
@@ -326,6 +334,7 @@ function buildOperatorStatusJson(ctx) {
     context_authority_status: ctx.run_state.context_authority_status,
     cost_token_run_summary: ctx.cost_token_summary,
     operator_trace_summary: ctx.summary,
+    loop_envelope,
     truncated: ctx.truncated,
     skipped_lines: ctx.skipped,
   };
