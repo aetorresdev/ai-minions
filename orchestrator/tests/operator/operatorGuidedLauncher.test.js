@@ -370,6 +370,20 @@ test('pane fixture goal is recorded in equivalent_command and launch_options', a
     localBackendReachable: true,
     defaultSmokeGoal: DEFAULT_SMOKE_GOAL,
     loadFixturePromptFn: async () => fixtureGoal,
+    collectLiveHarnessPostRunFn: async () => ({
+      outcome: 'FAIL',
+      reason_code: 'LIVE_HARNESS_VERIFIER_FAIL',
+      run_id: 't-fixture',
+      task_id: 't-fixture',
+      fixture_id: 'solar-system-html-demo',
+      row_id: 'sa-local_only',
+      message: 'mocked post-run',
+      verifier: { ok: false },
+      privacy: { ok: true },
+      status: { ok: true },
+      attach: { ok: true },
+      artifact_paths: [],
+    }),
     runSmokeFn: async (opts) => {
       called = opts;
       return {

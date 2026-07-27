@@ -18,6 +18,18 @@ node scripts/run-tester-six-mode-matrix.mjs --skip-live --probe-local
 
 JSON report: add `--json`.
 
+**Opt-in live harness** (executes selected rows through ai-minions operator contracts — not readiness alone; readiness alone is never PASS):
+
+```bash
+node scripts/run-tester-six-mode-matrix.mjs --execute-live \
+  --fixture sudoku-html-app \
+  --rows sa-local_only \
+  --evidence-dir /tmp/live-harness-evidence \
+  --probe-local
+```
+
+`--run-ready` still reports `MATRIX_READY` eligibility only and does **not** execute a model. Live PASS requires terminal success, expected artifact, canonical verifier, `run_id`/`task_id`, `status`, `attach`, and a clean privacy scan (`LIVE_HARNESS_PASS`) via **shared operator** adapters used by the matrix and `ai-minions tui` guided launcher.
+
 ---
 
 ## What this proves
@@ -49,8 +61,9 @@ JSON report: add `--json`.
 
 | Result | Meaning |
 |--------|---------|
-| **PASS** | Row smoke/start completed; `run_id` / `task_id` recorded; status + attach (or inspect) collected; no secret values in logs/bundles |
+| **PASS** | Live harness completed the row through ai-minions; `run_id` / `task_id` recorded; expected artifact + canonical verifier; status + attach collected; privacy scan clean (`LIVE_HARNESS_PASS`). Readiness alone is never PASS. |
 | **FAIL** | Attempted and failed — open [operator feedback](operator-feedback-issue.md) with reason codes |
+| **BLOCKED** | Incomplete evidence chain or launch blocked before a claimable outcome |
 | **SKIP** | Not run — missing credentials/endpoints **or** hybrid unsupported — record reason code |
 
 ### Reason codes (`run-tester-six-mode-matrix.mjs`)
@@ -63,7 +76,8 @@ JSON report: add `--json`.
 | `MATRIX_SKIP_LOCAL_BACKEND_MISSING` | Ollama (or configured local endpoint) not reachable |
 | `MATRIX_SKIP_REMOTE_CREDENTIALS_MISSING` | No supported provider token present for `remote_ok` |
 | `MATRIX_SKIP_LIVE_NOT_REQUESTED` | Readiness OK but live execution not requested (`--skip-live`) |
-| `MATRIX_READY` | Row eligible for live tester execution (`--run-ready`) |
+| `MATRIX_READY` | Row eligible for live tester execution (`--run-ready`) — **not** PASS |
+| `LIVE_HARNESS_PASS` | Opt-in `--execute-live` row satisfied full evidence chain |
 
 Exit codes: **0** = no structure failures (skips allowed) · **1** = blocker (`stderr` lists `blocker: <reason_code>`).
 
@@ -283,7 +297,8 @@ cd orchestrator && npm run ai-minions -- smoke --model-policy local_only
 
 | Script | Role |
 |--------|------|
-| `scripts/run-tester-six-mode-matrix.mjs` | Structure + skip assessment |
+| `scripts/run-tester-six-mode-matrix.mjs` | Structure + skip assessment + opt-in `--execute-live` |
+| `orchestrator/modules/operator/operator-live-harness.js` | Shared live harness adapters (matrix + TUI) |
 | `scripts/verify-canonical-real-task-fixtures.mjs` | Canonical fixture prompts + artifact checks |
 | `scripts/generate-mode-comparison-report.mjs` | Mode comparison Markdown + JSON |
 | `scripts/run-beta-smoke-matrix.mjs` | Separate OS × provider gate |

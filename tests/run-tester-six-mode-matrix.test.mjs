@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
@@ -15,8 +16,11 @@ import {
 } from "../scripts/lib/tester-six-mode-matrix-data.mjs";
 import {
   formatReportText,
+  liveOutcomeToStepStatus,
+  parseArgs,
   rowStatusToStepStatus,
   runTesterSixModeMatrix,
+  runTesterSixModeMatrixLive,
 } from "../scripts/run-tester-six-mode-matrix.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -216,5 +220,77 @@ describe("run-tester-six-mode-matrix", () => {
       report.credential_status.credential_requirement_by_policy.remote_ok,
       "any_provider",
     );
+  });
+
+  it("parseArgs keeps default non-live; execute-live is explicit", () => {
+    const def = parseArgs([]);
+    assert.equal(def.executeLive, false);
+    assert.equal(def.skipLive, true);
+
+    const ready = parseArgs(["--run-ready"]);
+    assert.equal(ready.executeLive, false);
+    assert.equal(ready.skipLive, false);
+
+    const live = parseArgs([
+      "--execute-live",
+      "--fixture",
+      "sudoku-html-app",
+      "--rows",
+      "sa-local_only,sa-remote_ok",
+      "--evidence-dir",
+      "/tmp/ev",
+    ]);
+    assert.equal(live.executeLive, true);
+    assert.equal(live.fixtureId, "sudoku-html-app");
+    assert.equal(live.rowIds, "sa-local_only,sa-remote_ok");
+    assert.equal(live.evidenceDir, "/tmp/ev");
+  });
+
+  it("liveOutcomeToStepStatus never maps READY to pass", () => {
+    assert.equal(liveOutcomeToStepStatus("PASS"), "pass");
+    assert.equal(liveOutcomeToStepStatus("FAIL"), "fail");
+    assert.equal(liveOutcomeToStepStatus("BLOCKED"), "blocked");
+    assert.equal(liveOutcomeToStepStatus("SKIP"), "skip");
+    assert.equal(rowStatusToStepStatus("ready"), "ready");
+  });
+
+  it("runTesterSixModeMatrixLive uses shared harness mock and does not claim PASS from readiness", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "matrix-live-"));
+    const report = await runTesterSixModeMatrixLive({
+      repoRoot: REPO_ROOT,
+      fixtureId: "sudoku-html-app",
+      rowIds: "sa-hybrid",
+      evidenceDir: tmp,
+      env: { ANTHROPIC_API_KEY: "token-present" },
+      localBackendReachable: true,
+      runLiveHarnessFn: async (opts) => {
+        assert.equal(opts.executeLive, true);
+        assert.equal(opts.fixtureId, "sudoku-html-app");
+        assert.equal(opts.evidenceDir, tmp);
+        return {
+          ok: true,
+          fixture_id: "sudoku-html-app",
+          row_ids: ["sa-hybrid"],
+          rows: [
+            {
+              row_id: "sa-hybrid",
+              outcome: "SKIP",
+              reason_code: REASON_CODES.SKIP_HYBRID_UNSUPPORTED,
+              run_id: null,
+              task_id: null,
+              message: "hybrid honest skip",
+            },
+          ],
+        };
+      },
+    });
+    assert.equal(report.evidence_class, "live_execution");
+    assert.equal(report.ok, true);
+    const liveStep = report.steps.find((s) => s.id === "live:sa-hybrid");
+    assert.equal(liveStep.status, "skip");
+    assert.notEqual(liveStep.status, "pass");
+    const text = formatReportText(report);
+    assert.match(text, /live_harness:/);
+    assert.match(text, /\[SKIP\] sa-hybrid/);
   });
 });

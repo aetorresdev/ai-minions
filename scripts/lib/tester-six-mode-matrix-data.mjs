@@ -166,6 +166,10 @@ export const MATRIX_DOC_REQUIRED_MARKERS = Object.freeze([
   { needle: "canonical-real-task-fixtures", label: "canonical real-task fixtures link" },
   { needle: "mode-comparison-report", label: "mode comparison report link" },
   { needle: "generate-mode-comparison-report.mjs", label: "mode comparison report script" },
+  { needle: "--execute-live", label: "opt-in live execution flag" },
+  { needle: "LIVE_HARNESS_PASS", label: "live harness pass reason" },
+  { needle: "readiness alone is never PASS", label: "readiness is not pass rule" },
+  { needle: "shared operator", label: "shared operator adapters wording" },
 ]);
 
 /**

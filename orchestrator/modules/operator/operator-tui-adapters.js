@@ -447,6 +447,62 @@ function adaptNavigationActions() {
   return COCKPIT_ACTIONS.map((a) => ({ key: a.key, id: a.id, label: a.label }));
 }
 
+/**
+ * Live harness row evidence → TUI view-model (shared with matrix --execute-live).
+ * Does not invent PASS from readiness or a model "done" statement.
+ * @param {object | null | undefined} rowEvidence
+ */
+function adaptLiveHarnessEvidence(rowEvidence) {
+  if (!rowEvidence || typeof rowEvidence !== 'object') {
+    return {
+      schema: ADAPTER_SCHEMA,
+      kind: 'live_harness_evidence',
+      available: false,
+      fixture_id: null,
+      row_id: null,
+      outcome: null,
+      reason_code: null,
+      run_id: null,
+      task_id: null,
+      model_policy: null,
+      agent_mode: null,
+      verifier_ok: null,
+      privacy_ok: null,
+      status_ok: null,
+      attach_ok: null,
+    };
+  }
+  return {
+    schema: ADAPTER_SCHEMA,
+    kind: 'live_harness_evidence',
+    available: true,
+    fixture_id: rowEvidence.fixture_id == null ? null : String(rowEvidence.fixture_id),
+    row_id: rowEvidence.row_id == null ? null : String(rowEvidence.row_id),
+    outcome: rowEvidence.outcome == null ? null : String(rowEvidence.outcome),
+    reason_code: rowEvidence.reason_code == null ? null : String(rowEvidence.reason_code),
+    run_id: rowEvidence.run_id == null ? null : String(rowEvidence.run_id),
+    task_id: rowEvidence.task_id == null ? null : String(rowEvidence.task_id),
+    model_policy: rowEvidence.model_policy == null
+      ? (rowEvidence.model_policy_resolved == null ? null : String(rowEvidence.model_policy_resolved))
+      : String(rowEvidence.model_policy),
+    agent_mode: rowEvidence.agent_mode == null ? null : String(rowEvidence.agent_mode),
+    verifier_ok: rowEvidence.verifier && typeof rowEvidence.verifier === 'object'
+      ? Boolean(rowEvidence.verifier.ok)
+      : null,
+    privacy_ok: rowEvidence.privacy && typeof rowEvidence.privacy === 'object'
+      ? Boolean(rowEvidence.privacy.ok)
+      : null,
+    status_ok: rowEvidence.status && typeof rowEvidence.status === 'object'
+      ? Boolean(rowEvidence.status.ok)
+      : null,
+    attach_ok: rowEvidence.attach && typeof rowEvidence.attach === 'object'
+      ? Boolean(rowEvidence.attach.ok)
+      : null,
+    artifact_paths: Array.isArray(rowEvidence.artifact_paths) ? rowEvidence.artifact_paths : [],
+    message: rowEvidence.message == null ? null : String(rowEvidence.message),
+  };
+}
+
 module.exports = {
   ADAPTER_SCHEMA,
   provenanceField,
@@ -460,6 +516,7 @@ module.exports = {
   adaptActionResult,
   adaptLifecycleSummary,
   adaptGuidedLauncher,
+  adaptLiveHarnessEvidence,
   adaptNavigationActions,
   formatNonTtyGuidance,
 };

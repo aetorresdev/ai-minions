@@ -86,6 +86,7 @@ const ENTRIES = {
   'tests/operator/operatorTuiLiveMonitor.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorGuidedLauncher.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiSlashCommands.test.js': { owner: 'operator', kind: 'unit' },
+  'tests/operator/operatorLiveHarness.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorRunSelectorTui.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorConfigReadinessPaneTui.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorEvidenceAttachPaneTui.test.js': { owner: 'operator', kind: 'unit' },
