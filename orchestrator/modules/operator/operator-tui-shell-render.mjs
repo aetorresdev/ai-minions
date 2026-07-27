@@ -271,6 +271,29 @@ function buildContentLines(model) {
       ...(model.config.remediations || []).map((r) => `· ${r}`),
     ];
   }
+  if (model.contentSurface === 'launcher') {
+    if (!model.launcher.available) return ['(guided launcher summary unavailable)'];
+    return [
+      `agent_mode: ${model.launcher.agent_flow ?? '-'}`,
+      `inference_lane: ${model.launcher.inference_lane ?? '-'} → ${model.launcher.inference_policy ?? 'unavailable'}`,
+      `gate_posture: ${model.launcher.gate_posture ?? '-'}`,
+      `goal: ${formatField(model.launcher.goal_summary)}`,
+      `max_iterations: ${formatField(model.launcher.max_iterations)}`,
+      `max_retries: ${formatField(model.launcher.max_retries)}`,
+      `cost_limit_usd: ${formatField(model.launcher.cost_limit_usd)}`,
+      `time_limit: ${formatField(model.launcher.time_limit)}`,
+      `approved_artifacts: ${formatField(model.launcher.approved_artifacts)}`,
+      `cerberus_gate: ${formatField(model.launcher.cerberus_gate)}`,
+      `local_backend: ${formatField(model.launcher.local_backend)}`,
+      `readiness: ${model.launcher.readiness ?? '-'}`,
+      model.launcher.blocked_reason_code
+        ? `blocked_reason_code: ${model.launcher.blocked_reason_code}`
+        : null,
+      model.launcher.equivalent_command
+        ? `equivalent_command: ${model.launcher.equivalent_command}`
+        : 'equivalent_command: unavailable',
+    ].filter(Boolean);
+  }
   if (model.contentSurface === 'lifecycle' || model.contentSurface === 'monitor') {
     const { formatLiveMonitorLines } = require('./operator-tui-live-monitor.js');
     // Prefer pre-built monitor model from shell; fall back to lifecycle lines.

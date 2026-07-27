@@ -13,6 +13,7 @@ const {
   adaptConfigReadiness,
   adaptActionResult,
   adaptLifecycleSummary,
+  adaptGuidedLauncher,
   adaptNavigationActions,
   formatProvenanceField,
 } = require('./operator-tui-adapters');
@@ -32,6 +33,7 @@ const CONTENT_SURFACES = Object.freeze([
   'action_result',
   'lifecycle',
   'monitor',
+  'launcher',
 ]);
 
 /**
@@ -53,6 +55,7 @@ function layoutModeForColumns(columns) {
  *   statusResult?: object | null,
  *   evidenceModel?: object | null,
  *   configModel?: object | null,
+ *   launcherModel?: object | null,
  *   actionResult?: object | null,
  *   lifecycleSource?: object | null,
  *   monitorSource?: object | null,
@@ -77,6 +80,7 @@ function buildShellModel(options = {}) {
   const status = adaptSelectedRunStatus(options.statusResult);
   const evidence = adaptEvidenceAttachState(options.evidenceModel);
   const config = adaptConfigReadiness(options.configModel);
+  const launcher = adaptGuidedLauncher(options.launcherModel);
   const actionResult = options.actionResult
     ? adaptActionResult(options.actionResult)
     : null;
@@ -89,7 +93,7 @@ function buildShellModel(options = {}) {
   );
   const navItems = adaptNavigationActions();
   const selectedNavId = options.selectedNavId == null
-    ? (navItems[0]?.id ?? 'smoke')
+    ? (navItems[0]?.id ?? 'launcher')
     : String(options.selectedNavId);
   const selectedRunId = options.selectedRunId == null || options.selectedRunId === ''
     ? (runs.runs[0]?.run_id ?? null)
@@ -129,6 +133,7 @@ function buildShellModel(options = {}) {
     status,
     evidence,
     config,
+    launcher,
     actionResult,
     lifecycle,
     monitor,
@@ -137,8 +142,8 @@ function buildShellModel(options = {}) {
       ? '↑↓ nav · Enter run · Tab focus · q quit'
       : '↑/↓ navigate  Enter=run action  Tab=focus  /=command  q=quit  Ctrl+C=abort',
     disclaimer:
-      'Live run monitor — operator modules remain authoritative. '
-      + 'Not claimed: guided launcher · slash commands · Web UI · durable resume.',
+      'Guided launcher + live run monitor — operator modules remain authoritative. '
+      + 'Not claimed: slash commands · Web UI · durable resume.',
   };
 }
 
@@ -234,6 +239,7 @@ function shellModelToOptions(model) {
       : null,
     evidenceModel: model.evidence.available ? model.evidence : null,
     configModel: model.config.available ? model.config : null,
+    launcherModel: model.launcher.available ? model.launcher : null,
     actionResult: model.actionResult,
     lifecycleSource: {
       goal_summary: model.lifecycle.goal_summary,
@@ -302,6 +308,13 @@ function formatShellText(model) {
   }
   if (model.contentSurface === 'lifecycle' || model.contentSurface === 'monitor') {
     lines.push(...formatLiveMonitorLines(model.monitor));
+  }
+  if (model.contentSurface === 'launcher' && model.launcher.available) {
+    lines.push(
+      `launcher: mode=${model.launcher.agent_flow ?? '-'} lane=${model.launcher.inference_lane ?? '-'} `
+      + `policy=${model.launcher.inference_policy ?? '-'} readiness=${model.launcher.readiness ?? '-'} `
+      + `cmd=${model.launcher.equivalent_command ?? 'unavailable'}`,
+    );
   }
   if (model.actionResult) {
     lines.push(

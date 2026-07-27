@@ -138,6 +138,7 @@ async function runOperatorTuiShell(options = {}) {
   let lifecycleSource = null;
   /** @type {object | null} */
   let monitorSource = null;
+  let launcherModel = null;
   let runsPayload = runsResult;
   let model = buildShellModel({
     aboutInfo,
@@ -147,11 +148,12 @@ async function runOperatorTuiShell(options = {}) {
     statusResult,
     evidenceModel,
     configModel,
+    launcherModel,
     actionResult,
     lifecycleSource,
     monitorSource,
     selectedRunId,
-    selectedNavId: 'smoke',
+    selectedNavId: 'launcher',
     contentSurface,
     columns,
     rows,
@@ -332,6 +334,9 @@ async function runOperatorTuiShell(options = {}) {
       if (actionOutcome.monitorSource) monitorSource = actionOutcome.monitorSource;
       if (actionOutcome.evidenceModel) evidenceModel = actionOutcome.evidenceModel;
       if (actionOutcome.configModel) configModel = actionOutcome.configModel;
+      if (Object.prototype.hasOwnProperty.call(actionOutcome, 'launcherModel')) {
+        launcherModel = actionOutcome.launcherModel;
+      }
       lastExitCode = actionResult?.exit_code ?? lastExitCode;
 
       if (actionOutcome.quit) {
@@ -358,6 +363,7 @@ async function runOperatorTuiShell(options = {}) {
         statusResult,
         evidenceModel,
         configModel,
+        launcherModel,
         actionResult,
         lifecycleSource,
         monitorSource,

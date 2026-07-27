@@ -406,7 +406,9 @@ test('Ink renderToString shows shell chrome', async () => {
 });
 
 test('resolveShellActionToken maps cockpit keys', () => {
-  assert.equal(resolveShellActionToken('1'), 'smoke');
+  assert.equal(resolveShellActionToken('1'), 'launcher');
+  assert.equal(resolveShellActionToken('launcher'), 'launcher');
+  assert.equal(resolveShellActionToken('smoke'), 'launcher');
   assert.equal(resolveShellActionToken('s'), 'select');
   assert.equal(resolveShellActionToken('m'), 'monitor');
   assert.equal(resolveShellActionToken('q'), 'quit');

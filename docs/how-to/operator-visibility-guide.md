@@ -5,7 +5,7 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 **Product CLI:** `ai-minions runs` · `status` · `explain` · `report` · `tui` · `attach` · `evidence`
 **Contract sources:** trace JSONL under `ORCH_TRACES_DIR` (default `~/.claude/metrics/traces/`) — same SoT as legacy `explain-run` and `collect-run-report.mjs`.
 
-**Not claimed:** guided launcher · slash commands · Web UI · interactive approvals or reruns from evidence panels · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
+**Not claimed:** slash commands · Web UI · interactive approvals or reruns from evidence panels · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
 
 ---
 
@@ -13,7 +13,7 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 
 | Need | Command | Output |
 |------|---------|--------|
-| Interactive action loop (TTY) | `ai-minions tui` | Fullscreen Ink shell: smoke/runs/select/status/**live monitor**/evidence/attach/config/quit |
+| Interactive action loop (TTY) | `ai-minions tui` | Fullscreen Ink shell: guided launcher/runs/select/status/**live monitor**/evidence/attach/config/quit |
 | Discover and select a recent run | `ai-minions runs [--limit 20]` | Newest-first run list + explicit `status --run-id` command |
 | Terminal summary + critical decision fields | `ai-minions status --run-id <id>` | Human text + optional `--json` with `run_state_visibility` and `operator_trace_summary` |
 | Why blocked / degraded / failed | `ai-minions explain --run-id <id>` | Reason codes + remediation narrative |
@@ -140,7 +140,9 @@ Exit `2` when trace missing — same fail-closed semantics as `status`.
 ai-minions tui
 ```
 
-Persistent action loop: product status + smoke / runs / **select run + status pane** / **evidence / attach pane** / status / **live monitor (`m`)** / attach / **config / credentials readiness pane** / quit. Calls the same modules as the named CLI verbs. Non-TTY bare `tui` exits with equivalent verb guidance (no hang).
+Persistent action loop: product status + **guided launcher (`1`)** / runs / **select run + status pane** / **evidence / attach pane** / status / **live monitor (`m`)** / attach / **config / credentials readiness pane** / quit. Calls the same modules as the named CLI verbs. Non-TTY bare `tui` exits with equivalent verb guidance (no hang).
+
+**Guided launcher (`1`):** agent×inference modes, prerequisites, execution summary, then existing CLI contracts (`smoke` / `start`).
 
 **Select (`s`):** newest-first run list (same discovery as `runs`); pick by index, run id, or `n`/`p` navigation; shows compact status pane (basename, outcome/status, reason code, next safe action, attach hint). Invalid traces stay `RUN_TRACE_INVALID` with no inferred state.
 
@@ -148,7 +150,7 @@ Persistent action loop: product status + smoke / runs / **select run + status pa
 
 Contract: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md). Quality gate (mandatory when TUI ships): `cd orchestrator && npm run test:tui-quality`.
 
-**Not claimed:** guided launcher · slash commands · Web UI · durable resume.
+**Not claimed:** slash commands · Web UI · durable resume.
 
 ### Evidence surface (selectors)
 

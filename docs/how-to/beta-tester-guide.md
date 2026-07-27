@@ -4,7 +4,7 @@ End-to-end runbook for an **internal operator** playing beta tester: product ins
 
 **Audience:** you already know Git, Node, and basic terminal use. You are **not** validating a production deployment.
 
-**Primary path (v0.20+):** installed **`ai-minions`** on PATH — guided CLI verbs `first-run` · `smoke` · `attach`, plus optional fullscreen Ink shell `ai-minions tui` (foundation + live run monitor from the TUI completion release track). **Not** guided launcher · slash commands · Web UI.
+**Primary path (v0.20+):** installed **`ai-minions`** on PATH — guided CLI verbs `first-run` · `smoke` · `attach`, plus optional fullscreen Ink shell `ai-minions tui` (foundation + guided launcher + live run monitor from the TUI completion release track). **Not** slash commands · Web UI.
 
 **Positioning:** control-first harness (roles, gates, trace evidence) — not a workflow-only chat or DAG runtime. See README § *How this differs from workflow-only harnesses*.
 
@@ -38,7 +38,7 @@ Formal checklist: [beta-dry-run-checklist](beta-dry-run-checklist.md) · [sample
 |------|-----|
 | External beta cohort | [Cohort guard](beta-cohort-guard.md) exit `0` **and** rehearsal record `status` is `LIVE_PASS` — maintainer opens cohort; dry-run alone is insufficient |
 | Production support SLA | Beta candidate — no support promise |
-| Guided launcher / slash commands / Web UI | Fullscreen Ink shell (`ai-minions tui`) includes live run monitor; guided launcher and slash/Web UI remain unclaimed; `runner:tui` remains advanced/legacy |
+| Slash commands / Web UI | Fullscreen Ink shell (`ai-minions tui`) includes guided launcher and live run monitor; slash/Web UI remain unclaimed; `runner:tui` remains advanced/legacy |
 | Automatic issue upload | Bundle is local; you open GitHub manually |
 | Durable `resume` | Honest probe only (`RUN_RESUME_NOT_IMPLEMENTED`); use `status` → `attach` or new run |
 

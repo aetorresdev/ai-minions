@@ -368,7 +368,9 @@ test('shell model monitor surface + disclaimer honesty', () => {
   const text = formatShellText(model);
   assert.match(text, /monitor_phase: evidence_ready/);
   assert.match(text, /operator modules remain authoritative/i);
-  assert.match(text, /Not claimed:.*guided launcher/i);
+  assert.match(text, /Not claimed:.*slash commands/i);
+  assert.doesNotMatch(text, /Not claimed:.*guided launcher/i);
+  assert.doesNotMatch(text, /Not claimed:.*live run monitor/i);
   assert.doesNotMatch(text, /progress=\d+%/i);
 });
 
