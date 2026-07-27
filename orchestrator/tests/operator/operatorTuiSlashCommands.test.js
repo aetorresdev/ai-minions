@@ -2,6 +2,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
+const { PassThrough } = require('node:stream');
 
 const {
   IMPLEMENTED_COMMANDS,
@@ -16,6 +17,50 @@ const {
   resolveSlashCommandPlan,
 } = require('../../modules/operator/operator-tui-shell-actions');
 const { buildShellModel, formatShellText } = require('../../modules/operator/operator-tui-shell-model');
+const {
+  TUI_SHELL_REASON,
+  runOperatorTuiShell,
+} = require('../../modules/operator/operator-tui-shell-entry');
+
+function createFakeTtyStreams() {
+  const stdin = new PassThrough();
+  stdin.isTTY = true;
+  stdin.isRaw = false;
+  stdin.setRawMode = (mode) => {
+    stdin.isRaw = Boolean(mode);
+    return stdin;
+  };
+  stdin.ref = () => stdin;
+  stdin.unref = () => stdin;
+  const stdout = new PassThrough();
+  stdout.isTTY = true;
+  stdout.columns = 100;
+  stdout.rows = 30;
+  stdout.getColorDepth = () => 1;
+  stdout.ref = () => stdout;
+  stdout.unref = () => stdout;
+  return { stdin, stdout };
+}
+
+function emptyRunsPayload() {
+  return {
+    ok: true,
+    exitCode: 0,
+    result_code: 'RUNS_EMPTY',
+    next_safe_action: 'none',
+    json: { result_code: 'RUNS_EMPTY', runs: [], next_safe_action: 'none' },
+  };
+}
+
+function shellEntryFixtures() {
+  return {
+    isTTY: true,
+    loadRuns: () => emptyRunsPayload(),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+  };
+}
 
 describe('parseSlashCommand', () => {
   it('ignores non-slash tokens', () => {
@@ -259,5 +304,117 @@ describe('disclaimer honesty after slash commands', () => {
     assert.match(text, /slash commands/i);
     assert.doesNotMatch(text, /Not claimed:.*slash commands/i);
     assert.match(text, /Not claimed:.*Web UI/i);
+  });
+});
+
+describe('slash help/message remount recreates terminal guard', () => {
+  it('/help → second Ink mount → q restores final mount', async () => {
+    const { stdin, stdout } = createFakeTtyStreams();
+    let mounts = 0;
+    const result = await runOperatorTuiShell({
+      ...shellEntryFixtures(),
+      stdin,
+      stdout,
+      maxLoops: 5,
+      importRenderer: async () => ({
+        renderOperatorTuiShell: async ({ onRequestAction }) => {
+          mounts += 1;
+          if (typeof stdin.setRawMode === 'function') stdin.setRawMode(true);
+          if (mounts === 1) {
+            onRequestAction('/help');
+            return { aborted: false, requestedAction: '/help' };
+          }
+          onRequestAction('q');
+          return { aborted: false, requestedAction: 'q' };
+        },
+      }),
+      executeAction: async ({ actionId }) => {
+        if (actionId === 'quit') {
+          return {
+            quit: true,
+            selectedRunId: null,
+            contentSurface: 'action_result',
+            actionResult: {
+              action_id: 'quit',
+              ok: true,
+              exit_code: 0,
+              reason_code: null,
+              text: 'quit',
+            },
+          };
+        }
+        throw new Error(`unexpected action ${actionId}`);
+      },
+    });
+    assert.equal(mounts, 2);
+    assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+    assert.equal(result.guard.restored, true);
+    assert.equal(stdin.isRaw, false);
+    assert.ok(
+      result.guard.mutations.some((m) => m.kind === 'restore_sequence'),
+      'final mount must execute restore_sequence (not skip a spent guard)',
+    );
+    assert.equal(
+      result.guard.mutations.some((m) => m.kind === 'restore_skipped'),
+      false,
+      'fresh guard for remount must not skip restore',
+    );
+    stdin.destroy();
+    stdout.destroy();
+  });
+
+  it('/unknown → second Ink mount → Ctrl+C restores final mount', async () => {
+    const { stdin, stdout } = createFakeTtyStreams();
+    let mounts = 0;
+    /** @type {() => void} */
+    let markSecondMountReady = () => {};
+    const secondMountReady = new Promise((resolve) => {
+      markSecondMountReady = resolve;
+    });
+    const promise = runOperatorTuiShell({
+      ...shellEntryFixtures(),
+      stdin,
+      stdout,
+      maxLoops: 5,
+      importRenderer: async () => ({
+        renderOperatorTuiShell: async ({ onRequestAction }) => {
+          mounts += 1;
+          if (typeof stdin.setRawMode === 'function') stdin.setRawMode(true);
+          if (mounts === 1) {
+            onRequestAction('/foobar');
+            return { aborted: false, requestedAction: '/foobar' };
+          }
+          markSecondMountReady();
+          await new Promise((resolve) => {
+            const onData = (chunk) => {
+              if (String(chunk).includes('\u0003')) {
+                stdin.off('data', onData);
+                resolve();
+              }
+            };
+            stdin.on('data', onData);
+          });
+          return { aborted: true };
+        },
+      }),
+    });
+    await secondMountReady;
+    stdin.write('\u0003');
+    const result = await promise;
+    assert.equal(mounts, 2);
+    assert.equal(result.reason_code, TUI_SHELL_REASON.ABORT);
+    assert.equal(result.guard.restored, true);
+    assert.equal(stdin.isRaw, false);
+    assert.ok(
+      result.guard.mutations.some((m) => m.kind === 'restore_sequence'),
+      'Ctrl+C on remount must execute restore_sequence',
+    );
+    assert.equal(
+      result.guard.mutations.some((m) => m.kind === 'restore_skipped'),
+      false,
+      'fresh guard for remount must not skip restore',
+    );
+    stdin.destroy();
+    stdout.destroy();
   });
 });

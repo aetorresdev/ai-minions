@@ -311,6 +311,8 @@ async function runOperatorTuiShell(options = {}) {
               guard,
             };
           }
+          // Fresh guard for next Ink mount after slash help/message remount.
+          guard = createTerminalGuard({ stdin, stdout });
           continue;
         }
 
@@ -444,6 +446,8 @@ async function runOperatorTuiShell(options = {}) {
           colorEnabled: model.colorEnabled,
           productVersion: aboutInfo.version,
         });
+        // Fresh guard for next Ink mount after unknown-action message remount.
+        guard = createTerminalGuard({ stdin, stdout });
         continue;
       }
 
