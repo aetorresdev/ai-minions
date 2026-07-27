@@ -17,6 +17,7 @@ import {
 import {
   formatReportText,
   liveOutcomeToStepStatus,
+  deriveLiveHarnessAggregate,
   parseArgs,
   rowStatusToStepStatus,
   runTesterSixModeMatrix,
@@ -254,6 +255,28 @@ describe("run-tester-six-mode-matrix", () => {
     assert.equal(rowStatusToStepStatus("ready"), "ready");
   });
 
+  it("deriveLiveHarnessAggregate maps SKIP/BLOCKED without claiming PASS", () => {
+    assert.equal(deriveLiveHarnessAggregate({
+      ok: true,
+      rows: [{ outcome: "SKIP", reason_code: "X" }],
+    }), "SKIP");
+    assert.equal(deriveLiveHarnessAggregate({
+      ok: true,
+      rows: [{ outcome: "BLOCKED", reason_code: "Y" }],
+    }), "BLOCKED");
+    assert.equal(deriveLiveHarnessAggregate({
+      ok: true,
+      aggregate_outcome: "PASS",
+      rows: [{ outcome: "PASS" }],
+    }), "PASS");
+  });
+
+  it("parseArgs does not accept --time-limit (no runtime contract)", () => {
+    const parsed = parseArgs(["--execute-live", "--time-limit", "30", "--rows", "sa-local_only"]);
+    assert.equal(Object.prototype.hasOwnProperty.call(parsed, "timeLimit"), false);
+    assert.equal(parsed.rowIds, "sa-local_only");
+  });
+
   it("runTesterSixModeMatrixLive uses shared harness mock and does not claim PASS from readiness", async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "matrix-live-"));
     const report = await runTesterSixModeMatrixLive({
@@ -271,6 +294,8 @@ describe("run-tester-six-mode-matrix", () => {
           ok: true,
           fixture_id: "sudoku-html-app",
           row_ids: ["sa-hybrid"],
+          aggregate_outcome: "SKIP",
+          reason_code: REASON_CODES.SKIP_HYBRID_UNSUPPORTED,
           rows: [
             {
               row_id: "sa-hybrid",
@@ -286,11 +311,46 @@ describe("run-tester-six-mode-matrix", () => {
     });
     assert.equal(report.evidence_class, "live_execution");
     assert.equal(report.ok, true);
+    const harnessStep = report.steps.find((s) => s.id === "live_harness");
+    assert.equal(harnessStep.status, "skip");
+    assert.notEqual(harnessStep.status, "pass");
     const liveStep = report.steps.find((s) => s.id === "live:sa-hybrid");
     assert.equal(liveStep.status, "skip");
     assert.notEqual(liveStep.status, "pass");
     const text = formatReportText(report);
     assert.match(text, /live_harness:/);
     assert.match(text, /\[SKIP\] sa-hybrid/);
+  });
+
+  it("runTesterSixModeMatrixLive marks live_harness blocked when rows are blocked", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "matrix-live-blk-"));
+    const report = await runTesterSixModeMatrixLive({
+      repoRoot: REPO_ROOT,
+      fixtureId: "sudoku-html-app",
+      rowIds: "sa-local_only",
+      evidenceDir: tmp,
+      env: {},
+      localBackendReachable: false,
+      runLiveHarnessFn: async () => ({
+        ok: true,
+        fixture_id: "sudoku-html-app",
+        row_ids: ["sa-local_only"],
+        aggregate_outcome: "BLOCKED",
+        reason_code: REASON_CODES.SKIP_LOCAL_BACKEND_MISSING,
+        rows: [
+          {
+            row_id: "sa-local_only",
+            outcome: "BLOCKED",
+            reason_code: REASON_CODES.SKIP_LOCAL_BACKEND_MISSING,
+            run_id: null,
+            task_id: null,
+            message: "local backend missing",
+          },
+        ],
+      }),
+    });
+    const harnessStep = report.steps.find((s) => s.id === "live_harness");
+    assert.equal(harnessStep.status, "blocked");
+    assert.notEqual(harnessStep.status, "pass");
   });
 });

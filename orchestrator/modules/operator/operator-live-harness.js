@@ -6,6 +6,7 @@
  * Never calls provider APIs directly. Readiness alone is never PASS.
  */
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -50,8 +51,15 @@ const LIVE_REASON = Object.freeze({
   LAUNCH_FAIL: 'LIVE_HARNESS_LAUNCH_FAIL',
   MISSING_RUN_IDS: 'LIVE_HARNESS_MISSING_RUN_IDS',
   TERMINAL_NOT_SUCCESS: 'LIVE_HARNESS_TERMINAL_NOT_SUCCESS',
+  TERMINAL_STATUS_INCONCLUSIVE: 'LIVE_HARNESS_TERMINAL_STATUS_INCONCLUSIVE',
+  ARTIFACT_STALE: 'LIVE_HARNESS_ARTIFACT_STALE',
   READY_IS_NOT_PASS: 'LIVE_HARNESS_READY_IS_NOT_PASS',
 });
+
+/** Explicit terminal success tokens from status/trace/session end. */
+const TERMINAL_SUCCESS_RE = /^(done|complete|completed|success|pass|passed)$/i;
+/** Explicit terminal failure tokens. */
+const TERMINAL_FAIL_RE = /^(fail|failed|blocked|error)$/i;
 
 const DEFAULT_FIXTURE_ID = 'sudoku-html-app';
 
@@ -239,28 +247,160 @@ function buildLiveHarnessLaunchModel(input) {
 }
 
 /**
+ * Candidate paths for an expected artifact name under cwd.
+ * @param {string} cwd
+ * @param {string} name
+ * @returns {string[]}
+ */
+function artifactCandidatePaths(cwd, name) {
+  return [
+    path.join(cwd, name),
+    path.join(cwd, 'out', name),
+    path.join(cwd, 'dist', name),
+  ];
+}
+
+/**
+ * Snapshot artifact metadata before launch so stale pre-existing files cannot satisfy PASS.
+ * @param {{
+ *   cwd: string,
+ *   expectedArtifacts: string[],
+ *   existsSync?: typeof fs.existsSync,
+ *   statSync?: typeof fs.statSync,
+ *   readFileSync?: typeof fs.readFileSync,
+ * }} input
+ * @returns {Record<string, { path: string, mtimeMs: number, size: number, sha256: string }>}
+ */
+function snapshotArtifactBaseline(input) {
+  const existsSync = input.existsSync ?? fs.existsSync;
+  const statSync = input.statSync ?? fs.statSync;
+  const readFileSync = input.readFileSync ?? fs.readFileSync;
+  /** @type {Record<string, { path: string, mtimeMs: number, size: number, sha256: string }>} */
+  const baseline = {};
+  for (const name of input.expectedArtifacts || []) {
+    for (const candidate of artifactCandidatePaths(input.cwd, name)) {
+      if (!existsSync(candidate)) continue;
+      const st = statSync(candidate);
+      const sha256 = crypto.createHash('sha256').update(readFileSync(candidate)).digest('hex');
+      baseline[candidate] = {
+        path: candidate,
+        mtimeMs: Number(st.mtimeMs),
+        size: Number(st.size),
+        sha256,
+      };
+    }
+  }
+  return baseline;
+}
+
+/**
+ * True when path is new or content/metadata changed versus pre-launch baseline.
+ * @param {string} artifactPath
+ * @param {Record<string, { mtimeMs: number, size: number, sha256: string }> | null | undefined} baseline
+ * @param {{
+ *   existsSync?: typeof fs.existsSync,
+ *   statSync?: typeof fs.statSync,
+ *   readFileSync?: typeof fs.readFileSync,
+ * }} [io]
+ */
+function artifactIsFreshVersusBaseline(artifactPath, baseline, io = {}) {
+  if (!baseline || typeof baseline !== 'object') return true;
+  const prior = baseline[artifactPath];
+  if (!prior) return true;
+  const existsSync = io.existsSync ?? fs.existsSync;
+  const statSync = io.statSync ?? fs.statSync;
+  const readFileSync = io.readFileSync ?? fs.readFileSync;
+  if (!existsSync(artifactPath)) return false;
+  const st = statSync(artifactPath);
+  if (Number(st.size) !== Number(prior.size)) return true;
+  if (Number(st.mtimeMs) !== Number(prior.mtimeMs)) return true;
+  const sha256 = crypto.createHash('sha256').update(readFileSync(artifactPath)).digest('hex');
+  return sha256 !== prior.sha256;
+}
+
+/**
  * Locate expected fixture artifacts under cwd (and common nested names).
- * @param {{ cwd: string, expectedArtifacts: string[], existsSync?: typeof fs.existsSync }} input
- * @returns {{ found: string[], missing: string[] }}
+ * When baseline is provided, only created/modified artifacts count as evidence.
+ * @param {{
+ *   cwd: string,
+ *   expectedArtifacts: string[],
+ *   baseline?: Record<string, { mtimeMs: number, size: number, sha256: string }> | null,
+ *   existsSync?: typeof fs.existsSync,
+ *   statSync?: typeof fs.statSync,
+ *   readFileSync?: typeof fs.readFileSync,
+ * }} input
+ * @returns {{ found: string[], missing: string[], stale: string[] }}
  */
 function locateFixtureArtifacts(input) {
   const existsSync = input.existsSync ?? fs.existsSync;
   const cwd = input.cwd;
+  const baseline = input.baseline ?? null;
   /** @type {string[]} */
   const found = [];
   /** @type {string[]} */
   const missing = [];
+  /** @type {string[]} */
+  const stale = [];
   for (const name of input.expectedArtifacts) {
-    const candidates = [
-      path.join(cwd, name),
-      path.join(cwd, 'out', name),
-      path.join(cwd, 'dist', name),
-    ];
+    const candidates = artifactCandidatePaths(cwd, name);
     const hit = candidates.find((p) => existsSync(p));
-    if (hit) found.push(hit);
-    else missing.push(name);
+    if (!hit) {
+      missing.push(name);
+      continue;
+    }
+    if (!artifactIsFreshVersusBaseline(hit, baseline, input)) {
+      stale.push(hit);
+      missing.push(name);
+      continue;
+    }
+    found.push(hit);
   }
-  return { found, missing };
+  return { found, missing, stale };
+}
+
+/**
+ * Interpret authoritative terminal_status from launch/status/trace.
+ * Absent, running, or unknown => inconclusive (BLOCKED, never PASS).
+ * @param {unknown} terminalStatus
+ * @returns {{
+ *   terminalSuccess: boolean | null,
+ *   authoritative: boolean,
+ *   normalized: string | null,
+ * }}
+ */
+function interpretTerminalStatus(terminalStatus) {
+  if (terminalStatus == null) {
+    return { terminalSuccess: null, authoritative: false, normalized: null };
+  }
+  const normalized = String(terminalStatus).trim();
+  if (!normalized) {
+    return { terminalSuccess: null, authoritative: false, normalized: null };
+  }
+  if (TERMINAL_SUCCESS_RE.test(normalized)) {
+    return { terminalSuccess: true, authoritative: true, normalized };
+  }
+  if (TERMINAL_FAIL_RE.test(normalized)) {
+    return { terminalSuccess: false, authoritative: true, normalized };
+  }
+  return { terminalSuccess: null, authoritative: false, normalized };
+}
+
+/**
+ * Aggregate row outcomes for the live_harness step (never PASS from SKIP/BLOCKED alone).
+ * @param {Array<{ outcome?: string }>} rows
+ * @returns {LiveOutcome}
+ */
+function aggregateLiveHarnessOutcome(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length === 0) return 'BLOCKED';
+  const outcomes = list.map((r) => String(r?.outcome || '').toUpperCase());
+  if (outcomes.some((o) => o === 'FAIL')) return 'FAIL';
+  if (outcomes.some((o) => o === 'BLOCKED')) return 'BLOCKED';
+  if (outcomes.every((o) => o === 'SKIP')) return 'SKIP';
+  if (outcomes.some((o) => o === 'PASS') && outcomes.every((o) => o === 'PASS' || o === 'SKIP')) {
+    return 'PASS';
+  }
+  return 'BLOCKED';
 }
 
 /**
@@ -272,6 +412,7 @@ function locateFixtureArtifacts(input) {
  *   runId?: string | null,
  *   taskId?: string | null,
  *   terminalSuccess?: boolean | null,
+ *   artifactStale?: boolean | null,
  *   statusOk?: boolean | null,
  *   attachOk?: boolean | null,
  *   verifierOk?: boolean | null,
@@ -328,6 +469,22 @@ function classifyLiveHarnessOutcome(evidence = {}) {
       outcome: 'FAIL',
       reason_code: LIVE_REASON.TERMINAL_NOT_SUCCESS,
       message: 'terminal status is not success',
+    };
+  }
+
+  if (evidence.terminalSuccess == null) {
+    return {
+      outcome: 'BLOCKED',
+      reason_code: LIVE_REASON.TERMINAL_STATUS_INCONCLUSIVE,
+      message: 'authoritative terminal success required — absent/running/unknown cannot PASS',
+    };
+  }
+
+  if (evidence.artifactStale === true) {
+    return {
+      outcome: 'BLOCKED',
+      reason_code: LIVE_REASON.ARTIFACT_STALE,
+      message: 'expected artifact existed before launch and was not created or modified by the run',
     };
   }
 
@@ -606,6 +763,18 @@ async function executeLiveHarnessRow(options) {
     }, options);
   }
 
+  const expected = Array.isArray(options.fixture.expected_artifacts)
+    ? options.fixture.expected_artifacts
+    : [];
+  const artifactBaseline = options.artifactBaseline
+    ?? snapshotArtifactBaseline({
+      cwd,
+      expectedArtifacts: expected,
+      existsSync: options.existsSync,
+      statSync: options.statSync,
+      readFileSync: options.readFileSync,
+    });
+
   const launch = await launchViaOperatorContract({
     launchModel,
     cwd,
@@ -615,9 +784,7 @@ async function executeLiveHarnessRow(options) {
   });
 
   const runId = launch.run_id || launch.task_id;
-  const terminalFail = launch.terminal_status != null
-    && /^(fail|failed|blocked|error)$/i.test(String(launch.terminal_status));
-  const terminalOk = launch.ok === true && !terminalFail;
+  const terminal = interpretTerminalStatus(launch.terminal_status);
 
   let statusResult = null;
   let statusOk = false;
@@ -646,18 +813,21 @@ async function executeLiveHarnessRow(options) {
     privacySummary = summarizePrivacyFromAttach(attachResult.report || attachResult.json);
   }
 
-  const expected = Array.isArray(options.fixture.expected_artifacts)
-    ? options.fixture.expected_artifacts
-    : [];
   const located = locateFixtureArtifacts({
     cwd,
     expectedArtifacts: expected,
+    baseline: artifactBaseline,
     existsSync: options.existsSync,
+    statSync: options.statSync,
+    readFileSync: options.readFileSync,
   });
+  const artifactStale = located.stale.length > 0 && located.found.length === 0;
   let verifier = {
     ok: false,
-    reason_code: LIVE_REASON.ARTIFACT_MISSING,
-    errors: located.missing.map((m) => `missing artifact: ${m}`),
+    reason_code: artifactStale ? LIVE_REASON.ARTIFACT_STALE : LIVE_REASON.ARTIFACT_MISSING,
+    errors: artifactStale
+      ? located.stale.map((p) => `stale artifact (unchanged since pre-launch): ${p}`)
+      : located.missing.map((m) => `missing artifact: ${m}`),
   };
   if (located.found.length > 0 && located.missing.length === 0) {
     verifier = await verifyFixtureArtifacts({
@@ -674,7 +844,8 @@ async function executeLiveHarnessRow(options) {
     launchOk: launch.ok,
     runId,
     taskId: launch.task_id,
-    terminalSuccess: terminalOk,
+    terminalSuccess: terminal.terminalSuccess,
+    artifactStale,
     statusOk,
     attachOk,
     verifierOk: verifier.ok === true,
@@ -689,9 +860,11 @@ async function executeLiveHarnessRow(options) {
     task_id: launch.task_id,
     backend_model: launch.model ?? null,
     model_policy_resolved: launch.model_policy ?? launchModel.inference_policy,
-    terminal_status: launch.terminal_status,
+    terminal_status: terminal.normalized,
+    terminal_authoritative: terminal.authoritative,
     artifact_paths: located.found,
     missing_artifacts: located.missing,
+    stale_artifacts: located.stale,
     status: statusResult
       ? {
         ok: statusOk,
@@ -868,7 +1041,18 @@ async function runLiveHarness(options = {}) {
 
   const hasFail = rows.some((r) => r.outcome === 'FAIL');
   const hasPass = rows.some((r) => r.outcome === 'PASS');
-  // Structure ok if no FAIL (SKIP/BLOCKED allowed); PASS is recorded separately.
+  const aggregate_outcome = aggregateLiveHarnessOutcome(rows);
+  let aggregateReason = LIVE_REASON.BLOCKED;
+  if (aggregate_outcome === 'PASS') aggregateReason = LIVE_REASON.PASS;
+  else if (aggregate_outcome === 'FAIL') {
+    aggregateReason = rows.find((r) => r.outcome === 'FAIL')?.reason_code || LIVE_REASON.FAIL;
+  } else if (aggregate_outcome === 'SKIP') {
+    aggregateReason = rows.find((r) => r.outcome === 'SKIP')?.reason_code
+      || LIVE_REASON.SKIP_NOT_REQUESTED;
+  } else {
+    aggregateReason = rows.find((r) => r.outcome === 'BLOCKED')?.reason_code || LIVE_REASON.BLOCKED;
+  }
+  // ok means no FAIL (SKIP/BLOCKED keep exit 0); aggregate_outcome drives step status.
   return {
     ok: !hasFail,
     schema: LIVE_HARNESS_SCHEMA,
@@ -876,6 +1060,8 @@ async function runLiveHarness(options = {}) {
     fixture_id: selection.fixture_id,
     row_ids: selection.row_ids,
     has_pass: hasPass,
+    aggregate_outcome,
+    reason_code: aggregateReason,
     summary_path: summaryPath,
     rows,
   };
@@ -891,6 +1077,7 @@ async function runLiveHarness(options = {}) {
  *   evidenceDir?: string | null,
  *   launchOk?: boolean,
  *   terminalStatus?: string | null,
+ *   artifactBaseline?: Record<string, { mtimeMs: number, size: number, sha256: string }> | null,
  *   modelPolicy?: string | null,
  *   agentMode?: string | null,
  *   equivalentCommand?: string | null,
@@ -937,15 +1124,23 @@ async function collectLiveHarnessPostRun(input) {
   const expected = Array.isArray(input.fixture.expected_artifacts)
     ? input.fixture.expected_artifacts
     : [];
+  // Callers must pass pre-launch baseline; default {} means any existing path counts as run-produced.
+  const artifactBaseline = input.artifactBaseline != null ? input.artifactBaseline : {};
   const located = locateFixtureArtifacts({
     cwd,
     expectedArtifacts: expected,
+    baseline: artifactBaseline,
     existsSync: input.existsSync,
+    statSync: input.statSync,
+    readFileSync: input.readFileSync,
   });
+  const artifactStale = located.stale.length > 0 && located.found.length === 0;
   let verifier = {
     ok: false,
-    reason_code: LIVE_REASON.ARTIFACT_MISSING,
-    errors: located.missing.map((m) => `missing artifact: ${m}`),
+    reason_code: artifactStale ? LIVE_REASON.ARTIFACT_STALE : LIVE_REASON.ARTIFACT_MISSING,
+    errors: artifactStale
+      ? located.stale.map((p) => `stale artifact (unchanged since pre-launch): ${p}`)
+      : located.missing.map((m) => `missing artifact: ${m}`),
   };
   if (located.found.length && !located.missing.length) {
     verifier = await verifyFixtureArtifacts({
@@ -957,12 +1152,14 @@ async function collectLiveHarnessPostRun(input) {
     });
   }
 
+  const terminal = interpretTerminalStatus(input.terminalStatus);
   const classified = classifyLiveHarnessOutcome({
     readiness: 'ready',
     launchOk: input.launchOk !== false,
     runId,
     taskId: runId,
-    terminalSuccess: input.launchOk !== false,
+    terminalSuccess: terminal.terminalSuccess,
+    artifactStale,
     statusOk,
     attachOk,
     verifierOk: verifier.ok === true,
@@ -981,9 +1178,11 @@ async function collectLiveHarnessPostRun(input) {
     ...classified,
     run_id: runId || null,
     task_id: runId || null,
-    terminal_status: input.terminalStatus ?? null,
+    terminal_status: terminal.normalized,
+    terminal_authoritative: terminal.authoritative,
     artifact_paths: located.found,
     missing_artifacts: located.missing,
+    stale_artifacts: located.stale,
     status: statusResult
       ? { ok: statusOk, reason_code: statusResult.reason_code ?? null }
       : null,
@@ -1028,7 +1227,12 @@ module.exports = {
   normalizeFixtureId,
   resolveLiveHarnessSelection,
   buildLiveHarnessLaunchModel,
+  artifactCandidatePaths,
+  snapshotArtifactBaseline,
+  artifactIsFreshVersusBaseline,
   locateFixtureArtifacts,
+  interpretTerminalStatus,
+  aggregateLiveHarnessOutcome,
   classifyLiveHarnessOutcome,
   summarizePrivacyFromAttach,
   verifyFixtureArtifacts,

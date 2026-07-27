@@ -373,6 +373,24 @@ async function runOperatorGuidedLauncherPane(options) {
   const launch = model.launch_options;
   const runSmokeFn = options.runSmokeFn ?? runSmoke;
 
+  /** @type {Record<string, { path: string, mtimeMs: number, size: number, sha256: string }>} */
+  let artifactBaseline = {};
+  let fixtureRecordForBaseline = null;
+  if (
+    options.collectLiveEvidence !== false
+    && model.goal_source === 'fixture'
+    && model.fixture_id
+  ) {
+    fixtureRecordForBaseline = await loadFixtureRecord(String(model.fixture_id));
+    const { snapshotArtifactBaseline } = getLiveHarness();
+    artifactBaseline = snapshotArtifactBaseline({
+      cwd: options.cwd ?? process.cwd(),
+      expectedArtifacts: Array.isArray(fixtureRecordForBaseline?.expected_artifacts)
+        ? fixtureRecordForBaseline.expected_artifacts
+        : [],
+    });
+  }
+
   try {
     let result;
     if (
@@ -424,7 +442,7 @@ async function runOperatorGuidedLauncherPane(options) {
       const { collectLiveHarnessPostRun, matrixRowIdFromModes } = getLiveHarness();
       const adaptLiveHarnessEvidence = getAdaptLiveHarnessEvidence();
       const collect = options.collectLiveHarnessPostRunFn ?? collectLiveHarnessPostRun;
-      const fixtureRecord = await loadFixtureRecord(String(model.fixture_id));
+      const fixtureRecord = fixtureRecordForBaseline || await loadFixtureRecord(String(model.fixture_id));
       liveHarness = await collect({
         fixture: fixtureRecord || {
           id: model.fixture_id,
@@ -437,6 +455,7 @@ async function runOperatorGuidedLauncherPane(options) {
         evidenceDir: options.liveEvidenceDir ?? null,
         launchOk: ok,
         terminalStatus: result.launched?.terminal_status ?? null,
+        artifactBaseline,
         modelPolicy: model.inference_policy,
         agentMode: model.agent_flow,
         equivalentCommand: model.equivalent_command,

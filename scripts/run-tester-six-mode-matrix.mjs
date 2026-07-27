@@ -87,6 +87,25 @@ export function liveOutcomeToStepStatus(outcome) {
 }
 
 /**
+ * Prefer harness aggregate_outcome; derive from rows when mocks omit it.
+ * @param {{ aggregate_outcome?: string, ok?: boolean, rows?: Array<{ outcome?: string }> }} live
+ * @returns {string}
+ */
+export function deriveLiveHarnessAggregate(live) {
+  if (live && live.aggregate_outcome) return String(live.aggregate_outcome).toUpperCase();
+  const rows = Array.isArray(live?.rows) ? live.rows : [];
+  if (rows.length === 0) return live?.ok === false ? "FAIL" : "BLOCKED";
+  const outcomes = rows.map((r) => String(r?.outcome || "").toUpperCase());
+  if (outcomes.some((o) => o === "FAIL")) return "FAIL";
+  if (outcomes.some((o) => o === "BLOCKED")) return "BLOCKED";
+  if (outcomes.every((o) => o === "SKIP")) return "SKIP";
+  if (outcomes.some((o) => o === "PASS") && outcomes.every((o) => o === "PASS" || o === "SKIP")) {
+    return "PASS";
+  }
+  return "BLOCKED";
+}
+
+/**
  * @param {{
  *   repoRoot?: string,
  *   skipLive?: boolean,
@@ -184,7 +203,6 @@ export async function runTesterSixModeMatrix(options = {}) {
  *   evidenceDir?: string,
  *   probeLocal?: boolean,
  *   maxIterations?: unknown,
- *   timeLimit?: unknown,
  *   gatePosture?: string,
  *   env?: NodeJS.ProcessEnv,
  *   localBackendReachable?: boolean | null,
@@ -216,7 +234,6 @@ export async function runTesterSixModeMatrixLive(options = {}) {
     evidenceDir: options.evidenceDir,
     cwd: options.cwd ?? options.repoRoot ?? REPO_ROOT,
     maxIterations: options.maxIterations,
-    timeLimit: options.timeLimit,
     gatePosture: options.gatePosture,
     localBackendReachable: readiness.local_backend.reachable,
     env: options.env ?? process.env,
@@ -224,12 +241,19 @@ export async function runTesterSixModeMatrixLive(options = {}) {
 
   /** @type {StepResult[]} */
   const liveSteps = [...readiness.steps];
+  const aggregate = deriveLiveHarnessAggregate(live);
   liveSteps.push({
     id: "live_harness",
-    reason_code: live.reason_code || (live.ok ? REASON_CODES.OK : "LIVE_HARNESS_FAIL"),
-    status: live.ok ? "pass" : "fail",
+    reason_code: live.reason_code || (aggregate === "PASS"
+      ? REASON_CODES.OK
+      : aggregate === "SKIP"
+        ? String(live.rows?.[0]?.reason_code || "LIVE_HARNESS_SKIP")
+        : aggregate === "BLOCKED"
+          ? String(live.rows?.[0]?.reason_code || "LIVE_HARNESS_BLOCKED")
+          : "LIVE_HARNESS_FAIL"),
+    status: liveOutcomeToStepStatus(aggregate),
     message: live.message
-      || `live harness fixture=${live.fixture_id || options.fixtureId} rows=${(live.row_ids || []).join(",")}`,
+      || `live harness fixture=${live.fixture_id || options.fixtureId} rows=${(live.row_ids || []).join(",")} aggregate=${aggregate}`,
   });
 
   for (const row of live.rows || []) {
@@ -299,7 +323,6 @@ export function parseArgs(argv) {
    *   rowIds: string | null,
    *   evidenceDir: string | null,
    *   maxIterations: string | null,
-   *   timeLimit: string | null,
    *   help?: boolean,
    * }} */
   const out = {
@@ -311,7 +334,6 @@ export function parseArgs(argv) {
     rowIds: null,
     evidenceDir: null,
     maxIterations: null,
-    timeLimit: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -326,7 +348,6 @@ export function parseArgs(argv) {
     else if (a === "--rows") out.rowIds = argv[++i] ?? null;
     else if (a === "--evidence-dir") out.evidenceDir = argv[++i] ?? null;
     else if (a === "--max-iterations") out.maxIterations = argv[++i] ?? null;
-    else if (a === "--time-limit") out.timeLimit = argv[++i] ?? null;
     else if (a === "--help" || a === "-h") out.help = true;
   }
   return out;
@@ -364,7 +385,6 @@ async function main() {
       rowIds: args.rowIds,
       evidenceDir: args.evidenceDir || undefined,
       maxIterations: args.maxIterations,
-      timeLimit: args.timeLimit,
     })
     : await runTesterSixModeMatrix({
       skipLive: args.skipLive,
