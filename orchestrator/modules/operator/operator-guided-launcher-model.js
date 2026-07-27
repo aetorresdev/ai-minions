@@ -265,7 +265,7 @@ function laneOption(lane) {
  * @param {string} goal
  */
 function shellQuote(goal) {
-  return `'${String(goal).replace(/'/g, `'\"'\"'`)}'`;
+  return `'${String(goal).replace(/'/g, `'"'"'`)}'`;
 }
 
 /**
