@@ -109,7 +109,7 @@ Collected via unit tests + `npm run evidence:ink7-spike` (JSON fixture under `or
 | Operator modules unchanged | Same modules; shell adapters + panes only |
 | Rollback | `AI_MINIONS_TUI_LEGACY=1` → readline cockpit |
 
-**Not in this ADR alone:** guided launcher, slash commands, Web UI. Live run monitor ships as a follow-on shell pane (same operator SoT); it is not claimed by the foundation ADR text alone.
+**Not in this ADR alone:** slash commands, Web UI. Guided launcher and live run monitor ship as separate shell panes (same operator SoT); they are not claimed by the foundation ADR text alone.
 
 ---
 
@@ -134,6 +134,8 @@ Collected via unit tests + `npm run evidence:ink7-spike` (JSON fixture under `or
 
 | Follow-on theme | Impact |
 |-----------------|--------|
+| Guided launcher | **Shipped** via `operator-guided-launcher-*` on Ink shell / legacy cockpit |
+| Live run monitor | **Shipped** via `operator-tui-live-monitor` on Ink shell / legacy cockpit |
 | Fullscreen foundation + lifecycle adapters | **Shipped** via `operator-tui-shell-*` + adapters |
 | Run list / status panes | Build on adapters; do not fork discovery logic |
 | Evidence / attach panes | Same operator contracts; Ink is presentation only |
@@ -148,7 +150,7 @@ Collected via unit tests + `npm run evidence:ink7-spike` (JSON fixture under `or
 - Framework choice is locked for v0.26 TUI completion planning.
 - Production `ai-minions tui` uses the Ink 7 fullscreen foundation shell.
 - Docs and reviews reject Ink-only popularity arguments and OpenTUI re-opens without Ink failure evidence.
-- **Not claimed:** guided launcher; slash commands; Web UI; cross-platform interactive support complete.
+- **Not claimed:** slash commands; Web UI; cross-platform interactive support complete.
 
 ---
 

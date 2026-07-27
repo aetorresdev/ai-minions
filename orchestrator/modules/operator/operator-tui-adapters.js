@@ -394,6 +394,52 @@ function adaptLifecycleSummary(source) {
 }
 
 /**
+ * Guided launcher summary for shell content (from launcher model / pane).
+ * @param {object | null | undefined} source
+ */
+function adaptGuidedLauncher(source) {
+  if (!source || typeof source !== 'object') {
+    return {
+      schema: ADAPTER_SCHEMA,
+      kind: 'guided_launcher',
+      available: false,
+    };
+  }
+  const summary = source.execution_summary && typeof source.execution_summary === 'object'
+    ? source.execution_summary
+    : {};
+  return {
+    schema: ADAPTER_SCHEMA,
+    kind: 'guided_launcher',
+    available: true,
+    agent_flow: source.agent_flow == null ? null : String(source.agent_flow),
+    inference_lane: source.inference_lane == null ? null : String(source.inference_lane),
+    inference_policy: source.inference_policy == null ? null : String(source.inference_policy),
+    gate_posture: source.gate_posture == null ? null : String(source.gate_posture),
+    goal_source: source.goal_source == null ? null : String(source.goal_source),
+    readiness: source.readiness == null ? null : String(source.readiness),
+    can_launch: source.can_launch === true,
+    blocked_reason_code: source.blocked_reason_code == null
+      ? null
+      : String(source.blocked_reason_code),
+    remediation: source.remediation == null ? null : String(source.remediation),
+    equivalent_command: source.equivalent_command == null
+      ? null
+      : String(source.equivalent_command),
+    goal_summary: provenanceField(summary.goal_summary ?? source.goal),
+    max_iterations: provenanceField(summary.max_iterations),
+    max_retries: provenanceField(summary.max_retries),
+    cost_limit_usd: provenanceField(summary.cost_limit_usd),
+    time_limit: provenanceField(summary.time_limit),
+    approved_artifacts: provenanceField(summary.approved_artifacts),
+    deterministic_verifiers: provenanceField(summary.deterministic_verifiers),
+    cerberus_gate: provenanceField(summary.cerberus_gate),
+    local_backend: provenanceField(summary.local_backend),
+    credential_sufficiency: provenanceField(summary.credential_sufficiency),
+  };
+}
+
+/**
  * Navigation items from authoritative cockpit action table.
  * @returns {ReadonlyArray<{ key: string, id: string, label: string }>}
  */
@@ -413,6 +459,7 @@ module.exports = {
   adaptConfigReadiness,
   adaptActionResult,
   adaptLifecycleSummary,
+  adaptGuidedLauncher,
   adaptNavigationActions,
   formatNonTtyGuidance,
 };

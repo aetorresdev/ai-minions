@@ -14,8 +14,10 @@ const { runSmoke, runAttach } = require('./operator-guided-first-run');
 const { runOperatorRunSelector } = require('./operator-run-selector-tui');
 const { runOperatorEvidenceAttachPane } = require('./operator-evidence-attach-pane-tui');
 const { runOperatorConfigReadinessPane } = require('./operator-config-readiness-pane-tui');
+const { runOperatorGuidedLauncherPane } = require('./operator-guided-launcher-pane-tui');
 const { adaptActionResult } = require('./operator-tui-adapters');
 const { formatLiveMonitorLines, buildLiveMonitorFromStatusResult } = require('./operator-tui-live-monitor');
+const { formatGuidedLauncherLines } = require('./operator-guided-launcher-model');
 
 /**
  * @param {{
@@ -34,6 +36,7 @@ const { formatLiveMonitorLines, buildLiveMonitorFromStatusResult } = require('./
  *   runSelector?: typeof runOperatorRunSelector,
  *   runEvidencePane?: typeof runOperatorEvidenceAttachPane,
  *   runConfigPane?: typeof runOperatorConfigReadinessPane,
+ *   runLauncherPane?: typeof runOperatorGuidedLauncherPane,
  *   modelPolicy?: string,
  * }} options
  */
@@ -68,6 +71,8 @@ async function executeShellAction(options) {
   let statusResult = null;
   /** @type {object | null} */
   let runsPayload = null;
+  /** @type {object | null} */
+  let launcherModel = null;
   /** @type {string} */
   let contentSurface = 'action_result';
 
@@ -88,32 +93,35 @@ async function executeShellAction(options) {
         configModel: null,
         statusResult: null,
         runsPayload: null,
+        launcherModel: null,
       };
     }
 
-    if (actionId === 'smoke') {
+    if (actionId === 'launcher' || actionId === 'smoke') {
       try {
-        const result = await (options.runSmokeFn ?? runSmoke)({
-          cwd: options.cwd,
-          skipGates: true,
-          maxIterations: 1,
+        const result = await (options.runLauncherPane ?? runOperatorGuidedLauncherPane)({
+          question,
+          write,
           useColor,
+          cwd: options.cwd,
+          runSmokeFn: options.runSmokeFn ?? runSmoke,
         });
-        if (result.preflightText) write(`${result.preflightText}\n`);
-        if (result.routingText) write(`${result.routingText}\n`);
-        write(`${result.smokeText || result.text || ''}\n`);
+        launcherModel = result.model ?? null;
+        contentSurface = launcherModel ? 'launcher' : 'action_result';
+        write(`${result.text || ''}\n`);
         return {
           quit: false,
           selectedRunId,
-          contentSurface: 'action_result',
+          contentSurface,
           actionResult: adaptActionResult({
-            action_id: 'smoke',
+            action_id: 'launcher',
             ok: result.ok !== false,
             exitCode: result.exitCode,
             reason_code: result.reason_code ?? null,
             next_safe_action: result.next_safe_action ?? null,
-            text: result.smokeText || result.text || '',
+            text: result.text || (launcherModel ? formatGuidedLauncherLines(launcherModel).join('\n') : ''),
           }),
+          launcherModel,
           evidenceModel: null,
           configModel: null,
           statusResult: null,
@@ -127,12 +135,13 @@ async function executeShellAction(options) {
           selectedRunId,
           contentSurface: 'action_result',
           actionResult: adaptActionResult({
-            action_id: 'smoke',
+            action_id: 'launcher',
             ok: false,
             exitCode: 1,
             reason_code: 'TUI_SHELL_ACTION_FAILURE',
             error: message,
           }),
+          launcherModel: null,
           evidenceModel: null,
           configModel: null,
           statusResult: null,
@@ -194,6 +203,7 @@ async function executeShellAction(options) {
         configModel: null,
         statusResult,
         runsPayload: null,
+        launcherModel: null,
       };
     }
 
@@ -249,6 +259,7 @@ async function executeShellAction(options) {
         configModel: null,
         statusResult: null,
         runsPayload: null,
+        launcherModel: null,
       };
     }
 
@@ -356,6 +367,7 @@ async function executeShellAction(options) {
         evidenceModel: null,
         configModel: null,
         runsPayload: null,
+        launcherModel: null,
       };
     }
 
@@ -406,6 +418,7 @@ async function executeShellAction(options) {
         configModel: null,
         statusResult: null,
         runsPayload: null,
+        launcherModel: null,
       };
     }
 
@@ -440,6 +453,7 @@ async function executeShellAction(options) {
           evidenceModel: null,
           statusResult: null,
           runsPayload: null,
+          launcherModel: null,
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -478,6 +492,7 @@ async function executeShellAction(options) {
       configModel: null,
       statusResult: null,
       runsPayload: null,
+      launcherModel: null,
     };
   } finally {
     if (rl) rl.close();

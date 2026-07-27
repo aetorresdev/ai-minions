@@ -295,7 +295,7 @@ describe("ai-minions-cli guided verbs", () => {
     assert.match(r.stdout, /first-run/);
     assert.match(r.stdout, /smoke/);
     assert.match(r.stdout, /attach/);
-    assert.match(r.stdout, /not guided launcher|Web UI/i);
+    assert.match(r.stdout, /guided launcher|Web UI/i);
   });
 
   it("first-run without valid repo exits 2 with FIRST_RUN_UNSUPPORTED_CWD", () => {

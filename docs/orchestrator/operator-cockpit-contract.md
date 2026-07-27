@@ -17,8 +17,8 @@ Requires a TTY (stdin and stdout). Non-TTY exits non-zero with equivalent CLI ve
 ## Shell chrome
 
 - **Header:** product name, version, high-level readiness (`path_status`).
-- **Navigation:** existing cockpit actions (smoke, runs, select, evidence, status, **live monitor**, attach, config, quit).
-- **Main content:** home readiness, runs list, selected-run status, evidence/attach state, config readiness, action result, **live run monitor**.
+- **Navigation:** existing cockpit actions (guided launcher, runs, select, evidence, status, **live monitor**, attach, config, quit).
+- **Main content:** home readiness, guided launcher summary, runs list, selected-run status, evidence/attach state, config readiness, action result, **live run monitor**.
 - **Footer:** key hints, current selection, safe exit guidance.
 - **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; Enter runs selected action; `/` focuses command input; `q` / Ctrl+C quit with terminal restore.
 - **Resize:** columns &lt; 72 → narrow layout (stacked); otherwise wide.
@@ -37,6 +37,7 @@ Components consume explicit view-models from `operator-tui-adapters.js` / `opera
 | Action result / reason codes | `adaptActionResult` |
 | Lifecycle / loop fields | `adaptLifecycleSummary` |
 | Live run monitor | `adaptLiveMonitor` |
+| Guided launcher summary | `adaptGuidedLauncher` |
 
 Lifecycle / monitor fields use provenance (`available` · `absent` · `unavailable` · `unknown` · `not_configured` · `unlimited`). Absent is never coerced to `0`, success, unlimited, or not_configured. The monitor never invents completion percentages or self-scored progress.
 
@@ -44,7 +45,7 @@ Lifecycle / monitor fields use provenance (`available` · `absent` · `unavailab
 
 | Action | Module / command contract |
 |--------|---------------------------|
-| smoke / new run | `runSmoke` (`ai-minions smoke`) |
+| guided launcher | `runOperatorGuidedLauncherPane` → `runSmoke` / `runStart` (existing CLI contracts) |
 | runs | `runOperatorRuns` (`ai-minions runs`) |
 | select run / status pane | `runOperatorRunSelector` — newest-first list + compact status pane |
 | evidence / attach pane | prompts for run-id (Enter accepts previously selected run) → `runOperatorEvidenceAttachPane` |
@@ -144,6 +145,7 @@ Focused harness — render/state models and command dispatch, not pixel-perfect 
 | Surface | Module | Unit tests |
 |---------|--------|------------|
 | Fullscreen shell / adapters / live monitor / cleanup | `operator-tui-shell-*.js` · `operator-tui-adapters.js` · `operator-tui-live-monitor.js` | `tests/operator/operatorTuiShellFoundation.test.js` · `tests/operator/operatorTuiLiveMonitor.test.js` |
+| Guided launcher | `operator-guided-launcher-*.js` | `tests/operator/operatorGuidedLauncher.test.js` |
 | Legacy readline cockpit / non-TTY / unknown action | `operator-cockpit-tui.js` | `tests/operator/operatorCockpitTui.test.js` |
 | Run selector + status pane | `operator-run-selector-tui.js` | `tests/operator/operatorRunSelectorTui.test.js` |
 | Evidence / attach pane | `operator-evidence-attach-pane-tui.js` | `tests/operator/operatorEvidenceAttachPaneTui.test.js` |
@@ -166,6 +168,7 @@ cd orchestrator && npm run test:tui-quality
 |------|------|
 | Entry | `modules/operator/operator-tui-shell-entry.js` |
 | Adapters | `modules/operator/operator-tui-adapters.js` |
+| Guided launcher | `modules/operator/operator-guided-launcher-model.js` · `operator-guided-launcher-pane-tui.js` |
 | Live run monitor | `modules/operator/operator-tui-live-monitor.js` · `operator-tui-loop-envelope.js` |
 | Shell model | `modules/operator/operator-tui-shell-model.js` |
 | Action dispatch | `modules/operator/operator-tui-shell-actions.js` |
@@ -180,7 +183,6 @@ cd orchestrator && npm run test:tui-quality
 
 ## Not claimed
 
-- Guided mode launcher
 - Slash-command vocabulary
 - Web UI
 - Durable resume / rerun

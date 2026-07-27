@@ -21,12 +21,13 @@ const { runSmoke, runAttach } = require('./operator-guided-first-run');
 const { runOperatorRunSelector } = require('./operator-run-selector-tui');
 const { runOperatorEvidenceAttachPane } = require('./operator-evidence-attach-pane-tui');
 const { runOperatorConfigReadinessPane } = require('./operator-config-readiness-pane-tui');
+const { runOperatorGuidedLauncherPane } = require('./operator-guided-launcher-pane-tui');
 
 const COCKPIT_SCHEMA = '1';
 
 /** @type {ReadonlyArray<{ key: string, id: string, label: string }>} */
 const COCKPIT_ACTIONS = Object.freeze([
-  { key: '1', id: 'smoke', label: 'smoke / new run' },
+  { key: '1', id: 'launcher', label: 'guided launcher' },
   { key: '2', id: 'runs', label: 'runs' },
   { key: 's', id: 'select', label: 'select run / status pane' },
   { key: 'e', id: 'evidence', label: 'evidence / attach pane' },
@@ -93,13 +94,14 @@ function buildCockpitHomeText(options = {}) {
     section('== Actions =='),
     ...COCKPIT_ACTIONS.map((a) => `  [${a.key}]  ${a.label}`),
     '',
-    'Policy: actions call existing operator modules (smoke/runs/status/live monitor/attach/config pane).',
+    'Policy: actions call existing operator modules (launcher/runs/status/live monitor/attach/config pane).',
     'Quit exits cleanly with no side effects. Evidence panels: tui --run-id|--latest|--file.',
+    'Guided launcher (1): agent×inference modes, prerequisites, execution summary, then existing CLI contracts.',
     'Select (s): newest-first run list + status pane (basename-safe; invalid → RUN_TRACE_INVALID).',
     'Evidence (e): attach/bundle status for selected run; attach_available=false is disk-only semantics.',
     'Monitor (m): live run phase + reason codes for selected run (read-only; detach-safe).',
     'Config (5): PATH, backend, models, credentials status (never secrets) + next_safe_action.',
-    'Not claimed: Web UI · durable resume · guided launcher · slash commands.',
+    'Not claimed: Web UI · durable resume · slash commands.',
   ];
   return lines.join('\n');
 }
@@ -115,8 +117,15 @@ function resolveCockpitAction(raw) {
     if (token === action.key || token === action.id) {
       return { id: action.id };
     }
-    if (action.id === 'smoke' && (token === 'new' || token === 'run' || token === 'new-run')) {
-      return { id: 'smoke' };
+    if (action.id === 'launcher' && (
+      token === 'new'
+      || token === 'run'
+      || token === 'new-run'
+      || token === 'smoke'
+      || token === 'launch'
+      || token === 'guided'
+    )) {
+      return { id: 'launcher' };
     }
     if (action.id === 'config' && (
       token === 'doctor'
@@ -151,11 +160,12 @@ function resolveCockpitAction(raw) {
  *   buildHome?: typeof buildCockpitHomeText,
  *   runRuns?: typeof runOperatorRuns,
  *   runStatus?: typeof runOperatorStatus,
- *   runSmokeFn?: typeof runSmoke,
- *   runAttachFn?: typeof runAttach,
- *   runSelector?: typeof runOperatorRunSelector,
- *   runEvidencePane?: typeof runOperatorEvidenceAttachPane,
- *   runConfigPane?: typeof runOperatorConfigReadinessPane,
+   *   runSmokeFn?: typeof runSmoke,
+   *   runAttachFn?: typeof runAttach,
+   *   runSelector?: typeof runOperatorRunSelector,
+   *   runEvidencePane?: typeof runOperatorEvidenceAttachPane,
+   *   runConfigPane?: typeof runOperatorConfigReadinessPane,
+   *   runLauncherPane?: typeof runOperatorGuidedLauncherPane,
  *   buildAbout?: typeof buildAboutInfo,
  *   assessCredentials?: typeof assessProviderCredentials,
  *   assessPath?: typeof assessPathActivation,
@@ -202,6 +212,7 @@ async function runOperatorCockpit(options = {}) {
   const runSelector = options.runSelector ?? runOperatorRunSelector;
   const runEvidencePane = options.runEvidencePane ?? runOperatorEvidenceAttachPane;
   const runConfigPane = options.runConfigPane ?? runOperatorConfigReadinessPane;
+  const runLauncherPane = options.runLauncherPane ?? runOperatorGuidedLauncherPane;
   const buildAbout = options.buildAbout ?? buildAboutInfo;
   const assessCredentials = options.assessCredentials ?? assessProviderCredentials;
   const assessPath = options.assessPath ?? assessPathActivation;
@@ -249,18 +260,17 @@ async function runOperatorCockpit(options = {}) {
         };
       }
 
-      if (resolved.id === 'smoke') {
-        write('\n— smoke / new run —\n');
+      if (resolved.id === 'launcher') {
+        write('\n— guided launcher —\n');
         try {
-          const result = await runSmokeFn({
-            cwd: options.cwd,
-            skipGates: true,
-            maxIterations: 1,
+          const result = await runLauncherPane({
+            question,
+            write,
             useColor,
+            cwd: options.cwd,
+            runSmokeFn,
           });
-          if (result.preflightText) write(`${result.preflightText}\n`);
-          if (result.routingText) write(`${result.routingText}\n`);
-          write(`${result.smokeText || result.text || ''}\n`);
+          write(`${result.text || ''}\n`);
           if (result.reason_code) write(`reason_code: ${result.reason_code}\n`);
           if (result.next_safe_action) write(`next_safe_action: ${result.next_safe_action}\n`);
           lastExitCode = Number.isInteger(result.exitCode) ? result.exitCode : (result.ok ? 0 : 1);

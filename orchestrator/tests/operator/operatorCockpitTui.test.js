@@ -59,7 +59,7 @@ test('buildCockpitHomeText shows status and actions without secrets', () => {
   assert.match(text, /Product status/);
   assert.match(text, /version:\s+0\.25\.0-beta\.1/);
   assert.match(text, /ANTHROPIC_API_KEY: missing/);
-  assert.match(text, /\[1\].*smoke/);
+  assert.match(text, /\[1\].*guided launcher/);
   assert.match(text, /\[2\].*runs/);
   assert.match(text, /\[s\].*select run/);
   assert.match(text, /\[e\].*evidence \/ attach pane/);
@@ -71,6 +71,7 @@ test('buildCockpitHomeText shows status and actions without secrets', () => {
   assert.match(text, /RUN_TRACE_INVALID/);
   assert.match(text, /disk-only/);
   assert.match(text, /Config \(5\):/);
+  assert.match(text, /Guided launcher \(1\)/);
   assert.match(text, /Monitor \(m\):/);
   assert.match(text, /live monitor/);
   assert.match(text, /legacy readline/i);
@@ -80,9 +81,10 @@ test('buildCockpitHomeText shows status and actions without secrets', () => {
 });
 
 test('resolveCockpitAction accepts keys and aliases', () => {
-  assert.equal(resolveCockpitAction('1').id, 'smoke');
-  assert.equal(resolveCockpitAction('smoke').id, 'smoke');
-  assert.equal(resolveCockpitAction('new-run').id, 'smoke');
+  assert.equal(resolveCockpitAction('1').id, 'launcher');
+  assert.equal(resolveCockpitAction('launcher').id, 'launcher');
+  assert.equal(resolveCockpitAction('smoke').id, 'launcher');
+  assert.equal(resolveCockpitAction('new-run').id, 'launcher');
   assert.equal(resolveCockpitAction('2').id, 'runs');
   assert.equal(resolveCockpitAction('s').id, 'select');
   assert.equal(resolveCockpitAction('select').id, 'select');
@@ -424,6 +426,7 @@ test('ai-minions --help documents fullscreen shell', () => {
   });
   assert.equal(r.status, 0);
   assert.match(r.stdout, /tui\s+Fullscreen Ink shell/);
-  assert.match(r.stdout, /not guided launcher|Web UI/i);
+  assert.match(r.stdout, /guided launcher/i);
+  assert.match(r.stdout, /not live monitor|Web UI/i);
   assert.match(r.stdout, /AI_MINIONS_TUI_LEGACY/);
 });
