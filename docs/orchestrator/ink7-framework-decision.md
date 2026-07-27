@@ -1,10 +1,12 @@
 # Ink 7 framework decision
 
-**Architecture decision record** — selects **Ink 7** as the fullscreen operator TUI framework after an executable validation spike. **Not** a claim that the production fullscreen shell has shipped.
+**Architecture decision record** — selects **Ink 7** as the fullscreen operator TUI framework after an executable validation spike. Production fullscreen foundation is wired through `ai-minions tui` (see [operator-cockpit-contract.md](operator-cockpit-contract.md)).
 
 **Related:** [operator-cockpit-contract.md](operator-cockpit-contract.md) · [module-boundaries.md](module-boundaries.md) · [runner-tui-contract.md](runner-tui-contract.md)
 
 **Spike code (disposable):** `orchestrator/modules/operator/ink7-spike-*.js` + `ink7-spike-render.mjs` · entry `npm run spike:ink7` · tests `tests/operator/ink7FrameworkSpike.test.js`
+
+**Production shell:** `operator-tui-shell-entry.js` + adapters + `operator-tui-shell-render.mjs`
 
 ---
 
@@ -28,8 +30,8 @@ Product direction is to adopt **Ink 7** (React renderer for CLIs) rather than ru
 |---|----------|-----------|
 | **D1** | **Ink 7 is the selected production TUI framework** for the fullscreen operator shell. | Executable spike met must-have criteria on the Node 22 contract; Node 24 also exercised. |
 | **D2** | **Operator modules remain authoritative.** Ink/React components consume adapters / view-models over `runOperatorRuns`, status loaders, and related operator APIs — they must not parse rendered CLI text or duplicate run-control semantics. | Prevents a second operator layer and protects traces/gates/evidence. |
-| **D3** | **Operator non-TTY entrypaths must not initialize Ink/React.** Interactive renderer loads only behind an explicit TTY (or test force) gate in `runInk7FrameworkSpike`. Packaging evidence may cold-import Ink in a separate child process; that probe is not the operator entrypath. | Preserves automation and piped CLI behavior. |
-| **D4** | **Spike code stays out of `ai-minions tui` until the fullscreen foundation slice wires production entrypoints.** | Separates framework lock from production shell delivery. |
+| **D3** | **Operator non-TTY entrypaths must not initialize Ink/React.** Interactive renderer loads only behind an explicit TTY (or test force) gate in `runOperatorTuiShell` (production). The disposable spike entry `runInk7FrameworkSpike` follows the same rule for evidence runs. Packaging evidence may cold-import Ink in a separate child process; that probe is not the operator entrypath. | Preserves automation and piped CLI behavior. |
+| **D4** | **Spike remains disposable evidence.** Production `ai-minions tui` uses `operator-tui-shell-*` modules. | Separates framework lock artifacts from the shipping shell. |
 | **D5** | **OpenTUI is a documented rejected alternative** for this runtime. Build an OpenTUI spike only if Ink later fails a must-have criterion with reproducible evidence. | Avoids redundant bake-off cost; OpenTUI’s native/FFI and Bun-oriented path conflicts with the Node 22 package contract. |
 | **D6** | **Windows interactive support is deferred** until dedicated evidence exists. Linux is evidenced; macOS interactive evidence is required before release-tag closeout. | Honest platform claims. |
 
@@ -100,29 +102,30 @@ Collected via unit tests + `npm run evidence:ink7-spike` (JSON fixture under `or
 
 ## Migration boundary from current cockpit
 
-| Now | After foundation (follow-on) |
+| Now | Foundation (this ADR follow-on) |
 |-----|------------------------------|
-| `ai-minions tui` → readline cockpit | Fullscreen Ink shell with lifecycle adapters |
-| Spike `npm run spike:ink7` | Spike removed or quarantined once production entry absorbs patterns |
-| Operator modules unchanged | Same modules; new panes/adapters only |
+| `ai-minions tui` → Ink fullscreen shell | Header / nav / content / footer + adapters |
+| Spike `npm run spike:ink7` | Spike kept as disposable evidence; not the product entry |
+| Operator modules unchanged | Same modules; shell adapters + panes only |
+| Rollback | `AI_MINIONS_TUI_LEGACY=1` → readline cockpit |
 
-**Not in this ADR:** shipping the production framework shell; rewriting operator modules; run panes / evidence panes / live harness product features.
+**Not in this ADR alone:** guided launcher, live monitor, slash commands, Web UI.
 
 ---
 
 ## Rollback / replacement strategy
 
-1. Leave `ai-minions tui` on the readline cockpit (unchanged by this ADR).
-2. Remove or stop depending on `ink`/`react` if a must-have blocker appears before foundation merge.
-3. If Ink fails after foundation starts, freeze production TUI work and open an explicit architecture decision before evaluating another candidate (including OpenTUI).
+1. Set `AI_MINIONS_TUI_LEGACY=1` for the readline cockpit without Ink.
+2. Remove or stop depending on `ink`/`react` only if a must-have blocker appears and an architecture re-decision is opened.
+3. If Ink fails after foundation ships, freeze production TUI work and open an explicit architecture decision before evaluating another candidate (including OpenTUI).
 
 ---
 
 ## Known platform limitations
 
-- Windows: deferred / unsupported for interactive spike evidence.
+- Windows: deferred / unsupported for interactive evidence.
 - macOS: interactive evidence still required before release-tag closeout.
-- Alternate-screen / raw-mode restoration is covered by spike guards + tests; real PTY smoke remains a release-closeout concern.
+- Alternate-screen / raw-mode restoration is covered by terminal guards + tests; real PTY smoke remains a release-closeout concern.
 - Supply chain: Ink + React expand the dependency graph; keep versions pinned via lockfile and review advisories on upgrade.
 
 ---
@@ -131,11 +134,11 @@ Collected via unit tests + `npm run evidence:ink7-spike` (JSON fixture under `or
 
 | Follow-on theme | Impact |
 |-----------------|--------|
-| Fullscreen foundation + lifecycle adapters | Unblocked — must use Ink 7 with adapter boundary from D2/D3 |
+| Fullscreen foundation + lifecycle adapters | **Shipped** via `operator-tui-shell-*` + adapters |
 | Run list / status panes | Build on adapters; do not fork discovery logic |
 | Evidence / attach panes | Same operator contracts; Ink is presentation only |
 | Config / readiness panes | Same |
-| Live harness / quality evidence | Framework lock enables harness scenarios against Ink shell |
+| Live harness / quality evidence | Framework + foundation enable harness scenarios against Ink shell |
 | Release prep / tag | Requires macOS interactive evidence + platform honesty from D6 |
 
 ---
@@ -143,9 +146,9 @@ Collected via unit tests + `npm run evidence:ink7-spike` (JSON fixture under `or
 ## Consequences
 
 - Framework choice is locked for v0.26 TUI completion planning.
-- Production `ai-minions tui` remains readline until the foundation slice.
+- Production `ai-minions tui` uses the Ink 7 fullscreen foundation shell.
 - Docs and reviews reject Ink-only popularity arguments and OpenTUI re-opens without Ink failure evidence.
-- **Not claimed:** production TUI shipped; Web UI; cross-platform interactive support complete.
+- **Not claimed:** guided launcher; live monitor; slash commands; Web UI; cross-platform interactive support complete.
 
 ---
 
@@ -154,3 +157,5 @@ Collected via unit tests + `npm run evidence:ink7-spike` (JSON fixture under `or
 | Date | Change |
 |------|--------|
 | 2026-07-24 | Initial ADR — Ink 7 accepted with spike evidence |
+| 2026-07-27 | Foundation slice wires production `ai-minions tui`; spike remains disposable |
+| 2026-07-27 | D3 migration note: TTY gate lives on `runOperatorTuiShell`; spike remains evidence-only |

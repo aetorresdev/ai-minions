@@ -1,8 +1,10 @@
 # Operator cockpit contract (`ai-minions tui`)
 
-Interactive **cockpit MVP** for the product CLI. Reuses existing operator modules; does not replace CLI verbs.
+Interactive **fullscreen Ink 7 shell** for the product CLI (foundation). Reuses existing operator modules; does not replace CLI verbs.
 
-**Framework decision:** fullscreen TUI work targets **Ink 7** — see [ink7-framework-decision.md](ink7-framework-decision.md). The production entrypoint below remains the readline cockpit until the foundation slice wires Ink.
+**Framework decision:** [ink7-framework-decision.md](ink7-framework-decision.md). Production entry loads Ink/React only on an interactive TTY.
+
+**Rollback:** `AI_MINIONS_TUI_LEGACY=1` restores the previous readline cockpit loop without initializing Ink.
 
 ## Entrypoint
 
@@ -10,11 +12,32 @@ Interactive **cockpit MVP** for the product CLI. Reuses existing operator module
 ai-minions tui
 ```
 
-Requires a TTY (stdin and stdout). Non-TTY exits non-zero with equivalent CLI verb guidance (no hang, no readline).
+Requires a TTY (stdin and stdout). Non-TTY exits non-zero with equivalent CLI verb guidance (no hang, no Ink/React init).
 
-## First screen
+## Shell chrome
 
-Shows product status (version, model policy, PATH activation, credential **status labels only** — never secret values) and numbered actions.
+- **Header:** product name, version, high-level readiness (`path_status`).
+- **Navigation:** existing cockpit actions (smoke, runs, select, evidence, status, attach, config, quit).
+- **Main content:** home readiness, runs list, selected-run status, evidence/attach state, config readiness, action result, lifecycle summary extension point.
+- **Footer:** key hints, current selection, safe exit guidance.
+- **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; Enter runs selected action; `/` focuses command input; `q` / Ctrl+C quit with terminal restore.
+- **Resize:** columns &lt; 72 → narrow layout (stacked); otherwise wide.
+
+## Adapter boundary
+
+Components consume explicit view-models from `operator-tui-adapters.js` — they do not parse formatted CLI text or duplicate operator logic:
+
+| Surface | Adapter |
+|---------|---------|
+| Home / readiness | `adaptHomeReadiness` |
+| Runs list | `adaptRunsList` |
+| Selected-run status | `adaptSelectedRunStatus` |
+| Evidence / attach | `adaptEvidenceAttachState` |
+| Config / credentials | `adaptConfigReadiness` |
+| Action result / reason codes | `adaptActionResult` |
+| Lifecycle / loop summary (extension) | `adaptLifecycleSummary` |
+
+Lifecycle fields use provenance (`available` · `absent` · `unavailable` · `unknown` · `not_configured` · `unlimited`). Absent is never coerced to `0`, success, unlimited, or not_configured. Live monitor presentation is owned by a later slice.
 
 ## Actions → existing contracts
 
@@ -27,7 +50,9 @@ Shows product status (version, model policy, PATH activation, credential **statu
 | status | prompts `--run-id` (defaults to last selected) → `runOperatorStatus` |
 | attach | prompts `--run-id` (defaults to last selected) → `runAttach` |
 | config / credentials readiness | `runOperatorConfigReadinessPane` (reuses doctor + credential readiness) |
-| quit | exit `0`, no operator side effects |
+| quit | exit `0`, terminal restored, no operator side effects |
+
+Nested readline panes temporarily restore the terminal, run the existing operator pane, then remount the Ink shell in-process (no return to bash).
 
 ## Run selector + status pane
 
@@ -77,11 +102,21 @@ ai-minions tui --latest
 ai-minions tui --file <trace.jsonl> [--json]
 ```
 
-Read-only stdout evidence panels (`operator-evidence-tui`). `--json` applies only to this path (ANSI-free). Cockpit itself does not emit JSON shareables.
+Read-only stdout evidence panels (`operator-evidence-tui`). `--json` applies only to this path (ANSI-free). The interactive shell itself does not emit JSON shareables.
 
 ## Color / ANSI
 
-Human cockpit text follows `terminal-style` / `NO_COLOR` / `--color`. JSON, Markdown, and attach bundles remain ANSI-free via existing writers (`useColor: false` on shareable paths).
+Human shell text follows `terminal-style` / `NO_COLOR` / `--color`. JSON, Markdown, and attach bundles remain ANSI-free via existing writers (`useColor: false` on shareable paths).
+
+## Cleanup / terminal restore
+
+The shell restores raw mode + alternate-screen / cursor sequences after:
+
+- normal quit
+- Ctrl+C
+- renderer exception
+- operator action failure
+- simulated / real child-process failure
 
 ## Quality gate (mandatory when TUI ships)
 
@@ -89,12 +124,14 @@ Focused harness — render/state models and command dispatch, not pixel-perfect 
 
 | Surface | Module | Unit tests |
 |---------|--------|------------|
-| Cockpit home / non-TTY / unknown action | `operator-cockpit-tui.js` | `tests/operator/operatorCockpitTui.test.js` |
+| Fullscreen shell / adapters / lifecycle / cleanup | `operator-tui-shell-*.js` · `operator-tui-adapters.js` | `tests/operator/operatorTuiShellFoundation.test.js` |
+| Legacy readline cockpit / non-TTY / unknown action | `operator-cockpit-tui.js` | `tests/operator/operatorCockpitTui.test.js` |
 | Run selector + status pane | `operator-run-selector-tui.js` | `tests/operator/operatorRunSelectorTui.test.js` |
 | Evidence / attach pane | `operator-evidence-attach-pane-tui.js` | `tests/operator/operatorEvidenceAttachPaneTui.test.js` |
 | Config / credentials readiness | `operator-config-readiness-pane-tui.js` | `tests/operator/operatorConfigReadinessPaneTui.test.js` |
 | Read-only evidence panels | `operator-evidence-tui.js` | `tests/operator/operatorEvidenceTui.test.js` |
 | Acceptance matrix (empty store · invalid/success/fail/blocked · attach present/missing · credentials · non-TTY · unknown action · no ANSI in shareables · `NO_COLOR` · no secrets · claim honesty · no shell-rc mutation) | `operator-tui-quality-harness.js` | `tests/operator/operatorTuiQualityGate.test.js` |
+| Ink 7 spike (disposable validation) | `ink7-spike-*.js` | `tests/operator/ink7FrameworkSpike.test.js` |
 
 Run locally / CI:
 
@@ -104,16 +141,37 @@ cd orchestrator && npm run test:tui-quality
 
 `npm test` / `npm run test:unit` include the quality-gate file. Ownership: [test-ownership-map.md](test-ownership-map.md) (`operator` / `unit`).
 
+## Modules (production shell)
+
+| Role | Path |
+|------|------|
+| Entry | `modules/operator/operator-tui-shell-entry.js` |
+| Adapters | `modules/operator/operator-tui-adapters.js` |
+| Shell model | `modules/operator/operator-tui-shell-model.js` |
+| Action dispatch | `modules/operator/operator-tui-shell-actions.js` |
+| Terminal guard | `modules/operator/operator-tui-terminal-guard.js` |
+| Ink renderer (ESM) | `modules/operator/operator-tui-shell-render.mjs` |
+
+## Rollback
+
+1. Set `AI_MINIONS_TUI_LEGACY=1` to use `operator-cockpit-tui` without Ink.
+2. Revert shell entry wiring in `ai-minions-cli.js` and remove/ignore `operator-tui-shell-*` + adapters if abandoning the foundation.
+3. Operator-domain modules (`operator-run-list`, status, attach, doctor, evidence panes) stay untouched by rollback of the renderer layer.
+
 ## Not claimed
 
-- Production TUI or Web UI
-- Fullscreen / navigable multi-pane shell
-- Durable resume
-- Auto-executing unsafe wizard steps
-- New model routing behavior
+- Guided mode launcher
+- Live run monitor presentation
+- Slash-command vocabulary
+- Web UI
+- Durable resume / rerun
+- Canonical Loop Contract storage schema
+- Computing completion percentages or self-scored progress
+- Windows interactive support (deferred)
 - Replacing existing CLI verbs
 
 ## See also
 
+- [ink7-framework-decision.md](ink7-framework-decision.md)
 - [operator-visibility-guide.md](../how-to/operator-visibility-guide.md)
 - [runner-tui-contract.md](runner-tui-contract.md) — legacy `runner:tui` launcher

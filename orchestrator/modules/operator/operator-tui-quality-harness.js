@@ -67,16 +67,16 @@ function assertNoSecretSurfaces(text, forbiddenSubstrings = []) {
 }
 
 /**
- * Claim honesty for MVP cockpit — must not invent fullscreen / production TUI.
+ * Claim honesty for cockpit / shell surfaces — must not invent Web UI or over-claim TUI completion.
  * @param {string} text
  */
 function assertMvpClaimHonesty(text) {
   const hay = String(text ?? '').toLowerCase();
-  if (!/not claimed|not fullscreen|not (a )?production/.test(hay)) {
-    throw new Error('MVP surface missing Not claimed / not-fullscreen honesty');
+  if (!/not claimed|not fullscreen|legacy readline|operator modules remain authoritative/.test(hay)) {
+    throw new Error('TUI surface missing claim-honesty disclaimer');
   }
-  if (/\bfullscreen product\b|\bproduction tui shipped\b/.test(hay)) {
-    throw new Error('MVP surface invents fullscreen/production TUI claim');
+  if (/\bfullscreen product\b|\bproduction tui shipped\b|\bweb ui shipped\b/.test(hay)) {
+    throw new Error('TUI surface invents fullscreen-product / production-TUI / Web-UI claim');
   }
 }
 

@@ -35,7 +35,7 @@ function formatNonTtySpikeGuidance() {
     'Non-TTY: operator modules remain available via CLI verbs (no Ink/React load):',
     '  ai-minions runs',
     '  ai-minions status --run-id <task_id>',
-    '  ai-minions tui   # existing readline cockpit (production entrypoint unchanged)',
+    '  ai-minions tui   # production fullscreen Ink shell (legacy: AI_MINIONS_TUI_LEGACY=1)',
     'Interactive spike (TTY only): npm run spike:ink7 --prefix orchestrator',
   ].join('\n');
 }

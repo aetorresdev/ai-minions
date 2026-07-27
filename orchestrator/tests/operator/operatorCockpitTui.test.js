@@ -70,7 +70,8 @@ test('buildCockpitHomeText shows status and actions without secrets', () => {
   assert.match(text, /RUN_TRACE_INVALID/);
   assert.match(text, /disk-only/);
   assert.match(text, /Config \(5\):/);
-  assert.match(text, /not fullscreen/i);
+  assert.match(text, /legacy readline/i);
+  assert.match(text, /AI_MINIONS_TUI_LEGACY/);
   assert.doesNotMatch(text, /sk-ant-/);
   assert.doesNotMatch(text, /sk-proj-/);
 });
@@ -376,12 +377,13 @@ test('ai-minions tui without selector on non-TTY exits with CLI guidance', () =>
   assert.match(r.stderr, /ai-minions doctor/);
 });
 
-test('ai-minions --help documents interactive cockpit', () => {
+test('ai-minions --help documents fullscreen shell', () => {
   const r = spawnSync(process.execPath, [CLI_PATH, '--help'], {
     encoding: 'utf8',
     cwd: ORCH_CWD,
   });
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /tui\s+Interactive cockpit/);
-  assert.match(r.stdout, /not production TUI/);
+  assert.match(r.stdout, /tui\s+Fullscreen Ink shell/);
+  assert.match(r.stdout, /not guided launcher|Web UI/i);
+  assert.match(r.stdout, /AI_MINIONS_TUI_LEGACY/);
 });

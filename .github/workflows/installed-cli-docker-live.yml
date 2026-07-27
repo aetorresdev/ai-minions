@@ -78,31 +78,51 @@ jobs:
       - name: Run installed CLI evidence inside Docker
         run: |
           set -euo pipefail
-          docker run --rm \
-            --network=host \
-            -v "${{ github.workspace }}:/workspace/ai-minions" \
-            -w /workspace/ai-minions \
-            -e OLLAMA_HOST="${OLLAMA_HOST}" \
-            -e OLLAMA_PORT="${OLLAMA_PORT}" \
-            -e OLLAMA_MODEL="${OLLAMA_MODEL}" \
-            node:22-bookworm \
-            bash -lc '
-              set -euo pipefail
-              node --version
-              apt-get update -qq
-              apt-get install -y -qq curl ca-certificates python3-pip
-              # Pin: ruff 0.16+ enables new defaults (e.g. PLW1510) that fail this tree.
-              pip3 install --break-system-packages -q "ruff==0.15.22"
-              curl -LsSf https://astral.sh/uv/0.6.14/install.sh | sh
-              export PATH="$HOME/.local/bin:$PATH"
-              cd orchestrator && npm ci
-              cd ../mcp-servers/orchestrator-state && uv sync --quiet
-              cd ../compact-handoff && uv sync --quiet
-              cd /workspace/ai-minions
-              node scripts/install-ai-minions.mjs --install --model-policy local_only --json >/tmp/product-install.json
-              node scripts/run-install-evidence.mjs --json | tee /tmp/install-evidence.json
-              node scripts/assert-docker-live-install-evidence.mjs --file /tmp/install-evidence.json
-            '
+          # Self-hosted runners occasionally hit transient systemd/cgroup activation
+          # timeouts when creating the first container (docker exit 125). Retry a few
+          # times before failing the merge gate.
+          max_attempts=3
+          attempt=1
+          while true; do
+            set +e
+            docker run --rm \
+              --network=host \
+              -v "${{ github.workspace }}:/workspace/ai-minions" \
+              -w /workspace/ai-minions \
+              -e OLLAMA_HOST="${OLLAMA_HOST}" \
+              -e OLLAMA_PORT="${OLLAMA_PORT}" \
+              -e OLLAMA_MODEL="${OLLAMA_MODEL}" \
+              node:22-bookworm \
+              bash -lc '
+                set -euo pipefail
+                node --version
+                apt-get update -qq
+                apt-get install -y -qq curl ca-certificates python3-pip
+                # Pin: ruff 0.16+ enables new defaults (e.g. PLW1510) that fail this tree.
+                pip3 install --break-system-packages -q "ruff==0.15.22"
+                curl -LsSf https://astral.sh/uv/0.6.14/install.sh | sh
+                export PATH="$HOME/.local/bin:$PATH"
+                cd orchestrator && npm ci
+                cd ../mcp-servers/orchestrator-state && uv sync --quiet
+                cd ../compact-handoff && uv sync --quiet
+                cd /workspace/ai-minions
+                node scripts/install-ai-minions.mjs --install --model-policy local_only --json >/tmp/product-install.json
+                node scripts/run-install-evidence.mjs --json | tee /tmp/install-evidence.json
+                node scripts/assert-docker-live-install-evidence.mjs --file /tmp/install-evidence.json
+              '
+            exit_code=$?
+            set -e
+            if [ "$exit_code" -eq 0 ]; then
+              break
+            fi
+            # 125 = docker client failure (container never started). Retry only that class.
+            if [ "$exit_code" -ne 125 ] || [ "$attempt" -ge "$max_attempts" ]; then
+              exit "$exit_code"
+            fi
+            echo "::warning::docker run failed with exit ${exit_code} (attempt ${attempt}/${max_attempts}); retrying after systemd/cgroup settle…"
+            attempt=$((attempt + 1))
+            sleep 15
+          done
 
       - name: Job summary
         if: always()

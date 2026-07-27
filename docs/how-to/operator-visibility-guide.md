@@ -5,7 +5,7 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 **Product CLI:** `ai-minions runs` · `status` · `explain` · `report` · `tui` · `attach` · `evidence`
 **Contract sources:** trace JSONL under `ORCH_TRACES_DIR` (default `~/.claude/metrics/traces/`) — same SoT as legacy `explain-run` and `collect-run-report.mjs`.
 
-**Not claimed:** production TUI / Web UI · fullscreen navigable panes · interactive approvals or reruns from evidence panels · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
+**Not claimed:** guided launcher · live run monitor · slash commands · Web UI · interactive approvals or reruns from evidence panels · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
 
 ---
 
@@ -22,7 +22,7 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 | GitHub feedback bundle (privacy scan) | `ai-minions attach --run-id <id>` | Wraps `collect-run-report.mjs` — human-readable attach layout |
 | Paths + inspect panel | `ai-minions evidence --run-id <id>` | Bundle paths · inspect checks |
 
-**Selectors:** use `ai-minions runs` when the run id is unknown, then pass `--run-id`; `--run` is an alias on report/tui evidence mode, `--latest` selects the newest trace, and `--file <path>` overrides run-id resolution. Bare `ai-minions tui` (no selector) opens the interactive cockpit on a TTY; non-TTY exits with equivalent CLI verb guidance.
+**Selectors:** use `ai-minions runs` when the run id is unknown, then pass `--run-id`; `--run` is an alias on report/tui evidence mode, `--latest` selects the newest trace, and `--file <path>` overrides run-id resolution. Bare `ai-minions tui` (no selector) opens the fullscreen Ink shell on a TTY; non-TTY exits with equivalent CLI verb guidance (no Ink init).
 
 **Read-only rule:** `runs`, `status`, `explain`, `report`, `tui --run-id|--latest|--file`, and `evidence` do **not** approve, merge, rerun, or mutate runs. Cockpit **smoke** / **attach** / **doctor** call the same mutating or probe modules as the named CLI verbs. Steering that suggests mutation on read-only surfaces is blocked by policy (see eval fixtures in orchestrator tests).
 
@@ -146,11 +146,11 @@ Persistent action loop: product status + smoke / runs / **select run + status pa
 
 Contract: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md). Quality gate (mandatory when TUI ships): `cd orchestrator && npm run test:tui-quality`.
 
-**Not claimed:** production TUI · Web UI · fullscreen navigable panes · durable resume.
+**Not claimed:** guided launcher · live monitor · slash commands · Web UI · durable resume.
 
 ### Evidence surface (selectors)
 
-Stdout panels — **not** a fullscreen product UI.
+Stdout evidence panels (`tui --run-id|--latest|--file`) — read-only; interactive shell is the bare `ai-minions tui` entry.
 
 ```bash
 ai-minions tui --run-id <task_id>
