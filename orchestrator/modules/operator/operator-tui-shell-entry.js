@@ -15,8 +15,13 @@ const { runOperatorRuns } = require('./operator-run-list');
 const { formatNonTtyGuidance } = require('./operator-cockpit-tui');
 const { runOperatorCockpit } = require('./operator-cockpit-tui');
 const { buildShellModel, formatShellText } = require('./operator-tui-shell-model');
-const { executeShellAction, resolveShellActionToken } = require('./operator-tui-shell-actions');
+const {
+  executeShellAction,
+  resolveShellActionToken,
+  resolveSlashCommandPlan,
+} = require('./operator-tui-shell-actions');
 const { createTerminalGuard, withTerminalGuard } = require('./operator-tui-terminal-guard');
+const { adaptActionResult } = require('./operator-tui-adapters');
 
 const TUI_SHELL_REASON = Object.freeze({
   NON_TTY: 'COCKPIT_TTY_REQUIRED',
@@ -257,6 +262,156 @@ async function runOperatorTuiShell(options = {}) {
           model,
           guard,
         };
+      }
+
+      const slashPlan = resolveSlashCommandPlan(requestedAction, { selectedRunId });
+      if (slashPlan) {
+        const { plan } = slashPlan;
+        if (plan.disposition === 'help' || plan.disposition === 'message') {
+          actionResult = adaptActionResult({
+            action_id: slashPlan.parsed.name ? `/${slashPlan.parsed.name}` : '/',
+            ok: plan.ok !== false,
+            exitCode: plan.exitCode ?? 1,
+            reason_code: plan.reason_code ?? null,
+            next_safe_action: plan.next_safe_action ?? null,
+            text: plan.text || '',
+          });
+          contentSurface = 'action_result';
+          model = buildShellModel({
+            aboutInfo,
+            credentials,
+            pathActivation,
+            runsPayload,
+            statusResult,
+            evidenceModel,
+            configModel,
+            launcherModel,
+            actionResult,
+            lifecycleSource,
+            monitorSource,
+            selectedRunId,
+            selectedNavId: model.selectedNavId,
+            contentSurface,
+            columns: model.columns,
+            rows: model.rows,
+            focus: 'input',
+            colorEnabled: model.colorEnabled,
+            productVersion: aboutInfo.version,
+          });
+          if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
+            if (!guard.restored) guard.restore('normal');
+            return {
+              ok: actionResult.ok === true,
+              exitCode: actionResult.exit_code ?? 1,
+              reason_code: TUI_SHELL_REASON.OK,
+              ink_loaded: inkLoaded,
+              react_loaded: reactLoaded,
+              text: formatShellText(model),
+              model,
+              guard,
+            };
+          }
+          continue;
+        }
+
+        if (plan.disposition === 'dispatch' && plan.action_id) {
+          if (!guard.restored) guard.restore('action_dispatch');
+          let actionOutcome;
+          try {
+            actionOutcome = await executeAction({
+              actionId: plan.action_id,
+              selectedRunId: plan.run_id ?? selectedRunId,
+              skipRunPrompt: plan.skip_run_prompt === true,
+              cwd: options.cwd,
+              useColor,
+              stdin,
+              stdout,
+              modelPolicy: aboutInfo.model_policy,
+            });
+          } catch (err) {
+            if (!guard.restored) guard.restore('action_failure');
+            return {
+              ok: false,
+              exitCode: 1,
+              reason_code: TUI_SHELL_REASON.ACTION_FAILURE,
+              ink_loaded: inkLoaded,
+              react_loaded: reactLoaded,
+              text: formatShellText(model),
+              model,
+              guard,
+              error: String(err && err.message ? err.message : err),
+            };
+          }
+
+          selectedRunId = actionOutcome.selectedRunId ?? selectedRunId;
+          actionResult = actionOutcome.actionResult;
+          contentSurface = actionOutcome.contentSurface ?? 'action_result';
+          if (actionOutcome.runsPayload) runsPayload = actionOutcome.runsPayload;
+          if (actionOutcome.statusResult) {
+            statusResult = actionOutcome.statusResult;
+            lifecycleSource = actionOutcome.statusResult.json
+              ?? actionOutcome.statusResult;
+            monitorSource = actionOutcome.statusResult;
+          }
+          if (actionOutcome.monitorSource) monitorSource = actionOutcome.monitorSource;
+          if (actionOutcome.evidenceModel) evidenceModel = actionOutcome.evidenceModel;
+          if (actionOutcome.configModel) configModel = actionOutcome.configModel;
+          if (Object.prototype.hasOwnProperty.call(actionOutcome, 'launcherModel')) {
+            launcherModel = actionOutcome.launcherModel;
+          }
+          lastExitCode = actionResult?.exit_code ?? lastExitCode;
+
+          if (actionOutcome.quit) {
+            return {
+              ok: true,
+              exitCode: 0,
+              reason_code: TUI_SHELL_REASON.QUIT,
+              ink_loaded: inkLoaded,
+              react_loaded: reactLoaded,
+              text: formatShellText(model),
+              model,
+              guard,
+            };
+          }
+
+          guard = createTerminalGuard({ stdin, stdout });
+          model = buildShellModel({
+            aboutInfo: buildAbout({ cwd: options.cwd }),
+            credentials: assessCredentials({ modelPolicy: aboutInfo.model_policy }),
+            pathActivation: assessPath(),
+            runsPayload,
+            statusResult,
+            evidenceModel,
+            configModel,
+            launcherModel,
+            actionResult,
+            lifecycleSource,
+            monitorSource,
+            selectedRunId,
+            selectedNavId: plan.action_id === 'quit' ? model.selectedNavId : plan.action_id,
+            contentSurface,
+            columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
+            rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
+            focus: 'input',
+            colorEnabled: useColor && process.env.NO_COLOR == null,
+            productVersion: aboutInfo.version,
+          });
+
+          if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
+            if (!guard.restored) guard.restore('normal');
+            return {
+              ok: lastExitCode === 0,
+              exitCode: lastExitCode,
+              reason_code: TUI_SHELL_REASON.OK,
+              ink_loaded: inkLoaded,
+              react_loaded: reactLoaded,
+              text: formatShellText(model),
+              model,
+              guard,
+            };
+          }
+          continue;
+        }
       }
 
       const actionId = resolveShellActionToken(requestedAction, model.selectedNavId);
