@@ -13,6 +13,7 @@ const {
   formatGuidedLauncherLines,
   buildEquivalentCommand,
   resolveConfiguredLimits,
+  shellQuote,
 } = require('../../modules/operator/operator-guided-launcher-model');
 const {
   runOperatorGuidedLauncherPane,
@@ -20,6 +21,7 @@ const {
 const { adaptGuidedLauncher } = require('../../modules/operator/operator-tui-adapters');
 const { buildShellModel } = require('../../modules/operator/operator-tui-shell-model');
 const { resolveCockpitAction, COCKPIT_ACTIONS } = require('../../modules/operator/operator-cockpit-tui');
+const { DEFAULT_SMOKE_GOAL } = require('../../modules/operator/operator-guided-first-run');
 
 const REPO_ROOT = path.join(__dirname, '..', '..', '..');
 const MATRIX_DATA = path.join(REPO_ROOT, 'scripts', 'lib', 'tester-six-mode-matrix-data.mjs');
@@ -196,10 +198,72 @@ test('equivalent command never invents hybrid policy', () => {
     productPolicy: 'remote_ok',
     gatePosture: 'degraded',
     goal: 'x',
+    defaultSmokeGoal: 'canonical default smoke goal',
     maxIterations: 1,
   });
-  assert.equal(cmd, 'ai-minions smoke --model-policy remote_ok');
+  assert.equal(cmd, "ai-minions smoke --model-policy remote_ok --goal 'x'");
   assert.doesNotMatch(cmd, /hybrid/);
+});
+
+test('smoke equivalent_command includes --goal for custom and fixture goals', () => {
+  const defaultGoal = 'canonical default smoke goal';
+  const custom = buildEquivalentCommand({
+    agentFlow: 'single_agent',
+    productPolicy: 'local_only',
+    gatePosture: 'degraded',
+    goal: "List three files and stop",
+    defaultSmokeGoal: defaultGoal,
+    maxIterations: 1,
+  });
+  assert.match(custom, /^ai-minions smoke --model-policy local_only --goal /);
+  assert.match(custom, /--goal 'List three files and stop'/);
+  assert.equal(custom, `ai-minions smoke --model-policy local_only --goal ${shellQuote("List three files and stop")}`);
+
+  const fixtureGoal = 'Build a sudoku HTML app and stop.';
+  const fixture = buildEquivalentCommand({
+    agentFlow: 'single_agent',
+    productPolicy: 'local_only',
+    gatePosture: 'degraded',
+    goal: fixtureGoal,
+    defaultSmokeGoal: defaultGoal,
+    maxIterations: 1,
+  });
+  assert.equal(
+    fixture,
+    `ai-minions smoke --model-policy local_only --goal ${shellQuote(fixtureGoal)}`,
+  );
+
+  const defaultSmoke = buildEquivalentCommand({
+    agentFlow: 'single_agent',
+    productPolicy: 'local_only',
+    gatePosture: 'degraded',
+    goal: defaultGoal,
+    defaultSmokeGoal: defaultGoal,
+    maxIterations: 1,
+  });
+  assert.equal(defaultSmoke, 'ai-minions smoke --model-policy local_only');
+  assert.doesNotMatch(defaultSmoke, /--goal/);
+});
+
+test('unknown wall-clock env vars do not invent a time_limit', () => {
+  const limits = resolveConfiguredLimits({
+    env: {
+      ORCH_WALL_CLOCK_LIMIT_MS: '60000',
+      ORCH_MAX_WALL_MS: '120000',
+      ORCH_MAX_ITERATIONS: '4',
+    },
+  });
+  assert.equal(limits.time_limit.availability, 'not_configured');
+  assert.equal(limits.time_limit.value, null);
+  assert.equal(limits.max_iterations.value, 4);
+
+  const explicit = resolveConfiguredLimits({
+    timeLimit: 90000,
+    env: { ORCH_WALL_CLOCK_LIMIT_MS: '60000' },
+  });
+  assert.equal(explicit.time_limit.availability, 'available');
+  assert.equal(explicit.time_limit.value, 90000);
+  assert.equal(explicit.time_limit.source, 'cli_or_options');
 });
 
 test('pane: hybrid selection skips without launching; remote missing remediates', async () => {
@@ -248,6 +312,7 @@ test('pane: hybrid selection skips without launching; remote missing remediates'
 
 test('pane launches via smoke contract when single_agent degraded', async () => {
   let called = null;
+  const customGoal = 'List three files and stop';
   const result = await runOperatorGuidedLauncherPane({
     question: async () => 'y',
     write: () => {},
@@ -256,11 +321,12 @@ test('pane launches via smoke contract when single_agent degraded', async () => 
       inferenceLane: 'local_only',
       gatePosture: 'degraded',
       goalSource: 'custom',
-      goal: 'List three files and stop',
+      goal: customGoal,
       confirm: true,
     },
     env: {},
     localBackendReachable: true,
+    defaultSmokeGoal: DEFAULT_SMOKE_GOAL,
     runSmokeFn: async (opts) => {
       called = opts;
       return {
@@ -278,7 +344,51 @@ test('pane launches via smoke contract when single_agent degraded', async () => 
   assert.equal(called.modelPolicy, 'local_only');
   assert.equal(called.skipGates, true);
   assert.equal(called.maxIterations, 1);
-  assert.match(result.text, /equivalent_command: ai-minions smoke --model-policy local_only/);
+  assert.equal(called.goal, customGoal);
+  const expectedCmd = `ai-minions smoke --model-policy local_only --goal ${shellQuote(customGoal)}`;
+  assert.equal(result.model.equivalent_command, expectedCmd);
+  assert.match(result.text, /equivalent_command: ai-minions smoke --model-policy local_only --goal /);
+  assert.equal(result.model.launch_options.goal, customGoal);
+});
+
+test('pane fixture goal is recorded in equivalent_command and launch_options', async () => {
+  const fixtureGoal = 'Fixture: build solar-system HTML demo and stop.';
+  let called = null;
+  const result = await runOperatorGuidedLauncherPane({
+    question: async () => 'y',
+    write: () => {},
+    selections: {
+      agentFlow: 'single_agent',
+      inferenceLane: 'local_only',
+      gatePosture: 'degraded',
+      goalSource: 'fixture',
+      fixtureId: 'solar-system-html-demo',
+      goal: fixtureGoal,
+      confirm: true,
+    },
+    env: {},
+    localBackendReachable: true,
+    defaultSmokeGoal: DEFAULT_SMOKE_GOAL,
+    loadFixturePromptFn: async () => fixtureGoal,
+    runSmokeFn: async (opts) => {
+      called = opts;
+      return {
+        ok: true,
+        exitCode: 0,
+        reason_code: 'SMOKE_OK',
+        smokeText: 'smoke ok',
+        next_safe_action: 'ai-minions status --run-id t-fixture',
+        launched: { task_id: 't-fixture', terminal_status: 'done' },
+      };
+    },
+  });
+  assert.equal(result.launched, true);
+  assert.equal(called.goal, fixtureGoal);
+  assert.equal(result.model.launch_options.goal, fixtureGoal);
+  assert.equal(
+    result.model.equivalent_command,
+    `ai-minions smoke --model-policy local_only --goal ${shellQuote(fixtureGoal)}`,
+  );
 });
 
 test('pane multi_agent strict uses runStart without expanding budgets', async () => {

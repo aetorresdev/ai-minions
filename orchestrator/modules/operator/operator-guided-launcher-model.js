@@ -214,7 +214,9 @@ function limitFromRaw(raw, source) {
 }
 
 /**
- * Resolve configured limits from explicit options first, then env — absent when unset.
+ * Resolve configured limits from explicit options first, then proven env contracts.
+ * time_limit is options-only: no runtime/CLI wall-clock env exists today
+ * (ORCH_MAX_ITERATIONS / ORCH_MAX_RETRIES / ORCH_MAX_COST_USD only).
  * @param {{
  *   maxIterations?: unknown,
  *   maxRetries?: unknown,
@@ -235,9 +237,8 @@ function resolveConfiguredLimits(options = {}) {
   const cost = options.costLimitUsd !== undefined
     ? options.costLimitUsd
     : env.ORCH_MAX_COST_USD;
-  const timeLimit = options.timeLimit !== undefined
-    ? options.timeLimit
-    : (env.ORCH_WALL_CLOCK_LIMIT_MS ?? env.ORCH_MAX_WALL_MS);
+  // No ORCH_* wall-clock env is consumed by runSmoke/runStart/orchestrator — do not invent one.
+  const timeLimit = options.timeLimit;
   let approved = options.approvedArtifacts;
   if (approved === undefined) {
     approved = null;
@@ -246,7 +247,7 @@ function resolveConfiguredLimits(options = {}) {
     max_iterations: limitFromRaw(iterations, 'cli_or_env'),
     max_retries: limitFromRaw(retries, 'cli_or_env'),
     cost_limit_usd: limitFromRaw(cost, 'cli_or_env'),
-    time_limit: limitFromRaw(timeLimit, 'cli_or_env'),
+    time_limit: limitFromRaw(timeLimit, 'cli_or_options'),
     approved_artifacts: Array.isArray(approved)
       ? provenanceField(approved.length === 0 ? [] : approved, 'cli_or_options')
       : provenanceField(approved == null ? 'not_configured' : approved, 'cli_or_options'),
@@ -270,11 +271,15 @@ function shellQuote(goal) {
 
 /**
  * Build equivalent product CLI command from resolved launcher choices.
+ * Smoke omits `--goal` only when the selected goal is the canonical default
+ * (CLI smoke already substitutes DEFAULT_SMOKE_GOAL); custom/fixture goals
+ * must include a shell-quoted `--goal` so replay matches launch_options.
  * @param {{
  *   agentFlow: AgentFlow,
  *   productPolicy: 'local_only' | 'remote_ok',
  *   gatePosture: GatePosture,
  *   goal: string,
+ *   defaultSmokeGoal?: string | null,
  *   maxIterations?: number | null,
  * }} input
  */
@@ -283,9 +288,21 @@ function buildEquivalentCommand(input) {
   const iterations = input.maxIterations != null && Number.isFinite(Number(input.maxIterations))
     ? Number(input.maxIterations)
     : null;
+  const goal = String(input.goal ?? '').trim();
+  const defaultGoal = input.defaultSmokeGoal == null
+    ? ''
+    : String(input.defaultSmokeGoal).trim();
+  const includeSmokeGoal = Boolean(goal) && (!defaultGoal || goal !== defaultGoal);
 
   if (input.agentFlow === 'single_agent' && skipGates && (iterations === 1 || iterations == null)) {
-    return `ai-minions smoke --model-policy ${input.productPolicy}`;
+    const smokeParts = [
+      'ai-minions smoke',
+      `--model-policy ${input.productPolicy}`,
+    ];
+    if (includeSmokeGoal) {
+      smokeParts.push(`--goal ${shellQuote(goal)}`);
+    }
+    return smokeParts.join(' ');
   }
 
   const parts = [
@@ -295,7 +312,7 @@ function buildEquivalentCommand(input) {
   ];
   if (skipGates) parts.push('--skip-gates');
   if (iterations != null) parts.push(`--iterations ${iterations}`);
-  parts.push(`--goal ${shellQuote(input.goal)}`);
+  parts.push(`--goal ${shellQuote(goal)}`);
   return parts.join(' ');
 }
 
@@ -416,6 +433,7 @@ function buildGuidedLauncherModel(options = {}) {
       productPolicy,
       gatePosture,
       goal,
+      defaultSmokeGoal: options.defaultSmokeGoal ?? null,
       maxIterations: resolvedMaxIterations.availability === 'available'
         ? Number(resolvedMaxIterations.value)
         : null,
