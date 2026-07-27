@@ -310,6 +310,20 @@ export function formatReportText(report) {
   return lines.join("\n");
 }
 
+/** Explicit rejection — there is no runtime time-limit contract on this runner. */
+export const UNSUPPORTED_TIME_LIMIT_MSG =
+  "--time-limit is not supported (no runtime time-limit contract); omit the flag";
+
+/**
+ * @param {string} message
+ * @returns {Error & { code: string }}
+ */
+function usageError(message) {
+  const err = /** @type {Error & { code: string }} */ (new Error(message));
+  err.code = "USAGE";
+  return err;
+}
+
 /**
  * @param {string[]} argv
  */
@@ -349,6 +363,13 @@ export function parseArgs(argv) {
     else if (a === "--evidence-dir") out.evidenceDir = argv[++i] ?? null;
     else if (a === "--max-iterations") out.maxIterations = argv[++i] ?? null;
     else if (a === "--help" || a === "-h") out.help = true;
+    else if (a === "--time-limit") {
+      throw usageError(UNSUPPORTED_TIME_LIMIT_MSG);
+    } else if (typeof a === "string" && a.startsWith("-")) {
+      throw usageError(`unknown option: ${a}`);
+    } else {
+      throw usageError(`unexpected argument: ${a}`);
+    }
   }
   return out;
 }
@@ -367,7 +388,15 @@ operator contracts (shared live harness). Hybrid remains honest SKIP.`);
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    printHelp();
+    process.exit(1);
+    return;
+  }
   if (args.help) {
     printHelp();
     return;

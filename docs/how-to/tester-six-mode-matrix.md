@@ -79,7 +79,14 @@ node scripts/run-tester-six-mode-matrix.mjs --execute-live \
 | `MATRIX_READY` | Row eligible for live tester execution (`--run-ready`) — **not** PASS |
 | `LIVE_HARNESS_PASS` | Opt-in `--execute-live` row satisfied full evidence chain |
 
-Exit codes: **0** = no structure failures (skips allowed) · **1** = blocker (`stderr` lists `blocker: <reason_code>`).
+Process exit codes (distinct from score vocabulary PASS / FAIL / SKIP / BLOCKED):
+
+| Exit | When |
+|------|------|
+| **0** | No structural/configuration failures. Includes readiness-only OK and live harness aggregates of **SKIP** or **BLOCKED** — those live outcomes are **never PASS**. |
+| **1** | Structural/configuration failure only (for example `MATRIX_DOC_FAIL`, unsupported/unknown CLI options such as `--time-limit`) **or** live harness **FAIL**. For structure failures, `stderr` may list `blocker: <reason_code>`. |
+
+Do not treat exit **0** with live **BLOCKED**/**SKIP** as PASS, and do not equate exit **1** with the score label BLOCKED.
 
 ---
 

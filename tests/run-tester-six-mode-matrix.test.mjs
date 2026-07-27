@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -15,6 +16,7 @@ import {
   validateMatrixDoc,
 } from "../scripts/lib/tester-six-mode-matrix-data.mjs";
 import {
+  UNSUPPORTED_TIME_LIMIT_MSG,
   formatReportText,
   liveOutcomeToStepStatus,
   deriveLiveHarnessAggregate,
@@ -271,10 +273,51 @@ describe("run-tester-six-mode-matrix", () => {
     }), "PASS");
   });
 
-  it("parseArgs does not accept --time-limit (no runtime contract)", () => {
-    const parsed = parseArgs(["--execute-live", "--time-limit", "30", "--rows", "sa-local_only"]);
-    assert.equal(Object.prototype.hasOwnProperty.call(parsed, "timeLimit"), false);
-    assert.equal(parsed.rowIds, "sa-local_only");
+  it("parseArgs rejects --time-limit with USAGE error (not silent ignore)", () => {
+    assert.throws(
+      () => parseArgs(["--execute-live", "--time-limit", "30", "--rows", "sa-local_only"]),
+      (err) => {
+        assert.ok(err instanceof Error);
+        assert.equal(err.message, UNSUPPORTED_TIME_LIMIT_MSG);
+        assert.equal(err.code, "USAGE");
+        return true;
+      },
+    );
+  });
+
+  it("parseArgs rejects unknown options", () => {
+    assert.throws(
+      () => parseArgs(["--skip-live", "--not-a-real-flag"]),
+      (err) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /unknown option: --not-a-real-flag/);
+        assert.equal(err.code, "USAGE");
+        return true;
+      },
+    );
+  });
+
+  it("CLI exits non-zero when --time-limit is passed", () => {
+    const script = path.join(REPO_ROOT, "scripts/run-tester-six-mode-matrix.mjs");
+    const result = spawnSync(
+      process.execPath,
+      [script, "--skip-live", "--time-limit", "30"],
+      { encoding: "utf8" },
+    );
+    assert.notEqual(result.status, 0);
+    const combined = `${result.stderr || ""}\n${result.stdout || ""}`;
+    assert.match(combined, /--time-limit is not supported/);
+  });
+
+  it("runbook documents exit 0 for live SKIP/BLOCKED (never PASS)", () => {
+    const text = fs.readFileSync(MATRIX_DOC, "utf8");
+    assert.match(text, /Process exit codes/);
+    assert.match(text, /BLOCKED.*never PASS|never PASS/i);
+    assert.match(text, /structural\/configuration failure/i);
+    assert.doesNotMatch(
+      text,
+      /Exit codes:\s*\*\*0\*\*\s*=\s*no structure failures \(skips allowed\)\s*·\s*\*\*1\*\*\s*=\s*blocker/,
+    );
   });
 
   it("runTesterSixModeMatrixLive uses shared harness mock and does not claim PASS from readiness", async () => {
