@@ -172,6 +172,11 @@ async function executeShellAction(options) {
         cwd: options.cwd,
       });
       if (result.selected_run_id) selectedRunId = result.selected_run_id;
+      // Operator returns status_pane (not model/pane_model) — map into status adapter input.
+      statusResult = result.status_pane
+        ?? result.model
+        ?? result.pane_model
+        ?? null;
       contentSurface = 'status';
       return {
         quit: false,
@@ -186,7 +191,7 @@ async function executeShellAction(options) {
         }),
         evidenceModel: null,
         configModel: null,
-        statusResult: null,
+        statusResult,
         runsPayload: null,
       };
     }
@@ -222,7 +227,11 @@ async function executeShellAction(options) {
         useColor,
         cwd: options.cwd,
       });
-      evidenceModel = result.model ?? result.pane_model ?? null;
+      // Operator returns pane (not model/pane_model) — map into evidence adapter input.
+      evidenceModel = result.pane
+        ?? result.model
+        ?? result.pane_model
+        ?? null;
       contentSurface = 'evidence';
       return {
         quit: false,
@@ -352,7 +361,11 @@ async function executeShellAction(options) {
           cwd: options.cwd,
           modelPolicy: options.modelPolicy,
         });
-        configModel = result.model ?? result.pane_model ?? null;
+        // Operator returns nested pane — adaptConfigReadiness normalizes path/creds/remediations.
+        configModel = result.pane
+          ?? result.model
+          ?? result.pane_model
+          ?? null;
         contentSurface = 'config';
         return {
           quit: false,

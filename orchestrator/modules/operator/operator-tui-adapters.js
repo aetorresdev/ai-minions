@@ -149,7 +149,8 @@ function adaptRunsList(payload) {
 }
 
 /**
- * Selected-run status view-model from `runOperatorStatus` / status JSON (no CLI text parsing).
+ * Selected-run status view-model from `runOperatorStatus` JSON or flat `status_pane`
+ * (run-selector) — no CLI text parsing.
  * @param {object | null | undefined} statusResult
  */
 function adaptSelectedRunStatus(statusResult) {
@@ -166,28 +167,35 @@ function adaptSelectedRunStatus(statusResult) {
       available: false,
     };
   }
-  const json = statusResult.json && typeof statusResult.json === 'object' ? statusResult.json : {};
-  const summary = json.operator_trace_summary && typeof json.operator_trace_summary === 'object'
+  const json = statusResult.json && typeof statusResult.json === 'object' ? statusResult.json : null;
+  const summary = json && json.operator_trace_summary && typeof json.operator_trace_summary === 'object'
     ? json.operator_trace_summary
     : {};
-  const runState = json.run_state_visibility && typeof json.run_state_visibility === 'object'
+  const runState = json && json.run_state_visibility && typeof json.run_state_visibility === 'object'
     ? json.run_state_visibility
     : {};
+  // Flat status_pane fields apply when operator status JSON wrapper is absent.
+  const runId = (json && json.run_id != null ? json.run_id : undefined) ?? statusResult.run_id;
+  const status = (json && json.status != null ? json.status : undefined) ?? statusResult.status;
+  const outcome = (summary.outcome != null ? summary.outcome : undefined) ?? statusResult.outcome;
+  const resultCode = statusResult.result_code
+    ?? (json && json.result_code != null ? json.result_code : undefined)
+    ?? null;
+  const reasonCode = statusResult.reason_code
+    ?? (runState.blocking_reason_code != null ? runState.blocking_reason_code : undefined)
+    ?? null;
+  const nextSafe = statusResult.next_safe_action
+    ?? (summary.next_safe_action != null ? summary.next_safe_action : undefined)
+    ?? null;
   return {
     schema: ADAPTER_SCHEMA,
     kind: 'selected_run_status',
-    run_id: String(json.run_id ?? statusResult.run_id ?? '') || null,
-    result_code: statusResult.result_code == null && json.result_code == null
-      ? null
-      : String(statusResult.result_code ?? json.result_code),
-    status: json.status == null ? null : String(json.status),
-    outcome: summary.outcome == null ? null : String(summary.outcome),
-    reason_code: statusResult.reason_code == null && runState.blocking_reason_code == null
-      ? null
-      : String(statusResult.reason_code ?? runState.blocking_reason_code),
-    next_safe_action: statusResult.next_safe_action == null && summary.next_safe_action == null
-      ? null
-      : String(statusResult.next_safe_action ?? summary.next_safe_action),
+    run_id: runId == null || runId === '' ? null : String(runId),
+    result_code: resultCode == null ? null : String(resultCode),
+    status: status == null ? null : String(status),
+    outcome: outcome == null ? null : String(outcome),
+    reason_code: reasonCode == null ? null : String(reasonCode),
+    next_safe_action: nextSafe == null ? null : String(nextSafe),
     available: true,
   };
 }
@@ -233,6 +241,8 @@ function adaptEvidenceAttachState(paneModel) {
 
 /**
  * Configuration / credential readiness from config pane / doctor surfaces.
+ * Accepts flat synthetic adapter fields or nested operator pane
+ * (`path_activation`, `credentials`, `remediation_candidates`).
  * @param {object | null | undefined} paneModel
  */
 function adaptConfigReadiness(paneModel) {
@@ -247,20 +257,38 @@ function adaptConfigReadiness(paneModel) {
       credential_sufficiency: null,
     };
   }
+  const pathActivation = paneModel.path_activation && typeof paneModel.path_activation === 'object'
+    ? paneModel.path_activation
+    : {};
+  const credentials = paneModel.credentials && typeof paneModel.credentials === 'object'
+    ? paneModel.credentials
+    : {};
+  const pathStatus = paneModel.path_status != null
+    ? paneModel.path_status
+    : pathActivation.status;
+  const credentialSufficiency = paneModel.credential_sufficiency != null
+    ? paneModel.credential_sufficiency
+    : credentials.credential_sufficiency;
+  const doctorOk = paneModel.doctor_ok != null
+    ? paneModel.doctor_ok
+    : (paneModel.ok == null ? null : paneModel.ok);
+  const remediationRaw = Array.isArray(paneModel.remediations)
+    ? paneModel.remediations
+    : (Array.isArray(paneModel.remediation_candidates)
+      ? paneModel.remediation_candidates
+      : []);
   return {
     schema: ADAPTER_SCHEMA,
     kind: 'config_readiness',
     available: true,
-    path_status: paneModel.path_status == null ? null : String(paneModel.path_status),
+    path_status: pathStatus == null ? null : String(pathStatus),
     model_policy: paneModel.model_policy == null ? null : String(paneModel.model_policy),
-    doctor_ok: paneModel.doctor_ok == null ? null : Boolean(paneModel.doctor_ok),
-    credential_sufficiency: paneModel.credential_sufficiency == null
+    doctor_ok: doctorOk == null ? null : Boolean(doctorOk),
+    credential_sufficiency: credentialSufficiency == null
       ? null
-      : String(paneModel.credential_sufficiency),
+      : String(credentialSufficiency),
     next_safe_action: paneModel.next_safe_action == null ? null : String(paneModel.next_safe_action),
-    remediations: Array.isArray(paneModel.remediations)
-      ? paneModel.remediations.map((r) => String(r))
-      : [],
+    remediations: remediationRaw.map((r) => String(r)),
   };
 }
 
@@ -318,7 +346,14 @@ function adaptLifecycleSummary(source) {
   const rolePhase = src.current_role ?? src.current_phase ?? runState.current_phase
     ?? summary.current_phase;
   const gate = src.latest_gate ?? src.latest_verifier ?? runState.latest_gate;
-  const verdict = src.latest_verdict ?? runState.latest_verdict ?? summary.outcome;
+  // Verdict must be explicit — never fabricate from outcome/success provenance.
+  const verdict = Object.prototype.hasOwnProperty.call(src, 'latest_verdict')
+    ? src.latest_verdict
+    : (Object.prototype.hasOwnProperty.call(runState, 'latest_verdict')
+      ? runState.latest_verdict
+      : (Object.prototype.hasOwnProperty.call(summary, 'verdict')
+        ? summary.verdict
+        : undefined));
   const blocker = src.latest_blocker ?? runState.blocking_reason_code ?? summary.blocking_reason_code;
   const retryCount = src.retry_count ?? runState.retry_count;
   const retryLimit = src.retry_limit ?? runState.retry_limit;

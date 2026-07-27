@@ -30,7 +30,7 @@ Product direction is to adopt **Ink 7** (React renderer for CLIs) rather than ru
 |---|----------|-----------|
 | **D1** | **Ink 7 is the selected production TUI framework** for the fullscreen operator shell. | Executable spike met must-have criteria on the Node 22 contract; Node 24 also exercised. |
 | **D2** | **Operator modules remain authoritative.** Ink/React components consume adapters / view-models over `runOperatorRuns`, status loaders, and related operator APIs — they must not parse rendered CLI text or duplicate run-control semantics. | Prevents a second operator layer and protects traces/gates/evidence. |
-| **D3** | **Operator non-TTY entrypaths must not initialize Ink/React.** Interactive renderer loads only behind an explicit TTY (or test force) gate in `runInk7FrameworkSpike`. Packaging evidence may cold-import Ink in a separate child process; that probe is not the operator entrypath. | Preserves automation and piped CLI behavior. |
+| **D3** | **Operator non-TTY entrypaths must not initialize Ink/React.** Interactive renderer loads only behind an explicit TTY (or test force) gate in `runOperatorTuiShell` (production). The disposable spike entry `runInk7FrameworkSpike` follows the same rule for evidence runs. Packaging evidence may cold-import Ink in a separate child process; that probe is not the operator entrypath. | Preserves automation and piped CLI behavior. |
 | **D4** | **Spike remains disposable evidence.** Production `ai-minions tui` uses `operator-tui-shell-*` modules. | Separates framework lock artifacts from the shipping shell. |
 | **D5** | **OpenTUI is a documented rejected alternative** for this runtime. Build an OpenTUI spike only if Ink later fails a must-have criterion with reproducible evidence. | Avoids redundant bake-off cost; OpenTUI’s native/FFI and Bun-oriented path conflicts with the Node 22 package contract. |
 | **D6** | **Windows interactive support is deferred** until dedicated evidence exists. Linux is evidenced; macOS interactive evidence is required before release-tag closeout. | Honest platform claims. |
@@ -158,3 +158,4 @@ Collected via unit tests + `npm run evidence:ink7-spike` (JSON fixture under `or
 |------|--------|
 | 2026-07-24 | Initial ADR — Ink 7 accepted with spike evidence |
 | 2026-07-27 | Foundation slice wires production `ai-minions tui`; spike remains disposable |
+| 2026-07-27 | D3 migration note: TTY gate lives on `runOperatorTuiShell`; spike remains evidence-only |

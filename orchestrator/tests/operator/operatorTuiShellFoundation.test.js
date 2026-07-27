@@ -137,6 +137,25 @@ test('lifecycle adapter fixtures: active, blocked, exhausted, unavailable-budget
   assert.equal(zeroCost.measured_cost.availability, 'available');
 });
 
+test('lifecycle latest_verdict stays absent when only outcome is present', () => {
+  const adapted = adaptLifecycleSummary({
+    operator_trace_summary: {
+      outcome: 'success',
+    },
+  });
+  assert.equal(adapted.latest_verdict.availability, 'absent');
+  assert.equal(adapted.latest_verdict.value, null);
+
+  const withVerdict = adaptLifecycleSummary({
+    operator_trace_summary: {
+      outcome: 'success',
+      verdict: 'pass',
+    },
+  });
+  assert.equal(withVerdict.latest_verdict.availability, 'available');
+  assert.equal(withVerdict.latest_verdict.value, 'pass');
+});
+
 test('home / runs / status / evidence / config / action adapters are framework-neutral', () => {
   const home = adaptHomeReadiness({
     aboutInfo: { version: '0.26.0-beta.1', git_commit: 'abc', model_policy: 'local_only' },
@@ -391,6 +410,129 @@ test('resolveShellActionToken maps cockpit keys', () => {
   assert.equal(resolveShellActionToken('q'), 'quit');
   assert.equal(resolveShellActionToken('', 'config'), 'config');
   assert.equal(resolveShellActionToken('nope'), null);
+});
+
+test('select/evidence/config actions propagate nested pane payloads into remounted shell model', async () => {
+  const { executeShellAction } = require('../../modules/operator/operator-tui-shell-actions');
+  const statusPane = {
+    run_id: 'run-select-1',
+    result_code: 'RUN_FOUND',
+    status: 'complete',
+    outcome: 'success',
+    reason_code: null,
+    next_safe_action: 'attach',
+  };
+  const evidencePane = {
+    run_id: 'run-ev-1',
+    result_code: 'RUN_FOUND',
+    status: 'complete',
+    outcome: 'success',
+    attach_available: true,
+    attach_bundle_available: true,
+    attach_action_available: true,
+    reason_code: null,
+    next_safe_action: 'none',
+  };
+  const configPane = {
+    ok: true,
+    model_policy: 'local_only',
+    path_activation: { status: 'ready', on_path: true },
+    credentials: {
+      credential_sufficiency: 'not_required',
+      providers: [],
+    },
+    next_safe_action: 'smoke',
+    remediation_candidates: ['Run smoke: ai-minions smoke --model-policy local_only'],
+  };
+
+  const selectOutcome = await executeShellAction({
+    actionId: 'select',
+    question: async () => '1',
+    write: () => {},
+    runSelector: async () => ({
+      ok: true,
+      exitCode: 0,
+      reason_code: 'RUN_SELECTOR_SELECTED',
+      selected_run_id: 'run-select-1',
+      status_pane: statusPane,
+      text: 'selected',
+    }),
+  });
+  assert.equal(selectOutcome.contentSurface, 'status');
+  assert.deepEqual(selectOutcome.statusResult, statusPane);
+  const selectModel = buildShellModel({
+    statusResult: selectOutcome.statusResult,
+    contentSurface: selectOutcome.contentSurface,
+    selectedRunId: selectOutcome.selectedRunId,
+  });
+  assert.equal(selectModel.status.available, true);
+  assert.equal(selectModel.status.run_id, 'run-select-1');
+  assert.equal(selectModel.status.outcome, 'success');
+  assert.equal(selectModel.status.result_code, 'RUN_FOUND');
+
+  const evidenceOutcome = await executeShellAction({
+    actionId: 'evidence',
+    selectedRunId: 'run-ev-1',
+    question: async () => '',
+    write: () => {},
+    runEvidencePane: async () => ({
+      ok: true,
+      exitCode: 0,
+      reason_code: 'EVIDENCE_ATTACH_PANE_BACK',
+      pane: evidencePane,
+      text: 'evidence',
+    }),
+  });
+  assert.equal(evidenceOutcome.contentSurface, 'evidence');
+  assert.deepEqual(evidenceOutcome.evidenceModel, evidencePane);
+  const evidenceModel = buildShellModel({
+    evidenceModel: evidenceOutcome.evidenceModel,
+    contentSurface: evidenceOutcome.contentSurface,
+    selectedRunId: evidenceOutcome.selectedRunId,
+  });
+  assert.equal(evidenceModel.evidence.available, true);
+  assert.equal(evidenceModel.evidence.run_id, 'run-ev-1');
+  assert.equal(evidenceModel.evidence.attach_available, true);
+
+  const configOutcome = await executeShellAction({
+    actionId: 'config',
+    question: async () => 'b',
+    write: () => {},
+    runConfigPane: async () => ({
+      ok: true,
+      exitCode: 0,
+      reason_code: 'CONFIG_READINESS_PANE_BACK',
+      pane: configPane,
+      text: 'config',
+    }),
+  });
+  assert.equal(configOutcome.contentSurface, 'config');
+  assert.deepEqual(configOutcome.configModel, configPane);
+  const configModel = buildShellModel({
+    configModel: configOutcome.configModel,
+    contentSurface: configOutcome.contentSurface,
+  });
+  assert.equal(configModel.config.available, true);
+  assert.equal(configModel.config.path_status, 'ready');
+  assert.equal(configModel.config.credential_sufficiency, 'not_required');
+  assert.equal(configModel.config.doctor_ok, true);
+  assert.equal(configModel.config.remediations.length, 1);
+  assert.match(configModel.config.remediations[0], /smoke/);
+});
+
+test('adaptConfigReadiness normalizes nested operator pane fields', () => {
+  const nested = adaptConfigReadiness({
+    ok: false,
+    model_policy: 'hybrid',
+    path_activation: { status: 'activation_required' },
+    credentials: { credential_sufficiency: 'missing_required' },
+    next_safe_action: 'doctor',
+    remediation_candidates: ['Export provider env var (value not shown): export X=<your-token>'],
+  });
+  assert.equal(nested.path_status, 'activation_required');
+  assert.equal(nested.credential_sufficiency, 'missing_required');
+  assert.equal(nested.doctor_ok, false);
+  assert.equal(nested.remediations[0].includes('Export provider'), true);
 });
 
 test('product CLI non-TTY tui exits with guidance and without Ink', () => {
