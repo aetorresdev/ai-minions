@@ -107,10 +107,7 @@ function ShellApp(props) {
         return;
       }
       if (key.return && model.selectedRunId) {
-        commit(buildShellModel({
-          ...shellModelToOptions(model),
-          contentSurface: 'status',
-        }));
+        requestAction('monitor');
         return;
       }
     }
@@ -274,7 +271,12 @@ function buildContentLines(model) {
       ...(model.config.remediations || []).map((r) => `· ${r}`),
     ];
   }
-  if (model.contentSurface === 'lifecycle') {
+  if (model.contentSurface === 'lifecycle' || model.contentSurface === 'monitor') {
+    const { formatLiveMonitorLines } = require('./operator-tui-live-monitor.js');
+    // Prefer pre-built monitor model from shell; fall back to lifecycle lines.
+    if (model.monitor) {
+      return formatLiveMonitorLines(model.monitor);
+    }
     const lc = model.lifecycle;
     return [
       `goal: ${formatField(lc.goal_summary)}`,

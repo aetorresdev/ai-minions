@@ -17,15 +17,15 @@ Requires a TTY (stdin and stdout). Non-TTY exits non-zero with equivalent CLI ve
 ## Shell chrome
 
 - **Header:** product name, version, high-level readiness (`path_status`).
-- **Navigation:** existing cockpit actions (smoke, runs, select, evidence, status, attach, config, quit).
-- **Main content:** home readiness, runs list, selected-run status, evidence/attach state, config readiness, action result, lifecycle summary extension point.
+- **Navigation:** existing cockpit actions (smoke, runs, select, evidence, status, **live monitor**, attach, config, quit).
+- **Main content:** home readiness, runs list, selected-run status, evidence/attach state, config readiness, action result, **live run monitor**.
 - **Footer:** key hints, current selection, safe exit guidance.
 - **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; Enter runs selected action; `/` focuses command input; `q` / Ctrl+C quit with terminal restore.
 - **Resize:** columns &lt; 72 → narrow layout (stacked); otherwise wide.
 
 ## Adapter boundary
 
-Components consume explicit view-models from `operator-tui-adapters.js` — they do not parse formatted CLI text or duplicate operator logic:
+Components consume explicit view-models from `operator-tui-adapters.js` / `operator-tui-live-monitor.js` — they do not parse formatted CLI text or duplicate operator logic:
 
 | Surface | Adapter |
 |---------|---------|
@@ -35,9 +35,10 @@ Components consume explicit view-models from `operator-tui-adapters.js` — they
 | Evidence / attach | `adaptEvidenceAttachState` |
 | Config / credentials | `adaptConfigReadiness` |
 | Action result / reason codes | `adaptActionResult` |
-| Lifecycle / loop summary (extension) | `adaptLifecycleSummary` |
+| Lifecycle / loop fields | `adaptLifecycleSummary` |
+| Live run monitor | `adaptLiveMonitor` |
 
-Lifecycle fields use provenance (`available` · `absent` · `unavailable` · `unknown` · `not_configured` · `unlimited`). Absent is never coerced to `0`, success, unlimited, or not_configured. Live monitor presentation is owned by a later slice.
+Lifecycle / monitor fields use provenance (`available` · `absent` · `unavailable` · `unknown` · `not_configured` · `unlimited`). Absent is never coerced to `0`, success, unlimited, or not_configured. The monitor never invents completion percentages or self-scored progress.
 
 ## Actions → existing contracts
 
@@ -48,6 +49,7 @@ Lifecycle fields use provenance (`available` · `absent` · `unavailable` · `un
 | select run / status pane | `runOperatorRunSelector` — newest-first list + compact status pane |
 | evidence / attach pane | prompts for run-id (Enter accepts previously selected run) → `runOperatorEvidenceAttachPane` |
 | status | prompts `--run-id` (defaults to last selected) → `runOperatorStatus` |
+| live monitor | prompts `--run-id` (defaults to last selected) → `runOperatorStatus` + `adaptLiveMonitor` (read-only) |
 | attach | prompts `--run-id` (defaults to last selected) → `runAttach` |
 | config / credentials readiness | `runOperatorConfigReadinessPane` (reuses doctor + credential readiness) |
 | quit | exit `0`, terminal restored, no operator side effects |
@@ -66,6 +68,23 @@ Cockpit action **`s` / select**:
 - **No** trace or gate mutation.
 
 Module: `orchestrator/modules/operator/operator-run-selector-tui.js`.
+
+## Live run monitor
+
+Cockpit action **`m` / monitor** (aliases: `live`, `live-monitor`, `run-monitor`):
+
+- Prompts for run-id (Enter accepts previously selected run).
+- Reads the same authoritative status/trace snapshot as `ai-minions status --json`.
+- Shows high-level **monitor phase**: planning · running · verifying · iterating · evidence_ready · done · failed · blocked · exhausted · cancelled · unavailable.
+- Compact **loop status** with provenance: goal · iteration/max · role/phase · gate/verdict · blocker · retry · cost/budget · elapsed/limit · terminal stop · human-action required.
+- Guard exits (retry exhaustion, max iterations, cost abort, timeout, cancellation, CERBERUS block, output-contract) are visually distinct and preserve stable reason codes.
+- Repeated blockers remain visible via `blocker_history`.
+- Missing fields render as `absent` / `unavailable` / `not_configured` — never coerced to `0` or fabricated limits.
+- `progress_percent` is always **absent** (never inferred from iteration, role order, elapsed time, or model prose).
+- Menu quit / Ctrl+C detaches the UI only — does not cancel or mutate the authoritative run.
+- When live fields are missing, falls back to status/trace summary honestly (`fallback_source`).
+
+Module: `orchestrator/modules/operator/operator-tui-live-monitor.js`.
 
 ## Evidence / attach pane
 
@@ -124,7 +143,7 @@ Focused harness — render/state models and command dispatch, not pixel-perfect 
 
 | Surface | Module | Unit tests |
 |---------|--------|------------|
-| Fullscreen shell / adapters / lifecycle / cleanup | `operator-tui-shell-*.js` · `operator-tui-adapters.js` | `tests/operator/operatorTuiShellFoundation.test.js` |
+| Fullscreen shell / adapters / live monitor / cleanup | `operator-tui-shell-*.js` · `operator-tui-adapters.js` · `operator-tui-live-monitor.js` | `tests/operator/operatorTuiShellFoundation.test.js` · `tests/operator/operatorTuiLiveMonitor.test.js` |
 | Legacy readline cockpit / non-TTY / unknown action | `operator-cockpit-tui.js` | `tests/operator/operatorCockpitTui.test.js` |
 | Run selector + status pane | `operator-run-selector-tui.js` | `tests/operator/operatorRunSelectorTui.test.js` |
 | Evidence / attach pane | `operator-evidence-attach-pane-tui.js` | `tests/operator/operatorEvidenceAttachPaneTui.test.js` |
@@ -147,6 +166,7 @@ cd orchestrator && npm run test:tui-quality
 |------|------|
 | Entry | `modules/operator/operator-tui-shell-entry.js` |
 | Adapters | `modules/operator/operator-tui-adapters.js` |
+| Live run monitor | `modules/operator/operator-tui-live-monitor.js` · `operator-tui-loop-envelope.js` |
 | Shell model | `modules/operator/operator-tui-shell-model.js` |
 | Action dispatch | `modules/operator/operator-tui-shell-actions.js` |
 | Terminal guard | `modules/operator/operator-tui-terminal-guard.js` |
@@ -161,7 +181,6 @@ cd orchestrator && npm run test:tui-quality
 ## Not claimed
 
 - Guided mode launcher
-- Live run monitor presentation
 - Slash-command vocabulary
 - Web UI
 - Durable resume / rerun

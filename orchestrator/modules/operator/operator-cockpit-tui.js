@@ -31,6 +31,7 @@ const COCKPIT_ACTIONS = Object.freeze([
   { key: 's', id: 'select', label: 'select run / status pane' },
   { key: 'e', id: 'evidence', label: 'evidence / attach pane' },
   { key: '3', id: 'status', label: 'status (--run-id)' },
+  { key: 'm', id: 'monitor', label: 'live run monitor' },
   { key: '4', id: 'attach', label: 'attach (--run-id)' },
   { key: '5', id: 'config', label: 'config / credentials readiness' },
   { key: 'q', id: 'quit', label: 'quit' },
@@ -97,7 +98,7 @@ function buildCockpitHomeText(options = {}) {
     'Select (s): newest-first run list + status pane (basename-safe; invalid → RUN_TRACE_INVALID).',
     'Evidence (e): attach/bundle status for selected run; attach_available=false is disk-only semantics.',
     'Config (5): PATH, backend, models, credentials status (never secrets) + next_safe_action.',
-    'Not claimed: Web UI · durable resume · guided launcher · live monitor · slash commands.',
+    'Not claimed: Web UI · durable resume · guided launcher · slash commands.',
   ];
   return lines.join('\n');
 }
@@ -129,6 +130,9 @@ function resolveCockpitAction(raw) {
     }
     if (action.id === 'evidence' && (token === 'ev' || token === 'attach-pane' || token === 'evidence-pane')) {
       return { id: 'evidence' };
+    }
+    if (action.id === 'monitor' && (token === 'live' || token === 'live-monitor' || token === 'run-monitor')) {
+      return { id: 'monitor' };
     }
   }
   return null;
@@ -325,6 +329,30 @@ async function runOperatorCockpit(options = {}) {
         write(`\n— status ${runId} —\n`);
         const result = runStatus({ runId, useColor, json: false });
         write(`${result.text}\n`);
+        if (result.reason_code) write(`reason_code: ${result.reason_code}\n`);
+        lastExitCode = Number.isInteger(result.exitCode) ? result.exitCode : (result.ok ? 0 : 1);
+        continue;
+      }
+
+      if (resolved.id === 'monitor') {
+        const promptLabel = selectedRunId
+          ? `run-id [${selectedRunId}]: `
+          : 'run-id: ';
+        const typed = String(await io.question(promptLabel)).trim();
+        const runId = typed || selectedRunId;
+        if (!runId) {
+          write('live monitor skipped: run-id required (or use select / status first).\n');
+          continue;
+        }
+        selectedRunId = runId;
+        write(`\n— live monitor ${runId} —\n`);
+        const result = runStatus({ runId, useColor, json: true });
+        const {
+          buildLiveMonitorFromStatusResult,
+          formatLiveMonitorLines,
+        } = require('./operator-tui-live-monitor');
+        const monitor = buildLiveMonitorFromStatusResult(result);
+        write(`${formatLiveMonitorLines(monitor).join('\n')}\n`);
         if (result.reason_code) write(`reason_code: ${result.reason_code}\n`);
         lastExitCode = Number.isInteger(result.exitCode) ? result.exitCode : (result.ok ? 0 : 1);
         continue;

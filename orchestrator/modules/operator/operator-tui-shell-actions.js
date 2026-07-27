@@ -15,6 +15,7 @@ const { runOperatorRunSelector } = require('./operator-run-selector-tui');
 const { runOperatorEvidenceAttachPane } = require('./operator-evidence-attach-pane-tui');
 const { runOperatorConfigReadinessPane } = require('./operator-config-readiness-pane-tui');
 const { adaptActionResult } = require('./operator-tui-adapters');
+const { formatLiveMonitorLines, buildLiveMonitorFromStatusResult } = require('./operator-tui-live-monitor');
 
 /**
  * @param {{
@@ -296,6 +297,62 @@ async function executeShellAction(options) {
           text: result.text || '',
         }),
         statusResult,
+        monitorSource: result,
+        evidenceModel: null,
+        configModel: null,
+        runsPayload: null,
+      };
+    }
+
+    if (actionId === 'monitor') {
+      const promptLabel = selectedRunId ? `run-id [${selectedRunId}]: ` : 'run-id: ';
+      const typed = String(await question(promptLabel)).trim();
+      const runId = typed || selectedRunId;
+      if (!runId) {
+        write('live monitor skipped: run-id required.\n');
+        return {
+          quit: false,
+          selectedRunId,
+          contentSurface: 'action_result',
+          actionResult: adaptActionResult({
+            action_id: 'monitor',
+            ok: false,
+            exitCode: 1,
+            reason_code: 'TUI_SHELL_RUN_ID_REQUIRED',
+            text: 'run-id required',
+          }),
+          evidenceModel: null,
+          configModel: null,
+          statusResult: null,
+          monitorSource: null,
+          runsPayload: null,
+        };
+      }
+      selectedRunId = runId;
+      const result = (options.runStatus ?? runOperatorStatus)({
+        runId,
+        useColor,
+        json: true,
+      });
+      statusResult = result;
+      const monitor = buildLiveMonitorFromStatusResult(result);
+      const monitorText = formatLiveMonitorLines(monitor).join('\n');
+      write(`${monitorText}\n`);
+      contentSurface = 'monitor';
+      return {
+        quit: false,
+        selectedRunId,
+        contentSurface,
+        actionResult: adaptActionResult({
+          action_id: 'monitor',
+          ok: result.ok !== false,
+          exitCode: result.exitCode,
+          reason_code: result.reason_code ?? result.result_code ?? null,
+          next_safe_action: result.next_safe_action ?? null,
+          text: monitorText,
+        }),
+        statusResult,
+        monitorSource: result,
         evidenceModel: null,
         configModel: null,
         runsPayload: null,

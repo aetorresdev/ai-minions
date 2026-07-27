@@ -94,9 +94,11 @@ test('resolveCockpitAction accepts keys and aliases', () => {
   assert.equal(resolveCockpitAction('config').id, 'config');
   assert.equal(resolveCockpitAction('readiness').id, 'config');
   assert.equal(resolveCockpitAction('c').id, 'config');
+  assert.equal(resolveCockpitAction('m').id, 'monitor');
+  assert.equal(resolveCockpitAction('live-monitor').id, 'monitor');
   assert.equal(resolveCockpitAction(''), null);
   assert.equal(resolveCockpitAction('9'), null);
-  assert.equal(COCKPIT_ACTIONS.length, 8);
+  assert.equal(COCKPIT_ACTIONS.length, 9);
 });
 
 test('runOperatorCockpit non-TTY exits with guidance', async () => {

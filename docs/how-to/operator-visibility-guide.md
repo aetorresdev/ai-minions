@@ -5,7 +5,7 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 **Product CLI:** `ai-minions runs` · `status` · `explain` · `report` · `tui` · `attach` · `evidence`
 **Contract sources:** trace JSONL under `ORCH_TRACES_DIR` (default `~/.claude/metrics/traces/`) — same SoT as legacy `explain-run` and `collect-run-report.mjs`.
 
-**Not claimed:** guided launcher · live run monitor · slash commands · Web UI · interactive approvals or reruns from evidence panels · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
+**Not claimed:** guided launcher · slash commands · Web UI · interactive approvals or reruns from evidence panels · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
 
 ---
 
@@ -13,7 +13,7 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 
 | Need | Command | Output |
 |------|---------|--------|
-| Interactive action loop (TTY) | `ai-minions tui` | Cockpit home: product status + smoke/runs/status/attach/doctor/quit |
+| Interactive action loop (TTY) | `ai-minions tui` | Fullscreen Ink shell: smoke/runs/select/status/**live monitor**/evidence/attach/config/quit |
 | Discover and select a recent run | `ai-minions runs [--limit 20]` | Newest-first run list + explicit `status --run-id` command |
 | Terminal summary + critical decision fields | `ai-minions status --run-id <id>` | Human text + optional `--json` with `run_state_visibility` and `operator_trace_summary` |
 | Why blocked / degraded / failed | `ai-minions explain --run-id <id>` | Reason codes + remediation narrative |

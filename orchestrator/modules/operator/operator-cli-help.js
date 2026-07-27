@@ -246,7 +246,7 @@ function printAiMinionsCliHelp(options = {}) {
     "  --color auto|always|never  ANSI on human stdout (default auto; NO_COLOR wins)",
     "",
     h("Alpha limitations:"),
-    "  - Fullscreen foundation shell on TTY — not guided launcher / live monitor / slash commands / Web UI",
+    "  - Fullscreen Ink shell on TTY with live run monitor — not guided launcher / slash commands / Web UI",
     "  - Rollback: AI_MINIONS_TUI_LEGACY=1 restores the readline cockpit loop",
     "  - resume does not launch runs — RUN_RESUME_NOT_IMPLEMENTED; use status→attach or new smoke/start",
     "  - context reads trace disclosure events only; no runtime package builder",

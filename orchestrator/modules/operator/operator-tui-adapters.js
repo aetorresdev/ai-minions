@@ -319,8 +319,8 @@ function adaptActionResult(result = {}) {
 }
 
 /**
- * Lifecycle / loop summary extension point.
- * Establishes stable missing-value semantics for a later live monitor — does not invent defaults.
+ * Lifecycle / loop summary fields for the live run monitor.
+ * Stable missing-value semantics — does not invent defaults or completion percentages.
  *
  * @param {object | null | undefined} source
  * @returns {object}
