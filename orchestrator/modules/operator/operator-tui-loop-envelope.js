@@ -96,8 +96,15 @@ function buildLoopEnvelopeFromRows(rows, meta = {}) {
   let latestIteration = null;
   /** @type {string | null} */
   let latestStopReason = null;
-  /** @type {string | null} */
-  let latestFailureType = null;
+  /**
+   * Active/terminal failure provenance for classification only.
+   * Intermediate iterate failures are recorded in blocker_history / historical_failure_types;
+   * a later successful terminal event clears this so stale types cannot override done.
+   * @type {string | null}
+   */
+  let activeFailureType = null;
+  /** @type {string[]} */
+  const historicalFailureTypes = [];
   /** @type {string | null} */
   let latestGate = null;
   /** @type {string | null} */
@@ -135,7 +142,22 @@ function buildLoopEnvelopeFromRows(rows, meta = {}) {
     }
 
     if (typeof r.failure_type === 'string' && r.failure_type) {
-      latestFailureType = r.failure_type;
+      historicalFailureTypes.push(r.failure_type);
+      // Intermediate iterate/abort failures stay active until a later successful terminal.
+      if (r.outcome === 'iterate' || r.outcome === 'abort' || r.outcome === 'failed') {
+        activeFailureType = r.failure_type;
+      } else if (r.outcome === 'done' || r.outcome === 'complete') {
+        activeFailureType = null;
+      } else {
+        activeFailureType = r.failure_type;
+      }
+    } else if (ev === 'iteration_done' && (r.outcome === 'done' || r.outcome === 'complete')) {
+      activeFailureType = null;
+    }
+
+    // Successful session end clears active failure so classification reflects final success.
+    if (ev === 'session_end' && (r.done === true || r.outcome === 'done' || r.outcome === 'complete')) {
+      activeFailureType = null;
     }
 
     if (typeof r.gate_id === 'string' && r.gate_id) latestGate = r.gate_id;
@@ -229,6 +251,23 @@ function buildLoopEnvelopeFromRows(rows, meta = {}) {
     .map(([reason_code, count]) => ({ reason_code, count }))
     .sort((a, b) => b.count - a.count || a.reason_code.localeCompare(b.reason_code));
 
+  const summaryOutcome = summary.outcome ?? undefined;
+  const statusLabel = meta.status_label ?? undefined;
+  const terminalSuccess = summaryOutcome === 'complete'
+    || summaryOutcome === 'done'
+    || statusLabel === 'complete'
+    || (sessionEnd && (sessionEnd.done === true
+      || sessionEnd.outcome === 'done'
+      || sessionEnd.outcome === 'complete'));
+
+  // Classification uses active/terminal failure only — never a stale intermediate iterate type
+  // after a later successful terminal. Historical types remain in historical_failure_types;
+  // blockers stay in blocker_history.
+  let failureTypeOut = terminalSuccess
+    ? undefined
+    : (activeFailureType
+      ?? (typeof explain.failure_type === 'string' ? explain.failure_type : undefined));
+
   return {
     schema: MONITOR_SCHEMA,
     kind: 'loop_envelope',
@@ -241,23 +280,27 @@ function buildLoopEnvelopeFromRows(rows, meta = {}) {
         ? summary.blocked_gates[0]
         : undefined),
     latest_verdict: latestVerdict,
-    latest_blocker: blocking ?? undefined,
+    latest_blocker: terminalSuccess ? undefined : (blocking ?? undefined),
     retry_count: iterateCount > 0 ? iterateCount : (explain.retries != null ? explain.retries : undefined),
     retry_limit: undefined, // only when proven configured — never invent
     measured_cost: measuredCost,
     configured_budget: undefined,
     elapsed,
     time_limit: undefined,
-    terminal_stop_reason: latestStopReason
-      ?? (typeof explain.final_status === 'string' ? explain.final_status : undefined),
+    terminal_stop_reason: terminalSuccess
+      ? undefined
+      : (latestStopReason
+        ?? (typeof explain.final_status === 'string' ? explain.final_status : undefined)),
     human_action_required: summary.outcome === 'blocked'
       || cerberus.verdict === 'block'
       || cerberus.verdict === 'request_changes'
       || undefined,
-    outcome: summary.outcome ?? undefined,
-    status_label: meta.status_label ?? undefined,
-    failure_type: latestFailureType
-      ?? (typeof explain.failure_type === 'string' ? explain.failure_type : undefined),
+    outcome: summaryOutcome,
+    status_label: statusLabel,
+    failure_type: failureTypeOut,
+    historical_failure_types: historicalFailureTypes.length > 0
+      ? [...historicalFailureTypes]
+      : undefined,
     latest_event_summary: latestEventSummary,
     blocker_history: blockerHistory,
     attach_ready: attachReady,
@@ -314,6 +357,23 @@ function classifyMonitorPhase(input = {}) {
   const outcome = input.outcome ?? null;
   const status = input.status_label ?? input.status ?? null;
   const phase = input.current_phase ?? input.current_role_phase ?? null;
+  const statusToken = String(status ?? '').toLowerCase();
+  const outcomeToken = String(outcome ?? '').toLowerCase();
+  const terminalSuccess = outcome === 'complete'
+    || outcome === 'done'
+    || (
+      (status === 'complete' || String(phase).toLowerCase() === 'complete')
+      && outcome !== 'failed'
+      && outcome !== 'blocked'
+      && outcome !== 'cancelled'
+      && outcome !== 'degraded'
+    );
+
+  // Final success wins over stale intermediate failure_type / stop reasons.
+  if (terminalSuccess) {
+    if (input.attach_ready === true) return 'evidence_ready';
+    return 'done';
+  }
 
   if (
     reasonMatches(blocker, GUARD_REASON_CODES.output_contract)
@@ -327,8 +387,8 @@ function classifyMonitorPhase(input = {}) {
   if (
     reasonMatches(blocker, GUARD_REASON_CODES.cancelled)
     || reasonMatches(stop, GUARD_REASON_CODES.cancelled)
-    || String(outcome).toLowerCase() === 'cancelled'
-    || String(status).toLowerCase() === 'cancelled'
+    || outcomeToken === 'cancelled'
+    || statusToken === 'cancelled'
   ) {
     return 'cancelled';
   }
@@ -373,10 +433,6 @@ function classifyMonitorPhase(input = {}) {
   }
 
   if (outcome === 'failed' || status === 'failed') return 'failed';
-  if (outcome === 'complete' || status === 'complete' || String(phase).toLowerCase() === 'complete') {
-    if (input.attach_ready === true) return 'evidence_ready';
-    return 'done';
-  }
 
   if (input.has_session_end === true && outcome === 'degraded') return 'failed';
 
@@ -397,6 +453,11 @@ function classifyMonitorPhase(input = {}) {
     if (status === 'running' || outcome === 'unknown' || status == null) return 'running';
   }
 
+  // Authoritative status-only snapshot (no live session_start): keep running visible.
+  if (statusToken === 'running' && input.has_session_end !== true) {
+    return 'running';
+  }
+
   if (liveUnavailable) return 'unavailable';
   if (outcome === 'blocked') return 'blocked';
   if (outcome === 'failed') return 'failed';
@@ -412,12 +473,32 @@ function classifyGuardExit(input = {}) {
   const blocker = input.latest_blocker ?? input.blocking_reason_code ?? null;
   const stop = input.terminal_stop_reason ?? input.stop_reason ?? null;
   const failureType = input.failure_type ?? null;
+  const outcome = input.outcome ?? null;
+  const status = input.status_label ?? input.status ?? null;
   const code = (typeof stop === 'string' && stop) ? stop
     : ((typeof blocker === 'string' && blocker) ? blocker : null);
 
+  // Successful terminal — do not surface a guard from historical failure_type.
+  // Outcome failure/blocked/cancelled wins over a stale status_label of complete.
+  if (
+    input.monitor_phase === 'done'
+    || input.monitor_phase === 'evidence_ready'
+    || outcome === 'complete'
+    || outcome === 'done'
+    || (
+      status === 'complete'
+      && outcome !== 'failed'
+      && outcome !== 'blocked'
+      && outcome !== 'cancelled'
+      && outcome !== 'degraded'
+    )
+  ) {
+    return { guard_class: 'none', reason_code: code, visually_distinct: false };
+  }
+
   if (
     reasonMatches(code, GUARD_REASON_CODES.cancelled)
-    || String(input.outcome).toLowerCase() === 'cancelled'
+    || String(outcome).toLowerCase() === 'cancelled'
   ) {
     return { guard_class: 'cancelled', reason_code: code, visually_distinct: true };
   }

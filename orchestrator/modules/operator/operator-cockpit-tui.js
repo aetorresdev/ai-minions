@@ -93,10 +93,11 @@ function buildCockpitHomeText(options = {}) {
     section('== Actions =='),
     ...COCKPIT_ACTIONS.map((a) => `  [${a.key}]  ${a.label}`),
     '',
-    'Policy: actions call existing operator modules (smoke/runs/status/attach/config pane).',
+    'Policy: actions call existing operator modules (smoke/runs/status/live monitor/attach/config pane).',
     'Quit exits cleanly with no side effects. Evidence panels: tui --run-id|--latest|--file.',
     'Select (s): newest-first run list + status pane (basename-safe; invalid → RUN_TRACE_INVALID).',
     'Evidence (e): attach/bundle status for selected run; attach_available=false is disk-only semantics.',
+    'Monitor (m): live run phase + reason codes for selected run (read-only; detach-safe).',
     'Config (5): PATH, backend, models, credentials status (never secrets) + next_safe_action.',
     'Not claimed: Web UI · durable resume · guided launcher · slash commands.',
   ];
@@ -230,10 +231,10 @@ async function runOperatorCockpit(options = {}) {
         write(`Selected run: ${selectedRunId}\n`);
       }
 
-      const raw = await question('Select action [1-5, s, e, q]: ');
+      const raw = await question('Select action [1-5, s, e, m, q]: ');
       const resolved = resolveCockpitAction(raw);
       if (!resolved) {
-        write('Unknown action. Choose 1-5, s, e, or q.\n');
+        write('Unknown action. Choose 1-5, s, e, m, or q.\n');
         continue;
       }
 

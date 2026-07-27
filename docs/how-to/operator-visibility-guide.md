@@ -140,13 +140,15 @@ Exit `2` when trace missing — same fail-closed semantics as `status`.
 ai-minions tui
 ```
 
-Persistent action loop: product status + smoke / runs / **select run + status pane** / **evidence / attach pane** / status / attach / **config / credentials readiness pane** / quit. Calls the same modules as the named CLI verbs. Non-TTY bare `tui` exits with equivalent verb guidance (no hang).
+Persistent action loop: product status + smoke / runs / **select run + status pane** / **evidence / attach pane** / status / **live monitor (`m`)** / attach / **config / credentials readiness pane** / quit. Calls the same modules as the named CLI verbs. Non-TTY bare `tui` exits with equivalent verb guidance (no hang).
 
 **Select (`s`):** newest-first run list (same discovery as `runs`); pick by index, run id, or `n`/`p` navigation; shows compact status pane (basename, outcome/status, reason code, next safe action, attach hint). Invalid traces stay `RUN_TRACE_INVALID` with no inferred state.
 
+**Live monitor (`m`):** read-only phase + reason-code surface for the selected run (same status/trace SoT as `status`); menu/quit detach does not cancel the run.
+
 Contract: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md). Quality gate (mandatory when TUI ships): `cd orchestrator && npm run test:tui-quality`.
 
-**Not claimed:** guided launcher · live monitor · slash commands · Web UI · durable resume.
+**Not claimed:** guided launcher · slash commands · Web UI · durable resume.
 
 ### Evidence surface (selectors)
 

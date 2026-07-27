@@ -165,7 +165,67 @@ test('unavailable live state falls back honestly', () => {
     },
   });
   assert.equal(statusOnly.fallback_source, 'status');
+  assert.equal(statusOnly.live_state.value, 'status_fallback');
   assert.ok(['done', 'evidence_ready'].includes(statusOnly.monitor_phase));
+});
+
+test('status-only running stays running with status_fallback (not unavailable)', () => {
+  const statusOnlyRunning = adaptLiveMonitor({
+    result_code: 'RUN_FOUND',
+    json: {
+      run_id: 'live-r1',
+      status: 'running',
+      operator_trace_summary: { outcome: 'unknown' },
+      run_state_visibility: { current_phase: 'DEV', blocking_reason_code: null },
+    },
+  });
+  assert.equal(statusOnlyRunning.available, true);
+  assert.equal(statusOnlyRunning.live_state.value, 'status_fallback');
+  assert.equal(statusOnlyRunning.fallback_source, 'status');
+  assert.equal(statusOnlyRunning.monitor_phase, 'running');
+  assert.notEqual(statusOnlyRunning.monitor_phase, 'unavailable');
+});
+
+test('intermediate failure_type cleared after later successful terminal', () => {
+  const rows = [
+    { event: 'session_start', task_id: 'recover', max_iterations: 5, ts_ms: 1, goal: 'recover' },
+    {
+      event: 'iteration_done',
+      outcome: 'iterate',
+      iteration: 0,
+      failure_type: 'contract_mismatch',
+      transition_reason: { type: 'CONTRACT_FAIL', reason_code: 'orchestrator_json' },
+      ts_ms: 2,
+    },
+    {
+      event: 'iteration_done',
+      outcome: 'done',
+      iteration: 1,
+      ts_ms: 3,
+    },
+    {
+      event: 'session_end',
+      done: true,
+      outcome: 'done',
+      iterations: 2,
+      ts_ms: 4,
+    },
+  ];
+  const envelope = buildLoopEnvelopeFromRows(rows, {
+    summary: { outcome: 'complete', current_phase: 'complete' },
+    explain: { goal: 'recover', failure_type: 'contract_mismatch' },
+    status_label: 'complete',
+    run_state: { attach_action_available: true, current_phase: 'complete' },
+  });
+  assert.equal(envelope.failure_type, undefined);
+  assert.ok(Array.isArray(envelope.historical_failure_types));
+  assert.ok(envelope.historical_failure_types.includes('contract_mismatch'));
+  assert.ok(envelope.blocker_history.some((b) => b.reason_code === 'orchestrator_json'));
+
+  const monitor = adaptLiveMonitor({ loop_envelope: envelope });
+  assert.equal(monitor.monitor_phase, 'evidence_ready');
+  assert.equal(monitor.guard_class, 'none');
+  assert.equal(monitor.guard_visually_distinct, false);
 });
 
 test('output-contract failure never stays visually running', () => {

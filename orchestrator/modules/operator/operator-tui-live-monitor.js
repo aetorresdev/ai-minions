@@ -86,21 +86,23 @@ function adaptLiveMonitor(source) {
     source.json ? source : { json, result_code: source.result_code, reason_code: source.reason_code },
   );
 
-  const hasLive = envelope.has_session_start === true
-    || status.available === true
-    || loop.current_role_phase.availability === 'available'
-    || loop.latest_blocker.availability === 'available'
-    || loop.terminal_stop_reason.availability === 'available';
+  // Live-trace availability is independent of status JSON availability.
+  // Do not fold status.available or status-derived lifecycle fields into hasLiveTrace —
+  // that mislabels status_fallback as "available" and can drop status-only running
+  // into unavailable once classification lacks session_start.
+  const hasLiveTrace = envelope.has_session_start === true;
+  const hasStatus = status.available === true;
+  const available = hasLiveTrace || hasStatus;
 
-  const fallbackSource = hasLive
-    ? (envelope.has_session_end === false && envelope.has_session_start === true
+  const fallbackSource = hasLiveTrace
+    ? (envelope.has_session_end === false
       ? 'live'
       : 'status')
-    : (status.available ? 'status' : 'unavailable');
+    : (hasStatus ? 'status' : 'unavailable');
 
   const classifyInput = {
-    available: hasLive || status.available,
-    live_unavailable: !hasLive && !status.available,
+    available,
+    live_unavailable: !available,
     latest_blocker: loop.latest_blocker.availability === 'available'
       ? loop.latest_blocker.value
       : (envelope.latest_blocker ?? null),
@@ -140,9 +142,9 @@ function adaptLiveMonitor(source) {
     schema: MONITOR_SCHEMA,
     kind: 'live_monitor',
     adapter_schema: ADAPTER_SCHEMA,
-    available: hasLive || status.available,
+    available,
     live_state: provenanceField(
-      hasLive ? 'available' : (status.available ? 'status_fallback' : 'unavailable'),
+      hasLiveTrace ? 'available' : (hasStatus ? 'status_fallback' : 'unavailable'),
       'live_monitor',
     ),
     fallback_source: fallbackSource,

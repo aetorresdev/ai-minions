@@ -64,12 +64,15 @@ test('buildCockpitHomeText shows status and actions without secrets', () => {
   assert.match(text, /\[s\].*select run/);
   assert.match(text, /\[e\].*evidence \/ attach pane/);
   assert.match(text, /\[3\].*status/);
+  assert.match(text, /\[m\].*live run monitor/);
   assert.match(text, /\[4\].*attach/);
   assert.match(text, /\[5\].*config \/ credentials readiness/);
   assert.match(text, /\[q\].*quit/);
   assert.match(text, /RUN_TRACE_INVALID/);
   assert.match(text, /disk-only/);
   assert.match(text, /Config \(5\):/);
+  assert.match(text, /Monitor \(m\):/);
+  assert.match(text, /live monitor/);
   assert.match(text, /legacy readline/i);
   assert.match(text, /AI_MINIONS_TUI_LEGACY/);
   assert.doesNotMatch(text, /sk-ant-/);
@@ -151,6 +154,41 @@ test('runOperatorCockpit quit exits cleanly without invoking operators', async (
   assert.equal(smokeCalls, 0);
   assert.equal(configCalls, 0);
   assert.equal(runsCalls, 0);
+});
+
+test('legacy cockpit prompt and help include monitor key m', async () => {
+  /** @type {string[]} */
+  const answers = ['9', 'q'];
+  /** @type {string[]} */
+  const out = [];
+  const result = await runOperatorCockpit({
+    isTTY: true,
+    useColor: false,
+    question: async (prompt) => {
+      out.push(String(prompt));
+      return answers.shift() ?? 'q';
+    },
+    write: (t) => out.push(String(t)),
+    buildAbout: () => ({
+      version: 'test',
+      git_commit: 'abc',
+      model_policy: 'local_only',
+    }),
+    assessCredentials: () => ({
+      model_policy: 'local_only',
+      remote_tokens_required: false,
+      credential_sufficiency: 'not_required',
+      note: 'n',
+      providers: [],
+      missing_required_env_vars: [],
+    }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+  });
+  assert.equal(result.reason_code, 'COCKPIT_QUIT');
+  assert.ok(out.some((l) => /Select action \[1-5, s, e, m, q\]/.test(l)));
+  assert.ok(out.some((l) => /Unknown action\. Choose 1-5, s, e, m, or q\./.test(l)));
+  assert.ok(out.some((l) => /\[m\].*live run monitor/.test(l)));
+  assert.ok(out.some((l) => /Monitor \(m\):/.test(l)));
 });
 
 test('runOperatorCockpit config action opens readiness pane', async () => {
