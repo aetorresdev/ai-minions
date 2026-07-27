@@ -10,7 +10,7 @@ Flat paths below — grouped for discoverability only (no 1:1 module mirror). Se
 
 | Section | Start here |
 |---------|------------|
-| **Architecture** | [module-boundaries.md](module-boundaries.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [arch-shim-retirement-plan.md](arch-shim-retirement-plan.md) · [root-file-inventory.md](root-file-inventory.md) · [run-control-hub-decision.md](run-control-hub-decision.md) |
+| **Architecture** | [module-boundaries.md](module-boundaries.md) · [architecture-coherence-audit.md](architecture-coherence-audit.md) · [arch-shim-retirement-plan.md](arch-shim-retirement-plan.md) · [root-file-inventory.md](root-file-inventory.md) · [run-control-hub-decision.md](run-control-hub-decision.md) · [ink7-framework-decision.md](ink7-framework-decision.md) |
 | **Contracts** | [agent-contract.md](agent-contract.md) · [governance-gates-contract.md](governance-gates-contract.md) · [review-record-contract.md](review-record-contract.md) · [context-package-contract.md](context-package-contract.md) · [skill-capability-boundary.md](skill-capability-boundary.md) · [runner-tui-contract.md](runner-tui-contract.md) |
 | **Operator / runbooks** | [run-outcome-consumption.md](run-outcome-consumption.md) · [control-plane-tui-contract.md](control-plane-tui-contract.md) · [token-hygiene-guide.md](token-hygiene-guide.md) · [alpha-release-checklist.md](alpha-release-checklist.md) |
 | **How-to (repo root)** | [ai-minions command migration](../how-to/ai-minions-command-migration.md) · [operator visibility (v0.21+)](../how-to/operator-visibility-guide.md) · [usage smoke guide](../how-to/usage-smoke-guide.md) · [operator guided run](../how-to/operator-guided-run.md) |
@@ -54,6 +54,7 @@ Flat paths below — grouped for discoverability only (no 1:1 module mirror). Se
 | [bv-reviewer-contract.md](bv-reviewer-contract.md) | Business value / outcome gate — `value_review` trace shape (design-first; no runtime gate) |
 | [self-improvement-loop-contract.md](self-improvement-loop-contract.md) | Governed harness improvement loop — `improvement_proposal` + human approval gate (design-first; no auto-apply) |
 | [run-control-hub-decision.md](run-control-hub-decision.md) | v0.17 ADR — temporary `orchestrator.js` hub, hub physical move scope, index export policy |
+| [ink7-framework-decision.md](ink7-framework-decision.md) | Ink 7 TUI framework ADR — spike evidence, OpenTUI rejection, migration boundary |
 | [module-boundaries.md](module-boundaries.md) | Modular monolith bounded contexts — module map, `modules/gates/` slice, CI `lint:module-boundaries` |
 | [architecture-coherence-audit.md](architecture-coherence-audit.md) | v0.8 system coherence matrix + physical refactor movement plan (audit only) |
 | [module-ownership-map.md](module-ownership-map.md) | Bounded-context ownership — current vs target paths |
