@@ -160,5 +160,5 @@ test("ai-minions --help documents tui command", () => {
     cwd: ORCH_CWD,
   });
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /tui\s+Interactive cockpit/);
+  assert.match(r.stdout, /tui\s+Fullscreen Ink shell/);
 });

@@ -434,7 +434,7 @@ test('cockpit home claim honesty and no secret surfaces', () => {
     pathActivation: { status: 'ready', on_path: true },
   });
   assertMvpClaimHonesty(text);
-  assert.match(text, /not fullscreen/i);
+  assert.match(text, /legacy readline/i);
   assert.match(text, /ANTHROPIC_API_KEY: present/);
   assertNoSecretSurfaces(text, [secret]);
   assert.doesNotMatch(text, /sk-ant-/);

@@ -28,7 +28,7 @@ const { runOperatorStatus, runOperatorExplain } = require('./operator-trace-comm
 const { runOperatorRuns } = require('./operator-run-list');
 const { runOperatorReport } = require('./operator-run-report');
 const { runOperatorEvidenceTui } = require('./operator-evidence-tui');
-const { runOperatorCockpit } = require('./operator-cockpit-tui');
+const { runOperatorTuiShell } = require('./operator-tui-shell-entry');
 const { runOperatorDoctor, runOperatorEvidence } = require('./operator-doctor-evidence');
 const {
   assessProviderCredentials,
@@ -733,10 +733,10 @@ async function main() {
     const hasEvidenceSelector = Boolean(opts.runId || opts.latest || opts.file);
     if (!hasEvidenceSelector) {
       if (opts.json === true) {
-        console.error('tui cockpit does not support --json; use CLI verbs or tui --run-id|--latest|--file --json');
+        console.error('tui shell does not support --json; use CLI verbs or tui --run-id|--latest|--file --json');
         return exitProductCli(cmd, { ok: false, exitCode: 1 });
       }
-      const result = await runOperatorCockpit({
+      const result = await runOperatorTuiShell({
         cwd: opts.cwd,
         useColor,
         isTTY: Boolean(process.stdin.isTTY && process.stdout.isTTY),

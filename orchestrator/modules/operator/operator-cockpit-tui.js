@@ -1,8 +1,9 @@
 'use strict';
 
 /**
- * Interactive operator cockpit MVP — persistent terminal loop over existing CLI contracts.
- * Not a fullscreen navigator; not production TUI / Web UI.
+ * Interactive operator cockpit — legacy readline loop over existing CLI contracts.
+ * Production interactive entry is the Ink fullscreen shell (`operator-tui-shell-entry`).
+ * Rollback: AI_MINIONS_TUI_LEGACY=1.
  */
 
 const readline = require('readline');
@@ -77,7 +78,7 @@ function buildCockpitHomeText(options = {}) {
 
   const lines = [
     '+----------------------------------------------------------------------+',
-    `|  ${title} — interactive loop (MVP; not fullscreen / Web UI)          |`,
+    `|  ${title} — legacy readline loop (AI_MINIONS_TUI_LEGACY=1)            |`,
     '+----------------------------------------------------------------------+',
     '',
     section('== Product status =='),
@@ -96,7 +97,7 @@ function buildCockpitHomeText(options = {}) {
     'Select (s): newest-first run list + status pane (basename-safe; invalid → RUN_TRACE_INVALID).',
     'Evidence (e): attach/bundle status for selected run; attach_available=false is disk-only semantics.',
     'Config (5): PATH, backend, models, credentials status (never secrets) + next_safe_action.',
-    'Not claimed: production TUI · Web UI · durable resume · navigable fullscreen panes.',
+    'Not claimed: Web UI · durable resume · guided launcher · live monitor · slash commands.',
   ];
   return lines.join('\n');
 }
