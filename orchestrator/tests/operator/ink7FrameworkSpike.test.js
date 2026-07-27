@@ -31,6 +31,27 @@ const {
 
 const ORCH_ROOT = path.join(__dirname, '..', '..');
 
+/**
+ * Canonical `runOperatorRuns()` shape: runs live under `.json`, not the wrapper top level.
+ * @param {object[]} runs
+ * @param {{ result_code?: string, next_safe_action?: string }} [extras]
+ */
+function canonicalRunsResult(runs, extras = {}) {
+  const result_code = extras.result_code ?? (runs.length ? 'RUNS_FOUND' : 'RUNS_EMPTY');
+  const next_safe_action = extras.next_safe_action ?? 'none';
+  return {
+    ok: true,
+    exitCode: 0,
+    result_code,
+    next_safe_action,
+    json: {
+      result_code,
+      runs,
+      next_safe_action,
+    },
+  };
+}
+
 function createFakeTtyStreams() {
   const stdin = new PassThrough();
   stdin.isTTY = true;
@@ -164,7 +185,7 @@ test('terminal guard restores after normal, exception, and child failure', async
   const child = await runInk7FrameworkSpike({
     isTTY: true,
     injectFailure: 'child',
-    loadRuns: () => ({ ok: true, result_code: 'RUNS_OK', runs: [], next_safe_action: 'smoke' }),
+    loadRuns: () => canonicalRunsResult([]),
     loadStatus: () => ({ ok: false, reason_code: 'x', json: {} }),
     importRenderer: async () => ({ renderSpikeShell: async () => ({}) }),
   });
@@ -176,12 +197,9 @@ test('renderer exception restores terminal and reports reason', async () => {
   const result = await runInk7FrameworkSpike({
     isTTY: true,
     injectFailure: 'renderer',
-    loadRuns: () => ({
-      ok: true,
-      result_code: 'RUNS_OK',
-      runs: [{ run_id: 'r1', status: 'complete', outcome: 'success', result_code: 'RUN_FOUND' }],
-      next_safe_action: 'none',
-    }),
+    loadRuns: () => canonicalRunsResult([
+      { run_id: 'r1', status: 'complete', outcome: 'success', result_code: 'RUN_FOUND' },
+    ]),
     loadStatus: () => ({
       ok: true,
       json: {
@@ -199,6 +217,60 @@ test('renderer exception restores terminal and reports reason', async () => {
   assert.equal(result.reason_code, SPIKE_ENTRY_REASON.RENDERER_EXCEPTION);
   assert.equal(result.guard.restored, true);
   assert.equal(result.ink_loaded, true);
+});
+
+test('entry adapts runs from runOperatorRuns.json and loads status', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  let statusRunId = null;
+  const result = await runInk7FrameworkSpike({
+    isTTY: true,
+    stdin,
+    stdout,
+    autoQuitMs: 50,
+    loadRuns: () => ({
+      ok: true,
+      exitCode: 0,
+      result_code: 'RUNS_FOUND',
+      next_safe_action: 'ai-minions status --run-id canon1',
+      // No top-level `runs` — mirrors real runOperatorRuns() wrapper.
+      json: {
+        schema_version: '1',
+        result_code: 'RUNS_FOUND',
+        runs: [
+          {
+            run_id: 'canon1',
+            status: 'complete',
+            outcome: 'success',
+            result_code: 'RUN_FOUND',
+            reason_code: null,
+          },
+        ],
+        next_safe_action: 'ai-minions status --run-id canon1',
+      },
+    }),
+    loadStatus: ({ runId }) => {
+      statusRunId = runId;
+      return {
+        ok: true,
+        result_code: 'RUN_FOUND',
+        json: {
+          run_id: runId,
+          status: 'complete',
+          operator_trace_summary: { outcome: 'success', next_safe_action: 'none' },
+          run_state_visibility: {},
+        },
+      };
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.reason_code, SPIKE_ENTRY_REASON.OK);
+  assert.equal(result.model.selectedRunId, 'canon1');
+  assert.equal(result.model.runs[0]?.run_id, 'canon1');
+  assert.equal(statusRunId, 'canon1');
+  assert.equal(result.model.status?.run_id, 'canon1');
+  assert.equal(result.guard.restored, true);
+  stdin.destroy();
+  stdout.destroy();
 });
 
 test('Ink renderToString produces shell chrome with injectable model', async () => {
@@ -224,12 +296,9 @@ test('interactive render with fake TTY exits via autoQuit and restores', async (
     stdin,
     stdout,
     autoQuitMs: 50,
-    loadRuns: () => ({
-      ok: true,
-      result_code: 'RUNS_OK',
-      runs: [{ run_id: 'live1', status: 'running', result_code: 'RUN_FOUND' }],
-      next_safe_action: 'none',
-    }),
+    loadRuns: () => canonicalRunsResult([
+      { run_id: 'live1', status: 'running', result_code: 'RUN_FOUND' },
+    ]),
     loadStatus: () => ({
       ok: true,
       json: {
@@ -244,6 +313,43 @@ test('interactive render with fake TTY exits via autoQuit and restores', async (
   assert.equal(result.reason_code, SPIKE_ENTRY_REASON.OK);
   assert.equal(result.ink_loaded, true);
   assert.equal(result.guard.restored, true);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('Ctrl+C abort restores terminal and reports INK7_SPIKE_ABORT', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  const spikePromise = runInk7FrameworkSpike({
+    isTTY: true,
+    stdin,
+    stdout,
+    loadRuns: () => canonicalRunsResult([
+      { run_id: 'abort1', status: 'running', result_code: 'RUN_FOUND' },
+    ]),
+    loadStatus: () => ({
+      ok: true,
+      json: {
+        run_id: 'abort1',
+        status: 'running',
+        operator_trace_summary: { outcome: null },
+        run_state_visibility: {},
+      },
+    }),
+  });
+
+  // Wait for Ink to mount input handlers, then deliver Ctrl+C (ETX).
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  stdin.write('\u0003');
+
+  const result = await spikePromise;
+  assert.equal(result.reason_code, SPIKE_ENTRY_REASON.ABORT);
+  assert.equal(result.ok, true);
+  assert.equal(result.guard.restored, true);
+  assert.equal(stdin.isRaw, false);
+  assert.ok(
+    result.guard.mutations.some((m) => m.kind === 'restore_sequence'),
+    'expected restore_sequence mutation',
+  );
   stdin.destroy();
   stdout.destroy();
 });

@@ -89,7 +89,8 @@ async function runInk7FrameworkSpike(options = {}) {
     json: true,
     useColor: false,
   });
-  const adapted = adaptRunsPayload(runsResult);
+  // runOperatorRuns nests the list under `.json`; tolerate a flat fixture shape in tests.
+  const adapted = adaptRunsPayload(runsResult?.json ?? runsResult);
   let selectedRunId = options.selectedRunId ?? adapted.runs[0]?.run_id ?? null;
   let statusPayload = null;
   if (selectedRunId) {

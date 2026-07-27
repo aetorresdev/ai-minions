@@ -24,13 +24,20 @@ async function main() {
   };
 
   const coldStartMs = (() => {
+    // Intentional child-process probe: cold-imports Ink/React from a non-TTY spawn.
+    // This is packaging evidence only — not the operator spike entrypath.
+    // Operator non-TTY no-load (D3) is asserted via runInk7FrameworkSpike({ isTTY: false }).
     const started = Date.now();
     const r = spawnSync(process.execPath, ['-e', "import('ink').then(() => import('react')).then(() => process.exit(0))"], {
       cwd: orchRoot,
       encoding: 'utf8',
       env: process.env,
     });
-    return { ms: Date.now() - started, status: r.status };
+    return {
+      ms: Date.now() - started,
+      status: r.status,
+      note: 'Child-process cold import of Ink/React for packaging timing; operator non-TTY path does not load Ink/React.',
+    };
   })();
 
   const nonTty = await runInk7FrameworkSpike({ isTTY: false });

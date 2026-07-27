@@ -1,6 +1,6 @@
 {
-  "collected_at": "2026-07-24T22:31:05.840Z",
-  "node": "v22.23.1",
+  "collected_at": "2026-07-27T20:37:11.620Z",
+  "node": "v24.11.1",
   "platform": "linux",
   "arch": "x64",
   "probe": {
@@ -17,8 +17,9 @@
     "node_modules": 41920
   },
   "cold_import": {
-    "ms": 227,
-    "status": 0
+    "ms": 222,
+    "status": 0,
+    "note": "Child-process cold import of Ink/React for packaging timing; operator non-TTY path does not load Ink/React."
   },
   "non_tty": {
     "reason_code": "INK7_SPIKE_NON_TTY",
