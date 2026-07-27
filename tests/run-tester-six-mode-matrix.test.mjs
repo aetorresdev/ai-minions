@@ -285,6 +285,51 @@ describe("run-tester-six-mode-matrix", () => {
     );
   });
 
+  it("parseArgs does not consume -- tokens as values for value options", () => {
+    assert.throws(
+      () => parseArgs(["--skip-live", "--max-iterations", "--time-limit"]),
+      (err) => {
+        assert.ok(err instanceof Error);
+        assert.equal(err.message, UNSUPPORTED_TIME_LIMIT_MSG);
+        assert.equal(err.code, "USAGE");
+        return true;
+      },
+    );
+    assert.throws(
+      () => parseArgs(["--fixture", "--not-a-real-flag"]),
+      (err) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /unknown option: --not-a-real-flag/);
+        assert.equal(err.code, "USAGE");
+        return true;
+      },
+    );
+    assert.throws(
+      () => parseArgs(["--rows"]),
+      (err) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /--rows requires a value/);
+        assert.equal(err.code, "USAGE");
+        return true;
+      },
+    );
+    const ok = parseArgs([
+      "--execute-live",
+      "--fixture",
+      "sudoku-html-app",
+      "--rows",
+      "sa-local_only",
+      "--evidence-dir",
+      "/tmp/ev",
+      "--max-iterations",
+      "12",
+    ]);
+    assert.equal(ok.fixtureId, "sudoku-html-app");
+    assert.equal(ok.rowIds, "sa-local_only");
+    assert.equal(ok.evidenceDir, "/tmp/ev");
+    assert.equal(ok.maxIterations, "12");
+  });
+
   it("parseArgs rejects unknown options", () => {
     assert.throws(
       () => parseArgs(["--skip-live", "--not-a-real-flag"]),
@@ -307,6 +352,30 @@ describe("run-tester-six-mode-matrix", () => {
     assert.notEqual(result.status, 0);
     const combined = `${result.stderr || ""}\n${result.stdout || ""}`;
     assert.match(combined, /--time-limit is not supported/);
+  });
+
+  it("CLI exits non-zero when --max-iterations is followed by --time-limit", () => {
+    const script = path.join(REPO_ROOT, "scripts/run-tester-six-mode-matrix.mjs");
+    const result = spawnSync(
+      process.execPath,
+      [script, "--skip-live", "--max-iterations", "--time-limit"],
+      { encoding: "utf8" },
+    );
+    assert.notEqual(result.status, 0);
+    const combined = `${result.stderr || ""}\n${result.stdout || ""}`;
+    assert.match(combined, /--time-limit is not supported/);
+  });
+
+  it("CLI exits non-zero when unknown option is in value position", () => {
+    const script = path.join(REPO_ROOT, "scripts/run-tester-six-mode-matrix.mjs");
+    const result = spawnSync(
+      process.execPath,
+      [script, "--fixture", "--not-a-real-flag"],
+      { encoding: "utf8" },
+    );
+    assert.notEqual(result.status, 0);
+    const combined = `${result.stderr || ""}\n${result.stdout || ""}`;
+    assert.match(combined, /unknown option: --not-a-real-flag/);
   });
 
   it("runbook documents exit 0 for live SKIP/BLOCKED (never PASS)", () => {

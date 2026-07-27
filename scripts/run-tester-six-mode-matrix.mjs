@@ -325,6 +325,27 @@ function usageError(message) {
 }
 
 /**
+ * Consume the next argv token as a value for `flag`.
+ * Never treats a `--...` token as the value — leave it for the next parse
+ * iteration (unsupported/unknown option) or throw when argv is exhausted.
+ *
+ * @param {string[]} argv
+ * @param {number} i index of the flag token
+ * @param {string} flag
+ * @returns {{ value: string, consumed: true } | { value: null, consumed: false }}
+ */
+function takeOptionValue(argv, i, flag) {
+  const next = argv[i + 1];
+  if (next === undefined) {
+    throw usageError(`${flag} requires a value`);
+  }
+  if (typeof next === "string" && next.startsWith("--")) {
+    return { value: null, consumed: false };
+  }
+  return { value: next, consumed: true };
+}
+
+/**
  * @param {string[]} argv
  */
 export function parseArgs(argv) {
@@ -358,11 +379,31 @@ export function parseArgs(argv) {
     else if (a === "--execute-live") {
       out.executeLive = true;
       out.skipLive = false;
-    } else if (a === "--fixture") out.fixtureId = argv[++i] ?? null;
-    else if (a === "--rows") out.rowIds = argv[++i] ?? null;
-    else if (a === "--evidence-dir") out.evidenceDir = argv[++i] ?? null;
-    else if (a === "--max-iterations") out.maxIterations = argv[++i] ?? null;
-    else if (a === "--help" || a === "-h") out.help = true;
+    } else if (a === "--fixture") {
+      const taken = takeOptionValue(argv, i, "--fixture");
+      if (taken.consumed) {
+        out.fixtureId = taken.value;
+        i += 1;
+      }
+    } else if (a === "--rows") {
+      const taken = takeOptionValue(argv, i, "--rows");
+      if (taken.consumed) {
+        out.rowIds = taken.value;
+        i += 1;
+      }
+    } else if (a === "--evidence-dir") {
+      const taken = takeOptionValue(argv, i, "--evidence-dir");
+      if (taken.consumed) {
+        out.evidenceDir = taken.value;
+        i += 1;
+      }
+    } else if (a === "--max-iterations") {
+      const taken = takeOptionValue(argv, i, "--max-iterations");
+      if (taken.consumed) {
+        out.maxIterations = taken.value;
+        i += 1;
+      }
+    } else if (a === "--help" || a === "-h") out.help = true;
     else if (a === "--time-limit") {
       throw usageError(UNSUPPORTED_TIME_LIMIT_MSG);
     } else if (typeof a === "string" && a.startsWith("-")) {
