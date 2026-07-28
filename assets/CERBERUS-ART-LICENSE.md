@@ -10,23 +10,24 @@
 
 ## Provenance
 
-- **Author:** AI-MINIONS project (operator-directed brand mark).
+- **Author:** Andrés Torres (operator-directed brand mark for the AI-MINIONS project).
 - **Created:** 2026-07-28; redrawn to match approved option C composition.
 - **Intent:** Original geometric brand artwork for the Cerberus gate / guardian metaphor used by the AI-MINIONS operator surface.
 - **Visual direction source:** Approved Cerberus **option C** TUI landing/splash render attached on the release-prep tracking issue comment (`https://github.com/user-attachments/assets/ee018a2f-ff28-4561-b5f0-e7a9c7fbf88c`). The SVG is a faithful geometric/vector interpretation of that mark (three profile/front heads, checkmark / circuit brow / lock emblems, chain links to a hexagonal gate core, triad labels), using the locked palette in `docs/design/tui-visual-system.md`.
 - **Not derived from** third-party game, film, or commercial mascot artwork.
 - **Relationship to TUI:** The Ink shell uses a **deterministic textual / Nerd Font component** (wide / compact / minimal). This SVG is the **official off-TTY** source. PNG 1×/2× exports may be generated only when an external platform requires raster assets; they are not the TUI runtime path.
 
-## License
+## License (path A — same as repository)
 
-Copyright (c) 2026 AI-MINIONS contributors.
+This artwork is part of the Software governed by the root repository license:
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this artwork and associated documentation files (the "Art"), to use, copy, modify, merge, publish, distribute, and sublicense copies of the Art, subject to the following conditions:
+- **File:** [`LICENSE`](../LICENSE) — **AI MINIONS COMMUNITY LICENSE** Version 1.0
+- **Copyright holder:** Andrés Torres
+- **No separate grant:** This file does **not** grant broader rights (including unrestricted commercial use, sublicense, or distribute-beyond-LICENSE terms) than the root `LICENSE`.
 
-1. The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Art.
-2. The Art is provided "AS IS", without warranty of any kind.
+Redistribution and use of `assets/cerberus-master.svg` and this provenance file are subject to the same Non-Commercial Use grant, Commercial Use restrictions, trademark limits, and other terms as the rest of the repository. Brand gradient stops and palette hex values are documented in `docs/design/tui-visual-system.md` and may be referenced under those same LICENSE terms when redistributing the master SVG.
 
-Brand gradient stops (cyan → violet → amber) and palette hex values are documented in `docs/design/tui-visual-system.md` and may be referenced freely with attribution to this file when redistributing the master SVG.
+For Commercial Use of the artwork, obtain a separate written commercial license from the Licensor (see root `LICENSE` §4).
 
 ## Non-goals
 
