@@ -112,3 +112,146 @@ test('Ink renderToString splash shows brand; shell shows themed chrome', async (
   assert.match(shell, /Content ·/);
   assert.doesNotMatch(shell, /Press any key/);
 });
+
+test('buildFirstPaintShellModel is version + loading/unavailable only', () => {
+  const {
+    buildFirstPaintShellModel,
+    shouldShowProductionSplash,
+  } = require('../../modules/operator/operator-tui-shell-entry');
+
+  const model = buildFirstPaintShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    columns: 80,
+    rows: 24,
+    colorEnabled: false,
+  });
+  assert.equal(model.version, '0.26.0-beta.1');
+  assert.equal(model.readiness, 'loading');
+  assert.equal(model.home.credential_sufficiency, 'unavailable');
+  assert.equal(model.runs.runs.length, 0);
+  assert.equal(model.runs.result_code, 'RUNS_UNAVAILABLE');
+
+  assert.equal(shouldShowProductionSplash({}), true);
+  assert.equal(shouldShowProductionSplash({ maxLoops: 1 }), false);
+  assert.equal(shouldShowProductionSplash({ autoQuitMs: 40 }), false);
+  assert.equal(shouldShowProductionSplash({ skipSplash: true }), false);
+  assert.equal(shouldShowProductionSplash({}, { [SKIP_ENV]: '1' }), false);
+});
+
+test('production entry: splash renderer before loadRuns / credential discovery', async () => {
+  const {
+    runOperatorTuiShell,
+    TUI_SHELL_REASON,
+  } = require('../../modules/operator/operator-tui-shell-entry');
+
+  const order = [];
+  let splashModelReadiness = null;
+  let shellModelReadiness = null;
+  let renderCalls = 0;
+
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    splashMs: 0,
+    // Unbounded loops → production splash gate (not harness skip).
+    buildAbout: () => {
+      order.push('buildAbout');
+      return { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' };
+    },
+    assessCredentials: () => {
+      order.push('assessCredentials');
+      return { credential_sufficiency: 'not_required', providers: [] };
+    },
+    assessPath: () => {
+      order.push('assessPath');
+      return { status: 'ready', on_path: true };
+    },
+    loadRuns: () => {
+      order.push('loadRuns');
+      return {
+        ok: true,
+        exitCode: 0,
+        result_code: 'RUNS_EMPTY',
+        next_safe_action: 'none',
+        json: { result_code: 'RUNS_EMPTY', runs: [], next_safe_action: 'none' },
+      };
+    },
+    importRenderer: async () => ({
+      async renderOperatorTuiShell(opts) {
+        renderCalls += 1;
+        if (opts.showSplash === true) {
+          order.push('splashRender');
+          splashModelReadiness = opts.model?.readiness;
+          assert.equal(opts.splashOnly, true);
+          assert.equal(opts.model?.readiness, 'loading');
+          return { aborted: false };
+        }
+        order.push('shellRender');
+        shellModelReadiness = opts.model?.readiness;
+        assert.equal(opts.showSplash, false);
+        if (typeof opts.onRequestAction === 'function') {
+          opts.onRequestAction('quit');
+        }
+        return { aborted: false, requestedAction: 'quit' };
+      },
+    }),
+  });
+
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.equal(renderCalls, 2);
+  assert.equal(splashModelReadiness, 'loading');
+  assert.equal(shellModelReadiness, 'ready');
+
+  const splashIdx = order.indexOf('splashRender');
+  const loadIdx = order.indexOf('loadRuns');
+  const credIdx = order.indexOf('assessCredentials');
+  const pathIdx = order.indexOf('assessPath');
+  const shellIdx = order.indexOf('shellRender');
+  assert.ok(splashIdx >= 0, `order=${order.join(',')}`);
+  assert.ok(splashIdx < loadIdx, `splash before loadRuns: ${order.join(',')}`);
+  assert.ok(splashIdx < credIdx, `splash before assessCredentials: ${order.join(',')}`);
+  assert.ok(splashIdx < pathIdx, `splash before assessPath: ${order.join(',')}`);
+  assert.ok(loadIdx < shellIdx, `loadRuns before shell remount: ${order.join(',')}`);
+  assert.ok(order.indexOf('buildAbout') < splashIdx);
+});
+
+test('finite-loop harness still skips splash and discovers before shell', async () => {
+  const { runOperatorTuiShell } = require('../../modules/operator/operator-tui-shell-entry');
+  const order = [];
+
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    maxLoops: 1,
+    autoQuitMs: 40,
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => {
+      order.push('assessCredentials');
+      return { credential_sufficiency: 'not_required', providers: [] };
+    },
+    assessPath: () => {
+      order.push('assessPath');
+      return { status: 'ready', on_path: true };
+    },
+    loadRuns: () => {
+      order.push('loadRuns');
+      return {
+        ok: true,
+        exitCode: 0,
+        result_code: 'RUNS_EMPTY',
+        next_safe_action: 'none',
+        json: { result_code: 'RUNS_EMPTY', runs: [], next_safe_action: 'none' },
+      };
+    },
+    importRenderer: async () => ({
+      async renderOperatorTuiShell(opts) {
+        order.push(opts.showSplash === true ? 'splashRender' : 'shellRender');
+        assert.equal(opts.showSplash, false);
+        return { aborted: false };
+      },
+    }),
+  });
+
+  assert.equal(result.ok, true);
+  assert.ok(!order.includes('splashRender'), `order=${order.join(',')}`);
+  assert.ok(order.indexOf('loadRuns') < order.indexOf('shellRender'));
+  assert.equal(result.model.readiness, 'ready');
+});

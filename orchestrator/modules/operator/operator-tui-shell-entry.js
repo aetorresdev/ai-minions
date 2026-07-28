@@ -50,6 +50,72 @@ function legacyShellRequested() {
 }
 
 /**
+ * Production first-paint: version + explicit loading/unavailable readiness only.
+ * Credential/path assessment and run discovery must not run before this model paints.
+ * @param {{
+ *   aboutInfo?: object,
+ *   columns?: number,
+ *   rows?: number,
+ *   colorEnabled?: boolean,
+ * }} [options]
+ */
+function buildFirstPaintShellModel(options = {}) {
+  const aboutInfo = options.aboutInfo && typeof options.aboutInfo === 'object'
+    ? options.aboutInfo
+    : {};
+  return buildShellModel({
+    aboutInfo,
+    credentials: {
+      credential_sufficiency: 'unavailable',
+      providers: [],
+    },
+    pathActivation: {
+      status: 'loading',
+      on_path: null,
+    },
+    runsPayload: {
+      ok: true,
+      exitCode: 0,
+      result_code: 'RUNS_UNAVAILABLE',
+      next_safe_action: 'none',
+      json: {
+        result_code: 'RUNS_UNAVAILABLE',
+        runs: [],
+        next_safe_action: 'none',
+      },
+    },
+    selectedNavId: 'launcher',
+    contentSurface: 'home',
+    columns: options.columns,
+    rows: options.rows,
+    focus: 'nav',
+    colorEnabled: options.colorEnabled !== false,
+    productVersion: aboutInfo.version,
+  });
+}
+
+/**
+ * Whether the production splash gate should run (skipped for harness finite loops / auto-quit).
+ * @param {{
+ *   skipSplash?: boolean,
+ *   autoQuitMs?: number,
+ *   maxLoops?: number,
+ * }} options
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {boolean}
+ */
+function shouldShowProductionSplash(options = {}, env = process.env) {
+  if (options.skipSplash === true) return false;
+  if (shouldSkipSplash(env)) return false;
+  if (Number.isFinite(options.autoQuitMs) && options.autoQuitMs >= 0) return false;
+  if (Number.isInteger(options.maxLoops) && options.maxLoops > 0
+    && options.maxLoops < Number.POSITIVE_INFINITY) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * @param {{
  *   isTTY?: boolean,
  *   useColor?: boolean,
@@ -122,15 +188,8 @@ async function runOperatorTuiShell(options = {}) {
   const executeAction = options.executeAction ?? executeShellAction;
   const useColor = options.useColor === true;
 
+  // Version only before first paint — defer credential/path assessment and run discovery.
   let aboutInfo = buildAbout({ cwd: options.cwd });
-  let credentials = assessCredentials({ modelPolicy: aboutInfo.model_policy });
-  let pathActivation = assessPath();
-  const runsResult = loadRuns({
-    tracesDir: options.tracesDir,
-    limit: 20,
-    json: true,
-    useColor: false,
-  });
 
   const columns = options.columns
     ?? (typeof stdout.columns === 'number' ? stdout.columns : 80);
@@ -152,29 +211,59 @@ async function runOperatorTuiShell(options = {}) {
   /** @type {object | null} */
   let monitorSource = null;
   let launcherModel = null;
-  let runsPayload = runsResult;
-  let model = buildShellModel({
+  /** @type {object | null} */
+  let credentials = null;
+  /** @type {object | null} */
+  let pathActivation = null;
+  /** @type {object | null} */
+  let runsPayload = null;
+
+  const colorEnabled = useColor && process.env.NO_COLOR == null;
+  const wantsSplash = shouldShowProductionSplash(options);
+
+  let model = buildFirstPaintShellModel({
     aboutInfo,
-    credentials,
-    pathActivation,
-    runsPayload,
-    statusResult,
-    evidenceModel,
-    configModel,
-    launcherModel,
-    actionResult,
-    lifecycleSource,
-    monitorSource,
-    selectedRunId,
-    selectedNavId: 'launcher',
-    contentSurface,
     columns,
     rows,
-    focus: 'nav',
-    colorEnabled: useColor && process.env.NO_COLOR == null,
-    productVersion: aboutInfo.version,
+    colorEnabled,
   });
   selectedRunId = model.selectedRunId;
+
+  /**
+   * Populate readiness + runs after splash continuation (or immediately when splash is skipped).
+   */
+  function discoverShellBootstrap() {
+    credentials = assessCredentials({ modelPolicy: aboutInfo.model_policy });
+    pathActivation = assessPath();
+    runsPayload = loadRuns({
+      tracesDir: options.tracesDir,
+      limit: 20,
+      json: true,
+      useColor: false,
+    });
+    model = buildShellModel({
+      aboutInfo,
+      credentials,
+      pathActivation,
+      runsPayload,
+      statusResult,
+      evidenceModel,
+      configModel,
+      launcherModel,
+      actionResult,
+      lifecycleSource,
+      monitorSource,
+      selectedRunId,
+      selectedNavId: 'launcher',
+      contentSurface,
+      columns,
+      rows,
+      focus: 'nav',
+      colorEnabled,
+      productVersion: aboutInfo.version,
+    });
+    selectedRunId = model.selectedRunId;
+  }
 
   let guard = createTerminalGuard({ stdin, stdout });
   const maxLoops = Number.isInteger(options.maxLoops) && options.maxLoops > 0
@@ -212,13 +301,72 @@ async function runOperatorTuiShell(options = {}) {
   /** @type {{ renderOperatorTuiShell: Function } | null} */
   let cachedRenderer = null;
 
+  // First-paint splash gate: mount bounded minimal model before discovery.
+  if (wantsSplash) {
+    try {
+      if (!cachedRenderer) {
+        cachedRenderer = await importRenderer();
+      }
+      const splashRenderer = cachedRenderer;
+      inkLoaded = true;
+      reactLoaded = true;
+
+      if (options.injectFailure === 'renderer') {
+        await withTerminalGuard(guard, async () => {
+          throw new Error('simulated renderer exception');
+        }, 'renderer_exception');
+      }
+
+      const splashResult = await withTerminalGuard(guard, async () => splashRenderer.renderOperatorTuiShell({
+        model,
+        stdin,
+        stdout,
+        stderr: options.stderr ?? process.stderr,
+        showSplash: true,
+        splashOnly: true,
+        splashMs: options.splashMs,
+      }), 'normal');
+
+      if (Boolean(splashResult?.aborted)) {
+        return {
+          ok: true,
+          exitCode: 0,
+          reason_code: TUI_SHELL_REASON.ABORT,
+          ink_loaded: inkLoaded,
+          react_loaded: reactLoaded,
+          text: formatShellText(model),
+          model,
+          guard,
+        };
+      }
+    } catch (err) {
+      if (!guard.restored) guard.restore('renderer_exception');
+      return {
+        ok: false,
+        exitCode: 1,
+        reason_code: TUI_SHELL_REASON.RENDERER_EXCEPTION,
+        ink_loaded: inkLoaded,
+        react_loaded: reactLoaded,
+        text: formatShellText(model),
+        model,
+        guard,
+        error: String(err && err.message ? err.message : err),
+      };
+    }
+
+    discoverShellBootstrap();
+    guard = createTerminalGuard({ stdin, stdout });
+  } else {
+    discoverShellBootstrap();
+  }
+
   try {
     while (loops < maxLoops) {
       loops += 1;
       let requestedAction = null;
       let aborted = false;
 
-      if (options.injectFailure === 'renderer' && loops === 1) {
+      if (options.injectFailure === 'renderer' && loops === 1 && !wantsSplash) {
         await withTerminalGuard(guard, async () => {
           throw new Error('simulated renderer exception');
         }, 'renderer_exception');
@@ -233,24 +381,14 @@ async function runOperatorTuiShell(options = {}) {
       inkLoaded = true;
       reactLoaded = true;
 
-      // Splash on first mount only. Skip for harness tests (autoQuitMs / finite maxLoops),
-      // env override, or explicit opt-out. Production CLI uses unbounded loops → splash shows.
-      const boundedTestLoop = Number.isFinite(options.maxLoops)
-        && options.maxLoops < Number.POSITIVE_INFINITY;
-      const showSplash = loops === 1
-        && options.skipSplash !== true
-        && !shouldSkipSplash(process.env)
-        && !(Number.isFinite(options.autoQuitMs) && options.autoQuitMs >= 0)
-        && !boundedTestLoop;
-
+      // Splash already handled (or skipped for harness). Shell remount never re-shows splash.
       const renderResult = await withTerminalGuard(guard, async () => renderer.renderOperatorTuiShell({
         model,
         stdin,
         stdout,
         stderr: options.stderr ?? process.stderr,
         autoQuitMs: options.autoQuitMs,
-        showSplash,
-        splashMs: options.splashMs,
+        showSplash: false,
         onModelChange: (next) => {
           model = next;
           selectedRunId = next.selectedRunId;
@@ -652,5 +790,7 @@ async function runOperatorTuiShell(options = {}) {
 module.exports = {
   TUI_SHELL_REASON,
   legacyShellRequested,
+  buildFirstPaintShellModel,
+  shouldShowProductionSplash,
   runOperatorTuiShell,
 };

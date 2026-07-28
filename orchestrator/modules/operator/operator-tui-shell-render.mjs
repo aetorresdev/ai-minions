@@ -326,17 +326,21 @@ function ShellApp(props) {
 
 /**
  * Root: optional first-paint splash, then shell chrome.
+ * When splashOnly is set, splash continuation exits Ink so the entry can
+ * discover readiness/runs and remount the shell (first-paint contract).
  */
 function OperatorTuiRoot(props) {
   const {
     initialModel,
     showSplash = false,
+    splashOnly = false,
     splashMs,
     autoQuitMs,
     onModelChange,
     onAbort,
     onRequestAction,
   } = props;
+  const { exit } = useApp();
   const [phase, setPhase] = useState(showSplash ? 'splash' : 'shell');
 
   if (phase === 'splash') {
@@ -344,7 +348,13 @@ function OperatorTuiRoot(props) {
       model: initialModel,
       splashMs,
       autoQuitMs,
-      onContinue: () => setPhase('shell'),
+      onContinue: () => {
+        if (splashOnly) {
+          exit();
+          return;
+        }
+        setPhase('shell');
+      },
       onAbort,
     });
   }
@@ -484,6 +494,7 @@ function buildContentLines(model) {
  *   stderr?: NodeJS.WriteStream,
  *   autoQuitMs?: number,
  *   showSplash?: boolean,
+ *   splashOnly?: boolean,
  *   splashMs?: number,
  *   onModelChange?: (model: object) => void,
  *   onRequestAction?: (actionId: string) => void,
@@ -494,10 +505,12 @@ export async function renderOperatorTuiShell(options) {
   /** @type {string | null} */
   let requestedAction = null;
   const showSplash = options.showSplash === true;
+  const splashOnly = options.splashOnly === true;
   const instance = render(
     React.createElement(OperatorTuiRoot, {
       initialModel: options.model,
       showSplash,
+      splashOnly,
       splashMs: options.splashMs,
       autoQuitMs: options.autoQuitMs,
       onModelChange: options.onModelChange,
