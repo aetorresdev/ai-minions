@@ -327,7 +327,7 @@ async function runOperatorTuiShell(options = {}) {
         splashMs: options.splashMs,
       }), 'normal');
 
-      if (Boolean(splashResult?.aborted)) {
+      if (splashResult?.aborted) {
         return {
           ok: true,
           exitCode: 0,
