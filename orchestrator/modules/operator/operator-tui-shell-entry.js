@@ -18,7 +18,7 @@ const {
   buildShellModel,
   formatShellText,
   isShellSessionEndAction,
-  isInkLocalShellAction,
+  isInkLocalRemountFallbackAction,
   contentSurfaceForLocalAction,
   shellModelToOptions,
 } = require('./operator-tui-shell-model');
@@ -714,8 +714,10 @@ async function runOperatorTuiShell(options = {}) {
             }
           }
 
-          // Ink-local surfaces must never open a nested readline pane (silent-quit lookalike).
-          if (isInkLocalShellAction(plan.action_id)) {
+          // Landing chrome fallback remount only (home/help/diagnostics).
+          // Overview / Explain / Evidence are Ink-local seeded surfaces — never remount here;
+          // slash `/status` / `/explain` fall through to executeAction for a fresh query.
+          if (isInkLocalRemountFallbackAction(plan.action_id)) {
             const surface = contentSurfaceForLocalAction(plan.action_id) ?? 'home';
             contentSurface = surface;
             prepareInkRemount({ stdin });
@@ -952,8 +954,9 @@ async function runOperatorTuiShell(options = {}) {
         }
       }
 
-      // Ink-local surfaces (home/help/diagnostics/status/evidence/explain) stay in-process.
-      if (isInkLocalShellAction(actionId)) {
+      // Landing chrome fallback remount only. Overview / Explain / Evidence must switch
+      // inside the active Ink render (render.mjs) — never soft-handoff / prepareInkRemount.
+      if (isInkLocalRemountFallbackAction(actionId)) {
         const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
         contentSurface = surface;
         prepareInkRemount({ stdin });

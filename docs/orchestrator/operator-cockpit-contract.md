@@ -108,10 +108,10 @@ Fullscreen action ids (task-first / contextual). Nested readline panes may still
 | `diagnostics` (`3`) | System Status / advanced diagnostics (`formatDiagnosticsLines`) — raw path/git/credential fields |
 | `config` (`4`) | Settings → `runOperatorConfigReadinessPane` (reuses doctor + credential readiness) *(Phase 2 native)* |
 | `help` (`5` / `?`) | Help topic browser (`formatHelpLines` / `helpTopics`) — **in-process only**; topic digits never remount Settings/launcher |
-| `status` (`o`, contextual) | Selected-run Overview → `runOperatorStatus` / `adaptSelectedRunStatus` *(Phase 2 native overview path)* |
+| `status` (`o`, contextual) | Selected-run Overview — **seeded snapshot** from shell `statusResult` / `adaptSelectedRunStatus` (**in-process**, no fresh query, no remount). Fresh status: CLI `ai-minions status` or slash `/status` |
 | `monitor` (`m`, contextual) | Live monitor → `runOperatorStatus` + `adaptLiveMonitor` (read-only) *(Phase 2 native)* |
-| `evidence` (`e`, contextual) | Evidence / attach pane → `runOperatorEvidenceAttachPane` *(Phase 2 native)* |
-| `explain` (`x`, contextual) | `runOperatorExplain` — reason codes / blocker / remediation (never synthesized from presentation text) |
+| `evidence` (`e`, contextual) | Selected-run Evidence — **seeded snapshot** from shell `evidenceModel` / `adaptEvidenceAttachState` (**in-process**, no attach prompt, no remount). Attach generation: nested pane / CLI `ai-minions attach` / slash `/attach` |
+| `explain` (`x`, contextual) | Explain shares the Overview **status** surface (reason_code / next_safe_action from the seeded snapshot — never synthesized from presentation text). Fresh explain: CLI / slash `/explain` |
 | quit (`q`) | exit `0`, terminal restored, no operator side effects |
 
 **Legacy-only (not fullscreen top-level):** `select` (`s`), digit `4`→attach, digit `5`→config — see [Legacy readline cockpit aliases](#3-legacy-readline-cockpit-aliases-rollback--power-user-only).
@@ -124,8 +124,8 @@ Command input (`/` focus) accepts a minimal vocabulary. Parsing is isolated from
 |---------|----------|
 | `/help` | Lists **implemented** slash commands in-process (no remount; same copy as `formatSlashHelpText`) |
 | `/runs` | Opens native run browser in-process (same as `2`) |
-| `/status` [`<run-id>`] | `runOperatorStatus` + status/monitor surfaces; requires selected run or arg |
-| `/explain` [`<run-id>`] | `runOperatorExplain` — reason codes / blocker / remediation from explain contract (never synthesized from presentation text) |
+| `/status` [`<run-id>`] | Fresh status via `runOperatorStatus` (may soft-handoff); requires selected run or arg. Hotkey `o` is the seeded in-process Overview instead |
+| `/explain` [`<run-id>`] | Fresh explain via `runOperatorExplain` (may soft-handoff). Hotkey `x` is the seeded in-process status surface instead |
 | `/attach` [`<run-id>`] | `runAttach` |
 | `/doctor` | Config readiness pane (`runOperatorConfigReadinessPane`) |
 | `/new` | Guided launcher (`runOperatorGuidedLauncherPane`) — same preview/reproducibility path as nav `1` |
@@ -143,12 +143,14 @@ Nested readline panes (Phase 2 / legacy cockpit) use a **soft handoff** (cooked 
 
 ## Run browser + overview (native)
 
-**Fullscreen:** Runs (`2`) opens the **native** run browser inside Ink; content ↑/↓ also selects a run on the home/runs surfaces. Overview (`o`) shows selected-run status. There is **no** top-level `s` / select hotkey.
+**Fullscreen:** Runs (`2`) opens the **native** run browser inside Ink; content ↑/↓ also selects a run on the home/runs surfaces. Overview (`o`) / Explain (`x`) / Evidence (`e`) switch **seeded** local surfaces inside the live mount. There is **no** top-level `s` / select hotkey.
 
 - Browse runs **newest-first** inside the fullscreen layout (same discovery shape as `ai-minions runs`).
 - **Freshness (Phase 1):** the native run browser opens from the **startup snapshot** already on the shell model (`model.runs` from shell-entry `loadRuns` / `runOperatorRuns`). Opening the browser does **not** re-invoke discovery; a launch in the same session is not reflected until the next shell mount / explicit refresh (Phase 2+).
 - **↑/↓** (or j/k) moves selection; **Enter** opens the selected-run overview; **Esc** cancels/back with selection preserved.
-- Overview shows compact status fields via `loadRunStatusPane` (reason codes preserved; invalid traces stay `RUN_TRACE_INVALID` with no inferred outcome).
+- Overview (`o`) / Explain (`x`) show the **seeded** selected-run status snapshot on the shell model (`statusResult` → `adaptSelectedRunStatus`) — no fresh `runOperatorStatus` / `runOperatorExplain` query and no remount.
+- Fresh status/explain remain on CLI verbs and slash `/status` / `/explain`.
+- Overview shows compact status fields from that snapshot (reason codes preserved; invalid traces stay `RUN_TRACE_INVALID` with no inferred outcome).
 - Legacy readline selector (`operator-run-selector-tui.js`) remains for `AI_MINIONS_TUI_LEGACY=1` / non-Ink paths.
 
 ## Guided launcher (native)
@@ -181,7 +183,9 @@ Module: `orchestrator/modules/operator/operator-tui-live-monitor.js`.
 
 ## Evidence / attach pane
 
-**Fullscreen:** contextual **`e` / Evidence** when a run is selected.
+**Fullscreen hotkey `e` / Evidence** (when a run is selected): **seeded snapshot** of attach/evidence fields already on the shell model (`evidenceModel` → `adaptEvidenceAttachState`). No nested prompt, no attach generation, no remount — same Ink-local pattern as Help / System Status.
+
+**Nested attach pane / CLI** (generation + prompts): slash `/attach`, legacy cockpit, or non-Ink paths.
 
 - Prefers the selected run; nested pane may **prompt for run-id** (Enter with empty answer accepts the previously selected run). Typing a new id overrides the selection.
 - Without a prior selection and with an empty answer, the pane is skipped (`run-id required`).
@@ -191,7 +195,7 @@ Module: `orchestrator/modules/operator/operator-tui-live-monitor.js`.
 - After attach, bundle / report / `ATTACH.md` paths are listed as copyable output paths.
 - **No** secrets in pane text; shareable bundles stay on the existing attach writers.
 
-Module: `orchestrator/modules/operator/operator-evidence-attach-pane-tui.js`.
+Module (nested / CLI attach): `orchestrator/modules/operator/operator-evidence-attach-pane-tui.js`.
 
 ## Config / credentials readiness pane (Settings)
 

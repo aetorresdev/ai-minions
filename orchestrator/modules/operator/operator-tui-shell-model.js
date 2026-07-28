@@ -273,7 +273,8 @@ function isShellSessionEndAction(actionId) {
 }
 
 /**
- * Task-first surfaces that must switch inside the live Ink mount.
+ * Task-first / contextual surfaces that must switch inside the live Ink mount
+ * (update `contentSurface` / model — never `onRequestAction` / unmount).
  * Unmounting these (exit → soft handoff → clear) looks like a silent quit and
  * risks TUI_SHELL_OK when remount is lost.
  * @param {unknown} actionId
@@ -293,6 +294,23 @@ function isInkLocalShellAction(actionId) {
     || id === 'overview'
     || id === 'explain'
     || id === 'evidence';
+}
+
+/**
+ * Entry remount fallback only for landing chrome (home/help/diagnostics).
+ * Overview / Explain / Evidence must never remount here — hotkeys stay in the
+ * active Ink render; slash `/status` / `/explain` may soft-handoff into the
+ * operator CLI modules for a fresh query (not the seeded snapshot surfaces).
+ * @param {unknown} actionId
+ * @returns {boolean}
+ */
+function isInkLocalRemountFallbackAction(actionId) {
+  const id = String(actionId ?? '').trim().toLowerCase();
+  return id === 'home'
+    || id === 'help'
+    || id === 'diagnostics'
+    || id === 'system-status'
+    || id === 'system_status';
 }
 
 /**
@@ -833,6 +851,7 @@ module.exports = {
   resolveShellKeypress,
   isShellSessionEndAction,
   isInkLocalShellAction,
+  isInkLocalRemountFallbackAction,
   contentSurfaceForLocalAction,
   navItemsForMovement,
   helpTopics,

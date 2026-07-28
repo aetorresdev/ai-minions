@@ -25,8 +25,10 @@ Journey intent sequences use the **same** Ink-local surface rules as the live sh
 **status** (Overview / Explain), and **evidence**. The acceptance harness must not invent
 content surfaces the entrypoint would open via nested `executeAction`.
 
-Entrypoint coverage: hotkeys `o` / `x` / `e` stay mounted with **zero** `executeAction`
-calls (see shell foundation tests).
+Entrypoint coverage: hotkeys `o` / `x` / `e` stay on a **single** Ink mount with **zero**
+`executeAction`, **zero** `SOFT_HANDOFF_SEQUENCE` during the sequence, and no remount
+(see shell foundation tests). Surfaces are **seeded snapshots** (`statusResult` /
+`evidenceModel`) — not fresh fetch / attach panes.
 
 1. Clean install / setup required
 2. Ready environment with no runs
