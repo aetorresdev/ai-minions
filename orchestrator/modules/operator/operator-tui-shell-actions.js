@@ -118,6 +118,66 @@ async function executeShellAction(options) {
       };
     }
 
+    if (actionId === 'home') {
+      return {
+        quit: false,
+        selectedRunId,
+        contentSurface: 'home',
+        actionResult: adaptActionResult({
+          action_id: 'home',
+          ok: true,
+          exitCode: 0,
+          reason_code: 'TUI_SHELL_HOME',
+          text: 'landing',
+        }),
+        evidenceModel: null,
+        configModel: null,
+        statusResult: null,
+        runsPayload: null,
+        launcherModel: null,
+      };
+    }
+
+    if (actionId === 'help') {
+      return {
+        quit: false,
+        selectedRunId,
+        contentSurface: 'help',
+        actionResult: adaptActionResult({
+          action_id: 'help',
+          ok: true,
+          exitCode: 0,
+          reason_code: 'TUI_SHELL_HELP',
+          text: 'help',
+        }),
+        evidenceModel: null,
+        configModel: null,
+        statusResult: null,
+        runsPayload: null,
+        launcherModel: null,
+      };
+    }
+
+    if (actionId === 'diagnostics' || actionId === 'system-status' || actionId === 'system_status') {
+      return {
+        quit: false,
+        selectedRunId,
+        contentSurface: 'diagnostics',
+        actionResult: adaptActionResult({
+          action_id: 'diagnostics',
+          ok: true,
+          exitCode: 0,
+          reason_code: 'TUI_SHELL_DIAGNOSTICS',
+          text: 'diagnostics',
+        }),
+        evidenceModel: null,
+        configModel: null,
+        statusResult: null,
+        runsPayload: null,
+        launcherModel: null,
+      };
+    }
+
     if (actionId === 'launcher' || actionId === 'smoke') {
       try {
         const result = await (options.runLauncherPane ?? runOperatorGuidedLauncherPane)({
@@ -576,8 +636,9 @@ async function executeShellAction(options) {
 }
 
 /**
- * Resolve nav / command token to cockpit action id.
+ * Resolve nav / command token to shell action id.
  * Slash tokens (`/…`) are handled by resolveSlashCommandPlan — not mapped here.
+ * Prefers task-first shell ids; falls back to legacy cockpit key/id aliases.
  * @param {string} raw
  * @param {string | null} [selectedNavId]
  * @returns {string | null}
@@ -589,6 +650,25 @@ function resolveShellActionToken(raw, selectedNavId = null) {
   }
   if (token.startsWith('/')) {
     return null;
+  }
+  const lower = token.toLowerCase();
+  const shellAliases = {
+    home: 'home',
+    landing: 'home',
+    help: 'help',
+    '?': 'help',
+    diagnostics: 'diagnostics',
+    doctor: 'diagnostics',
+    'system-status': 'diagnostics',
+    system_status: 'diagnostics',
+    status_diag: 'diagnostics',
+    new: 'launcher',
+    'new-run': 'launcher',
+    new_run: 'launcher',
+    settings: 'config',
+  };
+  if (Object.prototype.hasOwnProperty.call(shellAliases, lower)) {
+    return shellAliases[lower];
   }
   const resolved = resolveCockpitAction(token);
   return resolved ? resolved.id : null;

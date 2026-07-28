@@ -240,11 +240,11 @@ test('shell model chrome + nav + resize', () => {
   assert.equal(narrow.layout, 'narrow');
   assert.match(formatShellText(model), /ai-minions/);
   assert.match(formatShellText(model), /operator modules remain authoritative/i);
-  assert.match(model.footerHints, /Type action key|key=run/i);
+  assert.match(model.footerHints, /Navigate|Quit|Help|↑/i);
   assert.match(model.disclaimer, /mouse/i);
   assert.equal(resolveNavHotkey('1', model.navItems), 'launcher');
-  assert.equal(resolveNavHotkey('s', model.navItems), 'select');
-  assert.equal(resolveNavHotkey('m', model.navItems), 'monitor');
+  assert.equal(resolveNavHotkey('h', model.navItems), 'home');
+  assert.equal(resolveNavHotkey('3', model.navItems), 'diagnostics');
   assert.equal(resolveNavHotkey('j', model.navItems), null);
 });
 
@@ -253,19 +253,22 @@ test('hotkey matrix: labeled keys dispatch panes; only q ends session', () => {
     aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
     pathActivation: { status: 'ready', on_path: true },
     credentials: { credential_sufficiency: 'not_required', providers: [] },
-    runsPayload: canonicalRunsResult([]),
+    runsPayload: canonicalRunsResult([{ run_id: 'r1', status: 'running' }]),
     focus: 'nav',
     selectedNavId: 'launcher',
+    selectedRunId: 'r1',
   });
   const expected = [
     ['1', 'launcher'],
     ['2', 'runs'],
-    ['s', 'select'],
+    ['3', 'diagnostics'],
+    ['4', 'config'],
+    ['5', 'help'],
+    ['h', 'home'],
+    ['o', 'status'],
     ['e', 'evidence'],
-    ['3', 'status'],
     ['m', 'monitor'],
-    ['4', 'attach'],
-    ['5', 'config'],
+    ['x', 'explain'],
   ];
   for (const [key, actionId] of expected) {
     const intent = resolveShellKeypress(key, {}, model);
@@ -283,7 +286,7 @@ test('hotkey matrix: labeled keys dispatch panes; only q ends session', () => {
   assert.equal(isShellSessionEndAction('launcher'), false);
 
   // Unlabeled digits / letters must not quit or dispatch.
-  for (const key of ['0', '6', '7', '8', '9', 'x', 'z']) {
+  for (const key of ['0', '6', '7', '8', '9', 's', 'z']) {
     const intent = resolveShellKeypress(key, {}, model);
     assert.equal(intent.endsSession, false, `key ${key}`);
     assert.notEqual(intent.type, 'quit', `key ${key}`);
@@ -408,7 +411,7 @@ test('digit hotkeys never take quit path; q still quits without running panes', 
   await new Promise((r) => setTimeout(r, 100));
   stdin.write('2'); // runs
   await new Promise((r) => setTimeout(r, 80));
-  stdin.write('5'); // config
+  stdin.write('4'); // settings / config
   await new Promise((r) => setTimeout(r, 80));
   stdin.write('q'); // quit — must not call executeAction('quit') after early session-end
   const result = await promise;
@@ -1042,10 +1045,12 @@ test('Ink renderToString shows shell chrome', async () => {
     rows: 40,
   });
   const out = renderOperatorTuiShellToString(model, { columns: 80 });
-  assert.match(out, /ai-minions/);
+  assert.match(out, /AI-MINIONS|ai-minions/i);
   assert.match(out, /shell-run/);
-  assert.match(out, /Actions/);
-  assert.match(out, /live run monitor/);
+  assert.match(out, /Quick Start|Start New Run/);
+  assert.match(out, /System Readiness/);
+  assert.match(out, /Recent Runs/);
+  assert.match(out, /Monitor|Overview/);
 });
 
 test('resolveShellActionToken maps cockpit keys', () => {
@@ -1054,6 +1059,9 @@ test('resolveShellActionToken maps cockpit keys', () => {
   assert.equal(resolveShellActionToken('smoke'), 'launcher');
   assert.equal(resolveShellActionToken('s'), 'select');
   assert.equal(resolveShellActionToken('m'), 'monitor');
+  assert.equal(resolveShellActionToken('help'), 'help');
+  assert.equal(resolveShellActionToken('diagnostics'), 'diagnostics');
+  assert.equal(resolveShellActionToken('home'), 'home');
   assert.equal(resolveShellActionToken('q'), 'quit');
   assert.equal(resolveShellActionToken('', 'config'), 'config');
   assert.equal(resolveShellActionToken('nope'), null);

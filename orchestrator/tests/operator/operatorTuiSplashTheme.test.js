@@ -106,10 +106,10 @@ test('Ink renderToString splash shows brand; shell shows themed chrome', async (
   assert.match(splash, /Press any key/i);
 
   const shell = renderOperatorTuiShellToString(model, { columns: 80, showSplash: false });
-  assert.match(shell, /Actions/);
-  assert.match(shell, /keyboard keys/);
+  assert.match(shell, /Quick Start|Navigate/);
+  assert.match(shell, /keyboard/);
   assert.match(shell, /clickable/);
-  assert.match(shell, /Content ·/);
+  assert.match(shell, /System Readiness|AI-MINIONS/);
   assert.doesNotMatch(shell, /Press any key/);
 });
 

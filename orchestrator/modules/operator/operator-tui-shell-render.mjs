@@ -11,12 +11,17 @@ const {
   resolveShellKeypress,
   shellModelToOptions,
 } = require('./operator-tui-shell-model.js');
-const { resolveShellTheme, focusBorderColor } = require('./operator-tui-theme.js');
+const { resolveShellTheme, focusBorderColor, toneColor } = require('./operator-tui-theme.js');
 const {
   buildSplashContent,
   resolveSplashDurationMs,
   shouldSkipSplash,
 } = require('./operator-tui-splash.js');
+const {
+  formatLandingLines,
+  formatHelpLines,
+  formatDiagnosticsLines,
+} = require('./operator-tui-landing.js');
 
 /**
  * Fullscreen Ink shell: optional brand splash, then header/nav/content/footer.
@@ -220,22 +225,67 @@ function ShellApp(props) {
   const contentLines = buildContentLines(model);
   const readinessColor = model.readiness === 'ready'
     ? theme.ready
-    : (model.readiness === 'unknown' ? theme.muted : theme.warn);
+    : (model.readiness === 'blocked'
+      ? theme.blocked
+      : (model.readiness === 'failed'
+        ? theme.danger
+        : (model.readiness === 'unknown' || model.readiness === 'loading'
+          ? theme.muted
+          : theme.warn)));
+  const showLandingHome = model.contentSurface === 'home' && model.landing;
+  const navTitle = showLandingHome ? 'Quick Start' : 'Navigate';
 
   return React.createElement(
     Box,
     { flexDirection: 'column', width: model.columns, height: Math.max(12, model.rows) },
     React.createElement(
       Box,
-      { borderStyle: 'single', borderColor: theme.brand, paddingX: 1 },
+      {
+        borderStyle: 'double',
+        borderColor: theme.brand,
+        paddingX: 1,
+        flexDirection: 'column',
+      },
       React.createElement(
-        Text,
-        { bold: theme.titleBold, color: theme.brand },
-        `${model.title} v${model.version}`,
+        Box,
+        { justifyContent: 'space-between' },
+        React.createElement(
+          Text,
+          { bold: theme.titleBold, color: theme.brand },
+          showLandingHome ? (model.landing.hero.product || model.title) : `${model.title} v${model.version}`,
+        ),
+        React.createElement(
+          Text,
+          { color: theme.muted },
+          showLandingHome ? `v${String(model.version).replace(/^v/i, '')}` : `[${model.layout}]`,
+        ),
       ),
-      React.createElement(Text, null, '  '),
-      React.createElement(Text, { color: readinessColor }, `readiness=${model.readiness}`),
-      React.createElement(Text, { dimColor: true, color: theme.muted }, `  [${model.layout}]`),
+      showLandingHome
+        ? React.createElement(
+          Box,
+          { flexDirection: 'column' },
+          React.createElement(
+            Text,
+            { color: theme.accent },
+            model.landing.hero.tagline,
+          ),
+          React.createElement(
+            Text,
+            { color: theme.muted },
+            model.landing.hero.triad,
+          ),
+          React.createElement(
+            Text,
+            { dimColor: true, color: theme.muted },
+            model.landing.hero.guardian_note,
+          ),
+        )
+        : React.createElement(
+          Text,
+          { color: readinessColor },
+          `readiness=${model.readiness}`
+            + (model.selectedRunId ? ` · run=${model.selectedRunId}` : ''),
+        ),
     ),
     React.createElement(
       Box,
@@ -244,19 +294,27 @@ function ShellApp(props) {
         Box,
         {
           flexDirection: 'column',
-          width: narrow ? undefined : 28,
+          width: narrow ? undefined : (showLandingHome ? 36 : 28),
           borderStyle: model.focus === 'nav' ? 'double' : 'single',
           borderColor: focusBorderColor(theme, model.focus === 'nav'),
           paddingX: 1,
         },
-        React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Actions'),
+        React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, navTitle),
         React.createElement(
           Text,
           { dimColor: true, color: theme.muted },
-          'keyboard keys — not clickable',
+          'keyboard — not clickable',
         ),
         ...model.navItems.map((item) => {
           const selected = item.id === model.selectedNavId;
+          const prefix = item.group === 'run' ? '  ' : '';
+          const label = showLandingHome && item.id === 'launcher'
+            ? 'Start New Run'
+            : (showLandingHome && item.id === 'runs'
+              ? 'Browse Runs'
+              : (showLandingHome && item.id === 'diagnostics'
+                ? 'System Status'
+                : item.label));
           return React.createElement(
             Text,
             {
@@ -264,9 +322,16 @@ function ShellApp(props) {
               bold: selected,
               color: selected ? theme.selected : undefined,
             },
-            `${selected ? '>' : ' '} ${item.key}. ${item.label}`,
+            `${prefix}${selected ? '›' : ' '} ${item.key}. ${label}`,
           );
         }),
+        model.selectedRunId
+          ? React.createElement(
+            Text,
+            { dimColor: true, color: theme.muted },
+            `run=${model.selectedRunId}`,
+          )
+          : null,
       ),
       React.createElement(
         Box,
@@ -277,20 +342,94 @@ function ShellApp(props) {
           borderColor: focusBorderColor(theme, model.focus === 'content'),
           paddingX: 1,
         },
-        React.createElement(
-          Text,
-          { bold: theme.sectionBold, color: theme.accent },
-          `Content · ${model.contentSurface}`,
-        ),
-        ...contentLines.map((line, idx) => React.createElement(
-          Text,
-          {
-            key: `c-${idx}`,
-            dimColor: line.startsWith('('),
-            color: line.startsWith('(') ? theme.muted : undefined,
-          },
-          line,
-        )),
+        showLandingHome
+          ? React.createElement(
+            Box,
+            { flexDirection: 'column' },
+            React.createElement(
+              Text,
+              { bold: theme.sectionBold, color: theme.accent },
+              'System Readiness',
+            ),
+            React.createElement(
+              Text,
+              { color: readinessColor, bold: true },
+              `Overall: ${model.landing.overall.label}`,
+            ),
+            React.createElement(
+              Text,
+              { color: theme.muted },
+              `next: ${model.landing.overall.next_action}`,
+            ),
+            ...model.landing.readiness_rows.map((row, idx) => React.createElement(
+              Text,
+              {
+                key: `r-${idx}`,
+                color: toneColor(theme, row.tone),
+              },
+              `  ${row.label}: ${row.status_label}`,
+            )),
+            React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' ')),
+            React.createElement(
+              Text,
+              { bold: theme.sectionBold, color: theme.accent },
+              'Recent Runs',
+            ),
+            ...(model.landing.recent_runs.length
+              ? [
+                React.createElement(
+                  Text,
+                  { key: 'rr-count', dimColor: true, color: theme.muted },
+                  `Showing ${model.landing.recent_runs_showing} of ${model.landing.recent_runs_total}`,
+                ),
+                ...model.landing.recent_runs.map((run, idx) => React.createElement(
+                  Text,
+                  {
+                    key: `rr-${idx}`,
+                    color: toneColor(
+                      theme,
+                      run.activity_state === 'completed'
+                        ? 'ok'
+                        : (run.activity_state === 'blocked'
+                          ? 'blocked'
+                          : (run.activity_state === 'failed'
+                            ? 'fail'
+                            : (run.activity_state === 'active' ? 'warn' : 'unavailable'))),
+                    ),
+                  },
+                  `  ${run.activity_label}  ${run.run_id}`
+                    + (run.summary ? `  ${run.summary}` : '')
+                    + (narrow ? '' : `  ${run.last_event_at ?? 'time unavailable'}`),
+                )),
+              ]
+              : [
+                React.createElement(
+                  Text,
+                  { key: 'rr-empty', color: theme.muted },
+                  model.landing.empty_state
+                    ? `  ${model.landing.empty_state.title}: ${model.landing.empty_state.body}`
+                    : '  (No runs yet)',
+                ),
+              ]),
+          )
+          : React.createElement(
+            Box,
+            { flexDirection: 'column' },
+            React.createElement(
+              Text,
+              { bold: theme.sectionBold, color: theme.accent },
+              `Content · ${model.contentSurface}`,
+            ),
+            ...contentLines.map((line, idx) => React.createElement(
+              Text,
+              {
+                key: `c-${idx}`,
+                dimColor: line.startsWith('('),
+                color: line.startsWith('(') ? theme.muted : undefined,
+              },
+              line,
+            )),
+          ),
       ),
     ),
     React.createElement(
@@ -313,7 +452,7 @@ function ShellApp(props) {
       React.createElement(
         Text,
         { dimColor: true, color: theme.muted },
-        `sel=${model.selectedRunId ?? '(none)'} · ${model.footerHints}`,
+        model.footerHints,
       ),
     ),
     React.createElement(
@@ -374,17 +513,19 @@ function OperatorTuiRoot(props) {
  */
 function buildContentLines(model) {
   if (model.contentSurface === 'home') {
-    return [
-      `version: ${model.home.version ?? '-'}`,
-      `git: ${model.home.git_commit ?? '-'}`,
-      `model_policy: ${model.home.model_policy ?? '-'}`,
-      `path_status: ${model.home.path_status ?? '-'}`,
-      `cli_on_path: ${String(model.home.cli_on_path)}`,
-      `credential_sufficiency: ${model.home.credential_sufficiency ?? '-'}`,
-      ...(model.home.providers || []).map(
-        (p) => `${p.env_var}: ${p.status}${p.required_for_policy ? ' (required)' : ''}`,
-      ),
-    ];
+    if (model.landing) {
+      return formatLandingLines(model.landing, {
+        selectedNavId: model.selectedNavId,
+        narrow: model.layout === 'narrow',
+      });
+    }
+    return ['(landing unavailable)'];
+  }
+  if (model.contentSurface === 'diagnostics') {
+    return formatDiagnosticsLines(model.home);
+  }
+  if (model.contentSurface === 'help') {
+    return formatHelpLines();
   }
   if (model.contentSurface === 'runs') {
     if (!model.runs.runs.length) return ['(none)', `result_code: ${model.runs.result_code}`];
