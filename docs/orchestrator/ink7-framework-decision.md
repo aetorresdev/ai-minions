@@ -141,6 +141,7 @@ Collected via unit tests + `npm run evidence:ink7-spike` (JSON fixture under `or
 | Evidence / attach panes | Same operator contracts; Ink is presentation only |
 | Config / readiness panes | Same |
 | Live harness / quality evidence | Framework + foundation enable harness scenarios against Ink shell |
+| Integrated TUI quality gate | `npm run test:tui-quality` is the release-blocking command; macOS TTY + live fixture evidence remain blocked/deferred until recorded |
 | Release prep / tag | Requires macOS interactive evidence + platform honesty from D6 |
 
 ---

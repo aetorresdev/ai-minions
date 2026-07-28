@@ -148,9 +148,9 @@ Persistent action loop: product status + **guided launcher (`1`)** / runs / **se
 
 **Live monitor (`m`):** read-only phase + reason-code surface for the selected run (same status/trace SoT as `status`); menu/quit detach does not cancel the run.
 
-Contract: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md). Quality gate (mandatory when TUI ships): `cd orchestrator && npm run test:tui-quality`.
+Contract: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md). Quality gate (mandatory when TUI ships): `cd orchestrator && npm run test:tui-quality` (MVP matrix + integrated fullscreen journey; platform evidence honesty for release-prep).
 
-**Not claimed:** slash commands · Web UI · durable resume.
+**Not claimed:** Web UI · durable resume · Loop Contract storage · Windows interactive TUI.
 
 ### Evidence surface (selectors)
 
