@@ -515,11 +515,17 @@ test('Esc and local surfaces never set endsSession; q/Ctrl+C//quit do', () => {
 
   assert.equal(resolveShellKeypress('', { escape: true }, model).type, 'surface_home');
   assert.equal(resolveShellKeypress('', { escape: true }, model).endsSession, false);
-  assert.equal(resolveShellKeypress('?', {}, model).type, 'dispatch');
+  assert.equal(resolveShellKeypress('?', {}, model).type, 'ignore', 're-? on Help stays mounted');
   assert.equal(resolveShellKeypress('?', {}, model).endsSession, false);
-  assert.equal(resolveShellKeypress('3', {}, model).actionId, 'diagnostics');
+  assert.equal(resolveShellKeypress('3', {}, model).type, 'help_open');
+  assert.equal(resolveShellKeypress('3', {}, model).topicId, 'keys');
   assert.equal(resolveShellKeypress('3', {}, model).endsSession, false);
-  assert.equal(resolveShellKeypress('', { upArrow: true }, model).type, 'nav_move');
+  assert.equal(resolveShellKeypress('4', {}, model).type, 'help_open', 'digit 4 on Help is topic, not Settings');
+  assert.equal(resolveShellKeypress('4', {}, model).topicId, 'display');
+  assert.notEqual(resolveShellKeypress('4', {}, model).actionId, 'config');
+  assert.equal(resolveShellKeypress('5', {}, model).type, 'help_open', 'digit 5 opens limits topic');
+  assert.equal(resolveShellKeypress('5', {}, model).topicId, 'limits');
+  assert.equal(resolveShellKeypress('', { upArrow: true }, model).type, 'help_move');
   assert.equal(resolveShellKeypress('', { upArrow: true }, model).endsSession, false);
   assert.equal(resolveShellKeypress('', { return: true }, {
     ...model,
@@ -530,19 +536,88 @@ test('Esc and local surfaces never set endsSession; q/Ctrl+C//quit do', () => {
   assert.equal(resolveShellKeypress('q', {}, model).endsSession, true);
   assert.equal(resolveShellKeypress('c', { ctrl: true }, model).endsSession, true);
 
-  // Command-input /quit is a first-class session terminator (same as q).
-  const quitSlash = resolveShellKeypress('', { return: true }, {
+  // Help isolation must win over command-input focus (Tab → prompt).
+  const helpInput = { ...model, focus: 'input', commandInput: '4' };
+  assert.equal(resolveShellKeypress('4', {}, helpInput).type, 'help_open');
+  assert.equal(resolveShellKeypress('4', {}, helpInput).topicId, 'display');
+  assert.notEqual(resolveShellKeypress('', { return: true }, helpInput).type, 'input_submit');
+  assert.equal(resolveShellKeypress('', { return: true }, helpInput).type, 'help_open');
+  assert.equal(resolveShellKeypress('q', {}, helpInput).type, 'quit');
+  assert.equal(resolveShellKeypress('q', {}, helpInput).endsSession, true);
+  assert.equal(resolveShellKeypress('', { escape: true }, helpInput).type, 'surface_home');
+
+  // /quit via Enter remains a session terminator off Help; on Help use q.
+  const quitSlashHome = resolveShellKeypress('', { return: true }, {
     ...model,
+    contentSurface: 'home',
     focus: 'input',
     commandInput: '/quit',
   });
-  assert.equal(quitSlash.type, 'quit');
-  assert.equal(quitSlash.actionId, '/quit');
-  assert.equal(quitSlash.endsSession, true);
+  assert.equal(quitSlashHome.type, 'quit');
+  assert.equal(quitSlashHome.actionId, '/quit');
+  assert.equal(quitSlashHome.endsSession, true);
   assert.equal(isShellSessionEndAction('/quit'), true);
   assert.equal(isShellSessionEndAction('quit'), true);
   assert.equal(isShellSessionEndAction('q'), true);
   assert.equal(isShellSessionEndAction('help'), false);
+});
+
+test('Help + Tab to input: 4/Enter stay in-process; q quits; executeAction never called', async () => {
+  const actions = [];
+  const { stdin, stdout } = createFakeTtyStreams();
+  const promise = runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    maxLoops: 4,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    executeAction: async (opts) => {
+      actions.push(opts.actionId);
+      return {
+        quit: false,
+        selectedRunId: null,
+        contentSurface: 'action_result',
+        actionResult: {
+          action_id: opts.actionId,
+          ok: true,
+          exit_code: 0,
+          reason_code: 'OK',
+          text: 'ok',
+        },
+      };
+    },
+  });
+  await new Promise((r) => setTimeout(r, 120));
+  stdin.write('5'); // Help (in-process)
+  await new Promise((r) => setTimeout(r, 80));
+  // nav → content → input
+  stdin.write('\t');
+  await new Promise((r) => setTimeout(r, 40));
+  stdin.write('\t');
+  await new Promise((r) => setTimeout(r, 40));
+  stdin.write('4');
+  await new Promise((r) => setTimeout(r, 60));
+  stdin.write('\r');
+  await new Promise((r) => setTimeout(r, 100));
+  stdin.write('q');
+  const result = await promise;
+  stdin.destroy();
+  stdout.destroy();
+
+  assert.deepEqual(actions, [], 'Help must never remount via executeAction/requestAction');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
+  // Stay on Help (topic open or list) — never Settings/config remount surface.
+  assert.equal(result.model?.contentSurface, 'help');
+  assert.ok(
+    result.model?.helpOpenTopicId === 'display'
+      || result.model?.helpSelectedTopicId === 'display'
+      || result.model?.helpOpenTopicId == null,
+    'digit 4 on Help is in-process topic, not Settings',
+  );
 });
 
 test('prepareNestedPaneIo clears screen so nested panes do not overprint Ink', () => {
@@ -1272,6 +1347,58 @@ test('System Status hotkey 3 and Enter stay mounted; Settings back remounts', as
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
   assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
   assert.equal(joined.split(restoreSeq).length - 1, 1, 'alt-screen exit only at session end');
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('Help topics stay in-process: digit 4 opens topic, never Settings remount', async () => {
+  const actions = [];
+  const { stdin, stdout } = createFakeTtyStreams();
+  const promise = runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 8,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    executeAction: async (opts) => {
+      actions.push(opts.actionId);
+      return {
+        quit: false,
+        selectedRunId: null,
+        contentSurface: 'action_result',
+        actionResult: {
+          action_id: opts.actionId,
+          ok: true,
+          exit_code: 0,
+          reason_code: 'OK',
+          text: 'ok',
+        },
+      };
+    },
+  });
+  await new Promise((r) => setTimeout(r, 120));
+  stdin.write('5'); // open Help
+  await new Promise((r) => setTimeout(r, 90));
+  stdin.write('4'); // topic "Icons and display" — must NOT dispatch config
+  await new Promise((r) => setTimeout(r, 90));
+  stdin.write('\x1b'); // Esc → topic list
+  await new Promise((r) => setTimeout(r, 70));
+  stdin.write('\r'); // Enter → open selected topic
+  await new Promise((r) => setTimeout(r, 90));
+  stdin.write('\x1b'); // Esc → topic list
+  await new Promise((r) => setTimeout(r, 70));
+  stdin.write('\x1b'); // Esc → Home
+  await new Promise((r) => setTimeout(r, 70));
+  stdin.write('q');
+  const result = await promise;
+  assert.deepEqual(actions, [], 'Help topics must never call executeAction / Settings remount');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
+  assert.equal(result.model?.contentSurface, 'home');
   stdin.destroy();
   stdout.destroy();
 });

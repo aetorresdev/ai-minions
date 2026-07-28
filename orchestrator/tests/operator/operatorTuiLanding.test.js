@@ -354,14 +354,24 @@ test('home / help / diagnostics actions switch surfaces without readline', async
 });
 
 test('help and diagnostics formatters expose remediation without inventing truth', () => {
-  const help = formatHelpLines().join('\n');
-  assert.match(help, /New Run \(1\)/);
-  assert.match(help, /System Status \(3\)/);
-  assert.match(help, /Settings \(4\)/);
-  assert.match(help, /Help \(5 \/ \?\)/);
-  assert.match(help, /Overview \(o\)/);
-  assert.match(help, /AI_MINIONS_TUI_LEGACY=1/);
-  assert.match(help, /operator modules remain authoritative/i);
+  const helpList = formatHelpLines().join('\n');
+  assert.match(helpList, /Topics \(in-process/);
+  assert.match(helpList, /Navigation goals/);
+
+  const helpNav = formatHelpLines({ openTopicId: 'navigation' }).join('\n');
+  assert.match(helpNav, /New Run \(1\)/);
+  assert.match(helpNav, /System Status \(3\)/);
+  assert.match(helpNav, /Settings \(4\)/);
+  assert.match(helpNav, /Help \(5 \/ \?\)/);
+
+  const helpRun = formatHelpLines({ openTopicId: 'run_context' }).join('\n');
+  assert.match(helpRun, /Overview \(o\)/);
+
+  const helpKeys = formatHelpLines({ openTopicId: 'keys' }).join('\n');
+  assert.match(helpKeys, /AI_MINIONS_TUI_LEGACY=1/);
+
+  const helpLimits = formatHelpLines({ openTopicId: 'limits' }).join('\n');
+  assert.match(helpLimits, /operator modules remain authoritative/i);
 
   const diag = formatDiagnosticsLines(baseHome({
     providers: [{ env_var: 'EXAMPLE_TOKEN', status: 'absent', required_for_policy: true }],

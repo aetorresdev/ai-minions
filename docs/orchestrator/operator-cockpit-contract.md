@@ -107,7 +107,7 @@ Fullscreen action ids (task-first / contextual). Nested readline panes may still
 | `runs` (`2`) | Native Ink run browser + overview (`operator-tui-run-browser-workflow.js`); opens from startup `model.runs` snapshot; overview reuses `loadRunStatusPane` |
 | `diagnostics` (`3`) | System Status / advanced diagnostics (`formatDiagnosticsLines`) — raw path/git/credential fields |
 | `config` (`4`) | Settings → `runOperatorConfigReadinessPane` (reuses doctor + credential readiness) *(Phase 2 native)* |
-| `help` (`5` / `?`) | Help surface (`formatHelpLines`) — presentation only |
+| `help` (`5` / `?`) | Help topic browser (`formatHelpLines` / `helpTopics`) — **in-process only**; topic digits never remount Settings/launcher |
 | `status` (`o`, contextual) | Selected-run Overview → `runOperatorStatus` / `adaptSelectedRunStatus` *(Phase 2 native overview path)* |
 | `monitor` (`m`, contextual) | Live monitor → `runOperatorStatus` + `adaptLiveMonitor` (read-only) *(Phase 2 native)* |
 | `evidence` (`e`, contextual) | Evidence / attach pane → `runOperatorEvidenceAttachPane` *(Phase 2 native)* |

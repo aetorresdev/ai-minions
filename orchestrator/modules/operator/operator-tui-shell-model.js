@@ -24,6 +24,7 @@ const {
 const {
   buildLandingViewModel,
   formatLandingLines,
+  helpTopics,
   formatHelpLines,
   formatDiagnosticsLines,
   landingLayoutForViewport,
@@ -87,6 +88,8 @@ function layoutModeForColumns(columns) {
  *   productVersion?: string | null,
  *   activeWorkflow?: object | null,
  *   pendingLauncherSelections?: object | null,
+ *   helpSelectedTopicId?: string | null,
+ *   helpOpenTopicId?: string | null,
  * }} [options]
  */
 function buildShellModel(options = {}) {
@@ -164,6 +167,18 @@ function buildShellModel(options = {}) {
   const workflowActive = activeWorkflow != null;
   const workflowTextEntry = workflowActive && activeWorkflow.step === 'custom_goal';
   const workflowBusy = workflowActive && Boolean(activeWorkflow.busy);
+  const topics = helpTopics();
+  const defaultHelpTopicId = topics[0]?.id ?? 'navigation';
+  const helpSelectedTopicId = options.helpSelectedTopicId == null || options.helpSelectedTopicId === ''
+    ? defaultHelpTopicId
+    : (topics.some((t) => t.id === String(options.helpSelectedTopicId))
+      ? String(options.helpSelectedTopicId)
+      : defaultHelpTopicId);
+  const helpOpenTopicId = options.helpOpenTopicId == null || options.helpOpenTopicId === ''
+    ? null
+    : (topics.some((t) => t.id === String(options.helpOpenTopicId))
+      ? String(options.helpOpenTopicId)
+      : null);
   const useCompactHints = layout === 'narrow' || landingLayout === 'compact';
   const footerHints = workflowActive
     ? (workflowBusy
@@ -177,9 +192,15 @@ function buildShellModel(options = {}) {
         : (useCompactHints
           ? 'workflow · ↑↓ · Enter · Esc · q'
           : 'Native workflow · ↑/↓ · Enter · Esc back/cancel · /=slash · q=quit · Ctrl+C=quit · no nested readline')))
-    : (useCompactHints
-      ? landing.footer_hints_narrow
-      : landing.footer_hints_wide);
+    : (contentSurface === 'help'
+      ? (helpOpenTopicId
+        ? (useCompactHints ? 'Esc topics · q quit' : 'Help topic · Esc back to list · q=quit')
+        : (useCompactHints
+          ? 'Help · ↑↓ · Enter · Esc · q'
+          : 'Help topics · ↑/↓ · Enter/digit open · Esc Home · q=quit · no remount'))
+      : (useCompactHints
+        ? landing.footer_hints_narrow
+        : landing.footer_hints_wide));
 
   return {
     schema: SHELL_SCHEMA,
@@ -199,6 +220,8 @@ function buildShellModel(options = {}) {
     selectedNavId,
     selectedRunId,
     contentSurface,
+    helpSelectedTopicId,
+    helpOpenTopicId,
     home,
     landing,
     runs,
@@ -329,6 +352,63 @@ function resolveShellKeypress(input, key = {}, model = {}) {
     && model.activeWorkflow
     && model.activeWorkflow.step === 'custom_goal'
     && !model.activeWorkflow.busy;
+
+  // Help topic browser: isolate before focus/input — Tab→prompt must not turn
+  // digits/Enter into input_submit (Settings remount) or swallow `q`.
+  const helpSurface = String(model.contentSurface ?? '').toLowerCase() === 'help';
+  if (helpSurface) {
+    const topics = helpTopics();
+    const openId = model.helpOpenTopicId == null || model.helpOpenTopicId === ''
+      ? null
+      : String(model.helpOpenTopicId);
+    if (input === 'q') {
+      return { type: 'quit', actionId: 'quit', endsSession: true };
+    }
+    if (isEscape) {
+      if (openId) {
+        return { type: 'help_close_topic', endsSession: false };
+      }
+      return { type: 'surface_home', endsSession: false };
+    }
+    if (keyObj.tab) {
+      return { type: 'cycle_focus', endsSession: false };
+    }
+    if (openId) {
+      // Topic detail: only Esc/q/Tab (above) — never input_submit or shell hotkeys.
+      return { type: 'ignore', endsSession: false };
+    }
+    if (keyObj.upArrow || input === 'k') {
+      return { type: 'help_move', direction: 'prev', endsSession: false };
+    }
+    if (keyObj.downArrow || input === 'j') {
+      return { type: 'help_move', direction: 'next', endsSession: false };
+    }
+    if (isReturn) {
+      return { type: 'help_open', endsSession: false };
+    }
+    if (
+      input
+      && !keyObj.ctrl
+      && !keyObj.meta
+      && !keyObj.upArrow
+      && !keyObj.downArrow
+      && !(isReturn && input.length <= 1)
+    ) {
+      if (input === '?') {
+        // Re-entering Help while already on Help is a no-op stay.
+        return { type: 'ignore', endsSession: false };
+      }
+      const key = input.length === 1
+        ? input
+        : (input.match(/[1-5]/) || [])[0] || '';
+      const topic = topics.find((t) => t.key === key);
+      if (topic) {
+        return { type: 'help_open', topicId: topic.id, endsSession: false };
+      }
+    }
+    // Consume remaining keys on Help — never fall through to input_submit/dispatch.
+    return { type: 'ignore', endsSession: false };
+  }
 
   // Intentional quit — `q` outside command input and outside workflow text entry.
   // Outside custom_goal, q still ends the session; Esc cancels the workflow.
@@ -579,6 +659,8 @@ function shellModelToOptions(model) {
     productVersion: model.version,
     activeWorkflow: model.activeWorkflow ?? null,
     pendingLauncherSelections: model.pendingLauncherSelections ?? null,
+    helpSelectedTopicId: model.helpSelectedTopicId ?? null,
+    helpOpenTopicId: model.helpOpenTopicId ?? null,
   };
 }
 
@@ -609,7 +691,10 @@ function formatShellText(model) {
     lines.push(...formatDiagnosticsLines(model.home));
   }
   if (model.contentSurface === 'help') {
-    lines.push(...formatHelpLines());
+    lines.push(...formatHelpLines({
+      selectedTopicId: model.helpSelectedTopicId,
+      openTopicId: model.helpOpenTopicId,
+    }));
   }
   if (model.contentSurface === 'runs') {
     if (!model.runs.runs.length) lines.push('runs: (none)');
@@ -650,6 +735,59 @@ function formatShellText(model) {
   return lines.join('\n');
 }
 
+/**
+ * @param {ReturnType<typeof buildShellModel>} model
+ * @param {'next'|'prev'} direction
+ */
+function moveHelpTopicSelection(model, direction) {
+  const topics = helpTopics();
+  if (!topics.length) return model;
+  let idx = topics.findIndex((t) => t.id === model.helpSelectedTopicId);
+  if (idx < 0) idx = 0;
+  const nextIdx = direction === 'prev'
+    ? (idx <= 0 ? topics.length - 1 : idx - 1)
+    : (idx + 1) % topics.length;
+  return buildShellModel({
+    ...shellModelToOptions(model),
+    helpSelectedTopicId: topics[nextIdx].id,
+    helpOpenTopicId: null,
+  });
+}
+
+/**
+ * @param {ReturnType<typeof buildShellModel>} model
+ * @param {string | null | undefined} [topicId]
+ */
+function openHelpTopic(model, topicId) {
+  const topics = helpTopics();
+  const id = topicId == null || topicId === ''
+    ? (model.helpSelectedTopicId ?? topics[0]?.id)
+    : String(topicId);
+  const topic = topics.find((t) => t.id === id) ?? topics[0];
+  if (!topic) return model;
+  return buildShellModel({
+    ...shellModelToOptions(model),
+    contentSurface: 'help',
+    selectedNavId: 'help',
+    helpSelectedTopicId: topic.id,
+    helpOpenTopicId: topic.id,
+    activeWorkflow: null,
+  });
+}
+
+/**
+ * @param {ReturnType<typeof buildShellModel>} model
+ */
+function closeHelpTopic(model) {
+  return buildShellModel({
+    ...shellModelToOptions(model),
+    contentSurface: 'help',
+    selectedNavId: 'help',
+    helpOpenTopicId: null,
+    activeWorkflow: null,
+  });
+}
+
 module.exports = {
   SHELL_SCHEMA,
   FOCUS_TARGETS,
@@ -659,6 +797,9 @@ module.exports = {
   buildShellModel,
   moveNavSelection,
   moveRunSelection,
+  moveHelpTopicSelection,
+  openHelpTopic,
+  closeHelpTopic,
   cycleFocus,
   shellModelToOptions,
   formatShellText,
@@ -668,6 +809,7 @@ module.exports = {
   isInkLocalShellAction,
   contentSurfaceForLocalAction,
   navItemsForMovement,
+  helpTopics,
   formatLandingLines,
   formatHelpLines,
   formatDiagnosticsLines,

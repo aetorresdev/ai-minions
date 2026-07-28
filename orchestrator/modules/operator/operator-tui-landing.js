@@ -927,31 +927,116 @@ function formatLandingLines(landing, options = {}) {
 }
 
 /**
- * Help surface copy (presentation only).
+ * In-process Help topics (presentation only — never dispatch shell remounts).
+ * Selecting a topic must stay mounted; digits here are topic keys, not Quick Start.
+ * @returns {ReadonlyArray<{ id: string, key: string, label: string, lines: string[] }>}
+ */
+function helpTopics() {
+  return Object.freeze([
+    Object.freeze({
+      id: 'navigation',
+      key: '1',
+      label: 'Navigation goals',
+      lines: Object.freeze([
+        'Navigation goals (shell surfaces):',
+        '  Home (h)            Task-first landing',
+        '  New Run (1)         Guided launcher / canonical fixture',
+        '  Runs (2)            Browse and select recent runs',
+        '  System Status (3)   Advanced diagnostics (git/path/credentials)',
+        '  Settings (4)        Providers, PATH, credentials readiness',
+        '  Help (5 / ?)        This Help topic browser',
+        '',
+        'Leave Help with Esc (topic list → Home). Digits inside Help open topics only.',
+      ]),
+    }),
+    Object.freeze({
+      id: 'run_context',
+      key: '2',
+      label: 'When a run is selected',
+      lines: Object.freeze([
+        'When a run is selected (from Home / Runs):',
+        '  Overview (o)   Status / next_safe_action',
+        '  Monitor (m)    Live phase + reason codes',
+        '  Evidence (e)   Attach / bundle availability',
+        '  Explain (x)    Explain next safe action',
+        '',
+        'These keys are inactive while this Help surface is open.',
+      ]),
+    }),
+    Object.freeze({
+      id: 'keys',
+      key: '3',
+      label: 'Keys and input',
+      lines: Object.freeze([
+        'Keys:',
+        '  ↑/↓ move · Enter select · Esc back · Tab focus · / slash · q quit',
+        '  Top-level s is ignored (use Runs / ↑↓).',
+        '  Legacy readline matrix: AI_MINIONS_TUI_LEGACY=1 only.',
+        '',
+        'Inside Help: ↑/↓ topics · 1–5 open topic · Enter open · Esc close topic / Home.',
+      ]),
+    }),
+    Object.freeze({
+      id: 'display',
+      key: '4',
+      label: 'Icons and display',
+      lines: Object.freeze([
+        'Icons: AI_MINIONS_TUI_ICONS=nerd|unicode|ascii',
+        '  Default nerd — operator choice; not auto glyph detect.',
+        '  NO_COLOR does not switch icon mode.',
+        '',
+        'Selecting this topic never opens Settings (that would remount / look like quit).',
+      ]),
+    }),
+    Object.freeze({
+      id: 'limits',
+      key: '5',
+      label: 'Honest product limits',
+      lines: Object.freeze([
+        'Operator modules remain authoritative.',
+        'Not claimed: Web UI · mouse clicks on labels · durable resume.',
+        'Help topics are in-process only — no nested readline from this surface.',
+      ]),
+    }),
+  ]);
+}
+
+/**
+ * Help surface copy — topic list or open topic body (presentation only).
+ * @param {{
+ *   selectedTopicId?: string | null,
+ *   openTopicId?: string | null,
+ * }} [options]
  * @returns {string[]}
  */
-function formatHelpLines() {
+function formatHelpLines(options = {}) {
+  const topics = helpTopics();
+  const openId = options.openTopicId == null || options.openTopicId === ''
+    ? null
+    : String(options.openTopicId);
+  if (openId) {
+    const topic = topics.find((t) => t.id === openId) ?? topics[0];
+    return [
+      `ai-minions TUI — Help · ${topic.label}`,
+      '',
+      ...topic.lines,
+      '',
+      'Esc back to topic list · q quit',
+    ];
+  }
+  const selectedId = options.selectedTopicId == null || options.selectedTopicId === ''
+    ? topics[0]?.id
+    : String(options.selectedTopicId);
   return [
     'ai-minions TUI — Help',
     '',
-    'Navigation goals:',
-    '  Home (h)            Task-first landing',
-    '  New Run (1)         Guided launcher / canonical fixture',
-    '  Runs (2)            Browse and select recent runs',
-    '  System Status (3)   Advanced diagnostics (git/path/credentials)',
-    '  Settings (4)        Providers, PATH, credentials readiness',
-    '  Help (5 / ?)        This surface',
+    'Topics (in-process — selecting does not exit the TUI):',
+    ...topics.map((t) => {
+      const mark = t.id === selectedId ? '>' : ' ';
+      return `  ${mark} ${t.key}. ${t.label}`;
+    }),
     '',
-    'When a run is selected:',
-    '  Overview (o)   Status / next_safe_action',
-    '  Monitor (m)    Live phase + reason codes',
-    '  Evidence (e)   Attach / bundle availability',
-    '  Explain (x)    Explain next safe action',
-    '',
-    'Keys: ↑/↓ move · Enter select · Esc back to Home · Tab focus · / slash · q quit',
-    'Top-level s is ignored (use Runs / ↑↓). Legacy readline matrix: AI_MINIONS_TUI_LEGACY=1 only.',
-    'Icons: AI_MINIONS_TUI_ICONS=nerd|unicode|ascii (default nerd; operator choice — not auto glyph detect).',
-    'Operator modules remain authoritative. Not claimed: Web UI · mouse · durable resume.',
+    '↑/↓ move · Enter / digit open topic · Esc Home · q quit',
   ];
 }
 
@@ -1007,6 +1092,7 @@ module.exports = {
   buildRecentRunPreview,
   buildLandingViewModel,
   formatLandingLines,
+  helpTopics,
   formatHelpLines,
   formatDiagnosticsLines,
 };
