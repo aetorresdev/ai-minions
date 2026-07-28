@@ -23,6 +23,14 @@ const { ansi } = require('./terminal-style');
 
 const GUIDED_LAUNCHER_PANE_SCHEMA = '1';
 
+function getLiveHarness() {
+  return require('./operator-live-harness');
+}
+
+function getAdaptLiveHarnessEvidence() {
+  return require('./operator-tui-adapters').adaptLiveHarnessEvidence;
+}
+
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const FIXTURES_DATA = path.join(REPO_ROOT, 'scripts', 'lib', 'canonical-real-task-fixtures-data.mjs');
 
@@ -36,11 +44,26 @@ function normalizeToken(raw) {
 
 /**
  * @param {string} fixtureId
+ * @returns {Promise<{ id: string, prompt: string, expected_artifacts: string[] } | null>}
+ */
+async function loadFixtureRecord(fixtureId) {
+  const mod = await import(pathToFileURL(FIXTURES_DATA).href);
+  const fixture = mod.getFixture(fixtureId);
+  if (!fixture) return null;
+  return {
+    id: fixture.id,
+    prompt: fixture.prompt,
+    expected_artifacts: [...(fixture.expected_artifacts || [])],
+  };
+}
+
+/**
+ * @param {string} fixtureId
  * @returns {Promise<string>}
  */
 async function loadFixturePrompt(fixtureId) {
-  const mod = await import(pathToFileURL(FIXTURES_DATA).href);
-  return mod.getFixturePrompt(fixtureId);
+  const fixture = await loadFixtureRecord(fixtureId);
+  return fixture ? fixture.prompt : '';
 }
 
 /**
@@ -89,6 +112,9 @@ async function promptChoice(input) {
  *   loadFixturePromptFn?: typeof loadFixturePrompt,
  *   runSmokeFn?: typeof runSmoke,
  *   runStartFn?: Function,
+ *   collectLiveHarnessPostRunFn?: typeof collectLiveHarnessPostRun,
+ *   liveEvidenceDir?: string | null,
+ *   collectLiveEvidence?: boolean,
  *   defaultSmokeGoal?: string,
  *   selections?: {
  *     agentFlow?: string,
@@ -347,6 +373,24 @@ async function runOperatorGuidedLauncherPane(options) {
   const launch = model.launch_options;
   const runSmokeFn = options.runSmokeFn ?? runSmoke;
 
+  /** @type {Record<string, { path: string, mtimeMs: number, size: number, sha256: string }>} */
+  let artifactBaseline = {};
+  let fixtureRecordForBaseline = null;
+  if (
+    options.collectLiveEvidence !== false
+    && model.goal_source === 'fixture'
+    && model.fixture_id
+  ) {
+    fixtureRecordForBaseline = await loadFixtureRecord(String(model.fixture_id));
+    const { snapshotArtifactBaseline } = getLiveHarness();
+    artifactBaseline = snapshotArtifactBaseline({
+      cwd: options.cwd ?? process.cwd(),
+      expectedArtifacts: Array.isArray(fixtureRecordForBaseline?.expected_artifacts)
+        ? fixtureRecordForBaseline.expected_artifacts
+        : [],
+    });
+  }
+
   try {
     let result;
     if (
@@ -376,14 +420,61 @@ async function runOperatorGuidedLauncherPane(options) {
     }
 
     const ok = result.ok !== false && (result.exitCode == null || result.exitCode === 0);
-    const text = [
+    const taskId = result.task_id ?? result.launched?.task_id ?? null;
+    const textParts = [
       summaryText,
       '',
       `equivalent_command: ${model.equivalent_command}`,
       result.preflightText || '',
       result.routingText || '',
       result.smokeText || result.text || '',
-    ].filter(Boolean).join('\n');
+    ];
+
+    /** @type {object | null} */
+    let liveHarness = null;
+    const wantLiveEvidence = options.collectLiveEvidence !== false
+      && model.goal_source === 'fixture'
+      && model.fixture_id
+      && ok
+      && taskId;
+
+    if (wantLiveEvidence) {
+      const { collectLiveHarnessPostRun, matrixRowIdFromModes } = getLiveHarness();
+      const adaptLiveHarnessEvidence = getAdaptLiveHarnessEvidence();
+      const collect = options.collectLiveHarnessPostRunFn ?? collectLiveHarnessPostRun;
+      const fixtureRecord = fixtureRecordForBaseline || await loadFixtureRecord(String(model.fixture_id));
+      liveHarness = await collect({
+        fixture: fixtureRecord || {
+          id: model.fixture_id,
+          prompt: model.goal,
+          expected_artifacts: [],
+        },
+        rowId: matrixRowIdFromModes(model.agent_flow, model.inference_lane),
+        runId: String(taskId),
+        cwd: options.cwd,
+        evidenceDir: options.liveEvidenceDir ?? null,
+        launchOk: ok,
+        terminalStatus: result.launched?.terminal_status ?? null,
+        artifactBaseline,
+        modelPolicy: model.inference_policy,
+        agentMode: model.agent_flow,
+        equivalentCommand: model.equivalent_command,
+      });
+      const adapted = adaptLiveHarnessEvidence(liveHarness);
+      textParts.push(
+        '',
+        '== Live harness evidence (shared adapter) ==',
+        `outcome: ${adapted.outcome}`,
+        `reason_code: ${adapted.reason_code}`,
+        `run_id: ${adapted.run_id}`,
+        `verifier_ok: ${adapted.verifier_ok}`,
+        `privacy_ok: ${adapted.privacy_ok}`,
+        `status_ok: ${adapted.status_ok}`,
+        `attach_ok: ${adapted.attach_ok}`,
+      );
+    }
+
+    const text = textParts.filter(Boolean).join('\n');
 
     return {
       ok,
@@ -394,9 +485,13 @@ async function runOperatorGuidedLauncherPane(options) {
       text,
       launched: true,
       launch_result: result,
+      live_harness: liveHarness,
+      live_harness_adapted: liveHarness
+        ? getAdaptLiveHarnessEvidence()(liveHarness)
+        : null,
       next_safe_action: result.next_safe_action
-        ?? (result.launched?.task_id
-          ? `ai-minions status --run-id ${result.launched.task_id}`
+        ?? (taskId
+          ? `ai-minions status --run-id ${taskId}`
           : 'ai-minions runs'),
     };
   } catch (err) {
@@ -444,4 +539,5 @@ module.exports = {
   GUIDED_LAUNCHER_PANE_SCHEMA,
   runOperatorGuidedLauncherPane,
   loadFixturePrompt,
+  loadFixtureRecord,
 };
