@@ -21,6 +21,12 @@ const {
   adaptLiveMonitor,
   formatLiveMonitorLines,
 } = require('./operator-tui-live-monitor');
+const {
+  buildLandingViewModel,
+  formatLandingLines,
+  formatHelpLines,
+  formatDiagnosticsLines,
+} = require('./operator-tui-landing');
 
 const SHELL_SCHEMA = '1';
 const FOCUS_TARGETS = Object.freeze(['nav', 'content', 'input']);
@@ -34,6 +40,8 @@ const CONTENT_SURFACES = Object.freeze([
   'lifecycle',
   'monitor',
   'launcher',
+  'help',
+  'diagnostics',
 ]);
 
 /**
@@ -91,13 +99,13 @@ function buildShellModel(options = {}) {
         ? { json: options.lifecycleSource, loop_envelope: options.lifecycleSource }
         : null),
   );
-  const navItems = adaptNavigationActions();
-  const selectedNavId = options.selectedNavId == null
-    ? (navItems[0]?.id ?? 'launcher')
-    : String(options.selectedNavId);
   const selectedRunId = options.selectedRunId == null || options.selectedRunId === ''
     ? (runs.runs[0]?.run_id ?? null)
     : String(options.selectedRunId);
+  const navItems = adaptNavigationActions({ selectedRunId });
+  const selectedNavId = options.selectedNavId == null
+    ? (navItems.find((n) => n.id === 'launcher')?.id ?? navItems[0]?.id ?? 'home')
+    : String(options.selectedNavId);
   const focusRaw = String(options.focus ?? 'nav').toLowerCase();
   const focus = FOCUS_TARGETS.includes(focusRaw) ? focusRaw : 'nav';
   const surfaceRaw = String(options.contentSurface ?? 'home').toLowerCase();
@@ -109,9 +117,23 @@ function buildShellModel(options = {}) {
   const rows = Number.isFinite(Number(options.rows)) ? Number(options.rows) : 24;
   const layout = layoutModeForColumns(columns);
   const version = options.productVersion ?? home.version ?? 'unknown';
-  const readiness = home.path_status == null
-    ? 'unknown'
-    : String(home.path_status);
+  const loading = home.path_status === 'loading'
+    || home.credential_sufficiency === 'unavailable';
+  const landing = buildLandingViewModel({
+    home,
+    runs,
+    selectedRunId,
+    version,
+    columns,
+    loading,
+  });
+  const readiness = landing.overall.state === 'ready'
+    ? 'ready'
+    : (landing.overall.state === 'loading'
+      ? 'loading'
+      : (landing.overall.state === 'unknown'
+        ? 'unknown'
+        : landing.overall.state));
 
   return {
     schema: SHELL_SCHEMA,
@@ -129,6 +151,7 @@ function buildShellModel(options = {}) {
     selectedRunId,
     contentSurface,
     home,
+    landing,
     runs,
     status,
     evidence,
@@ -139,10 +162,10 @@ function buildShellModel(options = {}) {
     monitor,
     monitorSource: options.monitorSource ?? null,
     footerHints: layout === 'narrow'
-      ? 'key=run · ↑↓ · Enter · Tab · q'
-      : 'Type action key (1/s/e/…) anytime outside command input · ↑/↓+Enter · Tab=focus · /=slash · q=quit · mouse not wired',
+      ? landing.footer_hints_narrow
+      : landing.footer_hints_wide,
     disclaimer:
-      'Guided launcher + live run monitor + slash commands — operator modules remain authoritative. '
+      'Task-first landing + guided launcher + live monitor + slash commands — operator modules remain authoritative. '
       + 'Not claimed: Web UI · durable resume · mouse clicks on labels.',
   };
 }
@@ -227,7 +250,7 @@ function resolveShellKeypress(input, key = {}, model = {}) {
     return { type: 'cycle_focus', endsSession: false };
   }
 
-  // Labeled hotkeys (1/2/s/e/3/m/4/5/q) — work without Tab→input.
+  // Labeled hotkeys from shell nav (+ Quick Start digits) — work without Tab→input.
   // Also accept paste bundles like "1\r" (Ink delivers multi-char once).
   if (
     focus !== 'input'
@@ -240,6 +263,9 @@ function resolveShellKeypress(input, key = {}, model = {}) {
     && !keyObj.rightArrow
     && !(isReturn && input.length <= 1)
   ) {
+    if (input === '?') {
+      return { type: 'dispatch', actionId: 'help', endsSession: false };
+    }
     const hotkeyAction = resolveNavHotkey(input, model.navItems);
     if (hotkeyAction) {
       if (isShellSessionEndAction(hotkeyAction)) {
@@ -442,10 +468,16 @@ function formatShellText(model) {
     `selected_run: ${model.selectedRunId ?? '(none)'}`,
   ];
   if (model.contentSurface === 'home') {
-    lines.push(
-      `home: policy=${model.home.model_policy ?? '-'} path=${model.home.path_status ?? '-'} `
-      + `creds=${model.home.credential_sufficiency ?? '-'}`,
-    );
+    lines.push(...formatLandingLines(model.landing, {
+      selectedNavId: model.selectedNavId,
+      narrow: model.layout === 'narrow',
+    }));
+  }
+  if (model.contentSurface === 'diagnostics') {
+    lines.push(...formatDiagnosticsLines(model.home));
+  }
+  if (model.contentSurface === 'help') {
+    lines.push(...formatHelpLines());
   }
   if (model.contentSurface === 'runs') {
     if (!model.runs.runs.length) lines.push('runs: (none)');
@@ -498,6 +530,9 @@ module.exports = {
   shellModelToOptions,
   formatShellText,
   resolveNavHotkey,
-  isShellSessionEndAction,
   resolveShellKeypress,
+  isShellSessionEndAction,
+  formatLandingLines,
+  formatHelpLines,
+  formatDiagnosticsLines,
 };

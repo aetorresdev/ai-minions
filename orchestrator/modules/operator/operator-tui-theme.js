@@ -14,6 +14,10 @@
  *   ready: string | undefined,
  *   warn: string | undefined,
  *   danger: string | undefined,
+ *   blocked: string | undefined,
+ *   triadValidate: string | undefined,
+ *   triadTrace: string | undefined,
+ *   triadEnforce: string | undefined,
  *   titleBold: boolean,
  *   sectionBold: boolean,
  * }} ShellTheme */
@@ -34,6 +38,10 @@ function resolveShellTheme(options = {}) {
       ready: undefined,
       warn: undefined,
       danger: undefined,
+      blocked: undefined,
+      triadValidate: undefined,
+      triadTrace: undefined,
+      triadEnforce: undefined,
       titleBold: true,
       sectionBold: true,
     };
@@ -47,9 +55,35 @@ function resolveShellTheme(options = {}) {
     ready: 'green',
     warn: 'yellow',
     danger: 'red',
+    blocked: 'magentaBright',
+    triadValidate: 'cyan',
+    triadTrace: 'blueBright',
+    triadEnforce: 'magenta',
     titleBold: true,
     sectionBold: true,
   };
+}
+
+/**
+ * Map landing readiness tone → theme color token.
+ * @param {ShellTheme} theme
+ * @param {string} tone
+ * @returns {string | undefined}
+ */
+function toneColor(theme, tone) {
+  switch (String(tone ?? '')) {
+    case 'ok':
+      return theme.ready;
+    case 'warn':
+    case 'loading':
+      return theme.warn;
+    case 'fail':
+      return theme.danger;
+    case 'blocked':
+      return theme.blocked;
+    default:
+      return theme.muted;
+  }
 }
 
 /**
@@ -66,4 +100,5 @@ function focusBorderColor(theme, focused) {
 module.exports = {
   resolveShellTheme,
   focusBorderColor,
+  toneColor,
 };

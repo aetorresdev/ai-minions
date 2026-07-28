@@ -7,6 +7,7 @@
  */
 
 const { COCKPIT_ACTIONS, formatNonTtyGuidance } = require('./operator-cockpit-tui');
+const { adaptShellNavigation } = require('./operator-tui-landing');
 
 const ADAPTER_SCHEMA = '1';
 
@@ -135,6 +136,14 @@ function adaptRunsList(payload) {
       result_code: run.result_code ?? null,
       reason_code: run.reason_code ?? null,
       current_phase: run.current_phase ?? null,
+      last_event_at: run.last_event_at == null ? null : String(run.last_event_at),
+      // Pass through only when operator list already provided them — never invent.
+      goal_summary: run.goal_summary == null && run.goal == null
+        ? null
+        : String(run.goal_summary ?? run.goal),
+      agent_count: run.agent_count == null && run.agents_count == null
+        ? null
+        : Number(run.agent_count ?? run.agents_count),
     }))
     : [];
   return {
@@ -440,11 +449,21 @@ function adaptGuidedLauncher(source) {
 }
 
 /**
- * Navigation items from authoritative cockpit action table.
+ * Legacy cockpit navigation (readline rollback) — mirrors COCKPIT_ACTIONS.
  * @returns {ReadonlyArray<{ key: string, id: string, label: string }>}
  */
-function adaptNavigationActions() {
+function adaptCockpitNavigationActions() {
   return COCKPIT_ACTIONS.map((a) => ({ key: a.key, id: a.id, label: a.label }));
+}
+
+/**
+ * Fullscreen shell navigation — task-first goals (+ contextual selected-run views).
+ * Prefer this over the legacy cockpit action table for Ink chrome.
+ * @param {{ selectedRunId?: string | null }} [options]
+ * @returns {ReadonlyArray<{ key: string, id: string, label: string, description?: string, group?: string }>}
+ */
+function adaptNavigationActions(options = {}) {
+  return adaptShellNavigation(options);
 }
 
 /**
@@ -518,5 +537,7 @@ module.exports = {
   adaptGuidedLauncher,
   adaptLiveHarnessEvidence,
   adaptNavigationActions,
+  adaptCockpitNavigationActions,
+  adaptShellNavigation,
   formatNonTtyGuidance,
 };
