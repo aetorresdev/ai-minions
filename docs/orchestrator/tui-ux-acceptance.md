@@ -10,9 +10,9 @@ Screenshots are never the source of run truth.
 |------|---------|
 | Semantic / cleanup / live-harness separation | `cd orchestrator && npm run test:tui-quality` |
 | UX journeys + visual inventory + a11y hierarchy | `cd orchestrator && npm run test:tui-ux` |
-| Combined release (semantic then UX) | `cd orchestrator && npm run test:tui-release` |
+| **Canonical release** (quality + UX + evidence preflight) | `cd orchestrator && npm run test:tui-release` |
 
-Release preparation must consume **both** gates (`test:tui-quality` and `test:tui-ux`). Missing required manual platform / first-time-user evidence → **BLOCKED**, never silent PASS. `test:tui-quality` must not absorb the UX companion inventory.
+Release preparation must run the **canonical** gate `test:tui-release` (not `test:tui-quality` alone). Individual `test:tui-quality` and `test:tui-ux` remain for focused CI/dev. Missing required manual platform / first-time-user evidence → **BLOCKED**, never silent PASS. `test:tui-quality` must not absorb the UX companion inventory.
 
 Module: `orchestrator/modules/operator/operator-tui-ux-acceptance.js`.
 

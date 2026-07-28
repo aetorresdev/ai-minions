@@ -249,13 +249,21 @@ Between Ink frames and nested readline panes the shell uses a **soft handoff** (
 
 ## Quality gate (mandatory when TUI ships)
 
-**Release command (single gate):**
+**Release command (canonical gate):**
 
 ```bash
-cd orchestrator && npm run test:tui-quality
+cd orchestrator && npm run test:tui-release
 ```
 
-Focused harness — render/state models, integrated shell journey, and command dispatch — not pixel-perfect terminal screenshots. Deterministic fixtures only; live provider credentials are not required for the main CI gate.
+Runs `test:tui-quality` then `test:tui-ux`, then evidence-registry preflight (`scripts/tui-ux-release-preflight.js`). Individual gates remain available:
+
+| Gate | Command | Role |
+|------|---------|------|
+| Semantic / cleanup / live-harness | `npm run test:tui-quality` | MVP matrix + integrated fullscreen journey + platform evidence honesty |
+| UX companion | `npm run test:tui-ux` | Journeys + visual inventory + a11y hierarchy |
+| Release (canonical) | `npm run test:tui-release` | quality + UX + evidence preflight — required for release prep |
+
+Focused harness — render/state models, integrated shell journey, and command dispatch — not pixel-perfect terminal screenshots. Deterministic fixtures only; live provider credentials are not required for the main CI quality suite. UX acceptance: [tui-ux-acceptance.md](tui-ux-acceptance.md).
 
 | Surface | Module | Unit tests |
 |---------|--------|------------|

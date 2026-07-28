@@ -56,8 +56,8 @@ When Operator TUI modules ship, the **quality gate** inventory lives under `oper
 - `tests/operator/slashProductDocsHonesty.test.js` — public contract pages must not mark product slash commands unavailable
 - Pane/cockpit units: `operatorCockpitTui` · `operatorTuiShellFoundation` · `operatorTuiNativeWorkflows` · `operatorTuiSplashTheme` · `operatorGuidedLauncher` · `operatorTuiLiveMonitor` · `operatorTuiSlashCommands` · `operatorLiveHarness` · `operatorRunSelectorTui` · `operatorEvidenceAttachPaneTui` · `operatorConfigReadinessPaneTui` · `operatorEvidenceTui` · `ink7FrameworkSpike`
 - Shared helpers: `modules/operator/operator-tui-quality-harness.js`
-- Contract: [operator-cockpit-contract.md](operator-cockpit-contract.md) § Quality gate
-- npm: `npm run test:tui-quality` (also covered by `test` / `test:unit`)
+- Contract: [operator-cockpit-contract.md](operator-cockpit-contract.md) § Quality gate · [tui-ux-acceptance.md](tui-ux-acceptance.md)
+- npm: `test:tui-quality` (also covered by `test` / `test:unit`); `test:tui-ux`; canonical release `test:tui-release` (= quality + UX + evidence preflight)
 
 ## Revision
 
