@@ -24,9 +24,13 @@ Locked operator decisions for the AI-MINIONS Ink fullscreen shell and related br
 | `violet` | `#9B8CFF` | Brand secondary / Trace accent |
 | `amber` | `#F4B860` | Brand tertiary / Enforce accent |
 | `success` | `#55D6A5` | Positive runtime state |
+| `warn` | `#E8C547` | Warning / degraded runtime state (saffron; distinct from brand `amber`) |
 | `danger` | `#F07178` | Failure / danger state |
+| `blocked` | `#D27BEA` | Gate / policy blocked state (orchid; distinct from `danger`, `muted`, and brand `violet`) |
 
-Semantic runtime colors (success / warn / danger / blocked) remain distinct from decorative brand accents. Color may enhance meaning; it must never be the only carrier of meaning.
+Semantic runtime colors (`success` / `warn` / `danger` / `blocked`) remain distinct from decorative brand accents (`cyan` / `violet` / `amber`). Color may enhance meaning; it must never be the only carrier of meaning.
+
+**Runtime adoption:** Ink/theme code may still map some states to named chalk colors (for example `yellow` / `magentaBright`) until a follow-up migrates consumers to these hex tokens. This document locks the hex contract; wiring hex into runtime is out of scope for this doc-only change.
 
 ### Brand gradient (decorative only)
 
@@ -48,35 +52,37 @@ Truecolor gradients are **optional**. Hierarchy must still work under `NO_COLOR`
 
 ## Fonts
 
-- **Reference face:** JetBrainsMono Nerd Font (for rich glyph presence).
+- **Reference face:** JetBrainsMono Nerd Font (for rich glyph presence when `icons=nerd`).
 - **Do not** ship font binaries in the repository by default.
+- **Prerequisite for `nerd`:** operator installs JetBrainsMono Nerd Font (or another Nerd Font with the same Private Use Area glyphs) and selects it in the terminal emulator. Without that face, `icons=nerd` may render tofu (empty boxes); Node/Ink cannot reliably detect per-glyph coverage.
 - Prerequisites belong in operator docs; optional platform installers may land later.
-- Missing glyphs must **never** render as tofu (empty boxes). Fall back per icon mode.
 
 ## Icon modes
 
-Config: `icons=nerd|unicode|ascii` — default **`nerd`**.
+Config: `icons=nerd|unicode|ascii` — default config value may be **`nerd`**, but that is an **explicit operator choice**, not an auto-detected capability.
 
 | Mode | Use when | Behavior |
 |------|----------|----------|
-| `nerd` | Local rich TTY with Nerd Font installed | Primary path: Nerd Font glyphs for rich presence |
-| `unicode` | Portable mid fallback | Unicode portable set; no proprietary-only icons |
-| `ascii` | SSH, CI, `NO_COLOR`, missing glyphs, or explicit config | Last-resort ASCII; never blank / tofu |
+| `nerd` | Operator installed and selected a Nerd Font in the TTY | Nerd Font glyphs for rich presence; may tofu without that font |
+| `unicode` | Portable mid set, or remediation when Nerd Font is unavailable | Unicode portable set; no proprietary-only icons |
+| `ascii` | SSH, CI, constrained TTYs, or explicit operator config | ASCII-only icons |
 
 Rules:
 
-1. No proprietary-only icons without an ascii (and preferably unicode) fallback.
-2. Auto-degrade toward ascii when the environment cannot reliably render the richer set.
-3. Icon choice must not change navigation keys, gate semantics, or execution truth.
+1. No proprietary-only icons without an ascii (and preferably unicode) counterpart in the icon map.
+2. Font / glyph coverage is **not** auto-detected reliably from Node/Ink. `NO_COLOR`, CI, or SSH do **not** prove glyph coverage. There is **no** runtime guarantee of auto-degradation on glyph failure.
+3. `unicode` and `ascii` are **configurable remediations** (operator or documented default profiles), not claimed automatic fallbacks when a Nerd glyph fails to paint.
+4. Do **not** claim “never tofu” as a runtime guarantee until a verifiable coverage mechanism exists.
+5. Icon choice must not change navigation keys, gate semantics, or execution truth.
 
 ## Degradation matrix
 
 | Condition | Color | Icons | Cerberus mark | Hierarchy |
 |-----------|-------|-------|---------------|-----------|
-| Full rich TTY + Nerd Font | Truecolor optional on wordmark/accent | `nerd` | Wide textual / Nerd component | Labels + focus + borders |
-| 256-color only | Named / indexed tokens; no required gradient | `nerd` → `unicode` if glyphs fail | Compact | Same |
-| `NO_COLOR` / CI | No color | Prefer `ascii` (or unicode without color dependency) | Minimal / ascii geometry | Labels + borders + explicit state text only |
-| SSH / unknown glyph coverage | As terminal allows | Fall through to `ascii` | Minimal | Never tofu |
+| Full rich TTY + Nerd Font installed & selected | Truecolor optional on wordmark/accent | `nerd` (operator choice) | Wide textual / Nerd component | Labels + focus + borders |
+| 256-color only | Named / indexed tokens; no required gradient | Same configured mode (no auto glyph degrade) | Compact | Same |
+| `NO_COLOR` / CI | No color | Prefer documenting `ascii` (or `unicode`) in operator profiles; not auto-proven from `NO_COLOR` alone | Minimal / ascii geometry | Labels + borders + explicit state text only |
+| SSH / unknown glyph coverage | As terminal allows | Operator should set `unicode` or `ascii`; coverage is not auto-detected | Minimal | May tofu under `nerd` without Nerd Font |
 | Narrow / short TTY | As above | As above | Drop decorative Cerberus before Start New Run / Overall / recent runs | Task-first preserved |
 
 ## Cerberus in the TUI

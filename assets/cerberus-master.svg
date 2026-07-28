@@ -24,7 +24,7 @@
     </linearGradient>
   </defs>
 
-  <!-- Background plate (optional; transparent-friendly) -->
+  <!-- Background plate: dark-canvas variant (opaque #0B1020); not a transparent export -->
   <rect width="320" height="280" fill="#0B1020" rx="12"/>
 
   <!-- Shared neck / shoulders -->
