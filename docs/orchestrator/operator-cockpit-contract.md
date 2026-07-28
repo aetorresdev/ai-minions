@@ -71,9 +71,9 @@ When `AI_MINIONS_TUI_LEGACY=1`, the previous readline loop uses `COCKPIT_ACTIONS
 | `5` | `config` | Fullscreen `5` is **Help**; Settings is `4` |
 | `q` | `quit` | Same |
 
-Nested readline panes (guided launcher, run selector, evidence/attach, config readiness) may still use their own in-pane keys after a soft handoff; those are pane UX, not the top-level shell matrix.
+Nested readline panes (guided launcher rollback, run selector, config readiness, attach generation) may still use their own in-pane keys after a soft handoff; those are pane UX, not the top-level shell matrix. Fullscreen Overview / Explain / Evidence are Ink-local (not nested).
 
-**Ink-local surfaces (no unmount):** `home`, `help`, and `diagnostics` switch `contentSurface` inside the live Ink mount. **Phase-1 native workflows** (`launcher` / `runs` / overview) also stay inside Ink. Hotkeys and slash aliases for these (`h`/`?`/`3`/`2`/`1`, `/help`, `/runs`, `/new`, `/home`) must **not** soft-handoff / clear / remount — that looks like a silent quit (`TUI_SHELL_OK`). Nested panes remain only for actions that still need readline (settings, evidence, etc.). `/help` shows slash vocabulary as an in-mount `action_result` (no remount). Landing **Quick Start** lists task goals `1`–`5` only (Home stays on Navigate / hotkey `h`) so ↑/↓ counts match the labeled digits.
+**Ink-local surfaces (no unmount):** `home`, `help`, `diagnostics`, **`status`** (Overview `o` / Explain `x`), and **`evidence`** (`e`) switch `contentSurface` inside the live Ink mount. **Phase-1 native workflows** (`launcher` / `runs` / overview) also stay inside Ink. Hotkeys and slash aliases for these (`h`/`?`/`3`/`o`/`x`/`e`/`2`/`1`, `/help`, `/runs`, `/new`, `/home`) must **not** soft-handoff / clear / remount — that looks like a silent quit (`TUI_SHELL_OK`). Nested panes remain only for actions that still need readline (settings / config, attach generation, legacy select). `/help` shows slash vocabulary as an in-mount `action_result` (no remount). Landing **Quick Start** lists task goals `1`–`5` only (Home stays on Navigate / hotkey `h`) so ↑/↓ counts match the labeled digits.
 
 **Esc:** never ends the session. From command input it cancels input focus; from a non-home surface it returns to Home. Session terminators: `q`, `/quit` (command input), and Ctrl+C.
 

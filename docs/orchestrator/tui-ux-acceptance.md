@@ -20,6 +20,14 @@ Module: `orchestrator/modules/operator/operator-tui-ux-acceptance.js`.
 
 Each journey declares starting fixture, goal, primary action, navigation path, max decisions, expected result, recovery path, inspectable reason codes, and prohibited misleading states. See `TUI_UX_JOURNEYS` in the module.
 
+Journey intent sequences use the **same** Ink-local surface rules as the live shell
+(`isInkLocalShellAction` / `contentSurfaceForLocalAction`): home, help, diagnostics,
+**status** (Overview / Explain), and **evidence**. The acceptance harness must not invent
+content surfaces the entrypoint would open via nested `executeAction`.
+
+Entrypoint coverage: hotkeys `o` / `x` / `e` stay mounted with **zero** `executeAction`
+calls (see shell foundation tests).
+
 1. Clean install / setup required
 2. Ready environment with no runs
 3. Start the canonical Sudoku fixture

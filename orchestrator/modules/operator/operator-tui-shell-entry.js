@@ -157,6 +157,9 @@ function shouldShowProductionSplash(options = {}, env = process.env) {
  *   executeAction?: typeof executeShellAction,
  *   importRenderer?: () => Promise<{ renderOperatorTuiShell: Function }>,
  *   runLegacyCockpit?: typeof runOperatorCockpit,
+ *   selectedRunId?: string | null,
+ *   statusResult?: object | null,
+ *   evidenceModel?: object | null,
  * }} [options]
  */
 async function runOperatorTuiShell(options = {}) {
@@ -213,12 +216,18 @@ async function runOperatorTuiShell(options = {}) {
   const rows = options.rows
     ?? (typeof stdout.rows === 'number' ? stdout.rows : 24);
 
-  let selectedRunId = null;
+  let selectedRunId = options.selectedRunId == null || options.selectedRunId === ''
+    ? null
+    : String(options.selectedRunId);
   let contentSurface = 'home';
   /** @type {object | null} */
-  let statusResult = null;
+  let statusResult = options.statusResult && typeof options.statusResult === 'object'
+    ? options.statusResult
+    : null;
   /** @type {object | null} */
-  let evidenceModel = null;
+  let evidenceModel = options.evidenceModel && typeof options.evidenceModel === 'object'
+    ? options.evidenceModel
+    : null;
   /** @type {object | null} */
   let configModel = null;
   /** @type {object | null} */
@@ -260,6 +269,9 @@ async function runOperatorTuiShell(options = {}) {
       json: true,
       useColor: false,
     });
+    if (options.selectedRunId != null && options.selectedRunId !== '') {
+      selectedRunId = String(options.selectedRunId);
+    }
     model = buildShellModel({
       aboutInfo,
       credentials,
@@ -940,7 +952,7 @@ async function runOperatorTuiShell(options = {}) {
         }
       }
 
-      // Ink-local surfaces (home/help/diagnostics) remount in-process — never nested readline.
+      // Ink-local surfaces (home/help/diagnostics/status/evidence/explain) stay in-process.
       if (isInkLocalShellAction(actionId)) {
         const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
         contentSurface = surface;

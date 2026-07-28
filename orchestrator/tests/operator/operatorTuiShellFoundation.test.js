@@ -30,6 +30,8 @@ const {
   resolveShellKeypress,
   isShellSessionEndAction,
   shellModelToOptions,
+  isInkLocalShellAction,
+  contentSurfaceForLocalAction,
 } = require('../../modules/operator/operator-tui-shell-model');
 const {
   createTerminalGuard,
@@ -1269,6 +1271,87 @@ test('resolveShellActionToken maps cockpit keys', () => {
   assert.equal(resolveShellActionToken('3'), 'diagnostics');
   assert.equal(resolveShellActionToken('4'), 'config');
   assert.equal(resolveShellActionToken('5'), 'help');
+});
+
+test('Overview/Explain/Evidence hotkeys stay Ink-local (zero executeAction)', async () => {
+  assert.equal(isInkLocalShellAction('status'), true);
+  assert.equal(isInkLocalShellAction('explain'), true);
+  assert.equal(isInkLocalShellAction('evidence'), true);
+  assert.equal(contentSurfaceForLocalAction('status'), 'status');
+  assert.equal(contentSurfaceForLocalAction('explain'), 'status');
+  assert.equal(contentSurfaceForLocalAction('evidence'), 'evidence');
+
+  const { stdin, stdout } = createFakeTtyStreams();
+  const actions = [];
+  const promise = runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 8,
+    selectedRunId: 'blocked-1',
+    statusResult: {
+      run_id: 'blocked-1',
+      result_code: 'RUN_FOUND',
+      status: 'blocked',
+      outcome: 'blocked',
+      reason_code: 'CERBERUS_REJECT',
+      next_safe_action: 'address CERBERUS blockers',
+    },
+    evidenceModel: {
+      run_id: 'blocked-1',
+      result_code: 'EVIDENCE_FOUND',
+      attach_available: false,
+      reason_code: 'ATTACH_UNAVAILABLE',
+      next_safe_action: 'generate attach bundle from Overview',
+    },
+    loadRuns: () => canonicalRunsResult([
+      {
+        run_id: 'blocked-1',
+        status: 'blocked',
+        outcome: 'blocked',
+        result_code: 'RUN_FOUND',
+        reason_code: 'CERBERUS_REJECT',
+      },
+    ]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    executeAction: async (opts) => {
+      actions.push(opts.actionId);
+      return {
+        quit: false,
+        selectedRunId: opts.selectedRunId ?? null,
+        contentSurface: 'action_result',
+        actionResult: {
+          action_id: opts.actionId,
+          ok: true,
+          exit_code: 0,
+          reason_code: 'OK',
+          text: 'ok',
+        },
+      };
+    },
+  });
+  await new Promise((r) => setTimeout(r, 150));
+  stdin.write('o'); // Overview → status surface
+  await new Promise((r) => setTimeout(r, 80));
+  stdin.write('x'); // Explain → status surface (same local path)
+  await new Promise((r) => setTimeout(r, 80));
+  stdin.write('e'); // Evidence → evidence surface
+  await new Promise((r) => setTimeout(r, 80));
+  assert.deepEqual(actions, [], 'o/x/e must not open nested executeAction');
+  stdin.write('\x1b'); // Esc → home (still local)
+  await new Promise((r) => setTimeout(r, 80));
+  assert.deepEqual(actions, [], 'Esc from evidence stays local');
+  stdin.write('q');
+  const result = await promise;
+  assert.deepEqual(actions, []);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.ok(result.model?.status?.reason_code === 'CERBERUS_REJECT'
+    || /CERBERUS_REJECT/.test(String(result.text ?? '')));
+  stdin.destroy();
+  stdout.destroy();
 });
 
 test('System Status hotkey 3 and Enter stay mounted; Settings back remounts', async () => {

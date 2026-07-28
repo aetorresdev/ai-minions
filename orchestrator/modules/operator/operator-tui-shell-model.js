@@ -282,16 +282,22 @@ function isShellSessionEndAction(actionId) {
 function isInkLocalShellAction(actionId) {
   const id = String(actionId ?? '').trim().toLowerCase();
   // `runs` / launcher are Phase-1 native workflows (still Ink-mounted, separate path).
+  // Overview / Explain / Evidence stay in-process like Help / System Status — never
+  // soft-handoff into nested readline (silent-quit lookalike / lost remount).
   return id === 'home'
     || id === 'help'
     || id === 'diagnostics'
     || id === 'system-status'
-    || id === 'system_status';
+    || id === 'system_status'
+    || id === 'status'
+    || id === 'overview'
+    || id === 'explain'
+    || id === 'evidence';
 }
 
 /**
  * @param {unknown} actionId
- * @returns {'home'|'help'|'diagnostics'|null}
+ * @returns {'home'|'help'|'diagnostics'|'status'|'evidence'|null}
  */
 function contentSurfaceForLocalAction(actionId) {
   const id = String(actionId ?? '').trim().toLowerCase();
@@ -300,6 +306,9 @@ function contentSurfaceForLocalAction(actionId) {
   if (id === 'diagnostics' || id === 'system-status' || id === 'system_status' || id === 'doctor') {
     return 'diagnostics';
   }
+  // Explain shares the status surface (reason_code / next_safe_action) — no nested pane.
+  if (id === 'status' || id === 'overview' || id === 'explain') return 'status';
+  if (id === 'evidence') return 'evidence';
   return null;
 }
 
@@ -707,11 +716,28 @@ function formatShellText(model) {
       }
     }
   }
-  if (model.contentSurface === 'status' && model.status.available) {
-    lines.push(
-      `status: run=${model.status.run_id ?? '-'} result=${model.status.result_code ?? '-'} `
-      + `outcome=${model.status.outcome ?? '-'} reason=${model.status.reason_code ?? '-'}`,
-    );
+  if (model.contentSurface === 'status') {
+    if (model.status.available) {
+      lines.push(
+        `status: run=${model.status.run_id ?? '-'} result=${model.status.result_code ?? '-'} `
+        + `outcome=${model.status.outcome ?? '-'} reason=${model.status.reason_code ?? '-'} `
+        + `next=${model.status.next_safe_action ?? '-'}`,
+      );
+    } else {
+      lines.push('status: (unavailable)');
+    }
+  }
+  if (model.contentSurface === 'evidence') {
+    if (model.evidence.available) {
+      lines.push(
+        `evidence: run=${model.evidence.run_id ?? '-'} result=${model.evidence.result_code ?? '-'} `
+        + `attach=${String(model.evidence.attach_available)} `
+        + `reason=${model.evidence.reason_code ?? '-'} `
+        + `next=${model.evidence.next_safe_action ?? '-'}`,
+      );
+    } else {
+      lines.push('evidence: (unavailable)');
+    }
   }
   if (model.contentSurface === 'lifecycle' || model.contentSurface === 'monitor') {
     lines.push(...formatLiveMonitorLines(model.monitor));

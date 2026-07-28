@@ -138,6 +138,18 @@ test('visual-state inventory + viewport fixtures are declared', () => {
   }
 });
 
+test('diagnose and evidence journeys report zero wouldExecuteAction (real local surfaces)', () => {
+  for (const id of ['diagnose_cerberus_block', 'diagnose_failed_run', 'inspect_evidence']) {
+    const sim = simulateUxJourney(id);
+    assert.deepEqual(sim.wouldExecuteAction, [], `${id}: must not invent nested executeAction`);
+    assert.ok(sim.decisionCount >= 1);
+  }
+  const blocked = simulateUxJourney('diagnose_cerberus_block');
+  assert.equal(blocked.model.contentSurface, 'status');
+  const evidence = simulateUxJourney('inspect_evidence');
+  assert.equal(evidence.model.contentSurface, 'evidence');
+});
+
 test('ready landing exposes Start New Run as primary; narrow keeps it from real composition', () => {
   for (const vp of TUI_UX_VIEWPORTS) {
     const model = buildUxFixtureModel('landing_ready_empty', {

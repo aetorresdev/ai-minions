@@ -470,21 +470,9 @@ function buildUxFixtureModel(fixtureId, viewport = {}) {
 }
 
 /**
- * Apply one resolved shell intent to a model (in-process simulation — no remount).
- * @param {ReturnType<typeof buildShellModel>} model
- * @param {{ type: string, actionId?: string, direction?: string, endsSession?: boolean }} intent
- */
-function uxSimulatedContentSurface(actionId) {
-  const id = String(actionId ?? '').trim().toLowerCase();
-  if (id === 'status' || id === 'overview' || id === 'explain') return 'status';
-  if (id === 'evidence') return 'evidence';
-  if (id === 'monitor' || id === 'lifecycle') return 'monitor';
-  if (id === 'config' || id === 'settings') return 'config';
-  return null;
-}
-
-/**
- * Apply one resolved shell intent to a model (in-process simulation — no remount).
+ * Apply one resolved shell intent using the same local-surface rules as the live
+ * entrypoint (`isInkLocalShellAction` / `contentSurfaceForLocalAction`).
+ * Non-local actions are reported as wouldExecuteAction — never invent surfaces.
  * @param {ReturnType<typeof buildShellModel>} model
  * @param {{ type: string, actionId?: string, direction?: string, endsSession?: boolean }} intent
  */
@@ -525,24 +513,6 @@ function applyUxShellIntent(model, intent) {
           ...shellModelToOptions(model),
           contentSurface: surface,
           selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
-          focus: 'nav',
-          commandInput: '',
-          activeWorkflow: null,
-        }),
-        sessionEnded: false,
-        reason: null,
-        wouldExecuteAction: null,
-      };
-    }
-    // In-process UX simulation for run panes that the live shell may open via
-    // nested panes — keep the same mount; do not treat as remount/handoff.
-    const simulatedSurface = uxSimulatedContentSurface(actionId);
-    if (simulatedSurface) {
-      return {
-        model: buildShellModel({
-          ...shellModelToOptions(model),
-          contentSurface: simulatedSurface,
-          selectedNavId: actionId === 'explain' ? 'status' : actionId,
           focus: 'nav',
           commandInput: '',
           activeWorkflow: null,
