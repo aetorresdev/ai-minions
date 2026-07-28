@@ -213,10 +213,17 @@ function formatLauncherWorkflowLines(workflow) {
   if (workflow.blockedReasonCode) {
     lines.push(`blocked_reason_code: ${workflow.blockedReasonCode}`);
   }
+  if (workflow.busy) {
+    lines.push(workflow.busyKind === 'fixture_load'
+      ? 'Loading fixture prompt…'
+      : 'Loading…');
+    lines.push('Esc cancel · Ctrl+C quit · other keys ignored');
+    return lines;
+  }
   if (workflow.step === 'custom_goal') {
     lines.push('Enter custom goal prompt:');
     lines.push(`> ${workflow.textBuffer || ''}`);
-    lines.push('Type · Enter confirm · Esc back');
+    lines.push('Type (incl. q) · Enter confirm · Esc back · Ctrl+C quit');
     return lines;
   }
   if (workflow.step === 'preview') {
@@ -320,17 +327,29 @@ async function advanceLauncherWorkflow(workflow, option, ctx = {}) {
   if (step === 'fixture') {
     sel.fixtureId = option.id;
     sel.goalSource = 'fixture';
+    // Two-phase load when caller defers: commit busy first, then completeFixtureLoad.
+    if (ctx.deferFixtureLoad && typeof ctx.loadFixturePrompt === 'function') {
+      return {
+        action: 'busy',
+        workflow: {
+          ...workflow,
+          selections: sel,
+          busy: true,
+          busyKind: 'fixture_load',
+          inlineError: null,
+        },
+        pending: { type: 'fixture_load', fixtureId: option.id },
+      };
+    }
     let fixturePrompt = '';
     if (typeof ctx.loadFixturePrompt === 'function') {
       fixturePrompt = await ctx.loadFixturePrompt(option.id);
     }
-    sel.goal = fixturePrompt;
-    let next = buildPreviewFromWorkflow(
-      { ...workflow, selections: sel },
-      { ...ctx, fixturePrompt },
+    return completeFixtureLoad(
+      { ...workflow, selections: sel, busy: false, busyKind: null },
+      fixturePrompt,
+      ctx,
     );
-    next = withStep(next, 'preview');
-    return { action: 'update', workflow: next };
   }
 
   if (step === 'confirm') {
@@ -394,6 +413,32 @@ function backLauncherWorkflow(workflow) {
 }
 
 /**
+ * Finish a deferred fixture load into preview (caller discards stale completions).
+ * @param {object} workflow busy workflow from action:'busy'
+ * @param {string} fixturePrompt
+ * @param {object} [ctx]
+ * @returns {{ action: 'update', workflow: object }}
+ */
+function completeFixtureLoad(workflow, fixturePrompt, ctx = {}) {
+  const prompt = String(fixturePrompt ?? '');
+  const sel = {
+    ...workflow.selections,
+    goal: prompt,
+    goalSource: 'fixture',
+    fixtureId: workflow.selections.fixtureId,
+  };
+  let next = buildPreviewFromWorkflow(
+    { ...workflow, selections: sel, busy: false, busyKind: null },
+    { ...ctx, fixturePrompt: prompt },
+  );
+  next = withStep(next, 'preview');
+  return {
+    action: 'update',
+    workflow: { ...next, busy: false, busyKind: null },
+  };
+}
+
+/**
  * Apply a keypress to the launcher workflow.
  * @param {object} workflow
  * @param {string} input
@@ -403,6 +448,14 @@ function backLauncherWorkflow(workflow) {
 async function applyLauncherWorkflowKeypress(workflow, input, key = {}, ctx = {}) {
   const keyObj = key && typeof key === 'object' ? key : {};
   const isReturn = Boolean(keyObj.return) || input === '\r' || input === '\n';
+
+  // Loading state consumes incompatible keys; Esc cancels back / clears busy.
+  if (workflow.busy) {
+    if (keyObj.escape || input === '\u001b') {
+      return backLauncherWorkflow({ ...workflow, busy: false, busyKind: null });
+    }
+    return { action: 'ignore' };
+  }
 
   if (workflow.step === 'custom_goal') {
     if (keyObj.escape || input === '\u001b') {
@@ -500,5 +553,6 @@ module.exports = {
   applyLauncherWorkflowKeypress,
   advanceLauncherWorkflow,
   backLauncherWorkflow,
+  completeFixtureLoad,
   optionsForStep,
 };

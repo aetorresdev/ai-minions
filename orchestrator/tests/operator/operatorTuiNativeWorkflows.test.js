@@ -13,6 +13,7 @@ const {
   createLauncherWorkflow,
   applyLauncherWorkflowKeypress,
   formatLauncherWorkflowLines,
+  completeFixtureLoad,
   LAUNCHER_WORKFLOW_KIND,
 } = require('../../modules/operator/operator-tui-launcher-workflow');
 const {
@@ -24,13 +25,14 @@ const {
   isNativeWorkflowAction,
   openNativeWorkflow,
   surfaceForWorkflow,
+  createAsyncTransitionGate,
   NATIVE_LAUNCHER_EXECUTE_ACTION,
 } = require('../../modules/operator/operator-tui-native-workflows');
 const {
   buildShellModel,
   resolveShellKeypress,
 } = require('../../modules/operator/operator-tui-shell-model');
-const { LAUNCHER_REASON } = require('../../modules/operator/operator-guided-launcher-model');
+const { LAUNCHER_REASON, CANONICAL_FIXTURE_OPTIONS } = require('../../modules/operator/operator-guided-launcher-model');
 
 describe('operator-tui-select-controller', () => {
   it('moves cursor with arrows and j/k', () => {
@@ -140,6 +142,93 @@ describe('operator-tui-launcher-workflow', () => {
     assert.equal(exec.selections.agentFlow, 'single_agent');
     assert.equal(exec.selections.inferenceLane, 'local_only');
   });
+
+  it('types custom goal including q key-by-key without quitting', async () => {
+    let wf = createLauncherWorkflow();
+    // agent → lane → gate → goal_source
+    for (let i = 0; i < 3; i += 1) {
+      wf = (await applyLauncherWorkflowKeypress(wf, '', { return: true })).workflow;
+    }
+    // move to custom (index 2)
+    wf = (await applyLauncherWorkflowKeypress(wf, '', { downArrow: true })).workflow;
+    wf = (await applyLauncherWorkflowKeypress(wf, '', { downArrow: true })).workflow;
+    wf = (await applyLauncherWorkflowKeypress(wf, '', { return: true })).workflow;
+    assert.equal(wf.step, 'custom_goal');
+
+    const model = buildShellModel({
+      activeWorkflow: wf,
+      contentSurface: 'launcher_workflow',
+      focus: 'content',
+    });
+    const goal = 'quality gate check';
+    for (const ch of goal) {
+      const intent = resolveShellKeypress(ch, {}, model);
+      assert.equal(intent.type, 'workflow_key', `char ${JSON.stringify(ch)} must route to workflow`);
+      assert.equal(intent.endsSession, false);
+      const r = await applyLauncherWorkflowKeypress(wf, ch, {});
+      assert.equal(r.action, 'update');
+      wf = r.workflow;
+      model.activeWorkflow = wf;
+    }
+    assert.equal(wf.textBuffer, goal);
+    assert.match(formatLauncherWorkflowLines(wf).join('\n'), /quality gate check/);
+  });
+
+  it('discards stale fixture load after Esc (no preview/execute handoff)', async () => {
+    let resolveLoad;
+    const deferred = new Promise((resolve) => {
+      resolveLoad = resolve;
+    });
+    const gate = createAsyncTransitionGate();
+
+    let wf = createLauncherWorkflow();
+    for (let i = 0; i < 3; i += 1) {
+      wf = (await applyLauncherWorkflowKeypress(wf, '', { return: true })).workflow;
+    }
+    // goal_source → fixture
+    wf = (await applyLauncherWorkflowKeypress(wf, '', { downArrow: true })).workflow;
+    wf = (await applyLauncherWorkflowKeypress(wf, '', { return: true })).workflow;
+    assert.equal(wf.step, 'fixture');
+    assert.ok(CANONICAL_FIXTURE_OPTIONS.length > 0);
+
+    const token = gate.begin();
+    const busy = await applyLauncherWorkflowKeypress(wf, '', { return: true }, {
+      deferFixtureLoad: true,
+      loadFixturePrompt: async () => deferred,
+    });
+    assert.equal(busy.action, 'busy');
+    assert.equal(busy.workflow.busy, true);
+    assert.equal(busy.pending.type, 'fixture_load');
+    assert.match(formatLauncherWorkflowLines(busy.workflow).join('\n'), /Loading fixture/);
+
+    // Incompatible keys ignored while busy
+    const ignored = await applyLauncherWorkflowKeypress(busy.workflow, '', { return: true });
+    assert.equal(ignored.action, 'ignore');
+
+    // Esc cancels and invalidates the in-flight load
+    gate.invalidate();
+    const back = await applyLauncherWorkflowKeypress(busy.workflow, '', { escape: true });
+    assert.equal(back.action, 'update');
+    assert.equal(back.workflow.step, 'goal_source');
+    assert.equal(back.workflow.busy, false);
+    assert.equal(gate.isCurrent(token), false);
+
+    // Stale loader resolves — must not be applied when gate rejects the token
+    resolveLoad('STALE_FIXTURE_GOAL_SHOULD_NOT_APPLY');
+    await deferred;
+    assert.equal(gate.isCurrent(token), false);
+    // Simulate ShellApp discard: only complete when token current
+    let executed = false;
+    let previewed = false;
+    if (gate.isCurrent(token)) {
+      const completed = completeFixtureLoad(busy.workflow, 'STALE_FIXTURE_GOAL_SHOULD_NOT_APPLY', {});
+      previewed = completed.workflow.step === 'preview';
+      executed = completed.action === 'execute';
+    }
+    assert.equal(previewed, false);
+    assert.equal(executed, false);
+    assert.equal(back.workflow.step, 'goal_source');
+  });
 });
 
 describe('operator-tui-run-browser-workflow', () => {
@@ -205,7 +294,38 @@ describe('native workflow shell bridge', () => {
     assert.equal(surfaceForWorkflow(browser), 'run_browser');
   });
 
-  it('routes keypresses to workflow while active (Esc cancels; q still quits)', () => {
+  it('run browser opens from startup snapshot (does not re-discover)', () => {
+    const snapshotRuns = [
+      { run_id: 'snap-1', status: 'done', outcome: 'pass' },
+      { run_id: 'snap-2', status: 'failed', outcome: 'fail' },
+    ];
+    const model = buildShellModel({
+      runsPayload: { runs: snapshotRuns, result_code: 'OK', next_safe_action: 'inspect' },
+      selectedRunId: 'snap-2',
+      contentSurface: 'home',
+      focus: 'nav',
+    });
+    const browser = openNativeWorkflow(model, 'runs');
+    assert.equal(browser.kind, 'run_browser');
+    assert.equal(browser.runs.length, 2);
+    assert.equal(browser.runs[0].run_id, 'snap-1');
+    assert.equal(browser.select.cursorIndex, 1);
+    // openNativeWorkflow only reads model.runs at call time (startup snapshot contract).
+    const again = openNativeWorkflow(
+      buildShellModel({
+        runsPayload: { runs: snapshotRuns, result_code: 'OK' },
+        contentSurface: 'home',
+      }),
+      'select',
+    );
+    assert.equal(again.runs.length, 2);
+    assert.deepEqual(
+      again.runs.map((r) => r.run_id),
+      ['snap-1', 'snap-2'],
+    );
+  });
+
+  it('routes Esc to workflow; q quits outside custom_goal; Ctrl+C always aborts', () => {
     const model = buildShellModel({
       activeWorkflow: createLauncherWorkflow(),
       contentSurface: 'launcher_workflow',
@@ -216,6 +336,22 @@ describe('native workflow shell bridge', () => {
     assert.equal(esc.endsSession, false);
     const quit = resolveShellKeypress('q', {}, model);
     assert.equal(quit.type, 'quit');
+    assert.equal(quit.endsSession, true);
+    const abort = resolveShellKeypress('c', { ctrl: true }, model);
+    assert.equal(abort.type, 'abort');
+    assert.equal(abort.endsSession, true);
+  });
+
+  it('quit-path: q ends session when workflow is not in custom_goal text entry', () => {
+    const model = buildShellModel({
+      activeWorkflow: createLauncherWorkflow(),
+      contentSurface: 'launcher_workflow',
+      focus: 'content',
+    });
+    assert.equal(model.activeWorkflow.step, 'agent_flow');
+    const quit = resolveShellKeypress('q', {}, model);
+    assert.equal(quit.type, 'quit');
+    assert.equal(quit.actionId, 'quit');
     assert.equal(quit.endsSession, true);
   });
 });

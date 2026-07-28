@@ -52,6 +52,8 @@ function openNativeWorkflow(model, actionId) {
     });
   }
   if (id === 'select' || id === 'runs') {
+    // Startup snapshot: uses model.runs already loaded at shell entry (loadRuns /
+    // runOperatorRuns). Does not re-invoke discovery on each open — see cockpit contract.
     const runs = Array.isArray(model.runs?.runs) ? model.runs.runs : [];
     return createRunBrowserWorkflow({
       runs,
@@ -63,6 +65,35 @@ function openNativeWorkflow(model, actionId) {
     });
   }
   return null;
+}
+
+/**
+ * Monotonic gate so async workflow completions can be discarded after Esc / newer keys.
+ * @returns {{
+ *   begin: () => number,
+ *   invalidate: () => number,
+ *   isCurrent: (token: number) => boolean,
+ *   get epoch(): number,
+ * }}
+ */
+function createAsyncTransitionGate() {
+  let epoch = 0;
+  return {
+    begin() {
+      epoch += 1;
+      return epoch;
+    },
+    invalidate() {
+      epoch += 1;
+      return epoch;
+    },
+    isCurrent(token) {
+      return token === epoch;
+    },
+    get epoch() {
+      return epoch;
+    },
+  };
 }
 
 /**
@@ -128,6 +159,7 @@ module.exports = {
   formatNativeWorkflowLines,
   applyNativeWorkflowKeypress,
   surfaceForWorkflow,
+  createAsyncTransitionGate,
   LAUNCHER_WORKFLOW_KIND,
   RUN_BROWSER_WORKFLOW_KIND,
 };

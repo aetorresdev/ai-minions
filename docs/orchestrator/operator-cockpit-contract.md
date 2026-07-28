@@ -22,7 +22,7 @@ Requires a TTY (stdin and stdout). Non-TTY exits non-zero with equivalent CLI ve
 - **Navigation:** task-first goals (Home, New Run, Runs, System Status, Settings, Help). Selected-run views (Overview, Monitor, Evidence, Explain) appear only when a run is selected. Legacy readline aliases (`s` select, digit-mapped attach/config, …) are **not** top-level fullscreen hotkeys — see [Keyboard / navigation matrix](#keyboard--navigation-matrix).
 - **Main content:** task-first landing (Quick Start · System Readiness · Recent Runs), guided launcher summary, runs list, System Status / diagnostics, Settings / config readiness, help surface, selected-run status / monitor / evidence / explain, action result.
 - **Footer:** key hints, current selection, safe exit guidance.
-- **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; **type the labeled action key** (`h`, `1`–`5`, `?`, and when a run is selected `o` / `m` / `e` / `x`) anytime outside command input (no Tab required); Enter runs the highlighted nav item; `/` focuses command input for slash commands; `q` / Ctrl+C quit with terminal restore. Top-level `s` is ignored (selection is via Runs / content ↑↓, not a select hotkey).
+- **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; **type the labeled action key** (`h`, `1`–`5`, `?`, and when a run is selected `o` / `m` / `e` / `x`) anytime outside command input (no Tab required); Enter runs the highlighted nav item; `/` focuses command input for slash commands; `q` / Ctrl+C quit with terminal restore (except during guided-launcher **custom goal** text entry, where printable `q` is part of the goal and only Ctrl+C ends the session). Top-level `s` is ignored (selection is via Runs / content ↑↓, not a select hotkey).
 - **Native Phase-1 workflows:** guided launcher, run browser, and selected-run overview run **inside** the Ink shell (↑/↓ · Enter · Esc). Choice/navigation must not tear down the terminal guard or open a nested readline pane. Child-process launch may use a bounded soft handoff after confirm.
 - **Mouse:** not wired — action labels are keyboard hints, not clickable buttons.
 - **Resize:** columns &lt; 72 → narrow layout (stacked); otherwise wide.
@@ -152,6 +152,8 @@ Nested readline panes (Phase 2 / legacy cockpit) use a **soft handoff** (cooked 
 Cockpit action **`1` / launcher** (and `/new`):
 
 - Agent mode, inference lane, gate posture, goal/fixture, preview, and confirm are navigable with the same keys as the shell.
+- **Custom goal text entry:** printable characters (including `q`) append to the goal buffer; unambiguous session-end is **Ctrl+C**. Outside `custom_goal`, `q` still quits.
+- **Fixture load:** selecting a fixture enters a loading state that ignores incompatible keys; Esc cancels and discards a stale in-flight load (no preview/execute handoff from a cancelled load).
 - Disabled hybrid remains visible with `MATRIX_SKIP_HYBRID_UNSUPPORTED` (and remediation) inline — no silent skip.
 - Confirm executes through `runOperatorGuidedLauncherPane({ selections })` so readiness / launch contracts stay authoritative.
 - Cancel/Esc returns to the previous TUI surface without leaving the session.

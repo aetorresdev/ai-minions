@@ -147,10 +147,20 @@ function buildShellModel(options = {}) {
     ? options.pendingLauncherSelections
     : null;
   const workflowActive = activeWorkflow != null;
+  const workflowTextEntry = workflowActive && activeWorkflow.step === 'custom_goal';
+  const workflowBusy = workflowActive && Boolean(activeWorkflow.busy);
   const footerHints = workflowActive
-    ? (layout === 'narrow'
-      ? 'workflow · ↑↓ · Enter · Esc · q'
-      : 'Native workflow · ↑/↓ · Enter · Esc back/cancel · /=slash · q=quit · no nested readline')
+    ? (workflowBusy
+      ? (layout === 'narrow'
+        ? 'loading · Esc cancel · Ctrl+C quit'
+        : 'Loading… · Esc cancels pending load · Ctrl+C=quit · keys otherwise ignored')
+      : (workflowTextEntry
+        ? (layout === 'narrow'
+          ? 'type goal · Enter · Esc · Ctrl+C quit'
+          : 'Custom goal · type freely (incl. q) · Enter confirm · Esc back · Ctrl+C=quit')
+        : (layout === 'narrow'
+          ? 'workflow · ↑↓ · Enter · Esc · q'
+          : 'Native workflow · ↑/↓ · Enter · Esc back/cancel · /=slash · q=quit · Ctrl+C=quit · no nested readline')))
     : (layout === 'narrow'
       ? landing.footer_hints_narrow
       : landing.footer_hints_wide);
@@ -262,9 +272,16 @@ function resolveShellKeypress(input, key = {}, model = {}) {
     return { type: 'abort', endsSession: true };
   }
 
-  // Intentional quit — only `q` outside command input (not digits / pane letters).
-  // q ends the session even during native workflows; Esc cancels the workflow.
-  if (input === 'q' && focus !== 'input') {
+  // Text-entry precedence: during custom_goal, printable input (including `q`)
+  // routes to the workflow. Unambiguous session-end remains Ctrl+C (above).
+  const workflowTextEntry = workflowActive
+    && model.activeWorkflow
+    && model.activeWorkflow.step === 'custom_goal'
+    && !model.activeWorkflow.busy;
+
+  // Intentional quit — `q` outside command input and outside workflow text entry.
+  // Outside custom_goal, q still ends the session; Esc cancels the workflow.
+  if (input === 'q' && focus !== 'input' && !workflowTextEntry) {
     return { type: 'quit', actionId: 'quit', endsSession: true };
   }
 
