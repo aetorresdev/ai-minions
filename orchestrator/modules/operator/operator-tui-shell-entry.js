@@ -18,6 +18,8 @@ const {
   buildShellModel,
   formatShellText,
   isShellSessionEndAction,
+  isInkLocalShellAction,
+  contentSurfaceForLocalAction,
   shellModelToOptions,
 } = require('./operator-tui-shell-model');
 const {
@@ -693,6 +695,50 @@ async function runOperatorTuiShell(options = {}) {
             }
           }
 
+          // Ink-local surfaces must never open a nested readline pane (silent-quit lookalike).
+          if (isInkLocalShellAction(plan.action_id)) {
+            const surface = contentSurfaceForLocalAction(plan.action_id) ?? 'home';
+            contentSurface = surface;
+            prepareInkRemount({ stdin });
+            guard = createTerminalGuard({ stdin, stdout });
+            model = buildShellModel({
+              aboutInfo,
+              credentials,
+              pathActivation,
+              runsPayload,
+              statusResult,
+              evidenceModel,
+              configModel,
+              launcherModel,
+              actionResult,
+              lifecycleSource,
+              monitorSource,
+              selectedRunId: plan.run_id ?? selectedRunId,
+              selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+              contentSurface: surface,
+              columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
+              rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
+              focus: 'nav',
+              colorEnabled: useColor && process.env.NO_COLOR == null,
+              productVersion: aboutInfo.version,
+              activeWorkflow: null,
+            });
+            if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
+              if (!guard.restored) guard.restore('normal');
+              return {
+                ok: true,
+                exitCode: lastExitCode,
+                reason_code: TUI_SHELL_REASON.OK,
+                ink_loaded: inkLoaded,
+                react_loaded: reactLoaded,
+                text: formatShellText(model),
+                model,
+                guard,
+              };
+            }
+            continue;
+          }
+
           // Soft handoff already done by withTerminalGuard — do not emit alt-screen exit.
           prepareNestedPaneIo({
             stdin,
@@ -884,6 +930,50 @@ async function runOperatorTuiShell(options = {}) {
           }
           continue;
         }
+      }
+
+      // Ink-local surfaces (home/help/diagnostics) remount in-process — never nested readline.
+      if (isInkLocalShellAction(actionId)) {
+        const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
+        contentSurface = surface;
+        prepareInkRemount({ stdin });
+        guard = createTerminalGuard({ stdin, stdout });
+        model = buildShellModel({
+          aboutInfo,
+          credentials,
+          pathActivation,
+          runsPayload,
+          statusResult,
+          evidenceModel,
+          configModel,
+          launcherModel,
+          actionResult,
+          lifecycleSource,
+          monitorSource,
+          selectedRunId,
+          selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+          contentSurface: surface,
+          columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
+          rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
+          focus: 'nav',
+          colorEnabled: useColor && process.env.NO_COLOR == null,
+          productVersion: aboutInfo.version,
+          activeWorkflow: null,
+        });
+        if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
+          if (!guard.restored) guard.restore('normal');
+          return {
+            ok: true,
+            exitCode: lastExitCode,
+            reason_code: TUI_SHELL_REASON.OK,
+            ink_loaded: inkLoaded,
+            react_loaded: reactLoaded,
+            text: formatShellText(model),
+            model,
+            guard,
+          };
+        }
+        continue;
       }
 
       // Soft handoff already done by withTerminalGuard — avoid alt-screen exit flash.

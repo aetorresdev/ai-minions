@@ -1190,6 +1190,189 @@ test('resolveShellActionToken maps cockpit keys', () => {
   assert.equal(resolveShellActionToken('q'), 'quit');
   assert.equal(resolveShellActionToken('', 'config'), 'config');
   assert.equal(resolveShellActionToken('nope'), null);
+  // Fullscreen task-first digits (not legacy 3=status / 4=attach / 5=config).
+  assert.equal(resolveShellActionToken('3'), 'diagnostics');
+  assert.equal(resolveShellActionToken('4'), 'config');
+  assert.equal(resolveShellActionToken('5'), 'help');
+});
+
+test('System Status hotkey 3 and Enter stay mounted; Settings back remounts', async () => {
+  const { RESTORE_SEQUENCE: restoreSeq } = require('../../modules/operator/operator-tui-terminal-guard');
+  const { stdin, stdout } = createFakeTtyStreams();
+  const out = [];
+  stdout.on('data', (chunk) => {
+    out.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+  });
+  const actions = [];
+  const promise = runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 6,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    executeAction: async (opts) => {
+      actions.push(opts.actionId);
+      if (opts.actionId === 'config') {
+        return {
+          quit: false,
+          selectedRunId: null,
+          contentSurface: 'config',
+          actionResult: {
+            action_id: 'config',
+            ok: true,
+            exit_code: 0,
+            reason_code: 'CONFIG_READINESS_PANE_BACK',
+            text: 'back',
+          },
+          configModel: {
+            ok: true,
+            model_policy: 'local_only',
+            path_activation: { status: 'ready', on_path: true },
+            credentials: { credential_sufficiency: 'not_required', providers: [] },
+            remediation_candidates: [],
+          },
+        };
+      }
+      return {
+        quit: false,
+        selectedRunId: null,
+        contentSurface: 'action_result',
+        actionResult: {
+          action_id: opts.actionId,
+          ok: true,
+          exit_code: 0,
+          reason_code: 'OK',
+          text: 'ok',
+        },
+      };
+    },
+  });
+  await new Promise((r) => setTimeout(r, 150));
+  // Enter on System Status after arrowing to diagnostics (Quick Start skips Home).
+  stdin.write('\x1b[B'); // runs
+  await new Promise((r) => setTimeout(r, 50));
+  stdin.write('\x1b[B'); // diagnostics
+  await new Promise((r) => setTimeout(r, 50));
+  stdin.write('\r');
+  await new Promise((r) => setTimeout(r, 80));
+  stdin.write('3'); // hotkey System Status
+  await new Promise((r) => setTimeout(r, 80));
+  assert.deepEqual(actions, [], 'System Status must not open nested executeAction');
+  stdin.write('4'); // Settings → nested config
+  await new Promise((r) => setTimeout(r, 120));
+  assert.deepEqual(actions, ['config']);
+  stdin.write('q');
+  const result = await promise;
+  const joined = out.join('');
+  assert.ok(joined.includes('nested pane'), 'Settings still uses Phase-2 nested pane');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
+  assert.equal(joined.split(restoreSeq).length - 1, 1, 'alt-screen exit only at session end');
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('Settings nested pane back remounts Ink shell (not silent TUI_SHELL_OK)', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  let renderPasses = 0;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 4,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onRequestAction }) => {
+        renderPasses += 1;
+        if (renderPasses === 1) {
+          onRequestAction('config');
+          return { aborted: false, requestedAction: 'config' };
+        }
+        if (renderPasses === 2) {
+          onRequestAction('q');
+          return { aborted: false, requestedAction: 'q' };
+        }
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+    executeAction: async ({ actionId }) => {
+      if (actionId === 'quit') {
+        return {
+          quit: true,
+          selectedRunId: null,
+          contentSurface: 'action_result',
+          actionResult: {
+            action_id: 'quit',
+            ok: true,
+            exit_code: 0,
+            reason_code: null,
+            text: 'quit',
+          },
+        };
+      }
+      return {
+        quit: false,
+        selectedRunId: null,
+        contentSurface: 'config',
+        actionResult: {
+          action_id: 'config',
+          ok: true,
+          exit_code: 0,
+          reason_code: 'CONFIG_READINESS_PANE_BACK',
+          text: 'back',
+        },
+        configModel: {
+          ok: true,
+          model_policy: 'local_only',
+          path_activation: { status: 'ready', on_path: true },
+          credentials: { credential_sufficiency: 'not_required', providers: [] },
+          remediation_candidates: [],
+        },
+      };
+    },
+  });
+  assert.equal(renderPasses, 2, 'config back must remount a second Ink frame');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
+  assert.equal(result.model.contentSurface, 'config');
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('landing Quick Start ↑/↓ skips Home so System Status is two downs from New Run', () => {
+  const {
+    moveNavSelection,
+    navItemsForMovement,
+  } = require('../../modules/operator/operator-tui-shell-model');
+  const model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: canonicalRunsResult([]),
+    contentSurface: 'home',
+    selectedNavId: 'launcher',
+  });
+  const movable = navItemsForMovement(model);
+  assert.equal(movable.some((n) => n.id === 'home'), false);
+  assert.equal(movable[0]?.id, 'launcher');
+  const afterOne = moveNavSelection(model, 'next');
+  assert.equal(afterOne.selectedNavId, 'runs');
+  const afterTwo = moveNavSelection(afterOne, 'next');
+  assert.equal(afterTwo.selectedNavId, 'diagnostics');
+  const enterDiag = resolveShellKeypress('', { return: true }, {
+    ...afterTwo,
+    focus: 'nav',
+  });
+  assert.equal(enterDiag.actionId, 'diagnostics');
+  assert.equal(enterDiag.endsSession, false);
 });
 
 test('select/evidence/config actions propagate nested pane payloads into remounted shell model', async () => {

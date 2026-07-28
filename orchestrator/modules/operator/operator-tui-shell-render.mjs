@@ -12,6 +12,7 @@ const {
   shellModelToOptions,
   isInkLocalShellAction,
   contentSurfaceForLocalAction,
+  navItemsForMovement,
 } = require('./operator-tui-shell-model.js');
 const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor } = require('./operator-tui-theme.js');
 const {
@@ -564,7 +565,7 @@ function ShellApp(props) {
           { dimColor: true, color: theme.muted },
           'keyboard — not clickable',
         ),
-        ...model.navItems.map((item) => {
+        ...(showLandingHome ? navItemsForMovement(model) : model.navItems).map((item) => {
           const selected = item.id === model.selectedNavId;
           const prefix = item.group === 'run' ? '  ' : '';
           const label = showLandingHome && item.id === 'launcher'

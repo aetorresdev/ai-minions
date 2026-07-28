@@ -662,6 +662,17 @@ function resolveShellActionToken(raw, selectedNavId = null) {
     return null;
   }
   const lower = token.toLowerCase();
+  // Fullscreen task-first digits beat legacy cockpit digit aliases (3=status, 4=attach, 5=config).
+  const taskFirstDigits = {
+    1: 'launcher',
+    2: 'runs',
+    3: 'diagnostics',
+    4: 'config',
+    5: 'help',
+  };
+  if (Object.prototype.hasOwnProperty.call(taskFirstDigits, lower)) {
+    return taskFirstDigits[lower];
+  }
   const shellAliases = {
     home: 'home',
     landing: 'home',
