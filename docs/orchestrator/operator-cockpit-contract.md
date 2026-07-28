@@ -20,7 +20,8 @@ Requires a TTY (stdin and stdout). Non-TTY exits non-zero with equivalent CLI ve
 - **Navigation:** existing cockpit actions (guided launcher, runs, select, evidence, status, **live monitor**, attach, config, quit).
 - **Main content:** home readiness, guided launcher summary, runs list, selected-run status, evidence/attach state, config readiness, action result, **live run monitor**.
 - **Footer:** key hints, current selection, safe exit guidance.
-- **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; Enter runs selected action; `/` focuses command input with a leading `/` for slash commands; `q` / Ctrl+C quit with terminal restore.
+- **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; **type the action key** (`1`, `s`, `e`, `m`, …) anytime outside command input to run that action (no Tab required); Enter runs the highlighted nav item; `/` focuses command input for slash commands; `q` / Ctrl+C quit with terminal restore.
+- **Mouse:** not wired — action labels are keyboard hints, not clickable buttons.
 - **Resize:** columns &lt; 72 → narrow layout (stacked); otherwise wide.
 
 ## Adapter boundary
@@ -79,14 +80,14 @@ Run-required commands without a selection explain how to select (`/runs` then `/
 
 Non-interactive CLI verbs are unchanged.
 
-Nested readline panes temporarily restore the terminal, run the existing operator pane, then remount the Ink shell in-process (no return to bash).
+Nested readline panes temporarily restore the terminal, **clear the screen**, resume stdin, run the existing operator pane (prompt already focused — type a key then Enter; j/k moves cursor; no mouse / no arrow keys), then remount the Ink shell in-process (no return to bash).
 
 ## Run selector + status pane
 
 Cockpit action **`s` / select**:
 
 - Lists runs **newest-first** via the same discovery as `ai-minions runs`.
-- Selection by **index**, **run id**, or **keyboard nav** (`n`/`j` next, `p`/`k` prev, Enter selects cursor).
+- Selection by **index**, **run id**, or **keyboard nav** (`n`/`j` next, `p`/`k` prev, Enter selects cursor). Arrow keys and mouse are **not** wired in this nested readline pane.
 - Selected run shows a compact **status pane**: run id / trace basename · outcome/status · reason code · next safe action · attach/bundle hint.
 - Invalid traces stay visible as `RUN_TRACE_INVALID` with **no inferred** outcome/state.
 - Selector commands resolve **trace basenames** safely (same quoting rules as `runs`).

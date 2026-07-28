@@ -8,6 +8,7 @@ const {
   cycleFocus,
   moveNavSelection,
   moveRunSelection,
+  resolveNavHotkey,
   shellModelToOptions,
 } = require('./operator-tui-shell-model.js');
 
@@ -82,6 +83,15 @@ function ShellApp(props) {
     if (key.tab) {
       commit(cycleFocus(model));
       return;
+    }
+    // Hotkeys work without Tab→command input (labels are keyboard hints, not mouse targets).
+    if (model.focus !== 'input' && input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow
+      && !key.leftArrow && !key.rightArrow && !key.return) {
+      const hotkeyAction = resolveNavHotkey(input, model.navItems);
+      if (hotkeyAction) {
+        requestAction(hotkeyAction);
+        return;
+      }
     }
     if (model.focus === 'nav') {
       if (key.upArrow || input === 'k') {
@@ -166,10 +176,11 @@ function ShellApp(props) {
           paddingX: 1,
         },
         React.createElement(Text, { bold: true }, 'Actions'),
+        React.createElement(Text, { dimColor: true }, 'keyboard keys — not clickable'),
         ...model.navItems.map((item) => React.createElement(
           Text,
           { key: item.id },
-          `${item.id === model.selectedNavId ? '>' : ' '} [${item.key}] ${item.label}`,
+          `${item.id === model.selectedNavId ? '>' : ' '} ${item.key}. ${item.label}`,
         )),
       ),
       React.createElement(

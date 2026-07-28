@@ -26,11 +26,14 @@ const {
   cycleFocus,
   layoutModeForColumns,
   formatShellText,
+  resolveNavHotkey,
 } = require('../../modules/operator/operator-tui-shell-model');
 const {
   createTerminalGuard,
   withTerminalGuard,
+  prepareNestedPaneIo,
   RESTORE_SEQUENCE,
+  CLEAR_SEQUENCE,
 } = require('../../modules/operator/operator-tui-terminal-guard');
 const {
   TUI_SHELL_REASON,
@@ -232,6 +235,25 @@ test('shell model chrome + nav + resize', () => {
   assert.equal(narrow.layout, 'narrow');
   assert.match(formatShellText(model), /ai-minions/);
   assert.match(formatShellText(model), /operator modules remain authoritative/i);
+  assert.match(model.footerHints, /Type action key|key=run/i);
+  assert.match(model.disclaimer, /mouse/i);
+  assert.equal(resolveNavHotkey('1', model.navItems), 'launcher');
+  assert.equal(resolveNavHotkey('s', model.navItems), 'select');
+  assert.equal(resolveNavHotkey('m', model.navItems), 'monitor');
+  assert.equal(resolveNavHotkey('j', model.navItems), null);
+});
+
+test('prepareNestedPaneIo clears screen so nested panes do not overprint Ink', () => {
+  const writes = [];
+  let resumed = false;
+  const result = prepareNestedPaneIo({
+    writeClear: (seq) => writes.push(seq),
+    stdin: { resume() { resumed = true; } },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.wrote, true);
+  assert.deepEqual(writes, [CLEAR_SEQUENCE]);
+  assert.equal(resumed, true);
 });
 
 test('non-TTY path does not initialize Ink/React', async () => {

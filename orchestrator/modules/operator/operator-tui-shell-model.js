@@ -139,12 +139,27 @@ function buildShellModel(options = {}) {
     monitor,
     monitorSource: options.monitorSource ?? null,
     footerHints: layout === 'narrow'
-      ? '↑↓ nav · Enter run · Tab focus · q quit'
-      : '↑/↓ navigate  Enter=run action  Tab=focus  /=command  q=quit  Ctrl+C=abort',
+      ? 'key=run · ↑↓ · Enter · Tab · q'
+      : 'Type action key (1/s/e/…) anytime outside command input · ↑/↓+Enter · Tab=focus · /=slash · q=quit · mouse not wired',
     disclaimer:
       'Guided launcher + live run monitor + slash commands — operator modules remain authoritative. '
-      + 'Not claimed: Web UI · durable resume.',
+      + 'Not claimed: Web UI · durable resume · mouse clicks on labels.',
   };
+}
+
+/**
+ * Map a single keypress to a nav action id when focus is outside command input.
+ * Digits/letters must work without Tab→input (operator hotkey expectation).
+ * @param {string} raw
+ * @param {ReadonlyArray<{ key: string, id: string }> | null | undefined} navItems
+ * @returns {string | null}
+ */
+function resolveNavHotkey(raw, navItems) {
+  const token = String(raw ?? '');
+  if (!token || token.length !== 1) return null;
+  const items = Array.isArray(navItems) ? navItems : [];
+  const match = items.find((item) => String(item.key) === token);
+  return match ? String(match.id) : null;
 }
 
 /**
@@ -339,4 +354,5 @@ module.exports = {
   cycleFocus,
   shellModelToOptions,
   formatShellText,
+  resolveNavHotkey,
 };

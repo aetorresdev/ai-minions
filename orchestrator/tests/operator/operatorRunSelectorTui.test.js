@@ -44,10 +44,9 @@ test('buildRunSelectorListText newest-first with cursor marker', () => {
     ],
     { cursorIndex: 1, useColor: false },
   );
-  assert.match(text, /> \[ 2\].*older/);
-  assert.match(text, / {2}\[ 1\].*newer/);
-  assert.match(text, /n\/j next/);
-  assert.match(text, /p\/k prev/);
+  assert.match(text, />\s*2\.\s+.*older/);
+  assert.match(text, /\b1\.\s+.*newer/);
+  assert.match(text, /j\/k|No mouse|arrow keys not wired/i);
 });
 
 test('resolveRunSelectorInput index, nav, back, and run id', () => {

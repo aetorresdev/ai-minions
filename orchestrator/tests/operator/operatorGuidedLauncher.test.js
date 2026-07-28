@@ -17,6 +17,7 @@ const {
 } = require('../../modules/operator/operator-guided-launcher-model');
 const {
   runOperatorGuidedLauncherPane,
+  resolveChoiceInput,
 } = require('../../modules/operator/operator-guided-launcher-pane-tui');
 const { adaptGuidedLauncher } = require('../../modules/operator/operator-tui-adapters');
 const { buildShellModel } = require('../../modules/operator/operator-tui-shell-model');
@@ -34,6 +35,37 @@ test('cockpit nav exposes guided launcher (smoke aliases resolve)', () => {
   assert.equal(resolveCockpitAction('new')?.id, 'launcher');
 });
 
+test('resolveChoiceInput supports typed keys, j/k cursor, Enter, cancel', () => {
+  const options = [
+    { key: '1', label: 'single-agent' },
+    { key: '2', label: 'multi-agent' },
+    { key: '3', label: 'hybrid', disabled: true },
+  ];
+  assert.equal(resolveChoiceInput('1', { options, cursorIndex: 0 }).action, 'select');
+  assert.equal(resolveChoiceInput('1', { options, cursorIndex: 0 }).key, '1');
+  assert.equal(resolveChoiceInput('', { options, cursorIndex: 1 }).key, '2');
+  assert.equal(resolveChoiceInput('j', { options, cursorIndex: 0 }).action, 'next');
+  assert.equal(resolveChoiceInput('j', { options, cursorIndex: 0 }).cursorIndex, 1);
+  assert.equal(resolveChoiceInput('k', { options, cursorIndex: 1 }).cursorIndex, 0);
+  assert.equal(resolveChoiceInput('c', { options, cursorIndex: 0 }).action, 'cancel');
+  assert.equal(resolveChoiceInput('3', { options, cursorIndex: 0 }).action, 'disabled');
+});
+
+test('interactive launcher pane shows keyboard-only hints and typed-key labels', async () => {
+  const lines = [];
+  const cancelled = await runOperatorGuidedLauncherPane({
+    question: async (prompt) => {
+      assert.match(String(prompt), /Select \(keys active now\)/i);
+      return 'c';
+    },
+    write: (t) => lines.push(String(t)),
+  });
+  assert.equal(cancelled.reason_code, LAUNCHER_REASON.CANCELLED);
+  const text = lines.join('\n');
+  assert.match(text, /Keyboard only|No mouse/i);
+  assert.match(text, /1\.\s+.*single/i);
+  assert.doesNotMatch(text, /\[1\]/);
+});
 test('inference lanes map remote-only wording to remote_ok; hybrid disabled', () => {
   const remote = INFERENCE_LANE_OPTIONS.find((l) => l.id === 'remote_ok');
   const hybrid = INFERENCE_LANE_OPTIONS.find((l) => l.id === 'hybrid');
