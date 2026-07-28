@@ -67,10 +67,18 @@ Do **not** treat vague satisfaction scores as release authority.
 
 | Condition | Verdict |
 |-----------|---------|
-| Semantic or automated UX gate failed | FAIL |
+| `semanticGateOk` omitted (not explicitly `true`/`false`) | BLOCKED (`semantic_tui_quality_gate_required_missing`) |
+| Semantic gate failed (`semanticGateOk === false`) | FAIL |
+| Automated UX gate failed | FAIL |
 | Manual first-time evidence missing / blocked / deferred | BLOCKED |
 | `platformEvidence` omitted / missing | BLOCKED |
 | Required platform slots not PASS | BLOCKED |
 | Automated UX + semantic OK + manual PASS + required platforms PASS | PASS |
+
+`npm run test:tui-release` runs semantic + UX unit suites, then
+`node scripts/tui-ux-release-preflight.js`, which loads the explicit registry
+`modules/operator/tui-ux-acceptance-evidence.registry.json` and calls
+`evaluateUxAcceptanceVerdict`. Missing or blocked evidence → non-zero exit with
+reasons (never silent PASS).
 
 Live canonical fixture evidence remains separate and explicit (never replaced by mocks).

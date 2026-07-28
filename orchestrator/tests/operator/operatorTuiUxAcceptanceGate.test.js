@@ -19,6 +19,7 @@ const {
   TUI_UX_STATUS_TOKENS,
   TUI_UX_JOURNEYS,
   TUI_UX_FIRST_TIME_SCRIPT,
+  TUI_UX_EVIDENCE_REGISTRY_RELATIVE,
   missingStatusTokens,
   assertFocusWithoutColorAlone,
   observeCriticalPath,
@@ -28,6 +29,7 @@ const {
   simulateUxJourney,
   assertUxJourneyOutcome,
   evaluateUxAcceptanceVerdict,
+  evaluateUxAcceptanceEvidenceRegistry,
   journeyById,
 } = require('../../modules/operator/operator-tui-ux-acceptance');
 
@@ -62,7 +64,8 @@ test('UX journey inventory covers the eight required operator paths', () => {
     assert.ok(journey.primary_action);
     assert.ok(journey.starting_fixture);
     assert.ok(Array.isArray(journey.navigation_path) && journey.navigation_path.length >= 1);
-    assert.ok(Array.isArray(journey.intents));
+    assert.ok(Array.isArray(journey.intents) && journey.intents.length >= 1,
+      `${journey.id}: journeys must declare a real intent sequence`);
     assert.ok(Array.isArray(journey.recovery_intents));
     assert.ok(Number.isFinite(journey.max_decisions) && journey.max_decisions >= 1);
     assert.ok(journey.expected_result);
@@ -81,6 +84,7 @@ test('each of eight journeys: fixture + intent sequence → final state / reason
     assert.equal(sim.journey.id, journey.id);
     assert.ok(sim.model?.schema, `${journey.id}: real shell model required`);
     assert.ok(typeof sim.text === 'string' && sim.text.length > 0, `${journey.id}: composition text`);
+    assert.ok(sim.decisionCount >= 1, `${journey.id}: must simulate at least one decision`);
 
     if (journey.recovery_intents.length > 0) {
       const withRecovery = simulateUxJourney(journey, {
@@ -98,8 +102,21 @@ test('each of eight journeys: fixture + intent sequence → final state / reason
         assert.ok(withRecovery.model.status?.next_safe_action
           || withRecovery.intents.some((i) => i.type === 'surface_home'));
       }
+      if (journey.id === 'clean_install_setup') {
+        assert.equal(withRecovery.model.contentSurface, 'home');
+      }
+      if (journey.id === 'inspect_evidence') {
+        assert.equal(withRecovery.model.contentSurface, 'home');
+      }
     }
   }
+
+  const setup = simulateUxJourney('clean_install_setup');
+  assert.equal(setup.model.contentSurface, 'diagnostics');
+  const blocked = simulateUxJourney('diagnose_cerberus_block');
+  assert.equal(blocked.model.contentSurface, 'status');
+  const evidence = simulateUxJourney('inspect_evidence');
+  assert.equal(evidence.model.contentSurface, 'evidence');
 });
 
 test('visual-state inventory + viewport fixtures are declared', () => {
@@ -153,14 +170,14 @@ test('needs-setup landing is not false-ready; next action inspectable from model
 });
 
 test('blocked vs failed remain textually distinct (no color-only)', () => {
-  const blocked = buildUxFixtureModel('run_blocked_cerberus');
-  const failed = buildUxFixtureModel('run_failed');
-  const blockedText = formatShellText(blocked);
-  const failedText = formatShellText(failed);
-  assert.equal(blocked.status.status, 'blocked');
-  assert.equal(failed.status.status, 'failed');
-  assert.equal(blocked.status.reason_code, 'CERBERUS_REJECT');
-  assert.equal(failed.status.reason_code, 'QA_REJECT');
+  const blocked = simulateUxJourney('diagnose_cerberus_block');
+  const failed = simulateUxJourney('diagnose_failed_run');
+  const blockedText = blocked.text;
+  const failedText = failed.text;
+  assert.equal(blocked.model.status.status, 'blocked');
+  assert.equal(failed.model.status.status, 'failed');
+  assert.equal(blocked.model.status.reason_code, 'CERBERUS_REJECT');
+  assert.equal(failed.model.status.reason_code, 'QA_REJECT');
   assert.match(blockedText, /CERBERUS_REJECT/);
   assert.match(failedText, /QA_REJECT/);
   assert.notEqual(blockedText, failedText);
@@ -288,6 +305,8 @@ test('UX companion command + combined release set are documented; quality exclud
   assert.ok(!pkg.scripts['test:tui-quality'].includes('operatorTuiUxAcceptanceGate.test.js'));
   assert.match(pkg.scripts['test:tui-release'], /test:tui-quality/);
   assert.match(pkg.scripts['test:tui-release'], /test:tui-ux/);
+  assert.match(pkg.scripts['test:tui-release'], /tui-ux-release-preflight/);
+  assert.match(TUI_UX_EVIDENCE_REGISTRY_RELATIVE, /tui-ux-acceptance-evidence\.registry\.json/);
 });
 
 test('evaluateUxAcceptanceVerdict: fail / blocked / pass honesty', () => {
@@ -299,6 +318,22 @@ test('evaluateUxAcceptanceVerdict: fail / blocked / pass honesty', () => {
     evaluateUxAcceptanceVerdict({ automatedUxOk: true, semanticGateOk: false }).verdict,
     'fail',
   );
+  const missingSemantic = evaluateUxAcceptanceVerdict({
+    automatedUxOk: true,
+    manualEvidence: { status: 'pass', note: 'recorded' },
+    platformEvidence: buildPlatformEvidenceRecord({
+      automatedGateOk: true,
+      platform: 'linux',
+      nodeMajor: 22,
+      overrides: {
+        linux_node24: { status: 'pass', evidence: 'ci' },
+        macos_node22_tty: { status: 'pass', evidence: 'manual tty smoke' },
+      },
+    }),
+  });
+  assert.equal(missingSemantic.verdict, 'blocked');
+  assert.ok(missingSemantic.reasons.includes('semantic_tui_quality_gate_required_missing'));
+
   const blocked = evaluateUxAcceptanceVerdict({
     automatedUxOk: true,
     semanticGateOk: true,
@@ -347,4 +382,19 @@ test('evaluateUxAcceptanceVerdict: fail / blocked / pass honesty', () => {
   });
   assert.equal(pass.verdict, 'pass');
   assert.deepEqual(pass.reasons, []);
+});
+
+test('evidence registry preflight blocks when first-time / platform evidence is missing', () => {
+  const result = evaluateUxAcceptanceEvidenceRegistry();
+  assert.equal(result.verdict.verdict, 'blocked');
+  assert.ok(result.verdict.reasons.length >= 1);
+  assert.ok(
+    result.verdict.reasons.some((r) => r.includes('manual_first_time_user')
+      || r.includes('macos_node22_tty')
+      || r.includes('platform_evidence')),
+  );
+
+  const { main } = require('../../scripts/tui-ux-release-preflight');
+  const code = main([]);
+  assert.equal(code, 1);
 });

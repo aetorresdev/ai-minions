@@ -6,6 +6,9 @@
  * render strings are supporting evidence only. Harness — not a product pane.
  */
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 const {
   TUI_QUALITY_RELEASE_COMMAND,
   evaluateReleaseGateVerdict,
@@ -125,8 +128,13 @@ const TUI_UX_JOURNEYS = Object.freeze([
     recovery_path: 'Follow path/credential remediation; re-open landing',
     inspectable_reason_codes: Object.freeze(['path_status', 'credential_sufficiency']),
     prohibited: Object.freeze(['false ready', 'hidden primary action', 'color-only blocker']),
-    intents: Object.freeze([]),
-    recovery_intents: Object.freeze([]),
+    // Hotkey 3 → System Status / doctor (settings_or_doctor path).
+    intents: Object.freeze([
+      Object.freeze({ input: '3', key: Object.freeze({}) }),
+    ]),
+    recovery_intents: Object.freeze([
+      Object.freeze({ input: '', key: Object.freeze({ escape: true }) }),
+    ]),
   }),
   Object.freeze({
     id: 'ready_no_runs',
@@ -187,13 +195,17 @@ const TUI_UX_JOURNEYS = Object.freeze([
     goal: 'Diagnose a CERBERUS-blocked run and find human action',
     starting_fixture: 'run_blocked_cerberus',
     primary_action: 'Overview / Explain next safe action',
-    navigation_path: Object.freeze(['runs', 'overview', 'explain']),
+    navigation_path: Object.freeze(['landing', 'overview', 'explain']),
     max_decisions: 4,
     expected_result: 'BLOCKED / ACTION REQUIRED remain textually distinct from FAILED',
     recovery_path: 'Follow next_safe_action; do not treat as execution failure',
     inspectable_reason_codes: Object.freeze(['blocking_reason_code', 'human_action_required']),
     prohibited: Object.freeze(['color-only block vs fail', 'collapse block into failed']),
-    intents: Object.freeze([]),
+    // o → Overview, x → Explain (status surface stays; reason codes remain inspectable).
+    intents: Object.freeze([
+      Object.freeze({ input: 'o', key: Object.freeze({}) }),
+      Object.freeze({ input: 'x', key: Object.freeze({}) }),
+    ]),
     recovery_intents: Object.freeze([
       Object.freeze({ input: '', key: Object.freeze({ escape: true }) }),
     ]),
@@ -203,13 +215,16 @@ const TUI_UX_JOURNEYS = Object.freeze([
     goal: 'Diagnose an execution failure and next safe action',
     starting_fixture: 'run_failed',
     primary_action: 'Overview / Explain',
-    navigation_path: Object.freeze(['runs', 'overview', 'explain']),
+    navigation_path: Object.freeze(['landing', 'overview', 'explain']),
     max_decisions: 4,
     expected_result: 'FAILED is distinct; next_safe_action inspectable',
     recovery_path: 'Remediate via stated next_safe_action',
     inspectable_reason_codes: Object.freeze(['outcome', 'reason_code', 'next_safe_action']),
     prohibited: Object.freeze(['success implied', 'missing recovery path']),
-    intents: Object.freeze([]),
+    intents: Object.freeze([
+      Object.freeze({ input: 'o', key: Object.freeze({}) }),
+      Object.freeze({ input: 'x', key: Object.freeze({}) }),
+    ]),
     recovery_intents: Object.freeze([
       Object.freeze({ input: '', key: Object.freeze({ escape: true }) }),
     ]),
@@ -219,13 +234,15 @@ const TUI_UX_JOURNEYS = Object.freeze([
     goal: 'Locate evidence / attach availability after completion',
     starting_fixture: 'run_completed_evidence',
     primary_action: 'Evidence pane',
-    navigation_path: Object.freeze(['runs', 'overview', 'evidence']),
+    navigation_path: Object.freeze(['landing', 'evidence']),
     max_decisions: 4,
     expected_result: 'attach_* availability honest; absent not coerced to ready',
     recovery_path: 'If attach unavailable, follow next_safe_action',
     inspectable_reason_codes: Object.freeze(['attach_available', 'reason_code']),
     prohibited: Object.freeze(['fabricated attach ready', 'missing evidence recorded as PASS']),
-    intents: Object.freeze([]),
+    intents: Object.freeze([
+      Object.freeze({ input: 'e', key: Object.freeze({}) }),
+    ]),
     recovery_intents: Object.freeze([
       Object.freeze({ input: '', key: Object.freeze({ escape: true }) }),
     ]),
@@ -372,8 +389,8 @@ function buildUxFixtureModel(fixtureId, viewport = {}) {
           next_safe_action: 'open overview',
         },
         selectedRunId: 'blocked-1',
-        contentSurface: 'status',
-        selectedNavId: 'status',
+        contentSurface: 'home',
+        selectedNavId: 'launcher',
         statusResult: {
           run_id: 'blocked-1',
           result_code: 'RUN_FOUND',
@@ -401,8 +418,8 @@ function buildUxFixtureModel(fixtureId, viewport = {}) {
           next_safe_action: 'open overview',
         },
         selectedRunId: 'failed-1',
-        contentSurface: 'status',
-        selectedNavId: 'status',
+        contentSurface: 'home',
+        selectedNavId: 'launcher',
         statusResult: {
           run_id: 'failed-1',
           result_code: 'RUN_FOUND',
@@ -429,8 +446,8 @@ function buildUxFixtureModel(fixtureId, viewport = {}) {
           next_safe_action: 'open evidence',
         },
         selectedRunId: 'done-1',
-        contentSurface: 'evidence',
-        selectedNavId: 'evidence',
+        contentSurface: 'home',
+        selectedNavId: 'launcher',
         statusResult: {
           run_id: 'done-1',
           result_code: 'RUN_FOUND',
@@ -450,6 +467,20 @@ function buildUxFixtureModel(fixtureId, viewport = {}) {
     default:
       throw new Error(`unknown UX fixture: ${fixtureId}`);
   }
+}
+
+/**
+ * Apply one resolved shell intent to a model (in-process simulation — no remount).
+ * @param {ReturnType<typeof buildShellModel>} model
+ * @param {{ type: string, actionId?: string, direction?: string, endsSession?: boolean }} intent
+ */
+function uxSimulatedContentSurface(actionId) {
+  const id = String(actionId ?? '').trim().toLowerCase();
+  if (id === 'status' || id === 'overview' || id === 'explain') return 'status';
+  if (id === 'evidence') return 'evidence';
+  if (id === 'monitor' || id === 'lifecycle') return 'monitor';
+  if (id === 'config' || id === 'settings') return 'config';
+  return null;
 }
 
 /**
@@ -494,6 +525,24 @@ function applyUxShellIntent(model, intent) {
           ...shellModelToOptions(model),
           contentSurface: surface,
           selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+          focus: 'nav',
+          commandInput: '',
+          activeWorkflow: null,
+        }),
+        sessionEnded: false,
+        reason: null,
+        wouldExecuteAction: null,
+      };
+    }
+    // In-process UX simulation for run panes that the live shell may open via
+    // nested panes — keep the same mount; do not treat as remount/handoff.
+    const simulatedSurface = uxSimulatedContentSurface(actionId);
+    if (simulatedSurface) {
+      return {
+        model: buildShellModel({
+          ...shellModelToOptions(model),
+          contentSurface: simulatedSurface,
+          selectedNavId: actionId === 'explain' ? 'status' : actionId,
           focus: 'nav',
           commandInput: '',
           activeWorkflow: null,
@@ -729,6 +778,9 @@ function assertUxJourneyOutcome(sim) {
       if (!/Settings|path|credential|remediat/i.test(String(model.landing.overall.next_action))) {
         throw new Error('clean_install_setup: next_action not inspectable');
       }
+      if (model.contentSurface !== 'diagnostics' && model.contentSurface !== 'home') {
+        throw new Error('clean_install_setup: expected diagnostics (doctor) or home after Esc');
+      }
       break;
     }
     case 'ready_no_runs': {
@@ -835,7 +887,8 @@ function assertUxJourneyOutcome(sim) {
 
 /**
  * Evaluate the UX companion gate.
- * Automated UX fail → fail; missing required manual or platform evidence → blocked.
+ * Automated UX fail → fail; semantic gate must be explicit true;
+ * missing required manual or platform evidence → blocked.
  *
  * @param {{
  *   automatedUxOk: boolean,
@@ -848,6 +901,15 @@ function assertUxJourneyOutcome(sim) {
 function evaluateUxAcceptanceVerdict(input) {
   /** @type {string[]} */
   const reasons = [];
+  // semanticGateOk is mandatory: omission is BLOCKED (never silent PASS).
+  if (input.semanticGateOk !== true && input.semanticGateOk !== false) {
+    reasons.push('semantic_tui_quality_gate_required_missing');
+    return {
+      verdict: 'blocked',
+      reasons,
+      command_set: [...TUI_RELEASE_COMMAND_SET],
+    };
+  }
   if (input.semanticGateOk === false) {
     reasons.push('semantic_tui_quality_gate_failed');
     return {
@@ -929,6 +991,98 @@ function journeyById(journeyId) {
   return TUI_UX_JOURNEYS.find((j) => j.id === String(journeyId)) ?? null;
 }
 
+/** Default path for the explicit UX release evidence registry (repo-relative). */
+const TUI_UX_EVIDENCE_REGISTRY_RELATIVE = path.join(
+  'modules',
+  'operator',
+  'tui-ux-acceptance-evidence.registry.json',
+);
+
+/**
+ * Load the explicit UX acceptance evidence registry and evaluate the companion verdict.
+ * Missing / blocked / fail → non-pass. Used by `test:tui-release` preflight.
+ *
+ * @param {{
+ *   registryPath?: string,
+ *   readFileSync?: typeof fs.readFileSync,
+ *   buildPlatformEvidence?: typeof buildPlatformEvidenceRecord,
+ * }} [opts]
+ * @returns {{
+ *   registryPath: string,
+ *   registry: object,
+ *   verdict: ReturnType<typeof evaluateUxAcceptanceVerdict>,
+ * }}
+ */
+function evaluateUxAcceptanceEvidenceRegistry(opts = {}) {
+  const readFile = opts.readFileSync ?? fs.readFileSync;
+  const buildPlatform = opts.buildPlatformEvidence ?? buildPlatformEvidenceRecord;
+  const registryPath = opts.registryPath
+    ?? path.join(__dirname, 'tui-ux-acceptance-evidence.registry.json');
+  let raw;
+  try {
+    raw = readFile(registryPath, 'utf8');
+  } catch (err) {
+    return {
+      registryPath,
+      registry: null,
+      verdict: {
+        verdict: 'blocked',
+        reasons: [`evidence_registry_unreadable:${err && err.code ? err.code : 'error'}`],
+        command_set: [...TUI_RELEASE_COMMAND_SET],
+      },
+    };
+  }
+  let registry;
+  try {
+    registry = JSON.parse(String(raw));
+  } catch {
+    return {
+      registryPath,
+      registry: null,
+      verdict: {
+        verdict: 'blocked',
+        reasons: ['evidence_registry_invalid_json'],
+        command_set: [...TUI_RELEASE_COMMAND_SET],
+      },
+    };
+  }
+  if (!registry || typeof registry !== 'object' || Array.isArray(registry)) {
+    return {
+      registryPath,
+      registry,
+      verdict: {
+        verdict: 'blocked',
+        reasons: ['evidence_registry_invalid_shape'],
+        command_set: [...TUI_RELEASE_COMMAND_SET],
+      },
+    };
+  }
+
+  const platformOpts = registry.platformEvidence && typeof registry.platformEvidence === 'object'
+    ? registry.platformEvidence
+    : null;
+  const platformEvidence = platformOpts
+    ? buildPlatform({
+      automatedGateOk: platformOpts.automatedGateOk !== false,
+      platform: platformOpts.platform,
+      nodeMajor: platformOpts.nodeMajor,
+      overrides: platformOpts.overrides,
+    })
+    : undefined;
+
+  const verdict = evaluateUxAcceptanceVerdict({
+    automatedUxOk: registry.automatedUxOk === true,
+    // Pass through as-is so omission stays blocked (do not coerce undefined → false).
+    semanticGateOk: Object.prototype.hasOwnProperty.call(registry, 'semanticGateOk')
+      ? registry.semanticGateOk
+      : undefined,
+    manualEvidence: registry.manualEvidence,
+    platformEvidence,
+  });
+
+  return { registryPath, registry, verdict };
+}
+
 module.exports = {
   TUI_UX_ACCEPTANCE_COMMAND,
   TUI_RELEASE_COMMAND_SET,
@@ -938,6 +1092,7 @@ module.exports = {
   TUI_UX_STATUS_TOKENS,
   TUI_UX_JOURNEYS,
   TUI_UX_FIRST_TIME_SCRIPT,
+  TUI_UX_EVIDENCE_REGISTRY_RELATIVE,
   missingStatusTokens,
   assertFocusWithoutColorAlone,
   observeCriticalPath,
@@ -947,5 +1102,6 @@ module.exports = {
   simulateUxJourney,
   assertUxJourneyOutcome,
   evaluateUxAcceptanceVerdict,
+  evaluateUxAcceptanceEvidenceRegistry,
   journeyById,
 };
