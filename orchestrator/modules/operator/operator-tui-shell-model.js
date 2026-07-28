@@ -353,23 +353,17 @@ function resolveShellKeypress(input, key = {}, model = {}) {
     && model.activeWorkflow.step === 'custom_goal'
     && !model.activeWorkflow.busy;
 
-  // Intentional quit — `q` outside command input and outside workflow text entry.
-  // Outside custom_goal, q still ends the session; Esc cancels the workflow.
-  if (input === 'q' && focus !== 'input' && !workflowTextEntry) {
-    return { type: 'quit', actionId: 'quit', endsSession: true };
-  }
-
-  if (workflowActive && focus !== 'input') {
-    return { type: 'workflow_key', endsSession: false };
-  }
-
-  // Help topic browser: digits/Enter stay in-process — never dispatch Settings remount.
+  // Help topic browser: isolate before focus/input — Tab→prompt must not turn
+  // digits/Enter into input_submit (Settings remount) or swallow `q`.
   const helpSurface = String(model.contentSurface ?? '').toLowerCase() === 'help';
-  if (helpSurface && focus !== 'input') {
+  if (helpSurface) {
     const topics = helpTopics();
     const openId = model.helpOpenTopicId == null || model.helpOpenTopicId === ''
       ? null
       : String(model.helpOpenTopicId);
+    if (input === 'q') {
+      return { type: 'quit', actionId: 'quit', endsSession: true };
+    }
     if (isEscape) {
       if (openId) {
         return { type: 'help_close_topic', endsSession: false };
@@ -380,7 +374,7 @@ function resolveShellKeypress(input, key = {}, model = {}) {
       return { type: 'cycle_focus', endsSession: false };
     }
     if (openId) {
-      // Topic detail: only Esc (above), q (above), or ignore — no shell hotkeys.
+      // Topic detail: only Esc/q/Tab (above) — never input_submit or shell hotkeys.
       return { type: 'ignore', endsSession: false };
     }
     if (keyObj.upArrow || input === 'k') {
@@ -400,7 +394,7 @@ function resolveShellKeypress(input, key = {}, model = {}) {
       && !keyObj.downArrow
       && !(isReturn && input.length <= 1)
     ) {
-      if (input === '?' || input === '5') {
+      if (input === '?') {
         // Re-entering Help while already on Help is a no-op stay.
         return { type: 'ignore', endsSession: false };
       }
@@ -412,7 +406,18 @@ function resolveShellKeypress(input, key = {}, model = {}) {
         return { type: 'help_open', topicId: topic.id, endsSession: false };
       }
     }
+    // Consume remaining keys on Help — never fall through to input_submit/dispatch.
     return { type: 'ignore', endsSession: false };
+  }
+
+  // Intentional quit — `q` outside command input and outside workflow text entry.
+  // Outside custom_goal, q still ends the session; Esc cancels the workflow.
+  if (input === 'q' && focus !== 'input' && !workflowTextEntry) {
+    return { type: 'quit', actionId: 'quit', endsSession: true };
+  }
+
+  if (workflowActive && focus !== 'input') {
+    return { type: 'workflow_key', endsSession: false };
   }
 
   // Esc never ends the session: leave command input, or return to the landing.
