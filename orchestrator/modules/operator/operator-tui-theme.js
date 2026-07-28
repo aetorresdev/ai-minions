@@ -4,7 +4,7 @@
  * Ink fullscreen shell theme tokens (presentation only).
  * Respects colorEnabled / NO_COLOR; does not claim Web UI or mouse interaction.
  *
- * Brand triad (Cerberus option C direction):
+ * Brand triad (Cerberus brand splash direction):
  *   brand.validate / triadValidate → cyan
  *   brand.trace    / triadTrace    → blueBright (core)
  *   brand.enforce  / triadEnforce  → magenta

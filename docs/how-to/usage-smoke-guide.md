@@ -166,7 +166,7 @@ ai-minions report --run <task_id>
 ai-minions attach --run-id <task_id>   # before GitHub feedback — read PRIVACY.md first
 ```
 
-Optional fullscreen Ink shell (TTY): `ai-minions tui` — first paint may show the Cerberus option C brand splash (Validate / Trace / Enforce; skip with `AI_MINIONS_TUI_SKIP_SPLASH=1`), then guided launcher, run selector + status (`s`), live monitor (`m`), evidence/attach (`e`), config/credentials (`5`), and slash commands; see [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md). Rollback: `AI_MINIONS_TUI_LEGACY=1`.
+Optional fullscreen Ink shell (TTY): `ai-minions tui` — first paint may show the Cerberus brand splash (Validate / Trace / Enforce; skip with `AI_MINIONS_TUI_SKIP_SPLASH=1`), then the task-first shell (Home / New Run / Runs / System Status / Settings / Help; selected-run Overview / Monitor / Evidence / Explain when a run is selected). Top-level `s` is ignored; Settings is `4` (not `5`). See [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md). Rollback: `AI_MINIONS_TUI_LEGACY=1`.
 
 See [operator-visibility-guide.md](operator-visibility-guide.md). **Evidence `tui --run-id` and `report` are read-only** — they do not approve, rerun, or mutate runs. Cockpit **smoke** / **attach** reuse the named CLI verbs.
 

@@ -17,6 +17,7 @@ const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor } = requ
 const {
   buildSplashContent,
   resolveSplashDurationMs,
+  resolveSplashFrameHeight,
   shouldSkipSplash,
 } = require('./operator-tui-splash.js');
 const {
@@ -74,8 +75,10 @@ function SplashApp(props) {
   } = props;
   const { exit } = useApp();
   const theme = resolveShellTheme({ colorEnabled: model.colorEnabled });
+  const height = resolveSplashFrameHeight(model.rows);
   const content = buildSplashContent({
     columns: model.columns,
+    rows: height,
     version: model.version,
     readiness: model.readiness,
   });
@@ -107,8 +110,6 @@ function SplashApp(props) {
     }
     finish();
   });
-
-  const height = Math.max(24, model.rows ?? 24);
 
   const renderSegments = (segments, keyPrefix) => React.createElement(
     Box,
@@ -142,17 +143,23 @@ function SplashApp(props) {
       width: model.columns,
       height,
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: content.density === 'minimal' ? 'flex-start' : 'center',
       borderStyle: 'double',
       borderColor: theme.focus,
       paddingX: 1,
     },
     ...(content.rows || []).map((row, idx) => renderSegments(row.segments, `art-${idx}`)),
-    React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' ')),
-    React.createElement(Text, { color: theme.accent }, content.productTagline || content.tagline),
+    content.showSpacers
+      ? React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' '))
+      : null,
+    content.showProductTagline
+      ? React.createElement(Text, { color: theme.accent }, content.productTagline || content.tagline)
+      : null,
     triadNode,
     React.createElement(Text, { color: theme.muted }, content.subtitle),
-    React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' ')),
+    content.showSpacers
+      ? React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' '))
+      : null,
     React.createElement(Text, { color: theme.warn }, content.hint),
     React.createElement(
       Text,
@@ -936,14 +943,15 @@ export async function renderOperatorTuiShell(options) {
 /**
  * Deterministic string render for tests (no raw mode / alternate screen).
  * @param {object} model
- * @param {{ columns?: number, showSplash?: boolean }} [opts]
+ * @param {{ columns?: number, rows?: number, showSplash?: boolean }} [opts]
  */
 export function renderOperatorTuiShellToString(model, opts = {}) {
   const columns = opts.columns ?? model.columns ?? 80;
+  const rows = opts.rows ?? model.rows ?? 24;
   const showSplash = opts.showSplash === true;
   return renderToString(
     React.createElement(OperatorTuiRoot, {
-      initialModel: buildShellModel({ ...shellModelToOptions(model), columns }),
+      initialModel: buildShellModel({ ...shellModelToOptions(model), columns, rows }),
       showSplash,
     }),
     { columns },

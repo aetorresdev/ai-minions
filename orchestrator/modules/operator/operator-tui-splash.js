@@ -2,8 +2,9 @@
 
 /**
  * Brand splash helpers for the Ink fullscreen shell (presentation only).
- * Cerberus option C direction: geometric three-headed ASCII mark
+ * Cerberus brand splash: geometric three-headed ASCII mark
  * (Validate / Trace / Enforce), AI-MINIONS wordmark, triad tagline.
+ * Vertically degrades for short TTYs so first paint fits the reported viewport.
  * No image assets, no mouse, no capability claims.
  */
 
@@ -184,6 +185,25 @@ function splashArtRowsNarrow() {
 }
 
 /**
+ * Minimal brand mark for short viewports (few rows).
+ * @returns {SplashRow[]}
+ */
+function splashArtRowsMinimal() {
+  return [
+    {
+      segments: [
+        { text: GUARDIAN_MARK, tone: 'brand', bold: true },
+      ],
+    },
+    {
+      segments: [
+        { text: WORDMARK, tone: 'brand', bold: true },
+      ],
+    },
+  ];
+}
+
+/**
  * Flatten splash rows to plain lines (NO_COLOR / assertions).
  * @param {SplashRow[]} rows
  * @returns {string[]}
@@ -193,7 +213,37 @@ function flattenSplashRows(rows) {
 }
 
 /**
- * Compact brand mark (readable at ≥56 columns) — Cerberus option C wide art.
+ * Resolve splash frame height from the reported TTY row count.
+ * Fits the viewport — never pads up to a 24-row minimum.
+ * @param {unknown} rows
+ * @param {number} [fallback]
+ * @returns {number}
+ */
+function resolveSplashFrameHeight(rows, fallback = 24) {
+  const n = Number(rows);
+  if (!Number.isFinite(n) || n < 1) {
+    const fb = Number(fallback);
+    return Number.isFinite(fb) && fb >= 1 ? Math.floor(fb) : 24;
+  }
+  return Math.floor(n);
+}
+
+/**
+ * Vertical density for splash art + chrome given reported rows.
+ * @param {number} rows
+ * @param {number} columns
+ * @returns {'full' | 'compact' | 'minimal'}
+ */
+function resolveSplashDensity(rows, columns) {
+  const r = resolveSplashFrameHeight(rows);
+  const narrow = columns < 56;
+  if (r < 16) return 'minimal';
+  if (r < 24 || narrow) return 'compact';
+  return 'full';
+}
+
+/**
+ * Compact brand mark (readable at ≥56 columns) — Cerberus brand splash wide art.
  * @returns {string[]}
  */
 function splashBannerLines() {
@@ -241,10 +291,14 @@ function triadSegments() {
 }
 
 /**
- * @param {{ columns?: number, version?: string, readiness?: string }} [options]
+ * @param {{ columns?: number, rows?: number, version?: string, readiness?: string }} [options]
  * @returns {{
  *   lines: string[],
  *   rows: SplashRow[],
+ *   density: 'full' | 'compact' | 'minimal',
+ *   frameHeight: number,
+ *   showProductTagline: boolean,
+ *   showSpacers: boolean,
  *   wordmark: string,
  *   wordmarkSegments: SplashSegment[],
  *   productTagline: string,
@@ -259,20 +313,27 @@ function triadSegments() {
  */
 function buildSplashContent(options = {}) {
   const columns = Number.isFinite(Number(options.columns)) ? Number(options.columns) : 80;
+  const frameHeight = resolveSplashFrameHeight(options.rows);
   const version = options.version == null || options.version === ''
     ? 'unknown'
     : String(options.version);
   const readiness = options.readiness == null || options.readiness === ''
     ? 'unknown'
     : String(options.readiness);
-  const narrow = columns < 56;
-  const artRows = narrow ? splashArtRowsNarrow() : splashArtRowsWide();
+  const density = resolveSplashDensity(frameHeight, columns);
+  const artRows = density === 'minimal'
+    ? splashArtRowsMinimal()
+    : (density === 'compact' ? splashArtRowsNarrow() : splashArtRowsWide());
   const lines = flattenSplashRows(artRows);
   const wmSegs = wordmarkSegments();
   const triadSegs = triadSegments();
   return {
     lines,
     rows: artRows,
+    density,
+    frameHeight,
+    showProductTagline: density !== 'minimal',
+    showSpacers: density === 'full',
     wordmark: WORDMARK,
     wordmarkSegments: wmSegs,
     productTagline: PRODUCT_TAGLINE,
@@ -315,9 +376,12 @@ module.exports = {
   GUARDIAN_MARK,
   splashArtRowsWide,
   splashArtRowsNarrow,
+  splashArtRowsMinimal,
   splashBannerLines,
   splashBannerLinesNarrow,
   flattenSplashRows,
+  resolveSplashFrameHeight,
+  resolveSplashDensity,
   wordmarkSegments,
   triadSegments,
   buildSplashContent,

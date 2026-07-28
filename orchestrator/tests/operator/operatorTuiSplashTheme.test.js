@@ -2,7 +2,7 @@
 
 /**
  * Brand splash + Ink shell theme tokens (presentation only).
- * Cerberus option C splash markers + first-paint order.
+ * Cerberus brand splash markers + first-paint order.
  */
 
 const assert = require('node:assert/strict');
@@ -17,6 +17,8 @@ const {
   buildSplashContent,
   shouldSkipSplash,
   resolveSplashDurationMs,
+  resolveSplashFrameHeight,
+  resolveSplashDensity,
   splashBannerLines,
   WORDMARK,
   GUARDIAN_MARK,
@@ -75,13 +77,15 @@ test('resolveShellTheme strips colors when NO_COLOR or colorEnabled=false', () =
   }
 });
 
-test('buildSplashContent includes Cerberus option C markers and version', () => {
+test('buildSplashContent includes Cerberus brand splash markers and version', () => {
   const wide = buildSplashContent({
     columns: 80,
+    rows: 40,
     version: 'v0.26.0-beta.1',
     readiness: 'ready',
   });
   const joined = wide.lines.join('\n');
+  assert.equal(wide.density, 'full');
   assert.ok(wide.lines.length >= 5);
   assert.match(joined, /VALIDATE/);
   assert.match(joined, /TRACE/);
@@ -100,8 +104,9 @@ test('buildSplashContent includes Cerberus option C markers and version', () => 
   assert.ok(wide.wordmarkSegments.length === WORDMARK.length);
   assert.ok(wide.triadSegments.some((s) => s.tone === 'validate' && /Validate/i.test(s.text)));
 
-  const narrow = buildSplashContent({ columns: 40, version: '0.26.0-beta.1' });
+  const narrow = buildSplashContent({ columns: 40, rows: 40, version: '0.26.0-beta.1' });
   const narrowJoined = narrow.lines.join('\n');
+  assert.equal(narrow.density, 'compact');
   assert.match(narrowJoined, /VALIDATE/);
   assert.match(narrowJoined, /TRACE/);
   assert.match(narrowJoined, /ENFORCE/);
@@ -109,6 +114,35 @@ test('buildSplashContent includes Cerberus option C markers and version', () => 
   assert.equal(narrow.wordmark, WORDMARK);
   assert.ok(narrow.lines[0].length < splashBannerLines()[0].length
     || narrow.lines.length <= splashBannerLines().length);
+});
+
+test('resolveSplashFrameHeight fits reported rows and never pads to 24', () => {
+  assert.equal(resolveSplashFrameHeight(12), 12);
+  assert.equal(resolveSplashFrameHeight(8), 8);
+  assert.equal(resolveSplashFrameHeight(40), 40);
+  assert.equal(resolveSplashFrameHeight(undefined), 24);
+  assert.equal(resolveSplashFrameHeight(0), 24);
+  assert.equal(resolveSplashDensity(12, 80), 'minimal');
+  assert.equal(resolveSplashDensity(20, 80), 'compact');
+  assert.equal(resolveSplashDensity(40, 80), 'full');
+});
+
+test('buildSplashContent short TTY uses minimal density with continue affordance', () => {
+  const short = buildSplashContent({
+    columns: 80,
+    rows: 12,
+    version: '0.26.0-beta.1',
+    readiness: 'loading',
+  });
+  assert.equal(short.density, 'minimal');
+  assert.equal(short.frameHeight, 12);
+  assert.equal(short.showProductTagline, false);
+  assert.equal(short.showSpacers, false);
+  assert.ok(short.lines.length <= 3);
+  assert.match(short.lines.join('\n'), new RegExp(GUARDIAN_MARK));
+  assert.match(short.hint, /any key|continue/i);
+  assert.match(short.disclaimer, /not Web UI/i);
+  assert.match(short.triad, /Validate/);
 });
 
 test('shouldSkipSplash respects AI_MINIONS_TUI_SKIP_SPLASH', () => {
@@ -125,7 +159,7 @@ test('resolveSplashDurationMs clamps and defaults', () => {
   assert.equal(resolveSplashDurationMs(99_999), 30_000);
 });
 
-test('Ink renderToString splash shows Cerberus option C; shell shows themed chrome', async () => {
+test('Ink renderToString splash shows Cerberus brand splash; shell shows themed chrome', async () => {
   const { renderOperatorTuiShellToString } = await import(
     '../../modules/operator/operator-tui-shell-render.mjs'
   );
@@ -138,7 +172,7 @@ test('Ink renderToString splash shows Cerberus option C; shell shows themed chro
     colorEnabled: false,
   });
 
-  const splash = renderOperatorTuiShellToString(model, { columns: 80, showSplash: true });
+  const splash = renderOperatorTuiShellToString(model, { columns: 80, rows: 40, showSplash: true });
   assert.match(splash, /AI-MINIONS|ai-minions/i);
   assert.match(splash, /CERBERUS/i);
   assert.match(splash, /VALIDATE/i);
@@ -149,6 +183,7 @@ test('Ink renderToString splash shows Cerberus option C; shell shows themed chro
   assert.match(splash, /Enforce/);
   assert.match(splash, /Presentation polish only/i);
   assert.match(splash, /Press any key/i);
+  assert.doesNotMatch(splash, /option\s*C/i);
 
   const shell = renderOperatorTuiShellToString(model, { columns: 80, showSplash: false });
   assert.match(shell, /Quick Start|Navigate/);
@@ -156,6 +191,36 @@ test('Ink renderToString splash shows Cerberus option C; shell shows themed chro
   assert.match(shell, /clickable/);
   assert.match(shell, /System Readiness|AI-MINIONS/);
   assert.doesNotMatch(shell, /Press any key/);
+  assert.doesNotMatch(shell, /option\s*C/i);
+});
+
+test('short TTY splash first paint stays within reported rows and shows continue hint', async () => {
+  const { renderOperatorTuiShellToString } = await import(
+    '../../modules/operator/operator-tui-shell-render.mjs'
+  );
+  const rows = 12;
+  const model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    columns: 80,
+    rows,
+    colorEnabled: false,
+  });
+
+  const splash = renderOperatorTuiShellToString(model, { columns: 80, rows, showSplash: true });
+  const lineCount = splash.split('\n').length;
+  assert.ok(
+    lineCount <= rows,
+    `expected first paint ≤ ${rows} lines (no 24-row pad), got ${lineCount}`,
+  );
+  assert.match(splash, /CERBERUS/i);
+  assert.match(splash, /Validate|VALIDATE/i);
+  assert.match(splash, /Trace|TRACE/i);
+  assert.match(splash, /Enforce|ENFORCE/i);
+  assert.match(splash, /Press any key|continue/i);
+  assert.match(splash, /not Web UI|Presentation polish/i);
+  assert.doesNotMatch(splash, /option\s*C/i);
 });
 
 test('buildFirstPaintShellModel is version + loading/unavailable only', () => {
