@@ -1556,6 +1556,41 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 - [x] **Changelog:** section **[0.25.0-beta.1] - 2026-07-20**
 - [x] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
+## v0.26.0-beta.1 — Fullscreen TUI Completion + Live Harness Evidence
+
+**Scope:** Node.js 22 · Ink 7 fullscreen shell · guided launcher · live run monitor · slash commands · live canonical harness evidence · integrated TUI quality gate · **brand splash + friendlier color/typography theme** (presentation only). **Prerequisite:** v0.25 @ `95f084e`. **Beta continuity** — not production TUI, Loop Contract, Execution Graph, or context-package runtime. **Tag only** after Phase A merge + tag-blocker honesty (first-run reason codes · Trivy PASS/BLOCKED/SKIPPED) + CERBERUS Approve.
+
+### Must-have bundle
+
+- [x] Node.js 22 minimum / runtime baseline — merged on critical path
+- [x] Ink 7 fullscreen foundation — merged on critical path
+- [x] Guided launcher — merged on critical path
+- [x] Live run monitor — merged on critical path
+- [x] Slash commands — merged on critical path
+- [x] Live harness Sudoku evidence path — merged @ `e058f45` (PR #347)
+- [x] Integrated TUI quality gate — merged @ `c1cfb26` (PR #348)
+- [x] Brand splash + theme polish + claims negatives — this Phase A release-prep PR
+- [ ] First-run reason-code honesty — **tag blocker** (document/resolve before Phase B)
+- [ ] Trivy prerequisite PASS/BLOCKED/SKIPPED honesty — **tag blocker** (document/resolve before Phase B)
+- [ ] Release-prep CERBERUS Approve + Phase B cut
+
+### Forbidden release claims (v0.26)
+
+"production-ready TUI" · "Web UI shipped" · "mouse interaction shipped" · "Canonical Loop Contract shipped" · "Execution Graph runtime shipped" · "bounded context-package runtime shipped" · "progressive disclosure shipped" · "automatically sends only the context each agent needs" · "unused tools and skills are hidden per step" · "required instructions can never be truncated" · "every invocation has a reproducible context hash" · "hybrid cloud routing shipped" · "durable resume" · RAG/retrieval stacks · "security PASS" when Trivy did not run · "cohort gate open" without independent evidence.
+
+### Release execution plan (Phase B — operator steps)
+
+**Wording:** do not mark `[x]` until release-prep Phase B complete.
+
+- [ ] **Tag target:** `v0.26.0-beta.1` on Approved release-prep merge commit
+- [ ] **Release URL:** GitHub pre-release published
+- [ ] **`release` branch:** aligned to tag commit
+
+### Release artifact (source snapshot)
+
+- [x] **Changelog:** section **[0.26.0-beta.1] - 2026-07-27** (Phase A)
+- [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
+
 ## Future alpha / beta gates (positioning)
 
 Applies to **future** cuts that advertise broader readiness (beyond current alpha limitations). **`v0.1.0-alpha.1`** historical SHIP sign-off is unchanged.

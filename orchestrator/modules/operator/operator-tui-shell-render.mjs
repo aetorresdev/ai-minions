@@ -11,10 +11,16 @@ const {
   resolveShellKeypress,
   shellModelToOptions,
 } = require('./operator-tui-shell-model.js');
+const { resolveShellTheme, focusBorderColor } = require('./operator-tui-theme.js');
+const {
+  buildSplashContent,
+  resolveSplashDurationMs,
+  shouldSkipSplash,
+} = require('./operator-tui-splash.js');
 
 /**
- * Fullscreen Ink shell: header, nav, content, footer, focus, command input.
- * Uses React.createElement (no JSX toolchain).
+ * Fullscreen Ink shell: optional brand splash, then header/nav/content/footer.
+ * Uses React.createElement (no JSX toolchain). Presentation-only theme tokens.
  */
 
 function formatField(field) {
@@ -26,6 +32,81 @@ function formatField(field) {
   return String(field.availability);
 }
 
+function SplashApp(props) {
+  const {
+    model,
+    splashMs,
+    autoQuitMs,
+    onContinue,
+    onAbort,
+  } = props;
+  const { exit } = useApp();
+  const theme = resolveShellTheme({ colorEnabled: model.colorEnabled });
+  const content = buildSplashContent({
+    columns: model.columns,
+    version: model.version,
+    readiness: model.readiness,
+  });
+  const continuedRef = useRef(false);
+
+  const finish = () => {
+    if (continuedRef.current) return;
+    continuedRef.current = true;
+    if (typeof onContinue === 'function') onContinue();
+  };
+
+  useEffect(() => {
+    const duration = resolveSplashDurationMs(splashMs);
+    const timer = setTimeout(finish, duration);
+    return () => clearTimeout(timer);
+  }, [splashMs]);
+
+  useEffect(() => {
+    if (!Number.isFinite(autoQuitMs) || autoQuitMs < 0) return undefined;
+    const timer = setTimeout(() => exit(), autoQuitMs);
+    return () => clearTimeout(timer);
+  }, [autoQuitMs, exit]);
+
+  useInput((input, key) => {
+    if (key.ctrl && String(input).toLowerCase() === 'c') {
+      if (typeof onAbort === 'function') onAbort();
+      exit();
+      return;
+    }
+    finish();
+  });
+
+  const height = Math.max(12, model.rows ?? 24);
+
+  return React.createElement(
+    Box,
+    {
+      flexDirection: 'column',
+      width: model.columns,
+      height,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderStyle: 'double',
+      borderColor: theme.focus,
+      paddingX: 1,
+    },
+    ...content.lines.map((line, idx) => React.createElement(
+      Text,
+      { key: `b-${idx}`, bold: theme.titleBold, color: theme.brand },
+      line,
+    )),
+    React.createElement(Text, { color: theme.accent }, content.subtitle),
+    React.createElement(Text, { dimColor: true, color: theme.muted }, content.tagline),
+    React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' ')),
+    React.createElement(Text, { color: theme.warn }, content.hint),
+    React.createElement(
+      Text,
+      { dimColor: true, color: theme.muted },
+      'Presentation polish only — not Web UI · not mouse · not durable resume',
+    ),
+  );
+}
+
 function ShellApp(props) {
   const { initialModel, autoQuitMs, onModelChange, onAbort, onRequestAction } = props;
   const { exit } = useApp();
@@ -33,6 +114,7 @@ function ShellApp(props) {
   const [model, setModel] = useState(initialModel);
   const modelRef = useRef(model);
   modelRef.current = model;
+  const theme = resolveShellTheme({ colorEnabled: model.colorEnabled });
 
   const commit = (next) => {
     setModel(next);
@@ -136,15 +218,24 @@ function ShellApp(props) {
 
   const narrow = model.layout === 'narrow';
   const contentLines = buildContentLines(model);
+  const readinessColor = model.readiness === 'ready'
+    ? theme.ready
+    : (model.readiness === 'unknown' ? theme.muted : theme.warn);
 
   return React.createElement(
     Box,
     { flexDirection: 'column', width: model.columns, height: Math.max(12, model.rows) },
     React.createElement(
       Box,
-      { borderStyle: 'single', paddingX: 1 },
-      React.createElement(Text, { bold: true }, `${model.title} v${model.version}`),
-      React.createElement(Text, null, `  readiness=${model.readiness}  [${model.layout}]`),
+      { borderStyle: 'single', borderColor: theme.brand, paddingX: 1 },
+      React.createElement(
+        Text,
+        { bold: theme.titleBold, color: theme.brand },
+        `${model.title} v${model.version}`,
+      ),
+      React.createElement(Text, null, '  '),
+      React.createElement(Text, { color: readinessColor }, `readiness=${model.readiness}`),
+      React.createElement(Text, { dimColor: true, color: theme.muted }, `  [${model.layout}]`),
     ),
     React.createElement(
       Box,
@@ -155,15 +246,27 @@ function ShellApp(props) {
           flexDirection: 'column',
           width: narrow ? undefined : 28,
           borderStyle: model.focus === 'nav' ? 'double' : 'single',
+          borderColor: focusBorderColor(theme, model.focus === 'nav'),
           paddingX: 1,
         },
-        React.createElement(Text, { bold: true }, 'Actions'),
-        React.createElement(Text, { dimColor: true }, 'keyboard keys — not clickable'),
-        ...model.navItems.map((item) => React.createElement(
+        React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Actions'),
+        React.createElement(
           Text,
-          { key: item.id },
-          `${item.id === model.selectedNavId ? '>' : ' '} ${item.key}. ${item.label}`,
-        )),
+          { dimColor: true, color: theme.muted },
+          'keyboard keys — not clickable',
+        ),
+        ...model.navItems.map((item) => {
+          const selected = item.id === model.selectedNavId;
+          return React.createElement(
+            Text,
+            {
+              key: item.id,
+              bold: selected,
+              color: selected ? theme.selected : undefined,
+            },
+            `${selected ? '>' : ' '} ${item.key}. ${item.label}`,
+          );
+        }),
       ),
       React.createElement(
         Box,
@@ -171,12 +274,21 @@ function ShellApp(props) {
           flexDirection: 'column',
           flexGrow: 1,
           borderStyle: model.focus === 'content' ? 'double' : 'single',
+          borderColor: focusBorderColor(theme, model.focus === 'content'),
           paddingX: 1,
         },
-        React.createElement(Text, { bold: true }, `Content · ${model.contentSurface}`),
+        React.createElement(
+          Text,
+          { bold: theme.sectionBold, color: theme.accent },
+          `Content · ${model.contentSurface}`,
+        ),
         ...contentLines.map((line, idx) => React.createElement(
           Text,
-          { key: `c-${idx}`, dimColor: line.startsWith('(') },
+          {
+            key: `c-${idx}`,
+            dimColor: line.startsWith('('),
+            color: line.startsWith('(') ? theme.muted : undefined,
+          },
           line,
         )),
       ),
@@ -185,26 +297,65 @@ function ShellApp(props) {
       Box,
       {
         borderStyle: model.focus === 'input' ? 'double' : 'single',
+        borderColor: focusBorderColor(theme, model.focus === 'input'),
         paddingX: 1,
       },
-      React.createElement(Text, null, `> ${model.commandInput}`),
-      React.createElement(Text, { dimColor: true }, model.focus === 'input' ? '█' : ''),
+      React.createElement(Text, { color: theme.brand }, `> ${model.commandInput}`),
+      React.createElement(
+        Text,
+        { dimColor: true, color: theme.selected },
+        model.focus === 'input' ? '█' : '',
+      ),
     ),
     React.createElement(
       Box,
       { paddingX: 1 },
       React.createElement(
         Text,
-        { dimColor: true },
+        { dimColor: true, color: theme.muted },
         `sel=${model.selectedRunId ?? '(none)'} · ${model.footerHints}`,
       ),
     ),
     React.createElement(
       Box,
       { paddingX: 1 },
-      React.createElement(Text, { dimColor: true }, model.disclaimer),
+      React.createElement(Text, { dimColor: true, color: theme.muted }, model.disclaimer),
     ),
   );
+}
+
+/**
+ * Root: optional first-paint splash, then shell chrome.
+ */
+function OperatorTuiRoot(props) {
+  const {
+    initialModel,
+    showSplash = false,
+    splashMs,
+    autoQuitMs,
+    onModelChange,
+    onAbort,
+    onRequestAction,
+  } = props;
+  const [phase, setPhase] = useState(showSplash ? 'splash' : 'shell');
+
+  if (phase === 'splash') {
+    return React.createElement(SplashApp, {
+      model: initialModel,
+      splashMs,
+      autoQuitMs,
+      onContinue: () => setPhase('shell'),
+      onAbort,
+    });
+  }
+
+  return React.createElement(ShellApp, {
+    initialModel,
+    autoQuitMs,
+    onModelChange,
+    onAbort,
+    onRequestAction,
+  });
 }
 
 /**
@@ -332,6 +483,8 @@ function buildContentLines(model) {
  *   stdout?: NodeJS.WriteStream,
  *   stderr?: NodeJS.WriteStream,
  *   autoQuitMs?: number,
+ *   showSplash?: boolean,
+ *   splashMs?: number,
  *   onModelChange?: (model: object) => void,
  *   onRequestAction?: (actionId: string) => void,
  * }} options
@@ -340,9 +493,12 @@ export async function renderOperatorTuiShell(options) {
   let aborted = false;
   /** @type {string | null} */
   let requestedAction = null;
+  const showSplash = options.showSplash === true;
   const instance = render(
-    React.createElement(ShellApp, {
+    React.createElement(OperatorTuiRoot, {
       initialModel: options.model,
+      showSplash,
+      splashMs: options.splashMs,
       autoQuitMs: options.autoQuitMs,
       onModelChange: options.onModelChange,
       onAbort: () => {
@@ -371,16 +527,26 @@ export async function renderOperatorTuiShell(options) {
 /**
  * Deterministic string render for tests (no raw mode / alternate screen).
  * @param {object} model
- * @param {{ columns?: number }} [opts]
+ * @param {{ columns?: number, showSplash?: boolean }} [opts]
  */
 export function renderOperatorTuiShellToString(model, opts = {}) {
   const columns = opts.columns ?? model.columns ?? 80;
+  const showSplash = opts.showSplash === true;
   return renderToString(
-    React.createElement(ShellApp, {
+    React.createElement(OperatorTuiRoot, {
       initialModel: buildShellModel({ ...shellModelToOptions(model), columns }),
+      showSplash,
     }),
     { columns },
   );
 }
 
-export { ShellApp, buildContentLines, formatField };
+export {
+  ShellApp,
+  SplashApp,
+  OperatorTuiRoot,
+  buildContentLines,
+  formatField,
+  shouldSkipSplash,
+  resolveSplashDurationMs,
+};

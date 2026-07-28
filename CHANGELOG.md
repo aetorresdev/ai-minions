@@ -6,6 +6,63 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+## [0.26.0-beta.1] - 2026-07-27
+
+Twenty-sixth beta pre-release: **Fullscreen TUI Completion + Live Harness Evidence** — Node.js 22 baseline, Ink 7 fullscreen shell with guided launcher, live run monitor, slash commands, integrated TUI quality gate, live canonical-fixture harness path, plus release closeout **brand splash** and friendlier color/typography contrast — without production TUI SLA, Web UI, mouse interaction, durable resume, canonical Loop Contract, Execution Graph runtime, context-package runtime, progressive disclosure runtime, hybrid cloud routing, RAG, or cohort gate change.
+
+**Release claim:** operators on declared tested platforms can use the fullscreen Ink 7 shell (`ai-minions tui`) with first-paint brand splash (skippable), guided supported-mode launch, live visibility into authoritative bounded-run state, implemented slash vocabulary, and recorded TUI quality / live harness evidence surfaces — **not** production-ready TUI · **not** Web UI · **not** mouse clicks · **not** Canonical Loop Contract shipped · **not** Execution Graph runtime shipped · **not** bounded context-package runtime shipped · **not** progressive disclosure shipped · **not** hybrid cloud routing · **not** durable resume · **not** RAG/retrieval · **not** cohort gate open without independent evidence.
+
+**Prerequisite:** `v0.25.0-beta.1` @ `95f084e`.
+
+**Since [0.25.0-beta.1]:** v0.25 shipped tester evidence + cockpit MVP. v0.26 completes the fullscreen Ink shell track (Node 22 · foundation · guided launcher · live monitor · slash · live harness · integrated quality) and adds presentation polish (splash + theme). Deferred Loop/Graph/context-runtime contracts stay out of this tag.
+
+| Area | `v0.25.0-beta.1` | `v0.26.0-beta.1` (delta) |
+|------|------------------|---------------------------|
+| Focus | Beta tester evidence + Operator TUI MVP | Fullscreen TUI completion + live harness evidence |
+| Operator TUI | Interactive cockpit MVP (readline lineage) | Ink 7 fullscreen shell · splash · theme · guided · monitor · slash |
+| Unit tests (orchestrator) | 1553/1554 pass (1 skipped) @ `bc6cf2c` | TUI quality **190/190** · splash/theme + shell foundation green on release-prep tree |
+
+**Release:** reserved until Phase B annotated tag `v0.26.0-beta.1` (blocked until first-run reason-code honesty and Trivy prerequisite PASS/BLOCKED/SKIPPED semantics land).
+
+**Evidence (operator):**
+
+- Unit + hooks: `cd orchestrator && npm test` → TUI quality **190/190** after splash inclusion; shell/splash foundation PASS on release-prep tree (host git-worktree isolation suite may flake when sandbox blocks nested worktrees — re-run on CI/operator host before Phase B)
+- TUI quality: `cd orchestrator && npm run test:tui-quality` → **190/190** on release-prep tree
+- Splash/theme + shell: `node --test tests/operator/operatorTuiSplashTheme.test.js tests/operator/operatorTuiShellFoundation.test.js` → **PASS**
+- Usage docs: `node scripts/verify-usage-docs.mjs` → **OK**
+- Claim audit: `node scripts/audit-product-claims.mjs` → **OK** (includes deferred context-runtime / loop / graph negatives)
+- Changelog format: `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK**
+- Product version sync: `PRODUCT_VERSION` = `v0.26.0-beta.1` matches this section
+- Contracts: `operator-cockpit-contract.md`, `alpha-release-checklist.md` v0.26 section, Ink 7 ADR
+- Lane: live harness + integrated quality merged on `master` @ `c1cfb26`+; tip includes hotkey/silent-quit polish @ `80c67af`
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → required before Phase B; missing scanner must be **BLOCKED**, not PASS
+
+**Alpha limitations (not production):**
+
+- **Not** production-ready TUI / SLA — beta fullscreen shell with honest non-TTY fallback.
+- **Not** Web UI · mouse clicks · Ink pointer selection.
+- **Not** Canonical Loop Contract shipped · Execution Graph Contract/runtime shipped.
+- **Not** bounded context-package runtime · progressive tool/skill/context disclosure · per-invocation context hashes.
+- **Not** durable resume/rerun · hybrid cloud routing · RAG / GraphRAG / retrieval stacks.
+- **Not** security gate PASS when Trivy did not execute.
+- **Not** cohort gate open without independent required evidence.
+
+### Added
+
+- Initial brand splash screen on first Ink mount (ASCII; auto-dismiss / any key; `AI_MINIONS_TUI_SKIP_SPLASH=1` skips). Presentation only.
+- Friendlier Ink shell color hierarchy and bold/dim typography contrast (cyan/blue accents, focus borders, selected nav); respects `NO_COLOR`.
+- Claims-audit negatives rejecting premature context-runtime / Loop Contract / Execution Graph shipped wording.
+
+### Changed
+
+- Operator cockpit contract and usage smoke guide document splash + theme polish.
+- Release checklist / product version aligned to `v0.26.0-beta.1` Phase A preparation.
+
+### Notes
+
+- Phase B (annotated tag, GitHub pre-release, `release` branch align) stays unchecked until first-run reason-code honesty and Trivy prerequisite semantics are resolved and CERBERUS Approves the cut.
+- Splash/theme must not be marketed as new harness, loop, or graph capability.
+
 ## [0.25.0-beta.1] - 2026-07-20
 
 Twenty-fifth beta pre-release: **Beta Tester Evidence + Operator TUI MVP** — install/discovery/credential readiness honesty, six-mode tester matrix runbook, canonical real-task fixtures, mode-comparison report, interactive `ai-minions tui` cockpit MVP with run selector/status · evidence/attach · config/credentials readiness panes, and a mandatory TUI quality-gate harness — without production TUI, fullscreen navigable panes, TUI next-wave actions, multi-provider production routing, hybrid cloud routing, durable resume, or cohort gate change.

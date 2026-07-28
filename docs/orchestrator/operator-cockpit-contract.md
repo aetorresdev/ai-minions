@@ -16,6 +16,8 @@ Requires a TTY (stdin and stdout). Non-TTY exits non-zero with equivalent CLI ve
 
 ## Shell chrome
 
+- **Splash / brand screen (first paint):** optional ASCII brand splash on first Ink mount (`AI_MINIONS_TUI_SKIP_SPLASH=1` skips; auto-dismisses after a short timer or any key). Presentation only — not a capability claim.
+- **Theme:** cyan/blue accent hierarchy, focus border contrast, bold selected nav — respects `NO_COLOR` / `--color`. Terminal typography is bold/dim contrast only (no custom fonts).
 - **Header:** product name, version, high-level readiness (`path_status`).
 - **Navigation:** existing cockpit actions (guided launcher, runs, select, evidence, status, **live monitor**, attach, config, quit).
 - **Main content:** home readiness, guided launcher summary, runs list, selected-run status, evidence/attach state, config readiness, action result, **live run monitor**.

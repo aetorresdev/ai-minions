@@ -27,6 +27,7 @@ const {
   prepareInkRemount,
 } = require('./operator-tui-terminal-guard');
 const { adaptActionResult } = require('./operator-tui-adapters');
+const { shouldSkipSplash } = require('./operator-tui-splash');
 
 const TUI_SHELL_REASON = Object.freeze({
   NON_TTY: 'COCKPIT_TTY_REQUIRED',
@@ -61,6 +62,8 @@ function legacyShellRequested() {
  *   rows?: number,
  *   forceRenderLoad?: boolean,
  *   autoQuitMs?: number,
+ *   skipSplash?: boolean,
+ *   splashMs?: number,
  *   maxLoops?: number,
  *   injectFailure?: 'renderer' | 'child' | null,
  *   preferLegacy?: boolean,
@@ -230,12 +233,24 @@ async function runOperatorTuiShell(options = {}) {
       inkLoaded = true;
       reactLoaded = true;
 
+      // Splash on first mount only. Skip for harness tests (autoQuitMs / finite maxLoops),
+      // env override, or explicit opt-out. Production CLI uses unbounded loops → splash shows.
+      const boundedTestLoop = Number.isFinite(options.maxLoops)
+        && options.maxLoops < Number.POSITIVE_INFINITY;
+      const showSplash = loops === 1
+        && options.skipSplash !== true
+        && !shouldSkipSplash(process.env)
+        && !(Number.isFinite(options.autoQuitMs) && options.autoQuitMs >= 0)
+        && !boundedTestLoop;
+
       const renderResult = await withTerminalGuard(guard, async () => renderer.renderOperatorTuiShell({
         model,
         stdin,
         stdout,
         stderr: options.stderr ?? process.stderr,
         autoQuitMs: options.autoQuitMs,
+        showSplash,
+        splashMs: options.splashMs,
         onModelChange: (next) => {
           model = next;
           selectedRunId = next.selectedRunId;

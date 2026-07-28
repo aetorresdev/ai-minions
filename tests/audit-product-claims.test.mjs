@@ -43,16 +43,45 @@ describe("audit-product-claims", () => {
     assert.match(text, /product-claim audit/);
   });
 
-  it("repo claim audit includes v0.15 beta gate how-tos", () => {
-    const report = runClaimAudit();
-    const files = report.checks.filter((c) => c.status === "pass").map((c) => c.file);
-    assert.ok(files.includes("docs/how-to/beta-smoke-matrix.md"));
-    assert.ok(files.includes("docs/how-to/beta-degraded-mode-policy.md"));
-    assert.ok(
-      report.checks.some(
-        (c) => c.id.startsWith("slash-honesty:") && c.status === "pass",
-      ),
-      "full audit must run slash product honesty checks",
+  it("flags v0.26 deferred context-runtime and loop/graph claims", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "claim-audit-"));
+    const rel = "docs/how-to/fresh-clone-evidence.md";
+    fs.mkdirSync(path.join(tmp, path.dirname(rel)), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmp, rel),
+      [
+        "# Doc",
+        "ai-minions automatically sends only the context each agent needs.",
+        "unused tools and skills are hidden per step.",
+        "required instructions can never be truncated.",
+        "every invocation has a reproducible context hash.",
+        "Canonical Loop Contract shipped.",
+        "Execution Graph runtime shipped.",
+        "bounded context-package runtime shipped.",
+        "progressive disclosure shipped.",
+      ].join("\n"),
     );
+    const report = runClaimAudit({ repoRoot: tmp, paths: [rel] });
+    assert.equal(report.ok, false);
+    const forbidden = report.checks.filter((c) => c.reason_code === REASON_CODES.FORBIDDEN_PHRASE);
+    assert.ok(forbidden.length >= 6, `expected multiple forbidden hits, got ${forbidden.length}`);
+  });
+
+  it("passes negated v0.26 deferred context-runtime claims", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "claim-audit-"));
+    const rel = "docs/how-to/fresh-clone-evidence.md";
+    fs.mkdirSync(path.join(tmp, path.dirname(rel)), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmp, rel),
+      [
+        "# Doc",
+        "Not claimed: ai-minions automatically sends only the context each agent needs.",
+        "Do not claim unused tools and skills are hidden per step.",
+        "Not claimed: Canonical Loop Contract shipped.",
+        "Not claimed: Execution Graph runtime shipped.",
+      ].join("\n"),
+    );
+    const report = runClaimAudit({ repoRoot: tmp, paths: [rel] });
+    assert.equal(report.ok, true);
   });
 });

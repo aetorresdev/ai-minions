@@ -21,6 +21,15 @@ export const FORBIDDEN_CLAIMS = [
   { re: /prevents?\s+secrets?\s+from\s+being\s+shared/i, label: "prevents secrets shared claim" },
   { re: /catches?\s+all\s+secrets/i, label: "catches all secrets claim" },
   { re: /guarantee[ds]?\s+(no|zero)\s+secret/i, label: "guaranteed no secrets claim" },
+  // v0.26 deferred / forbidden capability claims (context runtime · loop · graph)
+  { re: /automatically sends only the context each agent needs/i, label: "automatic per-agent context-only claim" },
+  { re: /unused tools and skills are hidden per step/i, label: "per-step tool/skill hiding claim" },
+  { re: /required instructions can never be truncated/i, label: "instructions never truncated claim" },
+  { re: /every invocation has a reproducible context hash/i, label: "reproducible context hash claim" },
+  { re: /canonical loop contract\s+shipped/i, label: "canonical loop contract shipped claim" },
+  { re: /execution graph (contract|runtime)\s+shipped/i, label: "execution graph shipped claim" },
+  { re: /bounded context-package runtime\s+shipped/i, label: "context-package runtime shipped claim" },
+  { re: /progressive (tool\/skill\/context )?disclosure\s+shipped/i, label: "progressive disclosure shipped claim" },
 ];
 
 /** @type {ForbiddenClaimRule[]} */
