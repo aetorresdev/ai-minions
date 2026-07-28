@@ -142,3 +142,47 @@ export function mustNotHaveBacklogCaseIds(text, fileRel, onFailure) {
     onFailure(`${fileRel}: backlog-style case IDs not allowed in operator docs: ${unique.join(", ")}`);
   }
 }
+
+/**
+ * Public contract pages that must not describe product slash commands as unavailable.
+ * ADR-scoped "not in this ADR alone" qualifications remain allowed.
+ */
+export const SLASH_PRODUCT_HONESTY_PATHS = Object.freeze([
+  "docs/how-to/operator-visibility-guide.md",
+  "docs/orchestrator/ink7-framework-decision.md",
+  "docs/how-to/beta-tester-guide.md",
+]);
+
+/** Lines that treat shipped slash commands as wholly unavailable. */
+const SLASH_UNAVAILABLE_LINE_RE =
+  /(?:\*\*Not claimed:\*\*|Not claimed:|\*\*Not\*\*)[^\n]*\bslash commands\b/i;
+
+/**
+ * @param {string} line
+ * @returns {boolean}
+ */
+export function lineAllowsSlashUnavailableQualification(line) {
+  return (
+    /not in this (?:ADR|document) alone/i.test(line) ||
+    /this ADR did not introduce/i.test(line) ||
+    /not introduced by this ADR/i.test(line)
+  );
+}
+
+/**
+ * Fail if a public contract page claims product slash commands are unavailable.
+ * @param {string} text
+ * @param {string} fileRel
+ * @param {(msg: string) => void} onFailure
+ */
+export function checkSlashUnavailableProductClaims(text, fileRel, onFailure) {
+  const scrubbed = stripCodeSpans(text);
+  for (const line of scrubbed.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || !SLASH_UNAVAILABLE_LINE_RE.test(trimmed)) continue;
+    if (lineAllowsSlashUnavailableQualification(trimmed)) continue;
+    onFailure(
+      `${fileRel}: stale no-claim — product slash commands described as unavailable (line: ${trimmed.slice(0, 160)})`,
+    );
+  }
+}

@@ -5,7 +5,8 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 **Product CLI:** `ai-minions runs` · `status` · `explain` · `report` · `tui` · `attach` · `evidence`
 **Contract sources:** trace JSONL under `ORCH_TRACES_DIR` (default `~/.claude/metrics/traces/`) — same SoT as legacy `explain-run` and `collect-run-report.mjs`.
 
-**Not claimed:** slash commands · Web UI · interactive approvals or reruns from evidence panels · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
+**Slash commands:** shipped in the Ink shell (`/` + implemented vocabulary; inventoried by the integrated TUI quality gate). Reserved / unimplemented slash names remain unclaimed.
+**Not claimed:** Web UI · interactive approvals or reruns from evidence panels · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
 
 ---
 
