@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Cerberus master mark  AI-MINIONS brand guardian.
+  Geometric three-headed symbol for Validate / Trace / Enforce.
+  Official vector source for docs, GitHub, and Web UI.
+  Provenance: see assets/CERBERUS-ART-LICENSE.md
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 280" role="img" aria-labelledby="title desc">
+  <title id="title">Cerberus  AI-MINIONS guardian mark</title>
+  <desc id="desc">
+    Geometric three-headed guardian: left Validate (cyan), center Trace (violet),
+    right Enforce (amber), united by a hexagonal core. Decorative brand asset;
+    not a runtime TUI glyph sheet.
+  </desc>
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#67D9F5"/>
+      <stop offset="50%" stop-color="#9B8CFF"/>
+      <stop offset="100%" stop-color="#F4B860"/>
+    </linearGradient>
+    <linearGradient id="coreGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#9B8CFF"/>
+      <stop offset="100%" stop-color="#67D9F5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background plate (optional; transparent-friendly) -->
+  <rect width="320" height="280" fill="#0B1020" rx="12"/>
+
+  <!-- Shared neck / shoulders -->
+  <path
+    d="M70 168 L100 148 L160 140 L220 148 L250 168 L230 200 L160 216 L90 200 Z"
+    fill="none"
+    stroke="#26344D"
+    stroke-width="3"
+    stroke-linejoin="round"/>
+
+  <!-- Left head  Validate (cyan) -->
+  <g fill="none" stroke="#67D9F5" stroke-width="2.5" stroke-linejoin="round">
+    <path d="M48 72 L78 48 L108 72 L108 118 L78 138 L48 118 Z"/>
+    <circle cx="68" cy="88" r="5" fill="#67D9F5" stroke="none"/>
+    <circle cx="88" cy="88" r="5" fill="#67D9F5" stroke="none"/>
+    <path d="M68 108 Q78 118 88 108" stroke-width="2"/>
+  </g>
+  <text x="78" y="158" text-anchor="middle" fill="#67D9F5"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="11" font-weight="700">VALIDATE</text>
+
+  <!-- Center head  Trace (violet) -->
+  <g fill="none" stroke="#9B8CFF" stroke-width="2.5" stroke-linejoin="round">
+    <path d="M130 52 L160 28 L190 52 L190 102 L160 124 L130 102 Z"/>
+    <circle cx="150" cy="68" r="5" fill="#9B8CFF" stroke="none"/>
+    <circle cx="170" cy="68" r="5" fill="#9B8CFF" stroke="none"/>
+    <path d="M150 88 Q160 98 170 88" stroke-width="2"/>
+  </g>
+  <text x="160" y="148" text-anchor="middle" fill="#9B8CFF"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="11" font-weight="700">TRACE</text>
+
+  <!-- Right head  Enforce (amber) -->
+  <g fill="none" stroke="#F4B860" stroke-width="2.5" stroke-linejoin="round">
+    <path d="M212 72 L242 48 L272 72 L272 118 L242 138 L212 118 Z"/>
+    <circle cx="232" cy="88" r="5" fill="#F4B860" stroke="none"/>
+    <circle cx="252" cy="88" r="5" fill="#F4B860" stroke="none"/>
+    <path d="M232 108 Q242 118 252 108" stroke-width="2"/>
+  </g>
+  <text x="242" y="158" text-anchor="middle" fill="#F4B860"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="11" font-weight="700">ENFORCE</text>
+
+  <!-- Hex core -->
+  <path
+    d="M160 168 L186 182 L186 210 L160 224 L134 210 L134 182 Z"
+    fill="none"
+    stroke="url(#coreGrad)"
+    stroke-width="3"
+    stroke-linejoin="round"/>
+  <circle cx="160" cy="196" r="8" fill="url(#brandGrad)"/>
+
+  <!-- Wordmark cue (decorative; product name remains AI-MINIONS in product UI) -->
+  <text x="160" y="258" text-anchor="middle" fill="#E6EDF7"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="14" font-weight="700" letter-spacing="0.12em">CERBERUS</text>
+  <text x="160" y="272" text-anchor="middle" fill="#92A0B8"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="9" letter-spacing="0.08em">AI-MINIONS GUARDIAN</text>
+</svg>
