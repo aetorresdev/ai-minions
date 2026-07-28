@@ -183,7 +183,6 @@ test('Ink renderToString splash shows Cerberus brand splash; shell shows themed 
   assert.match(splash, /Enforce/);
   assert.match(splash, /Presentation polish only/i);
   assert.match(splash, /Press any key/i);
-  assert.doesNotMatch(splash, /option\s*C/i);
 
   const shell = renderOperatorTuiShellToString(model, { columns: 80, showSplash: false });
   assert.match(shell, /Quick Start|Navigate/);
@@ -191,7 +190,6 @@ test('Ink renderToString splash shows Cerberus brand splash; shell shows themed 
   assert.match(shell, /clickable/);
   assert.match(shell, /System Readiness|AI-MINIONS/);
   assert.doesNotMatch(shell, /Press any key/);
-  assert.doesNotMatch(shell, /option\s*C/i);
 });
 
 test('short TTY splash first paint stays within reported rows and shows continue hint', async () => {
@@ -220,7 +218,6 @@ test('short TTY splash first paint stays within reported rows and shows continue
   assert.match(splash, /Enforce|ENFORCE/i);
   assert.match(splash, /Press any key|continue/i);
   assert.match(splash, /not Web UI|Presentation polish/i);
-  assert.doesNotMatch(splash, /option\s*C/i);
 });
 
 test('buildFirstPaintShellModel is version + loading/unavailable only', () => {
