@@ -109,6 +109,9 @@ function readyShellOptions(overrides = {}) {
     runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
     contentSurface: 'home',
     selectedNavId: 'launcher',
+    // Match capture fixtures: portable unicode (runtime default remains nerd).
+    icons: 'unicode',
+    truecolor: false,
     ...overrides,
   };
 }
@@ -368,13 +371,13 @@ test('help and diagnostics formatters expose remediation without inventing truth
   assert.match(diag, /Advanced/);
 });
 
-test('theme exposes blocked distinct from danger', () => {
+test('theme exposes blocked distinct from danger (hex palette)', () => {
   const prev = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
   try {
-    const theme = resolveShellTheme({ colorEnabled: true });
-    assert.equal(theme.blocked, 'magentaBright');
-    assert.equal(theme.danger, 'red');
+    const theme = resolveShellTheme({ colorEnabled: true, truecolor: false });
+    assert.equal(theme.blocked, '#D27BEA');
+    assert.equal(theme.danger, '#F07178');
     assert.notEqual(theme.blocked, theme.danger);
     assert.equal(toneColor(theme, 'blocked'), theme.blocked);
     assert.equal(toneColor(theme, 'fail'), theme.danger);
@@ -400,7 +403,11 @@ test('resolveLandingComposition: fits row budget; keeps Start New Run + Overall'
   assert.equal(mid.composition.show_primary_cta, true);
   assert.equal(mid.composition.show_readiness, true);
   assert.ok(mid.estimated_rows <= 24);
+  assert.ok(mid.composition.drops.includes('hide_guardian'));
   assert.ok(mid.composition.drops.includes('hide_recent'));
+  const gDrop = mid.composition.drops.indexOf('hide_guardian');
+  const rDrop = mid.composition.drops.indexOf('hide_recent');
+  assert.ok(gDrop >= 0 && rDrop >= 0 && gDrop < rDrop, 'Cerberus drops before recent runs');
 
   const compact = resolveLandingComposition(50, 16);
   assert.equal(compact.layout, 'compact');
@@ -580,16 +587,12 @@ test('Ink landing empty runs and blocked readiness use contract states', async (
   const { measureLandingRender, normalizeLandingSnapshot } = await import(
     '../../scripts/lib/tui-landing-render-metrics.mjs'
   );
-  const blocked = buildShellModel({
+  const blocked = buildShellModel(readyShellOptions({
     aboutInfo: { version: '0.26.0-beta.1', model_policy: 'cloud_preferred' },
-    pathActivation: { status: 'ready', on_path: true },
     credentials: { credential_sufficiency: 'insufficient', providers: [] },
-    runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
-    contentSurface: 'home',
-    selectedNavId: 'launcher',
     columns: 120,
     rows: 36,
-  });
+  }));
   assert.equal(blocked.landing.overall.state, 'blocked');
   const out = renderOperatorTuiShellToString(blocked, { columns: 120, rows: 36 });
   const m = measureLandingRender(out, { columns: 120, rows: 36 });

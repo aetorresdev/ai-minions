@@ -5,7 +5,6 @@
  Contract-First Multi-Agent Orchestration Harness
  Validate • Trace • Enforce
  › 1. Start New Run
- Cerberus guards contracts and gates — secondary system symbol
 ╔═══════════════════════╗┌─────────────────────────────────────────────────────┐
 ║ Quick Start           ║│ System Readiness                                    │
 ║ keyboard — not        ║│ Overall: Ready                                      │

@@ -10,6 +10,7 @@ const {
   landingGuardianRowsWide,
   landingGuardianRowsMid,
 } = require('./operator-tui-splash');
+const { resolveIconMode } = require('./operator-tui-icons');
 
 const LANDING_SCHEMA = '1';
 const RECENT_RUNS_LIMIT = 5;
@@ -88,21 +89,14 @@ function defaultLandingComposition(layout) {
 
 /**
  * Drop order for row pressure — lowest priority first.
- * Decorative / secondary blocks drop before action and readiness state.
- * Never drops Start New Run (`show_primary_cta`) or Overall readiness (`show_readiness`).
+ * Decorative Cerberus drops before Start New Run / Overall / recent runs
+ * (visual-system secondary policy). Never drops Start New Run or Overall.
  */
 const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
   {
     id: 'recent_empty_short',
     apply(c) {
       c.recent_empty_short = true;
-    },
-  },
-  {
-    id: 'hide_recent',
-    apply(c) {
-      c.show_recent_runs = false;
-      c.recent_runs_limit = 0;
     },
   },
   {
@@ -115,6 +109,13 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
     id: 'hide_guardian_note',
     apply(c) {
       c.show_guardian_note = false;
+    },
+  },
+  {
+    id: 'hide_recent',
+    apply(c) {
+      c.show_recent_runs = false;
+      c.recent_runs_limit = 0;
     },
   },
   {
@@ -638,6 +639,8 @@ function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT) {
  *   columns?: number,
  *   rows?: number,
  *   loading?: boolean,
+ *   icons?: string,
+ *   iconMode?: string,
  * }} [options]
  */
 function buildLandingViewModel(options = {}) {
@@ -646,16 +649,17 @@ function buildLandingViewModel(options = {}) {
   const runs = Array.isArray(runsAdapter.runs) ? runsAdapter.runs : [];
   const columns = Number.isFinite(Number(options.columns)) ? Number(options.columns) : 80;
   const rows = Number.isFinite(Number(options.rows)) ? Number(options.rows) : 24;
+  const iconMode = resolveIconMode(options);
   const resolved = resolveLandingComposition(columns, rows);
   const layout = resolved.layout;
   const composition = resolved.composition;
   const showGuardian = composition.show_guardian === true;
-  const guardian_lines = showGuardian ? landingGuardianPlainLines(layout) : [];
+  const guardian_lines = showGuardian ? landingGuardianPlainLines(layout, iconMode) : [];
   const guardian_rows = !showGuardian
     ? []
     : (layout === 'wide'
-      ? landingGuardianRowsWide()
-      : (layout === 'mid' ? landingGuardianRowsMid() : []));
+      ? landingGuardianRowsWide(iconMode)
+      : (layout === 'mid' ? landingGuardianRowsMid(iconMode) : []));
   const overall = options.loading === true
     ? {
       state: /** @type {LandingOverallState} */ ('loading'),
@@ -791,6 +795,7 @@ function buildLandingViewModel(options = {}) {
     layout,
     columns,
     rows,
+    iconMode,
     composition,
     estimated_rows: resolved.estimated_rows,
     show_guardian: showGuardian && guardian_lines.length > 0,
@@ -945,6 +950,7 @@ function formatHelpLines() {
     '',
     'Keys: ↑/↓ move · Enter select · Esc back to Home · Tab focus · / slash · q quit',
     'Top-level s is ignored (use Runs / ↑↓). Legacy readline matrix: AI_MINIONS_TUI_LEGACY=1 only.',
+    'Icons: AI_MINIONS_TUI_ICONS=nerd|unicode|ascii (default nerd; operator choice — not auto glyph detect).',
     'Operator modules remain authoritative. Not claimed: Web UI · mouse · durable resume.',
   ];
 }

@@ -2,11 +2,16 @@
 
 /**
  * Brand splash helpers for the Ink fullscreen shell (presentation only).
- * Cerberus brand splash: geometric three-headed ASCII mark
- * (Validate / Trace / Enforce), AI-MINIONS wordmark, triad tagline.
+ * Cerberus textual / Nerd component (wide | compact | minimal) — never PNG.
+ * Icon modes: nerd | unicode | ascii (explicit operator choice; no auto-tofu claims).
  * Vertically degrades for short TTYs so first paint fits the reported viewport.
- * No image assets, no mouse, no capability claims.
  */
+
+const {
+  resolveIconMode,
+  chromeIconsFor,
+  DEFAULT_ICON_MODE,
+} = require('./operator-tui-icons');
 
 const SKIP_ENV = 'AI_MINIONS_TUI_SKIP_SPLASH';
 const DEFAULT_SPLASH_MS = 1600;
@@ -17,18 +22,61 @@ const TRIAD_LABEL = 'Validate • Trace • Enforce';
 const GUARDIAN_MARK = 'CERBERUS';
 
 /**
- * @typedef {'validate' | 'trace' | 'enforce' | 'brand' | 'accent' | 'muted' | 'core' | 'wordmark' | 'warn'} SplashTone
+ * @typedef {'validate' | 'trace' | 'enforce' | 'brand' | 'accent' | 'muted' | 'core' | 'wordmark' | 'warn' | 'gradient-cyan' | 'gradient-violet' | 'gradient-amber'} SplashTone
  * @typedef {{ text: string, tone?: SplashTone, bold?: boolean }} SplashSegment
  * @typedef {{ segments: SplashSegment[] }} SplashRow
  */
 
 /**
- * Wide geometric Cerberus (three heads + hex core). Readable at ≥56 columns.
+ * Glyph accents for Cerberus art by icon mode.
+ * @param {string} [iconMode]
+ */
+function artGlyphs(iconMode) {
+  const icons = chromeIconsFor(iconMode || DEFAULT_ICON_MODE);
+  const mode = resolveIconMode({ icons: iconMode });
+  if (mode === 'ascii') {
+    return {
+      ok: '+',
+      traceMark: '*',
+      enforceMark: '#',
+      eye: 'o',
+      core: '*',
+      sep: '-',
+      mid: '.',
+    };
+  }
+  if (mode === 'nerd') {
+    return {
+      ok: icons.ok,
+      traceMark: '\uf1db', // nf-fa-circle-o / ring-ish
+      enforceMark: '\uf0e7', // nf-fa-bolt
+      eye: icons.eye,
+      core: icons.core,
+      sep: '-',
+      mid: '·',
+    };
+  }
+  // unicode (portable mid set)
+  return {
+    ok: '✓',
+    traceMark: '◈',
+    enforceMark: '⬡',
+    eye: '◇',
+    core: '◆',
+    sep: '-',
+    mid: '·',
+  };
+}
+
+/**
+ * Wide geometric Cerberus (three heads + core). Readable at ≥56 columns.
  * Markers VALIDATE / TRACE / ENFORCE / CERBERUS / AI-MINIONS stay in plain text
  * so NO_COLOR remains scannable without color alone.
+ * @param {string} [iconMode]
  * @returns {SplashRow[]}
  */
-function splashArtRowsWide() {
+function splashArtRowsWide(iconMode) {
+  const g = artGlyphs(iconMode);
   return [
     {
       segments: [
@@ -38,11 +86,11 @@ function splashArtRowsWide() {
     {
       segments: [
         { text: '          /', tone: 'validate' },
-        { text: 'V✓', tone: 'validate', bold: true },
+        { text: `V${g.ok}`, tone: 'validate', bold: true },
         { text: '\\           /', tone: 'muted' },
-        { text: 'T◈', tone: 'trace', bold: true },
+        { text: `T${g.traceMark}`, tone: 'trace', bold: true },
         { text: '\\           /', tone: 'muted' },
-        { text: 'E⬡', tone: 'enforce', bold: true },
+        { text: `E${g.enforceMark}`, tone: 'enforce', bold: true },
         { text: '\\', tone: 'enforce' },
       ],
     },
@@ -60,11 +108,11 @@ function splashArtRowsWide() {
     {
       segments: [
         { text: '        |', tone: 'validate' },
-        { text: ' ◇  ◇ ', tone: 'validate' },
+        { text: ` ${g.eye}  ${g.eye} `, tone: 'validate' },
         { text: '|       |', tone: 'trace' },
-        { text: ' ◇  ◇ ', tone: 'trace' },
+        { text: ` ${g.eye}  ${g.eye} `, tone: 'trace' },
         { text: '|       |', tone: 'enforce' },
-        { text: ' ◇  ◇ ', tone: 'enforce' },
+        { text: ` ${g.eye}  ${g.eye} `, tone: 'enforce' },
         { text: '|', tone: 'enforce' },
       ],
     },
@@ -89,7 +137,7 @@ function splashArtRowsWide() {
     {
       segments: [
         { text: '           \\/     /', tone: 'muted' },
-        { text: '  ◆  ', tone: 'core', bold: true },
+        { text: `  ${g.core}  `, tone: 'core', bold: true },
         { text: '\\     \\/', tone: 'muted' },
       ],
     },
@@ -131,10 +179,12 @@ function splashArtRowsWide() {
 }
 
 /**
- * Narrow geometric Cerberus (≥40 columns).
+ * Narrow geometric Cerberus (≥40 columns) — compact variant.
+ * @param {string} [iconMode]
  * @returns {SplashRow[]}
  */
-function splashArtRowsNarrow() {
+function splashArtRowsNarrow(iconMode) {
+  const g = artGlyphs(iconMode);
   return [
     {
       segments: [
@@ -155,7 +205,7 @@ function splashArtRowsNarrow() {
     {
       segments: [
         { text: ' \\/ -', tone: 'validate' },
-        { text: '◆', tone: 'core', bold: true },
+        { text: g.core, tone: 'core', bold: true },
         { text: '- \\/', tone: 'enforce' },
       ],
     },
@@ -204,11 +254,12 @@ function splashArtRowsMinimal() {
 }
 
 /**
- * Compact geometric Cerberus for the landing secondary (left) region — no wordmark.
- * Wordmark belongs in the primary content column.
+ * Wide landing secondary Cerberus — no wordmark (wordmark stays in primary column).
+ * @param {string} [iconMode]
  * @returns {SplashRow[]}
  */
-function landingGuardianRowsWide() {
+function landingGuardianRowsWide(iconMode) {
+  const g = artGlyphs(iconMode);
   return [
     {
       segments: [
@@ -229,18 +280,18 @@ function landingGuardianRowsWide() {
     {
       segments: [
         { text: ' |', tone: 'validate' },
-        { text: '◇◇', tone: 'validate' },
+        { text: `${g.eye}${g.eye}`, tone: 'validate' },
         { text: '|', tone: 'muted' },
-        { text: '◇◇', tone: 'trace' },
+        { text: `${g.eye}${g.eye}`, tone: 'trace' },
         { text: '|', tone: 'muted' },
-        { text: '◇◇', tone: 'enforce' },
+        { text: `${g.eye}${g.eye}`, tone: 'enforce' },
         { text: '|', tone: 'enforce' },
       ],
     },
     {
       segments: [
         { text: ' \\/ -', tone: 'validate' },
-        { text: '◆', tone: 'core', bold: true },
+        { text: g.core, tone: 'core', bold: true },
         { text: '- \\/', tone: 'enforce' },
       ],
     },
@@ -264,10 +315,12 @@ function landingGuardianRowsWide() {
 }
 
 /**
- * Reduced guardian for mid-width landing (80–99 cols) — stack-friendly.
+ * Compact landing guardian (mid-width) — stack-friendly.
+ * @param {string} [iconMode]
  * @returns {SplashRow[]}
  */
-function landingGuardianRowsMid() {
+function landingGuardianRowsMid(iconMode) {
+  const g = artGlyphs(iconMode);
   return [
     {
       segments: [
@@ -277,12 +330,12 @@ function landingGuardianRowsMid() {
     {
       segments: [
         { text: 'V', tone: 'validate', bold: true },
-        { text: '·', tone: 'muted' },
+        { text: g.mid, tone: 'muted' },
         { text: 'T', tone: 'trace', bold: true },
-        { text: '·', tone: 'muted' },
+        { text: g.mid, tone: 'muted' },
         { text: 'E', tone: 'enforce', bold: true },
         { text: ' ', tone: 'muted' },
-        { text: '◆', tone: 'core', bold: true },
+        { text: g.core, tone: 'core', bold: true },
       ],
     },
     {
@@ -294,13 +347,28 @@ function landingGuardianRowsMid() {
 }
 
 /**
+ * Minimal landing / splash guardian (label only).
+ * @returns {SplashRow[]}
+ */
+function landingGuardianRowsMinimal() {
+  return [
+    {
+      segments: [
+        { text: GUARDIAN_MARK, tone: 'brand', bold: true },
+      ],
+    },
+  ];
+}
+
+/**
  * Plain guardian lines for landing layout mode.
  * @param {'wide'|'mid'|'compact'} layout
+ * @param {string} [iconMode]
  * @returns {string[]}
  */
-function landingGuardianPlainLines(layout) {
-  if (layout === 'wide') return flattenSplashRows(landingGuardianRowsWide());
-  if (layout === 'mid') return flattenSplashRows(landingGuardianRowsMid());
+function landingGuardianPlainLines(layout, iconMode) {
+  if (layout === 'wide') return flattenSplashRows(landingGuardianRowsWide(iconMode));
+  if (layout === 'mid') return flattenSplashRows(landingGuardianRowsMid(iconMode));
   return [];
 }
 
@@ -345,34 +413,39 @@ function resolveSplashDensity(rows, columns) {
 
 /**
  * Compact brand mark (readable at ≥56 columns) — Cerberus brand splash wide art.
+ * @param {string} [iconMode]
  * @returns {string[]}
  */
-function splashBannerLines() {
-  return flattenSplashRows(splashArtRowsWide());
+function splashBannerLines(iconMode) {
+  return flattenSplashRows(splashArtRowsWide(iconMode));
 }
 
 /**
  * Narrow fallback when columns are tight.
+ * @param {string} [iconMode]
  * @returns {string[]}
  */
-function splashBannerLinesNarrow() {
-  return flattenSplashRows(splashArtRowsNarrow());
+function splashBannerLinesNarrow(iconMode) {
+  return flattenSplashRows(splashArtRowsNarrow(iconMode));
 }
 
 /**
- * Wordmark as per-character tones (cyan → blue → magenta) when color is on.
+ * Wordmark as per-character tones. When truecolor is available, cyan→violet→amber
+ * gradient tones; otherwise a single brand tone (hierarchy still works under NO_COLOR).
+ * @param {{ truecolor?: boolean }} [options]
  * @returns {SplashSegment[]}
  */
-function wordmarkSegments() {
+function wordmarkSegments(options = {}) {
   const chars = WORDMARK.split('');
-  const tones = /** @type {SplashTone[]} */ ([
-    'validate', 'validate', 'validate',
-    'trace', 'trace', 'trace',
-    'enforce', 'enforce', 'enforce', 'enforce',
+  const useGradient = options.truecolor === true;
+  const gradientTones = /** @type {SplashTone[]} */ ([
+    'gradient-cyan', 'gradient-cyan', 'gradient-cyan',
+    'gradient-violet', 'gradient-violet', 'gradient-violet',
+    'gradient-amber', 'gradient-amber', 'gradient-amber', 'gradient-amber',
   ]);
   return chars.map((ch, i) => ({
     text: ch,
-    tone: tones[i] || 'brand',
+    tone: useGradient ? (gradientTones[i] || 'brand') : 'brand',
     bold: true,
   }));
 }
@@ -392,11 +465,21 @@ function triadSegments() {
 }
 
 /**
- * @param {{ columns?: number, rows?: number, version?: string, readiness?: string }} [options]
+ * @param {{
+ *   columns?: number,
+ *   rows?: number,
+ *   version?: string,
+ *   readiness?: string,
+ *   icons?: string,
+ *   iconMode?: string,
+ *   truecolor?: boolean,
+ * }} [options]
  * @returns {{
  *   lines: string[],
  *   rows: SplashRow[],
  *   density: 'full' | 'compact' | 'minimal',
+ *   cerberusVariant: 'wide' | 'compact' | 'minimal',
+ *   iconMode: string,
  *   frameHeight: number,
  *   showProductTagline: boolean,
  *   showSpacers: boolean,
@@ -421,17 +504,25 @@ function buildSplashContent(options = {}) {
   const readiness = options.readiness == null || options.readiness === ''
     ? 'unknown'
     : String(options.readiness);
+  const iconMode = resolveIconMode(options);
   const density = resolveSplashDensity(frameHeight, columns);
+  const cerberusVariant = density === 'minimal'
+    ? 'minimal'
+    : (density === 'compact' ? 'compact' : 'wide');
   const artRows = density === 'minimal'
     ? splashArtRowsMinimal()
-    : (density === 'compact' ? splashArtRowsNarrow() : splashArtRowsWide());
+    : (density === 'compact'
+      ? splashArtRowsNarrow(iconMode)
+      : splashArtRowsWide(iconMode));
   const lines = flattenSplashRows(artRows);
-  const wmSegs = wordmarkSegments();
+  const wmSegs = wordmarkSegments({ truecolor: options.truecolor === true });
   const triadSegs = triadSegments();
   return {
     lines,
     rows: artRows,
     density,
+    cerberusVariant,
+    iconMode,
     frameHeight,
     showProductTagline: density !== 'minimal',
     showSpacers: density === 'full',
@@ -480,6 +571,7 @@ module.exports = {
   splashArtRowsMinimal,
   landingGuardianRowsWide,
   landingGuardianRowsMid,
+  landingGuardianRowsMinimal,
   landingGuardianPlainLines,
   splashBannerLines,
   splashBannerLinesNarrow,

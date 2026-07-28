@@ -30,7 +30,7 @@ Locked operator decisions for the AI-MINIONS Ink fullscreen shell and related br
 
 Semantic runtime colors (`success` / `warn` / `danger` / `blocked`) remain distinct from decorative brand accents (`cyan` / `violet` / `amber`). Color may enhance meaning; it must never be the only carrier of meaning.
 
-**Runtime adoption:** Ink/theme code may still map some states to named chalk colors (for example `yellow` / `magentaBright`) until a follow-up migrates consumers to these hex tokens. This document locks the hex contract; wiring hex into runtime is out of scope for this doc-only change.
+**Runtime adoption:** Ink/theme code consumes these hex tokens via `operator-tui-theme.js`. Icon mode is wired through `icons=nerd|unicode|ascii` (`AI_MINIONS_TUI_ICONS` / model `iconMode`). Glyph coverage is not auto-detected.
 
 ### Brand gradient (decorative only)
 
@@ -109,7 +109,7 @@ Task-first Home / landing remains authoritative:
 3. Below: System Readiness (incl. Overall) and Recent Runs from real contracts.
 4. Footer: key hints matching the implemented matrix.
 
-Ink landing implementations must **consume this visual system** (tokens, icon modes, degradation, Cerberus secondary policy). Palette migration and `icons=` wiring may land as follow-up commits after this document is merged.
+Ink landing implementations must **consume this visual system** (tokens, icon modes, degradation, Cerberus secondary policy). Runtime adoption lives in `orchestrator/modules/operator/operator-tui-{theme,icons,splash,landing,shell-*}` on the landing PR lineage.
 
 ## Non-goals
 

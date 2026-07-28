@@ -53,6 +53,9 @@ function readyShellOptions(overrides = {}) {
     runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
     contentSurface: 'home',
     selectedNavId: 'launcher',
+    // Portable unicode for reviewable contract fixtures (runtime default remains nerd).
+    icons: 'unicode',
+    truecolor: false,
     ...overrides,
   };
 }

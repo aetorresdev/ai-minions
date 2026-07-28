@@ -28,6 +28,8 @@ const {
   formatDiagnosticsLines,
   landingLayoutForViewport,
 } = require('./operator-tui-landing');
+const { resolveIconMode } = require('./operator-tui-icons');
+const { detectTruecolor } = require('./operator-tui-theme');
 
 const SHELL_SCHEMA = '1';
 const FOCUS_TARGETS = Object.freeze(['nav', 'content', 'input']);
@@ -79,6 +81,9 @@ function layoutModeForColumns(columns) {
  *   focus?: string,
  *   commandInput?: string,
  *   colorEnabled?: boolean,
+ *   icons?: string,
+ *   iconMode?: string,
+ *   truecolor?: boolean,
  *   productVersion?: string | null,
  *   activeWorkflow?: object | null,
  *   pendingLauncherSelections?: object | null,
@@ -126,6 +131,12 @@ function buildShellModel(options = {}) {
   const version = options.productVersion ?? home.version ?? 'unknown';
   const loading = home.path_status === 'loading'
     || home.credential_sufficiency === 'unavailable';
+  const colorEnabled = options.colorEnabled !== false && process.env.NO_COLOR == null;
+  const iconMode = resolveIconMode(options);
+  const truecolor = colorEnabled && detectTruecolor(process.env, {
+    truecolor: options.truecolor,
+    colorEnabled,
+  });
   const landing = buildLandingViewModel({
     home,
     runs,
@@ -134,6 +145,7 @@ function buildShellModel(options = {}) {
     columns,
     rows,
     loading,
+    icons: iconMode,
   });
   const readiness = landing.overall.state === 'ready'
     ? 'ready'
@@ -180,7 +192,9 @@ function buildShellModel(options = {}) {
     rows,
     focus,
     commandInput: String(options.commandInput ?? ''),
-    colorEnabled: options.colorEnabled !== false && process.env.NO_COLOR == null,
+    colorEnabled,
+    iconMode,
+    truecolor,
     navItems,
     selectedNavId,
     selectedRunId,
@@ -559,6 +573,9 @@ function shellModelToOptions(model) {
     focus: model.focus,
     commandInput: model.commandInput,
     colorEnabled: model.colorEnabled,
+    icons: model.iconMode,
+    iconMode: model.iconMode,
+    truecolor: model.truecolor,
     productVersion: model.version,
     activeWorkflow: model.activeWorkflow ?? null,
     pendingLauncherSelections: model.pendingLauncherSelections ?? null,

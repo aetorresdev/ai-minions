@@ -14,7 +14,8 @@ const {
   contentSurfaceForLocalAction,
   navItemsForMovement,
 } = require('./operator-tui-shell-model.js');
-const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor } = require('./operator-tui-theme.js');
+const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor, brandGradientStop } = require('./operator-tui-theme.js');
+const { chromeIcon, resolveIconMode } = require('./operator-tui-icons.js');
 const {
   buildSplashContent,
   resolveSplashDurationMs,
@@ -76,6 +77,37 @@ function renderGuardianSegments(theme, segments, keyPrefix) {
 }
 
 /**
+ * Brand wordmark — optional truecolor cyan→violet→amber gradient on the wordmark only.
+ * @param {object} theme
+ * @param {string} text
+ * @param {string} keyPrefix
+ */
+function renderBrandWordmark(theme, text, keyPrefix) {
+  const label = String(text ?? '');
+  if (!theme.truecolor || !theme.brandGradient) {
+    return React.createElement(
+      Text,
+      { key: keyPrefix, bold: theme.titleBold, color: theme.brand },
+      label,
+    );
+  }
+  const chars = label.split('');
+  return React.createElement(
+    Box,
+    { key: keyPrefix, flexDirection: 'row' },
+    ...chars.map((ch, idx) => React.createElement(
+      Text,
+      {
+        key: `${keyPrefix}-${idx}`,
+        bold: theme.titleBold,
+        color: brandGradientStop(theme, idx, chars.length),
+      },
+      ch,
+    )),
+  );
+}
+
+/**
  * Task-first landing composition (post-splash). Not the brand splash.
  * @param {{
  *   model: object,
@@ -88,6 +120,8 @@ function LandingHomeView(props) {
   const landing = model.landing;
   const landingLayout = model.landingLayout || landing.layout || 'compact';
   const compact = landingLayout === 'compact';
+  const iconMode = resolveIconMode({ icons: model.iconMode || landing.iconMode });
+  const selectedMark = chromeIcon(iconMode, 'selected');
   const comp = landing.composition && typeof landing.composition === 'object'
     ? landing.composition
     : {
@@ -150,7 +184,7 @@ function LandingHomeView(props) {
             bold: selected,
             color: selected ? theme.selected : undefined,
           },
-          `${selected ? '›' : ' '} ${item.key}. ${label}`,
+          `${selected ? selectedMark : ' '} ${item.key}. ${label}`,
         );
       }),
     )
@@ -242,11 +276,7 @@ function LandingHomeView(props) {
 
   const primaryChildren = [];
   if (comp.show_product) {
-    primaryChildren.push(React.createElement(
-      Text,
-      { key: 'product', bold: theme.titleBold, color: theme.brand },
-      landing.hero.product,
-    ));
+    primaryChildren.push(renderBrandWordmark(theme, landing.hero.product, 'product'));
   }
   if (comp.show_tagline) {
     primaryChildren.push(React.createElement(
@@ -270,7 +300,7 @@ function LandingHomeView(props) {
         bold: true,
         color: model.selectedNavId === 'launcher' ? theme.selected : theme.brand,
       },
-      `${model.selectedNavId === 'launcher' ? '›' : ' '} 1. Start New Run`,
+      `${model.selectedNavId === 'launcher' ? selectedMark : ' '} 1. Start New Run`,
     ));
   }
   if (comp.show_guardian_note) {
@@ -420,13 +450,18 @@ function SplashApp(props) {
     onAbort,
   } = props;
   const { exit } = useApp();
-  const theme = resolveShellTheme({ colorEnabled: model.colorEnabled });
+  const theme = resolveShellTheme({
+    colorEnabled: model.colorEnabled,
+    truecolor: model.truecolor,
+  });
   const height = resolveSplashFrameHeight(model.rows);
   const content = buildSplashContent({
     columns: model.columns,
     rows: height,
     version: model.version,
     readiness: model.readiness,
+    icons: model.iconMode,
+    truecolor: theme.truecolor,
   });
   const continuedRef = useRef(false);
 
@@ -523,7 +558,10 @@ function ShellApp(props) {
   const modelRef = useRef(model);
   modelRef.current = model;
   const transitionGateRef = useRef(createAsyncTransitionGate());
-  const theme = resolveShellTheme({ colorEnabled: model.colorEnabled });
+  const theme = resolveShellTheme({
+    colorEnabled: model.colorEnabled,
+    truecolor: model.truecolor,
+  });
 
   const commit = (next) => {
     setModel(next);
