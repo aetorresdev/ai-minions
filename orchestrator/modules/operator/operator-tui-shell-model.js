@@ -42,6 +42,9 @@ const CONTENT_SURFACES = Object.freeze([
   'launcher',
   'help',
   'diagnostics',
+  'launcher_workflow',
+  'run_browser',
+  'run_overview',
 ]);
 
 /**
@@ -76,6 +79,8 @@ function layoutModeForColumns(columns) {
  *   commandInput?: string,
  *   colorEnabled?: boolean,
  *   productVersion?: string | null,
+ *   activeWorkflow?: object | null,
+ *   pendingLauncherSelections?: object | null,
  * }} [options]
  */
 function buildShellModel(options = {}) {
@@ -134,6 +139,21 @@ function buildShellModel(options = {}) {
       : (landing.overall.state === 'unknown'
         ? 'unknown'
         : landing.overall.state));
+  const activeWorkflow = options.activeWorkflow && typeof options.activeWorkflow === 'object'
+    ? options.activeWorkflow
+    : null;
+  const pendingLauncherSelections = options.pendingLauncherSelections
+    && typeof options.pendingLauncherSelections === 'object'
+    ? options.pendingLauncherSelections
+    : null;
+  const workflowActive = activeWorkflow != null;
+  const footerHints = workflowActive
+    ? (layout === 'narrow'
+      ? 'workflow · ↑↓ · Enter · Esc · q'
+      : 'Native workflow · ↑/↓ · Enter · Esc back/cancel · /=slash · q=quit · no nested readline')
+    : (layout === 'narrow'
+      ? landing.footer_hints_narrow
+      : landing.footer_hints_wide);
 
   return {
     schema: SHELL_SCHEMA,
@@ -161,9 +181,9 @@ function buildShellModel(options = {}) {
     lifecycle,
     monitor,
     monitorSource: options.monitorSource ?? null,
-    footerHints: layout === 'narrow'
-      ? landing.footer_hints_narrow
-      : landing.footer_hints_wide,
+    activeWorkflow,
+    pendingLauncherSelections,
+    footerHints,
     disclaimer:
       'Task-first landing + guided launcher + live monitor + slash commands — operator modules remain authoritative. '
       + 'Not claimed: Web UI · durable resume · mouse clicks on labels.',
@@ -236,14 +256,20 @@ function resolveShellKeypress(input, key = {}, model = {}) {
   const keyObj = key && typeof key === 'object' ? key : {};
   // Some terminals emit \n (name "enter") instead of \r (name "return").
   const isReturn = Boolean(keyObj.return) || input === '\r' || input === '\n';
+  const workflowActive = model.activeWorkflow != null;
 
   if (keyObj.ctrl && input === 'c') {
     return { type: 'abort', endsSession: true };
   }
 
   // Intentional quit — only `q` outside command input (not digits / pane letters).
+  // q ends the session even during native workflows; Esc cancels the workflow.
   if (input === 'q' && focus !== 'input') {
     return { type: 'quit', actionId: 'quit', endsSession: true };
+  }
+
+  if (workflowActive && focus !== 'input') {
+    return { type: 'workflow_key', endsSession: false };
   }
 
   if (keyObj.tab) {
@@ -452,6 +478,8 @@ function shellModelToOptions(model) {
     commandInput: model.commandInput,
     colorEnabled: model.colorEnabled,
     productVersion: model.version,
+    activeWorkflow: model.activeWorkflow ?? null,
+    pendingLauncherSelections: model.pendingLauncherSelections ?? null,
   };
 }
 
@@ -467,6 +495,11 @@ function formatShellText(model) {
     `nav: ${model.navItems.map((n) => (n.id === model.selectedNavId ? `>${n.label}` : n.label)).join(' | ')}`,
     `selected_run: ${model.selectedRunId ?? '(none)'}`,
   ];
+  if (model.activeWorkflow) {
+    lines.push(
+      `workflow: kind=${model.activeWorkflow.kind ?? '-'} step=${model.activeWorkflow.step ?? '-'}`,
+    );
+  }
   if (model.contentSurface === 'home') {
     lines.push(...formatLandingLines(model.landing, {
       selectedNavId: model.selectedNavId,

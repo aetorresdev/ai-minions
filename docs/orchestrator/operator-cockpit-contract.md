@@ -23,6 +23,7 @@ Requires a TTY (stdin and stdout). Non-TTY exits non-zero with equivalent CLI ve
 - **Main content:** task-first landing (Quick Start · System Readiness · Recent Runs), guided launcher summary, runs list, System Status / diagnostics, Settings / config readiness, help surface, selected-run status / monitor / evidence / explain, action result.
 - **Footer:** key hints, current selection, safe exit guidance.
 - **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; **type the labeled action key** (`h`, `1`–`5`, `?`, and when a run is selected `o` / `m` / `e` / `x`) anytime outside command input (no Tab required); Enter runs the highlighted nav item; `/` focuses command input for slash commands; `q` / Ctrl+C quit with terminal restore. Top-level `s` is ignored (selection is via Runs / content ↑↓, not a select hotkey).
+- **Native Phase-1 workflows:** guided launcher, run browser, and selected-run overview run **inside** the Ink shell (↑/↓ · Enter · Esc). Choice/navigation must not tear down the terminal guard or open a nested readline pane. Child-process launch may use a bounded soft handoff after confirm.
 - **Mouse:** not wired — action labels are keyboard hints, not clickable buttons.
 - **Resize:** columns &lt; 72 → narrow layout (stacked); otherwise wide.
 
@@ -93,19 +94,19 @@ Lifecycle / monitor fields use provenance (`available` · `absent` · `unavailab
 
 ## Actions → existing contracts
 
-Fullscreen action ids (task-first / contextual). Nested readline panes may still prompt for run-id when no selection exists.
+Fullscreen action ids (task-first / contextual). Nested readline panes may still prompt for run-id when no selection exists. Phase-1 launcher / runs stay inside Ink (native workflows).
 
 | Action id (key) | Module / command contract |
 |-----------------|---------------------------|
 | `home` (`h`) | Task-first landing surface (`buildLandingViewModel` / `formatLandingLines`) |
-| `launcher` (`1`) | `runOperatorGuidedLauncherPane` → `runSmoke` / `runStart` (existing CLI contracts) |
-| `runs` (`2`) | `runOperatorRuns` (`ai-minions runs`); content ↑/↓ selects a run in-shell |
+| `launcher` (`1`) | Native Ink workflow (`operator-tui-launcher-workflow.js`) → on confirm `runOperatorGuidedLauncherPane({ selections })` → `runSmoke` / `runStart` |
+| `runs` (`2`) | Native Ink run browser + overview (`operator-tui-run-browser-workflow.js`); opens from startup `model.runs` snapshot; overview reuses `loadRunStatusPane` |
 | `diagnostics` (`3`) | System Status / advanced diagnostics (`formatDiagnosticsLines`) — raw path/git/credential fields |
-| `config` (`4`) | Settings → `runOperatorConfigReadinessPane` (reuses doctor + credential readiness) |
+| `config` (`4`) | Settings → `runOperatorConfigReadinessPane` (reuses doctor + credential readiness) *(Phase 2 native)* |
 | `help` (`5` / `?`) | Help surface (`formatHelpLines`) — presentation only |
-| `status` (`o`, contextual) | Selected-run Overview → `runOperatorStatus` / `adaptSelectedRunStatus` |
-| `monitor` (`m`, contextual) | Live monitor → `runOperatorStatus` + `adaptLiveMonitor` (read-only) |
-| `evidence` (`e`, contextual) | Evidence / attach pane → `runOperatorEvidenceAttachPane` |
+| `status` (`o`, contextual) | Selected-run Overview → `runOperatorStatus` / `adaptSelectedRunStatus` *(Phase 2 native overview path)* |
+| `monitor` (`m`, contextual) | Live monitor → `runOperatorStatus` + `adaptLiveMonitor` (read-only) *(Phase 2 native)* |
+| `evidence` (`e`, contextual) | Evidence / attach pane → `runOperatorEvidenceAttachPane` *(Phase 2 native)* |
 | `explain` (`x`, contextual) | `runOperatorExplain` — reason codes / blocker / remediation (never synthesized from presentation text) |
 | quit (`q`) | exit `0`, terminal restored, no operator side effects |
 
@@ -134,22 +135,26 @@ Run-required commands without a selection explain how to select (`/runs` then `/
 
 Non-interactive CLI verbs are unchanged.
 
-Nested readline panes use a **soft handoff** (cooked stdin, screen clear, optional banner) and remount the Ink shell in-process — they must **not** look like a return to bash. Full alternate-screen restore (`CSI ?1049l`) is reserved for real session end (quit / abort / fatal exception). Only residual dispatch CR/LF/CRLF (one newline: `\n`, `\r`, or `\r\n`) is drained before readline so a typed answer already buffered after Enter is preserved.
+Nested readline panes (Phase 2 / legacy cockpit) use a **soft handoff** (cooked stdin, screen clear, optional banner) and remount the Ink shell in-process — they must **not** look like a return to bash. **Phase-1 choice/navigation** (launcher, run browser, overview) must remain inside Ink without that nested readline path. Full alternate-screen restore (`CSI ?1049l`) is reserved for real session end (quit / abort / fatal exception). Only residual dispatch CR/LF/CRLF (one newline: `\n`, `\r`, or `\r\n`) is drained before readline so a typed answer already buffered after Enter is preserved.
 
-## Run selector + status pane
+## Run browser + overview (native)
 
-**Fullscreen:** browse/select via Runs (`2`) and content ↑/↓; Overview (`o`) shows selected-run status. There is **no** top-level `s` / select hotkey.
+**Fullscreen:** Runs (`2`) opens the **native** run browser inside Ink; content ↑/↓ also selects a run on the home/runs surfaces. Overview (`o`) shows selected-run status. There is **no** top-level `s` / select hotkey.
 
-**Legacy readline / nested pane** (`runOperatorRunSelector`, also used under `AI_MINIONS_TUI_LEGACY=1` as action `s`):
+- Browse runs **newest-first** inside the fullscreen layout (same discovery shape as `ai-minions runs`).
+- **Freshness (Phase 1):** the native run browser opens from the **startup snapshot** already on the shell model (`model.runs` from shell-entry `loadRuns` / `runOperatorRuns`). Opening the browser does **not** re-invoke discovery; a launch in the same session is not reflected until the next shell mount / explicit refresh (Phase 2+).
+- **↑/↓** (or j/k) moves selection; **Enter** opens the selected-run overview; **Esc** cancels/back with selection preserved.
+- Overview shows compact status fields via `loadRunStatusPane` (reason codes preserved; invalid traces stay `RUN_TRACE_INVALID` with no inferred outcome).
+- Legacy readline selector (`operator-run-selector-tui.js`) remains for `AI_MINIONS_TUI_LEGACY=1` / non-Ink paths.
 
-- Lists runs **newest-first** via the same discovery as `ai-minions runs`.
-- Selection by **index**, **run id**, or **keyboard nav** (`n`/`j` next, `p`/`k` prev, Enter selects cursor). Arrow keys and mouse are **not** wired in this nested readline pane.
-- Selected run shows a compact **status pane**: run id / trace basename · outcome/status · reason code · next safe action · attach/bundle hint.
-- Invalid traces stay visible as `RUN_TRACE_INVALID` with **no inferred** outcome/state.
-- Selector commands resolve **trace basenames** safely (same quoting rules as `runs`).
-- **No** trace or gate mutation.
+## Guided launcher (native)
 
-Module: `orchestrator/modules/operator/operator-run-selector-tui.js`.
+Cockpit action **`1` / launcher** (and `/new`):
+
+- Agent mode, inference lane, gate posture, goal/fixture, preview, and confirm are navigable with the same keys as the shell.
+- Disabled hybrid remains visible with `MATRIX_SKIP_HYBRID_UNSUPPORTED` (and remediation) inline — no silent skip.
+- Confirm executes through `runOperatorGuidedLauncherPane({ selections })` so readiness / launch contracts stay authoritative.
+- Cancel/Esc returns to the previous TUI surface without leaving the session.
 
 ## Live run monitor
 
@@ -247,6 +252,7 @@ Focused harness — render/state models, integrated shell journey, and command d
 | Fullscreen shell / adapters / live monitor / cleanup | `operator-tui-shell-*.js` · `operator-tui-adapters.js` · `operator-tui-live-monitor.js` | `tests/operator/operatorTuiShellFoundation.test.js` · `tests/operator/operatorTuiLiveMonitor.test.js` |
 | Slash commands | `operator-tui-slash-commands.js` · shell entry/actions wiring | `tests/operator/operatorTuiSlashCommands.test.js` |
 | Guided launcher | `operator-guided-launcher-*.js` | `tests/operator/operatorGuidedLauncher.test.js` |
+| Native Ink workflows (Phase 1) | `operator-tui-native-workflows.js` · `operator-tui-launcher-workflow.js` · `operator-tui-run-browser-workflow.js` · `operator-tui-select-controller.js` | `tests/operator/operatorTuiNativeWorkflows.test.js` |
 | Legacy readline cockpit / non-TTY / unknown action | `operator-cockpit-tui.js` | `tests/operator/operatorCockpitTui.test.js` |
 | Run selector + status pane | `operator-run-selector-tui.js` | `tests/operator/operatorRunSelectorTui.test.js` |
 | Evidence / attach pane | `operator-evidence-attach-pane-tui.js` | `tests/operator/operatorEvidenceAttachPaneTui.test.js` |

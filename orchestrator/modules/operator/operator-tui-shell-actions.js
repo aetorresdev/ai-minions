@@ -22,6 +22,7 @@ const {
   parseSlashCommand,
   resolveSlashDispatch,
 } = require('./operator-tui-slash-commands');
+const { NATIVE_LAUNCHER_EXECUTE_ACTION } = require('./operator-tui-native-workflows');
 
 /**
  * @param {{
@@ -44,12 +45,16 @@ const {
  *   runConfigPane?: typeof runOperatorConfigReadinessPane,
  *   runLauncherPane?: typeof runOperatorGuidedLauncherPane,
  *   modelPolicy?: string,
+ *   launcherSelections?: object | null,
  * }} options
  */
 async function executeShellAction(options) {
   const actionId = String(options.actionId);
   const useColor = options.useColor === true;
   const skipRunPrompt = options.skipRunPrompt === true;
+  const launcherSelections = options.launcherSelections && typeof options.launcherSelections === 'object'
+    ? options.launcherSelections
+    : null;
   const write = options.write
     ?? ((text) => {
       const stream = options.stdout ?? process.stdout;
@@ -178,7 +183,7 @@ async function executeShellAction(options) {
       };
     }
 
-    if (actionId === 'launcher' || actionId === 'smoke') {
+    if (actionId === 'launcher' || actionId === 'smoke' || actionId === NATIVE_LAUNCHER_EXECUTE_ACTION) {
       try {
         const result = await (options.runLauncherPane ?? runOperatorGuidedLauncherPane)({
           question,
@@ -186,6 +191,8 @@ async function executeShellAction(options) {
           useColor,
           cwd: options.cwd,
           runSmokeFn: options.runSmokeFn ?? runSmoke,
+          // Native Ink workflow already collected choices — skip nested readline prompts.
+          selections: launcherSelections ?? undefined,
         });
         launcherModel = result.model ?? null;
         contentSurface = launcherModel ? 'launcher' : 'action_result';
@@ -647,6 +654,9 @@ function resolveShellActionToken(raw, selectedNavId = null) {
   const token = String(raw ?? '').trim();
   if (!token) {
     return selectedNavId ? String(selectedNavId) : null;
+  }
+  if (token === NATIVE_LAUNCHER_EXECUTE_ACTION) {
+    return NATIVE_LAUNCHER_EXECUTE_ACTION;
   }
   if (token.startsWith('/')) {
     return null;
