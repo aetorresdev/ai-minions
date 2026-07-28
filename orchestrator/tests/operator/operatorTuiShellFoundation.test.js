@@ -34,7 +34,10 @@ const {
   createTerminalGuard,
   withTerminalGuard,
   prepareNestedPaneIo,
+  prepareInkRemount,
+  drainStdin,
   RESTORE_SEQUENCE,
+  SOFT_HANDOFF_SEQUENCE,
   CLEAR_SEQUENCE,
 } = require('../../modules/operator/operator-tui-terminal-guard');
 const {
@@ -297,6 +300,16 @@ test('hotkey matrix: labeled keys dispatch panes; only q ends session', () => {
   assert.equal(enterLauncher.actionId, 'launcher');
   assert.equal(enterLauncher.endsSession, false);
 
+  // Terminals that emit \n (Ink name "enter") must also dispatch — not ignore/quit.
+  const enterNewline = resolveShellKeypress('\n', {}, {
+    ...model,
+    focus: 'nav',
+    selectedNavId: 'launcher',
+  });
+  assert.equal(enterNewline.type, 'dispatch');
+  assert.equal(enterNewline.actionId, 'launcher');
+  assert.equal(enterNewline.endsSession, false);
+
   // Enter on highlighted quit → intentional quit.
   const enterQuit = resolveShellKeypress('', { return: true }, {
     ...model,
@@ -415,12 +428,259 @@ test('prepareNestedPaneIo clears screen so nested panes do not overprint Ink', (
       resume() { resumed = true; },
       setRawMode(mode) { rawMode = Boolean(mode); },
     },
+    drain: false,
   });
   assert.equal(result.ok, true);
   assert.equal(result.wrote, true);
-  assert.deepEqual(writes, [CLEAR_SEQUENCE]);
+  assert.ok(writes.includes(SOFT_HANDOFF_SEQUENCE));
+  assert.ok(writes.includes(CLEAR_SEQUENCE));
+  assert.ok(!writes.includes(RESTORE_SEQUENCE), 'nested pane must not exit alt-screen');
   assert.equal(resumed, true);
   assert.equal(rawMode, false);
+});
+
+test('drainStdin strips one dispatch newline but preserves next answer', () => {
+  const stdin = new PassThrough();
+  stdin.write('\nc\n');
+  const n = drainStdin(stdin);
+  assert.equal(n, 1);
+  assert.equal(String(stdin.read()), 'c\n');
+});
+
+test('drainStdin strips CRLF residue and leaves following answer', () => {
+  const stdin = new PassThrough();
+  stdin.write('\r\nyes\n');
+  const n = drainStdin(stdin);
+  assert.equal(n, 2);
+  assert.equal(String(stdin.read()), 'yes\n');
+});
+
+test('drainStdin strips bare CR residue and leaves following answer', () => {
+  const stdin = new PassThrough();
+  stdin.write('\rc\n');
+  const n = drainStdin(stdin);
+  assert.equal(n, 1);
+  assert.equal(String(stdin.read()), 'c\n');
+});
+
+test('drainStdin does not discard a buffered answer without leading newline', () => {
+  const stdin = new PassThrough();
+  stdin.write('c\n');
+  const n = drainStdin(stdin);
+  assert.equal(n, 0);
+  assert.equal(String(stdin.read()), 'c\n');
+});
+
+test('drainStdin never discards a second buffered newline as residue', () => {
+  // Fast type-ahead may leave `\n` (dispatch) + `c\n` (answer). Only one residue.
+  const stdin = new PassThrough();
+  stdin.write('\nc\n');
+  assert.equal(drainStdin(stdin), 1);
+  assert.equal(drainStdin(stdin), 0, 'second call must not eat answer newline');
+  assert.equal(String(stdin.read()), 'c\n');
+});
+
+test('prepareNestedPaneIo preserves buffered prompt answer after dispatch Enter', async () => {
+  const { createInterface } = require('node:readline');
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  // Residue Enter from dispatch + operator answer already buffered.
+  stdin.write('\nc\n');
+  const prep = prepareNestedPaneIo({
+    stdin,
+    stdout,
+    writeClear: () => {},
+    clear: false,
+    banner: null,
+  });
+  assert.equal(prep.drained, 1);
+  const rl = createInterface({ input: stdin, output: stdout, terminal: false });
+  const answer = await new Promise((resolve) => {
+    rl.question('Select: ', (a) => resolve(a));
+  });
+  rl.close();
+  assert.equal(answer, 'c');
+});
+
+test('prepareNestedPaneIo preserves answer after bare CR residue', async () => {
+  const { createInterface } = require('node:readline');
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  stdin.write('\rc\n');
+  const prep = prepareNestedPaneIo({
+    stdin,
+    stdout,
+    writeClear: () => {},
+    clear: false,
+    banner: null,
+  });
+  assert.equal(prep.drained, 1);
+  const rl = createInterface({ input: stdin, output: stdout, terminal: false });
+  const answer = await new Promise((resolve) => {
+    rl.question('Select: ', (a) => resolve(a));
+  });
+  rl.close();
+  assert.equal(answer, 'c');
+});
+
+test('shell nested pane receives answer buffered immediately after dispatch Enter', async () => {
+  const { createInterface } = require('node:readline');
+  const { stdin, stdout } = createFakeTtyStreams();
+  const answers = [];
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    maxLoops: 2,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onRequestAction }) => {
+        // Fast `1<Enter>c<Enter>`: residue + answer already buffered when nested I/O starts.
+        stdin.write('\nc\n');
+        onRequestAction('launcher');
+        return { aborted: false, requestedAction: 'launcher' };
+      },
+    }),
+    executeAction: async ({ stdin: actionStdin, stdout: actionStdout }) => {
+      const rl = createInterface({
+        input: actionStdin,
+        output: actionStdout,
+        terminal: false,
+      });
+      const answer = await new Promise((resolve) => {
+        rl.question('Select: ', (a) => resolve(a));
+      });
+      rl.close();
+      answers.push(answer);
+      return {
+        quit: true,
+        selectedRunId: null,
+        contentSurface: 'launcher',
+        actionResult: {
+          action_id: 'launcher',
+          ok: true,
+          exit_code: 0,
+          reason_code: 'LAUNCHER_CANCELLED',
+          text: `got:${answer}`,
+        },
+        evidenceModel: null,
+        configModel: null,
+        statusResult: null,
+        runsPayload: null,
+      };
+    },
+  });
+  assert.deepEqual(answers, ['c'], 'nested prompt must receive buffered answer, not hang');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.equal(result.guard.restored, true);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('withTerminalGuard success softens; session-end restore emits alt-screen exit once', async () => {
+  const writes = [];
+  const stdin = {
+    isTTY: true,
+    isRaw: false,
+    setRawMode(mode) {
+      this.isRaw = Boolean(mode);
+      return this;
+    },
+  };
+  const guard = createTerminalGuard({
+    stdin,
+    writeRestore: (seq) => writes.push(seq),
+  });
+  stdin.setRawMode(true);
+  await withTerminalGuard(guard, async () => 'ok', 'normal');
+  assert.equal(guard.restored, false, 'success path must not full-restore');
+  assert.ok(writes.includes(SOFT_HANDOFF_SEQUENCE));
+  assert.ok(!writes.includes(RESTORE_SEQUENCE));
+  guard.restore('quit');
+  assert.equal(guard.restored, true);
+  assert.ok(writes.includes(RESTORE_SEQUENCE));
+});
+
+test('prepareInkRemount resumes stdin after readline pause', () => {
+  let resumed = 0;
+  const result = prepareInkRemount({
+    stdin: {
+      isPaused: () => true,
+      resume() { resumed += 1; },
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.resumed, true);
+  assert.equal(resumed, 1);
+});
+
+test('key 1 with leftover Enter still opens launcher and remounts (no silent quit)', async () => {
+  const actions = [];
+  const answers = [];
+  const { stdin, stdout } = createFakeTtyStreams();
+  const { executeShellAction } = require('../../modules/operator/operator-tui-shell-actions');
+  const promise = runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    maxLoops: 3,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    executeAction: async (opts) => {
+      actions.push(opts.actionId);
+      return executeShellAction({
+        ...opts,
+        stdin,
+        stdout,
+        runLauncherPane: async ({ question, write }) => {
+          write('LAUNCHER_LIVE');
+          const a = await question('Select: ');
+          answers.push(a);
+          return {
+            ok: true,
+            exitCode: 0,
+            reason_code: 'LAUNCHER_CANCELLED',
+            model: null,
+            text: 'cancelled',
+            launched: false,
+          };
+        },
+      });
+    },
+  });
+  await new Promise((r) => setTimeout(r, 100));
+  // Paste-style "1"+Enter (Ink may deliver as one chunk) must still dispatch launcher.
+  stdin.write('1\r');
+  await new Promise((r) => setTimeout(r, 120));
+  // Drain should leave the prompt waiting — cancel explicitly.
+  if (actions[0] === 'launcher' && answers.length === 0) {
+    stdin.write('c\n');
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  stdin.write('q');
+  const result = await promise;
+  assert.equal(actions[0], 'launcher');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('resolveNavHotkey accepts paste bundle 1\\r', () => {
+  const model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    runsPayload: canonicalRunsResult([]),
+  });
+  assert.equal(resolveNavHotkey('1\r', model.navItems), 'launcher');
+  assert.equal(resolveShellKeypress('1\r', {}, { ...model, focus: 'nav' }).type, 'dispatch');
+  assert.equal(resolveShellKeypress('1\r', {}, { ...model, focus: 'nav' }).actionId, 'launcher');
 });
 
 test('non-TTY path does not initialize Ink/React', async () => {
@@ -438,7 +698,7 @@ test('non-TTY path does not initialize Ink/React', async () => {
   assert.match(result.text, /ai-minions smoke/);
 });
 
-test('terminal guard restores after normal, exception, and child failure', async () => {
+test('terminal guard softens after success; full-restores on exception and harness child inject', async () => {
   const writes = [];
   const stdin = {
     isTTY: true,
@@ -454,8 +714,11 @@ test('terminal guard restores after normal, exception, and child failure', async
   });
   stdin.setRawMode(true);
   await withTerminalGuard(guard, async () => 'ok', 'normal');
-  assert.equal(guard.restored, true);
+  assert.equal(guard.restored, false);
   assert.equal(stdin.isRaw, false);
+  assert.ok(writes.some((w) => w === SOFT_HANDOFF_SEQUENCE));
+  guard.restore('normal');
+  assert.equal(guard.restored, true);
   assert.ok(writes.some((w) => w === RESTORE_SEQUENCE));
 
   const child = await runOperatorTuiShell({
@@ -532,6 +795,195 @@ test('Ctrl+C abort restores terminal', async () => {
   stdout.destroy();
 });
 
+test('non-fatal failed action result soft-remounts; full restore only on quit', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  const out = [];
+  stdout.on('data', (chunk) => {
+    out.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+  });
+  let renderPasses = 0;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    maxLoops: 2,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onRequestAction }) => {
+        renderPasses += 1;
+        if (renderPasses === 1) {
+          onRequestAction('smoke');
+          return { aborted: false, requestedAction: 'smoke' };
+        }
+        onRequestAction('q');
+        return { aborted: false, requestedAction: 'q' };
+      },
+    }),
+    executeAction: async ({ actionId }) => {
+      if (actionId === 'quit') {
+        return {
+          quit: true,
+          selectedRunId: null,
+          contentSurface: 'action_result',
+          actionResult: {
+            action_id: 'quit',
+            ok: true,
+            exit_code: 0,
+            reason_code: null,
+            text: 'quit',
+          },
+          evidenceModel: null,
+          configModel: null,
+          statusResult: null,
+          runsPayload: null,
+        };
+      }
+      return {
+        quit: false,
+        selectedRunId: null,
+        contentSurface: 'action_result',
+        actionResult: {
+          action_id: 'smoke',
+          ok: false,
+          exit_code: 1,
+          reason_code: 'SMOKE_FAILED',
+          text: 'failed',
+        },
+        evidenceModel: null,
+        configModel: null,
+        statusResult: null,
+        runsPayload: null,
+      };
+    },
+  });
+  const joined = out.join('');
+  const restoreCount = joined.split(RESTORE_SEQUENCE).length - 1;
+  const softCount = joined.split(SOFT_HANDOFF_SEQUENCE).length - 1;
+  assert.equal(renderPasses, 2, 'failed action must remount for a second Ink frame');
+  assert.ok(softCount >= 1, 'ok:false uses soft handoff (not session-ending)');
+  assert.equal(restoreCount, 1, 'alt-screen exit only once at session end');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
+  assert.equal(result.guard.restored, true);
+  assert.equal(result.model.actionResult?.reason_code, 'SMOKE_FAILED');
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('caught launch failure (runSmoke throw → ok:false) soft-remounts', async () => {
+  const { executeShellAction } = require('../../modules/operator/operator-tui-shell-actions');
+  const {
+    runOperatorGuidedLauncherPane,
+  } = require('../../modules/operator/operator-guided-launcher-pane-tui');
+  const { stdin, stdout } = createFakeTtyStreams();
+  const out = [];
+  stdout.on('data', (chunk) => {
+    out.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+  });
+  let renderPasses = 0;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    maxLoops: 2,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onRequestAction }) => {
+        renderPasses += 1;
+        if (renderPasses === 1) {
+          onRequestAction('launcher');
+          return { aborted: false, requestedAction: 'launcher' };
+        }
+        onRequestAction('q');
+        return { aborted: false, requestedAction: 'q' };
+      },
+    }),
+    executeAction: async (opts) => {
+      if (opts.actionId === 'quit') {
+        return executeShellAction({ ...opts, stdin, stdout });
+      }
+      return executeShellAction({
+        ...opts,
+        stdin,
+        stdout,
+        runLauncherPane: async (paneOpts) => runOperatorGuidedLauncherPane({
+          ...paneOpts,
+          selections: {
+            agentFlow: 'single_agent',
+            inferenceLane: 'local_only',
+            gatePosture: 'degraded',
+            goalSource: 'custom',
+            goal: 'x',
+            confirm: true,
+          },
+          env: {},
+          localBackendReachable: true,
+          runSmokeFn: async () => {
+            throw new Error('spawn failed');
+          },
+        }),
+      });
+    },
+  });
+  const joined = out.join('');
+  const restoreCount = joined.split(RESTORE_SEQUENCE).length - 1;
+  const softCount = joined.split(SOFT_HANDOFF_SEQUENCE).length - 1;
+  assert.equal(renderPasses, 2, 'caught launch failure must remount for a second Ink frame');
+  assert.ok(softCount >= 1, 'caught launch ok:false uses soft handoff');
+  assert.equal(restoreCount, 1, 'alt-screen exit only once at session end');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.CHILD_FAILURE);
+  assert.equal(result.guard.restored, true);
+  assert.equal(result.model.actionResult?.ok, false);
+  assert.equal(result.model.actionResult?.reason_code, 'LAUNCHER_RUN_FAILED');
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('thrown action exception full-restores terminal', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  const out = [];
+  stdout.on('data', (chunk) => {
+    out.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+  });
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    maxLoops: 1,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onRequestAction }) => {
+        onRequestAction('smoke');
+        return { aborted: false, requestedAction: 'smoke' };
+      },
+    }),
+    executeAction: async () => {
+      throw new Error('boom');
+    },
+  });
+  const joined = out.join('');
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
+  assert.equal(result.guard.restored, true);
+  assert.ok(
+    joined.includes(RESTORE_SEQUENCE),
+    'thrown exception must emit full alt-screen restore',
+  );
+  stdin.destroy();
+  stdout.destroy();
+});
+
 test('action failure returns to shell state with reason_code', async () => {
   const { stdin, stdout } = createFakeTtyStreams();
   const result = await runOperatorTuiShell({
@@ -568,7 +1020,9 @@ test('action failure returns to shell state with reason_code', async () => {
     }),
   });
   assert.equal(result.model.actionResult.reason_code, 'SMOKE_FAILED');
+  // maxLoops/autoQuit ends the session — restore is session-end, not action-failure.
   assert.equal(result.guard.restored, true);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.OK);
   stdin.destroy();
   stdout.destroy();
 });

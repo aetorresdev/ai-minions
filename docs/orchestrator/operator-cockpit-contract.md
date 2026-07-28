@@ -80,7 +80,7 @@ Run-required commands without a selection explain how to select (`/runs` then `/
 
 Non-interactive CLI verbs are unchanged.
 
-Nested readline panes temporarily restore the terminal, **clear the screen**, resume stdin, run the existing operator pane (prompt already focused — type a key then Enter; j/k moves cursor; no mouse / no arrow keys), then remount the Ink shell in-process (no return to bash).
+Nested readline panes use a **soft handoff** (cooked stdin, screen clear, optional banner) and remount the Ink shell in-process — they must **not** look like a return to bash. Full alternate-screen restore (`CSI ?1049l`) is reserved for real session end (quit / abort / fatal exception). Only residual dispatch CR/LF/CRLF (one newline: `\n`, `\r`, or `\r\n`) is drained before readline so a typed answer already buffered after Enter is preserved.
 
 ## Run selector + status pane
 
@@ -155,13 +155,24 @@ Human shell text follows `terminal-style` / `NO_COLOR` / `--color`. JSON, Markdo
 
 ## Cleanup / terminal restore
 
-The shell restores raw mode + alternate-screen / cursor sequences after:
+The shell restores raw mode + alternate-screen / cursor sequences after **session end**:
 
-- normal quit
-- Ctrl+C
+- normal quit / `q` / `/quit`
+- Ctrl+C abort
 - renderer exception
-- operator action failure
-- simulated / real child-process failure
+- thrown / fatal operator action exception (`executeAction` throws)
+
+Caught `runSmoke` / `runStart` errors inside the guided launcher return `ok: false` (non-throwing failed **result**) and soft-remount the Ink shell — they are **not** session-ending full restores.
+
+**Failure classes (do not conflate):**
+
+| Class | Example | Terminal restore |
+|-------|---------|------------------|
+| In-session failed action **result** | `executeAction` returns `actionResult.ok: false` / non-zero exit (no throw); guided launcher catches `runSmoke`/`runStart` errors → `ok: false` | **Soft** handoff + Ink remount — **no** `CSI ?1049l` |
+| Fatal action **exception** | `executeAction` **throws** (uncaught) | **Full** restore (`restore('action_failure')` + `CSI ?1049l`) |
+| Real session end | `q` / abort / renderer exception | **Full** restore |
+
+Between Ink frames and nested readline panes the shell uses a **soft handoff** (cursor + cooked mode + clear) without leaving the session buffer. Drain only residual dispatch CR/LF/CRLF (one newline: `\n`, `\r`, or `\r\n`) before nested readline; do not discard the operator’s next answer.
 
 ## Quality gate (mandatory when TUI ships)
 
@@ -198,7 +209,7 @@ The gate asserts via adapter/state models (not presentation-text parsing alone):
 - No percentage/progress/success inferred from model prose or iteration count
 - Missing budget/cost/verifier data is not fabricated as zero
 - Returning to a menu / detaching / Ctrl+C does not silently cancel or mutate a run to success
-- Terminal mode, cursor, restore sequence, and simulated child-process failures clean up
+- Terminal mode, cursor, and restore sequence clean up on real session end (quit / abort / renderer or thrown action exception)
 
 ### Platform evidence (release-prep honesty)
 

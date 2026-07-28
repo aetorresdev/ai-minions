@@ -156,9 +156,14 @@ function buildShellModel(options = {}) {
  */
 function resolveNavHotkey(raw, navItems) {
   const token = String(raw ?? '');
-  if (!token || token.length !== 1) return null;
+  if (!token) return null;
+  // Ink may deliver paste/"1\r" as one string — use the first printable keystroke.
+  const key = token.length === 1
+    ? token
+    : (token.match(/[0-9a-z]/i) || [])[0] || '';
+  if (!key || key.length !== 1) return null;
   const items = Array.isArray(navItems) ? navItems : [];
-  const match = items.find((item) => String(item.key) === token);
+  const match = items.find((item) => String(item.key) === key);
   return match ? String(match.id) : null;
 }
 
@@ -206,6 +211,8 @@ function isShellSessionEndAction(actionId) {
 function resolveShellKeypress(input, key = {}, model = {}) {
   const focus = String(model.focus ?? 'nav');
   const keyObj = key && typeof key === 'object' ? key : {};
+  // Some terminals emit \n (name "enter") instead of \r (name "return").
+  const isReturn = Boolean(keyObj.return) || input === '\r' || input === '\n';
 
   if (keyObj.ctrl && input === 'c') {
     return { type: 'abort', endsSession: true };
@@ -221,6 +228,7 @@ function resolveShellKeypress(input, key = {}, model = {}) {
   }
 
   // Labeled hotkeys (1/2/s/e/3/m/4/5/q) — work without Tab→input.
+  // Also accept paste bundles like "1\r" (Ink delivers multi-char once).
   if (
     focus !== 'input'
     && input
@@ -230,7 +238,7 @@ function resolveShellKeypress(input, key = {}, model = {}) {
     && !keyObj.downArrow
     && !keyObj.leftArrow
     && !keyObj.rightArrow
-    && !keyObj.return
+    && !(isReturn && input.length <= 1)
   ) {
     const hotkeyAction = resolveNavHotkey(input, model.navItems);
     if (hotkeyAction) {
@@ -248,7 +256,7 @@ function resolveShellKeypress(input, key = {}, model = {}) {
     if (keyObj.downArrow || input === 'j') {
       return { type: 'nav_move', direction: 'next', endsSession: false };
     }
-    if (keyObj.return) {
+    if (isReturn) {
       const id = model.selectedNavId == null || model.selectedNavId === ''
         ? null
         : String(model.selectedNavId);
@@ -267,13 +275,13 @@ function resolveShellKeypress(input, key = {}, model = {}) {
     if (keyObj.downArrow || input === 'j') {
       return { type: 'run_move', direction: 'next', endsSession: false };
     }
-    if (keyObj.return && model.selectedRunId) {
+    if (isReturn && model.selectedRunId) {
       return { type: 'dispatch', actionId: 'monitor', endsSession: false };
     }
   }
 
   if (focus === 'input') {
-    if (keyObj.return) {
+    if (isReturn) {
       const token = String(model.commandInput ?? '').trim();
       if (!token) return { type: 'input_clear_submit', endsSession: false };
       if (isShellSessionEndAction(token) || token === '/quit') {
@@ -284,7 +292,7 @@ function resolveShellKeypress(input, key = {}, model = {}) {
     if (keyObj.backspace || keyObj.delete) {
       return { type: 'input_backspace', endsSession: false };
     }
-    if (input && !keyObj.ctrl && !keyObj.meta) {
+    if (input && !keyObj.ctrl && !keyObj.meta && input !== '\r' && input !== '\n') {
       return { type: 'input_char', char: input, endsSession: false };
     }
     return { type: 'ignore', endsSession: false };

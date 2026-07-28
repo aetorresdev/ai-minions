@@ -53,6 +53,7 @@ const {
   createTerminalGuard,
   withTerminalGuard,
   RESTORE_SEQUENCE,
+  SOFT_HANDOFF_SEQUENCE,
 } = require('../../modules/operator/operator-tui-terminal-guard');
 
 const {
@@ -409,7 +410,10 @@ test('fullscreen boot clean exit and failure paths restore terminal', async () =
     }),
   });
   assert.equal(actionFail.model.actionResult.reason_code, 'SMOKE_FAILED');
+  // ok:false remounts soft; session ends via maxLoops/autoQuit — not ACTION_FAILURE.
   assert.equal(actionFail.guard.restored, true);
+  assert.notEqual(actionFail.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
+  assert.equal(actionFail.reason_code, TUI_SHELL_REASON.OK);
   actionStreams.stdin.destroy();
   actionStreams.stdout.destroy();
 
@@ -428,8 +432,12 @@ test('fullscreen boot clean exit and failure paths restore terminal', async () =
   });
   guardStdin.setRawMode(true);
   await withTerminalGuard(guard, async () => 'ok', 'normal');
-  assert.equal(guard.restored, true);
+  // Success softens for remount/pane handoff — full restore is session-end only.
+  assert.equal(guard.restored, false);
   assert.equal(guardStdin.isRaw, false);
+  assert.ok(writes.includes(SOFT_HANDOFF_SEQUENCE));
+  guard.restore('normal');
+  assert.equal(guard.restored, true);
   assert.ok(writes.includes(RESTORE_SEQUENCE));
 });
 

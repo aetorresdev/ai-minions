@@ -24,6 +24,7 @@ const {
   createTerminalGuard,
   withTerminalGuard,
   prepareNestedPaneIo,
+  prepareInkRemount,
 } = require('./operator-tui-terminal-guard');
 const { adaptActionResult } = require('./operator-tui-adapters');
 
@@ -250,6 +251,7 @@ async function runOperatorTuiShell(options = {}) {
       }
 
       if (aborted && !requestedAction) {
+        if (!guard.restored) guard.restore('abort');
         return {
           ok: true,
           exitCode: 0,
@@ -263,6 +265,8 @@ async function runOperatorTuiShell(options = {}) {
       }
 
       if (!requestedAction) {
+        // Soft handoff from withTerminalGuard must become a full session-end restore.
+        if (!guard.restored) guard.restore('normal');
         return {
           ok: true,
           exitCode: 0,
@@ -343,9 +347,12 @@ async function runOperatorTuiShell(options = {}) {
         }
 
         if (plan.disposition === 'dispatch' && plan.action_id) {
-          if (!guard.restored) guard.restore('action_dispatch');
-          // Nested readline panes must not overprint the last Ink frame.
-          prepareNestedPaneIo({ stdin, stdout });
+          // Soft handoff already done by withTerminalGuard — do not emit alt-screen exit.
+          prepareNestedPaneIo({
+            stdin,
+            stdout,
+            banner: 'ai-minions tui · nested pane (session still active)',
+          });
           let actionOutcome;
           try {
             actionOutcome = await executeAction({
@@ -392,6 +399,7 @@ async function runOperatorTuiShell(options = {}) {
           lastExitCode = actionResult?.exit_code ?? lastExitCode;
 
           if (actionOutcome.quit) {
+            if (!guard.restored) guard.restore('quit');
             return {
               ok: true,
               exitCode: 0,
@@ -404,6 +412,7 @@ async function runOperatorTuiShell(options = {}) {
             };
           }
 
+          prepareInkRemount({ stdin });
           guard = createTerminalGuard({ stdin, stdout });
           // Reuse readiness snapshot on remount — only config pane refreshes PATH/creds.
           if (plan.action_id === 'config') {
@@ -485,10 +494,12 @@ async function runOperatorTuiShell(options = {}) {
         continue;
       }
 
-      // Restore terminal before nested readline panes / operator actions.
-      if (!guard.restored) guard.restore('action_dispatch');
-      // Nested readline panes must not overprint the last Ink frame.
-      prepareNestedPaneIo({ stdin, stdout });
+      // Soft handoff already done by withTerminalGuard — avoid alt-screen exit flash.
+      prepareNestedPaneIo({
+        stdin,
+        stdout,
+        banner: 'ai-minions tui · nested pane (session still active)',
+      });
 
       let actionOutcome;
       try {
@@ -535,6 +546,7 @@ async function runOperatorTuiShell(options = {}) {
       lastExitCode = actionResult?.exit_code ?? lastExitCode;
 
       if (actionOutcome.quit) {
+        if (!guard.restored) guard.restore('quit');
         return {
           ok: true,
           exitCode: 0,
@@ -548,6 +560,7 @@ async function runOperatorTuiShell(options = {}) {
       }
 
       // Fresh guard for next Ink mount after nested action I/O.
+      prepareInkRemount({ stdin });
       guard = createTerminalGuard({ stdin, stdout });
 
       // Reuse readiness snapshot on remount — config pane refreshes PATH/creds.

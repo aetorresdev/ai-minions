@@ -563,7 +563,15 @@ async function executeShellAction(options) {
       launcherModel: null,
     };
   } finally {
-    if (rl) rl.close();
+    if (rl) {
+      try {
+        rl.close();
+      } finally {
+        // readline.pause()s stdin — Ink remount needs it resumed.
+        const { prepareInkRemount } = require('./operator-tui-terminal-guard');
+        prepareInkRemount({ stdin: options.stdin ?? process.stdin });
+      }
+    }
   }
 }
 
