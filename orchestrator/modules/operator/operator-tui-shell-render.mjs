@@ -13,10 +13,11 @@ const {
   isInkLocalShellAction,
   contentSurfaceForLocalAction,
 } = require('./operator-tui-shell-model.js');
-const { resolveShellTheme, focusBorderColor, toneColor } = require('./operator-tui-theme.js');
+const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor } = require('./operator-tui-theme.js');
 const {
   buildSplashContent,
   resolveSplashDurationMs,
+  resolveSplashFrameHeight,
   shouldSkipSplash,
 } = require('./operator-tui-splash.js');
 const {
@@ -74,8 +75,10 @@ function SplashApp(props) {
   } = props;
   const { exit } = useApp();
   const theme = resolveShellTheme({ colorEnabled: model.colorEnabled });
+  const height = resolveSplashFrameHeight(model.rows);
   const content = buildSplashContent({
     columns: model.columns,
+    rows: height,
     version: model.version,
     readiness: model.readiness,
   });
@@ -108,7 +111,30 @@ function SplashApp(props) {
     finish();
   });
 
-  const height = Math.max(12, model.rows ?? 24);
+  const renderSegments = (segments, keyPrefix) => React.createElement(
+    Box,
+    { key: keyPrefix, flexDirection: 'row' },
+    ...(segments || []).map((seg, idx) => React.createElement(
+      Text,
+      {
+        key: `${keyPrefix}-${idx}`,
+        bold: seg.bold === true,
+        color: splashToneColor(theme, seg.tone),
+        dimColor: seg.tone === 'muted',
+      },
+      seg.text,
+    )),
+  );
+
+  // Prefer a single Text for the triad when color is off (NO_COLOR / markers).
+  // When color is on, paint Validate / Trace / Enforce with triad tokens.
+  const triadNode = theme.triadValidate
+    ? renderSegments(content.triadSegments, 'triad')
+    : React.createElement(
+      Text,
+      { key: 'triad', color: theme.muted },
+      content.triad || 'Validate • Trace • Enforce',
+    );
 
   return React.createElement(
     Box,
@@ -117,24 +143,28 @@ function SplashApp(props) {
       width: model.columns,
       height,
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: content.density === 'minimal' ? 'flex-start' : 'center',
       borderStyle: 'double',
       borderColor: theme.focus,
       paddingX: 1,
     },
-    ...content.lines.map((line, idx) => React.createElement(
-      Text,
-      { key: `b-${idx}`, bold: theme.titleBold, color: theme.brand },
-      line,
-    )),
-    React.createElement(Text, { color: theme.accent }, content.subtitle),
-    React.createElement(Text, { dimColor: true, color: theme.muted }, content.tagline),
-    React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' ')),
+    ...(content.rows || []).map((row, idx) => renderSegments(row.segments, `art-${idx}`)),
+    content.showSpacers
+      ? React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' '))
+      : null,
+    content.showProductTagline
+      ? React.createElement(Text, { color: theme.accent }, content.productTagline || content.tagline)
+      : null,
+    triadNode,
+    React.createElement(Text, { color: theme.muted }, content.subtitle),
+    content.showSpacers
+      ? React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' '))
+      : null,
     React.createElement(Text, { color: theme.warn }, content.hint),
     React.createElement(
       Text,
       { dimColor: true, color: theme.muted },
-      'Presentation polish only — not Web UI · not mouse · not durable resume',
+      content.disclaimer || 'Presentation polish only — not Web UI · not mouse · not durable resume',
     ),
   );
 }
@@ -913,14 +943,15 @@ export async function renderOperatorTuiShell(options) {
 /**
  * Deterministic string render for tests (no raw mode / alternate screen).
  * @param {object} model
- * @param {{ columns?: number, showSplash?: boolean }} [opts]
+ * @param {{ columns?: number, rows?: number, showSplash?: boolean }} [opts]
  */
 export function renderOperatorTuiShellToString(model, opts = {}) {
   const columns = opts.columns ?? model.columns ?? 80;
+  const rows = opts.rows ?? model.rows ?? 24;
   const showSplash = opts.showSplash === true;
   return renderToString(
     React.createElement(OperatorTuiRoot, {
-      initialModel: buildShellModel({ ...shellModelToOptions(model), columns }),
+      initialModel: buildShellModel({ ...shellModelToOptions(model), columns, rows }),
       showSplash,
     }),
     { columns },

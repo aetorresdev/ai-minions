@@ -14,7 +14,7 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 
 | Need | Command | Output |
 |------|---------|--------|
-| Interactive action loop (TTY) | `ai-minions tui` | Fullscreen Ink shell: brand splash · guided launcher/runs/select/status/**live monitor**/evidence/attach/config/quit |
+| Interactive action loop (TTY) | `ai-minions tui` | Fullscreen Ink shell: Cerberus brand splash · task-first Home / New Run / Runs / System Status / Settings / Help · contextual selected-run Overview / **live monitor** / Evidence / Explain |
 | Discover and select a recent run | `ai-minions runs [--limit 20]` | Newest-first run list + explicit `status --run-id` command |
 | Terminal summary + critical decision fields | `ai-minions status --run-id <id>` | Human text + optional `--json` with `run_state_visibility` and `operator_trace_summary` |
 | Why blocked / degraded / failed | `ai-minions explain --run-id <id>` | Reason codes + remediation narrative |
@@ -141,15 +141,25 @@ Exit `2` when trace missing — same fail-closed semantics as `status`.
 ai-minions tui
 ```
 
-Persistent action loop: product status + **guided launcher (`1`)** / runs / **select run + status pane** / **evidence / attach pane** / status / **live monitor (`m`)** / attach / **config / credentials readiness pane** / quit. Calls the same modules as the named CLI verbs. Non-TTY bare `tui` exits with equivalent verb guidance (no hang).
+Fullscreen Ink shell (task-first). First paint may show the Cerberus brand splash (Validate / Trace / Enforce; skip with `AI_MINIONS_TUI_SKIP_SPLASH=1`), then the shell below. Calls the same modules as the named CLI verbs. Non-TTY bare `tui` exits with equivalent verb guidance (no hang).
 
-**Guided launcher (`1`):** agent×inference modes, prerequisites, execution summary, then existing CLI contracts (`smoke` / `start`).
+**Top-level navigation:**
 
-**Select (`s`):** newest-first run list (same discovery as `runs`); pick by index, run id, or `n`/`p` navigation; shows compact status pane (basename, outcome/status, reason code, next safe action, attach hint). Invalid traces stay `RUN_TRACE_INVALID` with no inferred state.
+| Key | Surface |
+|-----|---------|
+| `h` | Home (Quick Start · System Readiness · Recent Runs) |
+| `1` | New Run (guided launcher → existing `smoke` / `start` contracts) |
+| `2` | Runs (newest-first discovery; same SoT as `ai-minions runs`) |
+| `3` | System Status (diagnostics / doctor-class readiness) |
+| `4` | Settings (config / credentials readiness) |
+| `5` / `?` | Help |
+| `q` / `/quit` | End session |
 
-**Live monitor (`m`):** read-only phase + reason-code surface for the selected run (same status/trace SoT as `status`); menu/quit detach does not cancel the run.
+**Selected-run contextual views** (only when a run is selected — not top-level hotkeys): Overview (`o`) · **live monitor (`m`)** · Evidence (`e`) · Explain (`x`). Monitor is read-only phase + reason-code (same status/trace SoT as `status`); detach does not cancel the run. Invalid traces stay `RUN_TRACE_INVALID` with no inferred state. Attach remains via evidence pane / `/attach` / CLI — not a top-level digit.
 
-Contract: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md). Quality gate (mandatory when TUI ships): `cd orchestrator && npm run test:tui-quality` (MVP matrix + integrated fullscreen journey; platform evidence honesty for release-prep).
+**Legacy rollback:** `AI_MINIONS_TUI_LEGACY=1` restores the previous readline cockpit (Select `s`, digit-mapped attach/config, old loop) without Ink. Under the fullscreen shell, top-level `s` is ignored. Full matrix: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md).
+
+Quality gate (mandatory when TUI ships): `cd orchestrator && npm run test:tui-quality` (MVP matrix + integrated fullscreen journey; platform evidence honesty for release-prep).
 
 **Not claimed:** Web UI · durable resume · Loop Contract storage · Windows interactive TUI.
 
