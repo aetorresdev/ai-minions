@@ -1,9 +1,9 @@
 {
   "meta": {
-    "tip_sha": "2792f71d522bc72da79541caa761d5a19718b8c6",
+    "tip_sha": "ddc8416faeb3e539f23c1e0e238eb4a09439f9b4",
     "ink_version": "7.1.1",
     "node": "v24.11.1",
-    "collected_at": "2026-07-28T21:25:14.988Z",
+    "collected_at": "2026-07-28T21:34:59.574Z",
     "method": "ink.renderToString",
     "note": "Contract snapshots only — not clipped TTY / visual UX evidence. Use capture-tui-landing-tty.sh for real terminal frames."
   },
@@ -23,6 +23,32 @@
     },
     "ready_80x24": {
       "fixture": "tests/fixtures/tui/landing/ready-80x24.txt",
+      "columns": 80,
+      "rows": 24,
+      "rendered_lines": 22,
+      "max_display_width": 80,
+      "viewport_columns": 80,
+      "viewport_rows": 24,
+      "has_ansi": false,
+      "has_start_new_run": true,
+      "has_overall": true,
+      "fits_viewport": true
+    },
+    "ready_nerd_120x36": {
+      "fixture": "tests/fixtures/tui/landing/ready-nerd-120x36.txt",
+      "columns": 120,
+      "rows": 36,
+      "rendered_lines": 29,
+      "max_display_width": 120,
+      "viewport_columns": 120,
+      "viewport_rows": 36,
+      "has_ansi": false,
+      "has_start_new_run": true,
+      "has_overall": true,
+      "fits_viewport": true
+    },
+    "ready_nerd_80x24": {
+      "fixture": "tests/fixtures/tui/landing/ready-nerd-80x24.txt",
       "columns": 80,
       "rows": 24,
       "rendered_lines": 22,

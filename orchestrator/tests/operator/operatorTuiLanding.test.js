@@ -502,11 +502,35 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/],
       expectNot: [/CERBERUS/],
     },
+    // Runtime default icons=nerd (unicode fixtures stay portable for review).
+    {
+      id: 'ready_nerd_120x36',
+      columns: 120,
+      rows: 36,
+      fixture: 'ready-nerd-120x36.txt',
+      layout: 'wide',
+      options: readyShellOptions({ columns: 120, rows: 36, icons: 'nerd' }),
+      expectMatch: [/AI-MINIONS/, /CERBERUS/, /Start New Run/, /Overall:/, /Recent Runs/],
+      expectNot: [],
+    },
+    {
+      id: 'ready_nerd_80x24',
+      columns: 80,
+      rows: 24,
+      fixture: 'ready-nerd-80x24.txt',
+      layout: 'mid',
+      options: readyShellOptions({ columns: 80, rows: 24, icons: 'nerd' }),
+      expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/, /System Readiness/],
+      expectNot: [/CERBERUS/, /Recent Runs/],
+    },
   ];
 
   for (const c of cases) {
     const model = buildShellModel(c.options);
     assert.equal(model.landingLayout, c.layout, c.id);
+    if (c.id.startsWith('ready_nerd_')) {
+      assert.equal(model.iconMode, 'nerd', `${c.id}: iconMode`);
+    }
     const out = renderOperatorTuiShellToString(model, {
       columns: c.columns,
       rows: c.rows,
@@ -535,7 +559,13 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
   const metrics = JSON.parse(readLandingFixture('metrics.json'));
   assert.equal(metrics.meta.method, 'ink.renderToString');
   assert.equal(metrics.meta.ink_version, '7.1.1');
-  for (const id of ['ready_120x36', 'ready_80x24', 'ready_50x16']) {
+  for (const id of [
+    'ready_120x36',
+    'ready_80x24',
+    'ready_50x16',
+    'ready_nerd_120x36',
+    'ready_nerd_80x24',
+  ]) {
     assert.equal(metrics.cases[id].fits_viewport, true, id);
   }
 });

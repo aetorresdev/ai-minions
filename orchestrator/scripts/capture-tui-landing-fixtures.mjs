@@ -77,6 +77,21 @@ const CASES = [
     options: readyShellOptions({ columns: 80, rows: 24 }),
   },
   {
+    // Runtime default icons=nerd — width/height gates must hold with Nerd glyphs too.
+    id: 'ready_nerd_120x36',
+    file: 'ready-nerd-120x36.txt',
+    columns: 120,
+    rows: 36,
+    options: readyShellOptions({ columns: 120, rows: 36, icons: 'nerd' }),
+  },
+  {
+    id: 'ready_nerd_80x24',
+    file: 'ready-nerd-80x24.txt',
+    columns: 80,
+    rows: 24,
+    options: readyShellOptions({ columns: 80, rows: 24, icons: 'nerd' }),
+  },
+  {
     id: 'ready_50x16',
     file: 'ready-50x16.txt',
     columns: 50,

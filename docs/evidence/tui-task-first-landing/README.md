@@ -25,8 +25,10 @@ node scripts/capture-tui-landing-fixtures.mjs
 
 | Case | Viewport | Fixture | Gates |
 |---|---|---|---|
-| ready wide | 120×36 | `ready-120x36.txt` | `rendered_lines ≤ 36`, `max_display_width ≤ 120`, `Start New Run`, `Overall:` |
-| ready mid | 80×24 | `ready-80x24.txt` | `rendered_lines ≤ 24`, `max_display_width ≤ 80`, CTA + Overall |
+| ready wide (`icons=unicode`) | 120×36 | `ready-120x36.txt` | `rendered_lines ≤ 36`, `max_display_width ≤ 120`, `Start New Run`, `Overall:` |
+| ready mid (`icons=unicode`) | 80×24 | `ready-80x24.txt` | `rendered_lines ≤ 24`, `max_display_width ≤ 80`, CTA + Overall |
+| ready wide (`icons=nerd`, runtime default) | 120×36 | `ready-nerd-120x36.txt` | same width/height + CTA/Overall gates under Nerd glyphs |
+| ready mid (`icons=nerd`, runtime default) | 80×24 | `ready-nerd-80x24.txt` | same width/height + CTA/Overall gates under Nerd glyphs |
 | ready compact | 50×16 | `ready-50x16.txt` | `rendered_lines ≤ 16`, `max_display_width ≤ 50`, CTA + Overall |
 | blocked | 120×36 | `blocked-120x36.txt` | Overall blocked/insufficient signal |
 | loading compact | 50×16 | `loading-50x16.txt` | Overall loading; no guardian art |
