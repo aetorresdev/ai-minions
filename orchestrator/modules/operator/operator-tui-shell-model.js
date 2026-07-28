@@ -163,6 +163,141 @@ function resolveNavHotkey(raw, navItems) {
 }
 
 /**
+ * True only for intentional session-end actions (never digits 1–5 / pane letters).
+ * @param {unknown} actionId
+ * @returns {boolean}
+ */
+function isShellSessionEndAction(actionId) {
+  const id = String(actionId ?? '').trim().toLowerCase();
+  return id === 'quit' || id === 'q';
+}
+
+/**
+ * Pure Ink key → intent resolver (testable hotkey matrix; no Ink imports).
+ * Digits/letters dispatch panes; only quit / Ctrl+C set endsSession.
+ * @param {string} input
+ * @param {{
+ *   ctrl?: boolean,
+ *   meta?: boolean,
+ *   tab?: boolean,
+ *   return?: boolean,
+ *   backspace?: boolean,
+ *   delete?: boolean,
+ *   upArrow?: boolean,
+ *   downArrow?: boolean,
+ *   leftArrow?: boolean,
+ *   rightArrow?: boolean,
+ * }} key
+ * @param {{
+ *   focus?: string,
+ *   selectedNavId?: string | null,
+ *   selectedRunId?: string | null,
+ *   navItems?: ReadonlyArray<{ key: string, id: string }>,
+ *   commandInput?: string,
+ * }} model
+ * @returns {{
+ *   type: string,
+ *   actionId?: string,
+ *   direction?: 'next' | 'prev',
+ *   char?: string,
+ *   endsSession: boolean,
+ * }}
+ */
+function resolveShellKeypress(input, key = {}, model = {}) {
+  const focus = String(model.focus ?? 'nav');
+  const keyObj = key && typeof key === 'object' ? key : {};
+
+  if (keyObj.ctrl && input === 'c') {
+    return { type: 'abort', endsSession: true };
+  }
+
+  // Intentional quit — only `q` outside command input (not digits / pane letters).
+  if (input === 'q' && focus !== 'input') {
+    return { type: 'quit', actionId: 'quit', endsSession: true };
+  }
+
+  if (keyObj.tab) {
+    return { type: 'cycle_focus', endsSession: false };
+  }
+
+  // Labeled hotkeys (1/2/s/e/3/m/4/5/q) — work without Tab→input.
+  if (
+    focus !== 'input'
+    && input
+    && !keyObj.ctrl
+    && !keyObj.meta
+    && !keyObj.upArrow
+    && !keyObj.downArrow
+    && !keyObj.leftArrow
+    && !keyObj.rightArrow
+    && !keyObj.return
+  ) {
+    const hotkeyAction = resolveNavHotkey(input, model.navItems);
+    if (hotkeyAction) {
+      if (isShellSessionEndAction(hotkeyAction)) {
+        return { type: 'quit', actionId: 'quit', endsSession: true };
+      }
+      return { type: 'dispatch', actionId: hotkeyAction, endsSession: false };
+    }
+  }
+
+  if (focus === 'nav') {
+    if (keyObj.upArrow || input === 'k') {
+      return { type: 'nav_move', direction: 'prev', endsSession: false };
+    }
+    if (keyObj.downArrow || input === 'j') {
+      return { type: 'nav_move', direction: 'next', endsSession: false };
+    }
+    if (keyObj.return) {
+      const id = model.selectedNavId == null || model.selectedNavId === ''
+        ? null
+        : String(model.selectedNavId);
+      if (!id) return { type: 'ignore', endsSession: false };
+      if (isShellSessionEndAction(id)) {
+        return { type: 'quit', actionId: 'quit', endsSession: true };
+      }
+      return { type: 'dispatch', actionId: id, endsSession: false };
+    }
+  }
+
+  if (focus === 'content') {
+    if (keyObj.upArrow || input === 'k') {
+      return { type: 'run_move', direction: 'prev', endsSession: false };
+    }
+    if (keyObj.downArrow || input === 'j') {
+      return { type: 'run_move', direction: 'next', endsSession: false };
+    }
+    if (keyObj.return && model.selectedRunId) {
+      return { type: 'dispatch', actionId: 'monitor', endsSession: false };
+    }
+  }
+
+  if (focus === 'input') {
+    if (keyObj.return) {
+      const token = String(model.commandInput ?? '').trim();
+      if (!token) return { type: 'input_clear_submit', endsSession: false };
+      if (isShellSessionEndAction(token) || token === '/quit') {
+        return { type: 'quit', actionId: token === '/quit' ? '/quit' : 'quit', endsSession: true };
+      }
+      return { type: 'input_submit', actionId: token, endsSession: false };
+    }
+    if (keyObj.backspace || keyObj.delete) {
+      return { type: 'input_backspace', endsSession: false };
+    }
+    if (input && !keyObj.ctrl && !keyObj.meta) {
+      return { type: 'input_char', char: input, endsSession: false };
+    }
+    return { type: 'ignore', endsSession: false };
+  }
+
+  if (input === '/') {
+    return { type: 'start_slash', endsSession: false };
+  }
+
+  return { type: 'ignore', endsSession: false };
+}
+
+/**
  * @param {ReturnType<typeof buildShellModel>} model
  * @param {'next'|'prev'} direction
  */
@@ -355,4 +490,6 @@ module.exports = {
   shellModelToOptions,
   formatShellText,
   resolveNavHotkey,
+  isShellSessionEndAction,
+  resolveShellKeypress,
 };
