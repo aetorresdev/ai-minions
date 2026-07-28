@@ -14,7 +14,7 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 
 | Need | Command | Output |
 |------|---------|--------|
-| Interactive action loop (TTY) | `ai-minions tui` | Fullscreen Ink shell: guided launcher/runs/select/status/**live monitor**/evidence/attach/config/quit |
+| Interactive action loop (TTY) | `ai-minions tui` | Fullscreen Ink shell: brand splash · guided launcher/runs/select/status/**live monitor**/evidence/attach/config/quit |
 | Discover and select a recent run | `ai-minions runs [--limit 20]` | Newest-first run list + explicit `status --run-id` command |
 | Terminal summary + critical decision fields | `ai-minions status --run-id <id>` | Human text + optional `--json` with `run_state_visibility` and `operator_trace_summary` |
 | Why blocked / degraded / failed | `ai-minions explain --run-id <id>` | Reason codes + remediation narrative |
