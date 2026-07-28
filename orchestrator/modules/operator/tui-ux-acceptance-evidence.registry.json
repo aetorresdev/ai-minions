@@ -1,0 +1,19 @@
+{
+  "schema": "1",
+  "kind": "tui_ux_acceptance_evidence_registry",
+  "semanticGateOk": true,
+  "automatedUxOk": true,
+  "manualEvidence": {
+    "status": "blocked",
+    "note": "first-time-user script evidence not recorded on release platforms"
+  },
+  "platformEvidence": {
+    "automatedGateOk": true,
+    "overrides": {
+      "macos_node22_tty": {
+        "status": "blocked",
+        "evidence": "pending interactive macOS Node 22 TTY smoke"
+      }
+    }
+  }
+}

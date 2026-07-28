@@ -30,6 +30,8 @@ const {
   resolveShellKeypress,
   isShellSessionEndAction,
   shellModelToOptions,
+  isInkLocalShellAction,
+  contentSurfaceForLocalAction,
 } = require('../../modules/operator/operator-tui-shell-model');
 const {
   createTerminalGuard,
@@ -1269,6 +1271,140 @@ test('resolveShellActionToken maps cockpit keys', () => {
   assert.equal(resolveShellActionToken('3'), 'diagnostics');
   assert.equal(resolveShellActionToken('4'), 'config');
   assert.equal(resolveShellActionToken('5'), 'help');
+});
+
+test('Overview/Explain/Evidence hotkeys stay Ink-local (zero executeAction)', async () => {
+  assert.equal(isInkLocalShellAction('status'), true);
+  assert.equal(isInkLocalShellAction('explain'), true);
+  assert.equal(isInkLocalShellAction('evidence'), true);
+  assert.equal(contentSurfaceForLocalAction('status'), 'status');
+  assert.equal(contentSurfaceForLocalAction('explain'), 'status');
+  assert.equal(contentSurfaceForLocalAction('evidence'), 'evidence');
+  const {
+    isInkLocalRemountFallbackAction,
+  } = require('../../modules/operator/operator-tui-shell-model');
+  assert.equal(isInkLocalRemountFallbackAction('help'), true);
+  assert.equal(isInkLocalRemountFallbackAction('diagnostics'), true);
+  assert.equal(isInkLocalRemountFallbackAction('status'), false);
+  assert.equal(isInkLocalRemountFallbackAction('explain'), false);
+  assert.equal(isInkLocalRemountFallbackAction('evidence'), false);
+
+  const { stdin, stdout } = createFakeTtyStreams();
+  const out = [];
+  stdout.on('data', (chunk) => {
+    out.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+  });
+  const actions = [];
+  let mountCount = 0;
+  /** @type {string[]} */
+  const surfaces = [];
+  const softAt = [];
+  const softCount = () => out.join('').split(SOFT_HANDOFF_SEQUENCE).length - 1;
+  const promise = runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 8,
+    selectedRunId: 'blocked-1',
+    statusResult: {
+      run_id: 'blocked-1',
+      result_code: 'RUN_FOUND',
+      status: 'blocked',
+      outcome: 'blocked',
+      reason_code: 'CERBERUS_REJECT',
+      next_safe_action: 'address CERBERUS blockers',
+    },
+    evidenceModel: {
+      run_id: 'blocked-1',
+      result_code: 'EVIDENCE_FOUND',
+      attach_available: false,
+      reason_code: 'ATTACH_UNAVAILABLE',
+      next_safe_action: 'generate attach bundle from Overview',
+    },
+    loadRuns: () => canonicalRunsResult([
+      {
+        run_id: 'blocked-1',
+        status: 'blocked',
+        outcome: 'blocked',
+        result_code: 'RUN_FOUND',
+        reason_code: 'CERBERUS_REJECT',
+      },
+    ]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => {
+      const mod = await import('../../modules/operator/operator-tui-shell-render.mjs');
+      return {
+        renderOperatorTuiShell: async (opts) => {
+          mountCount += 1;
+          const prev = opts.onModelChange;
+          opts.onModelChange = (next) => {
+            surfaces.push(String(next?.contentSurface ?? ''));
+            if (typeof prev === 'function') prev(next);
+          };
+          return mod.renderOperatorTuiShell(opts);
+        },
+      };
+    },
+    executeAction: async (opts) => {
+      actions.push(opts.actionId);
+      return {
+        quit: false,
+        selectedRunId: opts.selectedRunId ?? null,
+        contentSurface: 'action_result',
+        actionResult: {
+          action_id: opts.actionId,
+          ok: true,
+          exit_code: 0,
+          reason_code: 'OK',
+          text: 'ok',
+        },
+      };
+    },
+  });
+  await new Promise((r) => setTimeout(r, 150));
+  softAt.push({ label: 'start', soft: softCount(), mounts: mountCount });
+  stdin.write('o'); // Overview → status surface
+  await new Promise((r) => setTimeout(r, 80));
+  softAt.push({ label: 'after_o', soft: softCount(), mounts: mountCount });
+  stdin.write('x'); // Explain → status surface (same local path)
+  await new Promise((r) => setTimeout(r, 80));
+  softAt.push({ label: 'after_x', soft: softCount(), mounts: mountCount });
+  stdin.write('e'); // Evidence → evidence surface
+  await new Promise((r) => setTimeout(r, 80));
+  softAt.push({ label: 'after_e', soft: softCount(), mounts: mountCount });
+  assert.deepEqual(actions, [], 'o/x/e must not open nested executeAction');
+  assert.equal(mountCount, 1, 'o→x→e must keep a single Ink renderer mount');
+  assert.equal(softAt[softAt.length - 1].soft, 0, 'o→x→e must emit zero SOFT_HANDOFF_SEQUENCE');
+  assert.ok(surfaces.includes('status'), 'Overview/Explain must set seeded status surface');
+  assert.ok(surfaces.includes('evidence'), 'Evidence must set seeded evidence surface');
+  for (const snap of softAt) {
+    if (snap.label === 'start') {
+      assert.ok(snap.mounts <= 1, snap.label);
+    } else {
+      assert.equal(snap.mounts, 1, snap.label);
+    }
+    assert.equal(snap.soft, 0, `${snap.label} soft handoff`);
+  }
+  stdin.write('\x1b'); // Esc → home (still local)
+  await new Promise((r) => setTimeout(r, 80));
+  assert.deepEqual(actions, [], 'Esc from evidence stays local');
+  assert.equal(mountCount, 1, 'Esc home must not remount');
+  assert.equal(softCount(), 0, 'Esc home must not soft-handoff');
+  stdin.write('q');
+  const result = await promise;
+  assert.deepEqual(actions, []);
+  assert.equal(mountCount, 1, 'quit must not remount mid-session surfaces');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.equal(result.model?.contentSurface, 'home');
+  assert.ok(result.model?.status?.reason_code === 'CERBERUS_REJECT'
+    || /CERBERUS_REJECT/.test(String(result.text ?? '')));
+  assert.ok(result.model?.evidence?.reason_code === 'ATTACH_UNAVAILABLE'
+    || /ATTACH_UNAVAILABLE/.test(String(result.text ?? '')));
+  stdin.destroy();
+  stdout.destroy();
 });
 
 test('System Status hotkey 3 and Enter stay mounted; Settings back remounts', async () => {

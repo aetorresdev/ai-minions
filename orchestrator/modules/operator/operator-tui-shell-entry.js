@@ -18,7 +18,7 @@ const {
   buildShellModel,
   formatShellText,
   isShellSessionEndAction,
-  isInkLocalShellAction,
+  isInkLocalRemountFallbackAction,
   contentSurfaceForLocalAction,
   shellModelToOptions,
 } = require('./operator-tui-shell-model');
@@ -157,6 +157,9 @@ function shouldShowProductionSplash(options = {}, env = process.env) {
  *   executeAction?: typeof executeShellAction,
  *   importRenderer?: () => Promise<{ renderOperatorTuiShell: Function }>,
  *   runLegacyCockpit?: typeof runOperatorCockpit,
+ *   selectedRunId?: string | null,
+ *   statusResult?: object | null,
+ *   evidenceModel?: object | null,
  * }} [options]
  */
 async function runOperatorTuiShell(options = {}) {
@@ -213,12 +216,18 @@ async function runOperatorTuiShell(options = {}) {
   const rows = options.rows
     ?? (typeof stdout.rows === 'number' ? stdout.rows : 24);
 
-  let selectedRunId = null;
+  let selectedRunId = options.selectedRunId == null || options.selectedRunId === ''
+    ? null
+    : String(options.selectedRunId);
   let contentSurface = 'home';
   /** @type {object | null} */
-  let statusResult = null;
+  let statusResult = options.statusResult && typeof options.statusResult === 'object'
+    ? options.statusResult
+    : null;
   /** @type {object | null} */
-  let evidenceModel = null;
+  let evidenceModel = options.evidenceModel && typeof options.evidenceModel === 'object'
+    ? options.evidenceModel
+    : null;
   /** @type {object | null} */
   let configModel = null;
   /** @type {object | null} */
@@ -260,6 +269,9 @@ async function runOperatorTuiShell(options = {}) {
       json: true,
       useColor: false,
     });
+    if (options.selectedRunId != null && options.selectedRunId !== '') {
+      selectedRunId = String(options.selectedRunId);
+    }
     model = buildShellModel({
       aboutInfo,
       credentials,
@@ -702,8 +714,10 @@ async function runOperatorTuiShell(options = {}) {
             }
           }
 
-          // Ink-local surfaces must never open a nested readline pane (silent-quit lookalike).
-          if (isInkLocalShellAction(plan.action_id)) {
+          // Landing chrome fallback remount only (home/help/diagnostics).
+          // Overview / Explain / Evidence are Ink-local seeded surfaces — never remount here;
+          // slash `/status` / `/explain` fall through to executeAction for a fresh query.
+          if (isInkLocalRemountFallbackAction(plan.action_id)) {
             const surface = contentSurfaceForLocalAction(plan.action_id) ?? 'home';
             contentSurface = surface;
             prepareInkRemount({ stdin });
@@ -940,8 +954,9 @@ async function runOperatorTuiShell(options = {}) {
         }
       }
 
-      // Ink-local surfaces (home/help/diagnostics) remount in-process — never nested readline.
-      if (isInkLocalShellAction(actionId)) {
+      // Landing chrome fallback remount only. Overview / Explain / Evidence must switch
+      // inside the active Ink render (render.mjs) — never soft-handoff / prepareInkRemount.
+      if (isInkLocalRemountFallbackAction(actionId)) {
         const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
         contentSurface = surface;
         prepareInkRemount({ stdin });
