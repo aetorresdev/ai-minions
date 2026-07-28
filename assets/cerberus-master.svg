@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Cerberus master mark — AI-MINIONS brand guardian.
+  Geometric three-headed symbol for Validate / Trace / Enforce.
+  Official vector source for docs, GitHub, and Web UI.
+  Derived from approved Cerberus option C TUI render
+  (GitHub issue attachment ee018a2f-ff28-4561-b5f0-e7a9c7fbf88c).
+  Provenance: see assets/CERBERUS-ART-LICENSE.md
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 300" role="img" aria-labelledby="title desc">
+  <title id="title">Cerberus — AI-MINIONS guardian mark</title>
+  <desc id="desc">
+    Geometric wireframe three-headed guardian matching approved option C:
+    left Validate (cyan, checkmark), center Trace (violet, circuit brow + hex core),
+    right Enforce (amber, lock), linked by chain motifs. Decorative brand asset;
+    not a runtime TUI glyph sheet.
+  </desc>
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#67D9F5"/>
+      <stop offset="50%" stop-color="#9B8CFF"/>
+      <stop offset="100%" stop-color="#F4B860"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background plate -->
+  <rect width="360" height="300" fill="#0B1020" rx="12"/>
+
+  <!-- Horizon / circuit base lines -->
+  <g fill="none" stroke="#26344D" stroke-width="1.2" stroke-dasharray="4 5">
+    <path d="M28 218 H132"/>
+    <path d="M228 218 H332"/>
+  </g>
+
+  <!-- Decorative sparkles -->
+  <g stroke-width="1.4" stroke-linecap="round">
+    <path d="M42 58 H50 M46 54 V62" stroke="#67D9F5"/>
+    <path d="M118 42 H124 M121 39 V45" stroke="#67D9F5"/>
+    <path d="M236 40 H242 M239 37 V43" stroke="#9B8CFF"/>
+    <path d="M310 56 H318 M314 52 V60" stroke="#F4B860"/>
+    <circle cx="96" cy="52" r="1.4" fill="#67D9F5"/>
+    <circle cx="264" cy="50" r="1.4" fill="#9B8CFF"/>
+  </g>
+
+  <!-- ===== LEFT HEAD — VALIDATE (cyan, profile left) ===== -->
+  <g fill="none" stroke="#67D9F5" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
+    <!-- skull outline (left-facing profile) -->
+    <path d="
+      M118 128
+      C108 108, 96 92, 78 86
+      C62 80, 48 88, 44 102
+      C40 116, 48 128, 58 134
+      L52 148
+      C64 146, 78 142, 90 148
+      L104 156
+      C112 150, 118 140, 118 128 Z"/>
+    <!-- ear -->
+    <path d="M78 86 L70 62 L92 84"/>
+    <!-- snout / jaw -->
+    <path d="M44 108 L28 114 L34 126 L52 122"/>
+    <path d="M52 148 L40 152 L48 140"/>
+    <!-- eye -->
+    <circle cx="68" cy="108" r="3.2" fill="#67D9F5" stroke="none"/>
+    <!-- checkmark emblem -->
+    <circle cx="86" cy="118" r="10" stroke-width="1.8"/>
+    <path d="M80 118 L84 123 L94 112" stroke-width="2"/>
+  </g>
+
+  <!-- ===== CENTER HEAD — TRACE (violet, front-facing) ===== -->
+  <g fill="none" stroke="#9B8CFF" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
+    <!-- skull -->
+    <path d="
+      M180 56
+      C156 56, 140 78, 140 104
+      C140 124, 150 140, 162 148
+      L180 156
+      L198 148
+      C210 140, 220 124, 220 104
+      C220 78, 204 56, 180 56 Z"/>
+    <!-- ears -->
+    <path d="M152 72 L144 48 L166 68"/>
+    <path d="M208 72 L216 48 L194 68"/>
+    <!-- brow / muzzle planes -->
+    <path d="M154 112 H206" stroke-width="1.6"/>
+    <path d="M162 148 L180 138 L198 148" stroke-width="1.6"/>
+    <!-- eyes -->
+    <circle cx="166" cy="100" r="3.4" fill="#9B8CFF" stroke="none"/>
+    <circle cx="194" cy="100" r="3.4" fill="#9B8CFF" stroke="none"/>
+    <!-- circuit brow (three vertical traces) -->
+    <path d="M168 78 V96" stroke-width="1.6"/>
+    <path d="M180 72 V96" stroke-width="1.6"/>
+    <path d="M192 78 V96" stroke-width="1.6"/>
+    <circle cx="168" cy="96" r="2" fill="#9B8CFF" stroke="none"/>
+    <circle cx="180" cy="96" r="2" fill="#9B8CFF" stroke="none"/>
+    <circle cx="192" cy="96" r="2" fill="#9B8CFF" stroke="none"/>
+  </g>
+
+  <!-- Hex core under center chin (gate motif) -->
+  <g fill="none" stroke="url(#brandGrad)" stroke-width="2.4" stroke-linejoin="round">
+    <path d="M180 164 L198 174 L198 194 L180 204 L162 194 L162 174 Z"/>
+    <path d="M180 174 L190 180 L190 190 L180 196 L170 190 L170 180 Z" fill="#9B8CFF" stroke="none"/>
+    <circle cx="180" cy="185" r="4" fill="#67D9F5" stroke="none"/>
+  </g>
+
+  <!-- ===== RIGHT HEAD — ENFORCE (amber, profile right) ===== -->
+  <g fill="none" stroke="#F4B860" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
+    <!-- skull outline (right-facing profile) -->
+    <path d="
+      M242 128
+      C252 108, 264 92, 282 86
+      C298 80, 312 88, 316 102
+      C320 116, 312 128, 302 134
+      L308 148
+      C296 146, 282 142, 270 148
+      L256 156
+      C248 150, 242 140, 242 128 Z"/>
+    <!-- ear -->
+    <path d="M282 86 L290 62 L268 84"/>
+    <!-- snout / jaw -->
+    <path d="M316 108 L332 114 L326 126 L308 122"/>
+    <path d="M308 148 L320 152 L312 140"/>
+    <!-- eye -->
+    <circle cx="292" cy="108" r="3.2" fill="#F4B860" stroke="none"/>
+    <!-- lock emblem -->
+    <rect x="266" y="114" width="16" height="12" rx="2" stroke-width="1.8"/>
+    <path d="M270 114 V108 C270 103, 278 103, 278 108 V114" stroke-width="1.8"/>
+    <circle cx="274" cy="120" r="1.6" fill="#F4B860" stroke="none"/>
+  </g>
+
+  <!-- Chain links: left head → hex core -->
+  <g fill="none" stroke="#67D9F5" stroke-width="1.8" stroke-linejoin="round">
+    <rect x="112" y="168" width="18" height="10" rx="3" transform="rotate(-28 121 173)"/>
+    <rect x="128" y="176" width="18" height="10" rx="3" transform="rotate(-18 137 181)"/>
+    <rect x="144" y="182" width="16" height="10" rx="3" transform="rotate(-8 152 187)"/>
+  </g>
+
+  <!-- Chain links: right head → hex core -->
+  <g fill="none" stroke="#F4B860" stroke-width="1.8" stroke-linejoin="round">
+    <rect x="230" y="168" width="18" height="10" rx="3" transform="rotate(28 239 173)"/>
+    <rect x="214" y="176" width="18" height="10" rx="3" transform="rotate(18 223 181)"/>
+    <rect x="200" y="182" width="16" height="10" rx="3" transform="rotate(8 208 187)"/>
+  </g>
+
+  <!-- Triad labels -->
+  <text x="78" y="236" text-anchor="middle" fill="#67D9F5"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="12" font-weight="700" letter-spacing="0.08em">VALIDATE</text>
+  <text x="180" y="236" text-anchor="middle" fill="#9B8CFF"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="12" font-weight="700" letter-spacing="0.08em">TRACE</text>
+  <text x="282" y="236" text-anchor="middle" fill="#F4B860"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="12" font-weight="700" letter-spacing="0.08em">ENFORCE</text>
+
+  <!-- Wordmark cue -->
+  <text x="180" y="268" text-anchor="middle" fill="#E6EDF7"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="14" font-weight="700" letter-spacing="0.14em">CERBERUS</text>
+  <text x="180" y="284" text-anchor="middle" fill="#92A0B8"
+        font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+        font-size="9" letter-spacing="0.08em">AI-MINIONS GUARDIAN</text>
+</svg>
