@@ -380,6 +380,7 @@ describe("modules physical layout", () => {
         "modules/operator/operator-evidence-attach-pane-tui.js",
         "modules/operator/operator-config-readiness-pane-tui.js",
         "modules/operator/operator-tui-quality-harness.js",
+        "modules/operator/operator-tui-ux-acceptance.js",
         "modules/operator/operator-cost-token-summary.js",
       ];
       const rootTraceShim = /\.\.\/\.\.\/(trace-|run-outcome-summary)/;
