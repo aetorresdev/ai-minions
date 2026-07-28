@@ -7,7 +7,12 @@ import stringWidth from 'string-width';
 import stripAnsi from 'strip-ansi';
 
 /** CSI / OSC / common ANSI sequences (no /g — safe for repeated .test). */
-const ANSI_RE = /\u001b(?:\[[0-9;?]*[ -/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)|[()][AB012]|[=>])|\u009b[0-9;?]*[ -/]*[@-~]/;
+const ESC = String.fromCharCode(0x1b);
+const BEL = String.fromCharCode(0x07);
+const CSI8 = String.fromCharCode(0x9b);
+const ANSI_RE = new RegExp(
+  `${ESC}(?:\\[[0-9;?]*[ -/]*[@-~]|\\][^${BEL}${ESC}]*(?:${BEL}|${ESC}\\\\)|[()][AB012]|[=>])|${CSI8}[0-9;?]*[ -/]*[@-~]`,
+);
 
 /**
  * @param {string} text

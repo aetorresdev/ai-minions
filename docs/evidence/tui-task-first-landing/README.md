@@ -54,22 +54,30 @@ node --test tests/operator/operatorTuiLanding.test.js
 Lightweight helper (no screenshot CI dependency):
 
 ```bash
-# from repo root
+# from repo root — default runner is checkout CLI only (not PATH/global ai-minions)
 chmod +x orchestrator/scripts/capture-tui-landing-tty.sh
 ./orchestrator/scripts/capture-tui-landing-tty.sh 80 24 /tmp/landing-80x24.typescript
+# writes /tmp/landing-80x24.typescript + .meta.json (source_tip_sha + runner_kind/path/version)
+# fails unless capture contains "Start New Run" and "Overall:"
 ```
 
-Manual equivalent:
+Installed/global binary is **opt-in only** (provenance must declare real runner path + version; do not label as checkout tip alone):
+
+```bash
+./orchestrator/scripts/capture-tui-landing-tty.sh --use-installed 80 24 /tmp/landing-installed.typescript
+# or: AI_MINIONS_TUI_CAPTURE_BIN=/path/to/ai-minions ./orchestrator/scripts/capture-tui-landing-tty.sh …
+```
+
+Manual equivalent (checkout CLI):
 
 ```bash
 export COLUMNS=80 LINES=24 AI_MINIONS_TUI_SKIP_SPLASH=1
-script -q -c 'timeout 3s ai-minions tui' /tmp/landing-80x24.typescript
-# record tip SHA + Ink version beside the artifact
+script -q -c 'timeout 3s node ./orchestrator/ai-minions-cli.js tui' /tmp/landing-80x24.typescript
 git rev-parse HEAD
 node -e "console.log(require('./orchestrator/node_modules/ink/package.json').version)"
 ```
 
-Optional CI: upload the `.typescript` file as a job artifact when a PTY is available. Full framebuffer screenshot pipelines remain out of scope unless a later release job opts in.
+Optional CI: upload the `.typescript` file **and** `.meta.json` when a PTY is available. Full framebuffer screenshot pipelines remain out of scope unless a later release job opts in.
 
 ## Verifiable results (regenerate locally)
 

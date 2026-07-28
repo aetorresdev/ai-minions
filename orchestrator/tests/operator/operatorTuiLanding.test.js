@@ -26,15 +26,16 @@ const { executeShellAction, resolveShellActionToken } = require('../../modules/o
 const { resolveShellTheme, toneColor } = require('../../modules/operator/operator-tui-theme');
 
 const LANDING_FIXTURES_DIR = path.join(__dirname, '../fixtures/tui/landing');
-const ANSI_ESCAPE_RE =
-  /\u001b(?:\[[0-9;?]*[ -/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)|[()][AB012]|[=>])|\u009b[0-9;?]*[ -/]*[@-~]/;
+const ESC = String.fromCharCode(0x1b);
+const BEL = String.fromCharCode(0x07);
+const CSI8 = String.fromCharCode(0x9b);
+const ANSI_ESCAPE_RE = new RegExp(
+  `${ESC}(?:\\[[0-9;?]*[ -/]*[@-~]|\\][^${BEL}${ESC}]*(?:${BEL}|${ESC}\\\\)|[()][AB012]|[=>])|${CSI8}[0-9;?]*[ -/]*[@-~]`,
+);
+const ESC_CHAR_RE = new RegExp(ESC);
 
 function readLandingFixture(name) {
   return fs.readFileSync(path.join(LANDING_FIXTURES_DIR, name), 'utf8');
-}
-
-function normalizeLandingSnapshot(text) {
-  return `${String(text).replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\s+$/, '')}\n`;
 }
 
 /**
@@ -554,7 +555,7 @@ test('NO_COLOR landing output contains no ANSI escape sequences', async () => {
     const m = measureLandingRender(out, { columns: 120, rows: 36 });
     assert.equal(m.has_ansi, false, 'NO_COLOR must not emit ANSI');
     assert.equal(hasAnsiEscape(out), false);
-    assert.doesNotMatch(out, /\u001b/);
+    assert.doesNotMatch(out, ESC_CHAR_RE);
     assert.ok(m.rendered_lines <= 36);
     assert.ok(m.max_display_width <= 120);
     assert.match(out, /AI-MINIONS/);
