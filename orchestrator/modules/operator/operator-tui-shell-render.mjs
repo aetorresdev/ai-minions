@@ -13,7 +13,7 @@ const {
   isInkLocalShellAction,
   contentSurfaceForLocalAction,
 } = require('./operator-tui-shell-model.js');
-const { resolveShellTheme, focusBorderColor, toneColor } = require('./operator-tui-theme.js');
+const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor } = require('./operator-tui-theme.js');
 const {
   buildSplashContent,
   resolveSplashDurationMs,
@@ -108,7 +108,32 @@ function SplashApp(props) {
     finish();
   });
 
-  const height = Math.max(12, model.rows ?? 24);
+  const height = Math.max(24, model.rows ?? 24);
+
+  const renderSegments = (segments, keyPrefix) => React.createElement(
+    Box,
+    { key: keyPrefix, flexDirection: 'row' },
+    ...(segments || []).map((seg, idx) => React.createElement(
+      Text,
+      {
+        key: `${keyPrefix}-${idx}`,
+        bold: seg.bold === true,
+        color: splashToneColor(theme, seg.tone),
+        dimColor: seg.tone === 'muted',
+      },
+      seg.text,
+    )),
+  );
+
+  // Prefer a single Text for the triad when color is off (NO_COLOR / markers).
+  // When color is on, paint Validate / Trace / Enforce with triad tokens.
+  const triadNode = theme.triadValidate
+    ? renderSegments(content.triadSegments, 'triad')
+    : React.createElement(
+      Text,
+      { key: 'triad', color: theme.muted },
+      content.triad || 'Validate • Trace • Enforce',
+    );
 
   return React.createElement(
     Box,
@@ -122,19 +147,17 @@ function SplashApp(props) {
       borderColor: theme.focus,
       paddingX: 1,
     },
-    ...content.lines.map((line, idx) => React.createElement(
-      Text,
-      { key: `b-${idx}`, bold: theme.titleBold, color: theme.brand },
-      line,
-    )),
-    React.createElement(Text, { color: theme.accent }, content.subtitle),
-    React.createElement(Text, { dimColor: true, color: theme.muted }, content.tagline),
+    ...(content.rows || []).map((row, idx) => renderSegments(row.segments, `art-${idx}`)),
+    React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' ')),
+    React.createElement(Text, { color: theme.accent }, content.productTagline || content.tagline),
+    triadNode,
+    React.createElement(Text, { color: theme.muted }, content.subtitle),
     React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' ')),
     React.createElement(Text, { color: theme.warn }, content.hint),
     React.createElement(
       Text,
       { dimColor: true, color: theme.muted },
-      'Presentation polish only — not Web UI · not mouse · not durable resume',
+      content.disclaimer || 'Presentation polish only — not Web UI · not mouse · not durable resume',
     ),
   );
 }
