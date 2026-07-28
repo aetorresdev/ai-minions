@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Branch tip (height-aware composition baseline) | `32986eb` (+ this evidence restructure commit) |
+| Branch tip | `54ac772` (evidence restructure; height-aware composition from `32986eb`) |
 | Ink | `7.1.1` (see `orchestrator/package.json` / `node_modules/ink`) |
 | Fixture fixture set | `orchestrator/tests/fixtures/tui/landing/` |
 | Metrics table | `orchestrator/tests/fixtures/tui/landing/metrics.json` |
