@@ -9,7 +9,7 @@ const readline = require('readline');
 
 const { resolveCockpitAction } = require('./operator-cockpit-tui');
 const { runOperatorRuns } = require('./operator-run-list');
-const { runOperatorStatus } = require('./operator-trace-command');
+const { runOperatorStatus, runOperatorExplain } = require('./operator-trace-command');
 const { runSmoke, runAttach } = require('./operator-guided-first-run');
 const { runOperatorRunSelector } = require('./operator-run-selector-tui');
 const { runOperatorEvidenceAttachPane } = require('./operator-evidence-attach-pane-tui');
@@ -18,11 +18,16 @@ const { runOperatorGuidedLauncherPane } = require('./operator-guided-launcher-pa
 const { adaptActionResult } = require('./operator-tui-adapters');
 const { formatLiveMonitorLines, buildLiveMonitorFromStatusResult } = require('./operator-tui-live-monitor');
 const { formatGuidedLauncherLines } = require('./operator-guided-launcher-model');
+const {
+  parseSlashCommand,
+  resolveSlashDispatch,
+} = require('./operator-tui-slash-commands');
 
 /**
  * @param {{
  *   actionId: string,
  *   selectedRunId?: string | null,
+ *   skipRunPrompt?: boolean,
  *   cwd?: string,
  *   useColor?: boolean,
  *   stdin?: NodeJS.ReadableStream,
@@ -31,6 +36,7 @@ const { formatGuidedLauncherLines } = require('./operator-guided-launcher-model'
  *   write?: (text: string) => void,
  *   runRuns?: typeof runOperatorRuns,
  *   runStatus?: typeof runOperatorStatus,
+ *   runExplain?: typeof runOperatorExplain,
  *   runSmokeFn?: typeof runSmoke,
  *   runAttachFn?: typeof runAttach,
  *   runSelector?: typeof runOperatorRunSelector,
@@ -43,6 +49,7 @@ const { formatGuidedLauncherLines } = require('./operator-guided-launcher-model'
 async function executeShellAction(options) {
   const actionId = String(options.actionId);
   const useColor = options.useColor === true;
+  const skipRunPrompt = options.skipRunPrompt === true;
   const write = options.write
     ?? ((text) => {
       const stream = options.stdout ?? process.stdout;
@@ -60,6 +67,20 @@ async function executeShellAction(options) {
     }
     rl.question(prompt, (answer) => resolve(String(answer ?? '')));
   }));
+
+  /**
+   * @param {string} label
+   * @param {string | null} selected
+   * @returns {Promise<string | null>}
+   */
+  async function resolveRunId(label, selected) {
+    if (skipRunPrompt) {
+      return selected || null;
+    }
+    const promptLabel = selected ? `${label} [${selected}]: ` : `${label}: `;
+    const typed = String(await question(promptLabel)).trim();
+    return typed || selected || null;
+  }
 
   /** @type {string | null} */
   let selectedRunId = options.selectedRunId ?? null;
@@ -264,9 +285,7 @@ async function executeShellAction(options) {
     }
 
     if (actionId === 'status') {
-      const promptLabel = selectedRunId ? `run-id [${selectedRunId}]: ` : 'run-id: ';
-      const typed = String(await question(promptLabel)).trim();
-      const runId = typed || selectedRunId;
+      const runId = await resolveRunId('run-id', selectedRunId);
       if (!runId) {
         write('status skipped: run-id required.\n');
         return {
@@ -315,10 +334,61 @@ async function executeShellAction(options) {
       };
     }
 
+    if (actionId === 'explain') {
+      const runId = await resolveRunId('run-id', selectedRunId);
+      if (!runId) {
+        write('explain skipped: run-id required.\n');
+        return {
+          quit: false,
+          selectedRunId,
+          contentSurface: 'action_result',
+          actionResult: adaptActionResult({
+            action_id: 'explain',
+            ok: false,
+            exitCode: 1,
+            reason_code: 'TUI_SHELL_RUN_ID_REQUIRED',
+            text: 'run-id required',
+          }),
+          evidenceModel: null,
+          configModel: null,
+          statusResult: null,
+          runsPayload: null,
+          launcherModel: null,
+        };
+      }
+      selectedRunId = runId;
+      const result = (options.runExplain ?? runOperatorExplain)({
+        runId,
+        useColor,
+        json: true,
+      });
+      write(`${result.text || ''}\n`);
+      contentSurface = 'action_result';
+      return {
+        quit: false,
+        selectedRunId,
+        contentSurface,
+        actionResult: adaptActionResult({
+          action_id: 'explain',
+          ok: result.ok !== false,
+          exitCode: result.exitCode,
+          reason_code: result.reason_code ?? result.result_code ?? null,
+          next_safe_action: result.next_safe_action
+            ?? (result.json && result.json.remediation)
+            ?? null,
+          text: result.text || '',
+        }),
+        // Keep prior status/monitor surfaces; explain does not invent status.
+        statusResult: null,
+        evidenceModel: null,
+        configModel: null,
+        runsPayload: null,
+        launcherModel: null,
+      };
+    }
+
     if (actionId === 'monitor') {
-      const promptLabel = selectedRunId ? `run-id [${selectedRunId}]: ` : 'run-id: ';
-      const typed = String(await question(promptLabel)).trim();
-      const runId = typed || selectedRunId;
+      const runId = await resolveRunId('run-id', selectedRunId);
       if (!runId) {
         write('live monitor skipped: run-id required.\n');
         return {
@@ -372,9 +442,7 @@ async function executeShellAction(options) {
     }
 
     if (actionId === 'attach') {
-      const promptLabel = selectedRunId ? `run-id [${selectedRunId}]: ` : 'run-id: ';
-      const typed = String(await question(promptLabel)).trim();
-      const runId = typed || selectedRunId;
+      const runId = await resolveRunId('run-id', selectedRunId);
       if (!runId) {
         write('attach skipped: run-id required.\n');
         return {
@@ -501,6 +569,7 @@ async function executeShellAction(options) {
 
 /**
  * Resolve nav / command token to cockpit action id.
+ * Slash tokens (`/…`) are handled by resolveSlashCommandPlan — not mapped here.
  * @param {string} raw
  * @param {string | null} [selectedNavId]
  * @returns {string | null}
@@ -510,11 +579,29 @@ function resolveShellActionToken(raw, selectedNavId = null) {
   if (!token) {
     return selectedNavId ? String(selectedNavId) : null;
   }
+  if (token.startsWith('/')) {
+    return null;
+  }
   const resolved = resolveCockpitAction(token);
   return resolved ? resolved.id : null;
+}
+
+/**
+ * Plan slash-command handling for the shell entry loop.
+ * @param {string} raw
+ * @param {{ selectedRunId?: string | null }} [ctx]
+ */
+function resolveSlashCommandPlan(raw, ctx = {}) {
+  const parsed = parseSlashCommand(raw);
+  if (parsed.kind === 'not_slash') return null;
+  return {
+    parsed,
+    plan: resolveSlashDispatch(parsed, ctx),
+  };
 }
 
 module.exports = {
   executeShellAction,
   resolveShellActionToken,
+  resolveSlashCommandPlan,
 };

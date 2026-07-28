@@ -101,7 +101,7 @@ function buildCockpitHomeText(options = {}) {
     'Evidence (e): attach/bundle status for selected run; attach_available=false is disk-only semantics.',
     'Monitor (m): live run phase + reason codes for selected run (read-only; detach-safe).',
     'Config (5): PATH, backend, models, credentials status (never secrets) + next_safe_action.',
-    'Not claimed: Web UI · durable resume · slash commands.',
+    'Not claimed: Web UI · durable resume.',
   ];
   return lines.join('\n');
 }

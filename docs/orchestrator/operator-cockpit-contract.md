@@ -20,7 +20,7 @@ Requires a TTY (stdin and stdout). Non-TTY exits non-zero with equivalent CLI ve
 - **Navigation:** existing cockpit actions (guided launcher, runs, select, evidence, status, **live monitor**, attach, config, quit).
 - **Main content:** home readiness, guided launcher summary, runs list, selected-run status, evidence/attach state, config readiness, action result, **live run monitor**.
 - **Footer:** key hints, current selection, safe exit guidance.
-- **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; Enter runs selected action; `/` focuses command input; `q` / Ctrl+C quit with terminal restore.
+- **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; Enter runs selected action; `/` focuses command input with a leading `/` for slash commands; `q` / Ctrl+C quit with terminal restore.
 - **Resize:** columns &lt; 72 → narrow layout (stacked); otherwise wide.
 
 ## Adapter boundary
@@ -38,6 +38,7 @@ Components consume explicit view-models from `operator-tui-adapters.js` / `opera
 | Lifecycle / loop fields | `adaptLifecycleSummary` |
 | Live run monitor | `adaptLiveMonitor` |
 | Guided launcher summary | `adaptGuidedLauncher` |
+| Slash command parse / plan | `parseSlashCommand` · `resolveSlashDispatch` (`operator-tui-slash-commands.js`) |
 
 Lifecycle / monitor fields use provenance (`available` · `absent` · `unavailable` · `unknown` · `not_configured` · `unlimited`). Absent is never coerced to `0`, success, unlimited, or not_configured. The monitor never invents completion percentages or self-scored progress.
 
@@ -54,6 +55,29 @@ Lifecycle / monitor fields use provenance (`available` · `absent` · `unavailab
 | attach | prompts `--run-id` (defaults to last selected) → `runAttach` |
 | config / credentials readiness | `runOperatorConfigReadinessPane` (reuses doctor + credential readiness) |
 | quit | exit `0`, terminal restored, no operator side effects |
+
+## Slash commands
+
+Command input (`/` focus) accepts a minimal vocabulary. Parsing is isolated from operator business logic (`operator-tui-slash-commands.js`); dispatch reuses shell actions / existing modules.
+
+| Command | Behavior |
+|---------|----------|
+| `/help` | Lists **implemented** commands only (short descriptions) |
+| `/runs` | `runOperatorRuns` |
+| `/status` [`<run-id>`] | `runOperatorStatus` + status/monitor surfaces; requires selected run or arg |
+| `/explain` [`<run-id>`] | `runOperatorExplain` — reason codes / blocker / remediation from explain contract (never synthesized from presentation text) |
+| `/attach` [`<run-id>`] | `runAttach` |
+| `/doctor` | Config readiness pane (`runOperatorConfigReadinessPane`) |
+| `/new` | Guided launcher (`runOperatorGuidedLauncherPane`) — same preview/reproducibility path as nav `1` |
+| `/quit` | Same as quit action |
+
+**Reserved (not in `/help`, not implemented):** `/goal`, `/limits`, `/loop`, `/schedule`, `/resume`, `/rerun`. Honest reserved copy; no silent mapping to similar behavior; no state mutation.
+
+Unknown / empty `/` → helpful copy + `TUI_SLASH_*` reason codes; no crash; no mutation.
+
+Run-required commands without a selection explain how to select (`/runs` then `/cmd <run-id>`, or content ↑/↓).
+
+Non-interactive CLI verbs are unchanged.
 
 Nested readline panes temporarily restore the terminal, run the existing operator pane, then remount the Ink shell in-process (no return to bash).
 
@@ -145,6 +169,7 @@ Focused harness — render/state models and command dispatch, not pixel-perfect 
 | Surface | Module | Unit tests |
 |---------|--------|------------|
 | Fullscreen shell / adapters / live monitor / cleanup | `operator-tui-shell-*.js` · `operator-tui-adapters.js` · `operator-tui-live-monitor.js` | `tests/operator/operatorTuiShellFoundation.test.js` · `tests/operator/operatorTuiLiveMonitor.test.js` |
+| Slash commands | `operator-tui-slash-commands.js` · shell entry/actions wiring | `tests/operator/operatorTuiSlashCommands.test.js` |
 | Guided launcher | `operator-guided-launcher-*.js` | `tests/operator/operatorGuidedLauncher.test.js` |
 | Legacy readline cockpit / non-TTY / unknown action | `operator-cockpit-tui.js` | `tests/operator/operatorCockpitTui.test.js` |
 | Run selector + status pane | `operator-run-selector-tui.js` | `tests/operator/operatorRunSelectorTui.test.js` |
@@ -172,6 +197,7 @@ cd orchestrator && npm run test:tui-quality
 | Live run monitor | `modules/operator/operator-tui-live-monitor.js` · `operator-tui-loop-envelope.js` |
 | Shell model | `modules/operator/operator-tui-shell-model.js` |
 | Action dispatch | `modules/operator/operator-tui-shell-actions.js` |
+| Slash commands | `modules/operator/operator-tui-slash-commands.js` |
 | Terminal guard | `modules/operator/operator-tui-terminal-guard.js` |
 | Ink renderer (ESM) | `modules/operator/operator-tui-shell-render.mjs` |
 
@@ -183,13 +209,13 @@ cd orchestrator && npm run test:tui-quality
 
 ## Not claimed
 
-- Slash-command vocabulary
 - Web UI
 - Durable resume / rerun
 - Canonical Loop Contract storage schema
 - Computing completion percentages or self-scored progress
 - Windows interactive support (deferred)
 - Replacing existing CLI verbs
+- Reserved slash names (`/goal`, `/limits`, `/loop`, `/schedule`, `/resume`, `/rerun`) until a product contract exists
 
 ## See also
 

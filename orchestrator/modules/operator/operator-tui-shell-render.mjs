@@ -134,7 +134,11 @@ function ShellApp(props) {
       return;
     }
     if (input === '/') {
-      commit(buildShellModel({ ...shellModelToOptions(model), focus: 'input' }));
+      commit(buildShellModel({
+        ...shellModelToOptions(model),
+        focus: 'input',
+        commandInput: '/',
+      }));
     }
   });
 

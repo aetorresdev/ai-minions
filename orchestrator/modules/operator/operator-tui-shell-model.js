@@ -142,8 +142,8 @@ function buildShellModel(options = {}) {
       ? '↑↓ nav · Enter run · Tab focus · q quit'
       : '↑/↓ navigate  Enter=run action  Tab=focus  /=command  q=quit  Ctrl+C=abort',
     disclaimer:
-      'Guided launcher + live run monitor — operator modules remain authoritative. '
-      + 'Not claimed: slash commands · Web UI · durable resume.',
+      'Guided launcher + live run monitor + slash commands — operator modules remain authoritative. '
+      + 'Not claimed: Web UI · durable resume.',
   };
 }
 
