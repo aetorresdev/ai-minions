@@ -27,6 +27,8 @@ const {
   layoutModeForColumns,
   formatShellText,
   resolveNavHotkey,
+  resolveShellKeypress,
+  isShellSessionEndAction,
 } = require('../../modules/operator/operator-tui-shell-model');
 const {
   createTerminalGuard,
@@ -243,17 +245,182 @@ test('shell model chrome + nav + resize', () => {
   assert.equal(resolveNavHotkey('j', model.navItems), null);
 });
 
+test('hotkey matrix: labeled keys dispatch panes; only q ends session', () => {
+  const model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    runsPayload: canonicalRunsResult([]),
+    focus: 'nav',
+    selectedNavId: 'launcher',
+  });
+  const expected = [
+    ['1', 'launcher'],
+    ['2', 'runs'],
+    ['s', 'select'],
+    ['e', 'evidence'],
+    ['3', 'status'],
+    ['m', 'monitor'],
+    ['4', 'attach'],
+    ['5', 'config'],
+  ];
+  for (const [key, actionId] of expected) {
+    const intent = resolveShellKeypress(key, {}, model);
+    assert.equal(intent.type, 'dispatch', `key ${key} type`);
+    assert.equal(intent.actionId, actionId, `key ${key} action`);
+    assert.equal(intent.endsSession, false, `key ${key} must not end session`);
+    assert.equal(isShellSessionEndAction(intent.actionId), false);
+  }
+  const quitIntent = resolveShellKeypress('q', {}, model);
+  assert.equal(quitIntent.type, 'quit');
+  assert.equal(quitIntent.actionId, 'quit');
+  assert.equal(quitIntent.endsSession, true);
+  assert.equal(isShellSessionEndAction('quit'), true);
+  assert.equal(isShellSessionEndAction('1'), false);
+  assert.equal(isShellSessionEndAction('launcher'), false);
+
+  // Unlabeled digits / letters must not quit or dispatch.
+  for (const key of ['0', '6', '7', '8', '9', 'x', 'z']) {
+    const intent = resolveShellKeypress(key, {}, model);
+    assert.equal(intent.endsSession, false, `key ${key}`);
+    assert.notEqual(intent.type, 'quit', `key ${key}`);
+    assert.notEqual(intent.type, 'dispatch', `key ${key}`);
+  }
+
+  // Enter on highlighted launcher → dispatch launcher (not quit).
+  const enterLauncher = resolveShellKeypress('', { return: true }, {
+    ...model,
+    focus: 'nav',
+    selectedNavId: 'launcher',
+  });
+  assert.equal(enterLauncher.type, 'dispatch');
+  assert.equal(enterLauncher.actionId, 'launcher');
+  assert.equal(enterLauncher.endsSession, false);
+
+  // Enter on highlighted quit → intentional quit.
+  const enterQuit = resolveShellKeypress('', { return: true }, {
+    ...model,
+    focus: 'nav',
+    selectedNavId: 'quit',
+  });
+  assert.equal(enterQuit.type, 'quit');
+  assert.equal(enterQuit.endsSession, true);
+
+  // Ctrl+C abort.
+  const abort = resolveShellKeypress('c', { ctrl: true }, model);
+  assert.equal(abort.type, 'abort');
+  assert.equal(abort.endsSession, true);
+});
+
+test('key 1 and Enter on launcher dispatch executeAction(launcher), never silent quit', async () => {
+  async function runWithKey(writeKey) {
+    const actions = [];
+    const { stdin, stdout } = createFakeTtyStreams();
+    const promise = runOperatorTuiShell({
+      isTTY: true,
+      stdin,
+      stdout,
+      maxLoops: 2,
+      loadRuns: () => canonicalRunsResult([]),
+      buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+      assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+      assessPath: () => ({ status: 'ready', on_path: true }),
+      executeAction: async (opts) => {
+        actions.push(opts.actionId);
+        return {
+          quit: false,
+          selectedRunId: null,
+          contentSurface: 'launcher',
+          actionResult: {
+            action_id: opts.actionId,
+            ok: true,
+            exit_code: 0,
+            reason_code: 'LAUNCHER_CANCELLED',
+            text: 'ok',
+          },
+          launcherModel: { can_launch: false },
+        };
+      },
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    stdin.write(writeKey);
+    await new Promise((r) => setTimeout(r, 80));
+    stdin.write('q');
+    const result = await promise;
+    stdin.destroy();
+    stdout.destroy();
+    return { result, actions };
+  }
+
+  const byDigit = await runWithKey('1');
+  assert.ok(byDigit.actions.includes('launcher'), `actions=${byDigit.actions.join(',')}`);
+  assert.ok(!byDigit.actions.includes('quit') || byDigit.actions[0] === 'launcher');
+  assert.notEqual(byDigit.result.reason_code, TUI_SHELL_REASON.OK);
+  assert.equal(byDigit.result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.equal(byDigit.actions[0], 'launcher');
+
+  const byEnter = await runWithKey('\r');
+  assert.equal(byEnter.actions[0], 'launcher');
+  assert.equal(byEnter.result.reason_code, TUI_SHELL_REASON.QUIT);
+});
+
+test('digit hotkeys never take quit path; q still quits without running panes', async () => {
+  const actions = [];
+  const { stdin, stdout } = createFakeTtyStreams();
+  const promise = runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    maxLoops: 3,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    executeAction: async (opts) => {
+      actions.push(opts.actionId);
+      return {
+        quit: false,
+        selectedRunId: null,
+        contentSurface: 'action_result',
+        actionResult: {
+          action_id: opts.actionId,
+          ok: true,
+          exit_code: 0,
+          reason_code: 'OK',
+          text: 'ok',
+        },
+      };
+    },
+  });
+  await new Promise((r) => setTimeout(r, 100));
+  stdin.write('2'); // runs
+  await new Promise((r) => setTimeout(r, 80));
+  stdin.write('5'); // config
+  await new Promise((r) => setTimeout(r, 80));
+  stdin.write('q'); // quit — must not call executeAction('quit') after early session-end
+  const result = await promise;
+  assert.deepEqual(actions, ['runs', 'config']);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  stdin.destroy();
+  stdout.destroy();
+});
+
 test('prepareNestedPaneIo clears screen so nested panes do not overprint Ink', () => {
   const writes = [];
   let resumed = false;
+  let rawMode = true;
   const result = prepareNestedPaneIo({
     writeClear: (seq) => writes.push(seq),
-    stdin: { resume() { resumed = true; } },
+    stdin: {
+      resume() { resumed = true; },
+      setRawMode(mode) { rawMode = Boolean(mode); },
+    },
   });
   assert.equal(result.ok, true);
   assert.equal(result.wrote, true);
   assert.deepEqual(writes, [CLEAR_SEQUENCE]);
   assert.equal(resumed, true);
+  assert.equal(rawMode, false);
 });
 
 test('non-TTY path does not initialize Ink/React', async () => {

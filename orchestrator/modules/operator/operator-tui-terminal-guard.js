@@ -12,10 +12,10 @@ const CLEAR_SEQUENCE = '\u001b[2J\u001b[H';
 /**
  * Wipe the primary screen so nested readline panes do not overprint Ink chrome
  * (left-column bleed such as `(single_agent)ion: v0.25…`).
- * Resumes stdin so the following `readline` prompt owns keystrokes immediately
- * (no Tab hunt after Ink unmount).
+ * Forces cooked (non-raw) mode + resumes stdin so the following `readline` prompt
+ * owns keystrokes immediately (no Tab hunt after Ink unmount).
  * @param {{
- *   stdin?: NodeJS.ReadStream | { resume?: Function },
+ *   stdin?: NodeJS.ReadStream | { resume?: Function, setRawMode?: Function },
  *   stdout?: NodeJS.WriteStream | { write?: Function },
  *   writeClear?: (seq: string) => void,
  * }} [options]
@@ -33,6 +33,14 @@ function prepareNestedPaneIo(options = {}) {
     writer(CLEAR_SEQUENCE);
   } catch {
     return { ok: false, wrote: false };
+  }
+  // Ink may leave raw mode on briefly after unmount — readline needs cooked mode.
+  if (stdin && typeof stdin.setRawMode === 'function') {
+    try {
+      stdin.setRawMode(false);
+    } catch {
+      // non-fatal
+    }
   }
   if (stdin && typeof stdin.resume === 'function') {
     try {

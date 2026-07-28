@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, Text, render, renderToString, useApp, useInput, useStdout } from 'ink';
 import { createRequire } from 'node:module';
 
@@ -8,7 +8,7 @@ const {
   cycleFocus,
   moveNavSelection,
   moveRunSelection,
-  resolveNavHotkey,
+  resolveShellKeypress,
   shellModelToOptions,
 } = require('./operator-tui-shell-model.js');
 
@@ -31,18 +31,22 @@ function ShellApp(props) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const [model, setModel] = useState(initialModel);
+  const modelRef = useRef(model);
+  modelRef.current = model;
 
   const commit = (next) => {
     setModel(next);
     if (typeof onModelChange === 'function') onModelChange(next);
   };
 
+  // Resize only — do not rebind on every nav/keystroke (was a remount/listener thrash).
   useEffect(() => {
     const onResize = () => {
-      const columns = stdout?.columns ?? model.columns;
-      const rows = stdout?.rows ?? model.rows;
+      const current = modelRef.current;
+      const columns = stdout?.columns ?? current.columns;
+      const rows = stdout?.rows ?? current.rows;
       commit(buildShellModel({
-        ...shellModelToOptions(model),
+        ...shellModelToOptions(current),
         columns,
         rows,
       }));
@@ -55,7 +59,7 @@ function ShellApp(props) {
       };
     }
     return undefined;
-  }, [stdout, model]);
+  }, [stdout]);
 
   useEffect(() => {
     if (!Number.isFinite(autoQuitMs) || autoQuitMs < 0) return undefined;
@@ -64,86 +68,63 @@ function ShellApp(props) {
   }, [autoQuitMs, exit]);
 
   const requestAction = (actionId) => {
+    const id = actionId == null || String(actionId).trim() === ''
+      ? null
+      : String(actionId);
+    // Never unmount without an action id — that returns TUI_SHELL_OK and looks like a silent quit.
+    if (!id) return;
     if (typeof onRequestAction === 'function') {
-      onRequestAction(actionId);
+      onRequestAction(id);
     }
     exit();
   };
 
   useInput((input, key) => {
-    if (key.ctrl && input === 'c') {
+    const intent = resolveShellKeypress(input, key, model);
+
+    if (intent.type === 'abort') {
       if (typeof onAbort === 'function') onAbort();
       exit();
       return;
     }
-    if (input === 'q' && model.focus !== 'input') {
-      requestAction('quit');
+    if (intent.type === 'quit' || intent.type === 'dispatch') {
+      requestAction(intent.actionId);
       return;
     }
-    if (key.tab) {
+    if (intent.type === 'cycle_focus') {
       commit(cycleFocus(model));
       return;
     }
-    // Hotkeys work without Tab→command input (labels are keyboard hints, not mouse targets).
-    if (model.focus !== 'input' && input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow
-      && !key.leftArrow && !key.rightArrow && !key.return) {
-      const hotkeyAction = resolveNavHotkey(input, model.navItems);
-      if (hotkeyAction) {
-        requestAction(hotkeyAction);
-        return;
-      }
+    if (intent.type === 'nav_move') {
+      commit(moveNavSelection(model, intent.direction));
+      return;
     }
-    if (model.focus === 'nav') {
-      if (key.upArrow || input === 'k') {
-        commit(moveNavSelection(model, 'prev'));
-        return;
-      }
-      if (key.downArrow || input === 'j') {
-        commit(moveNavSelection(model, 'next'));
-        return;
-      }
-      if (key.return) {
-        requestAction(model.selectedNavId);
-        return;
-      }
+    if (intent.type === 'run_move') {
+      commit(moveRunSelection(model, intent.direction));
+      return;
     }
-    if (model.focus === 'content') {
-      if (key.upArrow || input === 'k') {
-        commit(moveRunSelection(model, 'prev'));
-        return;
-      }
-      if (key.downArrow || input === 'j') {
-        commit(moveRunSelection(model, 'next'));
-        return;
-      }
-      if (key.return && model.selectedRunId) {
-        requestAction('monitor');
-        return;
-      }
-    }
-    if (model.focus === 'input') {
-      if (key.return) {
-        const token = model.commandInput.trim();
-        commit(buildShellModel({ ...shellModelToOptions(model), commandInput: '' }));
-        if (token) requestAction(token);
-        return;
-      }
-      if (key.backspace || key.delete) {
-        commit(buildShellModel({
-          ...shellModelToOptions(model),
-          commandInput: model.commandInput.slice(0, -1),
-        }));
-        return;
-      }
-      if (input && !key.ctrl && !key.meta) {
-        commit(buildShellModel({
-          ...shellModelToOptions(model),
-          commandInput: `${model.commandInput}${input}`,
-        }));
+    if (intent.type === 'input_submit' || intent.type === 'input_clear_submit') {
+      commit(buildShellModel({ ...shellModelToOptions(model), commandInput: '' }));
+      if (intent.type === 'input_submit' && intent.actionId) {
+        requestAction(intent.actionId);
       }
       return;
     }
-    if (input === '/') {
+    if (intent.type === 'input_backspace') {
+      commit(buildShellModel({
+        ...shellModelToOptions(model),
+        commandInput: model.commandInput.slice(0, -1),
+      }));
+      return;
+    }
+    if (intent.type === 'input_char' && intent.char) {
+      commit(buildShellModel({
+        ...shellModelToOptions(model),
+        commandInput: `${model.commandInput}${intent.char}`,
+      }));
+      return;
+    }
+    if (intent.type === 'start_slash') {
       commit(buildShellModel({
         ...shellModelToOptions(model),
         focus: 'input',
@@ -368,6 +349,10 @@ export async function renderOperatorTuiShell(options) {
       },
       onRequestAction: (actionId) => {
         requestedAction = actionId;
+        // Forward to shell entry callback (belt-and-suspenders with return value).
+        if (typeof options.onRequestAction === 'function') {
+          options.onRequestAction(actionId);
+        }
       },
     }),
     {

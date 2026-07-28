@@ -14,7 +14,7 @@ const {
 const { runOperatorRuns } = require('./operator-run-list');
 const { formatNonTtyGuidance } = require('./operator-cockpit-tui');
 const { runOperatorCockpit } = require('./operator-cockpit-tui');
-const { buildShellModel, formatShellText } = require('./operator-tui-shell-model');
+const { buildShellModel, formatShellText, isShellSessionEndAction } = require('./operator-tui-shell-model');
 const {
   executeShellAction,
   resolveShellActionToken,
@@ -118,9 +118,9 @@ async function runOperatorTuiShell(options = {}) {
   const executeAction = options.executeAction ?? executeShellAction;
   const useColor = options.useColor === true;
 
-  const aboutInfo = buildAbout({ cwd: options.cwd });
-  const credentials = assessCredentials({ modelPolicy: aboutInfo.model_policy });
-  const pathActivation = assessPath();
+  let aboutInfo = buildAbout({ cwd: options.cwd });
+  let credentials = assessCredentials({ modelPolicy: aboutInfo.model_policy });
+  let pathActivation = assessPath();
   const runsResult = loadRuns({
     tracesDir: options.tracesDir,
     limit: 20,
@@ -205,6 +205,8 @@ async function runOperatorTuiShell(options = {}) {
   let loops = 0;
   /** @type {number} */
   let lastExitCode = 0;
+  /** @type {{ renderOperatorTuiShell: Function } | null} */
+  let cachedRenderer = null;
 
   try {
     while (loops < maxLoops) {
@@ -218,7 +220,12 @@ async function runOperatorTuiShell(options = {}) {
         }, 'renderer_exception');
       }
 
-      const renderer = await importRenderer();
+      // Cache Ink/React module after first load — dynamic import is cached by Node,
+      // but skip re-awaiting the promise machinery every remount loop.
+      if (!cachedRenderer) {
+        cachedRenderer = await importRenderer();
+      }
+      const renderer = cachedRenderer;
       inkLoaded = true;
       reactLoaded = true;
 
@@ -260,6 +267,21 @@ async function runOperatorTuiShell(options = {}) {
           ok: true,
           exitCode: 0,
           reason_code: TUI_SHELL_REASON.OK,
+          ink_loaded: inkLoaded,
+          react_loaded: reactLoaded,
+          text: formatShellText(model),
+          model,
+          guard,
+        };
+      }
+
+      // Intentional session end — never treat pane hotkeys (1/2/s/…) as quit.
+      if (isShellSessionEndAction(requestedAction)) {
+        if (!guard.restored) guard.restore('quit');
+        return {
+          ok: true,
+          exitCode: 0,
+          reason_code: TUI_SHELL_REASON.QUIT,
           ink_loaded: inkLoaded,
           react_loaded: reactLoaded,
           text: formatShellText(model),
@@ -383,10 +405,16 @@ async function runOperatorTuiShell(options = {}) {
           }
 
           guard = createTerminalGuard({ stdin, stdout });
+          // Reuse readiness snapshot on remount — only config pane refreshes PATH/creds.
+          if (plan.action_id === 'config') {
+            aboutInfo = buildAbout({ cwd: options.cwd });
+            credentials = assessCredentials({ modelPolicy: aboutInfo.model_policy });
+            pathActivation = assessPath();
+          }
           model = buildShellModel({
-            aboutInfo: buildAbout({ cwd: options.cwd }),
-            credentials: assessCredentials({ modelPolicy: aboutInfo.model_policy }),
-            pathActivation: assessPath(),
+            aboutInfo,
+            credentials,
+            pathActivation,
             runsPayload,
             statusResult,
             evidenceModel,
@@ -522,10 +550,16 @@ async function runOperatorTuiShell(options = {}) {
       // Fresh guard for next Ink mount after nested action I/O.
       guard = createTerminalGuard({ stdin, stdout });
 
+      // Reuse readiness snapshot on remount — config pane refreshes PATH/creds.
+      if (actionId === 'config') {
+        aboutInfo = buildAbout({ cwd: options.cwd });
+        credentials = assessCredentials({ modelPolicy: aboutInfo.model_policy });
+        pathActivation = assessPath();
+      }
       model = buildShellModel({
-        aboutInfo: buildAbout({ cwd: options.cwd }),
-        credentials: assessCredentials({ modelPolicy: aboutInfo.model_policy }),
-        pathActivation: assessPath(),
+        aboutInfo,
+        credentials,
+        pathActivation,
         runsPayload,
         statusResult,
         evidenceModel,
