@@ -19,12 +19,58 @@ Requires a TTY (stdin and stdout). Non-TTY exits non-zero with equivalent CLI ve
 - **Splash / brand screen (first paint):** optional ASCII brand splash on first Ink mount (`AI_MINIONS_TUI_SKIP_SPLASH=1` skips; auto-dismisses after a short timer or any key). First paint uses a bounded minimal model (version + explicit `loading`/`unavailable` readiness only) — credential/path assessment and run/trace discovery run only after splash continuation, then the shell remounts with populated state. Presentation only — not a capability claim.
 - **Theme:** cyan/blue accent hierarchy, focus border contrast, bold selected nav — respects `NO_COLOR` / `--color`. Terminal typography is bold/dim contrast only (no custom fonts).
 - **Header:** product name, version, high-level readiness (`path_status`).
-- **Navigation:** existing cockpit actions (guided launcher, runs, select, evidence, status, **live monitor**, attach, config, quit).
-- **Main content:** home readiness, guided launcher summary, runs list, selected-run status, evidence/attach state, config readiness, action result, **live run monitor**.
+- **Navigation:** task-first goals (Home, New Run, Runs, System Status, Settings, Help). Selected-run views (Overview, Monitor, Evidence, Explain) appear only when a run is selected. Legacy readline aliases (`s` select, digit-mapped attach/config, …) are **not** top-level fullscreen hotkeys — see [Keyboard / navigation matrix](#keyboard--navigation-matrix).
+- **Main content:** task-first landing (Quick Start · System Readiness · Recent Runs), guided launcher summary, runs list, System Status / diagnostics, Settings / config readiness, help surface, selected-run status / monitor / evidence / explain, action result.
 - **Footer:** key hints, current selection, safe exit guidance.
-- **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; **type the action key** (`1`, `s`, `e`, `m`, …) anytime outside command input to run that action (no Tab required); Enter runs the highlighted nav item; `/` focuses command input for slash commands; `q` / Ctrl+C quit with terminal restore.
+- **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; **type the labeled action key** (`h`, `1`–`5`, `?`, and when a run is selected `o` / `m` / `e` / `x`) anytime outside command input (no Tab required); Enter runs the highlighted nav item; `/` focuses command input for slash commands; `q` / Ctrl+C quit with terminal restore. Top-level `s` is ignored (selection is via Runs / content ↑↓, not a select hotkey).
 - **Mouse:** not wired — action labels are keyboard hints, not clickable buttons.
 - **Resize:** columns &lt; 72 → narrow layout (stacked); otherwise wide.
+
+## Keyboard / navigation matrix
+
+Source of truth for the fullscreen shell: `adaptShellNavigation` / `formatHelpLines` in `orchestrator/modules/operator/operator-tui-landing.js` (also exposed via `adaptNavigationActions` in `operator-tui-adapters.js`). Do **not** treat the legacy readline `COCKPIT_ACTIONS` table as the current Ink matrix.
+
+### 1. Fullscreen task-first navigation (always)
+
+| Key | Id | Label |
+|-----|-----|-------|
+| `h` | `home` | Home |
+| `1` | `launcher` | New Run |
+| `2` | `runs` | Runs |
+| `3` | `diagnostics` | System Status |
+| `4` | `config` | Settings |
+| `5` / `?` | `help` | Help |
+
+`q` / `/quit` end the session. Digits `1`–`5` never take the quit path.
+
+### 2. Selected-run contextual views (only when a run is selected)
+
+| Key | Id | Label |
+|-----|-----|-------|
+| `o` | `status` | Overview |
+| `m` | `monitor` | Monitor |
+| `e` | `evidence` | Evidence |
+| `x` | `explain` | Explain |
+
+Without a selected run these keys are not in the nav model (not top-level hotkeys). Attach remains available from the evidence pane / `/attach` / CLI — not a top-level fullscreen digit.
+
+### 3. Legacy readline cockpit aliases (rollback / power-user only)
+
+When `AI_MINIONS_TUI_LEGACY=1`, the previous readline loop uses `COCKPIT_ACTIONS` in `operator-cockpit-tui.js`. That matrix is **compatibility-only** and must not be documented as the current fullscreen contract:
+
+| Legacy key | Legacy id | Notes vs fullscreen |
+|------------|-----------|---------------------|
+| `1` | `launcher` | Same goal as New Run |
+| `2` | `runs` | Same goal as Runs |
+| `s` | `select` | **Not** a fullscreen top-level hotkey (`s` ignored) |
+| `e` | `evidence` | Fullscreen: contextual when a run is selected |
+| `3` | `status` | Fullscreen `3` is **System Status** (`diagnostics`), not run status |
+| `m` | `monitor` | Fullscreen: contextual when a run is selected |
+| `4` | `attach` | Fullscreen `4` is **Settings** (`config`), not attach |
+| `5` | `config` | Fullscreen `5` is **Help**; Settings is `4` |
+| `q` | `quit` | Same |
+
+Nested readline panes (guided launcher, run selector, evidence/attach, config readiness) may still use their own in-pane keys after a soft handoff; those are pane UX, not the top-level shell matrix.
 
 ## Adapter boundary
 
@@ -47,17 +93,23 @@ Lifecycle / monitor fields use provenance (`available` · `absent` · `unavailab
 
 ## Actions → existing contracts
 
-| Action | Module / command contract |
-|--------|---------------------------|
-| guided launcher | `runOperatorGuidedLauncherPane` → `runSmoke` / `runStart` (existing CLI contracts) |
-| runs | `runOperatorRuns` (`ai-minions runs`) |
-| select run / status pane | `runOperatorRunSelector` — newest-first list + compact status pane |
-| evidence / attach pane | prompts for run-id (Enter accepts previously selected run) → `runOperatorEvidenceAttachPane` |
-| status | prompts `--run-id` (defaults to last selected) → `runOperatorStatus` |
-| live monitor | prompts `--run-id` (defaults to last selected) → `runOperatorStatus` + `adaptLiveMonitor` (read-only) |
-| attach | prompts `--run-id` (defaults to last selected) → `runAttach` |
-| config / credentials readiness | `runOperatorConfigReadinessPane` (reuses doctor + credential readiness) |
-| quit | exit `0`, terminal restored, no operator side effects |
+Fullscreen action ids (task-first / contextual). Nested readline panes may still prompt for run-id when no selection exists.
+
+| Action id (key) | Module / command contract |
+|-----------------|---------------------------|
+| `home` (`h`) | Task-first landing surface (`buildLandingViewModel` / `formatLandingLines`) |
+| `launcher` (`1`) | `runOperatorGuidedLauncherPane` → `runSmoke` / `runStart` (existing CLI contracts) |
+| `runs` (`2`) | `runOperatorRuns` (`ai-minions runs`); content ↑/↓ selects a run in-shell |
+| `diagnostics` (`3`) | System Status / advanced diagnostics (`formatDiagnosticsLines`) — raw path/git/credential fields |
+| `config` (`4`) | Settings → `runOperatorConfigReadinessPane` (reuses doctor + credential readiness) |
+| `help` (`5` / `?`) | Help surface (`formatHelpLines`) — presentation only |
+| `status` (`o`, contextual) | Selected-run Overview → `runOperatorStatus` / `adaptSelectedRunStatus` |
+| `monitor` (`m`, contextual) | Live monitor → `runOperatorStatus` + `adaptLiveMonitor` (read-only) |
+| `evidence` (`e`, contextual) | Evidence / attach pane → `runOperatorEvidenceAttachPane` |
+| `explain` (`x`, contextual) | `runOperatorExplain` — reason codes / blocker / remediation (never synthesized from presentation text) |
+| quit (`q`) | exit `0`, terminal restored, no operator side effects |
+
+**Legacy-only (not fullscreen top-level):** `select` (`s`), digit `4`→attach, digit `5`→config — see [Legacy readline cockpit aliases](#3-legacy-readline-cockpit-aliases-rollback--power-user-only).
 
 ## Slash commands
 
@@ -86,7 +138,9 @@ Nested readline panes use a **soft handoff** (cooked stdin, screen clear, option
 
 ## Run selector + status pane
 
-Cockpit action **`s` / select**:
+**Fullscreen:** browse/select via Runs (`2`) and content ↑/↓; Overview (`o`) shows selected-run status. There is **no** top-level `s` / select hotkey.
+
+**Legacy readline / nested pane** (`runOperatorRunSelector`, also used under `AI_MINIONS_TUI_LEGACY=1` as action `s`):
 
 - Lists runs **newest-first** via the same discovery as `ai-minions runs`.
 - Selection by **index**, **run id**, or **keyboard nav** (`n`/`j` next, `p`/`k` prev, Enter selects cursor). Arrow keys and mouse are **not** wired in this nested readline pane.
@@ -99,9 +153,9 @@ Module: `orchestrator/modules/operator/operator-run-selector-tui.js`.
 
 ## Live run monitor
 
-Cockpit action **`m` / monitor** (aliases: `live`, `live-monitor`, `run-monitor`):
+**Fullscreen:** contextual **`m` / Monitor** when a run is selected (aliases in dispatch: `live`, `live-monitor`, `run-monitor`).
 
-- Prompts for run-id (Enter accepts previously selected run).
+- Uses the selected run when present; otherwise may prompt for run-id (Enter accepts previously selected run).
 - Reads the same authoritative status/trace snapshot as `ai-minions status --json`.
 - Shows high-level **monitor phase**: planning · running · verifying · iterating · evidence_ready · done · failed · blocked · exhausted · cancelled · unavailable.
 - Compact **loop status** with provenance: goal · iteration/max · role/phase · gate/verdict · blocker · retry · cost/budget · elapsed/limit · terminal stop · human-action required.
@@ -116,9 +170,9 @@ Module: `orchestrator/modules/operator/operator-tui-live-monitor.js`.
 
 ## Evidence / attach pane
 
-Cockpit action **`e` / evidence**:
+**Fullscreen:** contextual **`e` / Evidence** when a run is selected.
 
-- **Prompts for run-id** before opening the pane. If a run was previously selected (`s` / select, or an earlier `e`/`status`/`attach` prompt), the prompt shows that id in brackets; **Enter with an empty answer accepts the previously selected run**. Typing a new id overrides the selection.
+- Prefers the selected run; nested pane may **prompt for run-id** (Enter with empty answer accepts the previously selected run). Typing a new id overrides the selection.
 - Without a prior selection and with an empty answer, the pane is skipped (`run-id required`).
 - Shows **evidence status** for the run: trace path/basename · attach bundle availability · next safe action.
 - `attach_available=false` remains **bundle-on-disk** semantics only; copy does not discourage attach when `attach_action_available` is true.
@@ -128,9 +182,11 @@ Cockpit action **`e` / evidence**:
 
 Module: `orchestrator/modules/operator/operator-evidence-attach-pane-tui.js`.
 
-## Config / credentials readiness pane
+## Config / credentials readiness pane (Settings)
 
-Cockpit action **`5` / config** (aliases: `doctor`, `readiness`, `credentials`, `c`):
+**Fullscreen:** **`4` / Settings** (`config`). Help is **`5` / `?`** — do not document config as key `5` for the Ink shell.
+
+**Legacy readline:** key `5` / config (aliases: `doctor`, `readiness`, `credentials`, `c`) under `AI_MINIONS_TUI_LEGACY=1` only.
 
 - Summarizes **PATH/activation**, **runtime host**, **local backend** endpoint status, **discovered models**, **model policy**, and **provider credential status** (`present` / `missing` / `not_checked` only — never secret values).
 - `local_only` copy states that remote provider tokens are **not required**.
@@ -206,6 +262,7 @@ Focused harness — render/state models, integrated shell journey, and command d
 The gate asserts via adapter/state models (not presentation-text parsing alone):
 
 - Operator modules/adapters remain the source of truth
+- Fullscreen key matrix matches task-first nav (`1`–`5` / `h` / `?`) plus contextual selected-run keys (`o` / `m` / `e` / `x`); legacy `COCKPIT_ACTIONS` is rollback-only (see unit contract test)
 - Stable reason codes survive navigation and render remounts
 - `0`, `unknown`, `unavailable`, `not_configured`, and `unlimited` remain distinct
 - No percentage/progress/success inferred from model prose or iteration count
@@ -234,6 +291,7 @@ Failed automated gate → **fail**. Missing required platform evidence → **blo
 | Role | Path |
 |------|------|
 | Entry | `modules/operator/operator-tui-shell-entry.js` |
+| Task-first landing / nav matrix / help | `modules/operator/operator-tui-landing.js` |
 | Adapters | `modules/operator/operator-tui-adapters.js` |
 | Guided launcher | `modules/operator/operator-guided-launcher-model.js` · `operator-guided-launcher-pane-tui.js` |
 | Live run monitor | `modules/operator/operator-tui-live-monitor.js` · `operator-tui-loop-envelope.js` |
@@ -242,6 +300,7 @@ Failed automated gate → **fail**. Missing required platform evidence → **blo
 | Slash commands | `modules/operator/operator-tui-slash-commands.js` |
 | Terminal guard | `modules/operator/operator-tui-terminal-guard.js` |
 | Ink renderer (ESM) | `modules/operator/operator-tui-shell-render.mjs` |
+| Legacy readline cockpit | `modules/operator/operator-cockpit-tui.js` (`AI_MINIONS_TUI_LEGACY=1` only) |
 
 ## Rollback
 

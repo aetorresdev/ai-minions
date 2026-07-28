@@ -271,7 +271,11 @@ test('home / help / diagnostics actions switch surfaces without readline', async
 test('help and diagnostics formatters expose remediation without inventing truth', () => {
   const help = formatHelpLines().join('\n');
   assert.match(help, /New Run \(1\)/);
+  assert.match(help, /System Status \(3\)/);
+  assert.match(help, /Settings \(4\)/);
+  assert.match(help, /Help \(5 \/ \?\)/);
   assert.match(help, /Overview \(o\)/);
+  assert.match(help, /AI_MINIONS_TUI_LEGACY=1/);
   assert.match(help, /operator modules remain authoritative/i);
 
   const diag = formatDiagnosticsLines(baseHome({
