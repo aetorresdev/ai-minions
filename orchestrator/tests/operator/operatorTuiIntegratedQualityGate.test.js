@@ -388,8 +388,8 @@ test('fullscreen boot clean exit and failure paths restore terminal', async () =
     maxLoops: 1,
     importRenderer: async () => ({
       renderOperatorTuiShell: async ({ onRequestAction }) => {
-        onRequestAction('smoke');
-        return { aborted: false, requestedAction: 'smoke' };
+        onRequestAction('config');
+        return { aborted: false, requestedAction: 'config' };
       },
     }),
     executeAction: async () => ({
@@ -397,10 +397,10 @@ test('fullscreen boot clean exit and failure paths restore terminal', async () =
       selectedRunId: null,
       contentSurface: 'action_result',
       actionResult: {
-        action_id: 'smoke',
+        action_id: 'config',
         ok: false,
         exit_code: 1,
-        reason_code: 'SMOKE_FAILED',
+        reason_code: 'CONFIG_FAILED',
         text: 'failed',
       },
       evidenceModel: null,
@@ -409,7 +409,7 @@ test('fullscreen boot clean exit and failure paths restore terminal', async () =
       runsPayload: null,
     }),
   });
-  assert.equal(actionFail.model.actionResult.reason_code, 'SMOKE_FAILED');
+  assert.equal(actionFail.model.actionResult.reason_code, 'CONFIG_FAILED');
   // ok:false remounts soft; session ends via maxLoops/autoQuit — not ACTION_FAILURE.
   assert.equal(actionFail.guard.restored, true);
   assert.notEqual(actionFail.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);

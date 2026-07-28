@@ -22,6 +22,29 @@ const {
   formatHelpLines,
   formatDiagnosticsLines,
 } = require('./operator-tui-landing.js');
+const {
+  isNativeWorkflowAction,
+  openNativeWorkflow,
+  formatNativeWorkflowLines,
+  applyNativeWorkflowKeypress,
+  surfaceForWorkflow,
+  createAsyncTransitionGate,
+  NATIVE_LAUNCHER_EXECUTE_ACTION,
+} = require('./operator-tui-native-workflows.js');
+const {
+  completeFixtureLoad,
+} = require('./operator-tui-launcher-workflow.js');
+const { pathToFileURL, fileURLToPath } = require('node:url');
+const path = require('node:path');
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const FIXTURES_DATA = path.join(REPO_ROOT, 'scripts', 'lib', 'canonical-real-task-fixtures-data.mjs');
+
+async function defaultLoadFixturePrompt(fixtureId) {
+  const mod = await import(pathToFileURL(FIXTURES_DATA).href);
+  const fixture = mod.getFixture(fixtureId);
+  return fixture ? String(fixture.prompt ?? '') : '';
+}
 
 /**
  * Fullscreen Ink shell: optional brand splash, then header/nav/content/footer.
@@ -119,11 +142,56 @@ function ShellApp(props) {
   const [model, setModel] = useState(initialModel);
   const modelRef = useRef(model);
   modelRef.current = model;
+  const transitionGateRef = useRef(createAsyncTransitionGate());
   const theme = resolveShellTheme({ colorEnabled: model.colorEnabled });
 
   const commit = (next) => {
     setModel(next);
     if (typeof onModelChange === 'function') onModelChange(next);
+  };
+
+  const commitWorkflowResult = (current, result) => {
+    if (result.action === 'ignore') return;
+    if (result.action === 'cancel') {
+      const prev = current.activeWorkflow;
+      commit(buildShellModel({
+        ...shellModelToOptions(current),
+        activeWorkflow: null,
+        pendingLauncherSelections: null,
+        contentSurface: prev?.previousSurface ?? 'home',
+        focus: prev?.previousFocus ?? 'nav',
+      }));
+      return;
+    }
+    if (result.action === 'execute' && result.selections) {
+      commit(buildShellModel({
+        ...shellModelToOptions(current),
+        activeWorkflow: result.workflow ?? current.activeWorkflow,
+        pendingLauncherSelections: result.selections,
+        contentSurface: 'launcher_workflow',
+        focus: 'content',
+      }));
+      requestAction(NATIVE_LAUNCHER_EXECUTE_ACTION);
+      return;
+    }
+    if (
+      result.action === 'blocked'
+      || result.action === 'update'
+      || result.action === 'selected'
+      || result.action === 'busy'
+    ) {
+      const wf = result.workflow ?? current.activeWorkflow;
+      commit(buildShellModel({
+        ...shellModelToOptions(current),
+        activeWorkflow: wf,
+        selectedRunId: result.selectedRunId ?? current.selectedRunId,
+        contentSurface: surfaceForWorkflow(wf),
+        focus: 'content',
+        selectedNavId: wf?.kind === 'run_browser' ? 'select' : (
+          wf?.kind === 'launcher' ? 'launcher' : current.selectedNavId
+        ),
+      }));
+    }
   };
 
   // Resize only — do not rebind on every nav/keystroke (was a remount/listener thrash).
@@ -169,14 +237,79 @@ function ShellApp(props) {
   useInput((input, key) => {
     // Always resolve against the latest model — avoid stale focus after nav moves.
     const intent = resolveShellKeypress(input, key, modelRef.current);
+    const gate = transitionGateRef.current;
 
     if (intent.type === 'abort') {
+      gate.invalidate();
       if (typeof onAbort === 'function') onAbort();
       exit();
       return;
     }
+    if (intent.type === 'workflow_key') {
+      const current = modelRef.current;
+      const keyObj = key && typeof key === 'object' ? key : {};
+      const isEscape = Boolean(keyObj.escape) || input === '\u001b';
+
+      // Busy/loading: Esc cancels and invalidates in-flight loads; other keys consumed.
+      if (current.activeWorkflow?.busy) {
+        if (isEscape) {
+          const token = gate.invalidate();
+          void (async () => {
+            const result = await applyNativeWorkflowKeypress(current, input, key, {
+              loadFixturePrompt: defaultLoadFixturePrompt,
+              deferFixtureLoad: true,
+            });
+            if (!gate.isCurrent(token)) return;
+            commitWorkflowResult(modelRef.current, result);
+          })();
+        }
+        return;
+      }
+
+      const token = gate.begin();
+      void (async () => {
+        const snapshot = modelRef.current;
+        const result = await applyNativeWorkflowKeypress(snapshot, input, key, {
+          loadFixturePrompt: defaultLoadFixturePrompt,
+          deferFixtureLoad: true,
+        });
+        if (!gate.isCurrent(token)) return;
+
+        if (result.action === 'busy' && result.pending?.type === 'fixture_load') {
+          commitWorkflowResult(snapshot, result);
+          let fixturePrompt = '';
+          try {
+            fixturePrompt = await defaultLoadFixturePrompt(result.pending.fixtureId);
+          } catch {
+            fixturePrompt = '';
+          }
+          if (!gate.isCurrent(token)) return;
+          const completed = completeFixtureLoad(result.workflow, fixturePrompt, {});
+          commitWorkflowResult(modelRef.current, completed);
+          return;
+        }
+
+        commitWorkflowResult(snapshot, result);
+      })();
+      return;
+    }
     if (intent.type === 'quit' || intent.type === 'dispatch') {
-      requestAction(intent.actionId);
+      const actionId = intent.actionId;
+      if (intent.type === 'dispatch' && isNativeWorkflowAction(actionId)) {
+        const current = modelRef.current;
+        const workflow = openNativeWorkflow(current, actionId);
+        if (workflow) {
+          commit(buildShellModel({
+            ...shellModelToOptions(current),
+            activeWorkflow: workflow,
+            contentSurface: surfaceForWorkflow(workflow),
+            focus: 'content',
+            selectedNavId: actionId === 'smoke' ? 'launcher' : actionId,
+          }));
+          return;
+        }
+      }
+      requestAction(actionId);
       return;
     }
     if (intent.type === 'cycle_focus') {
@@ -194,7 +327,30 @@ function ShellApp(props) {
     if (intent.type === 'input_submit' || intent.type === 'input_clear_submit') {
       commit(buildShellModel({ ...shellModelToOptions(model), commandInput: '' }));
       if (intent.type === 'input_submit' && intent.actionId) {
-        requestAction(intent.actionId);
+        const actionId = intent.actionId;
+        // Slash / typed tokens that map to Phase-1 native workflows stay in Ink.
+        const token = String(actionId).trim().toLowerCase();
+        const nativeId = token === '/new' || token === 'new'
+          ? 'launcher'
+          : (token === '/runs' || token === 'runs'
+            ? 'runs'
+            : (token === 'select' || token === 's' ? 'select' : null));
+        if (nativeId && isNativeWorkflowAction(nativeId)) {
+          const current = modelRef.current;
+          const workflow = openNativeWorkflow(current, nativeId);
+          if (workflow) {
+            commit(buildShellModel({
+              ...shellModelToOptions(current),
+              activeWorkflow: workflow,
+              contentSurface: surfaceForWorkflow(workflow),
+              focus: 'content',
+              selectedNavId: nativeId === 'runs' ? 'runs' : (nativeId === 'select' ? 'select' : 'launcher'),
+              commandInput: '',
+            }));
+            return;
+          }
+        }
+        requestAction(actionId);
       }
       return;
     }
@@ -512,6 +668,9 @@ function OperatorTuiRoot(props) {
  * @returns {string[]}
  */
 function buildContentLines(model) {
+  if (model.activeWorkflow) {
+    return formatNativeWorkflowLines(model.activeWorkflow);
+  }
   if (model.contentSurface === 'home') {
     if (model.landing) {
       return formatLandingLines(model.landing, {

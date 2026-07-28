@@ -29,6 +29,7 @@ const {
   resolveNavHotkey,
   resolveShellKeypress,
   isShellSessionEndAction,
+  shellModelToOptions,
 } = require('../../modules/operator/operator-tui-shell-model');
 const {
   createTerminalGuard,
@@ -44,6 +45,9 @@ const {
   TUI_SHELL_REASON,
   runOperatorTuiShell,
 } = require('../../modules/operator/operator-tui-shell-entry');
+const {
+  NATIVE_LAUNCHER_EXECUTE_ACTION,
+} = require('../../modules/operator/operator-tui-native-workflows');
 const { resolveShellActionToken } = require('../../modules/operator/operator-tui-shell-actions');
 
 const ORCH_ROOT = path.join(__dirname, '..', '..');
@@ -328,7 +332,7 @@ test('hotkey matrix: labeled keys dispatch panes; only q ends session', () => {
   assert.equal(abort.endsSession, true);
 });
 
-test('key 1 and Enter on launcher dispatch executeAction(launcher), never silent quit', async () => {
+test('key 1 and Enter open native launcher workflow (no nested executeAction), never silent quit', async () => {
   async function runWithKey(writeKey) {
     const actions = [];
     const { stdin, stdout } = createFakeTtyStreams();
@@ -346,15 +350,14 @@ test('key 1 and Enter on launcher dispatch executeAction(launcher), never silent
         return {
           quit: false,
           selectedRunId: null,
-          contentSurface: 'launcher',
+          contentSurface: 'action_result',
           actionResult: {
             action_id: opts.actionId,
             ok: true,
             exit_code: 0,
-            reason_code: 'LAUNCHER_CANCELLED',
+            reason_code: 'OK',
             text: 'ok',
           },
-          launcherModel: { can_launch: false },
         };
       },
     });
@@ -369,14 +372,15 @@ test('key 1 and Enter on launcher dispatch executeAction(launcher), never silent
   }
 
   const byDigit = await runWithKey('1');
-  assert.ok(byDigit.actions.includes('launcher'), `actions=${byDigit.actions.join(',')}`);
-  assert.ok(!byDigit.actions.includes('quit') || byDigit.actions[0] === 'launcher');
+  assert.deepEqual(byDigit.actions, [], 'Phase-1 launcher stays in Ink — no nested executeAction');
+  assert.equal(byDigit.result.model?.activeWorkflow?.kind, 'launcher');
+  assert.equal(byDigit.result.model?.contentSurface, 'launcher_workflow');
   assert.notEqual(byDigit.result.reason_code, TUI_SHELL_REASON.OK);
   assert.equal(byDigit.result.reason_code, TUI_SHELL_REASON.QUIT);
-  assert.equal(byDigit.actions[0], 'launcher');
 
   const byEnter = await runWithKey('\r');
-  assert.equal(byEnter.actions[0], 'launcher');
+  assert.deepEqual(byEnter.actions, []);
+  assert.equal(byEnter.result.model?.activeWorkflow?.kind, 'launcher');
   assert.equal(byEnter.result.reason_code, TUI_SHELL_REASON.QUIT);
 });
 
@@ -409,13 +413,15 @@ test('digit hotkeys never take quit path; q still quits without running panes', 
     },
   });
   await new Promise((r) => setTimeout(r, 100));
-  stdin.write('2'); // runs
+  stdin.write('2'); // runs → native run browser (no executeAction)
   await new Promise((r) => setTimeout(r, 80));
-  stdin.write('4'); // settings / config
+  stdin.write('\u001b'); // Esc cancels native workflow back to shell
+  await new Promise((r) => setTimeout(r, 80));
+  stdin.write('4'); // settings / config → still nested Phase-2 pane
   await new Promise((r) => setTimeout(r, 80));
   stdin.write('q'); // quit — must not call executeAction('quit') after early session-end
   const result = await promise;
-  assert.deepEqual(actions, ['runs', 'config']);
+  assert.deepEqual(actions, ['config']);
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
   stdin.destroy();
   stdout.destroy();
@@ -541,10 +547,10 @@ test('shell nested pane receives answer buffered immediately after dispatch Ente
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
       renderOperatorTuiShell: async ({ onRequestAction }) => {
-        // Fast `1<Enter>c<Enter>`: residue + answer already buffered when nested I/O starts.
+        // Phase-1 launcher is native Ink; use config (still nested) to prove buffered answer.
         stdin.write('\nc\n');
-        onRequestAction('launcher');
-        return { aborted: false, requestedAction: 'launcher' };
+        onRequestAction('config');
+        return { aborted: false, requestedAction: 'config' };
       },
     }),
     executeAction: async ({ stdin: actionStdin, stdout: actionStdout }) => {
@@ -561,12 +567,12 @@ test('shell nested pane receives answer buffered immediately after dispatch Ente
       return {
         quit: true,
         selectedRunId: null,
-        contentSurface: 'launcher',
+        contentSurface: 'config',
         actionResult: {
-          action_id: 'launcher',
+          action_id: 'config',
           ok: true,
           exit_code: 0,
-          reason_code: 'LAUNCHER_CANCELLED',
+          reason_code: 'CONFIG_OK',
           text: `got:${answer}`,
         },
         evidenceModel: null,
@@ -620,11 +626,9 @@ test('prepareInkRemount resumes stdin after readline pause', () => {
   assert.equal(resumed, 1);
 });
 
-test('key 1 with leftover Enter still opens launcher and remounts (no silent quit)', async () => {
+test('key 1 with leftover Enter opens native launcher (no nested readline)', async () => {
   const actions = [];
-  const answers = [];
   const { stdin, stdout } = createFakeTtyStreams();
-  const { executeShellAction } = require('../../modules/operator/operator-tui-shell-actions');
   const promise = runOperatorTuiShell({
     isTTY: true,
     stdin,
@@ -636,38 +640,28 @@ test('key 1 with leftover Enter still opens launcher and remounts (no silent qui
     assessPath: () => ({ status: 'ready', on_path: true }),
     executeAction: async (opts) => {
       actions.push(opts.actionId);
-      return executeShellAction({
-        ...opts,
-        stdin,
-        stdout,
-        runLauncherPane: async ({ question, write }) => {
-          write('LAUNCHER_LIVE');
-          const a = await question('Select: ');
-          answers.push(a);
-          return {
-            ok: true,
-            exitCode: 0,
-            reason_code: 'LAUNCHER_CANCELLED',
-            model: null,
-            text: 'cancelled',
-            launched: false,
-          };
+      return {
+        quit: false,
+        selectedRunId: null,
+        contentSurface: 'action_result',
+        actionResult: {
+          action_id: opts.actionId,
+          ok: true,
+          exit_code: 0,
+          reason_code: 'OK',
+          text: 'ok',
         },
-      });
+      };
     },
   });
   await new Promise((r) => setTimeout(r, 100));
-  // Paste-style "1"+Enter (Ink may deliver as one chunk) must still dispatch launcher.
+  // Paste-style "1"+Enter must open native launcher without nested readline.
   stdin.write('1\r');
   await new Promise((r) => setTimeout(r, 120));
-  // Drain should leave the prompt waiting — cancel explicitly.
-  if (actions[0] === 'launcher' && answers.length === 0) {
-    stdin.write('c\n');
-    await new Promise((r) => setTimeout(r, 120));
-  }
   stdin.write('q');
   const result = await promise;
-  assert.equal(actions[0], 'launcher');
+  assert.deepEqual(actions, [], 'native launcher must not dispatch nested executeAction');
+  assert.equal(result.model?.activeWorkflow?.kind, 'launcher');
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
   assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
   stdin.destroy();
@@ -818,8 +812,9 @@ test('non-fatal failed action result soft-remounts; full restore only on quit', 
       renderOperatorTuiShell: async ({ onRequestAction }) => {
         renderPasses += 1;
         if (renderPasses === 1) {
-          onRequestAction('smoke');
-          return { aborted: false, requestedAction: 'smoke' };
+          // Phase-2 nested pane still exercises soft remount on ok:false.
+          onRequestAction('config');
+          return { aborted: false, requestedAction: 'config' };
         }
         onRequestAction('q');
         return { aborted: false, requestedAction: 'q' };
@@ -849,10 +844,10 @@ test('non-fatal failed action result soft-remounts; full restore only on quit', 
         selectedRunId: null,
         contentSurface: 'action_result',
         actionResult: {
-          action_id: 'smoke',
+          action_id: 'config',
           ok: false,
           exit_code: 1,
-          reason_code: 'SMOKE_FAILED',
+          reason_code: 'CONFIG_FAILED',
           text: 'failed',
         },
         evidenceModel: null,
@@ -871,7 +866,7 @@ test('non-fatal failed action result soft-remounts; full restore only on quit', 
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
   assert.notEqual(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
   assert.equal(result.guard.restored, true);
-  assert.equal(result.model.actionResult?.reason_code, 'SMOKE_FAILED');
+  assert.equal(result.model.actionResult?.reason_code, 'CONFIG_FAILED');
   stdin.destroy();
   stdout.destroy();
 });
@@ -897,11 +892,22 @@ test('caught launch failure (runSmoke throw → ok:false) soft-remounts', async 
     assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
-      renderOperatorTuiShell: async ({ onRequestAction }) => {
+      renderOperatorTuiShell: async ({ onRequestAction, onModelChange, model }) => {
         renderPasses += 1;
         if (renderPasses === 1) {
-          onRequestAction('launcher');
-          return { aborted: false, requestedAction: 'launcher' };
+          onModelChange(buildShellModel({
+            ...shellModelToOptions(model),
+            pendingLauncherSelections: {
+              agentFlow: 'single_agent',
+              inferenceLane: 'local_only',
+              gatePosture: 'degraded',
+              goalSource: 'custom',
+              goal: 'x',
+              confirm: true,
+            },
+          }));
+          onRequestAction(NATIVE_LAUNCHER_EXECUTE_ACTION);
+          return { aborted: false, requestedAction: NATIVE_LAUNCHER_EXECUTE_ACTION };
         }
         onRequestAction('q');
         return { aborted: false, requestedAction: 'q' };
@@ -915,9 +921,10 @@ test('caught launch failure (runSmoke throw → ok:false) soft-remounts', async 
         ...opts,
         stdin,
         stdout,
+        launcherSelections: opts.launcherSelections,
         runLauncherPane: async (paneOpts) => runOperatorGuidedLauncherPane({
           ...paneOpts,
-          selections: {
+          selections: paneOpts.selections ?? {
             agentFlow: 'single_agent',
             inferenceLane: 'local_only',
             gatePosture: 'degraded',
@@ -967,8 +974,8 @@ test('thrown action exception full-restores terminal', async () => {
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
       renderOperatorTuiShell: async ({ onRequestAction }) => {
-        onRequestAction('smoke');
-        return { aborted: false, requestedAction: 'smoke' };
+        onRequestAction('config');
+        return { aborted: false, requestedAction: 'config' };
       },
     }),
     executeAction: async () => {
@@ -1001,8 +1008,8 @@ test('action failure returns to shell state with reason_code', async () => {
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
       renderOperatorTuiShell: async ({ onRequestAction }) => {
-        onRequestAction('smoke');
-        return { aborted: false, requestedAction: 'smoke' };
+        onRequestAction('config');
+        return { aborted: false, requestedAction: 'config' };
       },
     }),
     executeAction: async () => ({
@@ -1010,10 +1017,10 @@ test('action failure returns to shell state with reason_code', async () => {
       selectedRunId: null,
       contentSurface: 'action_result',
       actionResult: {
-        action_id: 'smoke',
+        action_id: 'config',
         ok: false,
         exit_code: 1,
-        reason_code: 'SMOKE_FAILED',
+        reason_code: 'CONFIG_FAILED',
         text: 'failed',
       },
       evidenceModel: null,
@@ -1022,7 +1029,7 @@ test('action failure returns to shell state with reason_code', async () => {
       runsPayload: null,
     }),
   });
-  assert.equal(result.model.actionResult.reason_code, 'SMOKE_FAILED');
+  assert.equal(result.model.actionResult.reason_code, 'CONFIG_FAILED');
   // maxLoops/autoQuit ends the session — restore is session-end, not action-failure.
   assert.equal(result.guard.restored, true);
   assert.equal(result.reason_code, TUI_SHELL_REASON.OK);
