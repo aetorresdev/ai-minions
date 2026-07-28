@@ -53,6 +53,7 @@ const {
   createTerminalGuard,
   withTerminalGuard,
   RESTORE_SEQUENCE,
+  SOFT_HANDOFF_SEQUENCE,
 } = require('../../modules/operator/operator-tui-terminal-guard');
 
 const {
@@ -428,8 +429,12 @@ test('fullscreen boot clean exit and failure paths restore terminal', async () =
   });
   guardStdin.setRawMode(true);
   await withTerminalGuard(guard, async () => 'ok', 'normal');
-  assert.equal(guard.restored, true);
+  // Success softens for remount/pane handoff — full restore is session-end only.
+  assert.equal(guard.restored, false);
   assert.equal(guardStdin.isRaw, false);
+  assert.ok(writes.includes(SOFT_HANDOFF_SEQUENCE));
+  guard.restore('normal');
+  assert.equal(guard.restored, true);
   assert.ok(writes.includes(RESTORE_SEQUENCE));
 });
 

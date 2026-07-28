@@ -34,7 +34,10 @@ const {
   createTerminalGuard,
   withTerminalGuard,
   prepareNestedPaneIo,
+  prepareInkRemount,
+  drainStdin,
   RESTORE_SEQUENCE,
+  SOFT_HANDOFF_SEQUENCE,
   CLEAR_SEQUENCE,
 } = require('../../modules/operator/operator-tui-terminal-guard');
 const {
@@ -297,6 +300,16 @@ test('hotkey matrix: labeled keys dispatch panes; only q ends session', () => {
   assert.equal(enterLauncher.actionId, 'launcher');
   assert.equal(enterLauncher.endsSession, false);
 
+  // Terminals that emit \n (Ink name "enter") must also dispatch — not ignore/quit.
+  const enterNewline = resolveShellKeypress('\n', {}, {
+    ...model,
+    focus: 'nav',
+    selectedNavId: 'launcher',
+  });
+  assert.equal(enterNewline.type, 'dispatch');
+  assert.equal(enterNewline.actionId, 'launcher');
+  assert.equal(enterNewline.endsSession, false);
+
   // Enter on highlighted quit → intentional quit.
   const enterQuit = resolveShellKeypress('', { return: true }, {
     ...model,
@@ -415,12 +428,127 @@ test('prepareNestedPaneIo clears screen so nested panes do not overprint Ink', (
       resume() { resumed = true; },
       setRawMode(mode) { rawMode = Boolean(mode); },
     },
+    drain: false,
   });
   assert.equal(result.ok, true);
   assert.equal(result.wrote, true);
-  assert.deepEqual(writes, [CLEAR_SEQUENCE]);
+  assert.ok(writes.includes(SOFT_HANDOFF_SEQUENCE));
+  assert.ok(writes.includes(CLEAR_SEQUENCE));
+  assert.ok(!writes.includes(RESTORE_SEQUENCE), 'nested pane must not exit alt-screen');
   assert.equal(resumed, true);
   assert.equal(rawMode, false);
+});
+
+test('drainStdin discards leftover Enter so nested readline does not auto-answer', () => {
+  const { PassThrough } = require('node:stream');
+  const stdin = new PassThrough();
+  stdin.write('\r\n');
+  const n = drainStdin(stdin);
+  assert.ok(n >= 1);
+  assert.equal(stdin.read(), null);
+});
+
+test('withTerminalGuard success softens; session-end restore emits alt-screen exit once', async () => {
+  const writes = [];
+  const stdin = {
+    isTTY: true,
+    isRaw: false,
+    setRawMode(mode) {
+      this.isRaw = Boolean(mode);
+      return this;
+    },
+  };
+  const guard = createTerminalGuard({
+    stdin,
+    writeRestore: (seq) => writes.push(seq),
+  });
+  stdin.setRawMode(true);
+  await withTerminalGuard(guard, async () => 'ok', 'normal');
+  assert.equal(guard.restored, false, 'success path must not full-restore');
+  assert.ok(writes.includes(SOFT_HANDOFF_SEQUENCE));
+  assert.ok(!writes.includes(RESTORE_SEQUENCE));
+  guard.restore('quit');
+  assert.equal(guard.restored, true);
+  assert.ok(writes.includes(RESTORE_SEQUENCE));
+});
+
+test('prepareInkRemount resumes stdin after readline pause', () => {
+  let resumed = 0;
+  const result = prepareInkRemount({
+    stdin: {
+      isPaused: () => true,
+      resume() { resumed += 1; },
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.resumed, true);
+  assert.equal(resumed, 1);
+});
+
+test('key 1 with leftover Enter still opens launcher and remounts (no silent quit)', async () => {
+  const actions = [];
+  const answers = [];
+  const { stdin, stdout } = createFakeTtyStreams();
+  const { executeShellAction } = require('../../modules/operator/operator-tui-shell-actions');
+  const promise = runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    maxLoops: 3,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    executeAction: async (opts) => {
+      actions.push(opts.actionId);
+      return executeShellAction({
+        ...opts,
+        stdin,
+        stdout,
+        runLauncherPane: async ({ question, write }) => {
+          write('LAUNCHER_LIVE');
+          const a = await question('Select: ');
+          answers.push(a);
+          return {
+            ok: true,
+            exitCode: 0,
+            reason_code: 'LAUNCHER_CANCELLED',
+            model: null,
+            text: 'cancelled',
+            launched: false,
+          };
+        },
+      });
+    },
+  });
+  await new Promise((r) => setTimeout(r, 100));
+  // Paste-style "1"+Enter (Ink may deliver as one chunk) must still dispatch launcher.
+  stdin.write('1\r');
+  await new Promise((r) => setTimeout(r, 120));
+  // Drain should leave the prompt waiting — cancel explicitly.
+  if (actions[0] === 'launcher' && answers.length === 0) {
+    stdin.write('c\n');
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  stdin.write('q');
+  const result = await promise;
+  assert.equal(actions[0], 'launcher');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('resolveNavHotkey accepts paste bundle 1\\r', () => {
+  const model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    runsPayload: canonicalRunsResult([]),
+  });
+  assert.equal(resolveNavHotkey('1\r', model.navItems), 'launcher');
+  assert.equal(resolveShellKeypress('1\r', {}, { ...model, focus: 'nav' }).type, 'dispatch');
+  assert.equal(resolveShellKeypress('1\r', {}, { ...model, focus: 'nav' }).actionId, 'launcher');
 });
 
 test('non-TTY path does not initialize Ink/React', async () => {
@@ -438,7 +566,7 @@ test('non-TTY path does not initialize Ink/React', async () => {
   assert.match(result.text, /ai-minions smoke/);
 });
 
-test('terminal guard restores after normal, exception, and child failure', async () => {
+test('terminal guard softens after success; full-restores on exception and child failure', async () => {
   const writes = [];
   const stdin = {
     isTTY: true,
@@ -454,8 +582,11 @@ test('terminal guard restores after normal, exception, and child failure', async
   });
   stdin.setRawMode(true);
   await withTerminalGuard(guard, async () => 'ok', 'normal');
-  assert.equal(guard.restored, true);
+  assert.equal(guard.restored, false);
   assert.equal(stdin.isRaw, false);
+  assert.ok(writes.some((w) => w === SOFT_HANDOFF_SEQUENCE));
+  guard.restore('normal');
+  assert.equal(guard.restored, true);
   assert.ok(writes.some((w) => w === RESTORE_SEQUENCE));
 
   const child = await runOperatorTuiShell({

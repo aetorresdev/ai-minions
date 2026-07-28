@@ -80,7 +80,7 @@ Run-required commands without a selection explain how to select (`/runs` then `/
 
 Non-interactive CLI verbs are unchanged.
 
-Nested readline panes temporarily restore the terminal, **clear the screen**, resume stdin, run the existing operator pane (prompt already focused — type a key then Enter; j/k moves cursor; no mouse / no arrow keys), then remount the Ink shell in-process (no return to bash).
+Nested readline panes use a **soft handoff** (cooked stdin, screen clear, optional banner) and remount the Ink shell in-process — they must **not** look like a return to bash. Full alternate-screen restore (`CSI ?1049l`) is reserved for real session end (quit / abort / fatal). Pending keystrokes from the dispatching key are drained so readline does not auto-answer the first prompt.
 
 ## Run selector + status pane
 
@@ -155,13 +155,15 @@ Human shell text follows `terminal-style` / `NO_COLOR` / `--color`. JSON, Markdo
 
 ## Cleanup / terminal restore
 
-The shell restores raw mode + alternate-screen / cursor sequences after:
+The shell restores raw mode + alternate-screen / cursor sequences after **session end**:
 
-- normal quit
-- Ctrl+C
+- normal quit / `q` / `/quit`
+- Ctrl+C abort
 - renderer exception
 - operator action failure
 - simulated / real child-process failure
+
+Between Ink frames and nested readline panes the shell uses a **soft handoff** (cursor + cooked mode + clear) without leaving the session buffer.
 
 ## Quality gate (mandatory when TUI ships)
 

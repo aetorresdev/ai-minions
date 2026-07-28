@@ -80,7 +80,8 @@ function ShellApp(props) {
   };
 
   useInput((input, key) => {
-    const intent = resolveShellKeypress(input, key, model);
+    // Always resolve against the latest model — avoid stale focus after nav moves.
+    const intent = resolveShellKeypress(input, key, modelRef.current);
 
     if (intent.type === 'abort') {
       if (typeof onAbort === 'function') onAbort();
