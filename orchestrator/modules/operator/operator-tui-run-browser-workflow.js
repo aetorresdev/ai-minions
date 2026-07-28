@@ -92,9 +92,12 @@ function openRunOverview(workflow, entry, opts = {}) {
  * @returns {string[]}
  */
 function formatRunBrowserWorkflowLines(workflow) {
+  const snapshotNote =
+    'Startup snapshot (shell entry) — may be stale after same-session launch; refreshes on remount/refresh';
   if (workflow.step === 'empty') {
     return [
       'Run browser (native)',
+      snapshotNote,
       'runs: (none)',
       `result_code: ${workflow.result_code ?? 'RUNS_EMPTY'}`,
       workflow.next_safe_action
@@ -113,6 +116,7 @@ function formatRunBrowserWorkflowLines(workflow) {
   }
   return [
     'Run browser (native)',
+    snapshotNote,
     ...formatSelectLines(workflow.select, {
       title: 'Newest-first runs (read-only)',
       hint: '↑/↓ move · Enter open overview · Esc cancel',

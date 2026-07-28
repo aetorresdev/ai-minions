@@ -235,7 +235,10 @@ describe('operator-tui-run-browser-workflow', () => {
   it('handles empty runs', () => {
     const wf = createRunBrowserWorkflow({ runs: [] });
     assert.equal(wf.step, 'empty');
-    assert.match(formatRunBrowserWorkflowLines(wf).join('\n'), /none/);
+    const emptyText = formatRunBrowserWorkflowLines(wf).join('\n');
+    assert.match(emptyText, /none/);
+    assert.match(emptyText, /Startup snapshot/);
+    assert.match(emptyText, /refreshes on remount\/refresh/);
     assert.equal(applyRunBrowserWorkflowKeypress(wf, '', { escape: true }).action, 'cancel');
   });
 
@@ -246,6 +249,9 @@ describe('operator-tui-run-browser-workflow', () => {
     ];
     const wf = createRunBrowserWorkflow({ runs });
     assert.equal(wf.step, 'browse');
+    const listText = formatRunBrowserWorkflowLines(wf).join('\n');
+    assert.match(listText, /Startup snapshot/);
+    assert.match(listText, /refreshes on remount\/refresh/);
     const selected = applyRunBrowserWorkflowKeypress(wf, '', { return: true }, {
       loadPane: (entry) => ({
         ok: false,
