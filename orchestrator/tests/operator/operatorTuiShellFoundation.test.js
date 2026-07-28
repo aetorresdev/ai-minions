@@ -427,6 +427,124 @@ test('digit hotkeys never take quit path; q still quits without running panes', 
   stdout.destroy();
 });
 
+test('landing interactions stay in session until q (Enter/1/arrows/Esc/help)', async () => {
+  const actions = [];
+  const { stdin, stdout } = createFakeTtyStreams();
+  const promise = runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 8,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    executeAction: async (opts) => {
+      actions.push(opts.actionId);
+      return {
+        quit: false,
+        selectedRunId: null,
+        contentSurface: opts.actionId === 'launcher' ? 'launcher' : 'action_result',
+        actionResult: {
+          action_id: opts.actionId,
+          ok: true,
+          exit_code: 0,
+          reason_code: 'OK',
+          text: 'ok',
+        },
+        launcherModel: opts.actionId === 'launcher' ? { can_launch: false } : null,
+      };
+    },
+  });
+  await new Promise((r) => setTimeout(r, 120));
+  // Arrows must not end the session or dispatch.
+  stdin.write('\x1b[A');
+  await new Promise((r) => setTimeout(r, 70));
+  stdin.write('\x1b[B');
+  await new Promise((r) => setTimeout(r, 70));
+  // Local surfaces — no executeAction, no session end.
+  stdin.write('?');
+  await new Promise((r) => setTimeout(r, 70));
+  stdin.write('\x1b'); // Esc → home
+  await new Promise((r) => setTimeout(r, 70));
+  stdin.write('3'); // diagnostics local
+  await new Promise((r) => setTimeout(r, 70));
+  stdin.write('h'); // home local
+  await new Promise((r) => setTimeout(r, 70));
+  stdin.write('2'); // runs → native workflow (no executeAction)
+  await new Promise((r) => setTimeout(r, 70));
+  stdin.write('\x1b'); // Esc cancels workflow → prior surface
+  await new Promise((r) => setTimeout(r, 70));
+  // Home CTA Enter + digit 1 → native launcher workflow (still no executeAction).
+  stdin.write('\r');
+  await new Promise((r) => setTimeout(r, 100));
+  stdin.write('1');
+  await new Promise((r) => setTimeout(r, 100));
+  stdin.write('q');
+  const result = await promise;
+  assert.deepEqual(actions, []);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('Esc and local surfaces never set endsSession; q/Ctrl+C//quit do', () => {
+  const model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: canonicalRunsResult([]),
+    contentSurface: 'help',
+    selectedNavId: 'help',
+  });
+  const {
+    isInkLocalShellAction,
+    contentSurfaceForLocalAction,
+    isShellSessionEndAction,
+  } = require('../../modules/operator/operator-tui-shell-model');
+
+  assert.equal(isInkLocalShellAction('home'), true);
+  assert.equal(isInkLocalShellAction('help'), true);
+  assert.equal(isInkLocalShellAction('diagnostics'), true);
+  assert.equal(isInkLocalShellAction('runs'), false, 'runs is native workflow, not contentSurface local');
+  assert.equal(isInkLocalShellAction('launcher'), false);
+  assert.equal(contentSurfaceForLocalAction('3'), null);
+  assert.equal(contentSurfaceForLocalAction('diagnostics'), 'diagnostics');
+
+  assert.equal(resolveShellKeypress('', { escape: true }, model).type, 'surface_home');
+  assert.equal(resolveShellKeypress('', { escape: true }, model).endsSession, false);
+  assert.equal(resolveShellKeypress('?', {}, model).type, 'dispatch');
+  assert.equal(resolveShellKeypress('?', {}, model).endsSession, false);
+  assert.equal(resolveShellKeypress('3', {}, model).actionId, 'diagnostics');
+  assert.equal(resolveShellKeypress('3', {}, model).endsSession, false);
+  assert.equal(resolveShellKeypress('', { upArrow: true }, model).type, 'nav_move');
+  assert.equal(resolveShellKeypress('', { upArrow: true }, model).endsSession, false);
+  assert.equal(resolveShellKeypress('', { return: true }, {
+    ...model,
+    focus: 'nav',
+    selectedNavId: 'launcher',
+    contentSurface: 'home',
+  }).endsSession, false);
+  assert.equal(resolveShellKeypress('q', {}, model).endsSession, true);
+  assert.equal(resolveShellKeypress('c', { ctrl: true }, model).endsSession, true);
+
+  // Command-input /quit is a first-class session terminator (same as q).
+  const quitSlash = resolveShellKeypress('', { return: true }, {
+    ...model,
+    focus: 'input',
+    commandInput: '/quit',
+  });
+  assert.equal(quitSlash.type, 'quit');
+  assert.equal(quitSlash.actionId, '/quit');
+  assert.equal(quitSlash.endsSession, true);
+  assert.equal(isShellSessionEndAction('/quit'), true);
+  assert.equal(isShellSessionEndAction('quit'), true);
+  assert.equal(isShellSessionEndAction('q'), true);
+  assert.equal(isShellSessionEndAction('help'), false);
+});
+
 test('prepareNestedPaneIo clears screen so nested panes do not overprint Ink', () => {
   const writes = [];
   let resumed = false;

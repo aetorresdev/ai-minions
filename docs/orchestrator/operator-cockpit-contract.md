@@ -22,7 +22,7 @@ Requires a TTY (stdin and stdout). Non-TTY exits non-zero with equivalent CLI ve
 - **Navigation:** task-first goals (Home, New Run, Runs, System Status, Settings, Help). Selected-run views (Overview, Monitor, Evidence, Explain) appear only when a run is selected. Legacy readline aliases (`s` select, digit-mapped attach/config, …) are **not** top-level fullscreen hotkeys — see [Keyboard / navigation matrix](#keyboard--navigation-matrix).
 - **Main content:** task-first landing (Quick Start · System Readiness · Recent Runs), guided launcher summary, runs list, System Status / diagnostics, Settings / config readiness, help surface, selected-run status / monitor / evidence / explain, action result.
 - **Footer:** key hints, current selection, safe exit guidance.
-- **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; **type the labeled action key** (`h`, `1`–`5`, `?`, and when a run is selected `o` / `m` / `e` / `x`) anytime outside command input (no Tab required); Enter runs the highlighted nav item; `/` focuses command input for slash commands; `q` / Ctrl+C quit with terminal restore (except during guided-launcher **custom goal** text entry, where printable `q` is part of the goal and only Ctrl+C ends the session). Top-level `s` is ignored (selection is via Runs / content ↑↓, not a select hotkey).
+- **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; **type the labeled action key** (`h`, `1`–`5`, `?`, and when a run is selected `o` / `m` / `e` / `x`) anytime outside command input (no Tab required); Enter runs the highlighted nav item; `/` focuses command input for slash commands; `q` / `/quit` / Ctrl+C quit with terminal restore (except during guided-launcher **custom goal** text entry, where printable `q` is part of the goal and only Ctrl+C / `/quit` from command input end the session). Top-level `s` is ignored (selection is via Runs / content ↑↓, not a select hotkey).
 - **Native Phase-1 workflows:** guided launcher, run browser, and selected-run overview run **inside** the Ink shell (↑/↓ · Enter · Esc). Choice/navigation must not tear down the terminal guard or open a nested readline pane. Child-process launch may use a bounded soft handoff after confirm.
 - **Mouse:** not wired — action labels are keyboard hints, not clickable buttons.
 - **Resize:** columns &lt; 72 → narrow layout (stacked); otherwise wide.
@@ -73,6 +73,10 @@ When `AI_MINIONS_TUI_LEGACY=1`, the previous readline loop uses `COCKPIT_ACTIONS
 
 Nested readline panes (guided launcher, run selector, evidence/attach, config readiness) may still use their own in-pane keys after a soft handoff; those are pane UX, not the top-level shell matrix.
 
+**Ink-local surfaces (no unmount):** `home`, `help`, and `diagnostics` switch `contentSurface` inside the live Ink mount. **Phase-1 native workflows** (`launcher` / `runs` / overview) also stay inside Ink. Hotkeys and slash aliases for these (`h`/`?`/`3`/`2`/`1`, `/help`, `/runs`, `/new`, `/home`) must **not** soft-handoff / clear / remount — that looks like a silent quit (`TUI_SHELL_OK`). Nested panes remain only for actions that still need readline (settings, evidence, etc.). `/help` shows slash vocabulary as an in-mount `action_result` (no remount).
+
+**Esc:** never ends the session. From command input it cancels input focus; from a non-home surface it returns to Home. Session terminators: `q`, `/quit` (command input), and Ctrl+C.
+
 ## Adapter boundary
 
 Components consume explicit view-models from `operator-tui-adapters.js` / `operator-tui-live-monitor.js` — they do not parse formatted CLI text or duplicate operator logic:
@@ -118,8 +122,8 @@ Command input (`/` focus) accepts a minimal vocabulary. Parsing is isolated from
 
 | Command | Behavior |
 |---------|----------|
-| `/help` | Lists **implemented** commands only (short descriptions) |
-| `/runs` | `runOperatorRuns` |
+| `/help` | Lists **implemented** slash commands in-process (no remount; same copy as `formatSlashHelpText`) |
+| `/runs` | Opens native run browser in-process (same as `2`) |
 | `/status` [`<run-id>`] | `runOperatorStatus` + status/monitor surfaces; requires selected run or arg |
 | `/explain` [`<run-id>`] | `runOperatorExplain` — reason codes / blocker / remediation from explain contract (never synthesized from presentation text) |
 | `/attach` [`<run-id>`] | `runAttach` |

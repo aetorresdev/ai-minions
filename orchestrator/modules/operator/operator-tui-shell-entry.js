@@ -14,7 +14,12 @@ const {
 const { runOperatorRuns } = require('./operator-run-list');
 const { formatNonTtyGuidance } = require('./operator-cockpit-tui');
 const { runOperatorCockpit } = require('./operator-cockpit-tui');
-const { buildShellModel, formatShellText, isShellSessionEndAction, shellModelToOptions } = require('./operator-tui-shell-model');
+const {
+  buildShellModel,
+  formatShellText,
+  isShellSessionEndAction,
+  shellModelToOptions,
+} = require('./operator-tui-shell-model');
 const {
   executeShellAction,
   resolveShellActionToken,

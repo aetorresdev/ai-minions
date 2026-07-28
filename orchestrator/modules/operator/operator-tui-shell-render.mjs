@@ -10,6 +10,8 @@ const {
   moveRunSelection,
   resolveShellKeypress,
   shellModelToOptions,
+  isInkLocalShellAction,
+  contentSurfaceForLocalAction,
 } = require('./operator-tui-shell-model.js');
 const { resolveShellTheme, focusBorderColor, toneColor } = require('./operator-tui-theme.js');
 const {
@@ -34,6 +36,8 @@ const {
 const {
   completeFixtureLoad,
 } = require('./operator-tui-launcher-workflow.js');
+const { formatSlashHelpText } = require('./operator-tui-slash-commands.js');
+const { adaptActionResult } = require('./operator-tui-adapters.js');
 const { pathToFileURL, fileURLToPath } = require('node:url');
 const path = require('node:path');
 
@@ -236,7 +240,8 @@ function ShellApp(props) {
 
   useInput((input, key) => {
     // Always resolve against the latest model — avoid stale focus after nav moves.
-    const intent = resolveShellKeypress(input, key, modelRef.current);
+    const current = modelRef.current;
+    const intent = resolveShellKeypress(input, key, current);
     const gate = transitionGateRef.current;
 
     if (intent.type === 'abort') {
@@ -246,7 +251,6 @@ function ShellApp(props) {
       return;
     }
     if (intent.type === 'workflow_key') {
-      const current = modelRef.current;
       const keyObj = key && typeof key === 'object' ? key : {};
       const isEscape = Boolean(keyObj.escape) || input === '\u001b';
 
@@ -293,10 +297,13 @@ function ShellApp(props) {
       })();
       return;
     }
-    if (intent.type === 'quit' || intent.type === 'dispatch') {
+    if (intent.type === 'quit') {
+      requestAction(intent.actionId);
+      return;
+    }
+    if (intent.type === 'dispatch') {
       const actionId = intent.actionId;
-      if (intent.type === 'dispatch' && isNativeWorkflowAction(actionId)) {
-        const current = modelRef.current;
+      if (isNativeWorkflowAction(actionId)) {
         const workflow = openNativeWorkflow(current, actionId);
         if (workflow) {
           commit(buildShellModel({
@@ -305,38 +312,70 @@ function ShellApp(props) {
             contentSurface: surfaceForWorkflow(workflow),
             focus: 'content',
             selectedNavId: actionId === 'smoke' ? 'launcher' : actionId,
+            commandInput: '',
           }));
           return;
         }
       }
+      // Landing surfaces stay mounted — unmount+clear looks like TUI_SHELL_OK.
+      if (isInkLocalShellAction(actionId)) {
+        const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
+        commit(buildShellModel({
+          ...shellModelToOptions(current),
+          contentSurface: surface,
+          selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+          focus: 'nav',
+          commandInput: '',
+          activeWorkflow: null,
+        }));
+        return;
+      }
       requestAction(actionId);
       return;
     }
+    if (intent.type === 'surface_home') {
+      commit(buildShellModel({
+        ...shellModelToOptions(current),
+        contentSurface: 'home',
+        selectedNavId: 'launcher',
+        focus: 'nav',
+        commandInput: '',
+        activeWorkflow: null,
+      }));
+      return;
+    }
+    if (intent.type === 'cancel_input') {
+      commit(buildShellModel({
+        ...shellModelToOptions(current),
+        focus: 'nav',
+        commandInput: '',
+      }));
+      return;
+    }
     if (intent.type === 'cycle_focus') {
-      commit(cycleFocus(model));
+      commit(cycleFocus(current));
       return;
     }
     if (intent.type === 'nav_move') {
-      commit(moveNavSelection(model, intent.direction));
+      commit(moveNavSelection(current, intent.direction));
       return;
     }
     if (intent.type === 'run_move') {
-      commit(moveRunSelection(model, intent.direction));
+      commit(moveRunSelection(current, intent.direction));
       return;
     }
     if (intent.type === 'input_submit' || intent.type === 'input_clear_submit') {
-      commit(buildShellModel({ ...shellModelToOptions(model), commandInput: '' }));
+      commit(buildShellModel({ ...shellModelToOptions(current), commandInput: '' }));
       if (intent.type === 'input_submit' && intent.actionId) {
         const actionId = intent.actionId;
-        // Slash / typed tokens that map to Phase-1 native workflows stay in Ink.
         const token = String(actionId).trim().toLowerCase();
+        // Slash / typed tokens that map to Phase-1 native workflows stay in Ink.
         const nativeId = token === '/new' || token === 'new'
           ? 'launcher'
           : (token === '/runs' || token === 'runs'
             ? 'runs'
             : (token === 'select' || token === 's' ? 'select' : null));
         if (nativeId && isNativeWorkflowAction(nativeId)) {
-          const current = modelRef.current;
           const workflow = openNativeWorkflow(current, nativeId);
           if (workflow) {
             commit(buildShellModel({
@@ -350,27 +389,61 @@ function ShellApp(props) {
             return;
           }
         }
+        // /help lists slash vocabulary in-process (no remount).
+        if (token === '/help') {
+          commit(buildShellModel({
+            ...shellModelToOptions(current),
+            contentSurface: 'action_result',
+            actionResult: adaptActionResult({
+              action_id: '/help',
+              ok: true,
+              exitCode: 0,
+              reason_code: 'TUI_SLASH_HELP',
+              text: formatSlashHelpText(),
+            }),
+            focus: 'nav',
+            commandInput: '',
+            activeWorkflow: null,
+          }));
+          return;
+        }
+        // Bare help/home/diagnostics (and /home, /diagnostics) switch surfaces without unmount.
+        const localToken = token === '/home' || token === 'home' ? 'home'
+          : (token === '/diagnostics' || token === 'diagnostics' ? 'diagnostics'
+            : (token === 'help' || token === '?' ? 'help' : token));
+        if (isInkLocalShellAction(localToken)) {
+          const surface = contentSurfaceForLocalAction(localToken) ?? 'home';
+          commit(buildShellModel({
+            ...shellModelToOptions(current),
+            contentSurface: surface,
+            selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+            focus: 'nav',
+            commandInput: '',
+            activeWorkflow: null,
+          }));
+          return;
+        }
         requestAction(actionId);
       }
       return;
     }
     if (intent.type === 'input_backspace') {
       commit(buildShellModel({
-        ...shellModelToOptions(model),
-        commandInput: model.commandInput.slice(0, -1),
+        ...shellModelToOptions(current),
+        commandInput: current.commandInput.slice(0, -1),
       }));
       return;
     }
     if (intent.type === 'input_char' && intent.char) {
       commit(buildShellModel({
-        ...shellModelToOptions(model),
-        commandInput: `${model.commandInput}${intent.char}`,
+        ...shellModelToOptions(current),
+        commandInput: `${current.commandInput}${intent.char}`,
       }));
       return;
     }
     if (intent.type === 'start_slash') {
       commit(buildShellModel({
-        ...shellModelToOptions(model),
+        ...shellModelToOptions(current),
         focus: 'input',
         commandInput: '/',
       }));

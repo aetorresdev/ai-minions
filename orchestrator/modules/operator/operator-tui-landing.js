@@ -506,8 +506,8 @@ function buildLandingViewModel(options = {}) {
     activity,
     empty_state: emptyState,
     primary_action_id: 'launcher',
-    footer_hints_wide: '↑/↓ Navigate · Enter Select · q Quit · ? Help · /=slash',
-    footer_hints_narrow: '↑↓ · Enter · q · ?',
+    footer_hints_wide: '↑/↓ Navigate · Enter Select · Esc Home · q Quit · ? Help · /=slash',
+    footer_hints_narrow: '↑↓ · Enter · Esc · q · ?',
   };
 }
 
@@ -599,7 +599,7 @@ function formatHelpLines() {
     '  Evidence (e)   Attach / bundle availability',
     '  Explain (x)    Explain next safe action',
     '',
-    'Keys: ↑/↓ move · Enter select · Tab focus · / slash · q quit',
+    'Keys: ↑/↓ move · Enter select · Esc back to Home · Tab focus · / slash · q quit',
     'Top-level s is ignored (use Runs / ↑↓). Legacy readline matrix: AI_MINIONS_TUI_LEGACY=1 only.',
     'Operator modules remain authoritative. Not claimed: Web UI · mouse · durable resume.',
   ];

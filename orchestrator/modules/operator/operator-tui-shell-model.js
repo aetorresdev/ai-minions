@@ -227,12 +227,43 @@ function resolveNavHotkey(raw, navItems) {
  */
 function isShellSessionEndAction(actionId) {
   const id = String(actionId ?? '').trim().toLowerCase();
-  return id === 'quit' || id === 'q';
+  return id === 'quit' || id === 'q' || id === '/quit';
+}
+
+/**
+ * Task-first surfaces that must switch inside the live Ink mount.
+ * Unmounting these (exit → soft handoff → clear) looks like a silent quit and
+ * risks TUI_SHELL_OK when remount is lost.
+ * @param {unknown} actionId
+ * @returns {boolean}
+ */
+function isInkLocalShellAction(actionId) {
+  const id = String(actionId ?? '').trim().toLowerCase();
+  // `runs` / launcher are Phase-1 native workflows (still Ink-mounted, separate path).
+  return id === 'home'
+    || id === 'help'
+    || id === 'diagnostics'
+    || id === 'system-status'
+    || id === 'system_status';
+}
+
+/**
+ * @param {unknown} actionId
+ * @returns {'home'|'help'|'diagnostics'|null}
+ */
+function contentSurfaceForLocalAction(actionId) {
+  const id = String(actionId ?? '').trim().toLowerCase();
+  if (id === 'home' || id === 'landing') return 'home';
+  if (id === 'help' || id === '?') return 'help';
+  if (id === 'diagnostics' || id === 'system-status' || id === 'system_status' || id === 'doctor') {
+    return 'diagnostics';
+  }
+  return null;
 }
 
 /**
  * Pure Ink key → intent resolver (testable hotkey matrix; no Ink imports).
- * Digits/letters dispatch panes; only quit / Ctrl+C set endsSession.
+ * Digits/letters dispatch panes; only q / Ctrl+C / /quit set endsSession.
  * @param {string} input
  * @param {{
  *   ctrl?: boolean,
@@ -267,6 +298,7 @@ function resolveShellKeypress(input, key = {}, model = {}) {
   // Some terminals emit \n (name "enter") instead of \r (name "return").
   const isReturn = Boolean(keyObj.return) || input === '\r' || input === '\n';
   const workflowActive = model.activeWorkflow != null;
+  const isEscape = Boolean(keyObj.escape) || input === '\u001b';
 
   if (keyObj.ctrl && input === 'c') {
     return { type: 'abort', endsSession: true };
@@ -287,6 +319,18 @@ function resolveShellKeypress(input, key = {}, model = {}) {
 
   if (workflowActive && focus !== 'input') {
     return { type: 'workflow_key', endsSession: false };
+  }
+
+  // Esc never ends the session: leave command input, or return to the landing.
+  if (isEscape) {
+    if (focus === 'input') {
+      return { type: 'cancel_input', endsSession: false };
+    }
+    const surface = String(model.contentSurface ?? 'home').toLowerCase();
+    if (surface !== 'home') {
+      return { type: 'surface_home', endsSession: false };
+    }
+    return { type: 'ignore', endsSession: false };
   }
 
   if (keyObj.tab) {
@@ -353,7 +397,7 @@ function resolveShellKeypress(input, key = {}, model = {}) {
     if (isReturn) {
       const token = String(model.commandInput ?? '').trim();
       if (!token) return { type: 'input_clear_submit', endsSession: false };
-      if (isShellSessionEndAction(token) || token === '/quit') {
+      if (isShellSessionEndAction(token)) {
         return { type: 'quit', actionId: token === '/quit' ? '/quit' : 'quit', endsSession: true };
       }
       return { type: 'input_submit', actionId: token, endsSession: false };
@@ -582,6 +626,8 @@ module.exports = {
   resolveNavHotkey,
   resolveShellKeypress,
   isShellSessionEndAction,
+  isInkLocalShellAction,
+  contentSurfaceForLocalAction,
   formatLandingLines,
   formatHelpLines,
   formatDiagnosticsLines,
