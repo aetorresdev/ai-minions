@@ -729,6 +729,7 @@ async function runOperatorTuiShell(options = {}) {
               colorEnabled: useColor && process.env.NO_COLOR == null,
               productVersion: aboutInfo.version,
               activeWorkflow: null,
+              helpOpenTopicId: null,
             });
             if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
               if (!guard.restored) guard.restore('normal');
@@ -966,6 +967,7 @@ async function runOperatorTuiShell(options = {}) {
           colorEnabled: useColor && process.env.NO_COLOR == null,
           productVersion: aboutInfo.version,
           activeWorkflow: null,
+          helpOpenTopicId: null,
         });
         if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
           if (!guard.restored) guard.restore('normal');

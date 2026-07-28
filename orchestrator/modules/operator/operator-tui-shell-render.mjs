@@ -8,6 +8,9 @@ const {
   cycleFocus,
   moveNavSelection,
   moveRunSelection,
+  moveHelpTopicSelection,
+  openHelpTopic,
+  closeHelpTopic,
   resolveShellKeypress,
   shellModelToOptions,
   isInkLocalShellAction,
@@ -715,6 +718,18 @@ function ShellApp(props) {
       requestAction(intent.actionId);
       return;
     }
+    if (intent.type === 'help_move') {
+      commit(moveHelpTopicSelection(current, intent.direction));
+      return;
+    }
+    if (intent.type === 'help_open') {
+      commit(openHelpTopic(current, intent.topicId));
+      return;
+    }
+    if (intent.type === 'help_close_topic') {
+      commit(closeHelpTopic(current));
+      return;
+    }
     if (intent.type === 'dispatch') {
       const actionId = intent.actionId;
       if (isNativeWorkflowAction(actionId)) {
@@ -741,6 +756,10 @@ function ShellApp(props) {
           focus: 'nav',
           commandInput: '',
           activeWorkflow: null,
+          helpOpenTopicId: surface === 'help' ? null : current.helpOpenTopicId,
+          helpSelectedTopicId: surface === 'help'
+            ? (current.helpSelectedTopicId ?? undefined)
+            : current.helpSelectedTopicId,
         }));
         return;
       }
@@ -1080,7 +1099,10 @@ function buildContentLines(model) {
     return formatDiagnosticsLines(model.home);
   }
   if (model.contentSurface === 'help') {
-    return formatHelpLines();
+    return formatHelpLines({
+      selectedTopicId: model.helpSelectedTopicId,
+      openTopicId: model.helpOpenTopicId,
+    });
   }
   if (model.contentSurface === 'runs') {
     if (!model.runs.runs.length) return ['(none)', `result_code: ${model.runs.result_code}`];
