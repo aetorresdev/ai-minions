@@ -26,6 +26,7 @@ const {
   formatLandingLines,
   formatHelpLines,
   formatDiagnosticsLines,
+  landingLayoutForViewport,
 } = require('./operator-tui-landing');
 
 const SHELL_SCHEMA = '1';
@@ -121,6 +122,7 @@ function buildShellModel(options = {}) {
   const columns = Number.isFinite(Number(options.columns)) ? Number(options.columns) : 80;
   const rows = Number.isFinite(Number(options.rows)) ? Number(options.rows) : 24;
   const layout = layoutModeForColumns(columns);
+  const landingLayout = landingLayoutForViewport(columns, rows);
   const version = options.productVersion ?? home.version ?? 'unknown';
   const loading = home.path_status === 'loading'
     || home.credential_sufficiency === 'unavailable';
@@ -130,6 +132,7 @@ function buildShellModel(options = {}) {
     selectedRunId,
     version,
     columns,
+    rows,
     loading,
   });
   const readiness = landing.overall.state === 'ready'
@@ -149,19 +152,20 @@ function buildShellModel(options = {}) {
   const workflowActive = activeWorkflow != null;
   const workflowTextEntry = workflowActive && activeWorkflow.step === 'custom_goal';
   const workflowBusy = workflowActive && Boolean(activeWorkflow.busy);
+  const useCompactHints = layout === 'narrow' || landingLayout === 'compact';
   const footerHints = workflowActive
     ? (workflowBusy
-      ? (layout === 'narrow'
+      ? (useCompactHints
         ? 'loading · Esc cancel · Ctrl+C quit'
         : 'Loading… · Esc cancels pending load · Ctrl+C=quit · keys otherwise ignored')
       : (workflowTextEntry
-        ? (layout === 'narrow'
+        ? (useCompactHints
           ? 'type goal · Enter · Esc · Ctrl+C quit'
           : 'Custom goal · type freely (incl. q) · Enter confirm · Esc back · Ctrl+C=quit')
-        : (layout === 'narrow'
+        : (useCompactHints
           ? 'workflow · ↑↓ · Enter · Esc · q'
           : 'Native workflow · ↑/↓ · Enter · Esc back/cancel · /=slash · q=quit · Ctrl+C=quit · no nested readline')))
-    : (layout === 'narrow'
+    : (useCompactHints
       ? landing.footer_hints_narrow
       : landing.footer_hints_wide);
 
@@ -171,6 +175,7 @@ function buildShellModel(options = {}) {
     version,
     readiness,
     layout,
+    landingLayout,
     columns,
     rows,
     focus,
@@ -580,7 +585,7 @@ function formatShellText(model) {
   if (model.contentSurface === 'home') {
     lines.push(...formatLandingLines(model.landing, {
       selectedNavId: model.selectedNavId,
-      narrow: model.layout === 'narrow',
+      narrow: model.layout === 'narrow' || model.landingLayout === 'compact',
     }));
   }
   if (model.contentSurface === 'diagnostics') {
@@ -633,6 +638,7 @@ module.exports = {
   FOCUS_TARGETS,
   CONTENT_SURFACES,
   layoutModeForColumns,
+  landingLayoutForViewport,
   buildShellModel,
   moveNavSelection,
   moveRunSelection,

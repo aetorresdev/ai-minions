@@ -15,6 +15,7 @@ const {
   adaptShellNavigation,
   deriveLandingOverall,
   classifyRunActivity,
+  landingLayoutForViewport,
   LANDING_SCHEMA,
 } = require('../../modules/operator/operator-tui-landing');
 const { buildShellModel, formatShellText, resolveShellKeypress } = require('../../modules/operator/operator-tui-shell-model');
@@ -31,6 +32,18 @@ function baseHome(overrides = {}) {
     credential_sufficiency: 'not_required',
     remote_tokens_required: false,
     providers: [],
+    ...overrides,
+  };
+}
+
+function readyShellOptions(overrides = {}) {
+  return {
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
+    contentSurface: 'home',
+    selectedNavId: 'launcher',
     ...overrides,
   };
 }
@@ -300,4 +313,140 @@ test('theme exposes blocked distinct from danger', () => {
     if (prev === undefined) delete process.env.NO_COLOR;
     else process.env.NO_COLOR = prev;
   }
+});
+
+test('landingLayoutForViewport: wide / mid / compact thresholds', () => {
+  assert.equal(landingLayoutForViewport(120, 36), 'wide');
+  assert.equal(landingLayoutForViewport(100, 24), 'wide');
+  assert.equal(landingLayoutForViewport(99, 40), 'mid');
+  assert.equal(landingLayoutForViewport(80, 24), 'mid');
+  assert.equal(landingLayoutForViewport(79, 40), 'compact');
+  assert.equal(landingLayoutForViewport(120, 16), 'compact');
+  assert.equal(landingLayoutForViewport(50, 16), 'compact');
+});
+
+test('wide landing text: guardian + primary + readiness + runs + controls', () => {
+  const landing = buildLandingViewModel({
+    home: baseHome(),
+    runs: { runs: [], result_code: 'RUNS_EMPTY' },
+    version: '0.26.0-beta.1',
+    columns: 120,
+    rows: 36,
+  });
+  assert.equal(landing.layout, 'wide');
+  assert.equal(landing.show_guardian, true);
+  assert.ok(landing.guardian_lines.some((l) => /CERBERUS/.test(l)));
+  const lines = formatLandingLines(landing, { selectedNavId: 'launcher' }).join('\n');
+  assert.match(lines, /== Guardian ==/);
+  assert.match(lines, /== Primary ==/);
+  assert.match(lines, /AI-MINIONS/);
+  assert.match(lines, /> 1\. Start New Run/);
+  assert.match(lines, /== System Readiness ==/);
+  assert.match(lines, /== Recent Runs ==/);
+  assert.match(lines, /== Controls ==/);
+  const gIdx = lines.indexOf('== Guardian ==');
+  const pIdx = lines.indexOf('== Primary ==');
+  const rIdx = lines.indexOf('== System Readiness ==');
+  const rrIdx = lines.indexOf('== Recent Runs ==');
+  const cIdx = lines.indexOf('== Controls ==');
+  assert.ok(gIdx < pIdx && pIdx < rIdx && rIdx < rrIdx && rrIdx < cIdx);
+});
+
+test('compact landing drops guardian art before action/state', () => {
+  const landing = buildLandingViewModel({
+    home: baseHome({ path_status: 'loading', credential_sufficiency: 'unavailable' }),
+    runs: { runs: [] },
+    columns: 50,
+    rows: 16,
+    loading: true,
+  });
+  assert.equal(landing.layout, 'compact');
+  assert.equal(landing.show_guardian, false);
+  assert.deepEqual(landing.guardian_lines, []);
+  const lines = formatLandingLines(landing, { selectedNavId: 'launcher', narrow: true }).join('\n');
+  assert.doesNotMatch(lines, /== Guardian ==/);
+  assert.match(lines, /> 1\. Start New Run/);
+  assert.match(lines, /Overall: Loading/);
+  assert.match(lines, /== System Readiness ==/);
+});
+
+test('Ink wide/mid/compact + NO_COLOR landing renders', async () => {
+  const { renderOperatorTuiShellToString } = await import(
+    '../../modules/operator/operator-tui-shell-render.mjs'
+  );
+
+  const wide = buildShellModel(readyShellOptions({ columns: 120, rows: 36 }));
+  assert.equal(wide.landingLayout, 'wide');
+  const wideOut = renderOperatorTuiShellToString(wide, { columns: 120, rows: 36 });
+  assert.match(wideOut, /AI-MINIONS/);
+  assert.match(wideOut, /CERBERUS/);
+  assert.match(wideOut, /Start New Run/);
+  assert.match(wideOut, /System Readiness/);
+  assert.match(wideOut, /Recent Runs/);
+  assert.match(wideOut, /Navigate|Quit|Help/i);
+
+  const mid = buildShellModel(readyShellOptions({ columns: 80, rows: 24 }));
+  assert.equal(mid.landingLayout, 'mid');
+  const midOut = renderOperatorTuiShellToString(mid, { columns: 80, rows: 24 });
+  assert.match(midOut, /AI-MINIONS/);
+  assert.match(midOut, /CERBERUS/);
+  assert.match(midOut, /Start New Run/);
+  assert.match(midOut, /System Readiness/);
+  assert.match(midOut, /Recent Runs/);
+
+  const compact = buildShellModel(readyShellOptions({
+    columns: 50,
+    rows: 16,
+    pathActivation: { status: 'loading' },
+    credentials: { credential_sufficiency: 'unavailable', providers: [] },
+  }));
+  assert.equal(compact.landingLayout, 'compact');
+  assert.equal(compact.landing.overall.state, 'loading');
+  const compactOut = renderOperatorTuiShellToString(compact, { columns: 50, rows: 16 });
+  assert.match(compactOut, /AI-MINIONS/);
+  assert.match(compactOut, /Start New Run/);
+  assert.match(compactOut, /System Readiness|Overall:/);
+  assert.doesNotMatch(compactOut, /CERBERUS/);
+
+  const prev = process.env.NO_COLOR;
+  process.env.NO_COLOR = '1';
+  try {
+    const noColor = buildShellModel(readyShellOptions({
+      columns: 120,
+      rows: 36,
+      colorEnabled: true,
+      runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
+    }));
+    assert.equal(noColor.colorEnabled, false);
+    const out = renderOperatorTuiShellToString(noColor, { columns: 120, rows: 36 });
+    assert.match(out, /AI-MINIONS/);
+    assert.match(out, /›|Start New Run/);
+    assert.match(out, /Overall:/);
+    assert.match(out, /No runs|empty_state|No runs yet/i);
+  } finally {
+    if (prev === undefined) delete process.env.NO_COLOR;
+    else process.env.NO_COLOR = prev;
+  }
+});
+
+test('Ink landing empty runs and blocked readiness use contract states', async () => {
+  const { renderOperatorTuiShellToString } = await import(
+    '../../modules/operator/operator-tui-shell-render.mjs'
+  );
+  const blocked = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'cloud_preferred' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'insufficient', providers: [] },
+    runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
+    contentSurface: 'home',
+    selectedNavId: 'launcher',
+    columns: 120,
+    rows: 36,
+  });
+  assert.equal(blocked.landing.overall.state, 'blocked');
+  const out = renderOperatorTuiShellToString(blocked, { columns: 120, rows: 36 });
+  assert.match(out, /Overall:/);
+  assert.match(out, /Blocked|blocked|insufficient|Settings/i);
+  assert.match(out, /Recent Runs/);
+  assert.doesNotMatch(out, /run_20250510/);
 });

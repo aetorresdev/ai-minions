@@ -5,10 +5,34 @@
  * Consumes adapter fields only — does not infer readiness, budgets, or gate outcomes.
  */
 
+const {
+  landingGuardianPlainLines,
+  landingGuardianRowsWide,
+  landingGuardianRowsMid,
+} = require('./operator-tui-splash');
+
 const LANDING_SCHEMA = '1';
 const RECENT_RUNS_LIMIT = 5;
 
 /** @typedef {'ready'|'needs_setup'|'blocked'|'loading'|'failed'|'unknown'} LandingOverallState */
+/** @typedef {'wide'|'mid'|'compact'} LandingLayoutMode */
+
+/**
+ * Landing composition thresholds (task-first home — not splash).
+ * Wide: ≥100 cols and ≥24 rows. Mid: 80–99 cols (full height). Compact: <80 cols or short TTY.
+ * @param {unknown} columns
+ * @param {unknown} rows
+ * @returns {LandingLayoutMode}
+ */
+function landingLayoutForViewport(columns, rows) {
+  const cols = Number(columns);
+  const r = Number(rows);
+  const c = Number.isFinite(cols) && cols >= 1 ? cols : 80;
+  const rowCount = Number.isFinite(r) && r >= 1 ? r : 24;
+  if (c < 80 || rowCount < 24) return 'compact';
+  if (c < 100) return 'mid';
+  return 'wide';
+}
 
 /**
  * Bounded primary / secondary actions shown on the landing Quick Start panel.
@@ -369,6 +393,7 @@ function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT) {
  *   selectedRunId?: string | null,
  *   version?: string | null,
  *   columns?: number,
+ *   rows?: number,
  *   loading?: boolean,
  * }} [options]
  */
@@ -376,6 +401,13 @@ function buildLandingViewModel(options = {}) {
   const home = options.home && typeof options.home === 'object' ? options.home : {};
   const runsAdapter = options.runs && typeof options.runs === 'object' ? options.runs : { runs: [] };
   const runs = Array.isArray(runsAdapter.runs) ? runsAdapter.runs : [];
+  const columns = Number.isFinite(Number(options.columns)) ? Number(options.columns) : 80;
+  const rows = Number.isFinite(Number(options.rows)) ? Number(options.rows) : 24;
+  const layout = landingLayoutForViewport(columns, rows);
+  const guardian_lines = landingGuardianPlainLines(layout);
+  const guardian_rows = layout === 'wide'
+    ? landingGuardianRowsWide()
+    : (layout === 'mid' ? landingGuardianRowsMid() : []);
   const overall = options.loading === true
     ? {
       state: /** @type {LandingOverallState} */ ('loading'),
@@ -491,6 +523,12 @@ function buildLandingViewModel(options = {}) {
     schema: LANDING_SCHEMA,
     kind: 'landing',
     version,
+    layout,
+    columns,
+    rows,
+    show_guardian: guardian_lines.length > 0,
+    guardian_lines,
+    guardian_rows,
     hero: {
       product: 'AI-MINIONS',
       tagline: 'Contract-First Multi-Agent Orchestration Harness',
@@ -513,20 +551,28 @@ function buildLandingViewModel(options = {}) {
 
 /**
  * Plain-text landing lines for assertions / NO_COLOR parity (not shareable CLI JSON).
+ * Top-to-bottom grouping matches the approved task-first composition.
  * @param {ReturnType<typeof buildLandingViewModel>} landing
  * @param {{ selectedNavId?: string | null, narrow?: boolean }} [options]
  * @returns {string[]}
  */
 function formatLandingLines(landing, options = {}) {
   const selectedNavId = options.selectedNavId == null ? null : String(options.selectedNavId);
-  const narrow = options.narrow === true;
-  const lines = [
+  const narrow = options.narrow === true || landing.layout === 'compact';
+  const lines = [];
+  if (landing.show_guardian && landing.guardian_lines.length) {
+    lines.push('== Guardian ==');
+    lines.push(...landing.guardian_lines);
+    lines.push('');
+  }
+  lines.push(
+    '== Primary ==',
     `${landing.hero.product}  ${landing.hero.triad}`,
     landing.hero.tagline,
     `v${String(landing.version).replace(/^v/i, '')}`,
     '',
     '== Quick Start ==',
-  ];
+  );
   for (const item of landing.quick_start) {
     const marker = item.id === selectedNavId || (selectedNavId == null && item.primary)
       ? '>'
@@ -574,6 +620,7 @@ function formatLandingLines(landing, options = {}) {
   if (landing.empty_state) {
     lines.push('', `== ${landing.empty_state.title} ==`, landing.empty_state.body);
   }
+  lines.push('', `== Controls ==`, narrow ? landing.footer_hints_narrow : landing.footer_hints_wide);
   return lines;
 }
 
@@ -644,6 +691,7 @@ function formatDiagnosticsLines(home = {}) {
 module.exports = {
   LANDING_SCHEMA,
   RECENT_RUNS_LIMIT,
+  landingLayoutForViewport,
   landingQuickStartActions,
   adaptShellNavigation,
   deriveLandingOverall,

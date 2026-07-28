@@ -204,6 +204,107 @@ function splashArtRowsMinimal() {
 }
 
 /**
+ * Compact geometric Cerberus for the landing secondary (left) region — no wordmark.
+ * Wordmark belongs in the primary content column.
+ * @returns {SplashRow[]}
+ */
+function landingGuardianRowsWide() {
+  return [
+    {
+      segments: [
+        { text: '  /\\   /\\   /\\', tone: 'muted' },
+      ],
+    },
+    {
+      segments: [
+        { text: ' /', tone: 'validate' },
+        { text: 'V', tone: 'validate', bold: true },
+        { text: '\\ /', tone: 'muted' },
+        { text: 'T', tone: 'trace', bold: true },
+        { text: '\\ /', tone: 'muted' },
+        { text: 'E', tone: 'enforce', bold: true },
+        { text: '\\', tone: 'enforce' },
+      ],
+    },
+    {
+      segments: [
+        { text: ' |', tone: 'validate' },
+        { text: '◇◇', tone: 'validate' },
+        { text: '|', tone: 'muted' },
+        { text: '◇◇', tone: 'trace' },
+        { text: '|', tone: 'muted' },
+        { text: '◇◇', tone: 'enforce' },
+        { text: '|', tone: 'enforce' },
+      ],
+    },
+    {
+      segments: [
+        { text: ' \\/ -', tone: 'validate' },
+        { text: '◆', tone: 'core', bold: true },
+        { text: '- \\/', tone: 'enforce' },
+      ],
+    },
+    {
+      segments: [
+        { text: ' ', tone: 'muted' },
+        { text: 'VALIDATE', tone: 'validate', bold: true },
+        { text: ' ', tone: 'muted' },
+        { text: 'TRACE', tone: 'trace', bold: true },
+        { text: ' ', tone: 'muted' },
+        { text: 'ENFORCE', tone: 'enforce', bold: true },
+      ],
+    },
+    {
+      segments: [
+        { text: '    ', tone: 'muted' },
+        { text: GUARDIAN_MARK, tone: 'brand', bold: true },
+      ],
+    },
+  ];
+}
+
+/**
+ * Reduced guardian for mid-width landing (80–99 cols) — stack-friendly.
+ * @returns {SplashRow[]}
+ */
+function landingGuardianRowsMid() {
+  return [
+    {
+      segments: [
+        { text: '/\\ /\\ /\\', tone: 'muted' },
+      ],
+    },
+    {
+      segments: [
+        { text: 'V', tone: 'validate', bold: true },
+        { text: '·', tone: 'muted' },
+        { text: 'T', tone: 'trace', bold: true },
+        { text: '·', tone: 'muted' },
+        { text: 'E', tone: 'enforce', bold: true },
+        { text: ' ', tone: 'muted' },
+        { text: '◆', tone: 'core', bold: true },
+      ],
+    },
+    {
+      segments: [
+        { text: GUARDIAN_MARK, tone: 'brand', bold: true },
+      ],
+    },
+  ];
+}
+
+/**
+ * Plain guardian lines for landing layout mode.
+ * @param {'wide'|'mid'|'compact'} layout
+ * @returns {string[]}
+ */
+function landingGuardianPlainLines(layout) {
+  if (layout === 'wide') return flattenSplashRows(landingGuardianRowsWide());
+  if (layout === 'mid') return flattenSplashRows(landingGuardianRowsMid());
+  return [];
+}
+
+/**
  * Flatten splash rows to plain lines (NO_COLOR / assertions).
  * @param {SplashRow[]} rows
  * @returns {string[]}
@@ -377,6 +478,9 @@ module.exports = {
   splashArtRowsWide,
   splashArtRowsNarrow,
   splashArtRowsMinimal,
+  landingGuardianRowsWide,
+  landingGuardianRowsMid,
+  landingGuardianPlainLines,
   splashBannerLines,
   splashBannerLinesNarrow,
   flattenSplashRows,

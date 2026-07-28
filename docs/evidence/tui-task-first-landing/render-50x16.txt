@@ -1,0 +1,39 @@
+╔════════════════════════════════════════════════╗
+║ [>] ai-minions                  v0.26.0-beta.1 ║
+╚════════════════════════════════════════════════╝
+ AI-MINIONS
+ Contract-First Multi-Agent Orchestration Harness
+ Validate • Trace • Enforce
+ › 1. Start New Run
+ Cerberus guards contracts and gates — secondary
+ system symbol
+╔════════════════════════════════════════════════╗
+║ Quick Start                                    ║
+║ keyboard — not clickable                       ║
+║ › 1. Start New Run                             ║
+║   2. Browse Runs                               ║
+║   3. System Status                             ║
+║   4. Settings                                  ║
+║   5. Help                                      ║
+╚════════════════════════════════════════════════╝
+┌────────────────────────────────────────────────┐
+│ System Readiness                               │
+│ Overall: Ready                                 │
+│ next: Start New Run — try the canonical        │
+│ fixture for a low-risk first success           │
+│   Model Policy: local_only                     │
+│   Credentials: not_required                    │
+│   Environment: OK                              │
+│   ai-minions Path: ready                       │
+│   Overall Status: READY                        │
+└────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│ Recent Runs                                    │
+│   No runs yet: Start a run to create the first │
+│  trace. Canonical fixture is offered from New  │
+│ Run.                                           │
+└────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│ >                                              │
+└────────────────────────────────────────────────┘
+ ↑↓ · Enter · Esc · q · ?
