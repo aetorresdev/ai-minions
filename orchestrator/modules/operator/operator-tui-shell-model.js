@@ -397,7 +397,7 @@ function resolveShellKeypress(input, key = {}, model = {}) {
     if (isReturn) {
       const token = String(model.commandInput ?? '').trim();
       if (!token) return { type: 'input_clear_submit', endsSession: false };
-      if (isShellSessionEndAction(token) || token === '/quit') {
+      if (isShellSessionEndAction(token)) {
         return { type: 'quit', actionId: token === '/quit' ? '/quit' : 'quit', endsSession: true };
       }
       return { type: 'input_submit', actionId: token, endsSession: false };
