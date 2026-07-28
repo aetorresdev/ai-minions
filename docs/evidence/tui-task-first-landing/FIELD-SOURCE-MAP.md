@@ -10,6 +10,7 @@
 | Recent Runs | `adaptRunsList` ← `runOperatorRuns` / traces |
 | Empty / loading / blocked states | `buildLandingViewModel` empty_state from adapter fields |
 | Footer hints | `footer_hints_wide` / `footer_hints_narrow` (match key matrix) |
+| Height budget / drops | `resolveLandingComposition` — fit reported rows; keep Start New Run + `Overall:` |
 | First paint | `buildFirstPaintShellModel` then splash → discover → remount |
 
 Splash (`SplashApp`) remains a skippable prelude; this landing is the first useful surface after splash.

@@ -88,46 +88,73 @@ function LandingHomeView(props) {
   const landing = model.landing;
   const landingLayout = model.landingLayout || landing.layout || 'compact';
   const compact = landingLayout === 'compact';
-  const showGuardian = landing.show_guardian === true && Array.isArray(landing.guardian_rows)
+  const comp = landing.composition && typeof landing.composition === 'object'
+    ? landing.composition
+    : {
+      show_guardian: landing.show_guardian === true,
+      show_product: true,
+      show_tagline: true,
+      show_triad: true,
+      show_primary_cta: true,
+      show_guardian_note: landingLayout !== 'compact',
+      show_quick_start: true,
+      show_quick_start_hint: true,
+      quick_start_limit: 5,
+      show_readiness: true,
+      show_readiness_next: true,
+      show_readiness_details: true,
+      show_recent_runs: true,
+      recent_runs_limit: 5,
+      recent_empty_short: false,
+    };
+  const showGuardian = comp.show_guardian === true
+    && landing.show_guardian === true
+    && Array.isArray(landing.guardian_rows)
     && landing.guardian_rows.length > 0;
-  const quickItems = navItemsForMovement(model);
+  const quickItems = (navItemsForMovement(model) || [])
+    .filter((item) => ['launcher', 'runs', 'diagnostics', 'config', 'help'].includes(item.id))
+    .slice(0, Math.max(1, Number(comp.quick_start_limit) || 1));
 
-  const quickStartPanel = React.createElement(
-    Box,
-    {
-      flexDirection: 'column',
-      borderStyle: model.focus === 'nav' ? 'double' : 'single',
-      borderColor: focusBorderColor(theme, model.focus === 'nav'),
-      paddingX: 1,
-      width: compact ? undefined : 36,
-      flexGrow: compact ? 1 : 0,
-    },
-    React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Quick Start'),
-    React.createElement(
-      Text,
-      { dimColor: true, color: theme.muted },
-      'keyboard — not clickable',
-    ),
-    ...quickItems.map((item) => {
-      const selected = item.id === model.selectedNavId;
-      const label = item.id === 'launcher'
-        ? 'Start New Run'
-        : (item.id === 'runs'
-          ? 'Browse Runs'
-          : (item.id === 'diagnostics'
-            ? 'System Status'
-            : item.label));
-      return React.createElement(
-        Text,
-        {
-          key: item.id,
-          bold: selected,
-          color: selected ? theme.selected : undefined,
-        },
-        `${selected ? '›' : ' '} ${item.key}. ${label}`,
-      );
-    }),
-  );
+  const quickStartPanel = comp.show_quick_start
+    ? React.createElement(
+      Box,
+      {
+        flexDirection: 'column',
+        borderStyle: model.focus === 'nav' ? 'double' : 'single',
+        borderColor: focusBorderColor(theme, model.focus === 'nav'),
+        paddingX: 1,
+        width: compact ? undefined : 36,
+        flexGrow: compact ? 1 : 0,
+      },
+      React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Quick Start'),
+      ...(comp.show_quick_start_hint
+        ? [React.createElement(
+          Text,
+          { key: 'qs-hint', dimColor: true, color: theme.muted },
+          'keyboard — not clickable',
+        )]
+        : []),
+      ...quickItems.map((item) => {
+        const selected = item.id === model.selectedNavId;
+        const label = item.id === 'launcher'
+          ? 'Start New Run'
+          : (item.id === 'runs'
+            ? 'Browse Runs'
+            : (item.id === 'diagnostics'
+              ? 'System Status'
+              : item.label));
+        return React.createElement(
+          Text,
+          {
+            key: item.id,
+            bold: selected,
+            color: selected ? theme.selected : undefined,
+          },
+          `${selected ? '›' : ' '} ${item.key}. ${label}`,
+        );
+      }),
+    )
+    : null;
 
   const readinessPanel = React.createElement(
     Box,
@@ -136,7 +163,7 @@ function LandingHomeView(props) {
       borderStyle: model.focus === 'content' ? 'double' : 'single',
       borderColor: focusBorderColor(theme, model.focus === 'content'),
       paddingX: 1,
-      flexGrow: 1,
+      flexGrow: comp.show_recent_runs || comp.show_quick_start ? 1 : 0,
     },
     React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'System Readiness'),
     React.createElement(
@@ -144,100 +171,120 @@ function LandingHomeView(props) {
       { color: readinessColor, bold: true },
       `Overall: ${landing.overall.label}`,
     ),
-    React.createElement(
-      Text,
-      { color: theme.muted },
-      `next: ${landing.overall.next_action}`,
-    ),
-    ...landing.readiness_rows.map((row, idx) => React.createElement(
-      Text,
+    ...(comp.show_readiness_next
+      ? [React.createElement(
+        Text,
+        { key: 'ready-next', color: theme.muted },
+        `next: ${landing.overall.next_action}`,
+      )]
+      : []),
+    ...(comp.show_readiness_details
+      ? landing.readiness_rows.map((row, idx) => React.createElement(
+        Text,
+        {
+          key: `r-${idx}`,
+          color: toneColor(theme, row.tone),
+        },
+        `  ${row.label}: ${row.status_label}`,
+      ))
+      : []),
+  );
+
+  const recentRunsPanel = comp.show_recent_runs
+    ? React.createElement(
+      Box,
       {
-        key: `r-${idx}`,
-        color: toneColor(theme, row.tone),
+        flexDirection: 'column',
+        borderStyle: 'single',
+        borderColor: theme.muted,
+        paddingX: 1,
+        flexGrow: 1,
       },
-      `  ${row.label}: ${row.status_label}`,
-    )),
-  );
+      React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Recent Runs'),
+      ...(landing.recent_runs.length
+        ? [
+          React.createElement(
+            Text,
+            { key: 'rr-count', dimColor: true, color: theme.muted },
+            `Showing ${landing.recent_runs_showing} of ${landing.recent_runs_total}`,
+          ),
+          ...landing.recent_runs.map((run, idx) => React.createElement(
+            Text,
+            {
+              key: `rr-${idx}`,
+              color: toneColor(
+                theme,
+                run.activity_state === 'completed'
+                  ? 'ok'
+                  : (run.activity_state === 'blocked'
+                    ? 'blocked'
+                    : (run.activity_state === 'failed'
+                      ? 'fail'
+                      : (run.activity_state === 'active' ? 'warn' : 'unavailable'))),
+              ),
+            },
+            `  ${run.activity_label}  ${run.run_id}`
+              + (run.summary ? `  ${run.summary}` : '')
+              + (compact ? '' : `  ${run.last_event_at ?? 'time unavailable'}`),
+          )),
+        ]
+        : [
+          React.createElement(
+            Text,
+            { key: 'rr-empty', color: theme.muted },
+            landing.empty_state
+              ? `  ${landing.empty_state.title}: ${landing.empty_state.body}`
+              : '  (No runs yet)',
+          ),
+        ]),
+    )
+    : null;
 
-  const recentRunsPanel = React.createElement(
-    Box,
-    {
-      flexDirection: 'column',
-      borderStyle: 'single',
-      borderColor: theme.muted,
-      paddingX: 1,
-      flexGrow: 1,
-    },
-    React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Recent Runs'),
-    ...(landing.recent_runs.length
-      ? [
-        React.createElement(
-          Text,
-          { key: 'rr-count', dimColor: true, color: theme.muted },
-          `Showing ${landing.recent_runs_showing} of ${landing.recent_runs_total}`,
-        ),
-        ...landing.recent_runs.map((run, idx) => React.createElement(
-          Text,
-          {
-            key: `rr-${idx}`,
-            color: toneColor(
-              theme,
-              run.activity_state === 'completed'
-                ? 'ok'
-                : (run.activity_state === 'blocked'
-                  ? 'blocked'
-                  : (run.activity_state === 'failed'
-                    ? 'fail'
-                    : (run.activity_state === 'active' ? 'warn' : 'unavailable'))),
-            ),
-          },
-          `  ${run.activity_label}  ${run.run_id}`
-            + (run.summary ? `  ${run.summary}` : '')
-            + (compact ? '' : `  ${run.last_event_at ?? 'time unavailable'}`),
-        )),
-      ]
-      : [
-        React.createElement(
-          Text,
-          { key: 'rr-empty', color: theme.muted },
-          landing.empty_state
-            ? `  ${landing.empty_state.title}: ${landing.empty_state.body}`
-            : '  (No runs yet)',
-        ),
-      ]),
-  );
-
-  const primaryBrand = React.createElement(
-    Box,
-    { flexDirection: 'column', flexGrow: 1, paddingX: 1 },
-    React.createElement(
+  const primaryChildren = [];
+  if (comp.show_product) {
+    primaryChildren.push(React.createElement(
       Text,
-      { bold: theme.titleBold, color: theme.brand },
+      { key: 'product', bold: theme.titleBold, color: theme.brand },
       landing.hero.product,
-    ),
-    React.createElement(
+    ));
+  }
+  if (comp.show_tagline) {
+    primaryChildren.push(React.createElement(
       Text,
-      { color: theme.accent },
+      { key: 'tagline', color: theme.accent },
       landing.hero.tagline,
-    ),
-    React.createElement(
+    ));
+  }
+  if (comp.show_triad) {
+    primaryChildren.push(React.createElement(
       Text,
-      { color: theme.muted },
+      { key: 'triad', color: theme.muted },
       landing.hero.triad,
-    ),
-    React.createElement(
+    ));
+  }
+  if (comp.show_primary_cta) {
+    primaryChildren.push(React.createElement(
       Text,
       {
+        key: 'cta',
         bold: true,
         color: model.selectedNavId === 'launcher' ? theme.selected : theme.brand,
       },
       `${model.selectedNavId === 'launcher' ? '›' : ' '} 1. Start New Run`,
-    ),
-    React.createElement(
+    ));
+  }
+  if (comp.show_guardian_note) {
+    primaryChildren.push(React.createElement(
       Text,
-      { dimColor: true, color: theme.muted },
+      { key: 'gnote', dimColor: true, color: theme.muted },
       landing.hero.guardian_note,
-    ),
+    ));
+  }
+
+  const primaryBrand = React.createElement(
+    Box,
+    { flexDirection: 'column', flexGrow: 1, paddingX: 1 },
+    ...primaryChildren,
   );
 
   const guardianColumn = showGuardian && landingLayout === 'wide'
@@ -280,33 +327,37 @@ function LandingHomeView(props) {
     : React.createElement(
       Box,
       { flexDirection: 'column' },
-      guardianMid,
+      ...(guardianMid ? [guardianMid] : []),
       primaryBrand,
     );
 
-  const panelsRow = compact
-    ? React.createElement(
+  const panelChildren = [];
+  if (compact) {
+    if (quickStartPanel) panelChildren.push(quickStartPanel);
+    panelChildren.push(readinessPanel);
+    if (recentRunsPanel) panelChildren.push(recentRunsPanel);
+  } else {
+    panelChildren.push(React.createElement(
       Box,
-      { flexDirection: 'column', flexGrow: 1 },
-      quickStartPanel,
+      { key: 'mid-row', flexDirection: 'row', flexGrow: 1 },
+      ...(quickStartPanel ? [quickStartPanel] : []),
       readinessPanel,
-      recentRunsPanel,
-    )
-    : React.createElement(
-      Box,
-      { flexDirection: 'column', flexGrow: 1 },
-      React.createElement(
-        Box,
-        { flexDirection: 'row', flexGrow: 1 },
-        quickStartPanel,
-        readinessPanel,
-      ),
-      recentRunsPanel,
-    );
+    ));
+    if (recentRunsPanel) panelChildren.push(recentRunsPanel);
+  }
+
+  const panelsRow = React.createElement(
+    Box,
+    { flexDirection: 'column', flexGrow: 0 },
+    ...panelChildren,
+  );
 
   return React.createElement(
     Box,
-    { flexDirection: 'column', width: model.columns },
+    {
+      flexDirection: 'column',
+      width: model.columns,
+    },
     React.createElement(
       Box,
       {

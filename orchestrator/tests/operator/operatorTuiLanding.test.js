@@ -16,6 +16,7 @@ const {
   deriveLandingOverall,
   classifyRunActivity,
   landingLayoutForViewport,
+  resolveLandingComposition,
   LANDING_SCHEMA,
 } = require('../../modules/operator/operator-tui-landing');
 const { buildShellModel, formatShellText, resolveShellKeypress } = require('../../modules/operator/operator-tui-shell-model');
@@ -149,6 +150,8 @@ test('landing: active / blocked / failed / completed run states', () => {
       ],
     },
     selectedRunId: 'run_active',
+    columns: 120,
+    rows: 36,
   });
   assert.equal(landing.activity.state, 'active');
   assert.equal(landing.recent_runs.length, 4);
@@ -213,9 +216,11 @@ test('narrow + NO_COLOR preserve hierarchy markers', () => {
       },
       contentSurface: 'home',
       columns: 40,
+      rows: 48,
       colorEnabled: true,
     });
     assert.equal(model.layout, 'narrow');
+    assert.equal(model.landingLayout, 'compact');
     assert.equal(model.colorEnabled, false);
     const theme = resolveShellTheme({ colorEnabled: model.colorEnabled });
     assert.equal(theme.brand, undefined);
@@ -325,6 +330,22 @@ test('landingLayoutForViewport: wide / mid / compact thresholds', () => {
   assert.equal(landingLayoutForViewport(50, 16), 'compact');
 });
 
+test('resolveLandingComposition: fits row budget; keeps Start New Run + Overall', () => {
+  const mid = resolveLandingComposition(80, 24);
+  assert.equal(mid.layout, 'mid');
+  assert.equal(mid.composition.show_primary_cta, true);
+  assert.equal(mid.composition.show_readiness, true);
+  assert.ok(mid.estimated_rows <= 24);
+  assert.ok(mid.composition.drops.includes('hide_recent'));
+
+  const compact = resolveLandingComposition(50, 16);
+  assert.equal(compact.layout, 'compact');
+  assert.equal(compact.composition.show_primary_cta, true);
+  assert.equal(compact.composition.show_readiness, true);
+  assert.ok(compact.estimated_rows <= 16);
+  assert.equal(compact.composition.show_guardian, false);
+});
+
 test('wide landing text: guardian + primary + readiness + runs + controls', () => {
   const landing = buildLandingViewModel({
     home: baseHome(),
@@ -375,24 +396,38 @@ test('Ink wide/mid/compact + NO_COLOR landing renders', async () => {
     '../../modules/operator/operator-tui-shell-render.mjs'
   );
 
+  function visibleLineCount(text) {
+    return String(text).replace(/\s+$/, '').split('\n').length;
+  }
+
   const wide = buildShellModel(readyShellOptions({ columns: 120, rows: 36 }));
   assert.equal(wide.landingLayout, 'wide');
   const wideOut = renderOperatorTuiShellToString(wide, { columns: 120, rows: 36 });
+  assert.ok(visibleLineCount(wideOut) <= 36);
   assert.match(wideOut, /AI-MINIONS/);
   assert.match(wideOut, /CERBERUS/);
   assert.match(wideOut, /Start New Run/);
+  assert.match(wideOut, /Overall:/);
   assert.match(wideOut, /System Readiness/);
   assert.match(wideOut, /Recent Runs/);
   assert.match(wideOut, /Navigate|Quit|Help/i);
 
   const mid = buildShellModel(readyShellOptions({ columns: 80, rows: 24 }));
   assert.equal(mid.landingLayout, 'mid');
+  assert.equal(mid.landing.composition.show_primary_cta, true);
+  assert.equal(mid.landing.composition.show_readiness, true);
   const midOut = renderOperatorTuiShellToString(mid, { columns: 80, rows: 24 });
+  assert.ok(
+    visibleLineCount(midOut) <= 24,
+    `mid render lines ${visibleLineCount(midOut)} exceed 24 rows`,
+  );
   assert.match(midOut, /AI-MINIONS/);
-  assert.match(midOut, /CERBERUS/);
   assert.match(midOut, /Start New Run/);
+  assert.match(midOut, /Overall:/);
   assert.match(midOut, /System Readiness/);
-  assert.match(midOut, /Recent Runs/);
+  // 80×24 drops decorative guardian + recent before sacrificing CTA / Overall.
+  assert.doesNotMatch(midOut, /CERBERUS/);
+  assert.doesNotMatch(midOut, /Recent Runs/);
 
   const compact = buildShellModel(readyShellOptions({
     columns: 50,
@@ -403,9 +438,13 @@ test('Ink wide/mid/compact + NO_COLOR landing renders', async () => {
   assert.equal(compact.landingLayout, 'compact');
   assert.equal(compact.landing.overall.state, 'loading');
   const compactOut = renderOperatorTuiShellToString(compact, { columns: 50, rows: 16 });
+  assert.ok(
+    visibleLineCount(compactOut) <= 16,
+    `compact render lines ${visibleLineCount(compactOut)} exceed 16 rows`,
+  );
   assert.match(compactOut, /AI-MINIONS/);
   assert.match(compactOut, /Start New Run/);
-  assert.match(compactOut, /System Readiness|Overall:/);
+  assert.match(compactOut, /Overall:/);
   assert.doesNotMatch(compactOut, /CERBERUS/);
 
   const prev = process.env.NO_COLOR;
@@ -419,6 +458,7 @@ test('Ink wide/mid/compact + NO_COLOR landing renders', async () => {
     }));
     assert.equal(noColor.colorEnabled, false);
     const out = renderOperatorTuiShellToString(noColor, { columns: 120, rows: 36 });
+    assert.ok(visibleLineCount(out) <= 36);
     assert.match(out, /AI-MINIONS/);
     assert.match(out, /›|Start New Run/);
     assert.match(out, /Overall:/);
