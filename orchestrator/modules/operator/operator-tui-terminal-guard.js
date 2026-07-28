@@ -226,8 +226,9 @@ function createTerminalGuard(options = {}) {
     },
     /**
      * Full restore after session end: quit, Ctrl+C, renderer exception,
-     * thrown/fatal action exception, or child-process failure.
-     * Non-throwing failed action results remount via soft handoff — not this path.
+     * or thrown/fatal action exception.
+     * Non-throwing failed action results (including caught launch errors that
+     * return ok:false) remount via soft handoff — not this path.
      * Idempotent. Emits alt-screen exit — session-end only.
      * @param {string} [reason]
      */

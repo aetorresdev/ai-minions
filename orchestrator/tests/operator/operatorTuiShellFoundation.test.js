@@ -455,6 +455,14 @@ test('drainStdin strips CRLF residue and leaves following answer', () => {
   assert.equal(String(stdin.read()), 'yes\n');
 });
 
+test('drainStdin strips bare CR residue and leaves following answer', () => {
+  const stdin = new PassThrough();
+  stdin.write('\rc\n');
+  const n = drainStdin(stdin);
+  assert.equal(n, 1);
+  assert.equal(String(stdin.read()), 'c\n');
+});
+
 test('drainStdin does not discard a buffered answer without leading newline', () => {
   const stdin = new PassThrough();
   stdin.write('c\n');
@@ -478,6 +486,27 @@ test('prepareNestedPaneIo preserves buffered prompt answer after dispatch Enter'
   const stdout = new PassThrough();
   // Residue Enter from dispatch + operator answer already buffered.
   stdin.write('\nc\n');
+  const prep = prepareNestedPaneIo({
+    stdin,
+    stdout,
+    writeClear: () => {},
+    clear: false,
+    banner: null,
+  });
+  assert.equal(prep.drained, 1);
+  const rl = createInterface({ input: stdin, output: stdout, terminal: false });
+  const answer = await new Promise((resolve) => {
+    rl.question('Select: ', (a) => resolve(a));
+  });
+  rl.close();
+  assert.equal(answer, 'c');
+});
+
+test('prepareNestedPaneIo preserves answer after bare CR residue', async () => {
+  const { createInterface } = require('node:readline');
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  stdin.write('\rc\n');
   const prep = prepareNestedPaneIo({
     stdin,
     stdout,
@@ -669,7 +698,7 @@ test('non-TTY path does not initialize Ink/React', async () => {
   assert.match(result.text, /ai-minions smoke/);
 });
 
-test('terminal guard softens after success; full-restores on exception and child failure', async () => {
+test('terminal guard softens after success; full-restores on exception and harness child inject', async () => {
   const writes = [];
   const stdin = {
     isTTY: true,
@@ -840,6 +869,80 @@ test('non-fatal failed action result soft-remounts; full restore only on quit', 
   assert.notEqual(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
   assert.equal(result.guard.restored, true);
   assert.equal(result.model.actionResult?.reason_code, 'SMOKE_FAILED');
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('caught launch failure (runSmoke throw → ok:false) soft-remounts', async () => {
+  const { executeShellAction } = require('../../modules/operator/operator-tui-shell-actions');
+  const {
+    runOperatorGuidedLauncherPane,
+  } = require('../../modules/operator/operator-guided-launcher-pane-tui');
+  const { stdin, stdout } = createFakeTtyStreams();
+  const out = [];
+  stdout.on('data', (chunk) => {
+    out.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+  });
+  let renderPasses = 0;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    maxLoops: 2,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onRequestAction }) => {
+        renderPasses += 1;
+        if (renderPasses === 1) {
+          onRequestAction('launcher');
+          return { aborted: false, requestedAction: 'launcher' };
+        }
+        onRequestAction('q');
+        return { aborted: false, requestedAction: 'q' };
+      },
+    }),
+    executeAction: async (opts) => {
+      if (opts.actionId === 'quit') {
+        return executeShellAction({ ...opts, stdin, stdout });
+      }
+      return executeShellAction({
+        ...opts,
+        stdin,
+        stdout,
+        runLauncherPane: async (paneOpts) => runOperatorGuidedLauncherPane({
+          ...paneOpts,
+          selections: {
+            agentFlow: 'single_agent',
+            inferenceLane: 'local_only',
+            gatePosture: 'degraded',
+            goalSource: 'custom',
+            goal: 'x',
+            confirm: true,
+          },
+          env: {},
+          localBackendReachable: true,
+          runSmokeFn: async () => {
+            throw new Error('spawn failed');
+          },
+        }),
+      });
+    },
+  });
+  const joined = out.join('');
+  const restoreCount = joined.split(RESTORE_SEQUENCE).length - 1;
+  const softCount = joined.split(SOFT_HANDOFF_SEQUENCE).length - 1;
+  assert.equal(renderPasses, 2, 'caught launch failure must remount for a second Ink frame');
+  assert.ok(softCount >= 1, 'caught launch ok:false uses soft handoff');
+  assert.equal(restoreCount, 1, 'alt-screen exit only once at session end');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.CHILD_FAILURE);
+  assert.equal(result.guard.restored, true);
+  assert.equal(result.model.actionResult?.ok, false);
+  assert.equal(result.model.actionResult?.reason_code, 'LAUNCHER_RUN_FAILED');
   stdin.destroy();
   stdout.destroy();
 });
