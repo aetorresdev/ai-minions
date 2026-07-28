@@ -16,24 +16,33 @@ const SOFT_HANDOFF_SEQUENCE = '\u001b[?25h\u001b[0m';
 const CLEAR_SEQUENCE = '\u001b[2J\u001b[H';
 
 /**
- * Discard bytes already buffered on stdin (e.g. Enter that dispatched the pane).
- * Prevents readline from auto-answering the first prompt and racing the remount loop.
- * @param {NodeJS.ReadStream | { read?: Function, readableLength?: number } | null | undefined} stdin
- * @returns {number} bytes drained
+ * Discard only residual dispatch CR/LF left after Ink hotkey/Enter (at most one
+ * newline: `\n`, `\r`, or `\r\n`). Requeues any following bytes so a typed answer
+ * already buffered for the nested readline prompt is not lost.
+ * @param {NodeJS.ReadStream | { read?: Function, unshift?: Function, readableLength?: number } | null | undefined} stdin
+ * @returns {number} residue bytes discarded (0–2)
  */
 function drainStdin(stdin) {
   if (!stdin || typeof stdin.read !== 'function') return 0;
   let drained = 0;
   try {
-    // readableLength is available on Node streams; fall back to non-blocking read loop.
-    let safety = 0;
-    while (safety < 64) {
-      safety += 1;
-      const pending = typeof stdin.readableLength === 'number' ? stdin.readableLength : 1;
-      if (pending <= 0) break;
-      const chunk = stdin.read(pending > 0 ? pending : undefined);
-      if (chunk == null) break;
-      drained += Buffer.isBuffer(chunk) ? chunk.length : String(chunk).length;
+    const available = typeof stdin.readableLength === 'number' ? stdin.readableLength : -1;
+    if (available === 0) return 0;
+
+    // Peek at most 2 bytes — enough for CRLF — without consuming a following answer.
+    const peekLen = available > 0 ? Math.min(2, available) : 2;
+    const head = stdin.read(peekLen);
+    if (head == null) return 0;
+    const buf = Buffer.isBuffer(head) ? head : Buffer.from(String(head), 'utf8');
+
+    let skip = 0;
+    if (buf.length >= 2 && buf[0] === 0x0d && buf[1] === 0x0a) skip = 2;
+    else if (buf.length >= 1 && (buf[0] === 0x0d || buf[0] === 0x0a)) skip = 1;
+
+    drained = skip;
+    const rest = buf.subarray(skip);
+    if (rest.length > 0 && typeof stdin.unshift === 'function') {
+      stdin.unshift(rest);
     }
   } catch {
     // non-fatal
@@ -42,7 +51,7 @@ function drainStdin(stdin) {
 }
 
 /**
- * Wipe leftover Ink frames, drain pending keystrokes, force cooked mode, resume stdin.
+ * Wipe leftover Ink frames, drain residual dispatch CR/LF only, force cooked mode, resume stdin.
  * Soft handoff only — does not leave alternate screen (session stays in-process).
  * @param {{
  *   stdin?: NodeJS.ReadStream | { resume?: Function, setRawMode?: Function, read?: Function },
@@ -207,7 +216,9 @@ function createTerminalGuard(options = {}) {
       return { ok: true, already: false, reason, soft: true };
     },
     /**
-     * Full restore after normal quit, Ctrl+C, renderer exception, action/child failure.
+     * Full restore after session end: quit, Ctrl+C, renderer exception,
+     * thrown/fatal action exception, or child-process failure.
+     * Non-throwing failed action results remount via soft handoff — not this path.
      * Idempotent. Emits alt-screen exit — session-end only.
      * @param {string} [reason]
      */

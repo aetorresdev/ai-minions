@@ -410,7 +410,9 @@ test('fullscreen boot clean exit and failure paths restore terminal', async () =
     }),
   });
   assert.equal(actionFail.model.actionResult.reason_code, 'SMOKE_FAILED');
+  // Session ends via maxLoops/autoQuit after soft remount — not action_failure restore.
   assert.equal(actionFail.guard.restored, true);
+  assert.notEqual(actionFail.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
   actionStreams.stdin.destroy();
   actionStreams.stdout.destroy();
 

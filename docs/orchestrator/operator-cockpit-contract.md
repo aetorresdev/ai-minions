@@ -80,7 +80,7 @@ Run-required commands without a selection explain how to select (`/runs` then `/
 
 Non-interactive CLI verbs are unchanged.
 
-Nested readline panes use a **soft handoff** (cooked stdin, screen clear, optional banner) and remount the Ink shell in-process — they must **not** look like a return to bash. Full alternate-screen restore (`CSI ?1049l`) is reserved for real session end (quit / abort / fatal). Pending keystrokes from the dispatching key are drained so readline does not auto-answer the first prompt.
+Nested readline panes use a **soft handoff** (cooked stdin, screen clear, optional banner) and remount the Ink shell in-process — they must **not** look like a return to bash. Full alternate-screen restore (`CSI ?1049l`) is reserved for real session end (quit / abort / fatal exception). Only residual dispatch CR/LF (one newline) is drained before readline so a typed answer already buffered after Enter is preserved.
 
 ## Run selector + status pane
 
@@ -160,10 +160,12 @@ The shell restores raw mode + alternate-screen / cursor sequences after **sessio
 - normal quit / `q` / `/quit`
 - Ctrl+C abort
 - renderer exception
-- operator action failure
+- thrown / fatal operator action exception (`executeAction` throws)
 - simulated / real child-process failure
 
-Between Ink frames and nested readline panes the shell uses a **soft handoff** (cursor + cooked mode + clear) without leaving the session buffer.
+**In-session** non-throwing action outcomes with `ok: false` (failed result surface) use the **soft handoff** and remount the Ink shell — they do **not** emit `CSI ?1049l`. Full restore applies only when the session actually ends (paths above).
+
+Between Ink frames and nested readline panes the shell uses a **soft handoff** (cursor + cooked mode + clear) without leaving the session buffer. Drain only residual dispatch CR/LF before nested readline; do not discard the operator’s next answer.
 
 ## Quality gate (mandatory when TUI ships)
 

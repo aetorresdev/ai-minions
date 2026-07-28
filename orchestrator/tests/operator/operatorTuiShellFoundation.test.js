@@ -439,13 +439,50 @@ test('prepareNestedPaneIo clears screen so nested panes do not overprint Ink', (
   assert.equal(rawMode, false);
 });
 
-test('drainStdin discards leftover Enter so nested readline does not auto-answer', () => {
-  const { PassThrough } = require('node:stream');
+test('drainStdin strips one dispatch newline but preserves next answer', () => {
   const stdin = new PassThrough();
-  stdin.write('\r\n');
+  stdin.write('\nc\n');
   const n = drainStdin(stdin);
-  assert.ok(n >= 1);
-  assert.equal(stdin.read(), null);
+  assert.equal(n, 1);
+  assert.equal(String(stdin.read()), 'c\n');
+});
+
+test('drainStdin strips CRLF residue and leaves following answer', () => {
+  const stdin = new PassThrough();
+  stdin.write('\r\nyes\n');
+  const n = drainStdin(stdin);
+  assert.equal(n, 2);
+  assert.equal(String(stdin.read()), 'yes\n');
+});
+
+test('drainStdin does not discard a buffered answer without leading newline', () => {
+  const stdin = new PassThrough();
+  stdin.write('c\n');
+  const n = drainStdin(stdin);
+  assert.equal(n, 0);
+  assert.equal(String(stdin.read()), 'c\n');
+});
+
+test('prepareNestedPaneIo preserves buffered prompt answer after dispatch Enter', async () => {
+  const { createInterface } = require('node:readline');
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  // Residue Enter from dispatch + operator answer already buffered.
+  stdin.write('\nc\n');
+  const prep = prepareNestedPaneIo({
+    stdin,
+    stdout,
+    writeClear: () => {},
+    clear: false,
+    banner: null,
+  });
+  assert.equal(prep.drained, 1);
+  const rl = createInterface({ input: stdin, output: stdout, terminal: false });
+  const answer = await new Promise((resolve) => {
+    rl.question('Select: ', (a) => resolve(a));
+  });
+  rl.close();
+  assert.equal(answer, 'c');
 });
 
 test('withTerminalGuard success softens; session-end restore emits alt-screen exit once', async () => {
@@ -663,6 +700,109 @@ test('Ctrl+C abort restores terminal', async () => {
   stdout.destroy();
 });
 
+test('non-fatal failed action result soft-remounts; full restore only on quit', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  const out = [];
+  stdout.on('data', (chunk) => {
+    out.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+  });
+  let renderPasses = 0;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    maxLoops: 2,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onRequestAction }) => {
+        renderPasses += 1;
+        if (renderPasses === 1) {
+          onRequestAction('smoke');
+          return { aborted: false, requestedAction: 'smoke' };
+        }
+        onRequestAction('q');
+        return { aborted: false, requestedAction: 'q' };
+      },
+    }),
+    executeAction: async ({ actionId }) => {
+      if (actionId === 'quit') {
+        return {
+          quit: true,
+          selectedRunId: null,
+          contentSurface: 'action_result',
+          actionResult: {
+            action_id: 'quit',
+            ok: true,
+            exit_code: 0,
+            reason_code: null,
+            text: 'quit',
+          },
+          evidenceModel: null,
+          configModel: null,
+          statusResult: null,
+          runsPayload: null,
+        };
+      }
+      return {
+        quit: false,
+        selectedRunId: null,
+        contentSurface: 'action_result',
+        actionResult: {
+          action_id: 'smoke',
+          ok: false,
+          exit_code: 1,
+          reason_code: 'SMOKE_FAILED',
+          text: 'failed',
+        },
+        evidenceModel: null,
+        configModel: null,
+        statusResult: null,
+        runsPayload: null,
+      };
+    },
+  });
+  const joined = out.join('');
+  const restoreCount = joined.split(RESTORE_SEQUENCE).length - 1;
+  assert.equal(renderPasses, 2, 'failed action must remount for a second Ink frame');
+  assert.equal(restoreCount, 1, 'alt-screen exit only once at session end');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.equal(result.guard.restored, true);
+  assert.equal(result.model.actionResult?.reason_code, 'SMOKE_FAILED');
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('thrown action exception full-restores terminal', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    maxLoops: 1,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onRequestAction }) => {
+        onRequestAction('smoke');
+        return { aborted: false, requestedAction: 'smoke' };
+      },
+    }),
+    executeAction: async () => {
+      throw new Error('boom');
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
+  assert.equal(result.guard.restored, true);
+  stdin.destroy();
+  stdout.destroy();
+});
+
 test('action failure returns to shell state with reason_code', async () => {
   const { stdin, stdout } = createFakeTtyStreams();
   const result = await runOperatorTuiShell({
@@ -699,7 +839,9 @@ test('action failure returns to shell state with reason_code', async () => {
     }),
   });
   assert.equal(result.model.actionResult.reason_code, 'SMOKE_FAILED');
+  // maxLoops/autoQuit ends the session — restore is session-end, not action-failure.
   assert.equal(result.guard.restored, true);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.OK);
   stdin.destroy();
   stdout.destroy();
 });
