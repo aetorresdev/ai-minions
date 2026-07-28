@@ -6,7 +6,9 @@
 
 | Field | Value |
 |---|---|
-| Branch tip | `54ac772` (evidence restructure; height-aware composition from `32986eb`) |
+| Branch HEAD | `git rev-parse HEAD` on `feature/tui-task-first-landing-363` (PR tip at push: see GitHub) |
+| Height-aware composition baseline | `32986eb` |
+| Evidence restructure | `bd23a8a` (+ metrics refresh `54ac772`) |
 | Ink | `7.1.1` (see `orchestrator/package.json` / `node_modules/ink`) |
 | Fixture fixture set | `orchestrator/tests/fixtures/tui/landing/` |
 | Metrics table | `orchestrator/tests/fixtures/tui/landing/metrics.json` |
