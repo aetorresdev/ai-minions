@@ -308,7 +308,7 @@ describe('disclaimer honesty after slash commands', () => {
 });
 
 describe('slash help/message remount recreates terminal guard', () => {
-  it('/help → second Ink mount → q restores final mount', async () => {
+  it('reserved slash → second Ink mount → q restores final mount', async () => {
     const { stdin, stdout } = createFakeTtyStreams();
     let mounts = 0;
     const result = await runOperatorTuiShell({
@@ -321,8 +321,9 @@ describe('slash help/message remount recreates terminal guard', () => {
           mounts += 1;
           if (typeof stdin.setRawMode === 'function') stdin.setRawMode(true);
           if (mounts === 1) {
-            onRequestAction('/help');
-            return { aborted: false, requestedAction: '/help' };
+            // /help stays in Ink for real routes; reserved slash still remounts message.
+            onRequestAction('/goal');
+            return { aborted: false, requestedAction: '/goal' };
           }
           onRequestAction('q');
           return { aborted: false, requestedAction: 'q' };
