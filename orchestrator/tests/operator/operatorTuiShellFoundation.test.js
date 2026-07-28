@@ -463,6 +463,15 @@ test('drainStdin does not discard a buffered answer without leading newline', ()
   assert.equal(String(stdin.read()), 'c\n');
 });
 
+test('drainStdin never discards a second buffered newline as residue', () => {
+  // Fast type-ahead may leave `\n` (dispatch) + `c\n` (answer). Only one residue.
+  const stdin = new PassThrough();
+  stdin.write('\nc\n');
+  assert.equal(drainStdin(stdin), 1);
+  assert.equal(drainStdin(stdin), 0, 'second call must not eat answer newline');
+  assert.equal(String(stdin.read()), 'c\n');
+});
+
 test('prepareNestedPaneIo preserves buffered prompt answer after dispatch Enter', async () => {
   const { createInterface } = require('node:readline');
   const stdin = new PassThrough();
@@ -483,6 +492,63 @@ test('prepareNestedPaneIo preserves buffered prompt answer after dispatch Enter'
   });
   rl.close();
   assert.equal(answer, 'c');
+});
+
+test('shell nested pane receives answer buffered immediately after dispatch Enter', async () => {
+  const { createInterface } = require('node:readline');
+  const { stdin, stdout } = createFakeTtyStreams();
+  const answers = [];
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    maxLoops: 2,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onRequestAction }) => {
+        // Fast `1<Enter>c<Enter>`: residue + answer already buffered when nested I/O starts.
+        stdin.write('\nc\n');
+        onRequestAction('launcher');
+        return { aborted: false, requestedAction: 'launcher' };
+      },
+    }),
+    executeAction: async ({ stdin: actionStdin, stdout: actionStdout }) => {
+      const rl = createInterface({
+        input: actionStdin,
+        output: actionStdout,
+        terminal: false,
+      });
+      const answer = await new Promise((resolve) => {
+        rl.question('Select: ', (a) => resolve(a));
+      });
+      rl.close();
+      answers.push(answer);
+      return {
+        quit: true,
+        selectedRunId: null,
+        contentSurface: 'launcher',
+        actionResult: {
+          action_id: 'launcher',
+          ok: true,
+          exit_code: 0,
+          reason_code: 'LAUNCHER_CANCELLED',
+          text: `got:${answer}`,
+        },
+        evidenceModel: null,
+        configModel: null,
+        statusResult: null,
+        runsPayload: null,
+      };
+    },
+  });
+  assert.deepEqual(answers, ['c'], 'nested prompt must receive buffered answer, not hang');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.equal(result.guard.restored, true);
+  stdin.destroy();
+  stdout.destroy();
 });
 
 test('withTerminalGuard success softens; session-end restore emits alt-screen exit once', async () => {
@@ -766,9 +832,12 @@ test('non-fatal failed action result soft-remounts; full restore only on quit', 
   });
   const joined = out.join('');
   const restoreCount = joined.split(RESTORE_SEQUENCE).length - 1;
+  const softCount = joined.split(SOFT_HANDOFF_SEQUENCE).length - 1;
   assert.equal(renderPasses, 2, 'failed action must remount for a second Ink frame');
+  assert.ok(softCount >= 1, 'ok:false uses soft handoff (not session-ending)');
   assert.equal(restoreCount, 1, 'alt-screen exit only once at session end');
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
   assert.equal(result.guard.restored, true);
   assert.equal(result.model.actionResult?.reason_code, 'SMOKE_FAILED');
   stdin.destroy();
@@ -777,6 +846,10 @@ test('non-fatal failed action result soft-remounts; full restore only on quit', 
 
 test('thrown action exception full-restores terminal', async () => {
   const { stdin, stdout } = createFakeTtyStreams();
+  const out = [];
+  stdout.on('data', (chunk) => {
+    out.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+  });
   const result = await runOperatorTuiShell({
     isTTY: true,
     stdin,
@@ -796,9 +869,14 @@ test('thrown action exception full-restores terminal', async () => {
       throw new Error('boom');
     },
   });
+  const joined = out.join('');
   assert.equal(result.ok, false);
   assert.equal(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
   assert.equal(result.guard.restored, true);
+  assert.ok(
+    joined.includes(RESTORE_SEQUENCE),
+    'thrown exception must emit full alt-screen restore',
+  );
   stdin.destroy();
   stdout.destroy();
 });

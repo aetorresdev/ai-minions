@@ -163,9 +163,15 @@ The shell restores raw mode + alternate-screen / cursor sequences after **sessio
 - thrown / fatal operator action exception (`executeAction` throws)
 - simulated / real child-process failure
 
-**In-session** non-throwing action outcomes with `ok: false` (failed result surface) use the **soft handoff** and remount the Ink shell — they do **not** emit `CSI ?1049l`. Full restore applies only when the session actually ends (paths above).
+**Failure classes (do not conflate):**
 
-Between Ink frames and nested readline panes the shell uses a **soft handoff** (cursor + cooked mode + clear) without leaving the session buffer. Drain only residual dispatch CR/LF before nested readline; do not discard the operator’s next answer.
+| Class | Example | Terminal restore |
+|-------|---------|------------------|
+| In-session failed action **result** | `executeAction` returns `actionResult.ok: false` / non-zero exit (no throw) | **Soft** handoff + Ink remount — **no** `CSI ?1049l` |
+| Fatal action **exception** | `executeAction` **throws** | **Full** restore (`restore('action_failure')` + `CSI ?1049l`) |
+| Real session end | `q` / abort / renderer exception / child failure | **Full** restore |
+
+Between Ink frames and nested readline panes the shell uses a **soft handoff** (cursor + cooked mode + clear) without leaving the session buffer. Drain only residual dispatch CR/LF (one newline) before nested readline; do not discard the operator’s next answer.
 
 ## Quality gate (mandatory when TUI ships)
 

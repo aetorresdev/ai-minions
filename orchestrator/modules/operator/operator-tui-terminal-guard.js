@@ -17,37 +17,46 @@ const CLEAR_SEQUENCE = '\u001b[2J\u001b[H';
 
 /**
  * Discard only residual dispatch CR/LF left after Ink hotkey/Enter (at most one
- * newline: `\n`, `\r`, or `\r\n`). Requeues any following bytes so a typed answer
- * already buffered for the nested readline prompt is not lost.
+ * newline: `\n`, `\r`, or `\r\n`). Reads **one byte at a time** so a typed answer
+ * already buffered after Enter is never pulled into a discard buffer; non-residue
+ * bytes are requeued via `unshift` for the nested readline prompt.
  * @param {NodeJS.ReadStream | { read?: Function, unshift?: Function, readableLength?: number } | null | undefined} stdin
  * @returns {number} residue bytes discarded (0–2)
  */
 function drainStdin(stdin) {
   if (!stdin || typeof stdin.read !== 'function') return 0;
-  let drained = 0;
+  if (typeof stdin.readableLength === 'number' && stdin.readableLength === 0) return 0;
+
+  const toByte = (chunk) => {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), 'utf8');
+    return buf.length ? buf[0] : null;
+  };
+  const requeue = (byte) => {
+    if (typeof stdin.unshift === 'function') stdin.unshift(Buffer.from([byte]));
+  };
+
   try {
-    const available = typeof stdin.readableLength === 'number' ? stdin.readableLength : -1;
-    if (available === 0) return 0;
+    const first = stdin.read(1);
+    if (first == null) return 0;
+    const b0 = toByte(first);
+    if (b0 == null) return 0;
 
-    // Peek at most 2 bytes — enough for CRLF — without consuming a following answer.
-    const peekLen = available > 0 ? Math.min(2, available) : 2;
-    const head = stdin.read(peekLen);
-    if (head == null) return 0;
-    const buf = Buffer.isBuffer(head) ? head : Buffer.from(String(head), 'utf8');
-
-    let skip = 0;
-    if (buf.length >= 2 && buf[0] === 0x0d && buf[1] === 0x0a) skip = 2;
-    else if (buf.length >= 1 && (buf[0] === 0x0d || buf[0] === 0x0a)) skip = 1;
-
-    drained = skip;
-    const rest = buf.subarray(skip);
-    if (rest.length > 0 && typeof stdin.unshift === 'function') {
-      stdin.unshift(rest);
+    if (b0 === 0x0a) return 1;
+    if (b0 === 0x0d) {
+      const second = stdin.read(1);
+      if (second != null) {
+        const b1 = toByte(second);
+        if (b1 === 0x0a) return 2;
+        if (b1 != null) requeue(b1);
+      }
+      return 1;
     }
+    // Not dispatch residue — put the byte back for readline.
+    requeue(b0);
+    return 0;
   } catch {
-    // non-fatal
+    return 0;
   }
-  return drained;
 }
 
 /**
