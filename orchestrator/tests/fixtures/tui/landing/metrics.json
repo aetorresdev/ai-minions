@@ -1,0 +1,90 @@
+{
+  "meta": {
+    "tip_sha": "32986eb81c470eafe0ee56f01b34d591e1f24fa9",
+    "ink_version": "7.1.1",
+    "node": "v24.11.1",
+    "collected_at": "2026-07-28T20:46:46.211Z",
+    "method": "ink.renderToString",
+    "note": "Contract snapshots only — not clipped TTY / visual UX evidence. Use capture-tui-landing-tty.sh for real terminal frames."
+  },
+  "cases": {
+    "ready_120x36": {
+      "fixture": "tests/fixtures/tui/landing/ready-120x36.txt",
+      "columns": 120,
+      "rows": 36,
+      "rendered_lines": 29,
+      "max_display_width": 120,
+      "viewport_columns": 120,
+      "viewport_rows": 36,
+      "has_ansi": false,
+      "has_start_new_run": true,
+      "has_overall": true,
+      "fits_viewport": true
+    },
+    "ready_80x24": {
+      "fixture": "tests/fixtures/tui/landing/ready-80x24.txt",
+      "columns": 80,
+      "rows": 24,
+      "rendered_lines": 23,
+      "max_display_width": 80,
+      "viewport_columns": 80,
+      "viewport_rows": 24,
+      "has_ansi": false,
+      "has_start_new_run": true,
+      "has_overall": true,
+      "fits_viewport": true
+    },
+    "ready_50x16": {
+      "fixture": "tests/fixtures/tui/landing/ready-50x16.txt",
+      "columns": 50,
+      "rows": 16,
+      "rendered_lines": 13,
+      "max_display_width": 50,
+      "viewport_columns": 50,
+      "viewport_rows": 16,
+      "has_ansi": false,
+      "has_start_new_run": true,
+      "has_overall": true,
+      "fits_viewport": true
+    },
+    "blocked_120x36": {
+      "fixture": "tests/fixtures/tui/landing/blocked-120x36.txt",
+      "columns": 120,
+      "rows": 36,
+      "rendered_lines": 29,
+      "max_display_width": 120,
+      "viewport_columns": 120,
+      "viewport_rows": 36,
+      "has_ansi": false,
+      "has_start_new_run": true,
+      "has_overall": true,
+      "fits_viewport": true
+    },
+    "loading_50x16": {
+      "fixture": "tests/fixtures/tui/landing/loading-50x16.txt",
+      "columns": 50,
+      "rows": 16,
+      "rendered_lines": 13,
+      "max_display_width": 50,
+      "viewport_columns": 50,
+      "viewport_rows": 16,
+      "has_ansi": false,
+      "has_start_new_run": true,
+      "has_overall": true,
+      "fits_viewport": true
+    },
+    "nocolor_120x36": {
+      "fixture": "tests/fixtures/tui/landing/nocolor-120x36.txt",
+      "columns": 120,
+      "rows": 36,
+      "rendered_lines": 29,
+      "max_display_width": 120,
+      "viewport_columns": 120,
+      "viewport_rows": 36,
+      "has_ansi": false,
+      "has_start_new_run": true,
+      "has_overall": true,
+      "fits_viewport": true
+    }
+  }
+}
