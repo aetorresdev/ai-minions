@@ -26,7 +26,10 @@ const {
   formatLandingLines,
   formatHelpLines,
   formatDiagnosticsLines,
+  landingLayoutForViewport,
 } = require('./operator-tui-landing');
+const { resolveIconMode } = require('./operator-tui-icons');
+const { detectTruecolor } = require('./operator-tui-theme');
 
 const SHELL_SCHEMA = '1';
 const FOCUS_TARGETS = Object.freeze(['nav', 'content', 'input']);
@@ -78,6 +81,9 @@ function layoutModeForColumns(columns) {
  *   focus?: string,
  *   commandInput?: string,
  *   colorEnabled?: boolean,
+ *   icons?: string,
+ *   iconMode?: string,
+ *   truecolor?: boolean,
  *   productVersion?: string | null,
  *   activeWorkflow?: object | null,
  *   pendingLauncherSelections?: object | null,
@@ -121,16 +127,25 @@ function buildShellModel(options = {}) {
   const columns = Number.isFinite(Number(options.columns)) ? Number(options.columns) : 80;
   const rows = Number.isFinite(Number(options.rows)) ? Number(options.rows) : 24;
   const layout = layoutModeForColumns(columns);
+  const landingLayout = landingLayoutForViewport(columns, rows);
   const version = options.productVersion ?? home.version ?? 'unknown';
   const loading = home.path_status === 'loading'
     || home.credential_sufficiency === 'unavailable';
+  const colorEnabled = options.colorEnabled !== false && process.env.NO_COLOR == null;
+  const iconMode = resolveIconMode(options);
+  const truecolor = colorEnabled && detectTruecolor(process.env, {
+    truecolor: options.truecolor,
+    colorEnabled,
+  });
   const landing = buildLandingViewModel({
     home,
     runs,
     selectedRunId,
     version,
     columns,
+    rows,
     loading,
+    icons: iconMode,
   });
   const readiness = landing.overall.state === 'ready'
     ? 'ready'
@@ -149,19 +164,20 @@ function buildShellModel(options = {}) {
   const workflowActive = activeWorkflow != null;
   const workflowTextEntry = workflowActive && activeWorkflow.step === 'custom_goal';
   const workflowBusy = workflowActive && Boolean(activeWorkflow.busy);
+  const useCompactHints = layout === 'narrow' || landingLayout === 'compact';
   const footerHints = workflowActive
     ? (workflowBusy
-      ? (layout === 'narrow'
+      ? (useCompactHints
         ? 'loading · Esc cancel · Ctrl+C quit'
         : 'Loading… · Esc cancels pending load · Ctrl+C=quit · keys otherwise ignored')
       : (workflowTextEntry
-        ? (layout === 'narrow'
+        ? (useCompactHints
           ? 'type goal · Enter · Esc · Ctrl+C quit'
           : 'Custom goal · type freely (incl. q) · Enter confirm · Esc back · Ctrl+C=quit')
-        : (layout === 'narrow'
+        : (useCompactHints
           ? 'workflow · ↑↓ · Enter · Esc · q'
           : 'Native workflow · ↑/↓ · Enter · Esc back/cancel · /=slash · q=quit · Ctrl+C=quit · no nested readline')))
-    : (layout === 'narrow'
+    : (useCompactHints
       ? landing.footer_hints_narrow
       : landing.footer_hints_wide);
 
@@ -171,11 +187,14 @@ function buildShellModel(options = {}) {
     version,
     readiness,
     layout,
+    landingLayout,
     columns,
     rows,
     focus,
     commandInput: String(options.commandInput ?? ''),
-    colorEnabled: options.colorEnabled !== false && process.env.NO_COLOR == null,
+    colorEnabled,
+    iconMode,
+    truecolor,
     navItems,
     selectedNavId,
     selectedRunId,
@@ -554,6 +573,9 @@ function shellModelToOptions(model) {
     focus: model.focus,
     commandInput: model.commandInput,
     colorEnabled: model.colorEnabled,
+    icons: model.iconMode,
+    iconMode: model.iconMode,
+    truecolor: model.truecolor,
     productVersion: model.version,
     activeWorkflow: model.activeWorkflow ?? null,
     pendingLauncherSelections: model.pendingLauncherSelections ?? null,
@@ -580,7 +602,7 @@ function formatShellText(model) {
   if (model.contentSurface === 'home') {
     lines.push(...formatLandingLines(model.landing, {
       selectedNavId: model.selectedNavId,
-      narrow: model.layout === 'narrow',
+      narrow: model.layout === 'narrow' || model.landingLayout === 'compact',
     }));
   }
   if (model.contentSurface === 'diagnostics') {
@@ -633,6 +655,7 @@ module.exports = {
   FOCUS_TARGETS,
   CONTENT_SURFACES,
   layoutModeForColumns,
+  landingLayoutForViewport,
   buildShellModel,
   moveNavSelection,
   moveRunSelection,

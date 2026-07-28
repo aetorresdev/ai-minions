@@ -5,6 +5,8 @@
  */
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 
 const {
@@ -15,11 +17,75 @@ const {
   adaptShellNavigation,
   deriveLandingOverall,
   classifyRunActivity,
+  landingLayoutForViewport,
+  resolveLandingComposition,
   LANDING_SCHEMA,
 } = require('../../modules/operator/operator-tui-landing');
 const { buildShellModel, formatShellText, resolveShellKeypress } = require('../../modules/operator/operator-tui-shell-model');
 const { executeShellAction, resolveShellActionToken } = require('../../modules/operator/operator-tui-shell-actions');
 const { resolveShellTheme, toneColor } = require('../../modules/operator/operator-tui-theme');
+
+const LANDING_FIXTURES_DIR = path.join(__dirname, '../fixtures/tui/landing');
+const ESC = String.fromCharCode(0x1b);
+const BEL = String.fromCharCode(0x07);
+const CSI8 = String.fromCharCode(0x9b);
+const ANSI_ESCAPE_RE = new RegExp(
+  `${ESC}(?:\\[[0-9;?]*[ -/]*[@-~]|\\][^${BEL}${ESC}]*(?:${BEL}|${ESC}\\\\)|[()][AB012]|[=>])|${CSI8}[0-9;?]*[ -/]*[@-~]`,
+);
+const ESC_CHAR_RE = new RegExp(ESC);
+
+function readLandingFixture(name) {
+  return fs.readFileSync(path.join(LANDING_FIXTURES_DIR, name), 'utf8');
+}
+
+/**
+ * Display-oriented width without pulling ESM string-width into CJS tests.
+ * Landing chrome is ASCII / box-drawing (width 1); surrogate pairs count as one cell here.
+ * @param {string} line
+ */
+function displayWidthApprox(line) {
+  let width = 0;
+  for (const ch of String(line)) {
+    const cp = ch.codePointAt(0);
+    if (cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f)) continue;
+    width += 1;
+  }
+  return width;
+}
+
+function measureLandingViewport(text, columns, rows) {
+  const raw = String(text);
+  const plain = raw.replace(ANSI_ESCAPE_RE, '');
+  const lines = plain.replace(/\s+$/, '').split('\n');
+  const max_display_width = lines.reduce((m, l) => Math.max(m, displayWidthApprox(l)), 0);
+  return {
+    rendered_lines: lines.length,
+    max_display_width,
+    has_ansi: ANSI_ESCAPE_RE.test(raw),
+    has_start_new_run: /Start New Run/.test(plain),
+    has_overall: /Overall:/.test(plain),
+    fits:
+      lines.length <= rows
+      && max_display_width <= columns
+      && /Start New Run/.test(plain)
+      && /Overall:/.test(plain),
+  };
+}
+
+function assertLandingFitsViewport(text, columns, rows, label) {
+  const m = measureLandingViewport(text, columns, rows);
+  assert.ok(
+    m.rendered_lines <= rows,
+    `${label}: rendered_lines ${m.rendered_lines} > viewport_rows ${rows}`,
+  );
+  assert.ok(
+    m.max_display_width <= columns,
+    `${label}: max_display_width ${m.max_display_width} > viewport_columns ${columns}`,
+  );
+  assert.equal(m.has_start_new_run, true, `${label}: Start New Run must be visible`);
+  assert.equal(m.has_overall, true, `${label}: Overall: must be visible`);
+  return m;
+}
 
 function baseHome(overrides = {}) {
   return {
@@ -31,6 +97,21 @@ function baseHome(overrides = {}) {
     credential_sufficiency: 'not_required',
     remote_tokens_required: false,
     providers: [],
+    ...overrides,
+  };
+}
+
+function readyShellOptions(overrides = {}) {
+  return {
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
+    contentSurface: 'home',
+    selectedNavId: 'launcher',
+    // Match capture fixtures: portable unicode (runtime default remains nerd).
+    icons: 'unicode',
+    truecolor: false,
     ...overrides,
   };
 }
@@ -136,6 +217,8 @@ test('landing: active / blocked / failed / completed run states', () => {
       ],
     },
     selectedRunId: 'run_active',
+    columns: 120,
+    rows: 36,
   });
   assert.equal(landing.activity.state, 'active');
   assert.equal(landing.recent_runs.length, 4);
@@ -200,9 +283,11 @@ test('narrow + NO_COLOR preserve hierarchy markers', () => {
       },
       contentSurface: 'home',
       columns: 40,
+      rows: 48,
       colorEnabled: true,
     });
     assert.equal(model.layout, 'narrow');
+    assert.equal(model.landingLayout, 'compact');
     assert.equal(model.colorEnabled, false);
     const theme = resolveShellTheme({ colorEnabled: model.colorEnabled });
     assert.equal(theme.brand, undefined);
@@ -286,13 +371,13 @@ test('help and diagnostics formatters expose remediation without inventing truth
   assert.match(diag, /Advanced/);
 });
 
-test('theme exposes blocked distinct from danger', () => {
+test('theme exposes blocked distinct from danger (hex palette)', () => {
   const prev = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
   try {
-    const theme = resolveShellTheme({ colorEnabled: true });
-    assert.equal(theme.blocked, 'magentaBright');
-    assert.equal(theme.danger, 'red');
+    const theme = resolveShellTheme({ colorEnabled: true, truecolor: false });
+    assert.equal(theme.blocked, '#D27BEA');
+    assert.equal(theme.danger, '#F07178');
     assert.notEqual(theme.blocked, theme.danger);
     assert.equal(toneColor(theme, 'blocked'), theme.blocked);
     assert.equal(toneColor(theme, 'fail'), theme.danger);
@@ -300,4 +385,270 @@ test('theme exposes blocked distinct from danger', () => {
     if (prev === undefined) delete process.env.NO_COLOR;
     else process.env.NO_COLOR = prev;
   }
+});
+
+test('landingLayoutForViewport: wide / mid / compact thresholds', () => {
+  assert.equal(landingLayoutForViewport(120, 36), 'wide');
+  assert.equal(landingLayoutForViewport(100, 24), 'wide');
+  assert.equal(landingLayoutForViewport(99, 40), 'mid');
+  assert.equal(landingLayoutForViewport(80, 24), 'mid');
+  assert.equal(landingLayoutForViewport(79, 40), 'compact');
+  assert.equal(landingLayoutForViewport(120, 16), 'compact');
+  assert.equal(landingLayoutForViewport(50, 16), 'compact');
+});
+
+test('resolveLandingComposition: fits row budget; keeps Start New Run + Overall', () => {
+  const mid = resolveLandingComposition(80, 24);
+  assert.equal(mid.layout, 'mid');
+  assert.equal(mid.composition.show_primary_cta, true);
+  assert.equal(mid.composition.show_readiness, true);
+  assert.ok(mid.estimated_rows <= 24);
+  assert.ok(mid.composition.drops.includes('hide_guardian'));
+  assert.ok(mid.composition.drops.includes('hide_recent'));
+  const gDrop = mid.composition.drops.indexOf('hide_guardian');
+  const rDrop = mid.composition.drops.indexOf('hide_recent');
+  assert.ok(gDrop >= 0 && rDrop >= 0 && gDrop < rDrop, 'Cerberus drops before recent runs');
+
+  const compact = resolveLandingComposition(50, 16);
+  assert.equal(compact.layout, 'compact');
+  assert.equal(compact.composition.show_primary_cta, true);
+  assert.equal(compact.composition.show_readiness, true);
+  assert.ok(compact.estimated_rows <= 16);
+  assert.equal(compact.composition.show_guardian, false);
+});
+
+test('wide landing text: guardian + primary + readiness + runs + controls', () => {
+  const landing = buildLandingViewModel({
+    home: baseHome(),
+    runs: { runs: [], result_code: 'RUNS_EMPTY' },
+    version: '0.26.0-beta.1',
+    columns: 120,
+    rows: 36,
+  });
+  assert.equal(landing.layout, 'wide');
+  assert.equal(landing.show_guardian, true);
+  assert.ok(landing.guardian_lines.some((l) => /CERBERUS/.test(l)));
+  const lines = formatLandingLines(landing, { selectedNavId: 'launcher' }).join('\n');
+  assert.match(lines, /== Guardian ==/);
+  assert.match(lines, /== Primary ==/);
+  assert.match(lines, /AI-MINIONS/);
+  assert.match(lines, /> 1\. Start New Run/);
+  assert.match(lines, /== System Readiness ==/);
+  assert.match(lines, /== Recent Runs ==/);
+  assert.match(lines, /== Controls ==/);
+  const gIdx = lines.indexOf('== Guardian ==');
+  const pIdx = lines.indexOf('== Primary ==');
+  const rIdx = lines.indexOf('== System Readiness ==');
+  const rrIdx = lines.indexOf('== Recent Runs ==');
+  const cIdx = lines.indexOf('== Controls ==');
+  assert.ok(gIdx < pIdx && pIdx < rIdx && rIdx < rrIdx && rrIdx < cIdx);
+});
+
+test('compact landing drops guardian art before action/state', () => {
+  const landing = buildLandingViewModel({
+    home: baseHome({ path_status: 'loading', credential_sufficiency: 'unavailable' }),
+    runs: { runs: [] },
+    columns: 50,
+    rows: 16,
+    loading: true,
+  });
+  assert.equal(landing.layout, 'compact');
+  assert.equal(landing.show_guardian, false);
+  assert.deepEqual(landing.guardian_lines, []);
+  const lines = formatLandingLines(landing, { selectedNavId: 'launcher', narrow: true }).join('\n');
+  assert.doesNotMatch(lines, /== Guardian ==/);
+  assert.match(lines, /> 1\. Start New Run/);
+  assert.match(lines, /Overall: Loading/);
+  assert.match(lines, /== System Readiness ==/);
+});
+
+test('Ink wide/mid/compact landing fits viewport and matches fixtures', async () => {
+  const { renderOperatorTuiShellToString } = await import(
+    '../../modules/operator/operator-tui-shell-render.mjs'
+  );
+  const { measureLandingRender, normalizeLandingSnapshot } = await import(
+    '../../scripts/lib/tui-landing-render-metrics.mjs'
+  );
+
+  const cases = [
+    {
+      id: 'ready_120x36',
+      columns: 120,
+      rows: 36,
+      fixture: 'ready-120x36.txt',
+      layout: 'wide',
+      options: readyShellOptions({ columns: 120, rows: 36 }),
+      expectMatch: [/AI-MINIONS/, /CERBERUS/, /Start New Run/, /Overall:/, /Recent Runs/],
+      expectNot: [],
+    },
+    {
+      id: 'ready_80x24',
+      columns: 80,
+      rows: 24,
+      fixture: 'ready-80x24.txt',
+      layout: 'mid',
+      options: readyShellOptions({ columns: 80, rows: 24 }),
+      expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/, /System Readiness/],
+      // 80×24 drops decorative guardian + recent before sacrificing CTA / Overall.
+      expectNot: [/CERBERUS/, /Recent Runs/],
+    },
+    {
+      id: 'ready_50x16',
+      columns: 50,
+      rows: 16,
+      fixture: 'ready-50x16.txt',
+      layout: 'compact',
+      options: readyShellOptions({ columns: 50, rows: 16 }),
+      expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/],
+      expectNot: [/CERBERUS/],
+    },
+    // Runtime default icons=nerd (unicode fixtures stay portable for review).
+    {
+      id: 'ready_nerd_120x36',
+      columns: 120,
+      rows: 36,
+      fixture: 'ready-nerd-120x36.txt',
+      layout: 'wide',
+      options: readyShellOptions({ columns: 120, rows: 36, icons: 'nerd' }),
+      expectMatch: [/AI-MINIONS/, /CERBERUS/, /Start New Run/, /Overall:/, /Recent Runs/],
+      expectNot: [],
+    },
+    {
+      id: 'ready_nerd_80x24',
+      columns: 80,
+      rows: 24,
+      fixture: 'ready-nerd-80x24.txt',
+      layout: 'mid',
+      options: readyShellOptions({ columns: 80, rows: 24, icons: 'nerd' }),
+      expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/, /System Readiness/],
+      expectNot: [/CERBERUS/, /Recent Runs/],
+    },
+  ];
+
+  for (const c of cases) {
+    const model = buildShellModel(c.options);
+    assert.equal(model.landingLayout, c.layout, c.id);
+    if (c.id.startsWith('ready_nerd_')) {
+      assert.equal(model.iconMode, 'nerd', `${c.id}: iconMode`);
+    }
+    const out = renderOperatorTuiShellToString(model, {
+      columns: c.columns,
+      rows: c.rows,
+    });
+    const m = measureLandingRender(out, { columns: c.columns, rows: c.rows });
+    assert.ok(
+      m.rendered_lines <= c.rows,
+      `${c.id}: rendered_lines ${m.rendered_lines} > ${c.rows}`,
+    );
+    assert.ok(
+      m.max_display_width <= c.columns,
+      `${c.id}: max_display_width ${m.max_display_width} > ${c.columns}`,
+    );
+    assert.equal(m.has_start_new_run, true, `${c.id}: Start New Run`);
+    assert.equal(m.has_overall, true, `${c.id}: Overall:`);
+    assert.equal(m.fits_viewport, true, `${c.id}: fits_viewport`);
+    for (const re of c.expectMatch) assert.match(out, re, c.id);
+    for (const re of c.expectNot) assert.doesNotMatch(out, re, c.id);
+    assert.equal(
+      normalizeLandingSnapshot(out),
+      readLandingFixture(c.fixture),
+      `${c.id}: fixture drift — regenerate with node scripts/capture-tui-landing-fixtures.mjs`,
+    );
+  }
+
+  const metrics = JSON.parse(readLandingFixture('metrics.json'));
+  assert.equal(metrics.meta.method, 'ink.renderToString');
+  assert.equal(metrics.meta.ink_version, '7.1.1');
+  for (const id of [
+    'ready_120x36',
+    'ready_80x24',
+    'ready_50x16',
+    'ready_nerd_120x36',
+    'ready_nerd_80x24',
+  ]) {
+    assert.equal(metrics.cases[id].fits_viewport, true, id);
+  }
+});
+
+test('NO_COLOR landing output contains no ANSI escape sequences', async () => {
+  const { renderOperatorTuiShellToString } = await import(
+    '../../modules/operator/operator-tui-shell-render.mjs'
+  );
+  const { measureLandingRender, normalizeLandingSnapshot, hasAnsiEscape } = await import(
+    '../../scripts/lib/tui-landing-render-metrics.mjs'
+  );
+
+  const prev = process.env.NO_COLOR;
+  process.env.NO_COLOR = '1';
+  try {
+    const noColor = buildShellModel(readyShellOptions({
+      columns: 120,
+      rows: 36,
+      colorEnabled: true,
+      runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
+    }));
+    assert.equal(noColor.colorEnabled, false);
+    const out = renderOperatorTuiShellToString(noColor, { columns: 120, rows: 36 });
+    const m = measureLandingRender(out, { columns: 120, rows: 36 });
+    assert.equal(m.has_ansi, false, 'NO_COLOR must not emit ANSI');
+    assert.equal(hasAnsiEscape(out), false);
+    assert.doesNotMatch(out, ESC_CHAR_RE);
+    assert.ok(m.rendered_lines <= 36);
+    assert.ok(m.max_display_width <= 120);
+    assert.match(out, /AI-MINIONS/);
+    assert.match(out, /›|Start New Run/);
+    assert.match(out, /Overall:/);
+    assert.match(out, /No runs|empty_state|No runs yet/i);
+    assert.equal(
+      normalizeLandingSnapshot(out),
+      readLandingFixture('nocolor-120x36.txt'),
+      'nocolor fixture drift — regenerate with capture-tui-landing-fixtures.mjs',
+    );
+  } finally {
+    if (prev === undefined) delete process.env.NO_COLOR;
+    else process.env.NO_COLOR = prev;
+  }
+});
+
+test('Ink landing empty runs and blocked readiness use contract states', async () => {
+  const { renderOperatorTuiShellToString } = await import(
+    '../../modules/operator/operator-tui-shell-render.mjs'
+  );
+  const { measureLandingRender, normalizeLandingSnapshot } = await import(
+    '../../scripts/lib/tui-landing-render-metrics.mjs'
+  );
+  const blocked = buildShellModel(readyShellOptions({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'cloud_preferred' },
+    credentials: { credential_sufficiency: 'insufficient', providers: [] },
+    columns: 120,
+    rows: 36,
+  }));
+  assert.equal(blocked.landing.overall.state, 'blocked');
+  const out = renderOperatorTuiShellToString(blocked, { columns: 120, rows: 36 });
+  const m = measureLandingRender(out, { columns: 120, rows: 36 });
+  assert.equal(m.fits_viewport, true);
+  assert.match(out, /Overall:/);
+  assert.match(out, /Blocked|blocked|insufficient|Settings/i);
+  assert.match(out, /Recent Runs/);
+  assert.doesNotMatch(out, /run_20250510/);
+  assert.equal(
+    normalizeLandingSnapshot(out),
+    readLandingFixture('blocked-120x36.txt'),
+    'blocked fixture drift — regenerate with capture-tui-landing-fixtures.mjs',
+  );
+
+  const loading = buildShellModel(readyShellOptions({
+    columns: 50,
+    rows: 16,
+    pathActivation: { status: 'loading' },
+    credentials: { credential_sufficiency: 'unavailable', providers: [] },
+  }));
+  assert.equal(loading.landing.overall.state, 'loading');
+  const loadingOut = renderOperatorTuiShellToString(loading, { columns: 50, rows: 16 });
+  assertLandingFitsViewport(loadingOut, 50, 16, 'loading_50x16');
+  assert.equal(
+    normalizeLandingSnapshot(loadingOut),
+    readLandingFixture('loading-50x16.txt'),
+    'loading fixture drift — regenerate with capture-tui-landing-fixtures.mjs',
+  );
 });

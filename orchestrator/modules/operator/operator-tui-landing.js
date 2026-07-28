@@ -5,10 +5,278 @@
  * Consumes adapter fields only — does not infer readiness, budgets, or gate outcomes.
  */
 
+const {
+  landingGuardianPlainLines,
+  landingGuardianRowsWide,
+  landingGuardianRowsMid,
+} = require('./operator-tui-splash');
+const { resolveIconMode } = require('./operator-tui-icons');
+
 const LANDING_SCHEMA = '1';
 const RECENT_RUNS_LIMIT = 5;
 
 /** @typedef {'ready'|'needs_setup'|'blocked'|'loading'|'failed'|'unknown'} LandingOverallState */
+/** @typedef {'wide'|'mid'|'compact'} LandingLayoutMode */
+
+/**
+ * Landing composition thresholds (task-first home — not splash).
+ * Wide: ≥100 cols and ≥24 rows. Mid: 80–99 cols (≥24 rows). Compact: <80 cols or short TTY.
+ * Height-aware density (see resolveLandingComposition) may still drop lower-priority
+ * blocks inside mid/compact so the frame fits the reported row count.
+ * @param {unknown} columns
+ * @param {unknown} rows
+ * @returns {LandingLayoutMode}
+ */
+function landingLayoutForViewport(columns, rows) {
+  const cols = Number(columns);
+  const r = Number(rows);
+  const c = Number.isFinite(cols) && cols >= 1 ? cols : 80;
+  const rowCount = Number.isFinite(r) && r >= 1 ? r : 24;
+  if (c < 80 || rowCount < 24) return 'compact';
+  if (c < 100) return 'mid';
+  return 'wide';
+}
+
+/**
+ * @typedef {{
+ *   show_guardian: boolean,
+ *   show_product: boolean,
+ *   show_tagline: boolean,
+ *   show_triad: boolean,
+ *   show_primary_cta: boolean,
+ *   show_guardian_note: boolean,
+ *   show_quick_start: boolean,
+ *   show_quick_start_hint: boolean,
+ *   quick_start_limit: number,
+ *   show_readiness: boolean,
+ *   show_readiness_next: boolean,
+ *   show_readiness_details: boolean,
+ *   show_recent_runs: boolean,
+ *   recent_runs_limit: number,
+ *   recent_empty_short: boolean,
+ *   drops: string[],
+ * }} LandingComposition
+ */
+
+/** Chrome always present on the home surface (header + command + footer). */
+const LANDING_CHROME_ROWS = 7;
+
+/**
+ * Full composition defaults for a layout mode (before row-budget drops).
+ * @param {LandingLayoutMode} layout
+ * @returns {LandingComposition}
+ */
+function defaultLandingComposition(layout) {
+  return {
+    show_guardian: layout !== 'compact',
+    show_product: true,
+    show_tagline: true,
+    show_triad: true,
+    show_primary_cta: true,
+    show_guardian_note: layout !== 'compact',
+    show_quick_start: true,
+    show_quick_start_hint: true,
+    quick_start_limit: 5,
+    show_readiness: true,
+    show_readiness_next: true,
+    show_readiness_details: true,
+    show_recent_runs: true,
+    recent_runs_limit: RECENT_RUNS_LIMIT,
+    recent_empty_short: false,
+    drops: [],
+  };
+}
+
+/**
+ * Drop order for row pressure — lowest priority first.
+ * Decorative Cerberus drops before Start New Run / Overall / recent runs
+ * (visual-system secondary policy). Never drops Start New Run or Overall.
+ */
+const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
+  {
+    id: 'recent_empty_short',
+    apply(c) {
+      c.recent_empty_short = true;
+    },
+  },
+  {
+    id: 'hide_guardian',
+    apply(c) {
+      c.show_guardian = false;
+    },
+  },
+  {
+    id: 'hide_guardian_note',
+    apply(c) {
+      c.show_guardian_note = false;
+    },
+  },
+  {
+    id: 'hide_recent',
+    apply(c) {
+      c.show_recent_runs = false;
+      c.recent_runs_limit = 0;
+    },
+  },
+  {
+    id: 'hide_tagline',
+    apply(c) {
+      c.show_tagline = false;
+    },
+  },
+  {
+    id: 'hide_triad',
+    apply(c) {
+      c.show_triad = false;
+    },
+  },
+  {
+    id: 'hide_readiness_details',
+    apply(c) {
+      c.show_readiness_details = false;
+    },
+  },
+  {
+    id: 'hide_readiness_next',
+    apply(c) {
+      c.show_readiness_next = false;
+    },
+  },
+  {
+    id: 'quick_start_primary_only',
+    apply(c) {
+      c.quick_start_limit = 1;
+      c.show_quick_start_hint = false;
+    },
+  },
+  {
+    id: 'hide_quick_start',
+    apply(c) {
+      c.show_quick_start = false;
+    },
+  },
+  {
+    id: 'hide_product',
+    apply(c) {
+      c.show_product = false;
+    },
+  },
+]);
+
+/**
+ * Estimate rendered row count for a composition (Ink borders + wrap heuristics).
+ * Used only to decide drops; tests assert real Ink output ≤ reported rows.
+ * @param {LandingComposition} composition
+ * @param {LandingLayoutMode} layout
+ * @param {number} columns
+ * @returns {number}
+ */
+function estimateLandingCompositionRows(composition, layout, columns) {
+  const cols = Number.isFinite(columns) && columns >= 1 ? columns : 80;
+  const contentWidth = Math.max(16, cols - 4);
+
+  let hero = 0;
+  if (composition.show_product) hero += 1;
+  if (composition.show_tagline) hero += 1;
+  if (composition.show_triad) hero += 1;
+  if (composition.show_primary_cta) hero += 1;
+  if (composition.show_guardian_note) {
+    hero += cols < 56 ? 2 : 1;
+  }
+
+  // Wide guardian sits in a bordered column (6 art lines + 2 borders).
+  // Mid guardian is unbordered stacked art (3 lines).
+  const guardianLines = composition.show_guardian
+    ? (layout === 'wide' ? 8 : 3)
+    : 0;
+
+  let bodyTop;
+  if (layout === 'wide' && composition.show_guardian) {
+    bodyTop = Math.max(guardianLines, hero);
+  } else {
+    bodyTop = (layout !== 'wide' ? guardianLines : 0) + hero;
+  }
+
+  const panel = (inner) => (inner > 0 ? inner + 2 : 0);
+
+  let quickInner = 0;
+  if (composition.show_quick_start) {
+    quickInner = 1; // title
+    if (composition.show_quick_start_hint) {
+      // Mid/wide Quick Start is width 36; hint wraps on that pane.
+      const qsContentWidth = layout === 'compact'
+        ? contentWidth
+        : Math.max(12, Math.min(34, cols - 2));
+      quickInner += Math.max(1, Math.ceil('keyboard — not clickable'.length / qsContentWidth));
+    }
+    quickInner += Math.max(1, Number(composition.quick_start_limit) || 1);
+  }
+
+  let readyInner = 0;
+  if (composition.show_readiness) {
+    readyInner = 2; // title + Overall
+    if (composition.show_readiness_next) {
+      // Mid readiness pane shares the row with Quick Start (~cols-36).
+      const readyWidth = layout === 'compact'
+        ? contentWidth
+        : Math.max(20, cols - (composition.show_quick_start ? 40 : 4));
+      const nextChars = 72;
+      readyInner += Math.max(1, Math.ceil(nextChars / readyWidth));
+    }
+    if (composition.show_readiness_details) readyInner += 5;
+  }
+
+  let recentInner = 0;
+  if (composition.show_recent_runs) {
+    recentInner = 1;
+    if (composition.recent_runs_limit > 0) {
+      recentInner += 1 + composition.recent_runs_limit;
+    } else if (composition.recent_empty_short) {
+      recentInner += 1;
+    } else {
+      recentInner += Math.max(1, Math.ceil(90 / contentWidth));
+    }
+  }
+
+  const quickRows = panel(quickInner);
+  const readyRows = panel(readyInner);
+  const recentRows = panel(recentInner);
+  const panels = layout === 'compact'
+    ? quickRows + readyRows + recentRows
+    : Math.max(quickRows, readyRows) + recentRows;
+
+  // +1 slack so borderline wrap / yoga padding does not exceed the TTY.
+  return LANDING_CHROME_ROWS + bodyTop + panels + 1;
+}
+
+/**
+ * Height-aware landing composition: fit reported rows by dropping lower-priority
+ * content before sacrificing Start New Run or the explicit Overall readiness line.
+ * @param {unknown} columns
+ * @param {unknown} rows
+ * @returns {{ layout: LandingLayoutMode, composition: LandingComposition, estimated_rows: number }}
+ */
+function resolveLandingComposition(columns, rows) {
+  const cols = Number(columns);
+  const r = Number(rows);
+  const c = Number.isFinite(cols) && cols >= 1 ? cols : 80;
+  const rowCount = Number.isFinite(r) && r >= 1 ? Math.floor(r) : 24;
+  const layout = landingLayoutForViewport(c, rowCount);
+  const composition = defaultLandingComposition(layout);
+
+  let estimated = estimateLandingCompositionRows(composition, layout, c);
+  for (const step of LANDING_COMPOSITION_DROP_STEPS) {
+    if (estimated <= rowCount) break;
+    step.apply(composition);
+    composition.drops.push(step.id);
+    // Invariants: primary CTA + Overall readiness always remain.
+    composition.show_primary_cta = true;
+    composition.show_readiness = true;
+    estimated = estimateLandingCompositionRows(composition, layout, c);
+  }
+
+  return { layout, composition, estimated_rows: estimated };
+}
 
 /**
  * Bounded primary / secondary actions shown on the landing Quick Start panel.
@@ -369,13 +637,29 @@ function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT) {
  *   selectedRunId?: string | null,
  *   version?: string | null,
  *   columns?: number,
+ *   rows?: number,
  *   loading?: boolean,
+ *   icons?: string,
+ *   iconMode?: string,
  * }} [options]
  */
 function buildLandingViewModel(options = {}) {
   const home = options.home && typeof options.home === 'object' ? options.home : {};
   const runsAdapter = options.runs && typeof options.runs === 'object' ? options.runs : { runs: [] };
   const runs = Array.isArray(runsAdapter.runs) ? runsAdapter.runs : [];
+  const columns = Number.isFinite(Number(options.columns)) ? Number(options.columns) : 80;
+  const rows = Number.isFinite(Number(options.rows)) ? Number(options.rows) : 24;
+  const iconMode = resolveIconMode(options);
+  const resolved = resolveLandingComposition(columns, rows);
+  const layout = resolved.layout;
+  const composition = resolved.composition;
+  const showGuardian = composition.show_guardian === true;
+  const guardian_lines = showGuardian ? landingGuardianPlainLines(layout, iconMode) : [];
+  const guardian_rows = !showGuardian
+    ? []
+    : (layout === 'wide'
+      ? landingGuardianRowsWide(iconMode)
+      : (layout === 'mid' ? landingGuardianRowsMid(iconMode) : []));
   const overall = options.loading === true
     ? {
       state: /** @type {LandingOverallState} */ ('loading'),
@@ -394,7 +678,7 @@ function buildLandingViewModel(options = {}) {
     ? 'ok'
     : (home.cli_on_path === false ? 'warn' : toneForScalar(home.path_status));
 
-  const readinessRows = [
+  const allReadinessRows = [
     readinessRow(
       'Model Policy',
       home.model_policy == null || home.model_policy === '' ? 'unavailable' : String(home.model_policy),
@@ -430,8 +714,12 @@ function buildLandingViewModel(options = {}) {
       overall.reason_hint,
     ),
   ];
+  const readinessRows = composition.show_readiness_details ? allReadinessRows : [];
 
-  const recent = buildRecentRunPreview(runs);
+  const recentLimit = composition.show_recent_runs
+    ? Math.max(0, Number(composition.recent_runs_limit) || 0)
+    : 0;
+  const recent = buildRecentRunPreview(runs, recentLimit);
   const selectedRunId = options.selectedRunId == null || options.selectedRunId === ''
     ? null
     : String(options.selectedRunId);
@@ -459,27 +747,35 @@ function buildLandingViewModel(options = {}) {
     emptyState = {
       kind: 'loading',
       title: 'Discovering readiness',
-      body: 'Readiness and recent runs load after first paint. Fields stay unavailable until authoritative.',
+      body: composition.recent_empty_short
+        ? 'Waiting for readiness…'
+        : 'Readiness and recent runs load after first paint. Fields stay unavailable until authoritative.',
     };
   } else if (overall.state === 'failed') {
     emptyState = {
       kind: 'failed',
       title: 'Readiness probe failed',
-      body: 'Bounded failure — open System Status. Do not treat missing fields as success.',
+      body: composition.recent_empty_short
+        ? 'Open System Status'
+        : 'Bounded failure — open System Status. Do not treat missing fields as success.',
     };
   } else if (overall.state === 'blocked' || overall.state === 'needs_setup') {
     emptyState = {
       kind: overall.state,
       title: overall.label,
-      body: overall.next_action,
+      body: composition.recent_empty_short
+        ? 'Open Settings'
+        : overall.next_action,
     };
   } else if (!runs.length) {
     emptyState = {
       kind: 'no_runs',
       title: 'No runs yet',
-      body: overall.state === 'ready'
-        ? 'Start a run to create the first trace. Canonical fixture is offered from New Run.'
-        : overall.next_action,
+      body: composition.recent_empty_short
+        ? 'Start New Run'
+        : (overall.state === 'ready'
+          ? 'Start a run to create the first trace. Canonical fixture is offered from New Run.'
+          : overall.next_action),
     };
   }
 
@@ -487,10 +783,24 @@ function buildLandingViewModel(options = {}) {
     ? (home.version == null ? 'unknown' : String(home.version))
     : String(options.version);
 
+  const quickStartAll = landingQuickStartActions();
+  const quickStart = composition.show_quick_start
+    ? quickStartAll.slice(0, Math.max(1, Number(composition.quick_start_limit) || 1))
+    : [];
+
   return {
     schema: LANDING_SCHEMA,
     kind: 'landing',
     version,
+    layout,
+    columns,
+    rows,
+    iconMode,
+    composition,
+    estimated_rows: resolved.estimated_rows,
+    show_guardian: showGuardian && guardian_lines.length > 0,
+    guardian_lines,
+    guardian_rows,
     hero: {
       product: 'AI-MINIONS',
       tagline: 'Contract-First Multi-Agent Orchestration Harness',
@@ -498,7 +808,7 @@ function buildLandingViewModel(options = {}) {
       guardian_note: 'Cerberus guards contracts and gates — secondary system symbol',
     },
     overall,
-    quick_start: landingQuickStartActions(),
+    quick_start: quickStart,
     readiness_rows: readinessRows,
     recent_runs: recent,
     recent_runs_total: runs.length,
@@ -513,67 +823,106 @@ function buildLandingViewModel(options = {}) {
 
 /**
  * Plain-text landing lines for assertions / NO_COLOR parity (not shareable CLI JSON).
+ * Top-to-bottom grouping matches the approved task-first composition.
  * @param {ReturnType<typeof buildLandingViewModel>} landing
  * @param {{ selectedNavId?: string | null, narrow?: boolean }} [options]
  * @returns {string[]}
  */
 function formatLandingLines(landing, options = {}) {
   const selectedNavId = options.selectedNavId == null ? null : String(options.selectedNavId);
-  const narrow = options.narrow === true;
-  const lines = [
-    `${landing.hero.product}  ${landing.hero.triad}`,
-    landing.hero.tagline,
-    `v${String(landing.version).replace(/^v/i, '')}`,
-    '',
-    '== Quick Start ==',
-  ];
-  for (const item of landing.quick_start) {
-    const marker = item.id === selectedNavId || (selectedNavId == null && item.primary)
-      ? '>'
-      : ' ';
+  const narrow = options.narrow === true || landing.layout === 'compact';
+  const comp = landing.composition && typeof landing.composition === 'object'
+    ? landing.composition
+    : defaultLandingComposition(landing.layout || 'compact');
+  const lines = [];
+  if (comp.show_guardian && landing.show_guardian && landing.guardian_lines.length) {
+    lines.push('== Guardian ==');
+    lines.push(...landing.guardian_lines);
+    lines.push('');
+  }
+  lines.push('== Primary ==');
+  if (comp.show_product) {
     lines.push(
-      `${marker} ${item.key}. ${item.label}`
-      + (narrow ? '' : ` — ${item.description}`),
+      `${landing.hero.product}`
+      + (comp.show_triad ? `  ${landing.hero.triad}` : ''),
     );
+  } else if (comp.show_triad) {
+    lines.push(landing.hero.triad);
+  }
+  if (comp.show_tagline) lines.push(landing.hero.tagline);
+  lines.push(`v${String(landing.version).replace(/^v/i, '')}`);
+  if (comp.show_primary_cta) {
+    const marker = selectedNavId == null || selectedNavId === 'launcher' ? '>' : ' ';
+    lines.push(`${marker} 1. Start New Run`);
+  }
+  if (comp.show_guardian_note) lines.push(landing.hero.guardian_note);
+  if (comp.show_quick_start && landing.quick_start.length) {
+    lines.push('', '== Quick Start ==');
+    for (const item of landing.quick_start) {
+      const marker = item.id === selectedNavId || (selectedNavId == null && item.primary)
+        ? '>'
+        : ' ';
+      lines.push(
+        `${marker} ${item.key}. ${item.label}`
+        + (narrow || !comp.show_quick_start_hint ? '' : ` — ${item.description}`),
+      );
+    }
   }
   lines.push('', '== System Readiness ==');
-  lines.push(`Overall: ${landing.overall.label} · next: ${landing.overall.next_action}`);
-  for (const row of landing.readiness_rows) {
-    const detail = row.detail ? ` (${row.detail})` : '';
-    lines.push(`  ${row.label}: ${row.status_label}${detail}`);
+  lines.push(
+    comp.show_readiness_next
+      ? `Overall: ${landing.overall.label} · next: ${landing.overall.next_action}`
+      : `Overall: ${landing.overall.label}`,
+  );
+  if (comp.show_readiness_details) {
+    for (const row of landing.readiness_rows) {
+      const detail = row.detail ? ` (${row.detail})` : '';
+      lines.push(`  ${row.label}: ${row.status_label}${detail}`);
+    }
   }
-  lines.push('', '== Current activity ==');
-  if (landing.activity.available) {
-    lines.push(
-      `  ${landing.activity.activity_label ?? landing.activity.label}`
-      + ` · ${landing.activity.run_id}`
-      + ` · next: ${landing.activity.next_action}`,
-    );
-  } else {
-    lines.push(`  ${landing.activity.label} · next: ${landing.activity.next_action}`);
-  }
-  lines.push('', '== Recent Runs ==');
-  if (!landing.recent_runs.length) {
-    lines.push('  (No runs yet)');
-  } else {
-    lines.push(
-      `  Showing ${landing.recent_runs_showing} of ${landing.recent_runs_total}`,
-    );
-    for (const run of landing.recent_runs) {
-      const summary = run.summary == null ? '(summary unavailable)' : run.summary;
-      const when = run.last_event_at == null ? 'time unavailable' : run.last_event_at;
-      const agents = run.agent_count == null ? 'agents unavailable' : `${run.agent_count} agents`;
+  if (comp.show_recent_runs) {
+    lines.push('', '== Current activity ==');
+    if (landing.activity.available) {
       lines.push(
-        `  ${run.activity_label}  ${run.run_id}  ${summary}  ${when}  ${agents}`,
+        `  ${landing.activity.activity_label ?? landing.activity.label}`
+        + ` · ${landing.activity.run_id}`
+        + ` · next: ${landing.activity.next_action}`,
       );
-      if (run.reason_code) {
-        lines.push(`    reason_code: ${run.reason_code}`);
+    } else {
+      lines.push(`  ${landing.activity.label} · next: ${landing.activity.next_action}`);
+    }
+    lines.push('', '== Recent Runs ==');
+    if (!landing.recent_runs.length) {
+      lines.push(
+        comp.recent_empty_short && landing.empty_state
+          ? `  ${landing.empty_state.title}: ${landing.empty_state.body}`
+          : '  (No runs yet)',
+      );
+    } else {
+      lines.push(
+        `  Showing ${landing.recent_runs_showing} of ${landing.recent_runs_total}`,
+      );
+      for (const run of landing.recent_runs) {
+        const summary = run.summary == null ? '(summary unavailable)' : run.summary;
+        const when = run.last_event_at == null ? 'time unavailable' : run.last_event_at;
+        const agents = run.agent_count == null ? 'agents unavailable' : `${run.agent_count} agents`;
+        lines.push(
+          `  ${run.activity_label}  ${run.run_id}  ${summary}`
+          + (narrow ? '' : `  ${when}  ${agents}`),
+        );
+        if (run.reason_code) {
+          lines.push(`    reason_code: ${run.reason_code}`);
+        }
       }
     }
   }
-  if (landing.empty_state) {
+  if (landing.empty_state && !comp.show_recent_runs) {
+    // Keep empty/loading signal only when recent panel is dropped.
+    lines.push('', `== ${landing.empty_state.title} ==`, landing.empty_state.body);
+  } else if (landing.empty_state && !comp.recent_empty_short && landing.recent_runs.length) {
     lines.push('', `== ${landing.empty_state.title} ==`, landing.empty_state.body);
   }
+  lines.push('', `== Controls ==`, narrow ? landing.footer_hints_narrow : landing.footer_hints_wide);
   return lines;
 }
 
@@ -601,6 +950,7 @@ function formatHelpLines() {
     '',
     'Keys: ↑/↓ move · Enter select · Esc back to Home · Tab focus · / slash · q quit',
     'Top-level s is ignored (use Runs / ↑↓). Legacy readline matrix: AI_MINIONS_TUI_LEGACY=1 only.',
+    'Icons: AI_MINIONS_TUI_ICONS=nerd|unicode|ascii (default nerd; operator choice — not auto glyph detect).',
     'Operator modules remain authoritative. Not claimed: Web UI · mouse · durable resume.',
   ];
 }
@@ -644,6 +994,12 @@ function formatDiagnosticsLines(home = {}) {
 module.exports = {
   LANDING_SCHEMA,
   RECENT_RUNS_LIMIT,
+  LANDING_CHROME_ROWS,
+  LANDING_COMPOSITION_DROP_STEPS,
+  landingLayoutForViewport,
+  defaultLandingComposition,
+  estimateLandingCompositionRows,
+  resolveLandingComposition,
   landingQuickStartActions,
   adaptShellNavigation,
   deriveLandingOverall,

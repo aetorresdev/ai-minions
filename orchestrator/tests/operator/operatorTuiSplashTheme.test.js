@@ -20,6 +20,9 @@ const {
   resolveSplashFrameHeight,
   resolveSplashDensity,
   splashBannerLines,
+  wordmarkSegments,
+  flattenSplashRows,
+  landingGuardianRowsWide,
   WORDMARK,
   GUARDIAN_MARK,
   TRIAD_LABEL,
@@ -28,32 +31,45 @@ const {
 } = require('../../modules/operator/operator-tui-splash');
 const { buildShellModel } = require('../../modules/operator/operator-tui-shell-model');
 
-test('resolveShellTheme returns cyan brand + triad tokens when color enabled', () => {
+test('resolveShellTheme returns hex palette + triad tokens when color enabled', () => {
   const prev = process.env.NO_COLOR;
+  const prevColorterm = process.env.COLORTERM;
   delete process.env.NO_COLOR;
+  delete process.env.COLORTERM;
   try {
-    const theme = resolveShellTheme({ colorEnabled: true });
-    assert.equal(theme.brand, 'cyan');
-    assert.equal(theme.brandPrimary, 'cyan');
-    assert.equal(theme.brandCore, 'blueBright');
-    assert.equal(theme.brandSecondary, 'magenta');
-    assert.equal(theme.accent, 'blueBright');
-    assert.equal(theme.focus, 'cyan');
-    assert.equal(theme.ready, 'green');
-    assert.equal(theme.triadValidate, 'cyan');
-    assert.equal(theme.triadTrace, 'blueBright');
-    assert.equal(theme.triadEnforce, 'magenta');
-    assert.equal(theme.blocked, 'magentaBright');
+    const theme = resolveShellTheme({ colorEnabled: true, truecolor: false });
+    assert.equal(theme.brand, '#67D9F5');
+    assert.equal(theme.brandPrimary, '#67D9F5');
+    assert.equal(theme.brandCore, '#9B8CFF');
+    assert.equal(theme.brandSecondary, '#9B8CFF');
+    assert.equal(theme.accent, '#9B8CFF');
+    assert.equal(theme.focus, '#67D9F5');
+    assert.equal(theme.ready, '#55D6A5');
+    assert.equal(theme.warn, '#E8C547');
+    assert.equal(theme.danger, '#F07178');
+    assert.equal(theme.triadValidate, '#67D9F5');
+    assert.equal(theme.triadTrace, '#9B8CFF');
+    assert.equal(theme.triadEnforce, '#F4B860');
+    assert.equal(theme.blocked, '#D27BEA');
     assert.notEqual(theme.blocked, theme.danger);
-    assert.equal(theme.roleCerberus, 'magentaBright');
-    assert.equal(focusBorderColor(theme, true), 'cyan');
-    assert.equal(focusBorderColor(theme, false), 'gray');
-    assert.equal(splashToneColor(theme, 'validate'), 'cyan');
-    assert.equal(splashToneColor(theme, 'trace'), 'blueBright');
-    assert.equal(splashToneColor(theme, 'enforce'), 'magenta');
+    assert.notEqual(theme.warn, theme.palette.amber);
+    assert.equal(theme.roleCerberus, '#D27BEA');
+    assert.equal(theme.truecolor, false);
+    assert.equal(theme.brandGradient, null);
+    assert.equal(focusBorderColor(theme, true), '#67D9F5');
+    assert.equal(focusBorderColor(theme, false), '#92A0B8');
+    assert.equal(splashToneColor(theme, 'validate'), '#67D9F5');
+    assert.equal(splashToneColor(theme, 'trace'), '#9B8CFF');
+    assert.equal(splashToneColor(theme, 'enforce'), '#F4B860');
+
+    const rich = resolveShellTheme({ colorEnabled: true, truecolor: true });
+    assert.equal(rich.truecolor, true);
+    assert.deepEqual(rich.brandGradient, ['#67D9F5', '#9B8CFF', '#F4B860']);
   } finally {
     if (prev === undefined) delete process.env.NO_COLOR;
     else process.env.NO_COLOR = prev;
+    if (prevColorterm === undefined) delete process.env.COLORTERM;
+    else process.env.COLORTERM = prevColorterm;
   }
 });
 
@@ -159,6 +175,46 @@ test('resolveSplashDurationMs clamps and defaults', () => {
   assert.equal(resolveSplashDurationMs(99_999), 30_000);
 });
 
+test('icon mode defaults to nerd; NO_COLOR does not auto-degrade icons', () => {
+  const {
+    resolveIconMode,
+    chromeIcon,
+    ICONS_ENV,
+    DEFAULT_ICON_MODE,
+  } = require('../../modules/operator/operator-tui-icons');
+  assert.equal(DEFAULT_ICON_MODE, 'nerd');
+  assert.equal(resolveIconMode({}, {}), 'nerd');
+  assert.equal(resolveIconMode({ icons: 'unicode' }, {}), 'unicode');
+  assert.equal(resolveIconMode({ icons: 'ascii' }, {}), 'ascii');
+  assert.equal(resolveIconMode({ icons: 'bogus' }, {}), 'nerd');
+  assert.equal(resolveIconMode({}, { [ICONS_ENV]: 'ascii' }), 'ascii');
+  // Honest: NO_COLOR alone does not switch icon mode.
+  assert.equal(resolveIconMode({}, { NO_COLOR: '1' }), 'nerd');
+  assert.equal(chromeIcon('unicode', 'selected'), '\u203a');
+  assert.equal(chromeIcon('ascii', 'selected'), '>');
+  assert.notEqual(chromeIcon('nerd', 'selected'), chromeIcon('ascii', 'selected'));
+
+  const asciiArt = flattenSplashRows(landingGuardianRowsWide('ascii')).join('\n');
+  for (const ch of asciiArt) {
+    const cp = ch.codePointAt(0);
+    assert.ok(
+      cp === 0x09 || cp === 0x0a || cp === 0x0d || (cp >= 0x20 && cp <= 0x7e),
+      `ascii guardian must be ASCII, got U+${cp.toString(16)}`,
+    );
+  }
+  assert.match(asciiArt, /CERBERUS/);
+  assert.match(asciiArt, /VALIDATE/);
+});
+
+test('wordmark gradient tones only when truecolor requested', () => {
+  const plain = wordmarkSegments({ truecolor: false });
+  assert.ok(plain.every((s) => s.tone === 'brand'));
+  const rich = wordmarkSegments({ truecolor: true });
+  assert.ok(rich.some((s) => s.tone === 'gradient-cyan'));
+  assert.ok(rich.some((s) => s.tone === 'gradient-violet'));
+  assert.ok(rich.some((s) => s.tone === 'gradient-amber'));
+});
+
 test('Ink renderToString splash shows Cerberus brand splash; shell shows themed chrome', async () => {
   const { renderOperatorTuiShellToString } = await import(
     '../../modules/operator/operator-tui-shell-render.mjs'
@@ -210,7 +266,7 @@ test('short TTY splash first paint stays within reported rows and shows continue
   const lineCount = splash.split('\n').length;
   assert.ok(
     lineCount <= rows,
-    `expected first paint ≤ ${rows} lines (no 24-row pad), got ${lineCount}`,
+    `expected first paint ? ${rows} lines (no 24-row pad), got ${lineCount}`,
   );
   assert.match(splash, /CERBERUS/i);
   assert.match(splash, /Validate|VALIDATE/i);
@@ -259,7 +315,7 @@ test('production entry: splash renderer before loadRuns / credential discovery',
   const result = await runOperatorTuiShell({
     isTTY: true,
     splashMs: 0,
-    // Unbounded loops → production splash gate (not harness skip).
+    // Unbounded loops ? production splash gate (not harness skip).
     buildAbout: () => {
       order.push('buildAbout');
       return { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' };

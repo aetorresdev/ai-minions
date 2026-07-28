@@ -14,7 +14,8 @@ const {
   contentSurfaceForLocalAction,
   navItemsForMovement,
 } = require('./operator-tui-shell-model.js');
-const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor } = require('./operator-tui-theme.js');
+const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor, brandGradientStop } = require('./operator-tui-theme.js');
+const { chromeIcon, resolveIconMode } = require('./operator-tui-icons.js');
 const {
   buildSplashContent,
   resolveSplashDurationMs,
@@ -53,6 +54,380 @@ async function defaultLoadFixturePrompt(fixtureId) {
 }
 
 /**
+ * Splash-tone Text row for guardian art segments (Ink: Box row of Text nodes).
+ * @param {object} theme
+ * @param {Array<{ text: string, tone?: string, bold?: boolean }>} segments
+ * @param {string} keyPrefix
+ */
+function renderGuardianSegments(theme, segments, keyPrefix) {
+  return React.createElement(
+    Box,
+    { key: keyPrefix, flexDirection: 'row' },
+    ...(segments || []).map((seg, idx) => React.createElement(
+      Text,
+      {
+        key: `${keyPrefix}-${idx}`,
+        bold: seg.bold === true,
+        color: splashToneColor(theme, seg.tone),
+        dimColor: seg.tone === 'muted',
+      },
+      seg.text,
+    )),
+  );
+}
+
+/**
+ * Brand wordmark — optional truecolor cyan→violet→amber gradient on the wordmark only.
+ * @param {object} theme
+ * @param {string} text
+ * @param {string} keyPrefix
+ */
+function renderBrandWordmark(theme, text, keyPrefix) {
+  const label = String(text ?? '');
+  if (!theme.truecolor || !theme.brandGradient) {
+    return React.createElement(
+      Text,
+      { key: keyPrefix, bold: theme.titleBold, color: theme.brand },
+      label,
+    );
+  }
+  const chars = label.split('');
+  return React.createElement(
+    Box,
+    { key: keyPrefix, flexDirection: 'row' },
+    ...chars.map((ch, idx) => React.createElement(
+      Text,
+      {
+        key: `${keyPrefix}-${idx}`,
+        bold: theme.titleBold,
+        color: brandGradientStop(theme, idx, chars.length),
+      },
+      ch,
+    )),
+  );
+}
+
+/**
+ * Task-first landing composition (post-splash). Not the brand splash.
+ * @param {{
+ *   model: object,
+ *   theme: object,
+ *   readinessColor: string | undefined,
+ * }} props
+ */
+function LandingHomeView(props) {
+  const { model, theme, readinessColor } = props;
+  const landing = model.landing;
+  const landingLayout = model.landingLayout || landing.layout || 'compact';
+  const compact = landingLayout === 'compact';
+  const iconMode = resolveIconMode({ icons: model.iconMode || landing.iconMode });
+  const selectedMark = chromeIcon(iconMode, 'selected');
+  const comp = landing.composition && typeof landing.composition === 'object'
+    ? landing.composition
+    : {
+      show_guardian: landing.show_guardian === true,
+      show_product: true,
+      show_tagline: true,
+      show_triad: true,
+      show_primary_cta: true,
+      show_guardian_note: landingLayout !== 'compact',
+      show_quick_start: true,
+      show_quick_start_hint: true,
+      quick_start_limit: 5,
+      show_readiness: true,
+      show_readiness_next: true,
+      show_readiness_details: true,
+      show_recent_runs: true,
+      recent_runs_limit: 5,
+      recent_empty_short: false,
+    };
+  const showGuardian = comp.show_guardian === true
+    && landing.show_guardian === true
+    && Array.isArray(landing.guardian_rows)
+    && landing.guardian_rows.length > 0;
+  const quickItems = (navItemsForMovement(model) || [])
+    .filter((item) => ['launcher', 'runs', 'diagnostics', 'config', 'help'].includes(item.id))
+    .slice(0, Math.max(1, Number(comp.quick_start_limit) || 1));
+
+  const quickStartPanel = comp.show_quick_start
+    ? React.createElement(
+      Box,
+      {
+        flexDirection: 'column',
+        borderStyle: model.focus === 'nav' ? 'double' : 'single',
+        borderColor: focusBorderColor(theme, model.focus === 'nav'),
+        paddingX: 1,
+        width: compact ? undefined : 36,
+        flexGrow: compact ? 1 : 0,
+      },
+      React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Quick Start'),
+      ...(comp.show_quick_start_hint
+        ? [React.createElement(
+          Text,
+          { key: 'qs-hint', dimColor: true, color: theme.muted },
+          'keyboard — not clickable',
+        )]
+        : []),
+      ...quickItems.map((item) => {
+        const selected = item.id === model.selectedNavId;
+        const label = item.id === 'launcher'
+          ? 'Start New Run'
+          : (item.id === 'runs'
+            ? 'Browse Runs'
+            : (item.id === 'diagnostics'
+              ? 'System Status'
+              : item.label));
+        return React.createElement(
+          Text,
+          {
+            key: item.id,
+            bold: selected,
+            color: selected ? theme.selected : undefined,
+          },
+          `${selected ? selectedMark : ' '} ${item.key}. ${label}`,
+        );
+      }),
+    )
+    : null;
+
+  const readinessPanel = React.createElement(
+    Box,
+    {
+      flexDirection: 'column',
+      borderStyle: model.focus === 'content' ? 'double' : 'single',
+      borderColor: focusBorderColor(theme, model.focus === 'content'),
+      paddingX: 1,
+      flexGrow: comp.show_recent_runs || comp.show_quick_start ? 1 : 0,
+    },
+    React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'System Readiness'),
+    React.createElement(
+      Text,
+      { color: readinessColor, bold: true },
+      `Overall: ${landing.overall.label}`,
+    ),
+    ...(comp.show_readiness_next
+      ? [React.createElement(
+        Text,
+        { key: 'ready-next', color: theme.muted },
+        `next: ${landing.overall.next_action}`,
+      )]
+      : []),
+    ...(comp.show_readiness_details
+      ? landing.readiness_rows.map((row, idx) => React.createElement(
+        Text,
+        {
+          key: `r-${idx}`,
+          color: toneColor(theme, row.tone),
+        },
+        `  ${row.label}: ${row.status_label}`,
+      ))
+      : []),
+  );
+
+  const recentRunsPanel = comp.show_recent_runs
+    ? React.createElement(
+      Box,
+      {
+        flexDirection: 'column',
+        borderStyle: 'single',
+        borderColor: theme.muted,
+        paddingX: 1,
+        flexGrow: 1,
+      },
+      React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Recent Runs'),
+      ...(landing.recent_runs.length
+        ? [
+          React.createElement(
+            Text,
+            { key: 'rr-count', dimColor: true, color: theme.muted },
+            `Showing ${landing.recent_runs_showing} of ${landing.recent_runs_total}`,
+          ),
+          ...landing.recent_runs.map((run, idx) => React.createElement(
+            Text,
+            {
+              key: `rr-${idx}`,
+              color: toneColor(
+                theme,
+                run.activity_state === 'completed'
+                  ? 'ok'
+                  : (run.activity_state === 'blocked'
+                    ? 'blocked'
+                    : (run.activity_state === 'failed'
+                      ? 'fail'
+                      : (run.activity_state === 'active' ? 'warn' : 'unavailable'))),
+              ),
+            },
+            `  ${run.activity_label}  ${run.run_id}`
+              + (run.summary ? `  ${run.summary}` : '')
+              + (compact ? '' : `  ${run.last_event_at ?? 'time unavailable'}`),
+          )),
+        ]
+        : [
+          React.createElement(
+            Text,
+            { key: 'rr-empty', color: theme.muted },
+            landing.empty_state
+              ? `  ${landing.empty_state.title}: ${landing.empty_state.body}`
+              : '  (No runs yet)',
+          ),
+        ]),
+    )
+    : null;
+
+  const primaryChildren = [];
+  if (comp.show_product) {
+    primaryChildren.push(renderBrandWordmark(theme, landing.hero.product, 'product'));
+  }
+  if (comp.show_tagline) {
+    primaryChildren.push(React.createElement(
+      Text,
+      { key: 'tagline', color: theme.accent },
+      landing.hero.tagline,
+    ));
+  }
+  if (comp.show_triad) {
+    primaryChildren.push(React.createElement(
+      Text,
+      { key: 'triad', color: theme.muted },
+      landing.hero.triad,
+    ));
+  }
+  if (comp.show_primary_cta) {
+    primaryChildren.push(React.createElement(
+      Text,
+      {
+        key: 'cta',
+        bold: true,
+        color: model.selectedNavId === 'launcher' ? theme.selected : theme.brand,
+      },
+      `${model.selectedNavId === 'launcher' ? selectedMark : ' '} 1. Start New Run`,
+    ));
+  }
+  if (comp.show_guardian_note) {
+    primaryChildren.push(React.createElement(
+      Text,
+      { key: 'gnote', dimColor: true, color: theme.muted },
+      landing.hero.guardian_note,
+    ));
+  }
+
+  const primaryBrand = React.createElement(
+    Box,
+    { flexDirection: 'column', flexGrow: 1, paddingX: 1 },
+    ...primaryChildren,
+  );
+
+  const guardianColumn = showGuardian && landingLayout === 'wide'
+    ? React.createElement(
+      Box,
+      {
+        flexDirection: 'column',
+        paddingX: 1,
+        borderStyle: 'single',
+        borderColor: theme.muted,
+        width: 28,
+      },
+      ...landing.guardian_rows.map((row, idx) => renderGuardianSegments(
+        theme,
+        row.segments || [],
+        `g-${idx}`,
+      )),
+    )
+    : null;
+
+  const guardianMid = showGuardian && landingLayout === 'mid'
+    ? React.createElement(
+      Box,
+      { flexDirection: 'column', paddingX: 1 },
+      ...landing.guardian_rows.map((row, idx) => renderGuardianSegments(
+        theme,
+        row.segments || [],
+        `gm-${idx}`,
+      )),
+    )
+    : null;
+
+  const heroRow = landingLayout === 'wide' && guardianColumn
+    ? React.createElement(
+      Box,
+      { flexDirection: 'row' },
+      guardianColumn,
+      primaryBrand,
+    )
+    : React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      ...(guardianMid ? [guardianMid] : []),
+      primaryBrand,
+    );
+
+  const panelChildren = [];
+  if (compact) {
+    if (quickStartPanel) panelChildren.push(quickStartPanel);
+    panelChildren.push(readinessPanel);
+    if (recentRunsPanel) panelChildren.push(recentRunsPanel);
+  } else {
+    panelChildren.push(React.createElement(
+      Box,
+      { key: 'mid-row', flexDirection: 'row', flexGrow: 1 },
+      ...(quickStartPanel ? [quickStartPanel] : []),
+      readinessPanel,
+    ));
+    if (recentRunsPanel) panelChildren.push(recentRunsPanel);
+  }
+
+  const panelsRow = React.createElement(
+    Box,
+    { flexDirection: 'column', flexGrow: 0 },
+    ...panelChildren,
+  );
+
+  return React.createElement(
+    Box,
+    {
+      flexDirection: 'column',
+      width: model.columns,
+    },
+    React.createElement(
+      Box,
+      {
+        borderStyle: 'double',
+        borderColor: theme.brand,
+        paddingX: 1,
+        justifyContent: 'space-between',
+      },
+      React.createElement(Text, { color: theme.brand }, `[>] ${model.title}`),
+      React.createElement(
+        Text,
+        { color: theme.muted },
+        `v${String(model.version).replace(/^v/i, '')}`,
+      ),
+    ),
+    heroRow,
+    panelsRow,
+    React.createElement(
+      Box,
+      {
+        borderStyle: model.focus === 'input' ? 'double' : 'single',
+        borderColor: focusBorderColor(theme, model.focus === 'input'),
+        paddingX: 1,
+      },
+      React.createElement(Text, { color: theme.brand }, `> ${model.commandInput}`),
+      React.createElement(
+        Text,
+        { dimColor: true, color: theme.selected },
+        model.focus === 'input' ? '█' : '',
+      ),
+    ),
+    React.createElement(
+      Box,
+      { paddingX: 1 },
+      React.createElement(Text, { dimColor: true, color: theme.muted }, model.footerHints),
+    ),
+  );
+}
+
+/**
  * Fullscreen Ink shell: optional brand splash, then header/nav/content/footer.
  * Uses React.createElement (no JSX toolchain). Presentation-only theme tokens.
  */
@@ -75,13 +450,18 @@ function SplashApp(props) {
     onAbort,
   } = props;
   const { exit } = useApp();
-  const theme = resolveShellTheme({ colorEnabled: model.colorEnabled });
+  const theme = resolveShellTheme({
+    colorEnabled: model.colorEnabled,
+    truecolor: model.truecolor,
+  });
   const height = resolveSplashFrameHeight(model.rows);
   const content = buildSplashContent({
     columns: model.columns,
     rows: height,
     version: model.version,
     readiness: model.readiness,
+    icons: model.iconMode,
+    truecolor: theme.truecolor,
   });
   const continuedRef = useRef(false);
 
@@ -178,7 +558,10 @@ function ShellApp(props) {
   const modelRef = useRef(model);
   modelRef.current = model;
   const transitionGateRef = useRef(createAsyncTransitionGate());
-  const theme = resolveShellTheme({ colorEnabled: model.colorEnabled });
+  const theme = resolveShellTheme({
+    colorEnabled: model.colorEnabled,
+    truecolor: model.truecolor,
+  });
 
   const commit = (next) => {
     setModel(next);
@@ -492,12 +875,18 @@ function ShellApp(props) {
         : (model.readiness === 'unknown' || model.readiness === 'loading'
           ? theme.muted
           : theme.warn)));
-  const showLandingHome = model.contentSurface === 'home' && model.landing;
-  const navTitle = showLandingHome ? 'Quick Start' : 'Navigate';
+
+  if (model.contentSurface === 'home' && model.landing) {
+    return React.createElement(LandingHomeView, {
+      model,
+      theme,
+      readinessColor,
+    });
+  }
 
   return React.createElement(
     Box,
-    { flexDirection: 'column', width: model.columns, height: Math.max(12, model.rows) },
+    { flexDirection: 'column', width: model.columns, height: Math.max(1, Number(model.rows) || 24) },
     React.createElement(
       Box,
       {
@@ -512,40 +901,20 @@ function ShellApp(props) {
         React.createElement(
           Text,
           { bold: theme.titleBold, color: theme.brand },
-          showLandingHome ? (model.landing.hero.product || model.title) : `${model.title} v${model.version}`,
+          `${model.title} v${model.version}`,
         ),
         React.createElement(
           Text,
           { color: theme.muted },
-          showLandingHome ? `v${String(model.version).replace(/^v/i, '')}` : `[${model.layout}]`,
+          `[${model.layout}]`,
         ),
       ),
-      showLandingHome
-        ? React.createElement(
-          Box,
-          { flexDirection: 'column' },
-          React.createElement(
-            Text,
-            { color: theme.accent },
-            model.landing.hero.tagline,
-          ),
-          React.createElement(
-            Text,
-            { color: theme.muted },
-            model.landing.hero.triad,
-          ),
-          React.createElement(
-            Text,
-            { dimColor: true, color: theme.muted },
-            model.landing.hero.guardian_note,
-          ),
-        )
-        : React.createElement(
-          Text,
-          { color: readinessColor },
-          `readiness=${model.readiness}`
-            + (model.selectedRunId ? ` · run=${model.selectedRunId}` : ''),
-        ),
+      React.createElement(
+        Text,
+        { color: readinessColor },
+        `readiness=${model.readiness}`
+          + (model.selectedRunId ? ` · run=${model.selectedRunId}` : ''),
+      ),
     ),
     React.createElement(
       Box,
@@ -554,27 +923,20 @@ function ShellApp(props) {
         Box,
         {
           flexDirection: 'column',
-          width: narrow ? undefined : (showLandingHome ? 36 : 28),
+          width: narrow ? undefined : 28,
           borderStyle: model.focus === 'nav' ? 'double' : 'single',
           borderColor: focusBorderColor(theme, model.focus === 'nav'),
           paddingX: 1,
         },
-        React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, navTitle),
+        React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Navigate'),
         React.createElement(
           Text,
           { dimColor: true, color: theme.muted },
           'keyboard — not clickable',
         ),
-        ...(showLandingHome ? navItemsForMovement(model) : model.navItems).map((item) => {
+        ...model.navItems.map((item) => {
           const selected = item.id === model.selectedNavId;
           const prefix = item.group === 'run' ? '  ' : '';
-          const label = showLandingHome && item.id === 'launcher'
-            ? 'Start New Run'
-            : (showLandingHome && item.id === 'runs'
-              ? 'Browse Runs'
-              : (showLandingHome && item.id === 'diagnostics'
-                ? 'System Status'
-                : item.label));
           return React.createElement(
             Text,
             {
@@ -582,7 +944,7 @@ function ShellApp(props) {
               bold: selected,
               color: selected ? theme.selected : undefined,
             },
-            `${prefix}${selected ? '›' : ' '} ${item.key}. ${label}`,
+            `${prefix}${selected ? '›' : ' '} ${item.key}. ${item.label}`,
           );
         }),
         model.selectedRunId
@@ -602,94 +964,24 @@ function ShellApp(props) {
           borderColor: focusBorderColor(theme, model.focus === 'content'),
           paddingX: 1,
         },
-        showLandingHome
-          ? React.createElement(
-            Box,
-            { flexDirection: 'column' },
-            React.createElement(
-              Text,
-              { bold: theme.sectionBold, color: theme.accent },
-              'System Readiness',
-            ),
-            React.createElement(
-              Text,
-              { color: readinessColor, bold: true },
-              `Overall: ${model.landing.overall.label}`,
-            ),
-            React.createElement(
-              Text,
-              { color: theme.muted },
-              `next: ${model.landing.overall.next_action}`,
-            ),
-            ...model.landing.readiness_rows.map((row, idx) => React.createElement(
-              Text,
-              {
-                key: `r-${idx}`,
-                color: toneColor(theme, row.tone),
-              },
-              `  ${row.label}: ${row.status_label}`,
-            )),
-            React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' ')),
-            React.createElement(
-              Text,
-              { bold: theme.sectionBold, color: theme.accent },
-              'Recent Runs',
-            ),
-            ...(model.landing.recent_runs.length
-              ? [
-                React.createElement(
-                  Text,
-                  { key: 'rr-count', dimColor: true, color: theme.muted },
-                  `Showing ${model.landing.recent_runs_showing} of ${model.landing.recent_runs_total}`,
-                ),
-                ...model.landing.recent_runs.map((run, idx) => React.createElement(
-                  Text,
-                  {
-                    key: `rr-${idx}`,
-                    color: toneColor(
-                      theme,
-                      run.activity_state === 'completed'
-                        ? 'ok'
-                        : (run.activity_state === 'blocked'
-                          ? 'blocked'
-                          : (run.activity_state === 'failed'
-                            ? 'fail'
-                            : (run.activity_state === 'active' ? 'warn' : 'unavailable'))),
-                    ),
-                  },
-                  `  ${run.activity_label}  ${run.run_id}`
-                    + (run.summary ? `  ${run.summary}` : '')
-                    + (narrow ? '' : `  ${run.last_event_at ?? 'time unavailable'}`),
-                )),
-              ]
-              : [
-                React.createElement(
-                  Text,
-                  { key: 'rr-empty', color: theme.muted },
-                  model.landing.empty_state
-                    ? `  ${model.landing.empty_state.title}: ${model.landing.empty_state.body}`
-                    : '  (No runs yet)',
-                ),
-              ]),
-          )
-          : React.createElement(
-            Box,
-            { flexDirection: 'column' },
-            React.createElement(
-              Text,
-              { bold: theme.sectionBold, color: theme.accent },
-              `Content · ${model.contentSurface}`,
-            ),
-            ...contentLines.map((line, idx) => React.createElement(
-              Text,
-              {
-                key: `c-${idx}`,
-                dimColor: line.startsWith('('),
-                color: line.startsWith('(') ? theme.muted : undefined,
-              },
-              line,
-            )),
+        React.createElement(
+          Box,
+          { flexDirection: 'column' },
+          React.createElement(
+            Text,
+            { bold: theme.sectionBold, color: theme.accent },
+            `Content · ${model.contentSurface}`,
           ),
+          ...contentLines.map((line, idx) => React.createElement(
+            Text,
+            {
+              key: `c-${idx}`,
+              dimColor: line.startsWith('('),
+              color: line.startsWith('(') ? theme.muted : undefined,
+            },
+            line,
+          )),
+        ),
       ),
     ),
     React.createElement(
@@ -779,7 +1071,7 @@ function buildContentLines(model) {
     if (model.landing) {
       return formatLandingLines(model.landing, {
         selectedNavId: model.selectedNavId,
-        narrow: model.layout === 'narrow',
+        narrow: model.layout === 'narrow' || model.landingLayout === 'compact',
       });
     }
     return ['(landing unavailable)'];

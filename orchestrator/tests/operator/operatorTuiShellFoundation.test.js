@@ -1174,8 +1174,8 @@ test('Ink renderToString shows shell chrome', async () => {
   assert.match(out, /shell-run/);
   assert.match(out, /Quick Start|Start New Run/);
   assert.match(out, /System Readiness/);
+  assert.match(out, /Overall:/);
   assert.match(out, /Recent Runs/);
-  assert.match(out, /Monitor|Overview/);
 });
 
 test('resolveShellActionToken maps cockpit keys', () => {

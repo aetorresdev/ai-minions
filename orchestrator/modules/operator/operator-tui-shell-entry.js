@@ -70,6 +70,8 @@ function legacyShellRequested() {
  *   columns?: number,
  *   rows?: number,
  *   colorEnabled?: boolean,
+ *   icons?: string,
+ *   iconMode?: string,
  * }} [options]
  */
 function buildFirstPaintShellModel(options = {}) {
@@ -103,6 +105,8 @@ function buildFirstPaintShellModel(options = {}) {
     rows: options.rows,
     focus: 'nav',
     colorEnabled: options.colorEnabled !== false,
+    icons: options.icons ?? options.iconMode,
+    iconMode: options.iconMode ?? options.icons,
     productVersion: aboutInfo.version,
   });
 }
@@ -232,6 +236,7 @@ async function runOperatorTuiShell(options = {}) {
   let runsPayload = null;
 
   const colorEnabled = useColor && process.env.NO_COLOR == null;
+  const iconMode = options.icons ?? options.iconMode;
   const wantsSplash = shouldShowProductionSplash(options);
 
   let model = buildFirstPaintShellModel({
@@ -239,6 +244,7 @@ async function runOperatorTuiShell(options = {}) {
     columns,
     rows,
     colorEnabled,
+    icons: iconMode,
   });
   selectedRunId = model.selectedRunId;
 
@@ -273,6 +279,7 @@ async function runOperatorTuiShell(options = {}) {
       rows,
       focus: 'nav',
       colorEnabled,
+      icons: iconMode ?? model.iconMode,
       productVersion: aboutInfo.version,
     });
     selectedRunId = model.selectedRunId;
