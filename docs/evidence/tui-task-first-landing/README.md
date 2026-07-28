@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Branch HEAD | `git rev-parse HEAD` on `feature/tui-task-first-landing-363` (PR tip at push: see GitHub) |
+| Capture provenance | From each run’s `<out>.meta.json` written by `capture-tui-landing-tty.sh`: `source_tip_sha` (clean checkout `HEAD`), `runner_kind`, `runner_path`, `runner_version` (product CLI `--version`), `script_rc` (0 or 124 only). Do not treat a static branch name as capture identity. |
 | Height-aware composition baseline | `32986eb` |
 | Evidence restructure | `bd23a8a` (+ metrics refresh `54ac772`) |
 | Ink | `7.1.1` (see `orchestrator/package.json` / `node_modules/ink`) |
@@ -55,27 +55,30 @@ Lightweight helper (no screenshot CI dependency):
 
 ```bash
 # from repo root — default runner is checkout CLI only (not PATH/global ai-minions)
+# Requires a clean git worktree (fail-on-dirty so source_tip_sha identifies executed source).
 chmod +x orchestrator/scripts/capture-tui-landing-tty.sh
 ./orchestrator/scripts/capture-tui-landing-tty.sh 80 24 /tmp/landing-80x24.typescript
-# writes /tmp/landing-80x24.typescript + .meta.json (source_tip_sha + runner_kind/path/version)
-# fails unless capture contains "Start New Run" and "Overall:"
+# writes /tmp/landing-80x24.typescript + .meta.json
+# fails unless markers "Start New Run" + "Overall:" and script_rc is 0 or 124
 ```
 
-Installed/global binary is **opt-in only** (provenance must declare real runner path + version; do not label as checkout tip alone):
+Installed/global binary is **opt-in only** (provenance must declare real runner path + product `--version`; do not label as checkout tip alone):
 
 ```bash
 ./orchestrator/scripts/capture-tui-landing-tty.sh --use-installed 80 24 /tmp/landing-installed.typescript
 # or: AI_MINIONS_TUI_CAPTURE_BIN=/path/to/ai-minions ./orchestrator/scripts/capture-tui-landing-tty.sh …
 ```
 
-Manual equivalent (checkout CLI):
+Manual equivalent (checkout CLI) still needs the helper’s gates for provenance claims; prefer the script so `.meta.json` is authoritative:
 
 ```bash
 export COLUMNS=80 LINES=24 AI_MINIONS_TUI_SKIP_SPLASH=1
 script -q -c 'timeout 3s node ./orchestrator/ai-minions-cli.js tui' /tmp/landing-80x24.typescript
-git rev-parse HEAD
-node -e "console.log(require('./orchestrator/node_modules/ink/package.json').version)"
+# then inspect helper meta when using capture-tui-landing-tty.sh:
+#   source_tip_sha, runner_kind, runner_path, runner_version, script_rc
 ```
+
+**Choice:** fail-on-dirty (not dirty-tolerant sidecar). Safe for CI clean checkouts; local operators commit/stash before capture.
 
 Optional CI: upload the `.typescript` file **and** `.meta.json` when a PTY is available. Full framebuffer screenshot pipelines remain out of scope unless a later release job opts in.
 
