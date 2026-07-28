@@ -52,6 +52,7 @@ When Operator TUI modules ship, the **quality gate** inventory lives under `oper
 
 - `tests/operator/operatorTuiQualityGate.test.js` — MVP acceptance matrix (mandatory if any TUI code ships)
 - `tests/operator/operatorTuiIntegratedQualityGate.test.js` — integrated fullscreen journey + platform evidence honesty
+- `tests/operator/slashProductDocsHonesty.test.js` — public contract pages must not mark product slash commands unavailable
 - Pane/cockpit units: `operatorCockpitTui` · `operatorTuiShellFoundation` · `operatorGuidedLauncher` · `operatorTuiLiveMonitor` · `operatorTuiSlashCommands` · `operatorLiveHarness` · `operatorRunSelectorTui` · `operatorEvidenceAttachPaneTui` · `operatorConfigReadinessPaneTui` · `operatorEvidenceTui` · `ink7FrameworkSpike`
 - Shared helpers: `modules/operator/operator-tui-quality-harness.js`
 - Contract: [operator-cockpit-contract.md](operator-cockpit-contract.md) § Quality gate
@@ -61,6 +62,7 @@ When Operator TUI modules ship, the **quality gate** inventory lives under `oper
 
 | Date | Change |
 |------|--------|
+| 2026-07-27 | Slash product-docs honesty unit + ownership map entry |
 | 2026-07-27 | Integrated fullscreen quality gate + platform evidence honesty |
 | 2026-07-20 | Operator TUI MVP quality-gate surface + `test:tui-quality` |
 | 2026-06-12 | Wave-1 layout: trace · budget · worktree · operator unit tests under `tests/<context>/` |

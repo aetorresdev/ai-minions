@@ -112,39 +112,43 @@ export function runClaimAudit(options = {}) {
     }
   }
 
-  for (const fileRel of SLASH_PRODUCT_HONESTY_PATHS) {
-    const abs = path.join(repoRoot, fileRel);
-    if (!fs.existsSync(abs)) {
-      checks.push({
-        id: `slash-honesty:${fileRel}`,
-        reason_code: REASON_CODES.MISSING_FILE,
-        status: "fail",
-        message: `missing slash honesty contract doc: ${fileRel}`,
-        file: fileRel,
-      });
-      continue;
-    }
-    const text = fs.readFileSync(abs, "utf8");
-    /** @type {string[]} */
-    const slashFailures = [];
-    checkSlashUnavailableProductClaims(text, fileRel, (msg) => slashFailures.push(msg));
-    for (const msg of slashFailures) {
-      checks.push({
-        id: `slash-honesty:${fileRel}`,
-        reason_code: REASON_CODES.SLASH_UNAVAILABLE,
-        status: "fail",
-        message: msg,
-        file: fileRel,
-      });
-    }
-    if (slashFailures.length === 0) {
-      checks.push({
-        id: `slash-honesty:${fileRel}`,
-        reason_code: REASON_CODES.OK,
-        status: "pass",
-        message: `slash product honesty pass: ${fileRel}`,
-        file: fileRel,
-      });
+  // Slash honesty is a full-repo gate only. Scoped unit-test audits pass custom
+  // `paths` and must not require the honesty contract docs to exist in fixtures.
+  if (options.paths == null) {
+    for (const fileRel of SLASH_PRODUCT_HONESTY_PATHS) {
+      const abs = path.join(repoRoot, fileRel);
+      if (!fs.existsSync(abs)) {
+        checks.push({
+          id: `slash-honesty:${fileRel}`,
+          reason_code: REASON_CODES.MISSING_FILE,
+          status: "fail",
+          message: `missing slash honesty contract doc: ${fileRel}`,
+          file: fileRel,
+        });
+        continue;
+      }
+      const text = fs.readFileSync(abs, "utf8");
+      /** @type {string[]} */
+      const slashFailures = [];
+      checkSlashUnavailableProductClaims(text, fileRel, (msg) => slashFailures.push(msg));
+      for (const msg of slashFailures) {
+        checks.push({
+          id: `slash-honesty:${fileRel}`,
+          reason_code: REASON_CODES.SLASH_UNAVAILABLE,
+          status: "fail",
+          message: msg,
+          file: fileRel,
+        });
+      }
+      if (slashFailures.length === 0) {
+        checks.push({
+          id: `slash-honesty:${fileRel}`,
+          reason_code: REASON_CODES.OK,
+          status: "pass",
+          message: `slash product honesty pass: ${fileRel}`,
+          file: fileRel,
+        });
+      }
     }
   }
 
