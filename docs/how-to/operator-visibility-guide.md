@@ -5,7 +5,8 @@ Canonical **read-only** operator surfaces for explaining a run to yourself, mana
 **Product CLI:** `ai-minions runs` · `status` · `explain` · `report` · `tui` · `attach` · `evidence`
 **Contract sources:** trace JSONL under `ORCH_TRACES_DIR` (default `~/.claude/metrics/traces/`) — same SoT as legacy `explain-run` and `collect-run-report.mjs`.
 
-**Not claimed:** slash commands · Web UI · interactive approvals or reruns from evidence panels · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
+**Slash commands:** shipped in the Ink shell (`/` + implemented vocabulary; inventoried by the integrated TUI quality gate). Reserved / unimplemented slash names remain unclaimed.
+**Not claimed:** Web UI · interactive approvals or reruns from evidence panels · billing-accurate cost · ROI or productivity metrics · architecture-complete modular cleanup.
 
 ---
 
@@ -148,9 +149,9 @@ Persistent action loop: product status + **guided launcher (`1`)** / runs / **se
 
 **Live monitor (`m`):** read-only phase + reason-code surface for the selected run (same status/trace SoT as `status`); menu/quit detach does not cancel the run.
 
-Contract: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md). Quality gate (mandatory when TUI ships): `cd orchestrator && npm run test:tui-quality`.
+Contract: [operator-cockpit-contract.md](../orchestrator/operator-cockpit-contract.md). Quality gate (mandatory when TUI ships): `cd orchestrator && npm run test:tui-quality` (MVP matrix + integrated fullscreen journey; platform evidence honesty for release-prep).
 
-**Not claimed:** slash commands · Web UI · durable resume.
+**Not claimed:** Web UI · durable resume · Loop Contract storage · Windows interactive TUI.
 
 ### Evidence surface (selectors)
 

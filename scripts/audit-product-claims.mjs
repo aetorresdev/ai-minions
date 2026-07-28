@@ -12,7 +12,9 @@ import { fileURLToPath } from "node:url";
 import {
   CLAIM_AUDIT_PATHS,
   README_REQUIRED_MARKERS,
+  SLASH_PRODUCT_HONESTY_PATHS,
   checkForbiddenClaims,
+  checkSlashUnavailableProductClaims,
   mustNotHaveBacklogCaseIds,
 } from "./lib/operator-doc-claims.mjs";
 
@@ -24,6 +26,7 @@ export const REASON_CODES = {
   BACKLOG_ID: "CLAIM_BACKLOG_ID_IN_OPERATOR_DOC",
   MISSING_README_MARKER: "CLAIM_MISSING_README_MARKER",
   MISSING_FILE: "CLAIM_MISSING_OPERATOR_DOC",
+  SLASH_UNAVAILABLE: "CLAIM_SLASH_UNAVAILABLE_STALE",
 };
 
 /** @typedef {'pass' | 'fail'} CheckStatus */
@@ -109,6 +112,46 @@ export function runClaimAudit(options = {}) {
     }
   }
 
+  // Slash honesty is a full-repo gate only. Scoped unit-test audits pass custom
+  // `paths` and must not require the honesty contract docs to exist in fixtures.
+  if (options.paths == null) {
+    for (const fileRel of SLASH_PRODUCT_HONESTY_PATHS) {
+      const abs = path.join(repoRoot, fileRel);
+      if (!fs.existsSync(abs)) {
+        checks.push({
+          id: `slash-honesty:${fileRel}`,
+          reason_code: REASON_CODES.MISSING_FILE,
+          status: "fail",
+          message: `missing slash honesty contract doc: ${fileRel}`,
+          file: fileRel,
+        });
+        continue;
+      }
+      const text = fs.readFileSync(abs, "utf8");
+      /** @type {string[]} */
+      const slashFailures = [];
+      checkSlashUnavailableProductClaims(text, fileRel, (msg) => slashFailures.push(msg));
+      for (const msg of slashFailures) {
+        checks.push({
+          id: `slash-honesty:${fileRel}`,
+          reason_code: REASON_CODES.SLASH_UNAVAILABLE,
+          status: "fail",
+          message: msg,
+          file: fileRel,
+        });
+      }
+      if (slashFailures.length === 0) {
+        checks.push({
+          id: `slash-honesty:${fileRel}`,
+          reason_code: REASON_CODES.OK,
+          status: "pass",
+          message: `slash product honesty pass: ${fileRel}`,
+          file: fileRel,
+        });
+      }
+    }
+  }
+
   const ok = checks.every((c) => c.status !== "fail");
   return { ok, checks };
 }
@@ -142,7 +185,8 @@ Scans operator-facing docs for inflated product claims and missing README guardr
 
 Exit codes: 0 = pass, 1 = blocker(s)
 Reason codes: CLAIM_FORBIDDEN_PHRASE, CLAIM_BACKLOG_ID_IN_OPERATOR_DOC,
-CLAIM_MISSING_README_MARKER, CLAIM_MISSING_OPERATOR_DOC, CLAIM_OK
+CLAIM_MISSING_README_MARKER, CLAIM_MISSING_OPERATOR_DOC,
+CLAIM_SLASH_UNAVAILABLE_STALE, CLAIM_OK
 `);
     process.exit(0);
   }

@@ -48,5 +48,11 @@ describe("audit-product-claims", () => {
     const files = report.checks.filter((c) => c.status === "pass").map((c) => c.file);
     assert.ok(files.includes("docs/how-to/beta-smoke-matrix.md"));
     assert.ok(files.includes("docs/how-to/beta-degraded-mode-policy.md"));
+    assert.ok(
+      report.checks.some(
+        (c) => c.id.startsWith("slash-honesty:") && c.status === "pass",
+      ),
+      "full audit must run slash product honesty checks",
+    );
   });
 });

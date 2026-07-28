@@ -165,7 +165,13 @@ The shell restores raw mode + alternate-screen / cursor sequences after:
 
 ## Quality gate (mandatory when TUI ships)
 
-Focused harness — render/state models and command dispatch, not pixel-perfect terminal screenshots:
+**Release command (single gate):**
+
+```bash
+cd orchestrator && npm run test:tui-quality
+```
+
+Focused harness — render/state models, integrated shell journey, and command dispatch — not pixel-perfect terminal screenshots. Deterministic fixtures only; live provider credentials are not required for the main CI gate.
 
 | Surface | Module | Unit tests |
 |---------|--------|------------|
@@ -177,16 +183,38 @@ Focused harness — render/state models and command dispatch, not pixel-perfect 
 | Evidence / attach pane | `operator-evidence-attach-pane-tui.js` | `tests/operator/operatorEvidenceAttachPaneTui.test.js` |
 | Config / credentials readiness | `operator-config-readiness-pane-tui.js` | `tests/operator/operatorConfigReadinessPaneTui.test.js` |
 | Read-only evidence panels | `operator-evidence-tui.js` | `tests/operator/operatorEvidenceTui.test.js` |
-| Acceptance matrix (empty store · invalid/success/fail/blocked · attach present/missing · credentials · non-TTY · unknown action · no ANSI in shareables · `NO_COLOR` · no secrets · claim honesty · no shell-rc mutation) | `operator-tui-quality-harness.js` | `tests/operator/operatorTuiQualityGate.test.js` |
+| MVP acceptance matrix (empty store · invalid/success/fail/blocked · attach · credentials · non-TTY · unknown action · ANSI/`NO_COLOR` · secrets · claim honesty · no shell-rc mutation) | `operator-tui-quality-harness.js` | `tests/operator/operatorTuiQualityGate.test.js` |
+| Integrated fullscreen gate (boot/exit · panes · launcher · monitor · slash · lifecycle states · resize · cleanup · provenance · detach · platform evidence honesty) | `operator-tui-quality-harness.js` | `tests/operator/operatorTuiIntegratedQualityGate.test.js` |
+| Live harness adapters (canonical fixture hooks; readiness ≠ PASS) | `operator-live-harness.js` | `tests/operator/operatorLiveHarness.test.js` |
 | Ink 7 spike (disposable validation) | `ink7-spike-*.js` | `tests/operator/ink7FrameworkSpike.test.js` |
 
-Run locally / CI:
+### Contract assertions (integrated gate)
 
-```bash
-cd orchestrator && npm run test:tui-quality
-```
+The gate asserts via adapter/state models (not presentation-text parsing alone):
 
-`npm test` / `npm run test:unit` include the quality-gate file. Ownership: [test-ownership-map.md](test-ownership-map.md) (`operator` / `unit`).
+- Operator modules/adapters remain the source of truth
+- Stable reason codes survive navigation and render remounts
+- `0`, `unknown`, `unavailable`, `not_configured`, and `unlimited` remain distinct
+- No percentage/progress/success inferred from model prose or iteration count
+- Missing budget/cost/verifier data is not fabricated as zero
+- Returning to a menu / detaching / Ctrl+C does not silently cancel or mutate a run to success
+- Terminal mode, cursor, restore sequence, and simulated child-process failures clean up
+
+### Platform evidence (release-prep honesty)
+
+Recorded by `buildPlatformEvidenceRecord` / `evaluateReleaseGateVerdict` in the quality harness:
+
+| Slot | Release requirement | Default honesty |
+|------|---------------------|-----------------|
+| Linux + Node 22 | required | CI/`test:tui-quality` stamps **pass** when automated gate is green on that host |
+| Linux + Node 24 | required | Same |
+| macOS + Node 22 TTY smoke | required | **blocked** until real interactive evidence exists |
+| Windows interactive | not required | **deferred** / unsupported until dedicated evidence |
+| Live canonical fixture (Sudoku) | not auto-pass from mocks | **deferred**; opt-in `--execute-live` only — `MATRIX_READY` ≠ PASS |
+
+Failed automated gate → **fail**. Missing required platform evidence → **blocked**. Never treat missing macOS/live evidence as **pass**.
+
+`npm test` / `npm run test:unit` include the quality-gate files. Ownership: [test-ownership-map.md](test-ownership-map.md) (`operator` / `unit`).
 
 ## Modules (production shell)
 
