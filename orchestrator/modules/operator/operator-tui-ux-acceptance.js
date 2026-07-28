@@ -12,6 +12,21 @@ const {
   buildPlatformEvidenceRecord,
 } = require('./operator-tui-quality-harness');
 
+const {
+  buildShellModel,
+  formatShellText,
+  resolveShellKeypress,
+  shellModelToOptions,
+  contentSurfaceForLocalAction,
+  isInkLocalShellAction,
+} = require('./operator-tui-shell-model');
+
+const {
+  isNativeWorkflowAction,
+  openNativeWorkflow,
+  surfaceForWorkflow,
+} = require('./operator-tui-native-workflows');
+
 /** Documented companion command for the UX acceptance gate. */
 const TUI_UX_ACCEPTANCE_COMMAND = 'cd orchestrator && npm run test:tui-ux';
 
@@ -20,6 +35,9 @@ const TUI_RELEASE_COMMAND_SET = Object.freeze([
   TUI_QUALITY_RELEASE_COMMAND,
   TUI_UX_ACCEPTANCE_COMMAND,
 ]);
+
+/** Documented combined npm script (semantic then UX). */
+const TUI_RELEASE_NPM_SCRIPT = 'test:tui-release';
 
 /**
  * Canonical viewport fixtures for visual-state evidence.
@@ -70,8 +88,15 @@ const TUI_UX_STATUS_TOKENS = Object.freeze([
 ]);
 
 /**
+ * @typedef {{
+ *   input?: string,
+ *   key?: object,
+ * }} UxJourneyIntent
+ */
+
+/**
  * Deterministic operator journeys for UX acceptance.
- * Step budgets are product contracts for the canonical path — not universal claims.
+ * Each journey binds a fixture id + intent sequence; simulations assert model state.
  *
  * @type {ReadonlyArray<{
  *   id: string,
@@ -84,6 +109,8 @@ const TUI_UX_STATUS_TOKENS = Object.freeze([
  *   recovery_path: string,
  *   inspectable_reason_codes: string[],
  *   prohibited: string[],
+ *   intents: UxJourneyIntent[],
+ *   recovery_intents: UxJourneyIntent[],
  * }>}
  */
 const TUI_UX_JOURNEYS = Object.freeze([
@@ -98,6 +125,8 @@ const TUI_UX_JOURNEYS = Object.freeze([
     recovery_path: 'Follow path/credential remediation; re-open landing',
     inspectable_reason_codes: Object.freeze(['path_status', 'credential_sufficiency']),
     prohibited: Object.freeze(['false ready', 'hidden primary action', 'color-only blocker']),
+    intents: Object.freeze([]),
+    recovery_intents: Object.freeze([]),
   }),
   Object.freeze({
     id: 'ready_no_runs',
@@ -110,6 +139,12 @@ const TUI_UX_JOURNEYS = Object.freeze([
     recovery_path: 'Esc cancels launcher; landing remains',
     inspectable_reason_codes: Object.freeze(['landing.overall.state']),
     prohibited: Object.freeze(['diagnostic wall as default', 'silent quit on Enter']),
+    intents: Object.freeze([
+      Object.freeze({ input: '1', key: Object.freeze({}) }),
+    ]),
+    recovery_intents: Object.freeze([
+      Object.freeze({ input: '', key: Object.freeze({ escape: true }) }),
+    ]),
   }),
   Object.freeze({
     id: 'canonical_sudoku_launch',
@@ -122,6 +157,12 @@ const TUI_UX_JOURNEYS = Object.freeze([
     recovery_path: 'Esc back; no nested readline',
     inspectable_reason_codes: Object.freeze(['launcher.readiness', 'equivalent_command']),
     prohibited: Object.freeze(['fabricated progress %', 'live credentials required for gate']),
+    intents: Object.freeze([
+      Object.freeze({ input: '1', key: Object.freeze({}) }),
+    ]),
+    recovery_intents: Object.freeze([
+      Object.freeze({ input: '', key: Object.freeze({ escape: true }) }),
+    ]),
   }),
   Object.freeze({
     id: 'inspect_active_run',
@@ -134,6 +175,12 @@ const TUI_UX_JOURNEYS = Object.freeze([
     recovery_path: 'Esc returns prior surface',
     inspectable_reason_codes: Object.freeze(['status', 'reason_code', 'next_safe_action']),
     prohibited: Object.freeze(['progress invented from iterations']),
+    intents: Object.freeze([
+      Object.freeze({ input: '2', key: Object.freeze({}) }),
+    ]),
+    recovery_intents: Object.freeze([
+      Object.freeze({ input: '', key: Object.freeze({ escape: true }) }),
+    ]),
   }),
   Object.freeze({
     id: 'diagnose_cerberus_block',
@@ -146,6 +193,10 @@ const TUI_UX_JOURNEYS = Object.freeze([
     recovery_path: 'Follow next_safe_action; do not treat as execution failure',
     inspectable_reason_codes: Object.freeze(['blocking_reason_code', 'human_action_required']),
     prohibited: Object.freeze(['color-only block vs fail', 'collapse block into failed']),
+    intents: Object.freeze([]),
+    recovery_intents: Object.freeze([
+      Object.freeze({ input: '', key: Object.freeze({ escape: true }) }),
+    ]),
   }),
   Object.freeze({
     id: 'diagnose_failed_run',
@@ -158,6 +209,10 @@ const TUI_UX_JOURNEYS = Object.freeze([
     recovery_path: 'Remediate via stated next_safe_action',
     inspectable_reason_codes: Object.freeze(['outcome', 'reason_code', 'next_safe_action']),
     prohibited: Object.freeze(['success implied', 'missing recovery path']),
+    intents: Object.freeze([]),
+    recovery_intents: Object.freeze([
+      Object.freeze({ input: '', key: Object.freeze({ escape: true }) }),
+    ]),
   }),
   Object.freeze({
     id: 'inspect_evidence',
@@ -170,6 +225,10 @@ const TUI_UX_JOURNEYS = Object.freeze([
     recovery_path: 'If attach unavailable, follow next_safe_action',
     inspectable_reason_codes: Object.freeze(['attach_available', 'reason_code']),
     prohibited: Object.freeze(['fabricated attach ready', 'missing evidence recorded as PASS']),
+    intents: Object.freeze([]),
+    recovery_intents: Object.freeze([
+      Object.freeze({ input: '', key: Object.freeze({ escape: true }) }),
+    ]),
   }),
   Object.freeze({
     id: 'exit_safely',
@@ -182,6 +241,10 @@ const TUI_UX_JOURNEYS = Object.freeze([
     recovery_path: 'Re-launch ai-minions tui',
     inspectable_reason_codes: Object.freeze(['TUI_SHELL_QUIT', 'TUI_SHELL_ABORT']),
     prohibited: Object.freeze(['silent TUI_SHELL_OK on pane select', 'Esc ends session']),
+    intents: Object.freeze([
+      Object.freeze({ input: 'q', key: Object.freeze({}) }),
+    ]),
+    recovery_intents: Object.freeze([]),
   }),
 ]);
 
@@ -221,6 +284,368 @@ const TUI_UX_FIRST_TIME_SCRIPT = Object.freeze({
     + 'Missing required manual evidence blocks release — never silent PASS.',
 });
 
+const BASE_ABOUT = Object.freeze({
+  version: '0.26.0-beta.1',
+  model_policy: 'local_only',
+  git_commit: 'deadbeef',
+});
+
+/**
+ * @param {string} fixtureId
+ * @param {{ columns?: number, rows?: number, colorEnabled?: boolean }} [viewport]
+ * @returns {ReturnType<typeof buildShellModel>}
+ */
+function buildUxFixtureModel(fixtureId, viewport = {}) {
+  const columns = Number.isFinite(viewport.columns) ? Number(viewport.columns) : 120;
+  const rows = Number.isFinite(viewport.rows) ? Number(viewport.rows) : 30;
+  const colorEnabled = viewport.colorEnabled !== false;
+  const base = {
+    aboutInfo: { ...BASE_ABOUT },
+    columns,
+    rows,
+    colorEnabled,
+  };
+
+  switch (String(fixtureId)) {
+    case 'landing_needs_setup':
+      return buildShellModel({
+        ...base,
+        credentials: { credential_sufficiency: 'insufficient', providers: [] },
+        pathActivation: { status: 'missing', on_path: false },
+        runsPayload: { runs: [], result_code: 'RUNS_EMPTY', next_safe_action: 'none' },
+        contentSurface: 'home',
+        selectedNavId: 'launcher',
+      });
+    case 'landing_ready_empty':
+    case 'landing_ready':
+      return buildShellModel({
+        ...base,
+        credentials: { credential_sufficiency: 'not_required', providers: [] },
+        pathActivation: { status: 'ready', on_path: true },
+        runsPayload: { runs: [], result_code: 'RUNS_EMPTY', next_safe_action: 'none' },
+        contentSurface: 'home',
+        selectedNavId: 'launcher',
+      });
+    case 'run_browser_valid_active':
+      return buildShellModel({
+        ...base,
+        credentials: { credential_sufficiency: 'not_required', providers: [] },
+        pathActivation: { status: 'ready', on_path: true },
+        runsPayload: {
+          runs: [{
+            run_id: 'run-active-1',
+            status: 'running',
+            outcome: null,
+            result_code: 'OK',
+            reason_code: 'RUN_ACTIVE',
+            next_safe_action: 'open monitor',
+          }],
+          result_code: 'RUNS_FOUND',
+          next_safe_action: 'select a run',
+        },
+        selectedRunId: 'run-active-1',
+        contentSurface: 'home',
+        selectedNavId: 'launcher',
+        statusResult: {
+          run_id: 'run-active-1',
+          result_code: 'RUN_FOUND',
+          status: 'running',
+          outcome: null,
+          reason_code: 'RUN_ACTIVE',
+          next_safe_action: 'open monitor',
+        },
+      });
+    case 'run_blocked_cerberus':
+      return buildShellModel({
+        ...base,
+        credentials: { credential_sufficiency: 'not_required', providers: [] },
+        pathActivation: { status: 'ready', on_path: true },
+        runsPayload: {
+          runs: [{
+            run_id: 'blocked-1',
+            status: 'blocked',
+            outcome: 'blocked',
+            result_code: 'RUN_FOUND',
+            reason_code: 'CERBERUS_REJECT',
+          }],
+          result_code: 'RUNS_FOUND',
+          next_safe_action: 'open overview',
+        },
+        selectedRunId: 'blocked-1',
+        contentSurface: 'status',
+        selectedNavId: 'status',
+        statusResult: {
+          run_id: 'blocked-1',
+          result_code: 'RUN_FOUND',
+          status: 'blocked',
+          outcome: 'blocked',
+          reason_code: 'CERBERUS_REJECT',
+          next_safe_action: 'address CERBERUS blockers',
+          human_action_required: true,
+        },
+      });
+    case 'run_failed':
+      return buildShellModel({
+        ...base,
+        credentials: { credential_sufficiency: 'not_required', providers: [] },
+        pathActivation: { status: 'ready', on_path: true },
+        runsPayload: {
+          runs: [{
+            run_id: 'failed-1',
+            status: 'failed',
+            outcome: 'failed',
+            result_code: 'RUN_FOUND',
+            reason_code: 'QA_REJECT',
+          }],
+          result_code: 'RUNS_FOUND',
+          next_safe_action: 'open overview',
+        },
+        selectedRunId: 'failed-1',
+        contentSurface: 'status',
+        selectedNavId: 'status',
+        statusResult: {
+          run_id: 'failed-1',
+          result_code: 'RUN_FOUND',
+          status: 'failed',
+          outcome: 'failed',
+          reason_code: 'QA_REJECT',
+          next_safe_action: 'inspect QA findings',
+        },
+      });
+    case 'run_completed_evidence':
+      return buildShellModel({
+        ...base,
+        credentials: { credential_sufficiency: 'not_required', providers: [] },
+        pathActivation: { status: 'ready', on_path: true },
+        runsPayload: {
+          runs: [{
+            run_id: 'done-1',
+            status: 'completed',
+            outcome: 'success',
+            result_code: 'RUN_FOUND',
+            reason_code: 'OK',
+          }],
+          result_code: 'RUNS_FOUND',
+          next_safe_action: 'open evidence',
+        },
+        selectedRunId: 'done-1',
+        contentSurface: 'evidence',
+        selectedNavId: 'evidence',
+        statusResult: {
+          run_id: 'done-1',
+          result_code: 'RUN_FOUND',
+          status: 'completed',
+          outcome: 'success',
+          reason_code: 'OK',
+          next_safe_action: 'inspect attach availability',
+        },
+        evidenceModel: {
+          run_id: 'done-1',
+          result_code: 'EVIDENCE_FOUND',
+          attach_available: false,
+          reason_code: 'ATTACH_UNAVAILABLE',
+          next_safe_action: 'generate attach bundle from Overview',
+        },
+      });
+    default:
+      throw new Error(`unknown UX fixture: ${fixtureId}`);
+  }
+}
+
+/**
+ * Apply one resolved shell intent to a model (in-process simulation — no remount).
+ * @param {ReturnType<typeof buildShellModel>} model
+ * @param {{ type: string, actionId?: string, direction?: string, endsSession?: boolean }} intent
+ */
+function applyUxShellIntent(model, intent) {
+  const type = String(intent?.type ?? 'ignore');
+  if (type === 'quit' || type === 'abort') {
+    return {
+      model,
+      sessionEnded: true,
+      reason: type === 'abort' ? 'TUI_SHELL_ABORT' : 'TUI_SHELL_QUIT',
+      wouldExecuteAction: null,
+    };
+  }
+  if (type === 'dispatch' && intent.actionId) {
+    const actionId = String(intent.actionId);
+    if (isNativeWorkflowAction(actionId)) {
+      const workflow = openNativeWorkflow(model, actionId);
+      if (workflow) {
+        return {
+          model: buildShellModel({
+            ...shellModelToOptions(model),
+            activeWorkflow: workflow,
+            contentSurface: surfaceForWorkflow(workflow),
+            focus: 'content',
+            selectedNavId: actionId === 'smoke' ? 'launcher' : actionId,
+            commandInput: '',
+          }),
+          sessionEnded: false,
+          reason: null,
+          wouldExecuteAction: null,
+        };
+      }
+    }
+    if (isInkLocalShellAction(actionId)) {
+      const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
+      return {
+        model: buildShellModel({
+          ...shellModelToOptions(model),
+          contentSurface: surface,
+          selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+          focus: 'nav',
+          commandInput: '',
+          activeWorkflow: null,
+        }),
+        sessionEnded: false,
+        reason: null,
+        wouldExecuteAction: null,
+      };
+    }
+    return {
+      model,
+      sessionEnded: false,
+      reason: null,
+      wouldExecuteAction: actionId,
+    };
+  }
+  if (type === 'surface_home') {
+    return {
+      model: buildShellModel({
+        ...shellModelToOptions(model),
+        contentSurface: 'home',
+        selectedNavId: 'launcher',
+        focus: 'nav',
+        commandInput: '',
+        activeWorkflow: null,
+      }),
+      sessionEnded: false,
+      reason: null,
+      wouldExecuteAction: null,
+    };
+  }
+  if (type === 'workflow_key') {
+    // Esc during workflow is handled by resolveShellKeypress as workflow_key when
+    // activeWorkflow is set — recovery simulations pass Esc after clearing workflow
+    // via surface_home from the harness when testing cancel. Keep model unchanged.
+    return {
+      model,
+      sessionEnded: false,
+      reason: null,
+      wouldExecuteAction: null,
+    };
+  }
+  return {
+    model,
+    sessionEnded: Boolean(intent?.endsSession),
+    reason: intent?.endsSession ? 'TUI_SHELL_QUIT' : null,
+    wouldExecuteAction: null,
+  };
+}
+
+/**
+ * Simulate a journey: fixture → intent sequence → model transitions.
+ * @param {string | (typeof TUI_UX_JOURNEYS)[number]} journeyOrId
+ * @param {{ columns?: number, rows?: number, colorEnabled?: boolean, includeRecovery?: boolean }} [opts]
+ */
+function simulateUxJourney(journeyOrId, opts = {}) {
+  const journey = typeof journeyOrId === 'string'
+    ? journeyById(journeyOrId)
+    : journeyOrId;
+  if (!journey) {
+    throw new Error(`unknown UX journey: ${journeyOrId}`);
+  }
+  let model = buildUxFixtureModel(journey.starting_fixture, opts);
+  /** @type {Array<{ type: string, actionId?: string, endsSession?: boolean }>} */
+  const resolved = [];
+  let sessionEnded = false;
+  let endReason = null;
+  /** @type {string[]} */
+  const wouldExecute = [];
+
+  const intents = [
+    ...(Array.isArray(journey.intents) ? journey.intents : []),
+    ...(opts.includeRecovery && Array.isArray(journey.recovery_intents)
+      ? journey.recovery_intents
+      : []),
+  ];
+
+  for (const step of intents) {
+    if (sessionEnded) break;
+    // Esc while a native workflow is mounted cancels back to home in simulation.
+    const keyObj = step.key && typeof step.key === 'object' ? step.key : {};
+    if (model.activeWorkflow && (keyObj.escape || step.input === '\u001b')) {
+      model = buildShellModel({
+        ...shellModelToOptions(model),
+        activeWorkflow: null,
+        contentSurface: 'home',
+        selectedNavId: 'launcher',
+        focus: 'nav',
+        commandInput: '',
+      });
+      resolved.push({ type: 'surface_home', endsSession: false });
+      continue;
+    }
+    const intent = resolveShellKeypress(step.input ?? '', keyObj, model);
+    resolved.push(intent);
+    const applied = applyUxShellIntent(model, intent);
+    model = applied.model;
+    if (applied.wouldExecuteAction) wouldExecute.push(applied.wouldExecuteAction);
+    if (applied.sessionEnded) {
+      sessionEnded = true;
+      endReason = applied.reason;
+    }
+  }
+
+  const text = formatShellText(model);
+  return {
+    journey,
+    model,
+    text,
+    intents: resolved,
+    decisionCount: resolved.filter((i) => i.type !== 'ignore').length,
+    sessionEnded,
+    endReason,
+    wouldExecuteAction: wouldExecute,
+    criticalPath: observeCriticalPath(model),
+  };
+}
+
+/**
+ * Derive critical-path visibility from a real shell model + composition text.
+ * @param {ReturnType<typeof buildShellModel>} model
+ */
+function observeCriticalPath(model) {
+  if (!model || typeof model !== 'object' || !model.schema) {
+    throw new Error('critical path observation requires a shell model from buildShellModel');
+  }
+  const text = formatShellText(model);
+  const landing = model.landing;
+  const composition = landing?.composition;
+  const primaryFromComposition = composition?.show_primary_cta === true;
+  const primaryFromNav = Array.isArray(model.navItems)
+    && model.navItems.some((n) => n.id === 'launcher' || /new run/i.test(String(n.label)));
+  const primaryFromText = /Start New Run|New Run/i.test(text);
+  const next = Boolean(
+    (landing?.overall?.next_action && String(landing.overall.next_action).trim())
+    || (model.status?.next_safe_action && String(model.status.next_safe_action).trim())
+    || (model.runs?.next_safe_action && String(model.runs.next_safe_action).trim())
+    || (landing?.activity?.next_action && String(landing.activity.next_action).trim()),
+  );
+  const recovery = Boolean(
+    (model.footerHints && /Esc|q/i.test(String(model.footerHints)))
+    || /Esc|q quit|next_safe_action|Open Settings|remediat|Start New Run/i.test(text),
+  );
+  return {
+    primaryActionPresent: primaryFromComposition || primaryFromNav || primaryFromText,
+    nextSafeActionPresent: next,
+    recoveryPresent: recovery,
+    text,
+    composition,
+  };
+}
+
 /**
  * @param {string} text
  * @param {ReadonlyArray<string>} tokens
@@ -246,40 +671,171 @@ function assertFocusWithoutColorAlone(opts = {}) {
 
 /**
  * Narrow layout must keep primary action / recovery discoverable in the model.
- * @param {{
- *   primaryActionPresent: boolean,
- *   nextSafeActionPresent?: boolean,
- *   recoveryPresent?: boolean,
- * }} model
+ * Consumes a real shell model (not fabricated booleans).
+ * @param {ReturnType<typeof buildShellModel>} model
  */
 function assertCriticalPathVisible(model) {
-  if (!model || model.primaryActionPresent !== true) {
+  const obs = observeCriticalPath(model);
+  if (obs.primaryActionPresent !== true) {
     throw new Error('primary action absent in required UX state');
   }
-  if (model.nextSafeActionPresent === false) {
+  if (obs.nextSafeActionPresent !== true) {
     throw new Error('next safe action unavailable despite authoritative data');
   }
-  if (model.recoveryPresent === false) {
+  if (obs.recoveryPresent !== true) {
     throw new Error('recovery path hidden in required UX state');
   }
+  return obs;
 }
 
 /**
  * Long identifiers must not displace the primary action in the composition contract.
- * @param {{
- *   primaryActionPresent: boolean,
- *   truncatedFields?: string[],
- * }} model
+ * @param {ReturnType<typeof buildShellModel>} model
  */
 function assertLongContentDoesNotHidePrimary(model) {
-  if (!model || model.primaryActionPresent !== true) {
+  const obs = observeCriticalPath(model);
+  if (obs.primaryActionPresent !== true) {
     throw new Error('long-content case hid primary action');
+  }
+  return obs;
+}
+
+/**
+ * Assert journey simulation against declared inspectable codes / prohibited states.
+ * @param {ReturnType<typeof simulateUxJourney>} sim
+ */
+function assertUxJourneyOutcome(sim) {
+  const { journey, model, text, decisionCount, sessionEnded, endReason, wouldExecuteAction } = sim;
+  if (decisionCount > journey.max_decisions) {
+    throw new Error(`${journey.id}: exceeded max_decisions (${decisionCount} > ${journey.max_decisions})`);
+  }
+  if (wouldExecuteAction.length > 0 && journey.id !== 'exit_safely') {
+    // Exit may request quit via intent type quit (not executeAction remount).
+    // Nested remounts during UX journeys are prohibited for in-process paths.
+    const remounts = wouldExecuteAction.filter((id) => id !== 'quit' && id !== '/quit');
+    if (remounts.length > 0) {
+      throw new Error(`${journey.id}: unexpected remount action(s): ${remounts.join(',')}`);
+    }
+  }
+
+  switch (journey.id) {
+    case 'clean_install_setup': {
+      if (model.landing?.overall?.state === 'ready') {
+        throw new Error('clean_install_setup: false ready');
+      }
+      if (!model.landing?.overall?.next_action) {
+        throw new Error('clean_install_setup: missing next_action');
+      }
+      if (!/Settings|path|credential|remediat/i.test(String(model.landing.overall.next_action))) {
+        throw new Error('clean_install_setup: next_action not inspectable');
+      }
+      break;
+    }
+    case 'ready_no_runs': {
+      if (model.landing?.overall?.state !== 'ready') {
+        throw new Error('ready_no_runs: expected ready overall');
+      }
+      assertCriticalPathVisible(model);
+      if (!/Start New Run|New Run/i.test(text)) {
+        throw new Error('ready_no_runs: primary CTA missing from composition text');
+      }
+      break;
+    }
+    case 'canonical_sudoku_launch': {
+      if (!model.activeWorkflow || model.activeWorkflow.kind !== 'launcher') {
+        // After recovery Esc, workflow is cleared — allow only when includeRecovery.
+        if (model.contentSurface !== 'home') {
+          throw new Error('canonical_sudoku_launch: expected launcher workflow or home after Esc');
+        }
+      } else if (!String(model.contentSurface).includes('launcher')) {
+        throw new Error('canonical_sudoku_launch: launcher surface missing');
+      }
+      if (/%\s*$|progress\s+\d+%/i.test(text)) {
+        throw new Error('canonical_sudoku_launch: fabricated progress percent');
+      }
+      break;
+    }
+    case 'inspect_active_run': {
+      const status = String(model.status?.status ?? '').toLowerCase();
+      if (status !== 'running' && !model.activeWorkflow) {
+        throw new Error('inspect_active_run: expected running status or run browser workflow');
+      }
+      if (model.status?.reason_code) {
+        if (!text.includes(String(model.status.reason_code)) && model.contentSurface === 'status') {
+          throw new Error('inspect_active_run: reason_code not in composition text');
+        }
+      }
+      if (/%\s*$|progress\s+\d+%/i.test(text)) {
+        throw new Error('inspect_active_run: invented progress percent');
+      }
+      break;
+    }
+    case 'diagnose_cerberus_block': {
+      if (model.status?.status !== 'blocked' || model.status?.reason_code !== 'CERBERUS_REJECT') {
+        throw new Error('diagnose_cerberus_block: missing blocked / CERBERUS_REJECT');
+      }
+      if (!model.status?.next_safe_action) {
+        throw new Error('diagnose_cerberus_block: missing next_safe_action');
+      }
+      if (model.contentSurface === 'status' && !text.includes('CERBERUS_REJECT')) {
+        throw new Error('diagnose_cerberus_block: reason not textual');
+      }
+      if (String(model.status?.status) === 'failed') {
+        throw new Error('diagnose_cerberus_block: collapsed into failed');
+      }
+      break;
+    }
+    case 'diagnose_failed_run': {
+      if (model.status?.status !== 'failed' || model.status?.reason_code !== 'QA_REJECT') {
+        throw new Error('diagnose_failed_run: missing failed / QA_REJECT');
+      }
+      if (!model.status?.next_safe_action) {
+        throw new Error('diagnose_failed_run: missing next_safe_action');
+      }
+      if (model.contentSurface === 'status' && !text.includes('QA_REJECT')) {
+        throw new Error('diagnose_failed_run: reason not textual');
+      }
+      break;
+    }
+    case 'inspect_evidence': {
+      if (model.contentSurface !== 'evidence' && model.contentSurface !== 'home') {
+        throw new Error('inspect_evidence: expected evidence surface (or home after Esc)');
+      }
+      if (model.contentSurface === 'evidence') {
+        const attach = model.evidence?.attach_available;
+        if (attach === true && model.evidence?.reason_code === 'ATTACH_UNAVAILABLE') {
+          throw new Error('inspect_evidence: fabricated attach ready');
+        }
+        if (attach !== false) {
+          throw new Error('inspect_evidence: attach availability must stay honest (false)');
+        }
+        if (!model.status?.next_safe_action && !model.evidence?.next_safe_action) {
+          // evidence adapter may nest fields differently — require some recovery hint in text
+          if (!/attach|Evidence|next/i.test(text)) {
+            throw new Error('inspect_evidence: recovery path missing');
+          }
+        }
+      }
+      break;
+    }
+    case 'exit_safely': {
+      if (!sessionEnded || endReason !== 'TUI_SHELL_QUIT') {
+        throw new Error('exit_safely: expected TUI_SHELL_QUIT');
+      }
+      const esc = resolveShellKeypress('', { escape: true }, buildUxFixtureModel(journey.starting_fixture));
+      if (esc.endsSession) {
+        throw new Error('exit_safely: Esc must not end session');
+      }
+      break;
+    }
+    default:
+      throw new Error(`unhandled journey assertion: ${journey.id}`);
   }
 }
 
 /**
  * Evaluate the UX companion gate.
- * Automated UX fail → fail; missing required manual evidence → blocked.
+ * Automated UX fail → fail; missing required manual or platform evidence → blocked.
  *
  * @param {{
  *   automatedUxOk: boolean,
@@ -329,26 +885,33 @@ function evaluateUxAcceptanceVerdict(input) {
     };
   }
 
-  // Reuse semantic platform slots when provided — never invent macOS/live PASS.
-  if (input.platformEvidence) {
-    const semantic = evaluateReleaseGateVerdict({
-      automatedGateOk: true,
-      platformEvidence: input.platformEvidence,
-    });
-    if (semantic.verdict === 'fail') {
-      return {
-        verdict: 'fail',
-        reasons: [...semantic.reasons],
-        command_set: [...TUI_RELEASE_COMMAND_SET],
-      };
-    }
-    if (semantic.verdict === 'blocked') {
-      return {
-        verdict: 'blocked',
-        reasons: [...semantic.reasons],
-        command_set: [...TUI_RELEASE_COMMAND_SET],
-      };
-    }
+  // Required: platform evidence must be supplied — omission is BLOCKED, never PASS.
+  if (!input.platformEvidence || typeof input.platformEvidence !== 'object') {
+    reasons.push('platform_evidence_required_missing');
+    return {
+      verdict: 'blocked',
+      reasons,
+      command_set: [...TUI_RELEASE_COMMAND_SET],
+    };
+  }
+
+  const semantic = evaluateReleaseGateVerdict({
+    automatedGateOk: true,
+    platformEvidence: input.platformEvidence,
+  });
+  if (semantic.verdict === 'fail') {
+    return {
+      verdict: 'fail',
+      reasons: [...semantic.reasons],
+      command_set: [...TUI_RELEASE_COMMAND_SET],
+    };
+  }
+  if (semantic.verdict === 'blocked') {
+    return {
+      verdict: 'blocked',
+      reasons: [...semantic.reasons],
+      command_set: [...TUI_RELEASE_COMMAND_SET],
+    };
   }
 
   return {
@@ -369,6 +932,7 @@ function journeyById(journeyId) {
 module.exports = {
   TUI_UX_ACCEPTANCE_COMMAND,
   TUI_RELEASE_COMMAND_SET,
+  TUI_RELEASE_NPM_SCRIPT,
   TUI_UX_VIEWPORTS,
   TUI_UX_VISUAL_STATES,
   TUI_UX_STATUS_TOKENS,
@@ -376,8 +940,12 @@ module.exports = {
   TUI_UX_FIRST_TIME_SCRIPT,
   missingStatusTokens,
   assertFocusWithoutColorAlone,
+  observeCriticalPath,
   assertCriticalPathVisible,
   assertLongContentDoesNotHidePrimary,
+  buildUxFixtureModel,
+  simulateUxJourney,
+  assertUxJourneyOutcome,
   evaluateUxAcceptanceVerdict,
   journeyById,
 };

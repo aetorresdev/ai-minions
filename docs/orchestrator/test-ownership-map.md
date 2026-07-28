@@ -52,7 +52,7 @@ When Operator TUI modules ship, the **quality gate** inventory lives under `oper
 
 - `tests/operator/operatorTuiQualityGate.test.js` — MVP acceptance matrix (mandatory if any TUI code ships)
 - `tests/operator/operatorTuiIntegratedQualityGate.test.js` — integrated fullscreen journey + platform evidence honesty
-- `tests/operator/operatorTuiUxAcceptanceGate.test.js` — UX journeys / visual inventory / companion verdict (`npm run test:tui-ux`)
+- `tests/operator/operatorTuiUxAcceptanceGate.test.js` — UX journeys / visual inventory / companion verdict (`npm run test:tui-ux`; combined via `npm run test:tui-release`)
 - `tests/operator/slashProductDocsHonesty.test.js` — public contract pages must not mark product slash commands unavailable
 - Pane/cockpit units: `operatorCockpitTui` · `operatorTuiShellFoundation` · `operatorTuiNativeWorkflows` · `operatorTuiSplashTheme` · `operatorGuidedLauncher` · `operatorTuiLiveMonitor` · `operatorTuiSlashCommands` · `operatorLiveHarness` · `operatorRunSelectorTui` · `operatorEvidenceAttachPaneTui` · `operatorConfigReadinessPaneTui` · `operatorEvidenceTui` · `ink7FrameworkSpike`
 - Shared helpers: `modules/operator/operator-tui-quality-harness.js`
