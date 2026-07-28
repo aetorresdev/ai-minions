@@ -419,13 +419,29 @@ function resolveShellKeypress(input, key = {}, model = {}) {
 }
 
 /**
+ * Nav rows for ↑/↓ on the landing Quick Start panel — exclude Home (`h`).
+ * Home remains reachable via hotkey / Navigate surfaces; listing it under Quick Start
+ * made arrow counts easy to overshoot into Settings (nested config / soft-handoff).
+ * @param {ReturnType<typeof buildShellModel>} model
+ * @returns {ReadonlyArray<{ key: string, id: string }>}
+ */
+function navItemsForMovement(model) {
+  const items = Array.isArray(model.navItems) ? model.navItems : [];
+  if (String(model.contentSurface ?? '').toLowerCase() === 'home') {
+    return items.filter((item) => item.id !== 'home');
+  }
+  return items;
+}
+
+/**
  * @param {ReturnType<typeof buildShellModel>} model
  * @param {'next'|'prev'} direction
  */
 function moveNavSelection(model, direction) {
-  const items = model.navItems;
+  const items = navItemsForMovement(model);
   if (!items.length) return model;
-  const idx = Math.max(0, items.findIndex((n) => n.id === model.selectedNavId));
+  let idx = items.findIndex((n) => n.id === model.selectedNavId);
+  if (idx < 0) idx = 0;
   const nextIdx = direction === 'prev'
     ? (idx <= 0 ? items.length - 1 : idx - 1)
     : (idx + 1) % items.length;
@@ -628,6 +644,7 @@ module.exports = {
   isShellSessionEndAction,
   isInkLocalShellAction,
   contentSurfaceForLocalAction,
+  navItemsForMovement,
   formatLandingLines,
   formatHelpLines,
   formatDiagnosticsLines,
