@@ -20,7 +20,11 @@ const {
   resolveShellActionToken,
   resolveSlashCommandPlan,
 } = require('./operator-tui-shell-actions');
-const { createTerminalGuard, withTerminalGuard } = require('./operator-tui-terminal-guard');
+const {
+  createTerminalGuard,
+  withTerminalGuard,
+  prepareNestedPaneIo,
+} = require('./operator-tui-terminal-guard');
 const { adaptActionResult } = require('./operator-tui-adapters');
 
 const TUI_SHELL_REASON = Object.freeze({
@@ -318,6 +322,8 @@ async function runOperatorTuiShell(options = {}) {
 
         if (plan.disposition === 'dispatch' && plan.action_id) {
           if (!guard.restored) guard.restore('action_dispatch');
+          // Nested readline panes must not overprint the last Ink frame.
+          prepareNestedPaneIo({ stdin, stdout });
           let actionOutcome;
           try {
             actionOutcome = await executeAction({
@@ -453,6 +459,8 @@ async function runOperatorTuiShell(options = {}) {
 
       // Restore terminal before nested readline panes / operator actions.
       if (!guard.restored) guard.restore('action_dispatch');
+      // Nested readline panes must not overprint the last Ink frame.
+      prepareNestedPaneIo({ stdin, stdout });
 
       let actionOutcome;
       try {

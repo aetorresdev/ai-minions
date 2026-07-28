@@ -67,6 +67,61 @@ async function loadFixturePrompt(fixtureId) {
 }
 
 /**
+ * Resolve a readline choice answer against a flat option list (+ optional cancel).
+ * Arrow keys are not available under readline — use j/k (or n/p) / typed keys / Enter.
+ * @param {string} raw
+ * @param {{
+ *   options: { key: string, label: string, disabled?: boolean }[],
+ *   cursorIndex: number,
+ *   allowCancel?: boolean,
+ * }} state
+ * @returns {{
+ *   action: 'select' | 'next' | 'prev' | 'cancel' | 'disabled' | 'unknown',
+ *   key?: string,
+ *   cursorIndex?: number,
+ * }}
+ */
+function resolveChoiceInput(raw, state) {
+  const options = Array.isArray(state.options) ? state.options : [];
+  const allowCancel = state.allowCancel !== false;
+  const maxIdx = Math.max(options.length - 1, 0);
+  const cursorIndex = Number.isInteger(state.cursorIndex) && state.cursorIndex >= 0
+    ? Math.min(state.cursorIndex, maxIdx)
+    : 0;
+  const token = normalizeToken(raw);
+
+  if (allowCancel && (token === 'c' || token === 'cancel' || token === 'q' || token === 'quit')) {
+    return { action: 'cancel', cursorIndex };
+  }
+
+  if (!token || token === 'enter' || token === 'select') {
+    if (!options.length) return { action: 'unknown', cursorIndex };
+    const opt = options[cursorIndex];
+    if (opt.disabled) return { action: 'disabled', key: opt.key, cursorIndex };
+    return { action: 'select', key: opt.key, cursorIndex };
+  }
+
+  if (token === 'n' || token === 'j' || token === 'down' || token === '+') {
+    if (!options.length) return { action: 'unknown', cursorIndex };
+    return { action: 'next', cursorIndex: (cursorIndex + 1) % options.length };
+  }
+
+  if (token === 'p' || token === 'k' || token === 'up' || token === '-') {
+    if (!options.length) return { action: 'unknown', cursorIndex };
+    return {
+      action: 'prev',
+      cursorIndex: (cursorIndex - 1 + options.length) % options.length,
+    };
+  }
+
+  const match = options.find((o) => o.key === token || normalizeToken(o.label) === token);
+  if (!match) return { action: 'unknown', cursorIndex };
+  if (match.disabled) return { action: 'disabled', key: match.key, cursorIndex };
+  const idx = options.findIndex((o) => o.key === match.key);
+  return { action: 'select', key: match.key, cursorIndex: idx >= 0 ? idx : cursorIndex };
+}
+
+/**
  * @param {{
  *   question: (prompt: string) => Promise<string>,
  *   write?: (text: string) => void,
@@ -74,30 +129,56 @@ async function loadFixturePrompt(fixtureId) {
  *   prompt: string,
  *   options: { key: string, label: string, disabled?: boolean, note?: string }[],
  *   allowCancel?: boolean,
+ *   maxLoops?: number,
  * }} input
  * @returns {Promise<string | null>}
  */
 async function promptChoice(input) {
   const write = input.write ?? (() => {});
   const useColor = input.useColor === true;
-  write('');
-  write(ansi(useColor, '1;36', input.prompt));
-  for (const opt of input.options) {
-    const marker = opt.disabled ? ' (disabled)' : '';
-    write(`  [${opt.key}]  ${opt.label}${marker}`);
-    if (opt.note) write(`         ${opt.note}`);
+  const options = input.options ?? [];
+  const allowCancel = input.allowCancel !== false;
+  const maxLoops = Number.isInteger(input.maxLoops) && input.maxLoops > 0
+    ? input.maxLoops
+    : Number.POSITIVE_INFINITY;
+  let cursorIndex = 0;
+  let loops = 0;
+
+  while (loops < maxLoops) {
+    loops += 1;
+    write('');
+    write(ansi(useColor, '1;36', input.prompt));
+    options.forEach((opt, index) => {
+      const marker = index === cursorIndex ? '>' : ' ';
+      const disabled = opt.disabled ? ' (disabled)' : '';
+      // Avoid bracket "button" look — these are typed keys, not mouse targets.
+      write(`${marker} ${opt.key}.  ${opt.label}${disabled}`);
+      if (opt.note) write(`         ${opt.note}`);
+    });
+    if (allowCancel) {
+      write('  c.  cancel');
+    }
+    write('Type a key then Enter · or j/k then Enter · cursor shown as >');
+    write('(No mouse · no arrow keys in this nested readline pane.)');
+    const resolved = resolveChoiceInput(await input.question('Select (keys active now): '), {
+      options,
+      cursorIndex,
+      allowCancel,
+    });
+    if (resolved.action === 'cancel') return null;
+    if (resolved.action === 'next' || resolved.action === 'prev') {
+      cursorIndex = resolved.cursorIndex ?? cursorIndex;
+      continue;
+    }
+    if (resolved.action === 'disabled') {
+      return `__disabled__:${resolved.key}`;
+    }
+    if (resolved.action === 'select' && resolved.key) {
+      return resolved.key;
+    }
+    write('Unknown selection. Type a listed key, j/k to move, Enter to confirm, or c to cancel.');
   }
-  if (input.allowCancel !== false) {
-    write('  [c]  cancel');
-  }
-  const answer = normalizeToken(await input.question('Select: '));
-  if (!answer || answer === 'c' || answer === 'cancel' || answer === 'q' || answer === 'quit') {
-    return null;
-  }
-  const match = input.options.find((o) => o.key === answer || normalizeToken(o.label) === answer);
-  if (!match) return '';
-  if (match.disabled) return `__disabled__:${match.key}`;
-  return match.key;
+  return null;
 }
 
 /**
@@ -139,6 +220,12 @@ async function runOperatorGuidedLauncherPane(options) {
   const loadFixture = options.loadFixturePromptFn ?? loadFixturePrompt;
   const selections = options.selections ?? null;
 
+  // Opt-in clear (Ink shell clears before dispatch; legacy cockpit may pass true).
+  if (options.clearScreen === true && selections == null) {
+    const { prepareNestedPaneIo } = require('./operator-tui-terminal-guard');
+    prepareNestedPaneIo({ stdout: options.stdout ?? process.stdout });
+  }
+
   /** @type {string} */
   let agentFlow = 'single_agent';
   /** @type {string} */
@@ -158,6 +245,7 @@ async function runOperatorGuidedLauncherPane(options) {
     write(ansi(useColor, '1', 'ai-minions guided launcher'));
     write('Choose agent mode, inference lane, and goal. Hybrid stays an honest skip.');
     write('Launcher cannot expand budgets, tools, or approved artifacts beyond existing contracts.');
+    write('Keyboard only: type the option key (or j/k) then Enter — prompt is already focused.');
 
     const agentKey = await promptChoice({
       question,
@@ -538,6 +626,7 @@ function usageResult(message) {
 module.exports = {
   GUIDED_LAUNCHER_PANE_SCHEMA,
   runOperatorGuidedLauncherPane,
+  resolveChoiceInput,
   loadFixturePrompt,
   loadFixtureRecord,
 };

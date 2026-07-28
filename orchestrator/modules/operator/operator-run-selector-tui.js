@@ -57,13 +57,14 @@ function buildRunSelectorListText(runs, options = {}) {
     const outcome = run.outcome == null ? '-' : String(run.outcome);
     const result = run.result_code ?? '-';
     lines.push(
-      `  ${marker} [${n}]  ${run.run_id}  status=${status}`
+      `  ${marker} ${n}.  ${run.run_id}  status=${status}`
       + `  outcome=${outcome}  result_code=${result}`,
     );
   });
   lines.push(
     '',
-    'Commands: <index> | Enter=select cursor | n/j next | p/k prev | b back',
+    'Type index then Enter · or j/k (n/p) then Enter · empty Enter=select cursor · b=back',
+    '(No mouse · arrow keys not wired in this nested readline pane.)',
     'Policy: selection resolves trace basenames only — no inferred state for invalid traces.',
   );
   return lines.join('\n');
@@ -317,6 +318,14 @@ async function runOperatorRunSelector(options) {
   });
   const runs = Array.isArray(listResult.json?.runs) ? listResult.json.runs : [];
 
+  if (options.clearScreen === true) {
+    const { prepareNestedPaneIo } = require('./operator-tui-terminal-guard');
+    prepareNestedPaneIo({
+      stdin: options.stdin,
+      stdout: options.stdout ?? process.stdout,
+    });
+  }
+
   if (!runs.length) {
     write(`${buildRunSelectorListText([], { useColor })}\n`);
     return {
@@ -336,7 +345,7 @@ async function runOperatorRunSelector(options) {
   while (loops < maxLoops) {
     loops += 1;
     write(`${buildRunSelectorListText(runs, { cursorIndex, useColor })}\n`);
-    const raw = await question('Select run [index|n/p|Enter|b]: ');
+    const raw = await question('Select run (keys active now) [index|j/k|Enter|b]: ');
     const resolved = resolveRunSelectorInput(raw, { runs, cursorIndex });
 
     if (resolved.action === 'back') {

@@ -6,6 +6,43 @@
  */
 
 const RESTORE_SEQUENCE = '\u001b[?1049l\u001b[?25h\u001b[0m';
+/** Clear screen + cursor home — erase leftover Ink frames before nested readline panes. */
+const CLEAR_SEQUENCE = '\u001b[2J\u001b[H';
+
+/**
+ * Wipe the primary screen so nested readline panes do not overprint Ink chrome
+ * (left-column bleed such as `(single_agent)ion: v0.25…`).
+ * Resumes stdin so the following `readline` prompt owns keystrokes immediately
+ * (no Tab hunt after Ink unmount).
+ * @param {{
+ *   stdin?: NodeJS.ReadStream | { resume?: Function },
+ *   stdout?: NodeJS.WriteStream | { write?: Function },
+ *   writeClear?: (seq: string) => void,
+ * }} [options]
+ * @returns {{ ok: boolean, wrote: boolean }}
+ */
+function prepareNestedPaneIo(options = {}) {
+  const stdout = options.stdout ?? process.stdout;
+  const stdin = options.stdin ?? process.stdin;
+  const writer = typeof options.writeClear === 'function'
+    ? options.writeClear
+    : (seq) => {
+      if (stdout && typeof stdout.write === 'function') stdout.write(seq);
+    };
+  try {
+    writer(CLEAR_SEQUENCE);
+  } catch {
+    return { ok: false, wrote: false };
+  }
+  if (stdin && typeof stdin.resume === 'function') {
+    try {
+      stdin.resume();
+    } catch {
+      // non-fatal — prompt may still work
+    }
+  }
+  return { ok: true, wrote: true };
+}
 
 /**
  * @param {{
@@ -110,6 +147,8 @@ async function withTerminalGuard(guard, fn, reason = 'normal') {
 
 module.exports = {
   RESTORE_SEQUENCE,
+  CLEAR_SEQUENCE,
+  prepareNestedPaneIo,
   createTerminalGuard,
   withTerminalGuard,
 };
