@@ -2189,6 +2189,120 @@ test('cold start drains >64 bytes of leftover stdin before mount', async () => {
   stdout.destroy();
 });
 
+/**
+ * Stdin that never empties past the cold-start safety ceiling — forces
+ * COLD_START_STDIN_DRAIN_TRUNCATED without allocating a 1MiB+ buffer.
+ */
+function createNeverEmptyColdStartStdin() {
+  const stdin = {
+    isTTY: true,
+    isRaw: false,
+    setRawMode(mode) {
+      this.isRaw = Boolean(mode);
+      return this;
+    },
+    ref() { return this; },
+    unref() { return this; },
+    resume() { return this; },
+    pause() { return this; },
+    isPaused() { return false; },
+    get readableLength() {
+      return 4096;
+    },
+    read(n) {
+      const want = Math.max(1, Number(n) || 1);
+      return Buffer.alloc(want, 0x31);
+    },
+  };
+  return stdin;
+}
+
+test('cold-start drain truncation reports real ink/react flags; interactive shell never mounts', async () => {
+  const sharedHarness = {
+    isTTY: true,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    executeAction: async () => {
+      throw new Error('truncation must not executeAction');
+    },
+  };
+
+  // Without splash: Ink/React never loaded → flags stay false; shell never mounts.
+  {
+    const stdin = createNeverEmptyColdStartStdin();
+    const stdout = new PassThrough();
+    stdout.isTTY = true;
+    stdout.columns = 100;
+    stdout.rows = 30;
+    stdout.getColorDepth = () => 1;
+    stdout.ref = () => stdout;
+    stdout.unref = () => stdout;
+    let interactiveMounts = 0;
+    const result = await runOperatorTuiShell({
+      ...sharedHarness,
+      stdin,
+      stdout,
+      skipSplash: true,
+      maxLoops: 1,
+      importRenderer: async () => ({
+        renderOperatorTuiShell: async () => {
+          interactiveMounts += 1;
+          return { aborted: false, requestedAction: null };
+        },
+      }),
+    });
+    assert.equal(result.reason_code, TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED);
+    assert.equal(result.ok, false);
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.ink_loaded, false);
+    assert.equal(result.react_loaded, false);
+    assert.equal(interactiveMounts, 0, 'interactive shell must not mount after truncation');
+    stdout.destroy();
+  }
+
+  // With splash: splash imports Ink/React once → flags true; interactive shell never mounts.
+  {
+    const stdin = createNeverEmptyColdStartStdin();
+    const stdout = new PassThrough();
+    stdout.isTTY = true;
+    stdout.columns = 100;
+    stdout.rows = 30;
+    stdout.getColorDepth = () => 1;
+    stdout.ref = () => stdout;
+    stdout.unref = () => stdout;
+    let splashMounts = 0;
+    let interactiveMounts = 0;
+    const result = await runOperatorTuiShell({
+      ...sharedHarness,
+      stdin,
+      stdout,
+      splashMs: 0,
+      // Unbounded loops → production splash gate (not harness skip).
+      importRenderer: async () => ({
+        renderOperatorTuiShell: async (opts) => {
+          if (opts.showSplash === true) {
+            splashMounts += 1;
+            assert.equal(opts.splashOnly, true);
+            return { aborted: false };
+          }
+          interactiveMounts += 1;
+          return { aborted: false, requestedAction: null };
+        },
+      }),
+    });
+    assert.equal(result.reason_code, TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED);
+    assert.equal(result.ok, false);
+    assert.equal(result.exitCode, 1);
+    assert.equal(splashMounts, 1, 'splash renderer must run before drain truncation');
+    assert.equal(result.ink_loaded, true, 'splash already loaded Ink — must not report false');
+    assert.equal(result.react_loaded, true, 'splash already loaded React — must not report false');
+    assert.equal(interactiveMounts, 0, 'interactive shell must not mount after truncation');
+    stdout.destroy();
+  }
+});
+
 test('Recent Runs selection stays on visible window; hidden panel skips content focus', () => {
   const seven = Array.from({ length: 7 }, (_, i) => ({
     run_id: `r${i + 1}`,

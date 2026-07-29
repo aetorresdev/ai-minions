@@ -441,8 +441,9 @@ async function runOperatorTuiShell(options = {}) {
         ok: false,
         exitCode: 1,
         reason_code: TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED,
-        ink_loaded: false,
-        react_loaded: false,
+        // Preserve actual load flags — splash may already have imported Ink/React.
+        ink_loaded: inkLoaded,
+        react_loaded: reactLoaded,
         text: String(err.message || err),
         model: null,
         guard,
