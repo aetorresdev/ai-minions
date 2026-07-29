@@ -116,6 +116,95 @@ describe("operator-guided-first-run", () => {
     assert.match(result.text, /FIRST_RUN_PROVIDER_BLOCKED/);
   });
 
+  it("runFirstRun maps RUNTIME_PREFLIGHT_BLOCKED to NEEDS_INIT on a clean checkout (no config)", async () => {
+    const repoRoot = makeRepoWithOrch();
+    const result = await runFirstRun({
+      cwd: repoRoot,
+      install: false,
+      runOperatorDoctor: async () => ({
+        ok: false,
+        report: {
+          checks: [
+            {
+              status: "fail",
+              operator_reason_code: "RUNTIME_PREFLIGHT_BLOCKED",
+            },
+          ],
+        },
+      }),
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason_code, FIRST_RUN_REASON_CODES.NEEDS_INIT);
+    assert.match(result.text, /FIRST_RUN_NEEDS_INIT/);
+    assert.match(result.text, /next_safe_action:\s+Run: ai-minions init/);
+    assert.equal(hasInitConfig(repoRoot), false);
+  });
+
+  it("runFirstRun still reports PROVIDER_BLOCKED when config is missing and Ollama is unreachable", async () => {
+    const repoRoot = makeRepoWithOrch();
+    const result = await runFirstRun({
+      cwd: repoRoot,
+      install: false,
+      runOperatorDoctor: async () => ({
+        ok: false,
+        report: {
+          checks: [
+            {
+              status: "fail",
+              operator_reason_code: "OPERATOR_OLLAMA_UNREACHABLE",
+            },
+          ],
+        },
+      }),
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason_code, FIRST_RUN_REASON_CODES.PROVIDER_BLOCKED);
+    assert.equal(hasInitConfig(repoRoot), false);
+  });
+
+  it("runFirstRun still reports CONFIG_INVALID for CONFIG/BOOTSTRAP failures when config is present", async () => {
+    const repoRoot = makeRepoWithOrch();
+    const configDir = path.join(repoRoot, ".ai-minions");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, "model_policy.json"), "{}\n");
+    const result = await runFirstRun({
+      cwd: repoRoot,
+      install: false,
+      runOperatorDoctor: async () => ({
+        ok: false,
+        report: {
+          checks: [
+            {
+              status: "fail",
+              operator_reason_code: "OPERATOR_BOOTSTRAP_CONFIG_INVALID",
+            },
+          ],
+        },
+      }),
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason_code, FIRST_RUN_REASON_CODES.CONFIG_INVALID);
+    assert.match(result.text, /FIRST_RUN_CONFIG_INVALID/);
+  });
+
+  it("classifyDoctorFailure maps RUNTIME_PREFLIGHT_BLOCKED to NEEDS_INIT when config absent, CONFIG_INVALID when present", () => {
+    const doctorResult = {
+      report: {
+        checks: [
+          { status: "fail", operator_reason_code: "RUNTIME_PREFLIGHT_BLOCKED" },
+        ],
+      },
+    };
+    assert.equal(
+      classifyDoctorFailure(doctorResult, false),
+      FIRST_RUN_REASON_CODES.NEEDS_INIT,
+    );
+    assert.equal(
+      classifyDoctorFailure(doctorResult, true),
+      FIRST_RUN_REASON_CODES.UNKNOWN_ERROR,
+    );
+  });
+
   it("runAttach requires --run-id", async () => {
     const result = await runAttach({ runId: "" });
     assert.equal(result.ok, false);
