@@ -1,9 +1,9 @@
 {
   "meta": {
-    "tip_sha": "32335ffa8cf809b7a98d782c289085154d2348fa",
+    "tip_sha": "df1b5a5bfdf3dcadef6194094883850f76153238",
     "ink_version": "7.1.1",
     "node": "v24.11.1",
-    "collected_at": "2026-07-29T21:19:44.178Z",
+    "collected_at": "2026-07-29T21:20:54.247Z",
     "method": "ink.renderToString",
     "note": "Contract snapshots only — not clipped TTY / visual UX evidence. Use capture-tui-landing-tty.sh for real terminal frames."
   },
