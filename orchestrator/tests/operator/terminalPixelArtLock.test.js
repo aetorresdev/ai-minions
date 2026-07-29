@@ -21,6 +21,7 @@ const {
 } = require('../../modules/operator/terminal-pixel-art');
 
 const FIXTURES = path.join(__dirname, '../fixtures/tui/terminal-pixel-art');
+const ESC = String.fromCharCode(0x1b);
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -162,8 +163,8 @@ test('renderer emits no image-protocol or private-use glyph dependency', () => {
   const output = buildLandingCanvas({ columns: 120, rows: 36 })
     .ansiLines()
     .join('\n');
-  assert.doesNotMatch(output, /\u001b_G/);
-  assert.doesNotMatch(output, /\u001bPq/);
+  assert.doesNotMatch(output, new RegExp(`${ESC}_G`));
+  assert.doesNotMatch(output, new RegExp(`${ESC}Pq`));
   assert.doesNotMatch(output, /[\ue000-\uf8ff]/u);
 });
 

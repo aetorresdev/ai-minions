@@ -88,6 +88,7 @@ const ENTRIES = {
   'tests/operator/operatorTuiSplashTheme.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiLanding.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiPixelArt.test.js': { owner: 'operator', kind: 'unit' },
+  'tests/operator/terminalPixelArtLock.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiLiveMonitor.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorGuidedLauncher.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiSlashCommands.test.js': { owner: 'operator', kind: 'unit' },
