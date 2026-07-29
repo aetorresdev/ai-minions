@@ -15,6 +15,7 @@ const {
   shellModelToOptions,
   isInkLocalShellAction,
   contentSurfaceForLocalAction,
+  seedConfigModelFromShell,
   navItemsForMovement,
 } = require('./operator-tui-shell-model.js');
 const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor, brandGradientStop } = require('./operator-tui-theme.js');
@@ -242,8 +243,9 @@ function LandingHomeView(props) {
     Box,
     {
       flexDirection: 'column',
-      borderStyle: model.focus === 'content' ? 'double' : 'single',
-      borderColor: focusBorderColor(theme, model.focus === 'content'),
+      // Readiness is informational on landing — content focus belongs to Recent Runs.
+      borderStyle: 'single',
+      borderColor: theme.muted,
       paddingX: 1,
       flexGrow: comp.show_recent_runs || comp.show_quick_start ? 1 : 0,
     },
@@ -282,8 +284,8 @@ function LandingHomeView(props) {
       Box,
       {
         flexDirection: 'column',
-        borderStyle: 'single',
-        borderColor: theme.muted,
+        borderStyle: model.focus === 'content' ? 'double' : 'single',
+        borderColor: focusBorderColor(theme, model.focus === 'content'),
         paddingX: 1,
         flexGrow: 1,
       },
@@ -298,26 +300,32 @@ function LandingHomeView(props) {
           React.createElement(
             Text,
             { key: 'rr-count', dimColor: true, color: theme.muted, wrap: 'truncate' },
-            `Showing ${landing.recent_runs_showing} of ${landing.recent_runs_total}`,
+            `Showing ${landing.recent_runs_showing} of ${landing.recent_runs_total}`
+              + (model.focus === 'content' ? ' · ↑/↓ select · Enter open' : ''),
           ),
-          ...landing.recent_runs.map((run, idx) => React.createElement(
-            Text,
-            {
-              key: `rr-${idx}`,
-              wrap: 'truncate',
-              color: toneColor(
-                theme,
-                run.activity_state === 'completed'
-                  ? 'ok'
-                  : (run.activity_state === 'blocked'
-                    ? 'blocked'
-                    : (run.activity_state === 'failed'
-                      ? 'fail'
-                      : (run.activity_state === 'active' ? 'warn' : 'unavailable'))),
-              ),
-            },
-            formatRecentRunEntryLine(run, model.columns, { compact }),
-          )),
+          ...landing.recent_runs.map((run, idx) => {
+            const selected = run.run_id === model.selectedRunId;
+            const mark = model.focus === 'content' && selected ? selectedMark : ' ';
+            return React.createElement(
+              Text,
+              {
+                key: `rr-${idx}`,
+                wrap: 'truncate',
+                bold: model.focus === 'content' && selected,
+                color: toneColor(
+                  theme,
+                  run.activity_state === 'completed'
+                    ? 'ok'
+                    : (run.activity_state === 'blocked'
+                      ? 'blocked'
+                      : (run.activity_state === 'failed'
+                        ? 'fail'
+                        : (run.activity_state === 'active' ? 'warn' : 'unavailable'))),
+                ),
+              },
+              `${mark}${formatRecentRunEntryLine(run, model.columns, { compact })}`,
+            );
+          }),
         ]
         : [
           React.createElement(
@@ -325,7 +333,7 @@ function LandingHomeView(props) {
             { key: 'rr-empty', color: theme.muted, wrap: 'truncate' },
             landing.empty_state
               ? `  ${landing.empty_state.title}: ${landing.empty_state.body}`
-              : '  (No runs yet)',
+              : '  (No runs yet · Enter opens Browse Runs)',
           ),
         ]),
     )
@@ -886,10 +894,11 @@ function ShellApp(props) {
       // Landing surfaces stay mounted — unmount+clear looks like TUI_SHELL_OK.
       if (isInkLocalShellAction(actionId)) {
         const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
-        commit(buildShellModel({
+        const opts = {
           ...shellModelToOptions(current),
           contentSurface: surface,
-          selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+          selectedNavId: surface === 'diagnostics' ? 'diagnostics'
+            : (surface === 'config' ? 'config' : surface),
           focus: 'nav',
           commandInput: '',
           activeWorkflow: null,
@@ -897,7 +906,11 @@ function ShellApp(props) {
           helpSelectedTopicId: surface === 'help'
             ? (current.helpSelectedTopicId ?? undefined)
             : current.helpSelectedTopicId,
-        }));
+        };
+        if (surface === 'config') {
+          opts.configModel = seedConfigModelFromShell(current);
+        }
+        commit(buildShellModel(opts));
         return;
       }
       requestAction(actionId);
@@ -983,14 +996,19 @@ function ShellApp(props) {
             : (token === 'help' || token === '?' ? 'help' : token));
         if (isInkLocalShellAction(localToken)) {
           const surface = contentSurfaceForLocalAction(localToken) ?? 'home';
-          commit(buildShellModel({
+          const opts = {
             ...shellModelToOptions(current),
             contentSurface: surface,
-            selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+            selectedNavId: surface === 'diagnostics' ? 'diagnostics'
+              : (surface === 'config' ? 'config' : surface),
             focus: 'nav',
             commandInput: '',
             activeWorkflow: null,
-          }));
+          };
+          if (surface === 'config') {
+            opts.configModel = seedConfigModelFromShell(current);
+          }
+          commit(buildShellModel(opts));
           return;
         }
         requestAction(actionId);

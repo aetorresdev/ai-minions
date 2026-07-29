@@ -1224,6 +1224,7 @@ function formatLandingLines(landing, options = {}) {
 /**
  * In-process Help topics (presentation only — never dispatch shell remounts).
  * Selecting a topic must stay mounted; digits here are topic keys, not Quick Start.
+ * Catalog covers navigation + selected-run Overview / Monitor / Evidence / Explain.
  * @returns {ReadonlyArray<{ id: string, key: string, label: string, lines: string[] }>}
  */
 function helpTopics() {
@@ -1231,7 +1232,7 @@ function helpTopics() {
     Object.freeze({
       id: 'navigation',
       key: '1',
-      label: 'Navigation goals',
+      label: 'Help overview · Navigation',
       lines: Object.freeze([
         'Navigation goals (shell surfaces):',
         '  Home (h)            Task-first landing',
@@ -1245,22 +1246,60 @@ function helpTopics() {
       ]),
     }),
     Object.freeze({
-      id: 'run_context',
+      id: 'overview',
       key: '2',
-      label: 'When a run is selected',
+      label: 'Overview (o)',
       lines: Object.freeze([
-        'When a run is selected (from Home / Runs):',
-        '  Overview (o)   Status / next_safe_action',
-        '  Monitor (m)    Live phase + reason codes',
-        '  Evidence (e)   Attach / bundle availability',
-        '  Explain (x)    Explain next safe action',
+        'Overview (hotkey o) — when a run is selected:',
+        '  Shows the seeded selected-run status snapshot on the shell model.',
+        '  Fields: result_code · status · outcome · reason_code · next_safe_action.',
+        '  In-process only — no remount, no fresh status query.',
+        '  Fresh status: CLI `ai-minions status` or slash `/status`.',
         '',
-        'These keys are inactive while this Help surface is open.',
+        'This key is inactive while the Help surface is open (use Esc → Home first).',
+      ]),
+    }),
+    Object.freeze({
+      id: 'monitor',
+      key: '3',
+      label: 'Monitor (m)',
+      lines: Object.freeze([
+        'Monitor (hotkey m) — when a run is selected:',
+        '  Live phase + reason codes for the selected run (read-only).',
+        '  Opens the live monitor surface inside Ink when a run is selected.',
+        '',
+        'This key is inactive while the Help surface is open (use Esc → Home first).',
+      ]),
+    }),
+    Object.freeze({
+      id: 'evidence',
+      key: '4',
+      label: 'Evidence (e)',
+      lines: Object.freeze([
+        'Evidence (hotkey e) — when a run is selected:',
+        '  Seeded attach / bundle availability from the shell evidence model.',
+        '  In-process only — no attach prompt, no remount.',
+        '  Attach generation: nested pane / CLI `ai-minions attach` / slash `/attach`.',
+        '',
+        'Digit 4 here opens this topic — never Settings (that would remount / look like quit).',
+      ]),
+    }),
+    Object.freeze({
+      id: 'explain',
+      key: '5',
+      label: 'Explain (x)',
+      lines: Object.freeze([
+        'Explain (hotkey x) — when a run is selected:',
+        '  Shares the Overview status surface (reason_code / next_safe_action).',
+        '  Seeded snapshot only — never synthesized from presentation text.',
+        '  Fresh explain: CLI / slash `/explain`.',
+        '',
+        'This key is inactive while the Help surface is open (use Esc → Home first).',
       ]),
     }),
     Object.freeze({
       id: 'keys',
-      key: '3',
+      key: '6',
       label: 'Keys and input',
       lines: Object.freeze([
         'Keys:',
@@ -1268,12 +1307,12 @@ function helpTopics() {
         '  Top-level s is ignored (use Runs / ↑↓).',
         '  Legacy readline matrix: AI_MINIONS_TUI_LEGACY=1 only.',
         '',
-        'Inside Help: ↑/↓ topics · 1–5 open topic · Enter open · Esc close topic / Home.',
+        'Inside Help: ↑/↓ topics · digit open topic · Enter open · Esc close topic / Home.',
       ]),
     }),
     Object.freeze({
       id: 'display',
-      key: '4',
+      key: '7',
       label: 'Icons and display',
       lines: Object.freeze([
         'Icons: AI_MINIONS_TUI_ICONS=nerd|unicode|ascii',
@@ -1290,12 +1329,13 @@ function helpTopics() {
     }),
     Object.freeze({
       id: 'limits',
-      key: '5',
+      key: '8',
       label: 'Honest product limits',
       lines: Object.freeze([
         'Operator modules remain authoritative.',
         'Not claimed: Web UI · mouse clicks on labels · durable resume.',
         'Help topics are in-process only — no nested readline from this surface.',
+        'Cold start always lands on Home — Start New Run requires an explicit open.',
       ]),
     }),
   ]);

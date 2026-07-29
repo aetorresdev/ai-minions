@@ -19,7 +19,9 @@ const {
   formatShellText,
   isShellSessionEndAction,
   isInkLocalRemountFallbackAction,
+  isInkLocalShellAction,
   contentSurfaceForLocalAction,
+  seedConfigModelFromShell,
   shellModelToOptions,
 } = require('./operator-tui-shell-model');
 const {
@@ -32,6 +34,7 @@ const {
   withTerminalGuard,
   prepareNestedPaneIo,
   prepareInkRemount,
+  drainStdinColdStart,
 } = require('./operator-tui-terminal-guard');
 const { adaptActionResult } = require('./operator-tui-adapters');
 const { shouldSkipSplash } = require('./operator-tui-splash');
@@ -109,6 +112,33 @@ function buildFirstPaintShellModel(options = {}) {
     iconMode: options.iconMode ?? options.icons,
     productVersion: aboutInfo.version,
   });
+}
+
+/**
+ * Cold start / new TUI process always boots to landing home unless the operator
+ * explicitly requested start-run (CLI / confirmed handoff flag).
+ * Ignores stale contentSurface / activeWorkflow residues that would skip landing.
+ * @param {{
+ *   contentSurface?: string,
+ *   activeWorkflow?: object | null,
+ *   explicitStartRun?: boolean,
+ * }} [options]
+ * @returns {{ contentSurface: string, activeWorkflow: null | object }}
+ */
+function resolveColdStartShellSurface(options = {}) {
+  if (options.explicitStartRun === true) {
+    const wf = options.activeWorkflow && typeof options.activeWorkflow === 'object'
+      ? options.activeWorkflow
+      : null;
+    return {
+      contentSurface: wf ? 'launcher_workflow' : 'home',
+      activeWorkflow: wf,
+    };
+  }
+  return {
+    contentSurface: 'home',
+    activeWorkflow: null,
+  };
 }
 
 /**
@@ -219,7 +249,12 @@ async function runOperatorTuiShell(options = {}) {
   let selectedRunId = options.selectedRunId == null || options.selectedRunId === ''
     ? null
     : String(options.selectedRunId);
-  let contentSurface = 'home';
+  const coldStart = resolveColdStartShellSurface({
+    contentSurface: options.contentSurface,
+    activeWorkflow: options.activeWorkflow,
+    explicitStartRun: options.explicitStartRun === true,
+  });
+  let contentSurface = coldStart.contentSurface;
   /** @type {object | null} */
   let statusResult = options.statusResult && typeof options.statusResult === 'object'
     ? options.statusResult
@@ -293,6 +328,7 @@ async function runOperatorTuiShell(options = {}) {
       colorEnabled,
       icons: iconMode ?? model.iconMode,
       productVersion: aboutInfo.version,
+      activeWorkflow: coldStart.activeWorkflow,
     });
     selectedRunId = model.selectedRunId;
   }
@@ -391,6 +427,10 @@ async function runOperatorTuiShell(options = {}) {
   } else {
     discoverShellBootstrap();
   }
+
+  // Drop terminal leftovers from a prior session / splash dismiss before first
+  // interactive shell frame — residual Enter/`1` must not skip landing into Start New Run.
+  drainStdinColdStart(stdin);
 
   try {
     while (loops < maxLoops) {
@@ -954,11 +994,16 @@ async function runOperatorTuiShell(options = {}) {
         }
       }
 
-      // Landing chrome fallback remount only. Overview / Explain / Evidence must switch
-      // inside the active Ink render (render.mjs) — never soft-handoff / prepareInkRemount.
-      if (isInkLocalRemountFallbackAction(actionId)) {
+      // Landing chrome fallback remount only. Overview / Explain / Evidence / Settings
+      // must switch inside the active Ink render (render.mjs) — never soft-handoff.
+      // If a harness leaks requestAction for an Ink-local id, remount the surface
+      // without nested readline (silent-quit lookalike).
+      if (isInkLocalRemountFallbackAction(actionId) || isInkLocalShellAction(actionId)) {
         const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
         contentSurface = surface;
+        if (surface === 'config') {
+          configModel = seedConfigModelFromShell(model);
+        }
         prepareInkRemount({ stdin });
         guard = createTerminalGuard({ stdin, stdout });
         model = buildShellModel({
@@ -974,7 +1019,8 @@ async function runOperatorTuiShell(options = {}) {
           lifecycleSource,
           monitorSource,
           selectedRunId,
-          selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+          selectedNavId: surface === 'diagnostics' ? 'diagnostics'
+            : (surface === 'config' ? 'config' : surface),
           contentSurface: surface,
           columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
           rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
@@ -1145,5 +1191,6 @@ module.exports = {
   legacyShellRequested,
   buildFirstPaintShellModel,
   shouldShowProductionSplash,
+  resolveColdStartShellSurface,
   runOperatorTuiShell,
 };

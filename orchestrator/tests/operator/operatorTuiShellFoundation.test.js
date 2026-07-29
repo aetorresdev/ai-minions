@@ -39,6 +39,7 @@ const {
   prepareNestedPaneIo,
   prepareInkRemount,
   drainStdin,
+  drainStdinColdStart,
   RESTORE_SEQUENCE,
   SOFT_HANDOFF_SEQUENCE,
   CLEAR_SEQUENCE,
@@ -46,6 +47,7 @@ const {
 const {
   TUI_SHELL_REASON,
   runOperatorTuiShell,
+  resolveColdStartShellSurface,
 } = require('../../modules/operator/operator-tui-shell-entry');
 const {
   NATIVE_LAUNCHER_EXECUTE_ACTION,
@@ -419,12 +421,13 @@ test('digit hotkeys never take quit path; q still quits without running panes', 
   await new Promise((r) => setTimeout(r, 80));
   stdin.write('\u001b'); // Esc cancels native workflow back to shell
   await new Promise((r) => setTimeout(r, 80));
-  stdin.write('4'); // settings / config → still nested Phase-2 pane
+  stdin.write('4'); // settings / config → Ink-local (no executeAction)
   await new Promise((r) => setTimeout(r, 80));
   stdin.write('q'); // quit — must not call executeAction('quit') after early session-end
   const result = await promise;
-  assert.deepEqual(actions, ['config']);
+  assert.deepEqual(actions, [], 'digits stay Ink-local/native; quit is session-end only');
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.equal(result.model?.contentSurface, 'config');
   stdin.destroy();
   stdout.destroy();
 });
@@ -510,23 +513,29 @@ test('Esc and local surfaces never set endsSession; q/Ctrl+C//quit do', () => {
   assert.equal(isInkLocalShellAction('home'), true);
   assert.equal(isInkLocalShellAction('help'), true);
   assert.equal(isInkLocalShellAction('diagnostics'), true);
+  assert.equal(isInkLocalShellAction('config'), true, 'Settings stays Ink-local');
   assert.equal(isInkLocalShellAction('runs'), false, 'runs is native workflow, not contentSurface local');
   assert.equal(isInkLocalShellAction('launcher'), false);
   assert.equal(contentSurfaceForLocalAction('3'), null);
   assert.equal(contentSurfaceForLocalAction('diagnostics'), 'diagnostics');
+  assert.equal(contentSurfaceForLocalAction('config'), 'config');
 
   assert.equal(resolveShellKeypress('', { escape: true }, model).type, 'surface_home');
   assert.equal(resolveShellKeypress('', { escape: true }, model).endsSession, false);
   assert.equal(resolveShellKeypress('?', {}, model).type, 'ignore', 're-? on Help stays mounted');
   assert.equal(resolveShellKeypress('?', {}, model).endsSession, false);
+  assert.equal(resolveShellKeypress('2', {}, model).type, 'help_open');
+  assert.equal(resolveShellKeypress('2', {}, model).topicId, 'overview');
   assert.equal(resolveShellKeypress('3', {}, model).type, 'help_open');
-  assert.equal(resolveShellKeypress('3', {}, model).topicId, 'keys');
+  assert.equal(resolveShellKeypress('3', {}, model).topicId, 'monitor');
   assert.equal(resolveShellKeypress('3', {}, model).endsSession, false);
-  assert.equal(resolveShellKeypress('4', {}, model).type, 'help_open', 'digit 4 on Help is topic, not Settings');
-  assert.equal(resolveShellKeypress('4', {}, model).topicId, 'display');
+  assert.equal(resolveShellKeypress('4', {}, model).type, 'help_open', 'digit 4 on Help is Evidence topic, not Settings');
+  assert.equal(resolveShellKeypress('4', {}, model).topicId, 'evidence');
   assert.notEqual(resolveShellKeypress('4', {}, model).actionId, 'config');
-  assert.equal(resolveShellKeypress('5', {}, model).type, 'help_open', 'digit 5 opens limits topic');
-  assert.equal(resolveShellKeypress('5', {}, model).topicId, 'limits');
+  assert.equal(resolveShellKeypress('5', {}, model).type, 'help_open', 'digit 5 opens Explain topic');
+  assert.equal(resolveShellKeypress('5', {}, model).topicId, 'explain');
+  assert.equal(resolveShellKeypress('8', {}, model).type, 'help_open', 'digit 8 opens limits topic');
+  assert.equal(resolveShellKeypress('8', {}, model).topicId, 'limits');
   assert.equal(resolveShellKeypress('', { upArrow: true }, model).type, 'help_move');
   assert.equal(resolveShellKeypress('', { upArrow: true }, model).endsSession, false);
   assert.equal(resolveShellKeypress('', { return: true }, {
@@ -541,7 +550,7 @@ test('Esc and local surfaces never set endsSession; q/Ctrl+C//quit do', () => {
   // Help isolation must win over command-input focus (Tab → prompt).
   const helpInput = { ...model, focus: 'input', commandInput: '4' };
   assert.equal(resolveShellKeypress('4', {}, helpInput).type, 'help_open');
-  assert.equal(resolveShellKeypress('4', {}, helpInput).topicId, 'display');
+  assert.equal(resolveShellKeypress('4', {}, helpInput).topicId, 'evidence');
   assert.notEqual(resolveShellKeypress('', { return: true }, helpInput).type, 'input_submit');
   assert.equal(resolveShellKeypress('', { return: true }, helpInput).type, 'help_open');
   assert.equal(resolveShellKeypress('q', {}, helpInput).type, 'quit');
@@ -615,10 +624,10 @@ test('Help + Tab to input: 4/Enter stay in-process; q quits; executeAction never
   // Stay on Help (topic open or list) — never Settings/config remount surface.
   assert.equal(result.model?.contentSurface, 'help');
   assert.ok(
-    result.model?.helpOpenTopicId === 'display'
-      || result.model?.helpSelectedTopicId === 'display'
+    result.model?.helpOpenTopicId === 'evidence'
+      || result.model?.helpSelectedTopicId === 'evidence'
       || result.model?.helpOpenTopicId == null,
-    'digit 4 on Help is in-process topic, not Settings',
+    'digit 4 on Help is Evidence topic, not Settings',
   );
 });
 
@@ -742,10 +751,10 @@ test('shell nested pane receives answer buffered immediately after dispatch Ente
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
       renderOperatorTuiShell: async ({ onRequestAction }) => {
-        // Phase-1 launcher is native Ink; use config (still nested) to prove buffered answer.
+        // Settings is Ink-local; use attach (still nested) to prove buffered answer.
         stdin.write('\nc\n');
-        onRequestAction('config');
-        return { aborted: false, requestedAction: 'config' };
+        onRequestAction('attach');
+        return { aborted: false, requestedAction: 'attach' };
       },
     }),
     executeAction: async ({ stdin: actionStdin, stdout: actionStdout }) => {
@@ -762,12 +771,12 @@ test('shell nested pane receives answer buffered immediately after dispatch Ente
       return {
         quit: true,
         selectedRunId: null,
-        contentSurface: 'config',
+        contentSurface: 'action_result',
         actionResult: {
-          action_id: 'config',
+          action_id: 'attach',
           ok: true,
           exit_code: 0,
-          reason_code: 'CONFIG_OK',
+          reason_code: 'ATTACH_OK',
           text: `got:${answer}`,
         },
         evidenceModel: null,
@@ -1007,9 +1016,9 @@ test('non-fatal failed action result soft-remounts; full restore only on quit', 
       renderOperatorTuiShell: async ({ onRequestAction }) => {
         renderPasses += 1;
         if (renderPasses === 1) {
-          // Phase-2 nested pane still exercises soft remount on ok:false.
-          onRequestAction('config');
-          return { aborted: false, requestedAction: 'config' };
+          // Nested attach still exercises soft remount on ok:false.
+          onRequestAction('attach');
+          return { aborted: false, requestedAction: 'attach' };
         }
         onRequestAction('q');
         return { aborted: false, requestedAction: 'q' };
@@ -1039,10 +1048,10 @@ test('non-fatal failed action result soft-remounts; full restore only on quit', 
         selectedRunId: null,
         contentSurface: 'action_result',
         actionResult: {
-          action_id: 'config',
+          action_id: 'attach',
           ok: false,
           exit_code: 1,
-          reason_code: 'CONFIG_FAILED',
+          reason_code: 'ATTACH_FAILED',
           text: 'failed',
         },
         evidenceModel: null,
@@ -1061,7 +1070,7 @@ test('non-fatal failed action result soft-remounts; full restore only on quit', 
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
   assert.notEqual(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
   assert.equal(result.guard.restored, true);
-  assert.equal(result.model.actionResult?.reason_code, 'CONFIG_FAILED');
+  assert.equal(result.model.actionResult?.reason_code, 'ATTACH_FAILED');
   stdin.destroy();
   stdout.destroy();
 });
@@ -1169,8 +1178,8 @@ test('thrown action exception full-restores terminal', async () => {
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
       renderOperatorTuiShell: async ({ onRequestAction }) => {
-        onRequestAction('config');
-        return { aborted: false, requestedAction: 'config' };
+        onRequestAction('attach');
+        return { aborted: false, requestedAction: 'attach' };
       },
     }),
     executeAction: async () => {
@@ -1203,8 +1212,8 @@ test('action failure returns to shell state with reason_code', async () => {
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
       renderOperatorTuiShell: async ({ onRequestAction }) => {
-        onRequestAction('config');
-        return { aborted: false, requestedAction: 'config' };
+        onRequestAction('attach');
+        return { aborted: false, requestedAction: 'attach' };
       },
     }),
     executeAction: async () => ({
@@ -1212,10 +1221,10 @@ test('action failure returns to shell state with reason_code', async () => {
       selectedRunId: null,
       contentSurface: 'action_result',
       actionResult: {
-        action_id: 'config',
+        action_id: 'attach',
         ok: false,
         exit_code: 1,
-        reason_code: 'CONFIG_FAILED',
+        reason_code: 'ATTACH_FAILED',
         text: 'failed',
       },
       evidenceModel: null,
@@ -1224,7 +1233,7 @@ test('action failure returns to shell state with reason_code', async () => {
       runsPayload: null,
     }),
   });
-  assert.equal(result.model.actionResult.reason_code, 'CONFIG_FAILED');
+  assert.equal(result.model.actionResult.reason_code, 'ATTACH_FAILED');
   // maxLoops/autoQuit ends the session — restore is session-end, not action-failure.
   assert.equal(result.guard.restored, true);
   assert.equal(result.reason_code, TUI_SHELL_REASON.OK);
@@ -1407,7 +1416,7 @@ test('Overview/Explain/Evidence hotkeys stay Ink-local (zero executeAction)', as
   stdout.destroy();
 });
 
-test('System Status hotkey 3 and Enter stay mounted; Settings back remounts', async () => {
+test('System Status hotkey 3 and Enter stay mounted; Settings stays Ink-local', async () => {
   const { RESTORE_SEQUENCE: restoreSeq } = require('../../modules/operator/operator-tui-terminal-guard');
   const { stdin, stdout } = createFakeTtyStreams();
   const out = [];
@@ -1427,27 +1436,6 @@ test('System Status hotkey 3 and Enter stay mounted; Settings back remounts', as
     assessPath: () => ({ status: 'ready', on_path: true }),
     executeAction: async (opts) => {
       actions.push(opts.actionId);
-      if (opts.actionId === 'config') {
-        return {
-          quit: false,
-          selectedRunId: null,
-          contentSurface: 'config',
-          actionResult: {
-            action_id: 'config',
-            ok: true,
-            exit_code: 0,
-            reason_code: 'CONFIG_READINESS_PANE_BACK',
-            text: 'back',
-          },
-          configModel: {
-            ok: true,
-            model_policy: 'local_only',
-            path_activation: { status: 'ready', on_path: true },
-            credentials: { credential_sufficiency: 'not_required', providers: [] },
-            remediation_candidates: [],
-          },
-        };
-      }
       return {
         quit: false,
         selectedRunId: null,
@@ -1473,16 +1461,16 @@ test('System Status hotkey 3 and Enter stay mounted; Settings back remounts', as
   stdin.write('3'); // hotkey System Status
   await new Promise((r) => setTimeout(r, 80));
   assert.deepEqual(actions, [], 'System Status must not open nested executeAction');
-  stdin.write('4'); // Settings → nested config
+  stdin.write('4'); // Settings → Ink-local config
   await new Promise((r) => setTimeout(r, 120));
-  assert.deepEqual(actions, ['config']);
+  assert.deepEqual(actions, [], 'Settings must stay Ink-local (no nested executeAction)');
   stdin.write('q');
   const result = await promise;
   const joined = out.join('');
-  assert.ok(joined.includes('nested pane'), 'Settings still uses Phase-2 nested pane');
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
   assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
   assert.equal(joined.split(restoreSeq).length - 1, 1, 'alt-screen exit only at session end');
+  assert.equal(result.model?.contentSurface, 'config');
   stdin.destroy();
   stdout.destroy();
 });
@@ -1539,9 +1527,10 @@ test('Help topics stay in-process: digit 4 opens topic, never Settings remount',
   stdout.destroy();
 });
 
-test('Settings nested pane back remounts Ink shell (not silent TUI_SHELL_OK)', async () => {
+test('Settings Ink-local: digit 4 stays mounted; Esc home; q quits', async () => {
+  const actions = [];
   const { stdin, stdout } = createFakeTtyStreams();
-  let renderPasses = 0;
+  let passes = 0;
   const result = await runOperatorTuiShell({
     isTTY: true,
     stdin,
@@ -1553,13 +1542,15 @@ test('Settings nested pane back remounts Ink shell (not silent TUI_SHELL_OK)', a
     assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
-      renderOperatorTuiShell: async ({ onRequestAction }) => {
-        renderPasses += 1;
-        if (renderPasses === 1) {
+      renderOperatorTuiShell: async ({ onRequestAction, model }) => {
+        passes += 1;
+        if (passes === 1) {
+          // Simulate Ink-local Settings via requestAction leak path — entry must not nested-pane.
           onRequestAction('config');
           return { aborted: false, requestedAction: 'config' };
         }
-        if (renderPasses === 2) {
+        if (passes === 2) {
+          assert.equal(model?.contentSurface, 'config');
           onRequestAction('q');
           return { aborted: false, requestedAction: 'q' };
         }
@@ -1567,11 +1558,12 @@ test('Settings nested pane back remounts Ink shell (not silent TUI_SHELL_OK)', a
       },
     }),
     executeAction: async ({ actionId }) => {
+      actions.push(actionId);
       if (actionId === 'quit') {
         return {
           quit: true,
           selectedRunId: null,
-          contentSurface: 'action_result',
+          contentSurface: 'home',
           actionResult: {
             action_id: 'quit',
             ok: true,
@@ -1581,31 +1573,14 @@ test('Settings nested pane back remounts Ink shell (not silent TUI_SHELL_OK)', a
           },
         };
       }
-      return {
-        quit: false,
-        selectedRunId: null,
-        contentSurface: 'config',
-        actionResult: {
-          action_id: 'config',
-          ok: true,
-          exit_code: 0,
-          reason_code: 'CONFIG_READINESS_PANE_BACK',
-          text: 'back',
-        },
-        configModel: {
-          ok: true,
-          model_policy: 'local_only',
-          path_activation: { status: 'ready', on_path: true },
-          credentials: { credential_sufficiency: 'not_required', providers: [] },
-          remediation_candidates: [],
-        },
-      };
+      throw new Error(`Settings must not nested executeAction(${actionId})`);
     },
   });
-  assert.equal(renderPasses, 2, 'config back must remount a second Ink frame');
+  assert.equal(passes, 2, 'config stays in remount loop without nested pane');
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
   assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
-  assert.equal(result.model.contentSurface, 'config');
+  assert.ok(!actions.includes('config'), 'config must not call executeAction');
+  assert.equal(result.model?.contentSurface, 'config');
   stdin.destroy();
   stdout.destroy();
 });
@@ -1792,7 +1767,7 @@ test('legacy readline rollback path does not load Ink', async () => {
   assert.equal(result.reason_code, 'COCKPIT_QUIT');
 });
 
-test('dumb surface walk: all major Ink-local surfaces stay single-mount; Settings remounts once', async () => {
+test('dumb surface walk: all major Ink-local surfaces stay single-mount including Settings', async () => {
   const { stdin, stdout } = createFakeTtyStreams();
   const out = [];
   stdout.on('data', (chunk) => {
@@ -1855,27 +1830,6 @@ test('dumb surface walk: all major Ink-local surfaces stay single-mount; Setting
     },
     executeAction: async (opts) => {
       actions.push(opts.actionId);
-      if (opts.actionId === 'config') {
-        return {
-          quit: false,
-          selectedRunId: opts.selectedRunId ?? null,
-          contentSurface: 'config',
-          actionResult: {
-            action_id: 'config',
-            ok: true,
-            exit_code: 0,
-            reason_code: 'CONFIG_READINESS_PANE_BACK',
-            text: 'back',
-          },
-          configModel: {
-            ok: true,
-            model_policy: 'local_only',
-            path_activation: { status: 'ready', on_path: true },
-            credentials: { credential_sufficiency: 'not_required', providers: [] },
-            remediation_candidates: [],
-          },
-        };
-      }
       return {
         quit: false,
         selectedRunId: opts.selectedRunId ?? null,
@@ -1955,21 +1909,21 @@ test('dumb surface walk: all major Ink-local surfaces stay single-mount; Setting
   stdin.write('\x1b');
   await tick();
 
-  // Settings — nested Phase-2 pane: allowed remount after back.
-  const mountsBeforeSettings = mountCount;
-  const softBeforeSettings = softCount();
+  // Settings — Ink-local seeded config (no remount / nested pane).
   stdin.write('4');
   await tick(120);
-  assert.deepEqual(actions, ['config'], 'Settings is the only nested executeAction');
-  assert.ok(mountCount >= mountsBeforeSettings + 1, 'Settings back remounts Ink');
-  assert.ok(softCount() >= softBeforeSettings + 1, 'Settings uses soft handoff into nested pane');
+  assert.deepEqual(actions, [], 'Settings must not nested executeAction');
+  assert.equal(mountCount, 1, 'Settings stays single-mount');
+  assert.equal(softCount(), 0, 'Settings must not soft-handoff');
+  assert.ok(surfaces.includes('config'), 'config surface');
+  stdin.write('\x1b');
+  await tick();
 
   stdin.write('q');
   const result = await promise;
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
   assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
-  // No stray remount actions beyond Settings.
-  assert.deepEqual(actions, ['config']);
+  assert.deepEqual(actions, [], 'no nested remount actions on dumb walk');
   stdin.destroy();
   stdout.destroy();
 });
@@ -1997,4 +1951,132 @@ test('viewport budgets keep CTA and Overall across 50x16 / 80x24 / 120x36', () =
     assert.match(text, /Start New Run/, `${vp.columns}x${vp.rows}: CTA`);
     assert.match(text, /Overall:/, `${vp.columns}x${vp.rows}: Overall`);
   }
+});
+
+test('cold start ignores stale launcher resume and drains residual stdin', async () => {
+  assert.deepEqual(resolveColdStartShellSurface({
+    contentSurface: 'launcher_workflow',
+    activeWorkflow: { kind: 'launcher', step: 'agent_flow' },
+  }), { contentSurface: 'home', activeWorkflow: null });
+  assert.equal(
+    resolveColdStartShellSurface({ explicitStartRun: true, activeWorkflow: { kind: 'launcher' } })
+      .contentSurface,
+    'launcher_workflow',
+  );
+
+  const fakeStdin = {
+    readableLength: 2,
+    _n: 0,
+    read() {
+      this._n += 1;
+      if (this._n === 1) {
+        this.readableLength = 1;
+        return Buffer.from('\r');
+      }
+      if (this._n === 2) {
+        this.readableLength = 0;
+        return Buffer.from('1');
+      }
+      this.readableLength = 0;
+      return null;
+    },
+  };
+  assert.ok(drainStdinColdStart(fakeStdin) >= 2, 'cold start drains leftover keys');
+
+  const { stdin, stdout } = createFakeTtyStreams();
+  stdin.write('\r1\r');
+  let modelSnap = null;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 1,
+    autoQuitMs: 80,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    activeWorkflow: { kind: 'launcher', step: 'agent_flow' },
+    contentSurface: 'launcher_workflow',
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ model, onModelChange }) => {
+        modelSnap = model;
+        if (typeof onModelChange === 'function') onModelChange(model);
+        await new Promise((r) => setTimeout(r, 40));
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+    executeAction: async () => {
+      throw new Error('cold start must not executeAction');
+    },
+  });
+  assert.equal(modelSnap?.contentSurface, 'home');
+  assert.equal(modelSnap?.activeWorkflow, null);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('Tab content focus Enter stays in-process (no monitor soft-handoff exit)', () => {
+  const withRun = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: canonicalRunsResult([
+      { run_id: 'r1', status: 'complete', outcome: 'success', result_code: 'RUN_FOUND' },
+    ]),
+    contentSurface: 'home',
+    focus: 'content',
+    selectedRunId: 'r1',
+    selectedNavId: 'launcher',
+  });
+  const enterRun = resolveShellKeypress('', { return: true }, withRun);
+  assert.equal(enterRun.type, 'dispatch');
+  assert.equal(enterRun.actionId, 'status', 'Enter on Recent Runs opens Overview, not monitor');
+  assert.equal(enterRun.endsSession, false);
+  assert.equal(isInkLocalShellAction(enterRun.actionId), true);
+
+  const empty = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: canonicalRunsResult([]),
+    contentSurface: 'home',
+    focus: 'content',
+    selectedRunId: null,
+    selectedNavId: 'launcher',
+  });
+  const enterEmpty = resolveShellKeypress('', { return: true }, empty);
+  assert.equal(enterEmpty.endsSession, false);
+  assert.ok(
+    enterEmpty.actionId === 'diagnostics' || enterEmpty.actionId === 'runs',
+    `empty content Enter stays local/native: ${enterEmpty.actionId}`,
+  );
+  assert.notEqual(enterEmpty.actionId, 'monitor');
+  assert.notEqual(enterEmpty.type, 'quit');
+});
+
+test('Recent Runs content focus: ↑/↓ select run; Enter opens Overview', () => {
+  let model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: canonicalRunsResult([
+      { run_id: 'a', status: 'complete', outcome: 'success', result_code: 'RUN_FOUND' },
+      { run_id: 'b', status: 'blocked', outcome: 'blocked', result_code: 'RUN_FOUND' },
+    ]),
+    contentSurface: 'home',
+    focus: 'nav',
+    selectedRunId: 'a',
+    selectedNavId: 'launcher',
+  });
+  model = cycleFocus(model);
+  assert.equal(model.focus, 'content', 'Tab lands on Recent Runs content focus');
+  assert.equal(resolveShellKeypress('', { downArrow: true }, model).type, 'run_move');
+  model = moveRunSelection(model, 'next');
+  assert.equal(model.selectedRunId, 'b');
+  const open = resolveShellKeypress('', { return: true }, { ...model, focus: 'content' });
+  assert.equal(open.actionId, 'status');
+  assert.equal(isInkLocalShellAction('status'), true);
 });

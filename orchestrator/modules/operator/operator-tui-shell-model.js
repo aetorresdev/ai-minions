@@ -290,8 +290,8 @@ function isShellSessionEndAction(actionId) {
 function isInkLocalShellAction(actionId) {
   const id = String(actionId ?? '').trim().toLowerCase();
   // `runs` / launcher are Phase-1 native workflows (still Ink-mounted, separate path).
-  // Overview / Explain / Evidence stay in-process like Help / System Status — never
-  // soft-handoff into nested readline (silent-quit lookalike / lost remount).
+  // Overview / Explain / Evidence / Settings stay in-process like Help / System Status —
+  // never soft-handoff into nested readline (silent-quit lookalike / lost remount).
   return id === 'home'
     || id === 'help'
     || id === 'diagnostics'
@@ -300,7 +300,9 @@ function isInkLocalShellAction(actionId) {
     || id === 'status'
     || id === 'overview'
     || id === 'explain'
-    || id === 'evidence';
+    || id === 'evidence'
+    || id === 'config'
+    || id === 'settings';
 }
 
 /**
@@ -322,7 +324,7 @@ function isInkLocalRemountFallbackAction(actionId) {
 
 /**
  * @param {unknown} actionId
- * @returns {'home'|'help'|'diagnostics'|'status'|'evidence'|null}
+ * @returns {'home'|'help'|'diagnostics'|'status'|'evidence'|'config'|null}
  */
 function contentSurfaceForLocalAction(actionId) {
   const id = String(actionId ?? '').trim().toLowerCase();
@@ -334,7 +336,41 @@ function contentSurfaceForLocalAction(actionId) {
   // Explain shares the status surface (reason_code / next_safe_action) — no nested pane.
   if (id === 'status' || id === 'overview' || id === 'explain') return 'status';
   if (id === 'evidence') return 'evidence';
+  if (id === 'config' || id === 'settings') return 'config';
   return null;
+}
+
+/**
+ * Seed Settings / config readiness from already-assessed shell home fields
+ * (no nested readline / doctor refresh — presentation snapshot only).
+ * @param {{ home?: object, landing?: object } | null | undefined} model
+ * @returns {object}
+ */
+function seedConfigModelFromShell(model) {
+  const home = model && typeof model === 'object' && model.home && typeof model.home === 'object'
+    ? model.home
+    : {};
+  const nextSafe = model?.landing?.overall?.next_action
+    ?? home.next_safe_action
+    ?? null;
+  const remediations = Array.isArray(home.remediations)
+    ? home.remediations.map((r) => String(r))
+    : [];
+  return {
+    ok: true,
+    model_policy: home.model_policy ?? null,
+    path_status: home.path_status ?? null,
+    path_activation: {
+      status: home.path_status ?? null,
+      on_path: home.cli_on_path ?? null,
+    },
+    credentials: {
+      credential_sufficiency: home.credential_sufficiency ?? null,
+      providers: Array.isArray(home.providers) ? home.providers : [],
+    },
+    remediation_candidates: remediations,
+    next_safe_action: nextSafe == null ? null : String(nextSafe),
+  };
 }
 
 /**
@@ -434,7 +470,7 @@ function resolveShellKeypress(input, key = {}, model = {}) {
       }
       const key = input.length === 1
         ? input
-        : (input.match(/[1-5]/) || [])[0] || '';
+        : (input.match(/[1-9]/) || [])[0] || '';
       const topic = topics.find((t) => t.key === key);
       if (topic) {
         return { type: 'help_open', topicId: topic.id, endsSession: false };
@@ -521,8 +557,25 @@ function resolveShellKeypress(input, key = {}, model = {}) {
     if (keyObj.downArrow || input === 'j') {
       return { type: 'run_move', direction: 'next', endsSession: false };
     }
-    if (isReturn && model.selectedRunId) {
-      return { type: 'dispatch', actionId: 'monitor', endsSession: false };
+    if (isReturn) {
+      // Content focus owns Recent Runs (and readiness when runs panel is hidden).
+      // Never soft-handoff monitor from Enter — that looks like a silent quit.
+      const surface = String(model.contentSurface ?? 'home').toLowerCase();
+      if (surface === 'home') {
+        if (model.selectedRunId) {
+          return { type: 'dispatch', actionId: 'status', endsSession: false };
+        }
+        // No selection: Browse Runs when Recent Runs panel is in composition; else System Status.
+        const showRecent = model.landing?.composition?.show_recent_runs !== false;
+        if (showRecent) {
+          return { type: 'dispatch', actionId: 'runs', endsSession: false };
+        }
+        return { type: 'dispatch', actionId: 'diagnostics', endsSession: false };
+      }
+      if (model.selectedRunId) {
+        return { type: 'dispatch', actionId: 'status', endsSession: false };
+      }
+      return { type: 'ignore', endsSession: false };
     }
   }
 
@@ -873,6 +926,7 @@ module.exports = {
   isInkLocalShellAction,
   isInkLocalRemountFallbackAction,
   contentSurfaceForLocalAction,
+  seedConfigModelFromShell,
   navItemsForMovement,
   helpTopics,
   formatLandingLines,

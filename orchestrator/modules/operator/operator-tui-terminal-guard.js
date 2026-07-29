@@ -60,6 +60,33 @@ function drainStdin(stdin) {
 }
 
 /**
+ * Cold-start only: discard leftover terminal buffer before the first Ink shell
+ * mount so a prior session's Enter/`1` cannot auto-open Start New Run.
+ * Caps reads so a runaway pipe cannot hang boot.
+ * @param {NodeJS.ReadStream | { read?: Function, readableLength?: number } | null | undefined} stdin
+ * @param {{ maxBytes?: number }} [options]
+ * @returns {number} bytes discarded
+ */
+function drainStdinColdStart(stdin, options = {}) {
+  if (!stdin || typeof stdin.read !== 'function') return 0;
+  const maxBytes = Number.isInteger(options.maxBytes) && options.maxBytes > 0
+    ? options.maxBytes
+    : 64;
+  let discarded = 0;
+  try {
+    while (discarded < maxBytes) {
+      if (typeof stdin.readableLength === 'number' && stdin.readableLength === 0) break;
+      const chunk = stdin.read(1);
+      if (chunk == null) break;
+      discarded += 1;
+    }
+  } catch {
+    // non-fatal — shell still boots to landing
+  }
+  return discarded;
+}
+
+/**
  * Wipe leftover Ink frames, drain residual dispatch CR/LF only, force cooked mode, resume stdin.
  * Soft handoff only — does not leave alternate screen (session stays in-process).
  * @param {{
@@ -280,6 +307,7 @@ module.exports = {
   SOFT_HANDOFF_SEQUENCE,
   CLEAR_SEQUENCE,
   drainStdin,
+  drainStdinColdStart,
   prepareNestedPaneIo,
   prepareInkRemount,
   createTerminalGuard,

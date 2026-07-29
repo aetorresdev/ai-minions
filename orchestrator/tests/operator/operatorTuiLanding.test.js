@@ -335,7 +335,7 @@ test('hotkeys: task-first digits; ? help; contextual run keys when selected', ()
   assert.equal(resolveShellKeypress('s', {}, model).type, 'ignore');
 });
 
-test('home / help / diagnostics actions switch surfaces without readline', async () => {
+test('home / help / diagnostics / config actions switch surfaces without readline', async () => {
   for (const [id, surface] of [
     ['home', 'home'],
     ['help', 'help'],
@@ -357,12 +357,23 @@ test('home / help / diagnostics actions switch surfaces without readline', async
   assert.equal(resolveShellActionToken('diagnostics'), 'diagnostics');
   assert.equal(resolveShellActionToken('settings'), 'config');
   assert.equal(resolveShellActionToken('home'), 'home');
+  const {
+    isInkLocalShellAction,
+    contentSurfaceForLocalAction,
+  } = require('../../modules/operator/operator-tui-shell-model');
+  assert.equal(isInkLocalShellAction('config'), true);
+  assert.equal(isInkLocalShellAction('settings'), true);
+  assert.equal(contentSurfaceForLocalAction('config'), 'config');
 });
 
 test('help and diagnostics formatters expose remediation without inventing truth', () => {
   const helpList = formatHelpLines().join('\n');
   assert.match(helpList, /Topics \(in-process/);
-  assert.match(helpList, /Navigation goals/);
+  assert.match(helpList, /Help overview · Navigation/);
+  assert.match(helpList, /Overview \(o\)/);
+  assert.match(helpList, /Monitor \(m\)/);
+  assert.match(helpList, /Evidence \(e\)/);
+  assert.match(helpList, /Explain \(x\)/);
 
   const helpNav = formatHelpLines({ openTopicId: 'navigation' }).join('\n');
   assert.match(helpNav, /New Run \(1\)/);
@@ -370,8 +381,18 @@ test('help and diagnostics formatters expose remediation without inventing truth
   assert.match(helpNav, /Settings \(4\)/);
   assert.match(helpNav, /Help \(5 \/ \?\)/);
 
-  const helpRun = formatHelpLines({ openTopicId: 'run_context' }).join('\n');
-  assert.match(helpRun, /Overview \(o\)/);
+  const helpOverview = formatHelpLines({ openTopicId: 'overview' }).join('\n');
+  assert.match(helpOverview, /Overview \(hotkey o\)/);
+
+  const helpMonitor = formatHelpLines({ openTopicId: 'monitor' }).join('\n');
+  assert.match(helpMonitor, /Monitor \(hotkey m\)/);
+
+  const helpEvidence = formatHelpLines({ openTopicId: 'evidence' }).join('\n');
+  assert.match(helpEvidence, /Evidence \(hotkey e\)/);
+  assert.match(helpEvidence, /never Settings/);
+
+  const helpExplain = formatHelpLines({ openTopicId: 'explain' }).join('\n');
+  assert.match(helpExplain, /Explain \(hotkey x\)/);
 
   const helpKeys = formatHelpLines({ openTopicId: 'keys' }).join('\n');
   assert.match(helpKeys, /AI_MINIONS_TUI_LEGACY=1/);
@@ -385,6 +406,66 @@ test('help and diagnostics formatters expose remediation without inventing truth
   assert.match(diag, /git_commit: abc1234/);
   assert.match(diag, /EXAMPLE_TOKEN: absent \(required\)/);
   assert.match(diag, /Advanced/);
+});
+
+test('helpTopics catalog lists Overview/Monitor/Evidence/Explain and digits open each', () => {
+  const {
+    helpTopics,
+    resolveShellKeypress,
+    openHelpTopic,
+    moveHelpTopicSelection,
+    buildShellModel,
+  } = require('../../modules/operator/operator-tui-shell-model');
+  const topics = helpTopics();
+  const ids = topics.map((t) => t.id);
+  assert.deepEqual(ids, [
+    'navigation',
+    'overview',
+    'monitor',
+    'evidence',
+    'explain',
+    'keys',
+    'display',
+    'limits',
+  ]);
+  assert.equal(topics.length, 8);
+  assert.equal(topics.every((t) => /^\d+$/.test(t.key)), true);
+
+  let model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: { ok: true, json: { runs: [] } },
+    contentSurface: 'help',
+    selectedNavId: 'help',
+  });
+  for (const topic of topics) {
+    const intent = resolveShellKeypress(topic.key, {}, model);
+    assert.equal(intent.type, 'help_open', `digit ${topic.key} → ${topic.id}`);
+    assert.equal(intent.topicId, topic.id);
+    model = openHelpTopic(model, topic.id);
+    assert.equal(model.helpOpenTopicId, topic.id);
+    model = buildShellModel({
+      ...require('../../modules/operator/operator-tui-shell-model').shellModelToOptions(model),
+      helpOpenTopicId: null,
+    });
+  }
+  // Arrow walk reaches every topic from the first.
+  model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: { ok: true, json: { runs: [] } },
+    contentSurface: 'help',
+    selectedNavId: 'help',
+    helpSelectedTopicId: topics[0].id,
+  });
+  const seen = new Set([model.helpSelectedTopicId]);
+  for (let i = 0; i < topics.length - 1; i += 1) {
+    model = moveHelpTopicSelection(model, 'next');
+    seen.add(model.helpSelectedTopicId);
+  }
+  assert.equal(seen.size, topics.length, '↑/↓ visits every help topic');
 });
 
 test('theme exposes blocked distinct from danger (hex palette)', () => {

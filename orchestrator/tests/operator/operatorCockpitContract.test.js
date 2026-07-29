@@ -97,8 +97,12 @@ test('formatHelpLines lists in-process topics; topic bodies keep key guidance', 
   const { helpTopics } = require('../../modules/operator/operator-tui-landing');
   const list = formatHelpLines().join('\n');
   assert.match(list, /Topics \(in-process/);
-  assert.match(list, /1\. Navigation goals/);
-  assert.match(list, /4\. Icons and display/);
+  assert.match(list, /1\. Help overview · Navigation/);
+  assert.match(list, /2\. Overview \(o\)/);
+  assert.match(list, /3\. Monitor \(m\)/);
+  assert.match(list, /4\. Evidence \(e\)/);
+  assert.match(list, /5\. Explain \(x\)/);
+  assert.match(list, /7\. Icons and display/);
   assert.match(list, /selecting does not exit/i);
 
   const nav = formatHelpLines({ openTopicId: 'navigation' }).join('\n');
@@ -107,17 +111,20 @@ test('formatHelpLines lists in-process topics; topic bodies keep key guidance', 
   assert.match(nav, /Settings \(4\)/);
   assert.match(nav, /Help \(5 \/ \?\)/);
 
-  const runCtx = formatHelpLines({ openTopicId: 'run_context' }).join('\n');
-  assert.match(runCtx, /Overview \(o\)/);
-  assert.match(runCtx, /Monitor \(m\)/);
-  assert.match(runCtx, /Evidence \(e\)/);
-  assert.match(runCtx, /Explain \(x\)/);
+  const overview = formatHelpLines({ openTopicId: 'overview' }).join('\n');
+  assert.match(overview, /Overview \(hotkey o\)/);
+  const monitor = formatHelpLines({ openTopicId: 'monitor' }).join('\n');
+  assert.match(monitor, /Monitor \(hotkey m\)/);
+  const evidence = formatHelpLines({ openTopicId: 'evidence' }).join('\n');
+  assert.match(evidence, /Evidence \(hotkey e\)/);
+  const explain = formatHelpLines({ openTopicId: 'explain' }).join('\n');
+  assert.match(explain, /Explain \(hotkey x\)/);
 
   const keys = formatHelpLines({ openTopicId: 'keys' }).join('\n');
   assert.match(keys, /AI_MINIONS_TUI_LEGACY=1/);
   assert.match(keys, /Top-level s is ignored/i);
 
-  assert.equal(helpTopics().length, 5);
+  assert.equal(helpTopics().length, 8);
 });
 
 test('fullscreen hotkeys disagree with legacy COCKPIT_ACTIONS on 3/4/5/s', () => {

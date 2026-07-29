@@ -22,6 +22,7 @@ const {
   shellModelToOptions,
   contentSurfaceForLocalAction,
   isInkLocalShellAction,
+  seedConfigModelFromShell,
 } = require('./operator-tui-shell-model');
 
 const {
@@ -508,15 +509,20 @@ function applyUxShellIntent(model, intent) {
     }
     if (isInkLocalShellAction(actionId)) {
       const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
+      const opts = {
+        ...shellModelToOptions(model),
+        contentSurface: surface,
+        selectedNavId: surface === 'diagnostics' ? 'diagnostics'
+          : (surface === 'config' ? 'config' : surface),
+        focus: 'nav',
+        commandInput: '',
+        activeWorkflow: null,
+      };
+      if (surface === 'config') {
+        opts.configModel = seedConfigModelFromShell(model);
+      }
       return {
-        model: buildShellModel({
-          ...shellModelToOptions(model),
-          contentSurface: surface,
-          selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
-          focus: 'nav',
-          commandInput: '',
-          activeWorkflow: null,
-        }),
+        model: buildShellModel(opts),
         sessionEnded: false,
         reason: null,
         wouldExecuteAction: null,
