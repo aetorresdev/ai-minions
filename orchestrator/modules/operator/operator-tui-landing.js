@@ -685,9 +685,14 @@ function classifyRunActivity(run = {}) {
  * @param {ReadonlyArray<object>} runs
  * @param {number} [limit]
  */
-function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT) {
+function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT, offset = 0) {
   const list = Array.isArray(runs) ? runs : [];
-  const sliced = list.slice(0, Math.max(0, limit));
+  const max = Math.max(0, Number(limit) || 0);
+  const start = Math.max(0, Math.min(
+    Number.isInteger(offset) && offset > 0 ? offset : 0,
+    Math.max(0, list.length - max),
+  ));
+  const sliced = list.slice(start, start + max);
   return sliced.map((run) => {
     const activity = classifyRunActivity(run);
     return {
@@ -984,10 +989,22 @@ function buildLandingViewModel(options = {}) {
   const recentLimit = composition.show_recent_runs
     ? Math.max(0, Number(composition.recent_runs_limit) || 0)
     : 0;
-  const recent = buildRecentRunPreview(runs, recentLimit);
+  let recentOffset = Number.isInteger(options.recentRunsOffset) && options.recentRunsOffset > 0
+    ? options.recentRunsOffset
+    : 0;
   const selectedRunId = options.selectedRunId == null || options.selectedRunId === ''
     ? null
     : String(options.selectedRunId);
+  // Keep the selected run inside the visible Recent Runs window (scroll/pagination).
+  if (selectedRunId && recentLimit > 0) {
+    const selIdx = runs.findIndex((r) => String(r.run_id) === selectedRunId);
+    if (selIdx >= 0) {
+      if (selIdx < recentOffset) recentOffset = selIdx;
+      else if (selIdx >= recentOffset + recentLimit) recentOffset = selIdx - recentLimit + 1;
+      recentOffset = Math.max(0, Math.min(recentOffset, Math.max(0, runs.length - recentLimit)));
+    }
+  }
+  const recent = buildRecentRunPreview(runs, recentLimit, recentOffset);
   const selected = selectedRunId
     ? runs.find((r) => String(r.run_id) === selectedRunId) ?? null
     : (runs[0] ?? null);

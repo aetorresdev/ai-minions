@@ -144,6 +144,7 @@ function adaptRunsList(payload) {
       agent_count: run.agent_count == null && run.agents_count == null
         ? null
         : Number(run.agent_count ?? run.agents_count),
+      next_safe_action: run.next_safe_action == null ? null : String(run.next_safe_action),
     }))
     : [];
   return {
@@ -264,6 +265,9 @@ function adaptConfigReadiness(paneModel) {
       model_policy: null,
       next_safe_action: null,
       credential_sufficiency: null,
+      snapshot_ok: null,
+      doctor_ok: null,
+      doctor_status: 'unavailable',
     };
   }
   const pathActivation = paneModel.path_activation && typeof paneModel.path_activation === 'object'
@@ -278,9 +282,36 @@ function adaptConfigReadiness(paneModel) {
   const credentialSufficiency = paneModel.credential_sufficiency != null
     ? paneModel.credential_sufficiency
     : credentials.credential_sufficiency;
-  const doctorOk = paneModel.doctor_ok != null
-    ? paneModel.doctor_ok
-    : (paneModel.ok == null ? null : paneModel.ok);
+  // Presentation seeds set snapshot_ok without claiming doctor ran.
+  // Real doctor panes may still use `ok` / `doctor_ok` as the doctor result.
+  const isPresentationSeed = paneModel.snapshot_ok === true
+    || String(paneModel.doctor_status ?? '').toLowerCase() === 'not_run';
+  let doctorStatus = paneModel.doctor_status == null
+    ? null
+    : String(paneModel.doctor_status).toLowerCase();
+  let doctorOk = null;
+  if (doctorStatus === 'ok' || doctorStatus === 'passed') {
+    doctorOk = true;
+    doctorStatus = 'ok';
+  } else if (doctorStatus === 'failed' || doctorStatus === 'fail' || doctorStatus === 'error') {
+    doctorOk = false;
+    doctorStatus = 'failed';
+  } else if (doctorStatus === 'not_run' || doctorStatus === 'unavailable') {
+    doctorOk = null;
+  } else if (paneModel.doctor_ok != null) {
+    doctorOk = Boolean(paneModel.doctor_ok);
+    doctorStatus = doctorOk ? 'ok' : 'failed';
+  } else if (!isPresentationSeed && paneModel.ok != null) {
+    // Legacy operator config pane: `ok` means doctor/config probe result.
+    doctorOk = Boolean(paneModel.ok);
+    doctorStatus = doctorOk ? 'ok' : 'failed';
+  } else {
+    doctorStatus = doctorStatus || 'not_run';
+    doctorOk = null;
+  }
+  const snapshotOk = paneModel.snapshot_ok != null
+    ? Boolean(paneModel.snapshot_ok)
+    : true;
   const remediationRaw = Array.isArray(paneModel.remediations)
     ? paneModel.remediations
     : (Array.isArray(paneModel.remediation_candidates)
@@ -292,7 +323,9 @@ function adaptConfigReadiness(paneModel) {
     available: true,
     path_status: pathStatus == null ? null : String(pathStatus),
     model_policy: paneModel.model_policy == null ? null : String(paneModel.model_policy),
-    doctor_ok: doctorOk == null ? null : Boolean(doctorOk),
+    snapshot_ok: snapshotOk,
+    doctor_ok: doctorOk,
+    doctor_status: doctorStatus,
     credential_sufficiency: credentialSufficiency == null
       ? null
       : String(credentialSufficiency),

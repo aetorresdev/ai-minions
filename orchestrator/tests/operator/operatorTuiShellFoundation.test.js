@@ -32,7 +32,7 @@ const {
   shellModelToOptions,
   isInkLocalShellAction,
   contentSurfaceForLocalAction,
-} = require('../../modules/operator/operator-tui-shell-model');
+  } = require('../../modules/operator/operator-tui-shell-model');
 const {
   createTerminalGuard,
   withTerminalGuard,
@@ -40,6 +40,7 @@ const {
   prepareInkRemount,
   drainStdin,
   drainStdinColdStart,
+  COLD_START_DRAIN_SAFETY_MAX,
   RESTORE_SEQUENCE,
   SOFT_HANDOFF_SEQUENCE,
   CLEAR_SEQUENCE,
@@ -53,6 +54,11 @@ const {
   NATIVE_LAUNCHER_EXECUTE_ACTION,
 } = require('../../modules/operator/operator-tui-native-workflows');
 const { resolveShellActionToken } = require('../../modules/operator/operator-tui-shell-actions');
+const {
+  seedConfigModelFromShell,
+  seedStatusResultFromSelectedRun,
+  focusTargetsForModel,
+} = require('../../modules/operator/operator-tui-shell-model');
 
 const ORCH_ROOT = path.join(__dirname, '..', '..');
 const CLI_PATH = path.join(ORCH_ROOT, 'ai-minions-cli.js');
@@ -231,14 +237,15 @@ test('shell model chrome + nav + resize', () => {
       { run_id: 'a', status: 'running' },
       { run_id: 'b', status: 'complete' },
     ]),
-    columns: 100,
-    rows: 30,
+    columns: 120,
+    rows: 36,
   });
   assert.equal(model.schema, SHELL_SCHEMA);
   assert.equal(model.layout, 'wide');
   assert.equal(layoutModeForColumns(40), 'narrow');
   model = moveNavSelection(model, 'next');
   assert.ok(model.selectedNavId);
+  assert.equal(model.landing.composition.show_recent_runs, true);
   model = moveRunSelection(model, 'next');
   assert.equal(model.selectedRunId, 'b');
   model = cycleFocus(model);
@@ -2030,7 +2037,11 @@ test('Tab content focus Enter stays in-process (no monitor soft-handoff exit)', 
     focus: 'content',
     selectedRunId: 'r1',
     selectedNavId: 'launcher',
+    columns: 120,
+    rows: 36,
   });
+  assert.equal(withRun.landing.composition.show_recent_runs, true);
+  assert.ok(withRun.landing.recent_runs.some((r) => r.run_id === 'r1'));
   const enterRun = resolveShellKeypress('', { return: true }, withRun);
   assert.equal(enterRun.type, 'dispatch');
   assert.equal(enterRun.actionId, 'status', 'Enter on Recent Runs opens Overview, not monitor');
@@ -2046,6 +2057,8 @@ test('Tab content focus Enter stays in-process (no monitor soft-handoff exit)', 
     focus: 'content',
     selectedRunId: null,
     selectedNavId: 'launcher',
+    columns: 120,
+    rows: 36,
   });
   const enterEmpty = resolveShellKeypress('', { return: true }, empty);
   assert.equal(enterEmpty.endsSession, false);
@@ -2070,6 +2083,8 @@ test('Recent Runs content focus: ↑/↓ select run; Enter opens Overview', () =
     focus: 'nav',
     selectedRunId: 'a',
     selectedNavId: 'launcher',
+    columns: 120,
+    rows: 36,
   });
   model = cycleFocus(model);
   assert.equal(model.focus, 'content', 'Tab lands on Recent Runs content focus');
@@ -2079,4 +2094,191 @@ test('Recent Runs content focus: ↑/↓ select run; Enter opens Overview', () =
   const open = resolveShellKeypress('', { return: true }, { ...model, focus: 'content' });
   assert.equal(open.actionId, 'status');
   assert.equal(isInkLocalShellAction('status'), true);
+
+  const seeded = seedStatusResultFromSelectedRun(model);
+  assert.equal(seeded.run_id, 'b');
+  assert.equal(seeded.status, 'blocked');
+  assert.equal(seeded.outcome, 'blocked');
+  assert.equal(seeded.result_code, 'RUN_FOUND');
+  const overview = buildShellModel({
+    ...shellModelToOptions(model),
+    contentSurface: 'status',
+    statusResult: seeded,
+  });
+  assert.equal(overview.status.available, true);
+  assert.equal(overview.status.run_id, 'b');
+  assert.equal(overview.status.status, 'blocked');
+  assert.equal(overview.status.outcome, 'blocked');
+  assert.match(formatShellText(overview), /run=b/);
+  assert.doesNotMatch(formatShellText(overview), /status: \(unavailable\)/);
+});
+
+test('cold start drains >64 bytes of leftover stdin before mount', async () => {
+  const leftover = '1'.repeat(65);
+  const buffered = {
+    readableLength: leftover.length,
+    buf: Buffer.from(leftover, 'utf8'),
+    read(n) {
+      const want = Math.max(1, Number(n) || 1);
+      if (this.buf.length === 0) {
+        this.readableLength = 0;
+        return null;
+      }
+      const take = Math.min(want, this.buf.length);
+      const out = this.buf.subarray(0, take);
+      this.buf = this.buf.subarray(take);
+      this.readableLength = this.buf.length;
+      return out;
+    },
+  };
+  assert.equal(drainStdinColdStart(buffered), 65);
+  assert.equal(buffered.readableLength, 0);
+
+  assert.throws(
+    () => drainStdinColdStart({
+      readableLength: 8,
+      buf: Buffer.from('12345678'),
+      read(n) {
+        const want = Math.max(1, Number(n) || 1);
+        if (this.buf.length === 0) {
+          this.readableLength = 0;
+          return null;
+        }
+        const take = Math.min(want, this.buf.length);
+        const out = this.buf.subarray(0, take);
+        this.buf = this.buf.subarray(take);
+        this.readableLength = this.buf.length;
+        return out;
+      },
+    }, { maxBytes: 4 }),
+    (err) => err && err.code === 'COLD_START_STDIN_DRAIN_TRUNCATED',
+  );
+  assert.ok(COLD_START_DRAIN_SAFETY_MAX > 64);
+
+  const { stdin, stdout } = createFakeTtyStreams();
+  stdin.write(`${'1'.repeat(65)}\r`);
+  let modelSnap = null;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 1,
+    autoQuitMs: 80,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ model, onModelChange }) => {
+        modelSnap = model;
+        if (typeof onModelChange === 'function') onModelChange(model);
+        await new Promise((r) => setTimeout(r, 40));
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+    executeAction: async () => {
+      throw new Error('cold start must not executeAction after draining 65x1');
+    },
+  });
+  assert.equal(modelSnap?.contentSurface, 'home');
+  assert.equal(modelSnap?.activeWorkflow, null);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('Recent Runs selection stays on visible window; hidden panel skips content focus', () => {
+  const seven = Array.from({ length: 7 }, (_, i) => ({
+    run_id: `r${i + 1}`,
+    status: 'complete',
+    outcome: 'success',
+    result_code: 'RUN_FOUND',
+  }));
+  let wide = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: canonicalRunsResult(seven),
+    contentSurface: 'home',
+    focus: 'content',
+    selectedRunId: 'r1',
+    columns: 120,
+    rows: 36,
+  });
+  assert.equal(wide.landing.composition.show_recent_runs, true);
+  assert.ok(wide.landing.recent_runs.length >= 1);
+  assert.ok(wide.landing.recent_runs.length < 7, 'composition limits visible Recent Runs');
+  const visibleLimit = wide.landing.composition.recent_runs_limit;
+  assert.equal(wide.landing.recent_runs.length, visibleLimit);
+
+  for (let i = 0; i < 6; i += 1) {
+    wide = moveRunSelection(wide, 'next');
+    const visibleIds = wide.landing.recent_runs.map((r) => r.run_id);
+    assert.ok(
+      visibleIds.includes(wide.selectedRunId),
+      `selected ${wide.selectedRunId} must be in visible ${visibleIds.join(',')}`,
+    );
+  }
+  assert.equal(wide.selectedRunId, 'r7');
+  const enterVisible = resolveShellKeypress('', { return: true }, { ...wide, focus: 'content' });
+  assert.equal(enterVisible.actionId, 'status');
+
+  let mid = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: canonicalRunsResult(seven),
+    contentSurface: 'home',
+    focus: 'nav',
+    selectedRunId: 'r1',
+    columns: 80,
+    rows: 24,
+  });
+  // Force a composition where Recent is dropped (short rows) if not already.
+  if (mid.landing.composition.show_recent_runs) {
+    mid = buildShellModel({
+      ...shellModelToOptions(mid),
+      columns: 80,
+      rows: 16,
+    });
+  }
+  if (!mid.landing.composition.show_recent_runs) {
+    assert.deepEqual(focusTargetsForModel(mid), ['nav', 'input']);
+    mid = cycleFocus(mid);
+    assert.equal(mid.focus, 'input', 'Tab skips content when Recent Runs hidden');
+    mid = buildShellModel({ ...shellModelToOptions(mid), focus: 'content' });
+    const stuck = moveRunSelection(mid, 'next');
+    assert.equal(stuck.selectedRunId, 'r1', '↑/↓ must not move invisible runs');
+    const enterHidden = resolveShellKeypress('', { return: true }, stuck);
+    assert.notEqual(enterHidden.actionId, 'status');
+  }
+});
+
+test('Settings seed separates snapshot_ok from doctor_ok (doctor not_run)', () => {
+  const home = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: canonicalRunsResult([]),
+    contentSurface: 'home',
+  });
+  const seed = seedConfigModelFromShell(home);
+  assert.equal(seed.snapshot_ok, true);
+  assert.equal(seed.doctor_status, 'not_run');
+  assert.equal(seed.ok, undefined);
+  assert.equal(seed.doctor_ok, undefined);
+  const config = adaptConfigReadiness(seed);
+  assert.equal(config.snapshot_ok, true);
+  assert.equal(config.doctor_status, 'not_run');
+  assert.equal(config.doctor_ok, null);
+  const surface = buildShellModel({
+    ...shellModelToOptions(home),
+    contentSurface: 'config',
+    configModel: seed,
+  });
+  assert.equal(surface.config.doctor_status, 'not_run');
+  assert.equal(surface.config.doctor_ok, null);
+  assert.match(formatShellText(surface), /doctor_status=not_run/);
 });

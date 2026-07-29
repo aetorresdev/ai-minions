@@ -16,6 +16,7 @@ const {
   isInkLocalShellAction,
   contentSurfaceForLocalAction,
   seedConfigModelFromShell,
+  seedStatusResultFromSelectedRun,
   navItemsForMovement,
 } = require('./operator-tui-shell-model.js');
 const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor, brandGradientStop } = require('./operator-tui-theme.js');
@@ -910,6 +911,15 @@ function ShellApp(props) {
         if (surface === 'config') {
           opts.configModel = seedConfigModelFromShell(current);
         }
+        if (surface === 'status') {
+          const keepAuthoritative = current.status?.available === true
+            && current.selectedRunId
+            && String(current.status.run_id) === String(current.selectedRunId);
+          if (!keepAuthoritative) {
+            const seeded = seedStatusResultFromSelectedRun(current);
+            if (seeded) opts.statusResult = seeded;
+          }
+        }
         commit(buildShellModel(opts));
         return;
       }
@@ -1007,6 +1017,15 @@ function ShellApp(props) {
           };
           if (surface === 'config') {
             opts.configModel = seedConfigModelFromShell(current);
+          }
+          if (surface === 'status') {
+            const keepAuthoritative = current.status?.available === true
+              && current.selectedRunId
+              && String(current.status.run_id) === String(current.selectedRunId);
+            if (!keepAuthoritative) {
+              const seeded = seedStatusResultFromSelectedRun(current);
+              if (seeded) opts.statusResult = seeded;
+            }
           }
           commit(buildShellModel(opts));
           return;
@@ -1296,7 +1315,9 @@ function buildContentLines(model) {
     return [
       `path_status: ${model.config.path_status ?? '-'}`,
       `model_policy: ${model.config.model_policy ?? '-'}`,
-      `doctor_ok: ${String(model.config.doctor_ok)}`,
+      `snapshot_ok: ${String(model.config.snapshot_ok)}`,
+      `doctor_status: ${model.config.doctor_status ?? 'not_run'}`,
+      `doctor_ok: ${model.config.doctor_ok == null ? 'n/a' : String(model.config.doctor_ok)}`,
       `credential_sufficiency: ${model.config.credential_sufficiency ?? '-'}`,
       `next_safe_action: ${model.config.next_safe_action ?? '-'}`,
       ...(model.config.remediations || []).map((r) => `· ${r}`),

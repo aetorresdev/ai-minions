@@ -22,6 +22,7 @@ const {
   isInkLocalShellAction,
   contentSurfaceForLocalAction,
   seedConfigModelFromShell,
+  seedStatusResultFromSelectedRun,
   shellModelToOptions,
 } = require('./operator-tui-shell-model');
 const {
@@ -55,6 +56,7 @@ const TUI_SHELL_REASON = Object.freeze({
   ACTION_FAILURE: 'TUI_SHELL_ACTION_FAILURE',
   LEGACY: 'TUI_SHELL_LEGACY',
   MAX_LOOPS: 'TUI_SHELL_MAX_LOOPS',
+  COLD_START_DRAIN_TRUNCATED: 'TUI_SHELL_COLD_START_DRAIN_TRUNCATED',
 });
 
 /**
@@ -430,7 +432,24 @@ async function runOperatorTuiShell(options = {}) {
 
   // Drop terminal leftovers from a prior session / splash dismiss before first
   // interactive shell frame — residual Enter/`1` must not skip landing into Start New Run.
-  drainStdinColdStart(stdin);
+  try {
+    drainStdinColdStart(stdin);
+  } catch (err) {
+    if (err && err.code === 'COLD_START_STDIN_DRAIN_TRUNCATED') {
+      if (guard && !guard.restored) guard.restore('cold_start_drain_truncated');
+      return {
+        ok: false,
+        exitCode: 1,
+        reason_code: TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED,
+        ink_loaded: false,
+        react_loaded: false,
+        text: String(err.message || err),
+        model: null,
+        guard,
+      };
+    }
+    throw err;
+  }
 
   try {
     while (loops < maxLoops) {
@@ -1003,6 +1022,15 @@ async function runOperatorTuiShell(options = {}) {
         contentSurface = surface;
         if (surface === 'config') {
           configModel = seedConfigModelFromShell(model);
+        }
+        if (surface === 'status') {
+          const keepAuthoritative = model.status?.available === true
+            && selectedRunId
+            && String(model.status.run_id) === String(selectedRunId);
+          if (!keepAuthoritative) {
+            const seeded = seedStatusResultFromSelectedRun(model);
+            if (seeded) statusResult = seeded;
+          }
         }
         prepareInkRemount({ stdin });
         guard = createTerminalGuard({ stdin, stdout });

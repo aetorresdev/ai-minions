@@ -141,10 +141,14 @@ function buildShellModel(options = {}) {
     truecolor: options.truecolor,
     colorEnabled,
   });
+  const recentRunsOffset = Number.isInteger(options.recentRunsOffset) && options.recentRunsOffset > 0
+    ? options.recentRunsOffset
+    : 0;
   const landing = buildLandingViewModel({
     home,
     runs,
     selectedRunId,
+    recentRunsOffset,
     version,
     columns,
     rows,
@@ -226,6 +230,7 @@ function buildShellModel(options = {}) {
     navItems,
     selectedNavId,
     selectedRunId,
+    recentRunsOffset,
     contentSurface,
     helpSelectedTopicId,
     helpOpenTopicId,
@@ -343,6 +348,7 @@ function contentSurfaceForLocalAction(actionId) {
 /**
  * Seed Settings / config readiness from already-assessed shell home fields
  * (no nested readline / doctor refresh — presentation snapshot only).
+ * Does **not** claim doctor success: snapshot_ok ≠ doctor_ok.
  * @param {{ home?: object, landing?: object } | null | undefined} model
  * @returns {object}
  */
@@ -357,7 +363,8 @@ function seedConfigModelFromShell(model) {
     ? home.remediations.map((r) => String(r))
     : [];
   return {
-    ok: true,
+    snapshot_ok: true,
+    doctor_status: 'not_run',
     model_policy: home.model_policy ?? null,
     path_status: home.path_status ?? null,
     path_activation: {
@@ -370,6 +377,57 @@ function seedConfigModelFromShell(model) {
     },
     remediation_candidates: remediations,
     next_safe_action: nextSafe == null ? null : String(nextSafe),
+  };
+}
+
+/**
+ * Derive Overview status snapshot from the selected run board row
+ * (authoritative list fields only — does not invent doctor/status JSON).
+ * @param {{
+ *   selectedRunId?: string | null,
+ *   runs?: { runs?: object[] },
+ *   landing?: { recent_runs?: object[] },
+ * } | null | undefined} model
+ * @returns {object | null}
+ */
+function seedStatusResultFromSelectedRun(model) {
+  const runId = model && model.selectedRunId != null && model.selectedRunId !== ''
+    ? String(model.selectedRunId)
+    : null;
+  if (!runId) return null;
+  // Prefer an already-authoritative Overview snapshot for the same run.
+  if (model.status?.available === true && String(model.status.run_id) === runId) {
+    return {
+      run_id: runId,
+      result_code: model.status.result_code ?? null,
+      status: model.status.status ?? null,
+      outcome: model.status.outcome ?? null,
+      reason_code: model.status.reason_code ?? null,
+      next_safe_action: model.status.next_safe_action ?? null,
+    };
+  }
+  const board = Array.isArray(model?.runs?.runs) ? model.runs.runs : [];
+  const recent = Array.isArray(model?.landing?.recent_runs) ? model.landing.recent_runs : [];
+  const run = board.find((r) => String(r.run_id) === runId)
+    ?? recent.find((r) => String(r.run_id) === runId)
+    ?? null;
+  if (!run) {
+    return {
+      run_id: runId,
+      result_code: null,
+      status: null,
+      outcome: null,
+      reason_code: null,
+      next_safe_action: null,
+    };
+  }
+  return {
+    run_id: String(run.run_id),
+    result_code: run.result_code == null ? null : String(run.result_code),
+    status: run.status == null ? null : String(run.status),
+    outcome: run.outcome == null ? null : String(run.outcome),
+    reason_code: run.reason_code == null ? null : String(run.reason_code),
+    next_safe_action: run.next_safe_action == null ? null : String(run.next_safe_action),
   };
 }
 
@@ -558,15 +616,19 @@ function resolveShellKeypress(input, key = {}, model = {}) {
       return { type: 'run_move', direction: 'next', endsSession: false };
     }
     if (isReturn) {
-      // Content focus owns Recent Runs (and readiness when runs panel is hidden).
+      // Content focus owns **visible** Recent Runs only.
       // Never soft-handoff monitor from Enter — that looks like a silent quit.
       const surface = String(model.contentSurface ?? 'home').toLowerCase();
       if (surface === 'home') {
-        if (model.selectedRunId) {
+        const showRecent = model.landing?.composition?.show_recent_runs === true;
+        const visible = Array.isArray(model.landing?.recent_runs) ? model.landing.recent_runs : [];
+        const visibleSelected = Boolean(
+          model.selectedRunId
+          && visible.some((r) => String(r.run_id) === String(model.selectedRunId)),
+        );
+        if (showRecent && visibleSelected) {
           return { type: 'dispatch', actionId: 'status', endsSession: false };
         }
-        // No selection: Browse Runs when Recent Runs panel is in composition; else System Status.
-        const showRecent = model.landing?.composition?.show_recent_runs !== false;
         if (showRecent) {
           return { type: 'dispatch', actionId: 'runs', endsSession: false };
         }
@@ -638,19 +700,58 @@ function moveNavSelection(model, direction) {
 }
 
 /**
+ * Focus ring for Tab. Skip `content` on home when Recent Runs panel is hidden
+ * so ↑/↓ cannot select invisible runs.
+ * @param {ReturnType<typeof buildShellModel>} model
+ * @returns {ReadonlyArray<string>}
+ */
+function focusTargetsForModel(model) {
+  const home = String(model.contentSurface ?? '').toLowerCase() === 'home';
+  const showRecent = model.landing?.composition?.show_recent_runs === true;
+  if (home && !showRecent) {
+    return FOCUS_TARGETS.filter((f) => f !== 'content');
+  }
+  return FOCUS_TARGETS;
+}
+
+/**
+ * Move selection among visible Recent Runs on home (with window scroll), or the
+ * full runs board on other surfaces. Never advances into off-screen rows without
+ * scrolling the visible window.
  * @param {ReturnType<typeof buildShellModel>} model
  * @param {'next'|'prev'} direction
  */
 function moveRunSelection(model, direction) {
   const runs = model.runs.runs;
   if (!runs.length) return model;
+  const home = String(model.contentSurface ?? '').toLowerCase() === 'home';
+  const showRecent = model.landing?.composition?.show_recent_runs === true;
+  if (home && !showRecent) return model;
+
+  const limit = home
+    ? Math.max(0, Number(model.landing?.composition?.recent_runs_limit) || 0)
+    : runs.length;
+  if (home && limit <= 0) return model;
+
   const idx = Math.max(0, runs.findIndex((r) => r.run_id === model.selectedRunId));
   const nextIdx = direction === 'prev'
     ? (idx <= 0 ? runs.length - 1 : idx - 1)
     : (idx + 1) % runs.length;
+
+  let recentRunsOffset = Number.isInteger(model.recentRunsOffset) ? model.recentRunsOffset : 0;
+  if (home && limit > 0) {
+    if (nextIdx < recentRunsOffset) {
+      recentRunsOffset = nextIdx;
+    } else if (nextIdx >= recentRunsOffset + limit) {
+      recentRunsOffset = nextIdx - limit + 1;
+    }
+    recentRunsOffset = Math.max(0, Math.min(recentRunsOffset, Math.max(0, runs.length - limit)));
+  }
+
   return buildShellModel({
     ...shellModelToOptions(model),
     selectedRunId: runs[nextIdx].run_id,
+    recentRunsOffset,
     statusResult: null,
   });
 }
@@ -659,8 +760,10 @@ function moveRunSelection(model, direction) {
  * @param {ReturnType<typeof buildShellModel>} model
  */
 function cycleFocus(model) {
-  const idx = FOCUS_TARGETS.indexOf(model.focus);
-  const next = FOCUS_TARGETS[(idx + 1) % FOCUS_TARGETS.length];
+  const targets = focusTargetsForModel(model);
+  let idx = targets.indexOf(model.focus);
+  if (idx < 0) idx = 0;
+  const next = targets[(idx + 1) % targets.length];
   return buildShellModel({
     ...shellModelToOptions(model),
     focus: next,
@@ -733,6 +836,7 @@ function shellModelToOptions(model) {
     },
     monitorSource: model.monitorSource,
     selectedRunId: model.selectedRunId,
+    recentRunsOffset: model.recentRunsOffset,
     selectedNavId: model.selectedNavId,
     contentSurface: model.contentSurface,
     columns: model.columns,
@@ -816,6 +920,20 @@ function formatShellText(model) {
       );
     } else {
       lines.push('status: (unavailable)');
+    }
+  }
+  if (model.contentSurface === 'config') {
+    if (model.config.available) {
+      lines.push(
+        `config: path=${model.config.path_status ?? '-'} policy=${model.config.model_policy ?? '-'} `
+        + `snapshot_ok=${String(model.config.snapshot_ok)} `
+        + `doctor_status=${model.config.doctor_status ?? 'not_run'} `
+        + `doctor_ok=${model.config.doctor_ok == null ? 'n/a' : String(model.config.doctor_ok)} `
+        + `creds=${model.config.credential_sufficiency ?? '-'} `
+        + `next=${model.config.next_safe_action ?? '-'}`,
+      );
+    } else {
+      lines.push('config: (unavailable)');
     }
   }
   if (model.contentSurface === 'evidence') {
@@ -927,6 +1045,8 @@ module.exports = {
   isInkLocalRemountFallbackAction,
   contentSurfaceForLocalAction,
   seedConfigModelFromShell,
+  seedStatusResultFromSelectedRun,
+  focusTargetsForModel,
   navItemsForMovement,
   helpTopics,
   formatLandingLines,
