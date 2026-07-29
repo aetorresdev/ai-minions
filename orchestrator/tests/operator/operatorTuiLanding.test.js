@@ -437,7 +437,7 @@ test('wide landing text: guardian + primary + readiness + runs + controls', () =
   });
   assert.equal(landing.layout, 'wide');
   assert.equal(landing.show_guardian, true);
-  assert.ok(landing.guardian_lines.some((l) => /CERBERUS/.test(l)));
+  assert.ok(landing.guardian_lines.some((l) => /VALIDATE|CERBERUS/.test(l)));
   const lines = formatLandingLines(landing, { selectedNavId: 'launcher' }).join('\n');
   assert.match(lines, /== Guardian ==/);
   assert.match(lines, /== Primary ==/);
@@ -488,7 +488,7 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       fixture: 'ready-120x36.txt',
       layout: 'wide',
       options: readyShellOptions({ columns: 120, rows: 36 }),
-      expectMatch: [/AI-MINIONS/, /CERBERUS/, /Start New Run/, /Overall:/, /Recent Runs/],
+      expectMatch: [/AI-MINIONS/, /VALIDATE|CERBERUS/, /Start New Run/, /Overall:/, /Recent Runs/],
       expectNot: [],
     },
     {
@@ -500,7 +500,7 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       options: readyShellOptions({ columns: 80, rows: 24 }),
       expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/, /System Readiness/],
       // 80×24 drops decorative guardian + recent before sacrificing CTA / Overall.
-      expectNot: [/CERBERUS/, /Recent Runs/],
+      expectNot: [/VALIDATE|CERBERUS/, /Recent Runs/],
     },
     {
       id: 'ready_50x16',
@@ -510,7 +510,7 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       layout: 'compact',
       options: readyShellOptions({ columns: 50, rows: 16 }),
       expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/],
-      expectNot: [/CERBERUS/],
+      expectNot: [/VALIDATE|CERBERUS/],
     },
     // Runtime default icons=nerd (unicode fixtures stay portable for review).
     {
@@ -520,7 +520,7 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       fixture: 'ready-nerd-120x36.txt',
       layout: 'wide',
       options: readyShellOptions({ columns: 120, rows: 36, icons: 'nerd' }),
-      expectMatch: [/AI-MINIONS/, /CERBERUS/, /Start New Run/, /Overall:/, /Recent Runs/],
+      expectMatch: [/AI-MINIONS/, /VALIDATE|CERBERUS/, /Start New Run/, /Overall:/, /Recent Runs/],
       expectNot: [],
     },
     {
@@ -531,7 +531,7 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       layout: 'mid',
       options: readyShellOptions({ columns: 80, rows: 24, icons: 'nerd' }),
       expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/, /System Readiness/],
-      expectNot: [/CERBERUS/, /Recent Runs/],
+      expectNot: [/VALIDATE|CERBERUS/, /Recent Runs/],
     },
   ];
 

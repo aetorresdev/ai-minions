@@ -3,7 +3,6 @@
 ╚══════════════════════════════════════════════════════════════════════════════╝
  AI-MINIONS
  Contract-First Multi-Agent Orchestration Harness
- Validate • Trace • Enforce
  › 1. Start New Run
 ╔═══════════════════════╗┌─────────────────────────────────────────────────────┐
 ║ ▶ Quick Start         ║│ ▣ System Readiness                                  │

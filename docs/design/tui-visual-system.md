@@ -89,7 +89,7 @@ Rules:
 
 - **Not PNG / not Kitty / not Sixel.** Runtime path is deterministic terminal cells with variants: **wide / compact / minimal**.
 - Default presentation under `AI_MINIONS_TUI_ART=auto`: **arcade** block-sprite Cerberus for `icons=nerd|unicode`; textual/ASCII path for `icons=ascii`. Overrides: `arcade|text|none`. Invalid values fail closed to `auto` with an observable reason.
-- Guardian comparison checkpoint: `AI_MINIONS_TUI_GUARDIAN=neon|semantic` (Neon is the implementation baseline until the operator locks Semantic Guardians).
+- Guardian comparison: `AI_MINIONS_TUI_GUARDIAN=neon|semantic`. **Default `semantic`** matches the approved TUI mockup (`assets/mockups/tui-landing-pixel-v1.png`) — labels under heads; Neon remains an explicit override.
 - Cerberus is a **secondary** brand guardian: supports the brand; never displaces `AI-MINIONS`, **Start New Run**, Overall readiness, or recent-runs summary.
 - Optional pixel section icons (Quick Start / System Readiness / Recent Runs) remain decorative and always keep text labels.
 - Drop order under space pressure: decorative Cerberus **before** Start New Run / Overall / recent runs.
@@ -99,8 +99,10 @@ Rules:
 
 | Asset | Path | Use |
 |-------|------|-----|
-| Master SVG | `assets/cerberus-master.svg` | Docs, GitHub, Web UI |
+| Master SVG | `assets/cerberus-master.svg` | Docs, GitHub, Web UI (GUI path) |
 | License / provenance | `assets/CERBERUS-ART-LICENSE.md` | Redistribution and attribution |
+| TUI mockup SoT | `assets/mockups/tui-landing-pixel-v1.png` | Review evidence for arcade TUI — not Ink runtime |
+| GUI mockup SoT | `assets/mockups/gui-landing-detailed-v1.png` | Review evidence for future GUI — not a shipped GUI |
 | PNG 1× / 2× | Generate only if an external platform requires raster | Not the TUI path |
 
 ## Landing composition (visual constraints)

@@ -57,15 +57,16 @@ test('resolveArtMode: auto/arcade/text/none and invalid fail-closed', () => {
   assert.match(String(bad.reason), /invalid_art_mode:sixel/);
 });
 
-test('resolveArtMode: guardian style neon|semantic; invalid → neon', () => {
+test('resolveArtMode: guardian style neon|semantic; invalid → semantic', () => {
   assert.equal(resolveArtMode({ guardianStyle: 'semantic' }, {}).guardianStyle, 'semantic');
   assert.equal(resolveArtMode({ guardianStyle: 'neon' }, {}).guardianStyle, 'neon');
+  assert.equal(resolveArtMode({}, {}).guardianStyle, 'semantic', 'approved TUI mockup default');
   const bad = resolveArtMode({ guardianStyle: 'ember' }, {});
-  assert.equal(bad.guardianStyle, 'neon');
+  assert.equal(bad.guardianStyle, 'semantic');
   assert.match(String(bad.guardianStyleReason), /invalid_guardian_style:ember/);
 });
 
-test('neon and semantic wide sprites are deterministic matrices with CERBERUS', () => {
+test('neon and semantic wide sprites are deterministic matrices', () => {
   const neon = neonCerberusRows('wide', 'unicode');
   const semantic = semanticCerberusRows('wide', 'unicode');
   assert.ok(neon.length >= 4);
@@ -121,6 +122,20 @@ test('landing wires arcade guardian and section icons; semantic hides triad', ()
   });
   assert.equal(semantic.composition.show_triad, false);
   assert.ok(semantic.guardian_lines.some((l) => /VALIDATE/.test(l)));
+  assert.equal(semantic.guardian_style, 'semantic');
+});
+
+test('default arcade guardian follows approved TUI mockup (semantic)', () => {
+  const landing = buildLandingViewModel({
+    home: readyHome(),
+    columns: 120,
+    rows: 36,
+    icons: 'unicode',
+    art: 'arcade',
+  });
+  assert.equal(landing.guardian_style, 'semantic');
+  assert.equal(landing.composition.show_triad, false);
+  assert.ok(landing.guardian_lines.some((l) => /VALIDATE/.test(l)));
 });
 
 test('first-paint pixel renderer performs no I/O (sync pure matrices)', () => {

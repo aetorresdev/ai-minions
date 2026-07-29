@@ -14,7 +14,11 @@ const ART_MODES = Object.freeze(['auto', 'arcade', 'text', 'none']);
 const GUARDIAN_STYLES = Object.freeze(['neon', 'semantic']);
 /** Fail-closed documented default when ART_ENV is missing or invalid. */
 const DEFAULT_ART_MODE = 'auto';
-const DEFAULT_GUARDIAN_STYLE = 'neon';
+/**
+ * Operator-approved TUI mockup (assets/mockups/tui-landing-pixel-v1.png) locks
+ * Semantic Guardians (labels under heads). Neon remains available via env/override.
+ */
+const DEFAULT_GUARDIAN_STYLE = 'semantic';
 
 /**
  * @typedef {'auto'|'arcade'|'text'|'none'} ArtMode
@@ -239,6 +243,7 @@ function neonCerberusRows(variant, iconMode) {
 
 /**
  * Semantic Guardians — closed mouths; labels under heads replace hero triad.
+ * Aligned to assets/mockups/tui-landing-pixel-v1.png (approved TUI visual SoT).
  * Meaning must not depend on color alone (labels + distinct marks).
  * @param {CerberusVariant} variant
  * @param {string} iconMode
@@ -262,13 +267,39 @@ function semanticCerberusRows(variant, iconMode) {
     ];
   }
   if (variant === 'compact' || ascii) {
+    if (ascii) {
+      return [
+        row(seg('/\\ /\\ /\\', 'muted')),
+        row(
+          seg(markV, 'validate', true),
+          seg(' ', 'muted'),
+          seg(markT, 'trace', true),
+          seg(' ', 'muted'),
+          seg(markE, 'enforce', true),
+        ),
+        row(
+          seg('VAL', 'validate', true),
+          seg(' ', 'muted'),
+          seg('TRC', 'trace', true),
+          seg(' ', 'muted'),
+          seg('ENF', 'enforce', true),
+        ),
+      ];
+    }
     return [
+      row(seg('▄▀▄ ▄▀▄ ▄▀▄', 'muted')),
       row(
+        seg('█', 'validate'),
         seg(markV, 'validate', true),
+        seg('█', 'validate'),
         seg(' ', 'muted'),
+        seg('█', 'trace'),
         seg(markT, 'trace', true),
+        seg('█', 'trace'),
         seg(' ', 'muted'),
+        seg('█', 'enforce'),
         seg(markE, 'enforce', true),
+        seg('█', 'enforce'),
       ),
       row(
         seg('VAL', 'validate', true),
@@ -277,33 +308,34 @@ function semanticCerberusRows(variant, iconMode) {
         seg(' ', 'muted'),
         seg('ENF', 'enforce', true),
       ),
-      row(seg('CERBERUS', 'brand', true)),
     ];
   }
+  // Wide — three wolf heads + explicit labels (mockup composition).
   return [
-    row(seg(' ▄██▄ ▄██▄ ▄██▄', 'muted')),
+    row(seg(' ▄▀▀▄ ▄▀▀▄ ▄▀▀▄', 'muted')),
     row(
-      seg(' █', 'validate'),
+      seg('▄█', 'validate'),
       seg(markV, 'validate', true),
-      seg('██', 'validate'),
-      seg(' █', 'trace'),
+      seg('█▄', 'validate'),
+      seg('▄█', 'trace'),
       seg(markT, 'trace', true),
-      seg('██', 'trace'),
-      seg(' █', 'enforce'),
+      seg('█▄', 'trace'),
+      seg('▄█', 'enforce'),
       seg(markE, 'enforce', true),
-      seg('██', 'enforce'),
+      seg('█▄', 'enforce'),
     ),
-    row(seg(' ▀██▀ ▀██▀ ▀██▀', 'muted')),
+    row(
+      seg(' ███ ', 'validate'),
+      seg(' ███ ', 'trace'),
+      seg(' ███', 'enforce'),
+    ),
+    row(seg(' ▀██▀  ▀██▀  ▀██▀', 'muted')),
     row(
       seg('VALIDATE', 'validate', true),
       seg(' ', 'muted'),
       seg('TRACE', 'trace', true),
       seg(' ', 'muted'),
       seg('ENFORCE', 'enforce', true),
-    ),
-    row(
-      seg('      ', 'muted'),
-      seg('CERBERUS', 'brand', true),
     ),
   ];
 }
