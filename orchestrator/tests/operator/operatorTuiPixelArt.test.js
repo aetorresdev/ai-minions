@@ -270,6 +270,90 @@ test('production Ink renderer: semantic/neon fit 120×36, 80×24, 50×16 without
   }
 });
 
+test('production Ink: non-empty Recent Runs + long summaries fit neon/semantic at 120×36 and 80×24', async () => {
+  const { renderOperatorTuiShellToString } = await import(
+    '../../modules/operator/operator-tui-shell-render.mjs'
+  );
+  const { measureLandingRender } = await import(
+    '../../scripts/lib/tui-landing-render-metrics.mjs'
+  );
+  const longSummary = `Long goal summary that must stay one truncated line: ${
+    'word '.repeat(40)
+  }end`;
+  const fiveShortRuns = Array.from({ length: 5 }, (_, i) => ({
+    run_id: `run-short-${i + 1}`,
+    goal_summary: `short-${i + 1}`,
+    last_event_at: '2026-07-29T12:00:00Z',
+    status: 'completed',
+    outcome: 'success',
+    agent_count: 1,
+  }));
+  const oneLongRun = [{
+    run_id: 'run-long-summary-1',
+    goal_summary: longSummary,
+    last_event_at: '2026-07-29T12:00:00Z',
+    status: 'completed',
+    outcome: 'success',
+    agent_count: 2,
+  }];
+  const base = {
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    contentSurface: 'home',
+    selectedNavId: 'launcher',
+    icons: 'unicode',
+    truecolor: false,
+    art: 'arcade',
+  };
+  for (const [columns, rows] of [[120, 36], [80, 24]]) {
+    for (const guardianStyle of ['neon', 'semantic']) {
+      for (const [runsLabel, runs] of [
+        ['five_short', fiveShortRuns],
+        ['one_long', oneLongRun],
+      ]) {
+        const model = buildShellModel({
+          ...base,
+          columns,
+          rows,
+          guardianStyle,
+          runsPayload: { runs, result_code: 'OK' },
+        });
+        const id = `${guardianStyle}@${columns}x${rows}/${runsLabel}`;
+        // recent_empty_short must not apply when runs exist.
+        assert.equal(
+          model.landing.composition.recent_empty_short,
+          false,
+          `${id}: recent_empty_short only for empty boards`,
+        );
+        assert.ok(
+          !model.landing.composition.drops.includes('recent_empty_short'),
+          `${id}: drop recent_empty_short skipped when runs exist`,
+        );
+        const out = renderOperatorTuiShellToString(model, { columns, rows });
+        const m = measureLandingRender(out, { columns, rows });
+        assert.ok(
+          m.rendered_lines <= rows,
+          `${id}: rows ${m.rendered_lines} > ${rows}`,
+        );
+        assert.ok(
+          m.max_display_width <= columns,
+          `${id}: width ${m.max_display_width} > ${columns}`,
+        );
+        assert.equal(m.fits_viewport, true, `${id}: fits_viewport`);
+        assert.match(out, /Start New Run/, id);
+        assert.match(out, /Overall:/, id);
+        if (columns >= 80 && rows >= 24) {
+          assert.ok(
+            model.landing.guardian_rows.length > 0,
+            `${id}: keep compact/wide guardian`,
+          );
+        }
+      }
+    }
+  }
+});
+
 test('env ART_ENV / GUARDIAN_STYLE_ENV honored', () => {
   const env = { [ART_ENV]: 'none', [GUARDIAN_STYLE_ENV]: 'semantic' };
   const r = resolveArtMode({}, env);

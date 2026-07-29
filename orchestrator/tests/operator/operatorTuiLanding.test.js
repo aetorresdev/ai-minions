@@ -429,6 +429,45 @@ test('resolveLandingComposition: fits row budget; keeps Start New Run + Overall'
   assert.equal(compact.composition.show_guardian, false);
 });
 
+test('buildLandingViewModel: non-empty runs never apply recent_empty_short; mid may hide recent', () => {
+  const runs = Array.from({ length: 5 }, (_, i) => ({
+    run_id: `r${i + 1}`,
+    goal_summary: `goal ${i + 1}`,
+    status: 'completed',
+    outcome: 'success',
+  }));
+  const mid = buildLandingViewModel({
+    home: baseHome(),
+    runs: { runs, result_code: 'OK' },
+    columns: 80,
+    rows: 24,
+    icons: 'unicode',
+    art: 'arcade',
+    guardianStyle: 'neon',
+  });
+  assert.equal(mid.composition.recent_empty_short, false);
+  assert.ok(!mid.composition.drops.includes('recent_empty_short'));
+  assert.equal(mid.composition.show_primary_cta, true);
+  assert.equal(mid.composition.show_readiness, true);
+  assert.equal(mid.composition.show_guardian, true);
+  assert.ok(
+    mid.composition.drops.includes('hide_recent')
+      || mid.composition.recent_runs_limit <= 1
+      || mid.estimated_rows <= 24,
+  );
+  assert.ok(mid.estimated_rows <= 24);
+
+  const empty = buildLandingViewModel({
+    home: baseHome(),
+    runs: { runs: [], result_code: 'RUNS_EMPTY' },
+    columns: 80,
+    rows: 24,
+    icons: 'unicode',
+    art: 'arcade',
+  });
+  assert.equal(empty.composition.recent_empty_short, true);
+});
+
 test('wide landing text: guardian + primary + readiness + runs + controls', () => {
   const landing = buildLandingViewModel({
     home: baseHome(),

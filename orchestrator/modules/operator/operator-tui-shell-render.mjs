@@ -29,6 +29,7 @@ const {
   formatLandingLines,
   formatHelpLines,
   formatDiagnosticsLines,
+  formatRecentRunEntryLine,
 } = require('./operator-tui-landing.js');
 const {
   isNativeWorkflowAction,
@@ -296,13 +297,14 @@ function LandingHomeView(props) {
         ? [
           React.createElement(
             Text,
-            { key: 'rr-count', dimColor: true, color: theme.muted },
+            { key: 'rr-count', dimColor: true, color: theme.muted, wrap: 'truncate' },
             `Showing ${landing.recent_runs_showing} of ${landing.recent_runs_total}`,
           ),
           ...landing.recent_runs.map((run, idx) => React.createElement(
             Text,
             {
               key: `rr-${idx}`,
+              wrap: 'truncate',
               color: toneColor(
                 theme,
                 run.activity_state === 'completed'
@@ -314,15 +316,13 @@ function LandingHomeView(props) {
                       : (run.activity_state === 'active' ? 'warn' : 'unavailable'))),
               ),
             },
-            `  ${run.activity_label}  ${run.run_id}`
-              + (run.summary ? `  ${run.summary}` : '')
-              + (compact ? '' : `  ${run.last_event_at ?? 'time unavailable'}`),
+            formatRecentRunEntryLine(run, model.columns, { compact }),
           )),
         ]
         : [
           React.createElement(
             Text,
-            { key: 'rr-empty', color: theme.muted },
+            { key: 'rr-empty', color: theme.muted, wrap: 'truncate' },
             landing.empty_state
               ? `  ${landing.empty_state.title}: ${landing.empty_state.body}`
               : '  (No runs yet)',

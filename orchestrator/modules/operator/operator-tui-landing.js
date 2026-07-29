@@ -95,14 +95,23 @@ function defaultLandingComposition(layout) {
 
 /**
  * Drop order for row pressure — lowest priority first.
- * Lock v2 (≥80×24): keep compact guardian through panel pressure; drop recent
- * and decorative copy before omitting Cerberus. Never drops Start New Run or Overall.
+ * Lock v2 (≥80×24): keep compact guardian through panel pressure; reduce/hide
+ * Recent Runs and decorative copy before omitting Cerberus. Never drops Start
+ * New Run or Overall. `recent_empty_short` applies only when the run board is empty.
  */
 const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
   {
     id: 'recent_empty_short',
     apply(c) {
       c.recent_empty_short = true;
+    },
+  },
+  {
+    id: 'reduce_recent',
+    apply(c) {
+      if (c.show_recent_runs && c.recent_runs_limit > 1) {
+        c.recent_runs_limit = 1;
+      }
     },
   },
   {
@@ -172,13 +181,21 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
 /**
  * Estimate rendered row count for a composition (Ink borders + wrap heuristics).
  * Used only to decide drops; tests assert real Ink output ≤ reported rows.
+ * Recent entries are one truncated line each — do not reserve wrap rows.
  * @param {LandingComposition} composition
  * @param {LandingLayoutMode} layout
  * @param {number} columns
  * @param {number} [guardianArtRows] actual guardian_rows.length when known
+ * @param {number} [recentRunCount] actual runs.length when known (caps limit)
  * @returns {number}
  */
-function estimateLandingCompositionRows(composition, layout, columns, guardianArtRows) {
+function estimateLandingCompositionRows(
+  composition,
+  layout,
+  columns,
+  guardianArtRows,
+  recentRunCount,
+) {
   const cols = Number.isFinite(columns) && columns >= 1 ? columns : 80;
   const contentWidth = Math.max(16, cols - 4);
 
@@ -242,13 +259,18 @@ function estimateLandingCompositionRows(composition, layout, columns, guardianAr
   let recentInner = 0;
   if (composition.show_recent_runs) {
     recentInner = composition.section_icon_rows > 1 ? 2 : 1;
-    // Empty short takes precedence over limit — empty boards do not reserve N run rows.
+    // Empty short only when the board is empty — never under-count real run rows.
     if (composition.recent_empty_short) {
       recentInner += 1;
     } else if (composition.recent_runs_limit > 0) {
-      recentInner += 1 + composition.recent_runs_limit;
+      const limit = Math.max(0, Number(composition.recent_runs_limit) || 0);
+      const known = Number.isFinite(Number(recentRunCount)) && Number(recentRunCount) >= 0
+        ? Math.floor(Number(recentRunCount))
+        : limit;
+      const shown = Math.min(limit, known);
+      recentInner += shown > 0 ? 1 + shown : 1;
     } else {
-      recentInner += Math.max(1, Math.ceil(90 / contentWidth));
+      recentInner += 1;
     }
   }
 
@@ -660,6 +682,29 @@ function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT) {
 }
 
 /**
+ * One-line Recent Runs entry (no wrap). Truncates to fit content width.
+ * @param {{ activity_label?: string, run_id?: string, summary?: string | null, last_event_at?: string | null }} run
+ * @param {number} columns
+ * @param {{ compact?: boolean }} [opts]
+ * @returns {string}
+ */
+function formatRecentRunEntryLine(run, columns, opts = {}) {
+  const compact = opts.compact === true;
+  const summary = run.summary == null || run.summary === '' ? '' : String(run.summary);
+  const when = run.last_event_at == null || run.last_event_at === ''
+    ? 'time unavailable'
+    : String(run.last_event_at);
+  let line = `  ${run.activity_label ?? 'UNKNOWN'}  ${run.run_id ?? ''}`
+    + (summary ? `  ${summary}` : '')
+    + (compact ? '' : `  ${when}`);
+  const max = Math.max(12, (Number.isFinite(Number(columns)) ? Number(columns) : 80) - 4);
+  if (line.length > max) {
+    line = `${line.slice(0, Math.max(1, max - 1))}…`;
+  }
+  return line;
+}
+
+/**
  * Build the landing view-model from shell adapter inputs.
  * @param {{
  *   home?: object,
@@ -715,14 +760,26 @@ function buildLandingViewModel(options = {}) {
     composition.show_triad = false;
     composition.drops.push('hide_triad_semantic');
   }
+  const runCount = runs.length;
   let estimated = estimateLandingCompositionRows(
     composition,
     layout,
     columns,
     pixelArt.rows.length,
+    runCount,
   );
   for (const step of LANDING_COMPOSITION_DROP_STEPS) {
     if (estimated <= rows) break;
+    // recent_empty_short is empty-board only — never under-count real run rows.
+    if (step.id === 'recent_empty_short' && runCount > 0) {
+      continue;
+    }
+    if (step.id === 'recent_empty_short' && composition.recent_empty_short) {
+      continue;
+    }
+    if (step.id === 'reduce_recent' && (!composition.show_recent_runs || composition.recent_runs_limit <= 1)) {
+      continue;
+    }
     if (
       step.id === 'hide_guardian'
       && layout === 'wide'
@@ -735,6 +792,7 @@ function buildLandingViewModel(options = {}) {
         layout,
         columns,
         compactArt.rows.length,
+        runCount,
       );
       if (estCompact <= rows) {
         pixelArt = compactArt;
@@ -752,6 +810,7 @@ function buildLandingViewModel(options = {}) {
       layout,
       columns,
       composition.show_guardian ? pixelArt.rows.length : 0,
+      runCount,
     );
   }
   const resolved = { layout, composition, estimated_rows: estimated };
@@ -1049,16 +1108,9 @@ function formatLandingLines(landing, options = {}) {
         `  Showing ${landing.recent_runs_showing} of ${landing.recent_runs_total}`,
       );
       for (const run of landing.recent_runs) {
-        const summary = run.summary == null ? '(summary unavailable)' : run.summary;
-        const when = run.last_event_at == null ? 'time unavailable' : run.last_event_at;
-        const agents = run.agent_count == null ? 'agents unavailable' : `${run.agent_count} agents`;
-        lines.push(
-          `  ${run.activity_label}  ${run.run_id}  ${summary}`
-          + (narrow ? '' : `  ${when}  ${agents}`),
-        );
-        if (run.reason_code) {
-          lines.push(`    reason_code: ${run.reason_code}`);
-        }
+        lines.push(formatRecentRunEntryLine(run, landing.columns ?? (narrow ? 60 : 100), {
+          compact: narrow,
+        }));
       }
     }
   }
@@ -1241,6 +1293,7 @@ module.exports = {
   deriveLandingOverall,
   classifyRunActivity,
   buildRecentRunPreview,
+  formatRecentRunEntryLine,
   buildLandingViewModel,
   formatLandingLines,
   helpTopics,
