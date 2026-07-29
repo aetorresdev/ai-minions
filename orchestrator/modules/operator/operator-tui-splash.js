@@ -12,6 +12,16 @@ const {
   chromeIconsFor,
   DEFAULT_ICON_MODE,
 } = require('./operator-tui-icons');
+const {
+  resolveArtMode,
+  resolvePixelCerberusVariant,
+  neonCerberusRows,
+  semanticCerberusRows,
+  buildPixelWordmarkRows,
+  buildTextWordmarkSegments,
+  flattenArtRows,
+  BRAND_WORDMARK,
+} = require('./operator-tui-pixel-art');
 
 const SKIP_ENV = 'AI_MINIONS_TUI_SKIP_SPLASH';
 const DEFAULT_SPLASH_MS = 1600;
@@ -436,18 +446,10 @@ function splashBannerLinesNarrow(iconMode) {
  * @returns {SplashSegment[]}
  */
 function wordmarkSegments(options = {}) {
-  const chars = WORDMARK.split('');
-  const useGradient = options.truecolor === true;
-  const gradientTones = /** @type {SplashTone[]} */ ([
-    'gradient-cyan', 'gradient-cyan', 'gradient-cyan',
-    'gradient-violet', 'gradient-violet', 'gradient-violet',
-    'gradient-amber', 'gradient-amber', 'gradient-amber', 'gradient-amber',
-  ]);
-  return chars.map((ch, i) => ({
-    text: ch,
-    tone: useGradient ? (gradientTones[i] || 'brand') : 'brand',
-    bold: true,
-  }));
+  return buildTextWordmarkSegments({
+    truecolor: options.truecolor === true,
+    text: WORDMARK,
+  });
 }
 
 /**
@@ -473,16 +475,23 @@ function triadSegments() {
  *   icons?: string,
  *   iconMode?: string,
  *   truecolor?: boolean,
+ *   art?: string,
+ *   artMode?: string,
+ *   guardianStyle?: string,
+ *   env?: NodeJS.ProcessEnv,
  * }} [options]
  * @returns {{
  *   lines: string[],
  *   rows: SplashRow[],
+ *   wordmarkRows: SplashRow[],
  *   density: 'full' | 'compact' | 'minimal',
  *   cerberusVariant: 'wide' | 'compact' | 'minimal',
  *   iconMode: string,
+ *   guardianStyle: string,
  *   frameHeight: number,
  *   showProductTagline: boolean,
  *   showSpacers: boolean,
+ *   showTriad: boolean,
  *   wordmark: string,
  *   wordmarkSegments: SplashSegment[],
  *   productTagline: string,
@@ -504,29 +513,87 @@ function buildSplashContent(options = {}) {
   const readiness = options.readiness == null || options.readiness === ''
     ? 'unknown'
     : String(options.readiness);
-  const iconMode = resolveIconMode(options);
+  const env = options.env && typeof options.env === 'object' ? options.env : process.env;
+  const iconMode = resolveIconMode(options, env);
   const density = resolveSplashDensity(frameHeight, columns);
   const cerberusVariant = density === 'minimal'
     ? 'minimal'
     : (density === 'compact' ? 'compact' : 'wide');
-  const artRows = density === 'minimal'
-    ? splashArtRowsMinimal()
-    : (density === 'compact'
-      ? splashArtRowsNarrow(iconMode)
-      : splashArtRowsWide(iconMode));
-  const lines = flattenSplashRows(artRows);
-  const wmSegs = wordmarkSegments({ truecolor: options.truecolor === true });
+  const truecolor = options.truecolor === true;
+  const resolution = resolveArtMode({
+    art: options.art,
+    artMode: options.artMode,
+    guardianStyle: options.guardianStyle,
+  }, env);
+  const pixelVariant = resolvePixelCerberusVariant(
+    density === 'full' ? 'wide' : (density === 'compact' ? 'mid' : 'compact'),
+  );
+
+  /** @type {SplashRow[]} */
+  let artRows;
+  if (resolution.effective === 'arcade') {
+    artRows = resolution.guardianStyle === 'semantic'
+      ? semanticCerberusRows(pixelVariant, iconMode)
+      : neonCerberusRows(pixelVariant, iconMode);
+  } else if (density === 'minimal') {
+    artRows = splashArtRowsMinimal();
+  } else if (density === 'compact') {
+    artRows = splashArtRowsNarrow(iconMode);
+  } else {
+    artRows = splashArtRowsWide(iconMode);
+  }
+
+  /** @type {SplashRow[]} */
+  let wordmarkRows = [];
+  if (resolution.effective === 'arcade' && density === 'full' && columns >= 56) {
+    wordmarkRows = buildPixelWordmarkRows({
+      icons: iconMode,
+      art: 'arcade',
+      truecolor,
+      env,
+    });
+  }
+  if (resolution.effective === 'arcade') {
+    artRows = artRows.filter((row) => {
+      const line = (row.segments || []).map((s) => s.text).join('');
+      return !/\bAI-MINIONS\b/.test(line);
+    });
+    const flatArt = flattenArtRows(artRows).join('\n');
+    if (!/\bCERBERUS\b/.test(flatArt)) {
+      artRows = [
+        ...artRows,
+        { segments: [{ text: GUARDIAN_MARK, tone: 'brand', bold: true }] },
+      ];
+    }
+  }
+
+  const wmSegs = wordmarkSegments({ truecolor });
+  // Pixel art + scannable uppercase line (gradient when truecolor; plain under NO_COLOR).
+  wordmarkRows = [...wordmarkRows, { segments: wmSegs }];
+
+  const lines = [
+    ...flattenArtRows(artRows),
+    ...flattenArtRows(wordmarkRows),
+  ];
   const triadSegs = triadSegments();
+  const showTriad = !(
+    resolution.effective === 'arcade'
+    && resolution.guardianStyle === 'semantic'
+    && pixelVariant !== 'minimal'
+  );
   return {
     lines,
     rows: artRows,
+    wordmarkRows,
     density,
     cerberusVariant,
     iconMode,
+    guardianStyle: resolution.guardianStyle,
     frameHeight,
     showProductTagline: density !== 'minimal',
     showSpacers: density === 'full',
-    wordmark: WORDMARK,
+    showTriad,
+    wordmark: BRAND_WORDMARK,
     wordmarkSegments: wmSegs,
     productTagline: PRODUCT_TAGLINE,
     triad: TRIAD_LABEL,

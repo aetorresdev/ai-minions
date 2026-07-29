@@ -13,6 +13,7 @@ const { resolveIconMode } = require('./operator-tui-icons');
 const {
   ICONS: LOCK_ICONS,
   MATRIX_COLORS,
+  WORDMARK_3X5,
   guardianRows: lockGuardianRows,
 } = require('./terminal-pixel-art');
 
@@ -23,10 +24,14 @@ const GUARDIAN_STYLES = Object.freeze(['neon', 'semantic']);
 /** Fail-closed documented default when ART_ENV is missing or invalid. */
 const DEFAULT_ART_MODE = 'auto';
 /**
- * Neon remains the implementation baseline (comparison checkpoint).
- * Semantic Guardians (lock v2 braille matrices) is opt-in via env/override.
+ * Semantic Guardians (lock v2) is the operator default first paint.
+ * Neon remains available via AI_MINIONS_TUI_GUARDIAN=neon (comparison checkpoint).
  */
-const DEFAULT_GUARDIAN_STYLE = 'neon';
+const DEFAULT_GUARDIAN_STYLE = 'semantic';
+/** Lock v2 3×5 block wordmark text (matches terminal-pixel-art drawWordmark). */
+const BRAND_WORDMARK = 'AI-MINIONS';
+/** Pixel wordmark terminal rows (3×5 glyphs). */
+const PIXEL_WORDMARK_ROWS = 5;
 
 /** Map lock palette hex → splash ArtTone for Ink theme coloring. */
 const HEX_TO_TONE = Object.freeze({
@@ -41,7 +46,7 @@ const HEX_TO_TONE = Object.freeze({
  * @typedef {'auto'|'arcade'|'text'|'none'} ArtMode
  * @typedef {'neon'|'semantic'} GuardianStyle
  * @typedef {'wide'|'compact'|'minimal'} CerberusVariant
- * @typedef {'validate'|'trace'|'enforce'|'brand'|'accent'|'muted'|'core'|'wordmark'|'warn'} ArtTone
+ * @typedef {'validate'|'trace'|'enforce'|'brand'|'accent'|'muted'|'core'|'wordmark'|'warn'|'gradient-cyan'|'gradient-violet'|'gradient-amber'} ArtTone
  * @typedef {{ text: string, tone?: ArtTone, bold?: boolean }} ArtSegment
  * @typedef {{ segments: ArtSegment[] }} ArtRow
  * @typedef {{
@@ -218,6 +223,88 @@ function cellRowsToArtRows(cellRows) {
     }
     return { segments };
   });
+}
+
+/**
+ * Per-character brand gradient tones (cyan → violet → amber).
+ * @param {number} index
+ * @param {number} length
+ * @param {boolean} useGradient
+ * @returns {ArtTone}
+ */
+function wordmarkToneForIndex(index, length, useGradient) {
+  if (!useGradient) return 'brand';
+  const n = Math.max(1, length);
+  const t = index / n;
+  if (t < 1 / 3) return 'gradient-cyan';
+  if (t < 2 / 3) return 'gradient-violet';
+  return 'gradient-amber';
+}
+
+/**
+ * Lock v2 3×5 block wordmark as ArtRows (arcade path).
+ * Truecolor callers paint gradient tones; otherwise single brand tone.
+ * ASCII / text paths return [] so Ink keeps readable uppercase text.
+ *
+ * @param {{
+ *   icons?: string,
+ *   iconMode?: string,
+ *   truecolor?: boolean,
+ *   art?: string,
+ *   artMode?: string,
+ *   env?: NodeJS.ProcessEnv,
+ * }} [options]
+ * @returns {ArtRow[]}
+ */
+function buildPixelWordmarkRows(options = {}) {
+  const env = options.env ?? process.env;
+  const resolution = resolveArtMode(options, env);
+  if (resolution.effective !== 'arcade') return [];
+  const iconMode = resolveIconMode(options, env);
+  if (iconMode === 'ascii') return [];
+
+  const useGradient = options.truecolor === true;
+  const chars = BRAND_WORDMARK.split('');
+  /** @type {ArtRow[]} */
+  const rows = [];
+  for (let r = 0; r < PIXEL_WORDMARK_ROWS; r += 1) {
+    /** @type {ArtSegment[]} */
+    const segments = [];
+    chars.forEach((ch, idx) => {
+      const glyph = WORDMARK_3X5[ch];
+      if (!glyph) return;
+      const tone = wordmarkToneForIndex(idx, chars.length, useGradient);
+      const bits = glyph[r] || '';
+      let block = '';
+      for (const bit of bits) {
+        block += bit === '1' ? '█' : ' ';
+      }
+      segments.push(seg(block, tone, true));
+      if (idx < chars.length - 1) {
+        segments.push(seg(' ', 'muted'));
+      }
+    });
+    rows.push(row(...segments));
+  }
+  return rows;
+}
+
+/**
+ * Plain per-character wordmark segments (gradient when truecolor).
+ * @param {{ truecolor?: boolean, text?: string }} [options]
+ * @returns {ArtSegment[]}
+ */
+function buildTextWordmarkSegments(options = {}) {
+  const text = options.text == null || options.text === ''
+    ? BRAND_WORDMARK
+    : String(options.text);
+  const useGradient = options.truecolor === true;
+  const chars = text.split('');
+  return chars.map((ch, i) => seg(
+    ch,
+    wordmarkToneForIndex(i, chars.length, useGradient),
+    true,
+  ));
 }
 
 /**
@@ -499,6 +586,8 @@ module.exports = {
   GUARDIAN_STYLES,
   DEFAULT_ART_MODE,
   DEFAULT_GUARDIAN_STYLE,
+  BRAND_WORDMARK,
+  PIXEL_WORDMARK_ROWS,
   measureArtDisplayWidth,
   measureArtRowsWidth,
   flattenArtRows,
@@ -506,6 +595,8 @@ module.exports = {
   resolvePixelCerberusVariant,
   neonCerberusRows,
   semanticCerberusRows,
+  buildPixelWordmarkRows,
+  buildTextWordmarkSegments,
   buildLandingGuardianArt,
   sectionPixelIcon,
   sectionPixelIconRows,

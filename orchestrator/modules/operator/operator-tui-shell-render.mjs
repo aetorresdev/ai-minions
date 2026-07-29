@@ -333,7 +333,30 @@ function LandingHomeView(props) {
 
   const primaryChildren = [];
   if (comp.show_product) {
-    primaryChildren.push(renderBrandWordmark(theme, landing.hero.product, 'product'));
+    const productRows = Array.isArray(landing.hero?.product_rows)
+      ? landing.hero.product_rows
+      : [];
+    const productSegs = Array.isArray(landing.hero?.product_segments)
+      ? landing.hero.product_segments
+      : [];
+    if (productRows.length > 0) {
+      for (let i = 0; i < productRows.length; i += 1) {
+        primaryChildren.push(renderGuardianSegments(
+          theme,
+          productRows[i].segments || [],
+          `product-px-${i}`,
+        ));
+      }
+    }
+    if (productSegs.length > 0) {
+      primaryChildren.push(renderGuardianSegments(
+        theme,
+        productSegs,
+        'product-grad',
+      ));
+    } else if (productRows.length === 0) {
+      primaryChildren.push(renderBrandWordmark(theme, landing.hero.product, 'product'));
+    }
   }
   if (comp.show_tagline) {
     primaryChildren.push(React.createElement(
@@ -540,6 +563,10 @@ function SplashApp(props) {
     readiness: model.readiness,
     icons: model.iconMode,
     truecolor: theme.truecolor,
+    art: model.landing?.art?.requested ?? model.artMode,
+    guardianStyle: model.landing?.guardian_style
+      ?? model.landing?.art?.guardianStyle
+      ?? model.guardianStyle,
   });
   const continuedRef = useRef(false);
 
@@ -587,13 +614,26 @@ function SplashApp(props) {
 
   // Prefer a single Text for the triad when color is off (NO_COLOR / markers).
   // When color is on, paint Validate / Trace / Enforce with triad tokens.
-  const triadNode = theme.triadValidate
-    ? renderSegments(content.triadSegments, 'triad')
-    : React.createElement(
-      Text,
-      { key: 'triad', color: theme.muted },
-      content.triad || 'Validate • Trace • Enforce',
-    );
+  const triadNode = content.showTriad === false
+    ? null
+    : (theme.triadValidate
+      ? renderSegments(content.triadSegments, 'triad')
+      : React.createElement(
+        Text,
+        { key: 'triad', color: theme.muted },
+        content.triad || 'Validate • Trace • Enforce',
+      ));
+
+  const wordmarkNodes = Array.isArray(content.wordmarkRows) && content.wordmarkRows.length > 0
+    ? content.wordmarkRows.map((row, idx) => renderSegments(row.segments, `wm-px-${idx}`))
+    : [
+      renderSegments(
+        content.wordmarkSegments && content.wordmarkSegments.length > 0
+          ? content.wordmarkSegments
+          : [{ text: content.wordmark || 'AI-MINIONS', tone: 'brand', bold: true }],
+        'wm-text',
+      ),
+    ];
 
   return React.createElement(
     Box,
@@ -608,6 +648,7 @@ function SplashApp(props) {
       paddingX: 1,
     },
     ...(content.rows || []).map((row, idx) => renderSegments(row.segments, `art-${idx}`)),
+    ...wordmarkNodes,
     content.showSpacers
       ? React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' '))
       : null,

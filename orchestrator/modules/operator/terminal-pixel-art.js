@@ -631,8 +631,10 @@ module.exports = {
   ICONS,
   MATRIX_COLORS,
   TOKENS,
+  WORDMARK_3X5,
   blockRows,
   brailleRows,
   buildLandingCanvas,
+  drawWordmark,
   guardianRows,
 };

@@ -61,13 +61,13 @@ test('resolveArtMode: auto/arcade/text/none and invalid fail-closed', () => {
   assert.equal(bad.requested, 'sixel');
 });
 
-test('resolveArtMode: guardian style neon|semantic; default neon; invalid → neon', () => {
-  assert.equal(DEFAULT_GUARDIAN_STYLE, 'neon');
+test('resolveArtMode: guardian style neon|semantic; default semantic; invalid → semantic', () => {
+  assert.equal(DEFAULT_GUARDIAN_STYLE, 'semantic');
   assert.equal(resolveArtMode({ guardianStyle: 'semantic' }, {}).guardianStyle, 'semantic');
   assert.equal(resolveArtMode({ guardianStyle: 'neon' }, {}).guardianStyle, 'neon');
-  assert.equal(resolveArtMode({}, {}).guardianStyle, 'neon');
+  assert.equal(resolveArtMode({}, {}).guardianStyle, 'semantic');
   const bad = resolveArtMode({ guardianStyle: 'ember' }, {});
-  assert.equal(bad.guardianStyle, 'neon');
+  assert.equal(bad.guardianStyle, 'semantic');
   assert.equal(bad.guardianStyleRequested, 'ember');
   assert.match(String(bad.guardianStyleReason), /invalid_guardian_style:ember/);
 });
@@ -105,7 +105,7 @@ test('buildLandingGuardianArt: none omits; text leaves splash path empty; arcade
   const arcade = buildLandingGuardianArt({ layout: 'wide', icons: 'unicode', art: 'arcade' });
   assert.ok(arcade.rows.length > 0);
   assert.equal(arcade.resolution.effective, 'arcade');
-  assert.equal(arcade.resolution.guardianStyle, 'neon');
+  assert.equal(arcade.resolution.guardianStyle, 'semantic');
 });
 
 test('landing wires arcade guardian and section icons; semantic hides triad', () => {
@@ -141,7 +141,7 @@ test('landing wires arcade guardian and section icons; semantic hides triad', ()
   assert.equal(semantic.guardian_style, 'semantic');
 });
 
-test('default arcade guardian is Neon (Semantic opt-in)', () => {
+test('default arcade guardian is Semantic (Neon opt-in)', () => {
   const landing = buildLandingViewModel({
     home: readyHome(),
     columns: 120,
@@ -149,9 +149,14 @@ test('default arcade guardian is Neon (Semantic opt-in)', () => {
     icons: 'unicode',
     art: 'arcade',
   });
-  assert.equal(landing.guardian_style, 'neon');
-  assert.equal(landing.composition.show_triad, true);
-  assert.ok(landing.guardian_lines.some((l) => /CERBERUS/.test(l)));
+  assert.equal(landing.guardian_style, 'semantic');
+  assert.equal(landing.composition.show_triad, false);
+  assert.ok(landing.guardian_lines.some((l) => /VALIDATE/.test(l)));
+  assert.ok(
+    (landing.hero.product_rows && landing.hero.product_rows.length >= 5)
+      || (landing.hero.product_segments && landing.hero.product_segments.length >= 9),
+    'brand wordmark is pixel rows or gradient segments',
+  );
 });
 
 test('first-paint pixel renderer performs no I/O (sync pure matrices)', () => {
@@ -349,6 +354,73 @@ test('production Ink: non-empty Recent Runs + long summaries fit neon/semantic a
             `${id}: keep compact/wide guardian`,
           );
         }
+      }
+    }
+  }
+});
+
+test('production Ink: multiline CR/LF summaries stay one row neon/semantic @ 80×24 and 120×36', async () => {
+  const { renderOperatorTuiShellToString } = await import(
+    '../../modules/operator/operator-tui-shell-render.mjs'
+  );
+  const { measureLandingRender } = await import(
+    '../../scripts/lib/tui-landing-render-metrics.mjs'
+  );
+  const { formatRecentRunEntryLine } = require('../../modules/operator/operator-tui-landing');
+  const multilineLf = 'line1\nline2\nline3 of a goal that must collapse';
+  const multilineCrlf = 'line1\r\nline2\r\nline3 of a goal that must collapse';
+  for (const summary of [multilineLf, multilineCrlf]) {
+    const formatted = formatRecentRunEntryLine({
+      activity_label: 'DONE',
+      run_id: 'run-nl-1',
+      summary,
+      last_event_at: '2026-07-29T12:00:00Z',
+    }, 80);
+    assert.equal(formatted.includes('\n'), false, 'formatter strips LF');
+    assert.equal(formatted.includes('\r'), false, 'formatter strips CR');
+    assert.equal(formatted.split(/\r?\n/).length, 1);
+  }
+  const base = {
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    contentSurface: 'home',
+    selectedNavId: 'launcher',
+    icons: 'unicode',
+    truecolor: false,
+    art: 'arcade',
+  };
+  for (const [columns, rows] of [[120, 36], [80, 24]]) {
+    for (const guardianStyle of ['neon', 'semantic']) {
+      for (const [nlLabel, summary] of [
+        ['lf', multilineLf],
+        ['crlf', multilineCrlf],
+      ]) {
+        const model = buildShellModel({
+          ...base,
+          columns,
+          rows,
+          guardianStyle,
+          runsPayload: {
+            runs: [{
+              run_id: `run-${nlLabel}-1`,
+              goal_summary: summary,
+              last_event_at: '2026-07-29T12:00:00Z',
+              status: 'completed',
+              outcome: 'success',
+              agent_count: 1,
+            }],
+            result_code: 'OK',
+          },
+        });
+        const id = `${guardianStyle}@${columns}x${rows}/${nlLabel}`;
+        const out = renderOperatorTuiShellToString(model, { columns, rows });
+        const m = measureLandingRender(out, { columns, rows });
+        assert.ok(m.rendered_lines <= rows, `${id}: rows ${m.rendered_lines} > ${rows}`);
+        assert.ok(m.max_display_width <= columns, `${id}: width overflow`);
+        assert.equal(m.fits_viewport, true, `${id}: fits_viewport`);
+        assert.match(out, /Start New Run/, id);
+        assert.match(out, /Overall:/, id);
       }
     }
   }

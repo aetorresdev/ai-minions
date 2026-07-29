@@ -153,6 +153,8 @@ function buildShellModel(options = {}) {
     art: options.art,
     artMode: options.artMode,
     guardianStyle: options.guardianStyle,
+    truecolor,
+    colorEnabled,
     env: options.env,
   });
   const readiness = landing.overall.state === 'ready'

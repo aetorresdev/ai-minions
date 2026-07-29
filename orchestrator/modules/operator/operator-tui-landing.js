@@ -13,6 +13,8 @@ const {
 const { resolveIconMode } = require('./operator-tui-icons');
 const {
   buildLandingGuardianArt,
+  buildPixelWordmarkRows,
+  buildTextWordmarkSegments,
   sectionTitleWithPixelIcon,
 } = require('./operator-tui-pixel-art');
 
@@ -187,6 +189,7 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
  * @param {number} columns
  * @param {number} [guardianArtRows] actual guardian_rows.length when known
  * @param {number} [recentRunCount] actual runs.length when known (caps limit)
+ * @param {number} [productArtRows] pixel wordmark rows when known (else 1)
  * @returns {number}
  */
 function estimateLandingCompositionRows(
@@ -195,12 +198,18 @@ function estimateLandingCompositionRows(
   columns,
   guardianArtRows,
   recentRunCount,
+  productArtRows,
 ) {
   const cols = Number.isFinite(columns) && columns >= 1 ? columns : 80;
   const contentWidth = Math.max(16, cols - 4);
 
   let hero = 0;
-  if (composition.show_product) hero += 1;
+  if (composition.show_product) {
+    const productN = Number.isFinite(Number(productArtRows)) && Number(productArtRows) > 0
+      ? Math.floor(Number(productArtRows))
+      : 1;
+    hero += productN;
+  }
   if (composition.show_tagline) hero += 1;
   if (composition.show_triad) hero += 1;
   if (composition.show_primary_cta) hero += 1;
@@ -290,7 +299,7 @@ function estimateLandingCompositionRows(
  * content before sacrificing Start New Run or the explicit Overall readiness line.
  * @param {unknown} columns
  * @param {unknown} rows
- * @param {{ guardianArtRows?: number, sectionIconRows?: number }} [opts]
+ * @param {{ guardianArtRows?: number, sectionIconRows?: number, productArtRows?: number }} [opts]
  * @returns {{ layout: LandingLayoutMode, composition: LandingComposition, estimated_rows: number }}
  */
 function resolveLandingComposition(columns, rows, opts = {}) {
@@ -302,15 +311,22 @@ function resolveLandingComposition(columns, rows, opts = {}) {
   const composition = defaultLandingComposition(layout);
   const guardianArtRows = Number(opts.guardianArtRows);
   const sectionIconRows = Number(opts.sectionIconRows);
+  const productArtRows = Number(opts.productArtRows);
   if (Number.isFinite(sectionIconRows) && sectionIconRows > 0) {
     composition.section_icon_rows = Math.floor(sectionIconRows);
   }
+
+  const productN = Number.isFinite(productArtRows) && productArtRows > 0
+    ? Math.floor(productArtRows)
+    : undefined;
 
   let estimated = estimateLandingCompositionRows(
     composition,
     layout,
     c,
     Number.isFinite(guardianArtRows) ? guardianArtRows : undefined,
+    undefined,
+    productN,
   );
   for (const step of LANDING_COMPOSITION_DROP_STEPS) {
     if (estimated <= rowCount) break;
@@ -324,6 +340,8 @@ function resolveLandingComposition(columns, rows, opts = {}) {
       layout,
       c,
       Number.isFinite(guardianArtRows) ? guardianArtRows : undefined,
+      undefined,
+      productN,
     );
   }
 
@@ -682,7 +700,24 @@ function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT) {
 }
 
 /**
+ * Collapse CR/LF to a single terminal-safe line (Ink wrap:truncate does not strip newlines).
+ * @param {unknown} value
+ * @param {string} [fallback]
+ * @returns {string}
+ */
+function terminalSafeSingleLine(value, fallback = '') {
+  if (value == null) return fallback;
+  return String(value)
+    .replace(/\r\n/g, ' ')
+    .replace(/[\r\n]/g, ' ')
+    .replace(/[ \t\f\v]+/g, ' ')
+    .trim();
+}
+
+/**
  * One-line Recent Runs entry (no wrap). Truncates to fit content width.
+ * Normalizes activity_label / run_id / summary / last_event_at before truncating
+ * so embedded CR/LF cannot become extra physical Ink rows.
  * @param {{ activity_label?: string, run_id?: string, summary?: string | null, last_event_at?: string | null }} run
  * @param {number} columns
  * @param {{ compact?: boolean }} [opts]
@@ -690,11 +725,12 @@ function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT) {
  */
 function formatRecentRunEntryLine(run, columns, opts = {}) {
   const compact = opts.compact === true;
-  const summary = run.summary == null || run.summary === '' ? '' : String(run.summary);
-  const when = run.last_event_at == null || run.last_event_at === ''
-    ? 'time unavailable'
-    : String(run.last_event_at);
-  let line = `  ${run.activity_label ?? 'UNKNOWN'}  ${run.run_id ?? ''}`
+  const activity = terminalSafeSingleLine(run.activity_label, 'UNKNOWN') || 'UNKNOWN';
+  const runId = terminalSafeSingleLine(run.run_id, '');
+  const summary = terminalSafeSingleLine(run.summary, '');
+  const whenRaw = terminalSafeSingleLine(run.last_event_at, '');
+  const when = whenRaw === '' ? 'time unavailable' : whenRaw;
+  let line = `  ${activity}  ${runId}`
     + (summary ? `  ${summary}` : '')
     + (compact ? '' : `  ${when}`);
   const max = Math.max(12, (Number.isFinite(Number(columns)) ? Number(columns) : 80) - 4);
@@ -747,6 +783,26 @@ function buildLandingViewModel(options = {}) {
     ? sectionIconProbe.lines.length
     : 0;
 
+  // Lock v2 3×5 pixel wordmark on wide arcade landings only (hero column budget).
+  // Mid/compact keep scannable uppercase text (gradient when truecolor).
+  const truecolor = options.truecolor === true;
+  const colorEnabled = options.colorEnabled !== false;
+  let product_rows = [];
+  if (colorEnabled && layout === 'wide' && columns >= 100) {
+    product_rows = buildPixelWordmarkRows({
+      ...artOpts,
+      truecolor,
+    });
+  }
+  const product_segments = buildTextWordmarkSegments({
+    truecolor,
+    text: 'AI-MINIONS',
+  });
+  // Pixel rows + one text line when pixel is shown; text-only otherwise.
+  let productArtRows = product_rows.length > 0
+    ? product_rows.length + 1
+    : 1;
+
   // Art-aware composition loop: estimate from real art height; degrade wide→compact
   // before hide_guardian (lock v2 responsive table).
   const composition = defaultLandingComposition(layout);
@@ -767,9 +823,46 @@ function buildLandingViewModel(options = {}) {
     columns,
     pixelArt.rows.length,
     runCount,
+    productArtRows,
   );
   for (const step of LANDING_COMPOSITION_DROP_STEPS) {
     if (estimated <= rows) break;
+    // Pixel wordmark → text before any other drop when height is tight.
+    if (product_rows.length > 0 && estimated > rows) {
+      product_rows = [];
+      productArtRows = 1;
+      composition.drops.push('product_text');
+      estimated = estimateLandingCompositionRows(
+        composition,
+        layout,
+        columns,
+        pixelArt.rows.length,
+        runCount,
+        1,
+      );
+      continue;
+    }
+    // Wide lock art → compact before reducing Recent / readiness chrome.
+    if (
+      estimated > rows
+      && layout === 'wide'
+      && pixelArt.variant === 'wide'
+      && pixelArt.rows.length > 0
+      && !composition.drops.includes('guardian_compact')
+    ) {
+      const compactArt = buildLandingGuardianArt({ ...artOpts, layout: 'mid' });
+      pixelArt = compactArt;
+      composition.drops.push('guardian_compact');
+      estimated = estimateLandingCompositionRows(
+        composition,
+        layout,
+        columns,
+        compactArt.rows.length,
+        runCount,
+        productArtRows,
+      );
+      continue;
+    }
     // recent_empty_short is empty-board only — never under-count real run rows.
     if (step.id === 'recent_empty_short' && runCount > 0) {
       continue;
@@ -793,6 +886,7 @@ function buildLandingViewModel(options = {}) {
         columns,
         compactArt.rows.length,
         runCount,
+        productArtRows,
       );
       if (estCompact <= rows) {
         pixelArt = compactArt;
@@ -811,6 +905,7 @@ function buildLandingViewModel(options = {}) {
       columns,
       composition.show_guardian ? pixelArt.rows.length : 0,
       runCount,
+      composition.show_product ? productArtRows : 0,
     );
   }
   const resolved = { layout, composition, estimated_rows: estimated };
@@ -1008,6 +1103,8 @@ function buildLandingViewModel(options = {}) {
     section_titles: sectionTitles,
     hero: {
       product: 'AI-MINIONS',
+      product_rows,
+      product_segments,
       tagline: 'Contract-First Multi-Agent Orchestration Harness',
       triad: 'Validate • Trace • Enforce',
       guardian_note: 'Cerberus guards contracts and gates — secondary system symbol',
@@ -1186,7 +1283,7 @@ function helpTopics() {
         'Art: AI_MINIONS_TUI_ART=auto|arcade|text|none',
         '  auto → arcade for nerd/unicode; text for ascii.',
         '  Invalid ART values fail closed to auto; reason stays in debug across remounts.',
-        '  Guardian: AI_MINIONS_TUI_GUARDIAN=neon|semantic (default neon; semantic=lock v2).',
+        '  Guardian: AI_MINIONS_TUI_GUARDIAN=neon|semantic (default semantic=lock v2; neon opt-in).',
         '',
         'Selecting this topic never opens Settings (that would remount / look like quit).',
       ]),
