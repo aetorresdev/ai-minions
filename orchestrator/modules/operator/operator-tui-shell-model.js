@@ -149,6 +149,10 @@ function buildShellModel(options = {}) {
     rows,
     loading,
     icons: iconMode,
+    art: options.art,
+    artMode: options.artMode,
+    guardianStyle: options.guardianStyle,
+    env: options.env,
   });
   const readiness = landing.overall.state === 'ready'
     ? 'ready'
@@ -683,6 +687,11 @@ function shellModelToOptions(model) {
     icons: model.iconMode,
     iconMode: model.iconMode,
     truecolor: model.truecolor,
+    art: model.landing?.art?.mode ?? model.landing?.art?.requested ?? undefined,
+    artMode: model.landing?.art?.mode ?? undefined,
+    guardianStyle: model.landing?.guardian_style
+      ?? model.landing?.art?.guardianStyle
+      ?? undefined,
     productVersion: model.version,
     activeWorkflow: model.activeWorkflow ?? null,
     pendingLauncherSelections: model.pendingLauncherSelections ?? null,

@@ -11,6 +11,10 @@ const {
   landingGuardianRowsMid,
 } = require('./operator-tui-splash');
 const { resolveIconMode } = require('./operator-tui-icons');
+const {
+  buildLandingGuardianArt,
+  sectionTitleWithPixelIcon,
+} = require('./operator-tui-pixel-art');
 
 const LANDING_SCHEMA = '1';
 const RECENT_RUNS_LIMIT = 5;
@@ -641,6 +645,10 @@ function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT) {
  *   loading?: boolean,
  *   icons?: string,
  *   iconMode?: string,
+ *   art?: string,
+ *   artMode?: string,
+ *   guardianStyle?: string,
+ *   env?: NodeJS.ProcessEnv,
  * }} [options]
  */
 function buildLandingViewModel(options = {}) {
@@ -650,16 +658,37 @@ function buildLandingViewModel(options = {}) {
   const columns = Number.isFinite(Number(options.columns)) ? Number(options.columns) : 80;
   const rows = Number.isFinite(Number(options.rows)) ? Number(options.rows) : 24;
   const iconMode = resolveIconMode(options);
+  const env = options.env && typeof options.env === 'object' ? options.env : process.env;
   const resolved = resolveLandingComposition(columns, rows);
   const layout = resolved.layout;
-  const composition = resolved.composition;
-  const showGuardian = composition.show_guardian === true;
-  const guardian_lines = showGuardian ? landingGuardianPlainLines(layout, iconMode) : [];
-  const guardian_rows = !showGuardian
-    ? []
-    : (layout === 'wide'
-      ? landingGuardianRowsWide(iconMode)
-      : (layout === 'mid' ? landingGuardianRowsMid(iconMode) : []));
+  const composition = { ...resolved.composition };
+  const pixelArt = buildLandingGuardianArt({
+    layout,
+    icons: iconMode,
+    art: options.art,
+    artMode: options.artMode,
+    guardianStyle: options.guardianStyle,
+    env,
+  });
+  // Semantic Guardians carry VALIDATE/TRACE/ENFORCE under heads — drop duplicate triad.
+  if (pixelArt.hide_hero_triad && composition.show_triad) {
+    composition.show_triad = false;
+  }
+  const showGuardian = composition.show_guardian === true
+    && pixelArt.resolution.effective !== 'none';
+  let guardian_lines = [];
+  let guardian_rows = [];
+  if (showGuardian) {
+    if (pixelArt.resolution.effective === 'arcade' && pixelArt.rows.length > 0) {
+      guardian_rows = pixelArt.rows;
+      guardian_lines = pixelArt.lines;
+    } else {
+      guardian_lines = landingGuardianPlainLines(layout, iconMode);
+      guardian_rows = layout === 'wide'
+        ? landingGuardianRowsWide(iconMode)
+        : (layout === 'mid' ? landingGuardianRowsMid(iconMode) : []);
+    }
+  }
   const overall = options.loading === true
     ? {
       state: /** @type {LandingOverallState} */ ('loading'),
@@ -788,6 +817,27 @@ function buildLandingViewModel(options = {}) {
     ? quickStartAll.slice(0, Math.max(1, Number(composition.quick_start_limit) || 1))
     : [];
 
+  const sectionIcons = {
+    quick_start: sectionTitleWithPixelIcon('Quick Start', 'quick_start', {
+      icons: iconMode,
+      art: options.art,
+      artMode: options.artMode,
+      env,
+    }),
+    readiness: sectionTitleWithPixelIcon('System Readiness', 'readiness', {
+      icons: iconMode,
+      art: options.art,
+      artMode: options.artMode,
+      env,
+    }),
+    recent_runs: sectionTitleWithPixelIcon('Recent Runs', 'recent_runs', {
+      icons: iconMode,
+      art: options.art,
+      artMode: options.artMode,
+      env,
+    }),
+  };
+
   return {
     schema: LANDING_SCHEMA,
     kind: 'landing',
@@ -796,11 +846,15 @@ function buildLandingViewModel(options = {}) {
     columns,
     rows,
     iconMode,
+    art: pixelArt.resolution,
+    guardian_style: pixelArt.resolution.guardianStyle,
     composition,
     estimated_rows: resolved.estimated_rows,
     show_guardian: showGuardian && guardian_lines.length > 0,
     guardian_lines,
     guardian_rows,
+    guardian_display_width: pixelArt.display_width,
+    section_titles: sectionIcons,
     hero: {
       product: 'AI-MINIONS',
       tagline: 'Contract-First Multi-Agent Orchestration Harness',
@@ -984,6 +1038,10 @@ function helpTopics() {
         'Icons: AI_MINIONS_TUI_ICONS=nerd|unicode|ascii',
         '  Default nerd — operator choice; not auto glyph detect.',
         '  NO_COLOR does not switch icon mode.',
+        '',
+        'Art: AI_MINIONS_TUI_ART=auto|arcade|text|none',
+        '  auto → arcade for nerd/unicode; text for ascii.',
+        '  Guardian compare: AI_MINIONS_TUI_GUARDIAN=neon|semantic (checkpoint).',
         '',
         'Selecting this topic never opens Settings (that would remount / look like quit).',
       ]),

@@ -1791,3 +1791,210 @@ test('legacy readline rollback path does not load Ink', async () => {
   assert.equal(result.ink_loaded, false);
   assert.equal(result.reason_code, 'COCKPIT_QUIT');
 });
+
+test('dumb surface walk: all major Ink-local surfaces stay single-mount; Settings remounts once', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  const out = [];
+  stdout.on('data', (chunk) => {
+    out.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+  });
+  const actions = [];
+  let mountCount = 0;
+  /** @type {string[]} */
+  const surfaces = [];
+  const softCount = () => out.join('').split(SOFT_HANDOFF_SEQUENCE).length - 1;
+  const tick = (ms = 80) => new Promise((r) => setTimeout(r, ms));
+
+  const promise = runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 12,
+    selectedRunId: 'blocked-1',
+    statusResult: {
+      run_id: 'blocked-1',
+      result_code: 'RUN_FOUND',
+      status: 'blocked',
+      outcome: 'blocked',
+      reason_code: 'CERBERUS_REJECT',
+      next_safe_action: 'address CERBERUS blockers',
+    },
+    evidenceModel: {
+      run_id: 'blocked-1',
+      result_code: 'EVIDENCE_FOUND',
+      attach_available: false,
+      reason_code: 'ATTACH_UNAVAILABLE',
+      next_safe_action: 'generate attach bundle from Overview',
+    },
+    loadRuns: () => canonicalRunsResult([
+      {
+        run_id: 'blocked-1',
+        status: 'blocked',
+        outcome: 'blocked',
+        result_code: 'RUN_FOUND',
+        reason_code: 'CERBERUS_REJECT',
+      },
+    ]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => {
+      const mod = await import('../../modules/operator/operator-tui-shell-render.mjs');
+      return {
+        renderOperatorTuiShell: async (opts) => {
+          mountCount += 1;
+          const prev = opts.onModelChange;
+          opts.onModelChange = (next) => {
+            surfaces.push(String(next?.contentSurface ?? ''));
+            if (typeof prev === 'function') prev(next);
+          };
+          return mod.renderOperatorTuiShell(opts);
+        },
+      };
+    },
+    executeAction: async (opts) => {
+      actions.push(opts.actionId);
+      if (opts.actionId === 'config') {
+        return {
+          quit: false,
+          selectedRunId: opts.selectedRunId ?? null,
+          contentSurface: 'config',
+          actionResult: {
+            action_id: 'config',
+            ok: true,
+            exit_code: 0,
+            reason_code: 'CONFIG_READINESS_PANE_BACK',
+            text: 'back',
+          },
+          configModel: {
+            ok: true,
+            model_policy: 'local_only',
+            path_activation: { status: 'ready', on_path: true },
+            credentials: { credential_sufficiency: 'not_required', providers: [] },
+            remediation_candidates: [],
+          },
+        };
+      }
+      return {
+        quit: false,
+        selectedRunId: opts.selectedRunId ?? null,
+        contentSurface: 'action_result',
+        actionResult: {
+          action_id: opts.actionId,
+          ok: true,
+          exit_code: 0,
+          reason_code: 'OK',
+          text: 'ok',
+        },
+      };
+    },
+  });
+
+  await tick(150);
+  assert.equal(mountCount, 1, 'initial mount');
+  assert.equal(softCount(), 0);
+
+  // Help topics (in-process) — walk topic keys then Esc home.
+  stdin.write('?');
+  await tick();
+  stdin.write('1');
+  await tick(60);
+  stdin.write('\x1b'); // topic list
+  await tick(50);
+  stdin.write('2');
+  await tick(60);
+  stdin.write('\x1b');
+  await tick(50);
+  stdin.write('3');
+  await tick(60);
+  stdin.write('\x1b');
+  await tick(50);
+  // Tab → input: digit must stay Help topic, never Settings remount.
+  stdin.write('\t');
+  await tick(40);
+  stdin.write('\t');
+  await tick(40);
+  stdin.write('4');
+  await tick(70);
+  assert.deepEqual(actions, [], 'Help Tab→input must not executeAction/Settings');
+  assert.equal(mountCount, 1, 'Help Tab→input must keep single mount');
+  assert.equal(softCount(), 0, 'Help Tab→input must not soft-handoff');
+  stdin.write('\x1b'); // close topic
+  await tick(50);
+  stdin.write('\x1b'); // home
+  await tick();
+
+  // Diagnostics / System Status
+  stdin.write('3');
+  await tick();
+  assert.ok(surfaces.includes('diagnostics'), 'diagnostics surface');
+  stdin.write('\x1b');
+  await tick();
+
+  // Overview / Explain / Evidence
+  stdin.write('o');
+  await tick();
+  stdin.write('x');
+  await tick();
+  stdin.write('e');
+  await tick();
+  assert.ok(surfaces.includes('status'), 'status/overview');
+  assert.ok(surfaces.includes('evidence'), 'evidence');
+  assert.deepEqual(actions, [], 'o/x/e stay Ink-local');
+  assert.equal(mountCount, 1);
+  assert.equal(softCount(), 0);
+  stdin.write('\x1b');
+  await tick();
+
+  // Runs — native workflow (no executeAction); Esc cancels.
+  stdin.write('2');
+  await tick(100);
+  assert.deepEqual(actions, [], 'runs must not nested executeAction');
+  assert.equal(mountCount, 1, 'native runs workflow stays on same Ink mount');
+  stdin.write('\x1b');
+  await tick();
+
+  // Settings — nested Phase-2 pane: allowed remount after back.
+  const mountsBeforeSettings = mountCount;
+  const softBeforeSettings = softCount();
+  stdin.write('4');
+  await tick(120);
+  assert.deepEqual(actions, ['config'], 'Settings is the only nested executeAction');
+  assert.ok(mountCount >= mountsBeforeSettings + 1, 'Settings back remounts Ink');
+  assert.ok(softCount() >= softBeforeSettings + 1, 'Settings uses soft handoff into nested pane');
+
+  stdin.write('q');
+  const result = await promise;
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
+  // No stray remount actions beyond Settings.
+  assert.deepEqual(actions, ['config']);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('viewport budgets keep CTA and Overall across 50x16 / 80x24 / 120x36', () => {
+  const budgets = [
+    { columns: 50, rows: 16 },
+    { columns: 80, rows: 24 },
+    { columns: 120, rows: 36 },
+  ];
+  for (const vp of budgets) {
+    const model = buildShellModel({
+      aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+      credentials: { credential_sufficiency: 'not_required', providers: [] },
+      pathActivation: { status: 'ready', on_path: true },
+      runsPayload: canonicalRunsResult([]),
+      contentSurface: 'home',
+      selectedNavId: 'launcher',
+      columns: vp.columns,
+      rows: vp.rows,
+      icons: 'unicode',
+      art: 'arcade',
+    });
+    const text = formatShellText(model);
+    assert.match(text, /Start New Run/, `${vp.columns}x${vp.rows}: CTA`);
+    assert.match(text, /Overall:/, `${vp.columns}x${vp.rows}: Overall`);
+  }
+});

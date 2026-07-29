@@ -6,7 +6,7 @@
  Validate • Trace • Enforce
   1. Start New Run
 ╔═══════════════════════╗┌─────────────────────────────────────────────────────┐
-║ Quick Start           ║│ System Readiness                                    │
+║ ▶ Quick Start         ║│ ▣ System Readiness                                  │
 ║ keyboard — not        ║│ Overall: Ready                                      │
 ║ clickable             ║│ next: Start New Run — try the canonical fixture for │
 ║  1. Start New Run    ║│ a low-risk first success                            │

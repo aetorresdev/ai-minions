@@ -1,17 +1,17 @@
 ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 ║ [>] ai-minions                                                                                        v0.26.0-beta.1 ║
 ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
-┌────────────────────┐ AI-MINIONS
-│  ▄██▄ ▄██▄ ▄██▄    │ Contract-First Multi-Agent Orchestration Harness
-│  █V██ █T██ █E██    │ Validate • Trace • Enforce
-│  ▀██▀ ▀██▀ ▀██▀    │  1. Start New Run
-│    └────◆────┘     │ Cerberus guards contracts and gates — secondary system symbol
-│     CERBERUS       │
-└────────────────────┘
+┌────────────────────────┐ AI-MINIONS
+│  ▄██▄ ▄██▄ ▄██▄        │ Contract-First Multi-Agent Orchestration Harness
+│  █▣██ █◈██ █▤██        │ › 1. Start New Run
+│  ▀██▀ ▀██▀ ▀██▀        │ Cerberus guards contracts and gates — secondary system symbol
+│ VALIDATE TRACE ENFORCE │
+│       CERBERUS         │
+└────────────────────────┘
 ╔══════════════════════════════════╗┌──────────────────────────────────────────────────────────────────────────────────┐
 ║ ▶ Quick Start                    ║│ ▣ System Readiness                                                               │
 ║ keyboard — not clickable         ║│ Overall: Ready                                                                   │
-║  1. Start New Run               ║│ next: Start New Run — try the canonical fixture for a low-risk first success     │
+║ › 1. Start New Run               ║│ next: Start New Run — try the canonical fixture for a low-risk first success     │
 ║   2. Browse Runs                 ║│   Model Policy: local_only                                                       │
 ║   3. System Status               ║│   Credentials: not_required                                                      │
 ║   4. Settings                    ║│   Environment: OK                                                                │

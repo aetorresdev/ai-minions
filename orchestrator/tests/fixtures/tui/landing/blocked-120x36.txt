@@ -1,16 +1,15 @@
 ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 ║ [>] ai-minions                                                                                        v0.26.0-beta.1 ║
 ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
-┌──────────────────────────┐ AI-MINIONS
-│   /\   /\   /\           │ Contract-First Multi-Agent Orchestration Harness
-│  /V\ /T\ /E\             │ Validate • Trace • Enforce
-│  |◇◇|◇◇|◇◇|              │ › 1. Start New Run
-│  \/ -◆- \/               │ Cerberus guards contracts and gates — secondary system symbol
-│  VALIDATE TRACE ENFORCE  │
-│     CERBERUS             │
-└──────────────────────────┘
+┌────────────────────┐ AI-MINIONS
+│  ▄██▄ ▄██▄ ▄██▄    │ Contract-First Multi-Agent Orchestration Harness
+│  █V██ █T██ █E██    │ Validate • Trace • Enforce
+│  ▀██▀ ▀██▀ ▀██▀    │ › 1. Start New Run
+│    └────◆────┘     │ Cerberus guards contracts and gates — secondary system symbol
+│     CERBERUS       │
+└────────────────────┘
 ╔══════════════════════════════════╗┌──────────────────────────────────────────────────────────────────────────────────┐
-║ Quick Start                      ║│ System Readiness                                                                 │
+║ ▶ Quick Start                    ║│ ▣ System Readiness                                                               │
 ║ keyboard — not clickable         ║│ Overall: Blocked                                                                 │
 ║ › 1. Start New Run               ║│ next: Open Settings and complete the required remediation                        │
 ║   2. Browse Runs                 ║│   Model Policy: cloud_preferred                                                  │
@@ -20,7 +19,7 @@
 ║                                  ║│   Overall Status: BLOCKED                                                        │
 ╚══════════════════════════════════╝└──────────────────────────────────────────────────────────────────────────────────┘
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Recent Runs                                                                                                          │
+│ ◷ Recent Runs                                                                                                        │
 │   Blocked: Open Settings and complete the required remediation                                                       │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐

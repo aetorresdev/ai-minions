@@ -163,7 +163,12 @@ function LandingHomeView(props) {
         width: compact ? undefined : 36,
         flexGrow: compact ? 1 : 0,
       },
-      React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Quick Start'),
+      React.createElement(
+        Text,
+        { bold: theme.sectionBold, color: theme.accent },
+        (landing.section_titles && landing.section_titles.quick_start)
+          || 'Quick Start',
+      ),
       ...(comp.show_quick_start_hint
         ? [React.createElement(
           Text,
@@ -202,7 +207,12 @@ function LandingHomeView(props) {
       paddingX: 1,
       flexGrow: comp.show_recent_runs || comp.show_quick_start ? 1 : 0,
     },
-    React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'System Readiness'),
+    React.createElement(
+      Text,
+      { bold: theme.sectionBold, color: theme.accent },
+      (landing.section_titles && landing.section_titles.readiness)
+        || 'System Readiness',
+    ),
     React.createElement(
       Text,
       { color: readinessColor, bold: true },
@@ -237,7 +247,12 @@ function LandingHomeView(props) {
         paddingX: 1,
         flexGrow: 1,
       },
-      React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Recent Runs'),
+      React.createElement(
+        Text,
+        { bold: theme.sectionBold, color: theme.accent },
+        (landing.section_titles && landing.section_titles.recent_runs)
+          || 'Recent Runs',
+      ),
       ...(landing.recent_runs.length
         ? [
           React.createElement(
@@ -320,6 +335,11 @@ function LandingHomeView(props) {
     ...primaryChildren,
   );
 
+  // Guardian ≤ ~30% of 120 cols; size from measured sprite + padding/border.
+  const guardianArtWidth = Number(landing.guardian_display_width) > 0
+    ? Number(landing.guardian_display_width)
+    : 22;
+  const guardianColumnWidth = Math.min(36, Math.max(22, guardianArtWidth + 4));
   const guardianColumn = showGuardian && landingLayout === 'wide'
     ? React.createElement(
       Box,
@@ -328,7 +348,7 @@ function LandingHomeView(props) {
         paddingX: 1,
         borderStyle: 'single',
         borderColor: theme.muted,
-        width: 28,
+        width: guardianColumnWidth,
       },
       ...landing.guardian_rows.map((row, idx) => renderGuardianSegments(
         theme,

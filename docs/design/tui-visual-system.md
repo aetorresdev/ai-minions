@@ -87,8 +87,11 @@ Rules:
 
 ## Cerberus in the TUI
 
-- **Not PNG.** Runtime path is a deterministic **textual / Nerd** component with variants: **wide / compact / minimal**.
+- **Not PNG / not Kitty / not Sixel.** Runtime path is deterministic terminal cells with variants: **wide / compact / minimal**.
+- Default presentation under `AI_MINIONS_TUI_ART=auto`: **arcade** block-sprite Cerberus for `icons=nerd|unicode`; textual/ASCII path for `icons=ascii`. Overrides: `arcade|text|none`. Invalid values fail closed to `auto` with an observable reason.
+- Guardian comparison checkpoint: `AI_MINIONS_TUI_GUARDIAN=neon|semantic` (Neon is the implementation baseline until the operator locks Semantic Guardians).
 - Cerberus is a **secondary** brand guardian: supports the brand; never displaces `AI-MINIONS`, **Start New Run**, Overall readiness, or recent-runs summary.
+- Optional pixel section icons (Quick Start / System Readiness / Recent Runs) remain decorative and always keep text labels.
 - Drop order under space pressure: decorative Cerberus **before** Start New Run / Overall / recent runs.
 - Splash (brand prelude) remains skippable and bounded; it is not the landing.
 
