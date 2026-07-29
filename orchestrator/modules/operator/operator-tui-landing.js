@@ -134,6 +134,15 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
       c.show_triad = false;
     },
   },
+  // Recent goes before Quick Start / readiness cuts — menus beat run history under pressure.
+  {
+    id: 'hide_recent',
+    apply(c) {
+      c.show_recent_runs = false;
+      c.recent_runs_limit = 0;
+    },
+  },
+  // Extreme short TTY only (gated in the composition loop for ≥80×24).
   {
     id: 'hide_readiness_details',
     apply(c) {
@@ -151,13 +160,6 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
     apply(c) {
       c.quick_start_limit = 1;
       c.show_quick_start_hint = false;
-    },
-  },
-  {
-    id: 'hide_recent',
-    apply(c) {
-      c.show_recent_runs = false;
-      c.recent_runs_limit = 0;
     },
   },
   {
@@ -179,6 +181,11 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
     },
   },
 ]);
+
+/** Typical operator viewports must keep full Quick Start + readiness details. */
+function isTypicalLandingViewport(columns, rows) {
+  return Number(columns) >= 80 && Number(rows) >= 24;
+}
 
 /**
  * Estimate rendered row count for a composition (Ink borders + wrap heuristics).
@@ -217,9 +224,9 @@ function estimateLandingCompositionRows(
     hero += cols < 56 ? 2 : 1;
   }
 
-  // Wide guardian sits in a bordered column (art rows + 2 borders).
-  // Mid guardian is unbordered stacked art (lock compact = 8 + label).
-  // Prefer caller-supplied guardian_rows.length — never hardcode lock height as 8 alone.
+  // Wide: guardian in bordered column beside hero → max(guardian, hero).
+  // Mid (≥80): guardian beside hero without border → max(guardian, hero).
+  // Compact: guardian stacked above hero → sum.
   let guardianLines = 0;
   if (composition.show_guardian) {
     const artN = Number.isFinite(Number(guardianArtRows)) && Number(guardianArtRows) > 0
@@ -229,10 +236,10 @@ function estimateLandingCompositionRows(
   }
 
   let bodyTop;
-  if (layout === 'wide' && composition.show_guardian) {
+  if ((layout === 'wide' || layout === 'mid') && composition.show_guardian) {
     bodyTop = Math.max(guardianLines, hero);
   } else {
-    bodyTop = (layout !== 'wide' ? guardianLines : 0) + hero;
+    bodyTop = (layout === 'compact' && composition.show_guardian ? guardianLines : 0) + hero;
   }
 
   const panel = (inner) => (inner > 0 ? inner + 2 : 0);
@@ -803,8 +810,8 @@ function buildLandingViewModel(options = {}) {
     ? product_rows.length + 1
     : 1;
 
-  // Art-aware composition loop: estimate from real art height; degrade wide→compact
-  // before hide_guardian (lock v2 responsive table).
+  // Art-aware composition: demote art first (without consuming drop steps), then
+  // apply drop order. Typical ≥80×24 keeps full Quick Start + readiness details.
   const composition = defaultLandingComposition(layout);
   composition.section_icon_rows = sectionIconRows;
   // Empty run boards: reserve one empty line, not recent_runs_limit phantom rows.
@@ -817,52 +824,50 @@ function buildLandingViewModel(options = {}) {
     composition.drops.push('hide_triad_semantic');
   }
   const runCount = runs.length;
-  let estimated = estimateLandingCompositionRows(
+  const typicalViewport = isTypicalLandingViewport(columns, rows);
+  const estimateNow = () => estimateLandingCompositionRows(
     composition,
     layout,
     columns,
-    pixelArt.rows.length,
+    composition.show_guardian ? pixelArt.rows.length : 0,
     runCount,
-    productArtRows,
+    composition.show_product ? productArtRows : 0,
   );
-  for (const step of LANDING_COMPOSITION_DROP_STEPS) {
-    if (estimated <= rows) break;
-    // Pixel wordmark → text before any other drop when height is tight.
-    if (product_rows.length > 0 && estimated > rows) {
+  let estimated = estimateNow();
+
+  // Art demotions — do not advance/skip LANDING_COMPOSITION_DROP_STEPS.
+  // Prefer compact lock art on typical viewports; only go minimal when still over.
+  while (estimated > rows) {
+    let demoted = false;
+    if (product_rows.length > 0) {
       product_rows = [];
       productArtRows = 1;
       composition.drops.push('product_text');
-      estimated = estimateLandingCompositionRows(
-        composition,
-        layout,
-        columns,
-        pixelArt.rows.length,
-        runCount,
-        1,
-      );
-      continue;
-    }
-    // Wide lock art → compact before reducing Recent / readiness chrome.
-    if (
-      estimated > rows
-      && layout === 'wide'
-      && pixelArt.variant === 'wide'
+      demoted = true;
+    } else if (
+      pixelArt.variant === 'wide'
       && pixelArt.rows.length > 0
       && !composition.drops.includes('guardian_compact')
     ) {
-      const compactArt = buildLandingGuardianArt({ ...artOpts, layout: 'mid' });
-      pixelArt = compactArt;
+      pixelArt = buildLandingGuardianArt({ ...artOpts, layout: 'mid' });
       composition.drops.push('guardian_compact');
-      estimated = estimateLandingCompositionRows(
-        composition,
-        layout,
-        columns,
-        compactArt.rows.length,
-        runCount,
-        productArtRows,
-      );
-      continue;
+      demoted = true;
+    } else if (
+      !typicalViewport
+      && pixelArt.variant === 'compact'
+      && pixelArt.rows.length > 0
+      && !composition.drops.includes('guardian_minimal')
+    ) {
+      pixelArt = buildLandingGuardianArt({ ...artOpts, layout: 'compact' });
+      composition.drops.push('guardian_minimal');
+      demoted = true;
     }
+    if (!demoted) break;
+    estimated = estimateNow();
+  }
+
+  for (const step of LANDING_COMPOSITION_DROP_STEPS) {
+    if (estimated <= rows) break;
     // recent_empty_short is empty-board only — never under-count real run rows.
     if (step.id === 'recent_empty_short' && runCount > 0) {
       continue;
@@ -873,40 +878,35 @@ function buildLandingViewModel(options = {}) {
     if (step.id === 'reduce_recent' && (!composition.show_recent_runs || composition.recent_runs_limit <= 1)) {
       continue;
     }
+    // ≥80×24: never shrink Quick Start to CTA-only or strip readiness details/next.
     if (
-      step.id === 'hide_guardian'
-      && layout === 'wide'
-      && pixelArt.variant === 'wide'
-      && pixelArt.rows.length > 0
+      typicalViewport
+      && (
+        step.id === 'hide_readiness_details'
+        || step.id === 'hide_readiness_next'
+        || step.id === 'quick_start_primary_only'
+      )
     ) {
-      const compactArt = buildLandingGuardianArt({ ...artOpts, layout: 'mid' });
-      const estCompact = estimateLandingCompositionRows(
-        composition,
-        layout,
-        columns,
-        compactArt.rows.length,
-        runCount,
-        productArtRows,
-      );
-      if (estCompact <= rows) {
-        pixelArt = compactArt;
-        composition.drops.push('guardian_compact');
-        estimated = estCompact;
-        continue;
-      }
+      continue;
+    }
+    // After hide_recent on typical mid/wide, if still over: demote compact→minimal once.
+    if (
+      typicalViewport
+      && step.id === 'hide_guardian'
+      && pixelArt.variant === 'compact'
+      && pixelArt.rows.length > 0
+      && !composition.drops.includes('guardian_minimal')
+    ) {
+      pixelArt = buildLandingGuardianArt({ ...artOpts, layout: 'compact' });
+      composition.drops.push('guardian_minimal');
+      estimated = estimateNow();
+      if (estimated <= rows) continue;
     }
     step.apply(composition);
     composition.drops.push(step.id);
     composition.show_primary_cta = true;
     composition.show_readiness = true;
-    estimated = estimateLandingCompositionRows(
-      composition,
-      layout,
-      columns,
-      composition.show_guardian ? pixelArt.rows.length : 0,
-      runCount,
-      composition.show_product ? productArtRows : 0,
-    );
+    estimated = estimateNow();
   }
   const resolved = { layout, composition, estimated_rows: estimated };
 
@@ -1381,6 +1381,7 @@ module.exports = {
   RECENT_RUNS_LIMIT,
   LANDING_CHROME_ROWS,
   LANDING_COMPOSITION_DROP_STEPS,
+  isTypicalLandingViewport,
   landingLayoutForViewport,
   defaultLandingComposition,
   estimateLandingCompositionRows,

@@ -411,7 +411,12 @@ function LandingHomeView(props) {
     maxGuardianCols,
     Math.max(22, guardianArtWidth + 4),
   );
-  const guardianColumn = showGuardian && landingLayout === 'wide'
+  // Wide and mid (≥80 cols): guardian beside primary brand so compact lock art
+  // does not steal vertical budget from Quick Start / System Readiness.
+  const sideBySideGuardian = showGuardian
+    && (landingLayout === 'wide' || landingLayout === 'mid');
+
+  const guardianColumn = sideBySideGuardian && landingLayout === 'wide'
     ? React.createElement(
       Box,
       {
@@ -429,9 +434,25 @@ function LandingHomeView(props) {
         `g-${idx}`,
       )),
     )
-    : null;
+    : (sideBySideGuardian && landingLayout === 'mid'
+      ? React.createElement(
+        Box,
+        {
+          flexDirection: 'column',
+          paddingX: 1,
+          width: guardianColumnWidth,
+          flexShrink: 0,
+          height: guardianArtRows > 0 ? guardianArtRows : undefined,
+        },
+        ...landing.guardian_rows.map((row, idx) => renderGuardianSegments(
+          theme,
+          row.segments || [],
+          `gm-${idx}`,
+        )),
+      )
+      : null);
 
-  const guardianMid = showGuardian && landingLayout === 'mid'
+  const guardianStacked = showGuardian && landingLayout === 'compact'
     ? React.createElement(
       Box,
       {
@@ -443,12 +464,12 @@ function LandingHomeView(props) {
       ...landing.guardian_rows.map((row, idx) => renderGuardianSegments(
         theme,
         row.segments || [],
-        `gm-${idx}`,
+        `gc-${idx}`,
       )),
     )
     : null;
 
-  const heroRow = landingLayout === 'wide' && guardianColumn
+  const heroRow = guardianColumn
     ? React.createElement(
       Box,
       { flexDirection: 'row' },
@@ -458,7 +479,7 @@ function LandingHomeView(props) {
     : React.createElement(
       Box,
       { flexDirection: 'column' },
-      ...(guardianMid ? [guardianMid] : []),
+      ...(guardianStacked ? [guardianStacked] : []),
       primaryBrand,
     );
 

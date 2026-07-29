@@ -261,12 +261,19 @@ test('production Ink renderer: semantic/neon fit 120×36, 80×24, 50×16 without
       assert.equal(m.fits_viewport, true, `${id}: fits_viewport`);
       assert.match(out, /Start New Run/, id);
       assert.match(out, /Overall:/, id);
-      if (columns >= 80 && rows >= 24 && guardianStyle === 'semantic') {
+      if (columns >= 80 && rows >= 24) {
         assert.ok(
           model.landing.guardian_rows.length > 0,
-          `${id}: lock v2 compact/wide guardian required`,
+          `${id}: guardian remains visible`,
         );
-        assert.match(out, /VALIDATE/, id);
+        assert.match(out, /Browse Runs/, `${id}: full Quick Start`);
+        assert.match(out, /Model Policy|System Readiness/, `${id}: readiness panel`);
+        if (columns >= 120 && guardianStyle === 'semantic') {
+          assert.match(out, /VALIDATE/, id);
+        } else if (guardianStyle === 'semantic') {
+          // 80×24 may demote to minimal V/T/E to keep QS + readiness.
+          assert.match(out, /VALIDATE|V\/T\/E/, id);
+        }
       }
       if (columns < 80 || rows < 24) {
         assert.equal(model.landing.guardian_rows.length, 0, `${id}: minimal hides art`);

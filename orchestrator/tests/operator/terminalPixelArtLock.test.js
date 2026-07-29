@@ -135,7 +135,13 @@ test('production Ink shell rejects overflow/wrap on lock viewports', async () =>
     assert.match(out, /Overall:/);
     if (columns >= 80 && rows >= 24) {
       assert.ok(model.landing.guardian_rows.length > 0);
-      assert.match(out, /VALIDATE/);
+      assert.match(out, /Browse Runs/);
+      assert.match(out, /Model Policy|System Readiness/);
+      if (columns >= 120) {
+        assert.match(out, /VALIDATE/);
+      } else {
+        assert.match(out, /VALIDATE|V\/T\/E/);
+      }
     }
   }
 });

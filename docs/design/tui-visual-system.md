@@ -93,7 +93,13 @@ Rules:
 - Cerberus is a **secondary** brand guardian: supports the brand; never displaces `AI-MINIONS`, **Start New Run**, or Overall readiness. Under height pressure (including **80×24**), **Recent Runs may be reduced or omitted** so compact guardian + CTA + Overall still fit.
 - **Brand wordmark:** lock v2 3×5 block pixel wordmark when arcade + width allows; otherwise per-character text with optional truecolor cyan→violet→amber gradient. Under `NO_COLOR`, readable uppercase `AI-MINIONS` without claiming gradient.
 - Optional pixel section icons (Quick Start / System Readiness / Recent Runs) use lock v2 Braille dot matrices and always keep text labels.
-- Drop order under space pressure (matches `LANDING_COMPOSITION_DROP_STEPS`, plus early art demotions): empty-board short Recent copy (only when no runs) → **pixel wordmark → text** → **wide guardian → compact** → reduce Recent to 1 → hide decorative guardian note / tagline / triad → reduce readiness details/next → Quick Start primary-only → **hide Recent** → omit Cerberus guardian → hide Quick Start → hide product. Lock v2 prefers compact guardian at ≥80×24 before `hide_guardian`. Never drop **Start New Run** or Overall readiness. Each Recent Runs entry is a **single truncated line** (CR/LF normalized before truncate).
+- Drop order under space pressure (operator intent; matches code):
+  1. Never drop **Start New Run** or the **Overall** readiness line.
+  2. Early art demotions (do not consume drop steps): pixel wordmark → text → wide guardian → compact. Prefer **keeping full Quick Start (1–5)** and **System Readiness** over tall guardian art.
+  3. Mid (≥80 cols): guardian sits **beside** the brand column (same idea as wide) so compact lock art does not stack above the hero.
+  4. Then `LANDING_COMPOSITION_DROP_STEPS`: empty-board short Recent (no runs only) → reduce Recent to 1 → hide decorative guardian note / tagline / triad → **hide Recent** → (only after that, if still over on typical TTYs) compact → minimal guardian → omit guardian → (extreme short TTY only) readiness details/next → Quick Start primary-only → hide Quick Start → hide product.
+  5. On typical viewports **≥80×24**, do **not** apply readiness-detail / next / Quick-Start-primary cuts — menus beat Recent and art density. At **80×24**, Semantic may use **minimal** (`V/T/E`) guardian so QS + readiness fit; at **120×36**, prefer **compact** lock art with VALIDATE/TRACE/ENFORCE labels.
+  6. Each Recent Runs entry is a **single truncated line** (CR/LF normalized before truncate).
 - Splash (brand prelude) remains skippable and bounded; it is not the landing. Splash + landing share the same guardian default (Semantic) and wordmark treatment.
 - **PUA scope:** lock v2 matrices and section icons introduce **no** Nerd/Private Use Area glyphs. Global `icons=nerd` (default operator choice in `operator-tui-icons.js`) remains a separate, explicit TTY profile — not claimed as “no Nerd-PUA” for the whole TUI.
 

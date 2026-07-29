@@ -220,15 +220,19 @@ test('landing: active / blocked / failed / completed run states', () => {
     },
     selectedRunId: 'run_active',
     columns: 120,
-    rows: 36,
+    rows: 40,
   });
   assert.equal(landing.activity.state, 'active');
-  assert.equal(landing.recent_runs.length, 4);
+  assert.equal(landing.recent_runs_total, 4);
+  assert.ok(landing.recent_runs.length >= 1);
   assert.equal(landing.recent_runs[0].activity_state, 'active');
-  assert.equal(landing.recent_runs[1].activity_state, 'blocked');
-  assert.equal(landing.recent_runs[2].activity_state, 'failed');
-  assert.equal(landing.recent_runs[3].activity_state, 'completed');
-  assert.equal(landing.recent_runs[3].summary, 'Sudoku fixture');
+  if (landing.composition.recent_runs_limit >= 4) {
+    assert.equal(landing.recent_runs.length, 4);
+    assert.equal(landing.recent_runs[1].activity_state, 'blocked');
+    assert.equal(landing.recent_runs[2].activity_state, 'failed');
+    assert.equal(landing.recent_runs[3].activity_state, 'completed');
+    assert.equal(landing.recent_runs[3].summary, 'Sudoku fixture');
+  }
   // Do not invent agent counts.
   assert.equal(landing.recent_runs[0].agent_count, null);
 });
@@ -468,6 +472,55 @@ test('buildLandingViewModel: non-empty runs never apply recent_empty_short; mid 
   assert.equal(empty.composition.recent_empty_short, true);
 });
 
+test('typical ≥80×24 Semantic keeps full Quick Start + System Readiness', () => {
+  const runs = Array.from({ length: 5 }, (_, i) => ({
+    run_id: `r${i + 1}`,
+    goal_summary: `goal ${i + 1}`,
+    status: 'completed',
+    outcome: 'success',
+  }));
+  for (const [columns, rows] of [[120, 36], [80, 24]]) {
+    const landing = buildLandingViewModel({
+      home: baseHome(),
+      runs: { runs, result_code: 'OK' },
+      columns,
+      rows,
+      icons: 'unicode',
+      art: 'arcade',
+      // default guardian = semantic
+    });
+    const id = `${columns}x${rows}`;
+    assert.equal(landing.guardian_style, 'semantic', id);
+    assert.equal(landing.composition.show_primary_cta, true, id);
+    assert.equal(landing.composition.show_readiness, true, id);
+    assert.equal(landing.composition.show_readiness_details, true, id);
+    assert.equal(landing.composition.show_readiness_next, true, id);
+    assert.equal(landing.composition.show_quick_start, true, id);
+    assert.equal(landing.composition.quick_start_limit, 5, id);
+    assert.equal(landing.composition.show_quick_start_hint, true, id);
+    assert.ok(landing.quick_start.length >= 5, `${id}: full QS actions`);
+    assert.ok(landing.readiness_rows.length >= 4, `${id}: readiness detail rows`);
+    assert.ok(
+      !landing.composition.drops.includes('quick_start_primary_only'),
+      `${id}: must not cut QS on typical viewport`,
+    );
+    assert.ok(
+      !landing.composition.drops.includes('hide_readiness_details'),
+      `${id}: must not strip readiness details on typical viewport`,
+    );
+    assert.ok(landing.estimated_rows <= rows, `${id}: estimated ${landing.estimated_rows}`);
+    if (columns >= 120) {
+      assert.ok(
+        landing.guardian_rows.length >= 8
+          || landing.guardian_lines.some((l) => /VALIDATE/.test(l)),
+        `${id}: prefer compact lock art at 120×36`,
+      );
+    } else {
+      assert.ok(landing.guardian_rows.length > 0, `${id}: guardian stays visible`);
+    }
+  }
+});
+
 test('wide landing text: guardian + primary + readiness + runs + controls', () => {
   const landing = buildLandingViewModel({
     home: baseHome(),
@@ -539,8 +592,16 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       fixture: 'ready-80x24.txt',
       layout: 'mid',
       options: readyShellOptions({ columns: 80, rows: 24 }),
-      expectMatch: [/AI-MINIONS/, /VALIDATE|CERBERUS/, /Start New Run/, /Overall:/, /System Readiness/],
-      // Lock v2 mid: compact guardian stays; recent may drop under row pressure.
+      // Mid may demote to minimal guardian (V/T/E) to keep full Quick Start + readiness.
+      expectMatch: [
+        /AI-MINIONS/,
+        /VALIDATE|CERBERUS|V\/T\/E/,
+        /Start New Run/,
+        /Browse Runs/,
+        /Overall:/,
+        /System Readiness/,
+        /Model Policy/,
+      ],
       expectNot: [],
     },
     {
@@ -571,7 +632,15 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       fixture: 'ready-nerd-80x24.txt',
       layout: 'mid',
       options: readyShellOptions({ columns: 80, rows: 24, icons: 'nerd' }),
-      expectMatch: [/AI-MINIONS/, /VALIDATE|CERBERUS/, /Start New Run/, /Overall:/, /System Readiness/],
+      expectMatch: [
+        /AI-MINIONS/,
+        /VALIDATE|CERBERUS|V\/T\/E/,
+        /Start New Run/,
+        /Browse Runs/,
+        /Overall:/,
+        /System Readiness/,
+        /Model Policy/,
+      ],
       expectNot: [],
     },
   ];
