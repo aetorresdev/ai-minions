@@ -15,6 +15,8 @@ const {
   shellModelToOptions,
   isInkLocalShellAction,
   contentSurfaceForLocalAction,
+  seedConfigModelFromShell,
+  seedStatusResultFromSelectedRun,
   navItemsForMovement,
 } = require('./operator-tui-shell-model.js');
 const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor, brandGradientStop } = require('./operator-tui-theme.js');
@@ -29,6 +31,7 @@ const {
   formatLandingLines,
   formatHelpLines,
   formatDiagnosticsLines,
+  formatRecentRunEntryLine,
 } = require('./operator-tui-landing.js');
 const {
   isNativeWorkflowAction,
@@ -65,7 +68,7 @@ async function defaultLoadFixturePrompt(fixtureId) {
 function renderGuardianSegments(theme, segments, keyPrefix) {
   return React.createElement(
     Box,
-    { key: keyPrefix, flexDirection: 'row' },
+    { key: keyPrefix, flexDirection: 'row', flexShrink: 0 },
     ...(segments || []).map((seg, idx) => React.createElement(
       Text,
       {
@@ -73,9 +76,48 @@ function renderGuardianSegments(theme, segments, keyPrefix) {
         bold: seg.bold === true,
         color: splashToneColor(theme, seg.tone),
         dimColor: seg.tone === 'muted',
+        wrap: 'truncate',
       },
       seg.text,
     )),
+  );
+}
+
+/**
+ * Section title with optional multi-row lock icon (lock v2 icons are 2 Braille rows).
+ * @param {object} theme
+ * @param {string | { lines?: string[], label?: string } | null | undefined} title
+ * @param {string} fallback
+ */
+function renderSectionTitle(theme, title, fallback) {
+  if (title && typeof title === 'object' && Array.isArray(title.lines) && title.lines.length > 0) {
+    const label = String(title.label ?? fallback);
+    return React.createElement(
+      Box,
+      { flexDirection: 'row', flexShrink: 0 },
+      React.createElement(
+        Box,
+        { flexDirection: 'column', flexShrink: 0, marginRight: 1 },
+        ...title.lines.map((line, idx) => React.createElement(
+          Text,
+          { key: `sec-ico-${idx}`, color: theme.accent },
+          line,
+        )),
+      ),
+      React.createElement(
+        Text,
+        { bold: theme.sectionBold, color: theme.accent },
+        label,
+      ),
+    );
+  }
+  const text = typeof title === 'string' && title
+    ? title
+    : fallback;
+  return React.createElement(
+    Text,
+    { bold: theme.sectionBold, color: theme.accent },
+    text,
   );
 }
 
@@ -163,7 +205,12 @@ function LandingHomeView(props) {
         width: compact ? undefined : 36,
         flexGrow: compact ? 1 : 0,
       },
-      React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Quick Start'),
+      renderSectionTitle(
+        theme,
+        (landing.section_icons && landing.section_icons.quick_start)
+          || (landing.section_titles && landing.section_titles.quick_start),
+        'Quick Start',
+      ),
       ...(comp.show_quick_start_hint
         ? [React.createElement(
           Text,
@@ -197,12 +244,18 @@ function LandingHomeView(props) {
     Box,
     {
       flexDirection: 'column',
-      borderStyle: model.focus === 'content' ? 'double' : 'single',
-      borderColor: focusBorderColor(theme, model.focus === 'content'),
+      // Readiness is informational on landing — content focus belongs to Recent Runs.
+      borderStyle: 'single',
+      borderColor: theme.muted,
       paddingX: 1,
       flexGrow: comp.show_recent_runs || comp.show_quick_start ? 1 : 0,
     },
-    React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'System Readiness'),
+    renderSectionTitle(
+      theme,
+      (landing.section_icons && landing.section_icons.readiness)
+        || (landing.section_titles && landing.section_titles.readiness),
+      'System Readiness',
+    ),
     React.createElement(
       Text,
       { color: readinessColor, bold: true },
@@ -232,46 +285,56 @@ function LandingHomeView(props) {
       Box,
       {
         flexDirection: 'column',
-        borderStyle: 'single',
-        borderColor: theme.muted,
+        borderStyle: model.focus === 'content' ? 'double' : 'single',
+        borderColor: focusBorderColor(theme, model.focus === 'content'),
         paddingX: 1,
         flexGrow: 1,
       },
-      React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Recent Runs'),
+      renderSectionTitle(
+        theme,
+        (landing.section_icons && landing.section_icons.recent_runs)
+          || (landing.section_titles && landing.section_titles.recent_runs),
+        'Recent Runs',
+      ),
       ...(landing.recent_runs.length
         ? [
           React.createElement(
             Text,
-            { key: 'rr-count', dimColor: true, color: theme.muted },
-            `Showing ${landing.recent_runs_showing} of ${landing.recent_runs_total}`,
+            { key: 'rr-count', dimColor: true, color: theme.muted, wrap: 'truncate' },
+            `Showing ${landing.recent_runs_showing} of ${landing.recent_runs_total}`
+              + (model.focus === 'content' ? ' · ↑/↓ select · Enter open' : ''),
           ),
-          ...landing.recent_runs.map((run, idx) => React.createElement(
-            Text,
-            {
-              key: `rr-${idx}`,
-              color: toneColor(
-                theme,
-                run.activity_state === 'completed'
-                  ? 'ok'
-                  : (run.activity_state === 'blocked'
-                    ? 'blocked'
-                    : (run.activity_state === 'failed'
-                      ? 'fail'
-                      : (run.activity_state === 'active' ? 'warn' : 'unavailable'))),
-              ),
-            },
-            `  ${run.activity_label}  ${run.run_id}`
-              + (run.summary ? `  ${run.summary}` : '')
-              + (compact ? '' : `  ${run.last_event_at ?? 'time unavailable'}`),
-          )),
+          ...landing.recent_runs.map((run, idx) => {
+            const selected = run.run_id === model.selectedRunId;
+            const mark = model.focus === 'content' && selected ? selectedMark : ' ';
+            return React.createElement(
+              Text,
+              {
+                key: `rr-${idx}`,
+                wrap: 'truncate',
+                bold: model.focus === 'content' && selected,
+                color: toneColor(
+                  theme,
+                  run.activity_state === 'completed'
+                    ? 'ok'
+                    : (run.activity_state === 'blocked'
+                      ? 'blocked'
+                      : (run.activity_state === 'failed'
+                        ? 'fail'
+                        : (run.activity_state === 'active' ? 'warn' : 'unavailable'))),
+                ),
+              },
+              `${mark}${formatRecentRunEntryLine(run, model.columns, { compact })}`,
+            );
+          }),
         ]
         : [
           React.createElement(
             Text,
-            { key: 'rr-empty', color: theme.muted },
+            { key: 'rr-empty', color: theme.muted, wrap: 'truncate' },
             landing.empty_state
               ? `  ${landing.empty_state.title}: ${landing.empty_state.body}`
-              : '  (No runs yet)',
+              : '  (No runs yet · Enter opens Browse Runs)',
           ),
         ]),
     )
@@ -279,7 +342,30 @@ function LandingHomeView(props) {
 
   const primaryChildren = [];
   if (comp.show_product) {
-    primaryChildren.push(renderBrandWordmark(theme, landing.hero.product, 'product'));
+    const productRows = Array.isArray(landing.hero?.product_rows)
+      ? landing.hero.product_rows
+      : [];
+    const productSegs = Array.isArray(landing.hero?.product_segments)
+      ? landing.hero.product_segments
+      : [];
+    if (productRows.length > 0) {
+      for (let i = 0; i < productRows.length; i += 1) {
+        primaryChildren.push(renderGuardianSegments(
+          theme,
+          productRows[i].segments || [],
+          `product-px-${i}`,
+        ));
+      }
+    }
+    if (productSegs.length > 0) {
+      primaryChildren.push(renderGuardianSegments(
+        theme,
+        productSegs,
+        'product-grad',
+      ));
+    } else if (productRows.length === 0) {
+      primaryChildren.push(renderBrandWordmark(theme, landing.hero.product, 'product'));
+    }
   }
   if (comp.show_tagline) {
     primaryChildren.push(React.createElement(
@@ -316,11 +402,30 @@ function LandingHomeView(props) {
 
   const primaryBrand = React.createElement(
     Box,
-    { flexDirection: 'column', flexGrow: 1, paddingX: 1 },
+    { flexDirection: 'column', flexGrow: 1, flexShrink: 1, paddingX: 1 },
     ...primaryChildren,
   );
 
-  const guardianColumn = showGuardian && landingLayout === 'wide'
+  // Guardian column: Neon stays compact (~30% of 120). Semantic lock v2 wide is
+  // ~58 cells — reserve exact width with flexShrink:0 so Yoga cannot shrink the
+  // column (shrink wraps Braille rows and doubles rendered height).
+  const guardianArtWidth = Number(landing.guardian_display_width) > 0
+    ? Number(landing.guardian_display_width)
+    : 22;
+  const guardianArtRows = Array.isArray(landing.guardian_rows)
+    ? landing.guardian_rows.length
+    : 0;
+  const maxGuardianCols = Math.max(36, Math.floor(Number(model.columns) * 0.55));
+  const guardianColumnWidth = Math.min(
+    maxGuardianCols,
+    Math.max(22, guardianArtWidth + 4),
+  );
+  // Wide and mid (≥80 cols): guardian beside primary brand so compact lock art
+  // does not steal vertical budget from Quick Start / System Readiness.
+  const sideBySideGuardian = showGuardian
+    && (landingLayout === 'wide' || landingLayout === 'mid');
+
+  const guardianColumn = sideBySideGuardian && landingLayout === 'wide'
     ? React.createElement(
       Box,
       {
@@ -328,7 +433,9 @@ function LandingHomeView(props) {
         paddingX: 1,
         borderStyle: 'single',
         borderColor: theme.muted,
-        width: 28,
+        width: guardianColumnWidth,
+        flexShrink: 0,
+        height: guardianArtRows + 2,
       },
       ...landing.guardian_rows.map((row, idx) => renderGuardianSegments(
         theme,
@@ -336,21 +443,42 @@ function LandingHomeView(props) {
         `g-${idx}`,
       )),
     )
-    : null;
+    : (sideBySideGuardian && landingLayout === 'mid'
+      ? React.createElement(
+        Box,
+        {
+          flexDirection: 'column',
+          paddingX: 1,
+          width: guardianColumnWidth,
+          flexShrink: 0,
+          height: guardianArtRows > 0 ? guardianArtRows : undefined,
+        },
+        ...landing.guardian_rows.map((row, idx) => renderGuardianSegments(
+          theme,
+          row.segments || [],
+          `gm-${idx}`,
+        )),
+      )
+      : null);
 
-  const guardianMid = showGuardian && landingLayout === 'mid'
+  const guardianStacked = showGuardian && landingLayout === 'compact'
     ? React.createElement(
       Box,
-      { flexDirection: 'column', paddingX: 1 },
+      {
+        flexDirection: 'column',
+        paddingX: 1,
+        flexShrink: 0,
+        height: guardianArtRows > 0 ? guardianArtRows : undefined,
+      },
       ...landing.guardian_rows.map((row, idx) => renderGuardianSegments(
         theme,
         row.segments || [],
-        `gm-${idx}`,
+        `gc-${idx}`,
       )),
     )
     : null;
 
-  const heroRow = landingLayout === 'wide' && guardianColumn
+  const heroRow = guardianColumn
     ? React.createElement(
       Box,
       { flexDirection: 'row' },
@@ -360,7 +488,7 @@ function LandingHomeView(props) {
     : React.createElement(
       Box,
       { flexDirection: 'column' },
-      ...(guardianMid ? [guardianMid] : []),
+      ...(guardianStacked ? [guardianStacked] : []),
       primaryBrand,
     );
 
@@ -465,6 +593,10 @@ function SplashApp(props) {
     readiness: model.readiness,
     icons: model.iconMode,
     truecolor: theme.truecolor,
+    art: model.landing?.art?.requested ?? model.artMode,
+    guardianStyle: model.landing?.guardian_style
+      ?? model.landing?.art?.guardianStyle
+      ?? model.guardianStyle,
   });
   const continuedRef = useRef(false);
 
@@ -512,13 +644,26 @@ function SplashApp(props) {
 
   // Prefer a single Text for the triad when color is off (NO_COLOR / markers).
   // When color is on, paint Validate / Trace / Enforce with triad tokens.
-  const triadNode = theme.triadValidate
-    ? renderSegments(content.triadSegments, 'triad')
-    : React.createElement(
-      Text,
-      { key: 'triad', color: theme.muted },
-      content.triad || 'Validate • Trace • Enforce',
-    );
+  const triadNode = content.showTriad === false
+    ? null
+    : (theme.triadValidate
+      ? renderSegments(content.triadSegments, 'triad')
+      : React.createElement(
+        Text,
+        { key: 'triad', color: theme.muted },
+        content.triad || 'Validate • Trace • Enforce',
+      ));
+
+  const wordmarkNodes = Array.isArray(content.wordmarkRows) && content.wordmarkRows.length > 0
+    ? content.wordmarkRows.map((row, idx) => renderSegments(row.segments, `wm-px-${idx}`))
+    : [
+      renderSegments(
+        content.wordmarkSegments && content.wordmarkSegments.length > 0
+          ? content.wordmarkSegments
+          : [{ text: content.wordmark || 'AI-MINIONS', tone: 'brand', bold: true }],
+        'wm-text',
+      ),
+    ];
 
   return React.createElement(
     Box,
@@ -533,6 +678,7 @@ function SplashApp(props) {
       paddingX: 1,
     },
     ...(content.rows || []).map((row, idx) => renderSegments(row.segments, `art-${idx}`)),
+    ...wordmarkNodes,
     content.showSpacers
       ? React.createElement(Box, { height: 1 }, React.createElement(Text, null, ' '))
       : null,
@@ -749,10 +895,11 @@ function ShellApp(props) {
       // Landing surfaces stay mounted — unmount+clear looks like TUI_SHELL_OK.
       if (isInkLocalShellAction(actionId)) {
         const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
-        commit(buildShellModel({
+        const opts = {
           ...shellModelToOptions(current),
           contentSurface: surface,
-          selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+          selectedNavId: surface === 'diagnostics' ? 'diagnostics'
+            : (surface === 'config' ? 'config' : surface),
           focus: 'nav',
           commandInput: '',
           activeWorkflow: null,
@@ -760,7 +907,20 @@ function ShellApp(props) {
           helpSelectedTopicId: surface === 'help'
             ? (current.helpSelectedTopicId ?? undefined)
             : current.helpSelectedTopicId,
-        }));
+        };
+        if (surface === 'config') {
+          opts.configModel = seedConfigModelFromShell(current);
+        }
+        if (surface === 'status') {
+          const keepAuthoritative = current.status?.available === true
+            && current.selectedRunId
+            && String(current.status.run_id) === String(current.selectedRunId);
+          if (!keepAuthoritative) {
+            const seeded = seedStatusResultFromSelectedRun(current);
+            if (seeded) opts.statusResult = seeded;
+          }
+        }
+        commit(buildShellModel(opts));
         return;
       }
       requestAction(actionId);
@@ -846,14 +1006,28 @@ function ShellApp(props) {
             : (token === 'help' || token === '?' ? 'help' : token));
         if (isInkLocalShellAction(localToken)) {
           const surface = contentSurfaceForLocalAction(localToken) ?? 'home';
-          commit(buildShellModel({
+          const opts = {
             ...shellModelToOptions(current),
             contentSurface: surface,
-            selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+            selectedNavId: surface === 'diagnostics' ? 'diagnostics'
+              : (surface === 'config' ? 'config' : surface),
             focus: 'nav',
             commandInput: '',
             activeWorkflow: null,
-          }));
+          };
+          if (surface === 'config') {
+            opts.configModel = seedConfigModelFromShell(current);
+          }
+          if (surface === 'status') {
+            const keepAuthoritative = current.status?.available === true
+              && current.selectedRunId
+              && String(current.status.run_id) === String(current.selectedRunId);
+            if (!keepAuthoritative) {
+              const seeded = seedStatusResultFromSelectedRun(current);
+              if (seeded) opts.statusResult = seeded;
+            }
+          }
+          commit(buildShellModel(opts));
           return;
         }
         requestAction(actionId);
@@ -1141,7 +1315,9 @@ function buildContentLines(model) {
     return [
       `path_status: ${model.config.path_status ?? '-'}`,
       `model_policy: ${model.config.model_policy ?? '-'}`,
-      `doctor_ok: ${String(model.config.doctor_ok)}`,
+      `snapshot_ok: ${String(model.config.snapshot_ok)}`,
+      `doctor_status: ${model.config.doctor_status ?? 'not_run'}`,
+      `doctor_ok: ${model.config.doctor_ok == null ? 'n/a' : String(model.config.doctor_ok)}`,
       `credential_sufficiency: ${model.config.credential_sufficiency ?? '-'}`,
       `next_safe_action: ${model.config.next_safe_action ?? '-'}`,
       ...(model.config.remediations || []).map((r) => `· ${r}`),

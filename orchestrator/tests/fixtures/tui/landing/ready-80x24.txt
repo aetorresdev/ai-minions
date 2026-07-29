@@ -1,12 +1,11 @@
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║ [>] ai-minions                                                v0.26.0-beta.1 ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
- AI-MINIONS
- Contract-First Multi-Agent Orchestration Harness
- Validate • Trace • Enforce
- › 1. Start New Run
+ V/T/E                 AI-MINIONS
+                       › 1. Start New Run
 ╔═══════════════════════╗┌─────────────────────────────────────────────────────┐
-║ Quick Start           ║│ System Readiness                                    │
+║  ⣿⣦⡀ Quick Start      ║│ ⡞⣒⢳ System Readiness                                │
+║  ⣿⠟⠁                  ║│ ⢧⠭⡼                                                 │
 ║ keyboard — not        ║│ Overall: Ready                                      │
 ║ clickable             ║│ next: Start New Run — try the canonical fixture for │
 ║ › 1. Start New Run    ║│ a low-risk first success                            │

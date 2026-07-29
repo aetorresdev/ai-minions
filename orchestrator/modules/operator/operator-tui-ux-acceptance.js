@@ -22,6 +22,8 @@ const {
   shellModelToOptions,
   contentSurfaceForLocalAction,
   isInkLocalShellAction,
+  seedConfigModelFromShell,
+  seedStatusResultFromSelectedRun,
 } = require('./operator-tui-shell-model');
 
 const {
@@ -384,6 +386,7 @@ function buildUxFixtureModel(fixtureId, viewport = {}) {
             outcome: 'blocked',
             result_code: 'RUN_FOUND',
             reason_code: 'CERBERUS_REJECT',
+            next_safe_action: 'address CERBERUS blockers',
           }],
           result_code: 'RUNS_FOUND',
           next_safe_action: 'open overview',
@@ -413,6 +416,7 @@ function buildUxFixtureModel(fixtureId, viewport = {}) {
             outcome: 'failed',
             result_code: 'RUN_FOUND',
             reason_code: 'QA_REJECT',
+            next_safe_action: 'inspect QA findings',
           }],
           result_code: 'RUNS_FOUND',
           next_safe_action: 'open overview',
@@ -508,15 +512,29 @@ function applyUxShellIntent(model, intent) {
     }
     if (isInkLocalShellAction(actionId)) {
       const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
+      const opts = {
+        ...shellModelToOptions(model),
+        contentSurface: surface,
+        selectedNavId: surface === 'diagnostics' ? 'diagnostics'
+          : (surface === 'config' ? 'config' : surface),
+        focus: 'nav',
+        commandInput: '',
+        activeWorkflow: null,
+      };
+      if (surface === 'config') {
+        opts.configModel = seedConfigModelFromShell(model);
+      }
+      if (surface === 'status') {
+        const keepAuthoritative = model.status?.available === true
+          && model.selectedRunId
+          && String(model.status.run_id) === String(model.selectedRunId);
+        if (!keepAuthoritative) {
+          const seeded = seedStatusResultFromSelectedRun(model);
+          if (seeded) opts.statusResult = seeded;
+        }
+      }
       return {
-        model: buildShellModel({
-          ...shellModelToOptions(model),
-          contentSurface: surface,
-          selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
-          focus: 'nav',
-          commandInput: '',
-          activeWorkflow: null,
-        }),
+        model: buildShellModel(opts),
         sessionEnded: false,
         reason: null,
         wouldExecuteAction: null,

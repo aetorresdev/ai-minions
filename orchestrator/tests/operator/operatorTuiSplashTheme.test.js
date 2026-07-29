@@ -107,6 +107,12 @@ test('buildSplashContent includes Cerberus brand splash markers and version', ()
   assert.match(joined, /TRACE/);
   assert.match(joined, /ENFORCE/);
   assert.match(joined, new RegExp(GUARDIAN_MARK));
+  assert.equal(wide.guardianStyle, 'semantic');
+  assert.equal(wide.showTriad, false);
+  assert.ok(
+    (wide.wordmarkRows && wide.wordmarkRows.length >= 5)
+      || wide.wordmarkSegments.length === WORDMARK.length,
+  );
   assert.equal(wide.wordmark, WORDMARK);
   assert.match(wide.wordmark, /AI-MINIONS/);
   assert.equal(wide.triad, TRIAD_LABEL);
@@ -234,9 +240,10 @@ test('Ink renderToString splash shows Cerberus brand splash; shell shows themed 
   assert.match(splash, /VALIDATE/i);
   assert.match(splash, /TRACE/i);
   assert.match(splash, /ENFORCE/i);
-  assert.match(splash, /Validate/);
-  assert.match(splash, /Trace/);
-  assert.match(splash, /Enforce/);
+  // Semantic splash hides title-case triad (labels under heads); Neon may still show it.
+  assert.match(splash, /Validate|VALIDATE/);
+  assert.match(splash, /Trace|TRACE/);
+  assert.match(splash, /Enforce|ENFORCE/);
   assert.match(splash, /Presentation polish only/i);
   assert.match(splash, /Press any key/i);
 

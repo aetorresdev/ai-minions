@@ -172,6 +172,8 @@ test('landing: loading first-paint does not invent ready', () => {
     }),
     runs: { runs: [] },
     loading: true,
+    columns: 120,
+    rows: 36,
   });
   assert.equal(landing.overall.state, 'loading');
   assert.notEqual(landing.overall.state, 'ready');
@@ -218,15 +220,19 @@ test('landing: active / blocked / failed / completed run states', () => {
     },
     selectedRunId: 'run_active',
     columns: 120,
-    rows: 36,
+    rows: 40,
   });
   assert.equal(landing.activity.state, 'active');
-  assert.equal(landing.recent_runs.length, 4);
+  assert.equal(landing.recent_runs_total, 4);
+  assert.ok(landing.recent_runs.length >= 1);
   assert.equal(landing.recent_runs[0].activity_state, 'active');
-  assert.equal(landing.recent_runs[1].activity_state, 'blocked');
-  assert.equal(landing.recent_runs[2].activity_state, 'failed');
-  assert.equal(landing.recent_runs[3].activity_state, 'completed');
-  assert.equal(landing.recent_runs[3].summary, 'Sudoku fixture');
+  if (landing.composition.recent_runs_limit >= 4) {
+    assert.equal(landing.recent_runs.length, 4);
+    assert.equal(landing.recent_runs[1].activity_state, 'blocked');
+    assert.equal(landing.recent_runs[2].activity_state, 'failed');
+    assert.equal(landing.recent_runs[3].activity_state, 'completed');
+    assert.equal(landing.recent_runs[3].summary, 'Sudoku fixture');
+  }
   // Do not invent agent counts.
   assert.equal(landing.recent_runs[0].agent_count, null);
 });
@@ -329,7 +335,7 @@ test('hotkeys: task-first digits; ? help; contextual run keys when selected', ()
   assert.equal(resolveShellKeypress('s', {}, model).type, 'ignore');
 });
 
-test('home / help / diagnostics actions switch surfaces without readline', async () => {
+test('home / help / diagnostics / config actions switch surfaces without readline', async () => {
   for (const [id, surface] of [
     ['home', 'home'],
     ['help', 'help'],
@@ -351,12 +357,23 @@ test('home / help / diagnostics actions switch surfaces without readline', async
   assert.equal(resolveShellActionToken('diagnostics'), 'diagnostics');
   assert.equal(resolveShellActionToken('settings'), 'config');
   assert.equal(resolveShellActionToken('home'), 'home');
+  const {
+    isInkLocalShellAction,
+    contentSurfaceForLocalAction,
+  } = require('../../modules/operator/operator-tui-shell-model');
+  assert.equal(isInkLocalShellAction('config'), true);
+  assert.equal(isInkLocalShellAction('settings'), true);
+  assert.equal(contentSurfaceForLocalAction('config'), 'config');
 });
 
 test('help and diagnostics formatters expose remediation without inventing truth', () => {
   const helpList = formatHelpLines().join('\n');
   assert.match(helpList, /Topics \(in-process/);
-  assert.match(helpList, /Navigation goals/);
+  assert.match(helpList, /Help overview · Navigation/);
+  assert.match(helpList, /Overview \(o\)/);
+  assert.match(helpList, /Monitor \(m\)/);
+  assert.match(helpList, /Evidence \(e\)/);
+  assert.match(helpList, /Explain \(x\)/);
 
   const helpNav = formatHelpLines({ openTopicId: 'navigation' }).join('\n');
   assert.match(helpNav, /New Run \(1\)/);
@@ -364,8 +381,18 @@ test('help and diagnostics formatters expose remediation without inventing truth
   assert.match(helpNav, /Settings \(4\)/);
   assert.match(helpNav, /Help \(5 \/ \?\)/);
 
-  const helpRun = formatHelpLines({ openTopicId: 'run_context' }).join('\n');
-  assert.match(helpRun, /Overview \(o\)/);
+  const helpOverview = formatHelpLines({ openTopicId: 'overview' }).join('\n');
+  assert.match(helpOverview, /Overview \(hotkey o\)/);
+
+  const helpMonitor = formatHelpLines({ openTopicId: 'monitor' }).join('\n');
+  assert.match(helpMonitor, /Monitor \(hotkey m\)/);
+
+  const helpEvidence = formatHelpLines({ openTopicId: 'evidence' }).join('\n');
+  assert.match(helpEvidence, /Evidence \(hotkey e\)/);
+  assert.match(helpEvidence, /never Settings/);
+
+  const helpExplain = formatHelpLines({ openTopicId: 'explain' }).join('\n');
+  assert.match(helpExplain, /Explain \(hotkey x\)/);
 
   const helpKeys = formatHelpLines({ openTopicId: 'keys' }).join('\n');
   assert.match(helpKeys, /AI_MINIONS_TUI_LEGACY=1/);
@@ -379,6 +406,66 @@ test('help and diagnostics formatters expose remediation without inventing truth
   assert.match(diag, /git_commit: abc1234/);
   assert.match(diag, /EXAMPLE_TOKEN: absent \(required\)/);
   assert.match(diag, /Advanced/);
+});
+
+test('helpTopics catalog lists Overview/Monitor/Evidence/Explain and digits open each', () => {
+  const {
+    helpTopics,
+    resolveShellKeypress,
+    openHelpTopic,
+    moveHelpTopicSelection,
+    buildShellModel,
+  } = require('../../modules/operator/operator-tui-shell-model');
+  const topics = helpTopics();
+  const ids = topics.map((t) => t.id);
+  assert.deepEqual(ids, [
+    'navigation',
+    'overview',
+    'monitor',
+    'evidence',
+    'explain',
+    'keys',
+    'display',
+    'limits',
+  ]);
+  assert.equal(topics.length, 8);
+  assert.equal(topics.every((t) => /^\d+$/.test(t.key)), true);
+
+  let model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: { ok: true, json: { runs: [] } },
+    contentSurface: 'help',
+    selectedNavId: 'help',
+  });
+  for (const topic of topics) {
+    const intent = resolveShellKeypress(topic.key, {}, model);
+    assert.equal(intent.type, 'help_open', `digit ${topic.key} → ${topic.id}`);
+    assert.equal(intent.topicId, topic.id);
+    model = openHelpTopic(model, topic.id);
+    assert.equal(model.helpOpenTopicId, topic.id);
+    model = buildShellModel({
+      ...require('../../modules/operator/operator-tui-shell-model').shellModelToOptions(model),
+      helpOpenTopicId: null,
+    });
+  }
+  // Arrow walk reaches every topic from the first.
+  model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: { ok: true, json: { runs: [] } },
+    contentSurface: 'help',
+    selectedNavId: 'help',
+    helpSelectedTopicId: topics[0].id,
+  });
+  const seen = new Set([model.helpSelectedTopicId]);
+  for (let i = 0; i < topics.length - 1; i += 1) {
+    model = moveHelpTopicSelection(model, 'next');
+    seen.add(model.helpSelectedTopicId);
+  }
+  assert.equal(seen.size, topics.length, '↑/↓ visits every help topic');
 });
 
 test('theme exposes blocked distinct from danger (hex palette)', () => {
@@ -408,16 +495,16 @@ test('landingLayoutForViewport: wide / mid / compact thresholds', () => {
 });
 
 test('resolveLandingComposition: fits row budget; keeps Start New Run + Overall', () => {
-  const mid = resolveLandingComposition(80, 24);
+  // Mid estimate without art height uses compact lock default (9 rows).
+  const mid = resolveLandingComposition(80, 24, { guardianArtRows: 9, sectionIconRows: 2 });
   assert.equal(mid.layout, 'mid');
   assert.equal(mid.composition.show_primary_cta, true);
   assert.equal(mid.composition.show_readiness, true);
   assert.ok(mid.estimated_rows <= 24);
-  assert.ok(mid.composition.drops.includes('hide_guardian'));
+  // Lock v2: keep compact guardian at ≥80×24; recent may drop first.
+  assert.equal(mid.composition.show_guardian, true);
   assert.ok(mid.composition.drops.includes('hide_recent'));
-  const gDrop = mid.composition.drops.indexOf('hide_guardian');
-  const rDrop = mid.composition.drops.indexOf('hide_recent');
-  assert.ok(gDrop >= 0 && rDrop >= 0 && gDrop < rDrop, 'Cerberus drops before recent runs');
+  assert.ok(!mid.composition.drops.includes('hide_guardian'));
 
   const compact = resolveLandingComposition(50, 16);
   assert.equal(compact.layout, 'compact');
@@ -425,6 +512,94 @@ test('resolveLandingComposition: fits row budget; keeps Start New Run + Overall'
   assert.equal(compact.composition.show_readiness, true);
   assert.ok(compact.estimated_rows <= 16);
   assert.equal(compact.composition.show_guardian, false);
+});
+
+test('buildLandingViewModel: non-empty runs never apply recent_empty_short; mid may hide recent', () => {
+  const runs = Array.from({ length: 5 }, (_, i) => ({
+    run_id: `r${i + 1}`,
+    goal_summary: `goal ${i + 1}`,
+    status: 'completed',
+    outcome: 'success',
+  }));
+  const mid = buildLandingViewModel({
+    home: baseHome(),
+    runs: { runs, result_code: 'OK' },
+    columns: 80,
+    rows: 24,
+    icons: 'unicode',
+    art: 'arcade',
+    guardianStyle: 'neon',
+  });
+  assert.equal(mid.composition.recent_empty_short, false);
+  assert.ok(!mid.composition.drops.includes('recent_empty_short'));
+  assert.equal(mid.composition.show_primary_cta, true);
+  assert.equal(mid.composition.show_readiness, true);
+  assert.equal(mid.composition.show_guardian, true);
+  assert.ok(
+    mid.composition.drops.includes('hide_recent')
+      || mid.composition.recent_runs_limit <= 1
+      || mid.estimated_rows <= 24,
+  );
+  assert.ok(mid.estimated_rows <= 24);
+
+  const empty = buildLandingViewModel({
+    home: baseHome(),
+    runs: { runs: [], result_code: 'RUNS_EMPTY' },
+    columns: 80,
+    rows: 24,
+    icons: 'unicode',
+    art: 'arcade',
+  });
+  assert.equal(empty.composition.recent_empty_short, true);
+});
+
+test('typical ≥80×24 Semantic keeps full Quick Start + System Readiness', () => {
+  const runs = Array.from({ length: 5 }, (_, i) => ({
+    run_id: `r${i + 1}`,
+    goal_summary: `goal ${i + 1}`,
+    status: 'completed',
+    outcome: 'success',
+  }));
+  for (const [columns, rows] of [[120, 36], [80, 24]]) {
+    const landing = buildLandingViewModel({
+      home: baseHome(),
+      runs: { runs, result_code: 'OK' },
+      columns,
+      rows,
+      icons: 'unicode',
+      art: 'arcade',
+      // default guardian = semantic
+    });
+    const id = `${columns}x${rows}`;
+    assert.equal(landing.guardian_style, 'semantic', id);
+    assert.equal(landing.composition.show_primary_cta, true, id);
+    assert.equal(landing.composition.show_readiness, true, id);
+    assert.equal(landing.composition.show_readiness_details, true, id);
+    assert.equal(landing.composition.show_readiness_next, true, id);
+    assert.equal(landing.composition.show_quick_start, true, id);
+    assert.equal(landing.composition.quick_start_limit, 5, id);
+    assert.equal(landing.composition.show_quick_start_hint, true, id);
+    assert.ok(landing.quick_start.length >= 5, `${id}: full QS actions`);
+    assert.ok(landing.readiness_rows.length >= 4, `${id}: readiness detail rows`);
+    assert.ok(
+      !landing.composition.drops.includes('quick_start_primary_only'),
+      `${id}: must not cut QS on typical viewport`,
+    );
+    assert.ok(
+      !landing.composition.drops.includes('hide_readiness_details'),
+      `${id}: must not strip readiness details on typical viewport`,
+    );
+    assert.ok(landing.estimated_rows <= rows, `${id}: estimated ${landing.estimated_rows}`);
+    if (columns >= 120) {
+      assert.ok(
+        landing.guardian_rows.length >= 8
+          || landing.guardian_lines.some((l) => /VALIDATE/.test(l)),
+        `${id}: prefer compact lock art at 120×36`,
+      );
+    } else {
+      assert.ok(landing.guardian_rows.length > 0, `${id}: guardian stays visible`);
+    }
+  }
 });
 
 test('wide landing text: guardian + primary + readiness + runs + controls', () => {
@@ -437,7 +612,7 @@ test('wide landing text: guardian + primary + readiness + runs + controls', () =
   });
   assert.equal(landing.layout, 'wide');
   assert.equal(landing.show_guardian, true);
-  assert.ok(landing.guardian_lines.some((l) => /CERBERUS/.test(l)));
+  assert.ok(landing.guardian_lines.some((l) => /VALIDATE|CERBERUS/.test(l)));
   const lines = formatLandingLines(landing, { selectedNavId: 'launcher' }).join('\n');
   assert.match(lines, /== Guardian ==/);
   assert.match(lines, /== Primary ==/);
@@ -488,7 +663,7 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       fixture: 'ready-120x36.txt',
       layout: 'wide',
       options: readyShellOptions({ columns: 120, rows: 36 }),
-      expectMatch: [/AI-MINIONS/, /CERBERUS/, /Start New Run/, /Overall:/, /Recent Runs/],
+      expectMatch: [/AI-MINIONS/, /VALIDATE|CERBERUS/, /Start New Run/, /Overall:/, /Recent Runs/],
       expectNot: [],
     },
     {
@@ -498,9 +673,17 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       fixture: 'ready-80x24.txt',
       layout: 'mid',
       options: readyShellOptions({ columns: 80, rows: 24 }),
-      expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/, /System Readiness/],
-      // 80×24 drops decorative guardian + recent before sacrificing CTA / Overall.
-      expectNot: [/CERBERUS/, /Recent Runs/],
+      // Mid may demote to minimal guardian (V/T/E) to keep full Quick Start + readiness.
+      expectMatch: [
+        /AI-MINIONS/,
+        /VALIDATE|CERBERUS|V\/T\/E/,
+        /Start New Run/,
+        /Browse Runs/,
+        /Overall:/,
+        /System Readiness/,
+        /Model Policy/,
+      ],
+      expectNot: [],
     },
     {
       id: 'ready_50x16',
@@ -510,7 +693,7 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       layout: 'compact',
       options: readyShellOptions({ columns: 50, rows: 16 }),
       expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/],
-      expectNot: [/CERBERUS/],
+      expectNot: [/VALIDATE|CERBERUS/],
     },
     // Runtime default icons=nerd (unicode fixtures stay portable for review).
     {
@@ -520,7 +703,7 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       fixture: 'ready-nerd-120x36.txt',
       layout: 'wide',
       options: readyShellOptions({ columns: 120, rows: 36, icons: 'nerd' }),
-      expectMatch: [/AI-MINIONS/, /CERBERUS/, /Start New Run/, /Overall:/, /Recent Runs/],
+      expectMatch: [/AI-MINIONS/, /VALIDATE|CERBERUS/, /Start New Run/, /Overall:/, /Recent Runs/],
       expectNot: [],
     },
     {
@@ -530,8 +713,16 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       fixture: 'ready-nerd-80x24.txt',
       layout: 'mid',
       options: readyShellOptions({ columns: 80, rows: 24, icons: 'nerd' }),
-      expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/, /System Readiness/],
-      expectNot: [/CERBERUS/, /Recent Runs/],
+      expectMatch: [
+        /AI-MINIONS/,
+        /VALIDATE|CERBERUS|V\/T\/E/,
+        /Start New Run/,
+        /Browse Runs/,
+        /Overall:/,
+        /System Readiness/,
+        /Model Policy/,
+      ],
+      expectNot: [],
     },
   ];
 

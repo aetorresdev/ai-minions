@@ -22,10 +22,10 @@ Requires a TTY (stdin and stdout). Non-TTY exits non-zero with equivalent CLI ve
 - **Navigation:** task-first goals (Home, New Run, Runs, System Status, Settings, Help). Selected-run views (Overview, Monitor, Evidence, Explain) appear only when a run is selected. Legacy readline aliases (`s` select, digit-mapped attach/config, …) are **not** top-level fullscreen hotkeys — see [Keyboard / navigation matrix](#keyboard--navigation-matrix).
 - **Main content:** task-first landing (guardian secondary · `AI-MINIONS` primary · Quick Start · System Readiness · Recent Runs), guided launcher summary, runs list, System Status / diagnostics, Settings / config readiness, help surface, selected-run status / monitor / evidence / explain, action result. The Cerberus brand splash is a skippable prelude only — it is not the landing.
 - **Footer:** key hints, current selection, safe exit guidance.
-- **Focus / keyboard:** Tab cycles nav · content · input; ↑/↓ navigate; **type the labeled action key** (`h`, `1`–`5`, `?`, and when a run is selected `o` / `m` / `e` / `x`) anytime outside command input (no Tab required); Enter runs the highlighted nav item; `/` focuses command input for slash commands; `q` / `/quit` / Ctrl+C quit with terminal restore (except during guided-launcher **custom goal** text entry, where printable `q` is part of the goal and only Ctrl+C / `/quit` from command input end the session). Top-level `s` is ignored (selection is via Runs / content ↑↓, not a select hotkey).
+- **Focus / keyboard:** Tab cycles nav · content (Recent Runs) · input **when** the landing composition shows Recent Runs (`show_recent_runs=true`); when Recent is hidden, Tab skips `content` (nav ↔ input only) so ↑/↓ cannot select invisible runs. ↑/↓ navigate; **type the labeled action key** (`h`, `1`–`5`, `?`, and when a run is selected `o` / `m` / `e` / `x`) anytime outside command input (no Tab required); Enter runs the highlighted nav item; on landing **content** focus, ↑/↓ select a Recent Run and Enter opens Overview (`status`, Ink-local) for the selection (or Browse Runs / System Status when empty) — never soft-handoff/exit; `/` focuses command input for slash commands; `q` / `/quit` / Ctrl+C quit with terminal restore (except during guided-launcher **custom goal** text entry, where printable `q` is part of the goal and only Ctrl+C / `/quit` from command input end the session). Top-level `s` is ignored (selection is via Runs / content ↑↓, not a select hotkey).
 - **Native Phase-1 workflows:** guided launcher, run browser, and selected-run overview run **inside** the Ink shell (↑/↓ · Enter · Esc). Choice/navigation must not tear down the terminal guard or open a nested readline pane. Child-process launch may use a bounded soft handoff after confirm.
 - **Mouse:** not wired — action labels are keyboard hints, not clickable buttons.
-- **Resize:** shell chrome (non-home) columns &lt; 72 → narrow (stacked). **Landing** composition: ≥100 cols and ≥24 rows → wide (guardian left · primary right · readiness/runs below); 80–99 cols and ≥24 rows → mid (reduced/stacked guardian when height allows); &lt;80 cols or short TTY → compact one-column. **Height budget:** mid/compact (and height-tight wide) drop lower-priority blocks until the Ink frame fits the reported row count — order is recent-runs shortening/hide → decorative guardian art/notes/tagline/triad → readiness detail rows / next-action copy → Quick Start secondaries / panel — **never** drop the Start New Run CTA or the explicit `Overall:` readiness line. `NO_COLOR` keeps hierarchy via labels, borders, focus markers, and explicit state text.
+- **Resize:** shell chrome (non-home) columns &lt; 72 → narrow (stacked). **Landing** composition: ≥100 cols and ≥24 rows → wide (guardian left · primary right · readiness/runs below); 80–99 cols and ≥24 rows → mid (**compact** lock guardian stacked when height allows — lock v2); &lt;80 cols or short TTY → compact one-column (art omitted). **Height budget:** mid/compact (and height-tight wide) drop lower-priority blocks until the Ink frame fits the reported row count — order prefers shortening recent-runs / decorative notes / readiness detail before omitting Cerberus; at ≥80×24 compact guardian is kept when it fits with CTA + Overall. Never drop the Start New Run CTA or the explicit `Overall:` readiness line. `NO_COLOR` keeps hierarchy via labels, borders, focus markers, and explicit state text.
 
 ## Keyboard / navigation matrix
 
@@ -71,9 +71,9 @@ When `AI_MINIONS_TUI_LEGACY=1`, the previous readline loop uses `COCKPIT_ACTIONS
 | `5` | `config` | Fullscreen `5` is **Help**; Settings is `4` |
 | `q` | `quit` | Same |
 
-Nested readline panes (guided launcher rollback, run selector, config readiness, attach generation) may still use their own in-pane keys after a soft handoff; those are pane UX, not the top-level shell matrix. Fullscreen Overview / Explain / Evidence are Ink-local (not nested).
+Nested readline panes (guided launcher rollback, run selector, interactive doctor refresh, attach generation) may still use their own in-pane keys after a soft handoff; those are pane UX, not the top-level shell matrix. Fullscreen Overview / Explain / Evidence / Settings are Ink-local (not nested).
 
-**Ink-local surfaces (no unmount):** `home`, `help`, `diagnostics`, **`status`** (Overview `o` / Explain `x`), and **`evidence`** (`e`) switch `contentSurface` inside the live Ink mount. **Phase-1 native workflows** (`launcher` / `runs` / overview) also stay inside Ink. Hotkeys and slash aliases for these (`h`/`?`/`3`/`o`/`x`/`e`/`2`/`1`, `/help`, `/runs`, `/new`, `/home`) must **not** soft-handoff / clear / remount — that looks like a silent quit (`TUI_SHELL_OK`). Nested panes remain only for actions that still need readline (settings / config, attach generation, legacy select). `/help` shows slash vocabulary as an in-mount `action_result` (no remount). Landing **Quick Start** lists task goals `1`–`5` only (Home stays on Navigate / hotkey `h`) so ↑/↓ counts match the labeled digits.
+**Ink-local surfaces (no unmount):** `home`, `help`, `diagnostics`, **`status`** (Overview `o` / Explain `x`), **`evidence`** (`e`), and **`config`** (Settings `4`) switch `contentSurface` inside the live Ink mount. **Phase-1 native workflows** (`launcher` / `runs` / overview) also stay inside Ink. Hotkeys and slash aliases for these (`h`/`?`/`3`/`4`/`o`/`x`/`e`/`2`/`1`, `/help`, `/runs`, `/new`, `/home`) must **not** soft-handoff / clear / remount — that looks like a silent quit (`TUI_SHELL_OK`). Nested panes remain only for actions that still need readline (attach generation, legacy select, interactive doctor refresh via slash/`ai-minions doctor`). `/help` shows slash vocabulary as an in-mount `action_result` (no remount). Landing **Quick Start** lists task goals `1`–`5` only (Home stays on Navigate / hotkey `h`) so ↑/↓ counts match the labeled digits. **Cold start** always boots to landing `home` (drain leftover stdin; ignore stale launcher resume) unless the operator explicitly opens Start New Run.
 
 **Esc:** never ends the session. From command input it cancels input focus; from a non-home surface it returns to Home. Session terminators: `q`, `/quit` (command input), and Ctrl+C.
 
@@ -106,9 +106,9 @@ Fullscreen action ids (task-first / contextual). Nested readline panes may still
 | `launcher` (`1`) | Native Ink workflow (`operator-tui-launcher-workflow.js`) → on confirm `runOperatorGuidedLauncherPane({ selections })` → `runSmoke` / `runStart` |
 | `runs` (`2`) | Native Ink run browser + overview (`operator-tui-run-browser-workflow.js`); opens from startup `model.runs` snapshot; overview reuses `loadRunStatusPane` |
 | `diagnostics` (`3`) | System Status / advanced diagnostics (`formatDiagnosticsLines`) — raw path/git/credential fields |
-| `config` (`4`) | Settings → `runOperatorConfigReadinessPane` (reuses doctor + credential readiness) *(Phase 2 native)* |
-| `help` (`5` / `?`) | Help topic browser (`formatHelpLines` / `helpTopics`) — **in-process only**; topic digits never remount Settings/launcher |
-| `status` (`o`, contextual) | Selected-run Overview — **seeded snapshot** from shell `statusResult` / `adaptSelectedRunStatus` (**in-process**, no fresh query, no remount). Fresh status: CLI `ai-minions status` or slash `/status` |
+| `config` (`4`) | Settings — **seeded** path/credentials readiness snapshot (`seedConfigModelFromShell` / `adaptConfigReadiness`) — **in-process**, no remount. Seed honesty: `snapshot_ok=true`, `doctor_status=not_run`, `doctor_ok=null` (snapshot ≠ doctor; no doctor claim until CLI `/doctor`). Full doctor refresh: CLI `ai-minions doctor` or slash `/doctor` |
+| `help` (`5` / `?`) | Help topic browser (`formatHelpLines` / `helpTopics`) — **in-process only**; catalog includes Navigation, Overview, Monitor, Evidence, Explain, Keys, Display, Limits; topic digits never remount Settings/launcher |
+| `status` (`o`, contextual) | Selected-run Overview — **seeded snapshot** via `seedStatusResultFromSelectedRun` / `adaptSelectedRunStatus` (**in-process**, no remount): prefer an already-authoritative shell `statusResult` for the same run; otherwise seed only the fields available on the Runs board row (`model.runs` / visible Recent) — **not** a full `runOperatorStatus` probe. Fresh status: CLI `ai-minions status` or slash `/status` |
 | `monitor` (`m`, contextual) | Live monitor → `runOperatorStatus` + `adaptLiveMonitor` (read-only) *(Phase 2 native)* |
 | `evidence` (`e`, contextual) | Selected-run Evidence — **seeded snapshot** from shell `evidenceModel` / `adaptEvidenceAttachState` (**in-process**, no attach prompt, no remount). Attach generation: nested pane / CLI `ai-minions attach` / slash `/attach` |
 | `explain` (`x`, contextual) | Explain shares the Overview **status** surface (reason_code / next_safe_action from the seeded snapshot — never synthesized from presentation text). Fresh explain: CLI / slash `/explain` |
@@ -148,9 +148,9 @@ Nested readline panes (Phase 2 / legacy cockpit) use a **soft handoff** (cooked 
 - Browse runs **newest-first** inside the fullscreen layout (same discovery shape as `ai-minions runs`).
 - **Freshness (Phase 1):** the native run browser opens from the **startup snapshot** already on the shell model (`model.runs` from shell-entry `loadRuns` / `runOperatorRuns`). Opening the browser does **not** re-invoke discovery; a launch in the same session is not reflected until the next shell mount / explicit refresh (Phase 2+).
 - **↑/↓** (or j/k) moves selection; **Enter** opens the selected-run overview; **Esc** cancels/back with selection preserved.
-- Overview (`o`) / Explain (`x`) show the **seeded** selected-run status snapshot on the shell model (`statusResult` → `adaptSelectedRunStatus`) — no fresh `runOperatorStatus` / `runOperatorExplain` query and no remount.
+- Overview (`o`) / Explain (`x`) show a **seeded** selected-run snapshot (`seedStatusResultFromSelectedRun` → `adaptSelectedRunStatus`) — no remount. Prefer an already-authoritative shell `statusResult` for the same run; when none exists, seed **only** fields available from the Runs board row (`model.runs` / Recent) — not a full status probe / `runOperatorStatus` / `runOperatorExplain`.
 - Fresh status/explain remain on CLI verbs and slash `/status` / `/explain`.
-- Overview shows compact status fields from that snapshot (reason codes preserved; invalid traces stay `RUN_TRACE_INVALID` with no inferred outcome).
+- Overview shows compact status fields from that seed (reason codes preserved when present; board-only seeds may omit probe-only fields; invalid traces stay `RUN_TRACE_INVALID` with no inferred outcome).
 - Legacy readline selector (`operator-run-selector-tui.js`) remains for `AI_MINIONS_TUI_LEGACY=1` / non-Ink paths.
 
 ## Guided launcher (native)
@@ -199,18 +199,18 @@ Module (nested / CLI attach): `orchestrator/modules/operator/operator-evidence-a
 
 ## Config / credentials readiness pane (Settings)
 
-**Fullscreen:** **`4` / Settings** (`config`). Help is **`5` / `?`** — do not document config as key `5` for the Ink shell.
+**Fullscreen:** **`4` / Settings** (`config`) is **Ink-local** — switches to a seeded path/credentials readiness snapshot inside the live mount (same pattern as Help / System Status). Help is **`5` / `?`** — do not document config as key `5` for the Ink shell. Digit `4` must never soft-handoff / unmount without remount (silent quit lookalike).
 
 **Legacy readline:** key `5` / config (aliases: `doctor`, `readiness`, `credentials`, `c`) under `AI_MINIONS_TUI_LEGACY=1` only.
 
-- Summarizes **PATH/activation**, **runtime host**, **local backend** endpoint status, **discovered models**, **model policy**, and **provider credential status** (`present` / `missing` / `not_checked` only — never secret values).
+- Summarizes **PATH/activation**, **model policy**, and **provider credential status** (`present` / `missing` / `not_checked` only — never secret values) from already-assessed shell readiness.
+- Seed honesty (presentation only): `snapshot_ok=true`, `doctor_status=not_run`, `doctor_ok=null` — `snapshot_ok` must not be read as doctor success.
 - `local_only` copy states that remote provider tokens are **not required**.
-- `remote_ok` and `hybrid` surface missing required credentials / remediations when insufficient.
-- Maps readiness to concrete next actions (start backend, pull/configure model, export provider env var, run smoke) via the same doctor `next_safe_action` rules.
-- Pane commands: **refresh** (`r`), **copy remediations** (`c`), **full doctor text** (`d`), **back** (`b`).
-- Reuses `runOperatorDoctor` + `operator-credential-readiness` (including `any_provider` sufficiency and model_policy passthrough).
+- Maps readiness to concrete next actions via landing / doctor `next_safe_action` rules when present on the seeded model.
+- Full interactive doctor refresh remains available via CLI `ai-minions doctor` / slash `/doctor` (nested pane / remount path).
+- Esc returns to Home; `q` quits intentionally.
 
-Module: `orchestrator/modules/operator/operator-config-readiness-pane-tui.js`.
+Module (seeded surface + optional nested doctor): `orchestrator/modules/operator/operator-config-readiness-pane-tui.js` · `seedConfigModelFromShell` in `operator-tui-shell-model.js`.
 
 ## Evidence path (unchanged selectors)
 

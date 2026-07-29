@@ -59,6 +59,69 @@ function drainStdin(stdin) {
   }
 }
 
+/** Safety ceiling for cold-start drain — runaway pipes fail closed instead of hanging. */
+const COLD_START_DRAIN_SAFETY_MAX = 1_048_576;
+
+/**
+ * Cold-start only: discard the **entire** existing stdin buffer before the first
+ * Ink shell mount so a prior session's Enter/`1` cannot auto-open Start New Run.
+ * Drains until empty. A safety ceiling aborts with `COLD_START_STDIN_DRAIN_TRUNCATED`
+ * when more data remains (fail closed — do not mount with leftovers).
+ * @param {NodeJS.ReadStream | { read?: Function, readableLength?: number } | null | undefined} stdin
+ * @param {{ maxBytes?: number }} [options]
+ * @returns {number} bytes discarded
+ */
+function drainStdinColdStart(stdin, options = {}) {
+  if (!stdin || typeof stdin.read !== 'function') return 0;
+  const maxBytes = Number.isInteger(options.maxBytes) && options.maxBytes > 0
+    ? options.maxBytes
+    : COLD_START_DRAIN_SAFETY_MAX;
+  let discarded = 0;
+  try {
+    while (discarded < maxBytes) {
+      if (typeof stdin.readableLength === 'number' && stdin.readableLength === 0) break;
+      const want = typeof stdin.readableLength === 'number' && stdin.readableLength > 0
+        ? Math.min(stdin.readableLength, maxBytes - discarded)
+        : Math.min(4096, maxBytes - discarded);
+      const chunk = stdin.read(want);
+      if (chunk == null) break;
+      const n = Buffer.isBuffer(chunk)
+        ? chunk.length
+        : Buffer.byteLength(String(chunk), 'utf8');
+      if (n === 0) break;
+      discarded += n;
+      if (typeof stdin.readableLength === 'number') {
+        // keep readableLength in sync for fake/test streams that only update on read(1)
+      }
+    }
+    const stillBuffered = typeof stdin.readableLength === 'number'
+      ? stdin.readableLength > 0
+      : false;
+    if (discarded >= maxBytes && stillBuffered) {
+      const err = new Error('cold start stdin drain truncated — refusing mount with leftover buffer');
+      err.code = 'COLD_START_STDIN_DRAIN_TRUNCATED';
+      throw err;
+    }
+    // Streams without readableLength: if we hit the ceiling on the last full read,
+    // probe one more byte — leftover means fail closed.
+    if (discarded >= maxBytes && typeof stdin.readableLength !== 'number') {
+      const probe = stdin.read(1);
+      if (probe != null) {
+        if (typeof stdin.unshift === 'function') {
+          stdin.unshift(Buffer.isBuffer(probe) ? probe : Buffer.from(String(probe), 'utf8'));
+        }
+        const err = new Error('cold start stdin drain truncated — refusing mount with leftover buffer');
+        err.code = 'COLD_START_STDIN_DRAIN_TRUNCATED';
+        throw err;
+      }
+    }
+  } catch (err) {
+    if (err && err.code === 'COLD_START_STDIN_DRAIN_TRUNCATED') throw err;
+    // other read errors are non-fatal — shell still boots to landing
+  }
+  return discarded;
+}
+
 /**
  * Wipe leftover Ink frames, drain residual dispatch CR/LF only, force cooked mode, resume stdin.
  * Soft handoff only — does not leave alternate screen (session stays in-process).
@@ -279,7 +342,9 @@ module.exports = {
   RESTORE_SEQUENCE,
   SOFT_HANDOFF_SEQUENCE,
   CLEAR_SEQUENCE,
+  COLD_START_DRAIN_SAFETY_MAX,
   drainStdin,
+  drainStdinColdStart,
   prepareNestedPaneIo,
   prepareInkRemount,
   createTerminalGuard,

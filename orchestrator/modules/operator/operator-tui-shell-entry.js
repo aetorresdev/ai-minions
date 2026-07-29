@@ -19,7 +19,10 @@ const {
   formatShellText,
   isShellSessionEndAction,
   isInkLocalRemountFallbackAction,
+  isInkLocalShellAction,
   contentSurfaceForLocalAction,
+  seedConfigModelFromShell,
+  seedStatusResultFromSelectedRun,
   shellModelToOptions,
 } = require('./operator-tui-shell-model');
 const {
@@ -32,6 +35,7 @@ const {
   withTerminalGuard,
   prepareNestedPaneIo,
   prepareInkRemount,
+  drainStdinColdStart,
 } = require('./operator-tui-terminal-guard');
 const { adaptActionResult } = require('./operator-tui-adapters');
 const { shouldSkipSplash } = require('./operator-tui-splash');
@@ -52,6 +56,7 @@ const TUI_SHELL_REASON = Object.freeze({
   ACTION_FAILURE: 'TUI_SHELL_ACTION_FAILURE',
   LEGACY: 'TUI_SHELL_LEGACY',
   MAX_LOOPS: 'TUI_SHELL_MAX_LOOPS',
+  COLD_START_DRAIN_TRUNCATED: 'TUI_SHELL_COLD_START_DRAIN_TRUNCATED',
 });
 
 /**
@@ -109,6 +114,33 @@ function buildFirstPaintShellModel(options = {}) {
     iconMode: options.iconMode ?? options.icons,
     productVersion: aboutInfo.version,
   });
+}
+
+/**
+ * Cold start / new TUI process always boots to landing home unless the operator
+ * explicitly requested start-run (CLI / confirmed handoff flag).
+ * Ignores stale contentSurface / activeWorkflow residues that would skip landing.
+ * @param {{
+ *   contentSurface?: string,
+ *   activeWorkflow?: object | null,
+ *   explicitStartRun?: boolean,
+ * }} [options]
+ * @returns {{ contentSurface: string, activeWorkflow: null | object }}
+ */
+function resolveColdStartShellSurface(options = {}) {
+  if (options.explicitStartRun === true) {
+    const wf = options.activeWorkflow && typeof options.activeWorkflow === 'object'
+      ? options.activeWorkflow
+      : null;
+    return {
+      contentSurface: wf ? 'launcher_workflow' : 'home',
+      activeWorkflow: wf,
+    };
+  }
+  return {
+    contentSurface: 'home',
+    activeWorkflow: null,
+  };
 }
 
 /**
@@ -219,7 +251,12 @@ async function runOperatorTuiShell(options = {}) {
   let selectedRunId = options.selectedRunId == null || options.selectedRunId === ''
     ? null
     : String(options.selectedRunId);
-  let contentSurface = 'home';
+  const coldStart = resolveColdStartShellSurface({
+    contentSurface: options.contentSurface,
+    activeWorkflow: options.activeWorkflow,
+    explicitStartRun: options.explicitStartRun === true,
+  });
+  let contentSurface = coldStart.contentSurface;
   /** @type {object | null} */
   let statusResult = options.statusResult && typeof options.statusResult === 'object'
     ? options.statusResult
@@ -293,6 +330,7 @@ async function runOperatorTuiShell(options = {}) {
       colorEnabled,
       icons: iconMode ?? model.iconMode,
       productVersion: aboutInfo.version,
+      activeWorkflow: coldStart.activeWorkflow,
     });
     selectedRunId = model.selectedRunId;
   }
@@ -390,6 +428,28 @@ async function runOperatorTuiShell(options = {}) {
     guard = createTerminalGuard({ stdin, stdout });
   } else {
     discoverShellBootstrap();
+  }
+
+  // Drop terminal leftovers from a prior session / splash dismiss before first
+  // interactive shell frame — residual Enter/`1` must not skip landing into Start New Run.
+  try {
+    drainStdinColdStart(stdin);
+  } catch (err) {
+    if (err && err.code === 'COLD_START_STDIN_DRAIN_TRUNCATED') {
+      if (guard && !guard.restored) guard.restore('cold_start_drain_truncated');
+      return {
+        ok: false,
+        exitCode: 1,
+        reason_code: TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED,
+        // Preserve actual load flags — splash may already have imported Ink/React.
+        ink_loaded: inkLoaded,
+        react_loaded: reactLoaded,
+        text: String(err.message || err),
+        model: null,
+        guard,
+      };
+    }
+    throw err;
   }
 
   try {
@@ -954,11 +1014,25 @@ async function runOperatorTuiShell(options = {}) {
         }
       }
 
-      // Landing chrome fallback remount only. Overview / Explain / Evidence must switch
-      // inside the active Ink render (render.mjs) — never soft-handoff / prepareInkRemount.
-      if (isInkLocalRemountFallbackAction(actionId)) {
+      // Landing chrome fallback remount only. Overview / Explain / Evidence / Settings
+      // must switch inside the active Ink render (render.mjs) — never soft-handoff.
+      // If a harness leaks requestAction for an Ink-local id, remount the surface
+      // without nested readline (silent-quit lookalike).
+      if (isInkLocalRemountFallbackAction(actionId) || isInkLocalShellAction(actionId)) {
         const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
         contentSurface = surface;
+        if (surface === 'config') {
+          configModel = seedConfigModelFromShell(model);
+        }
+        if (surface === 'status') {
+          const keepAuthoritative = model.status?.available === true
+            && selectedRunId
+            && String(model.status.run_id) === String(selectedRunId);
+          if (!keepAuthoritative) {
+            const seeded = seedStatusResultFromSelectedRun(model);
+            if (seeded) statusResult = seeded;
+          }
+        }
         prepareInkRemount({ stdin });
         guard = createTerminalGuard({ stdin, stdout });
         model = buildShellModel({
@@ -974,7 +1048,8 @@ async function runOperatorTuiShell(options = {}) {
           lifecycleSource,
           monitorSource,
           selectedRunId,
-          selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+          selectedNavId: surface === 'diagnostics' ? 'diagnostics'
+            : (surface === 'config' ? 'config' : surface),
           contentSurface: surface,
           columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
           rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
@@ -1145,5 +1220,6 @@ module.exports = {
   legacyShellRequested,
   buildFirstPaintShellModel,
   shouldShowProductionSplash,
+  resolveColdStartShellSurface,
   runOperatorTuiShell,
 };

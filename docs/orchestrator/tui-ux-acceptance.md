@@ -14,6 +14,8 @@ Screenshots are never the source of run truth.
 
 Release preparation must run the **canonical** gate `test:tui-release` (not `test:tui-quality` alone). Individual `test:tui-quality` and `test:tui-ux` remain for focused CI/dev. Missing required manual platform / first-time-user evidence → **BLOCKED**, never silent PASS. `test:tui-quality` must not absorb the UX companion inventory.
 
+**Honesty note (current registry):** `tui-ux-acceptance-evidence.registry.json` keeps `manualEvidence.status=blocked` and platform override `macos_node22_tty=blocked` until first-time-user / interactive TTY smoke evidence exists. Therefore `npm run test:tui-release` is expected to **exit 1** with a BLOCKED verdict (`manual_first_time_user:blocked` or equivalent) — that is intentional, not a silent PASS. This PR does **not** claim PTY capture evidence unless a tip-SHA-tagged PTY artifact is checked in.
+
 Module: `orchestrator/modules/operator/operator-tui-ux-acceptance.js`.
 
 ## Journeys
@@ -27,8 +29,10 @@ content surfaces the entrypoint would open via nested `executeAction`.
 
 Entrypoint coverage: hotkeys `o` / `x` / `e` stay on a **single** Ink mount with **zero**
 `executeAction`, **zero** `SOFT_HANDOFF_SEQUENCE` during the sequence, and no remount
-(see shell foundation tests). Surfaces are **seeded snapshots** (`statusResult` /
-`evidenceModel`) — not fresh fetch / attach panes.
+(see shell foundation tests). Surfaces are **seeded snapshots** — Overview/Explain via
+`seedStatusResultFromSelectedRun` (authoritative `statusResult` when present for the run,
+else Runs-board fields only — not a full status probe); Evidence via `evidenceModel` —
+not fresh fetch / attach panes.
 
 1. Clean install / setup required
 2. Ready environment with no runs

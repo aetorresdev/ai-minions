@@ -15,18 +15,18 @@
 ╔══════════════════════════════════╗┌──────────────────────────────────────────────────────────────────────────────────┐
 ║  ⣿⣦⡀ Quick Start                 ║│ ⡞⣒⢳ System Readiness                                                             │
 ║  ⣿⠟⠁                             ║│ ⢧⠭⡼                                                                              │
-║ keyboard — not clickable         ║│ Overall: Blocked                                                                 │
-║ › 1. Start New Run               ║│ next: Open Settings and complete the required remediation                        │
-║   2. Browse Runs                 ║│   Model Policy: cloud_preferred                                                  │
-║   3. System Status               ║│   Credentials: insufficient                                                      │
+║ keyboard — not clickable         ║│ Overall: Ready                                                                   │
+║ › 1. Start New Run               ║│ next: Start New Run — try the canonical fixture for a low-risk first success     │
+║   2. Browse Runs                 ║│   Model Policy: local_only                                                       │
+║   3. System Status               ║│   Credentials: not_required                                                      │
 ║   4. Settings                    ║│   Environment: OK                                                                │
 ║   5. Help                        ║│   ai-minions Path: ready                                                         │
-║                                  ║│   Overall Status: BLOCKED                                                        │
+║                                  ║│   Overall Status: READY                                                          │
 ╚══════════════════════════════════╝└──────────────────────────────────────────────────────────────────────────────────┘
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ ⡔⡍⢢ Recent Runs                                                                                                      │
 │ ⠣⣈⠜                                                                                                                  │
-│   Blocked: Open Settings                                                                                             │
+│   No runs yet: Start New Run                                                                                         │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ >                                                                                                                    │

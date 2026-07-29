@@ -11,6 +11,12 @@ const {
   landingGuardianRowsMid,
 } = require('./operator-tui-splash');
 const { resolveIconMode } = require('./operator-tui-icons');
+const {
+  buildLandingGuardianArt,
+  buildPixelWordmarkRows,
+  buildTextWordmarkSegments,
+  sectionTitleWithPixelIcon,
+} = require('./operator-tui-pixel-art');
 
 const LANDING_SCHEMA = '1';
 const RECENT_RUNS_LIMIT = 5;
@@ -54,6 +60,7 @@ function landingLayoutForViewport(columns, rows) {
  *   show_recent_runs: boolean,
  *   recent_runs_limit: number,
  *   recent_empty_short: boolean,
+ *   section_icon_rows?: number,
  *   drops: string[],
  * }} LandingComposition
  */
@@ -83,14 +90,16 @@ function defaultLandingComposition(layout) {
     show_recent_runs: true,
     recent_runs_limit: RECENT_RUNS_LIMIT,
     recent_empty_short: false,
+    section_icon_rows: 0,
     drops: [],
   };
 }
 
 /**
  * Drop order for row pressure — lowest priority first.
- * Decorative Cerberus drops before Start New Run / Overall / recent runs
- * (visual-system secondary policy). Never drops Start New Run or Overall.
+ * Lock v2 (≥80×24): keep compact guardian through panel pressure; reduce/hide
+ * Recent Runs and decorative copy before omitting Cerberus. Never drops Start
+ * New Run or Overall. `recent_empty_short` applies only when the run board is empty.
  */
 const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
   {
@@ -100,22 +109,17 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
     },
   },
   {
-    id: 'hide_guardian',
+    id: 'reduce_recent',
     apply(c) {
-      c.show_guardian = false;
+      if (c.show_recent_runs && c.recent_runs_limit > 1) {
+        c.recent_runs_limit = 1;
+      }
     },
   },
   {
     id: 'hide_guardian_note',
     apply(c) {
       c.show_guardian_note = false;
-    },
-  },
-  {
-    id: 'hide_recent',
-    apply(c) {
-      c.show_recent_runs = false;
-      c.recent_runs_limit = 0;
     },
   },
   {
@@ -130,6 +134,15 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
       c.show_triad = false;
     },
   },
+  // Recent goes before Quick Start / readiness cuts — menus beat run history under pressure.
+  {
+    id: 'hide_recent',
+    apply(c) {
+      c.show_recent_runs = false;
+      c.recent_runs_limit = 0;
+    },
+  },
+  // Extreme short TTY only (gated in the composition loop for ≥80×24).
   {
     id: 'hide_readiness_details',
     apply(c) {
@@ -150,6 +163,12 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
     },
   },
   {
+    id: 'hide_guardian',
+    apply(c) {
+      c.show_guardian = false;
+    },
+  },
+  {
     id: 'hide_quick_start',
     apply(c) {
       c.show_quick_start = false;
@@ -163,20 +182,41 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
   },
 ]);
 
+/** Typical operator viewports must keep full Quick Start + readiness details. */
+function isTypicalLandingViewport(columns, rows) {
+  return Number(columns) >= 80 && Number(rows) >= 24;
+}
+
 /**
  * Estimate rendered row count for a composition (Ink borders + wrap heuristics).
  * Used only to decide drops; tests assert real Ink output ≤ reported rows.
+ * Recent entries are one truncated line each — do not reserve wrap rows.
  * @param {LandingComposition} composition
  * @param {LandingLayoutMode} layout
  * @param {number} columns
+ * @param {number} [guardianArtRows] actual guardian_rows.length when known
+ * @param {number} [recentRunCount] actual runs.length when known (caps limit)
+ * @param {number} [productArtRows] pixel wordmark rows when known (else 1)
  * @returns {number}
  */
-function estimateLandingCompositionRows(composition, layout, columns) {
+function estimateLandingCompositionRows(
+  composition,
+  layout,
+  columns,
+  guardianArtRows,
+  recentRunCount,
+  productArtRows,
+) {
   const cols = Number.isFinite(columns) && columns >= 1 ? columns : 80;
   const contentWidth = Math.max(16, cols - 4);
 
   let hero = 0;
-  if (composition.show_product) hero += 1;
+  if (composition.show_product) {
+    const productN = Number.isFinite(Number(productArtRows)) && Number(productArtRows) > 0
+      ? Math.floor(Number(productArtRows))
+      : 1;
+    hero += productN;
+  }
   if (composition.show_tagline) hero += 1;
   if (composition.show_triad) hero += 1;
   if (composition.show_primary_cta) hero += 1;
@@ -184,24 +224,30 @@ function estimateLandingCompositionRows(composition, layout, columns) {
     hero += cols < 56 ? 2 : 1;
   }
 
-  // Wide guardian sits in a bordered column (6 art lines + 2 borders).
-  // Mid guardian is unbordered stacked art (3 lines).
-  const guardianLines = composition.show_guardian
-    ? (layout === 'wide' ? 8 : 3)
-    : 0;
+  // Wide: guardian in bordered column beside hero → max(guardian, hero).
+  // Mid (≥80): guardian beside hero without border → max(guardian, hero).
+  // Compact: guardian stacked above hero → sum.
+  let guardianLines = 0;
+  if (composition.show_guardian) {
+    const artN = Number.isFinite(Number(guardianArtRows)) && Number(guardianArtRows) > 0
+      ? Math.floor(Number(guardianArtRows))
+      : (layout === 'wide' ? 8 : (layout === 'mid' ? 9 : 0));
+    guardianLines = layout === 'wide' ? artN + 2 : artN;
+  }
 
   let bodyTop;
-  if (layout === 'wide' && composition.show_guardian) {
+  if ((layout === 'wide' || layout === 'mid') && composition.show_guardian) {
     bodyTop = Math.max(guardianLines, hero);
   } else {
-    bodyTop = (layout !== 'wide' ? guardianLines : 0) + hero;
+    bodyTop = (layout === 'compact' && composition.show_guardian ? guardianLines : 0) + hero;
   }
 
   const panel = (inner) => (inner > 0 ? inner + 2 : 0);
 
   let quickInner = 0;
   if (composition.show_quick_start) {
-    quickInner = 1; // title
+    // Title may include a 2-row lock icon block beside the label.
+    quickInner = composition.section_icon_rows > 1 ? 2 : 1;
     if (composition.show_quick_start_hint) {
       // Mid/wide Quick Start is width 36; hint wraps on that pane.
       const qsContentWidth = layout === 'compact'
@@ -214,7 +260,7 @@ function estimateLandingCompositionRows(composition, layout, columns) {
 
   let readyInner = 0;
   if (composition.show_readiness) {
-    readyInner = 2; // title + Overall
+    readyInner = (composition.section_icon_rows > 1 ? 2 : 1) + 1; // title + Overall
     if (composition.show_readiness_next) {
       // Mid readiness pane shares the row with Quick Start (~cols-36).
       const readyWidth = layout === 'compact'
@@ -228,13 +274,19 @@ function estimateLandingCompositionRows(composition, layout, columns) {
 
   let recentInner = 0;
   if (composition.show_recent_runs) {
-    recentInner = 1;
-    if (composition.recent_runs_limit > 0) {
-      recentInner += 1 + composition.recent_runs_limit;
-    } else if (composition.recent_empty_short) {
+    recentInner = composition.section_icon_rows > 1 ? 2 : 1;
+    // Empty short only when the board is empty — never under-count real run rows.
+    if (composition.recent_empty_short) {
       recentInner += 1;
+    } else if (composition.recent_runs_limit > 0) {
+      const limit = Math.max(0, Number(composition.recent_runs_limit) || 0);
+      const known = Number.isFinite(Number(recentRunCount)) && Number(recentRunCount) >= 0
+        ? Math.floor(Number(recentRunCount))
+        : limit;
+      const shown = Math.min(limit, known);
+      recentInner += shown > 0 ? 1 + shown : 1;
     } else {
-      recentInner += Math.max(1, Math.ceil(90 / contentWidth));
+      recentInner += 1;
     }
   }
 
@@ -254,17 +306,35 @@ function estimateLandingCompositionRows(composition, layout, columns) {
  * content before sacrificing Start New Run or the explicit Overall readiness line.
  * @param {unknown} columns
  * @param {unknown} rows
+ * @param {{ guardianArtRows?: number, sectionIconRows?: number, productArtRows?: number }} [opts]
  * @returns {{ layout: LandingLayoutMode, composition: LandingComposition, estimated_rows: number }}
  */
-function resolveLandingComposition(columns, rows) {
+function resolveLandingComposition(columns, rows, opts = {}) {
   const cols = Number(columns);
   const r = Number(rows);
   const c = Number.isFinite(cols) && cols >= 1 ? cols : 80;
   const rowCount = Number.isFinite(r) && r >= 1 ? Math.floor(r) : 24;
   const layout = landingLayoutForViewport(c, rowCount);
   const composition = defaultLandingComposition(layout);
+  const guardianArtRows = Number(opts.guardianArtRows);
+  const sectionIconRows = Number(opts.sectionIconRows);
+  const productArtRows = Number(opts.productArtRows);
+  if (Number.isFinite(sectionIconRows) && sectionIconRows > 0) {
+    composition.section_icon_rows = Math.floor(sectionIconRows);
+  }
 
-  let estimated = estimateLandingCompositionRows(composition, layout, c);
+  const productN = Number.isFinite(productArtRows) && productArtRows > 0
+    ? Math.floor(productArtRows)
+    : undefined;
+
+  let estimated = estimateLandingCompositionRows(
+    composition,
+    layout,
+    c,
+    Number.isFinite(guardianArtRows) ? guardianArtRows : undefined,
+    undefined,
+    productN,
+  );
   for (const step of LANDING_COMPOSITION_DROP_STEPS) {
     if (estimated <= rowCount) break;
     step.apply(composition);
@@ -272,7 +342,14 @@ function resolveLandingComposition(columns, rows) {
     // Invariants: primary CTA + Overall readiness always remain.
     composition.show_primary_cta = true;
     composition.show_readiness = true;
-    estimated = estimateLandingCompositionRows(composition, layout, c);
+    estimated = estimateLandingCompositionRows(
+      composition,
+      layout,
+      c,
+      Number.isFinite(guardianArtRows) ? guardianArtRows : undefined,
+      undefined,
+      productN,
+    );
   }
 
   return { layout, composition, estimated_rows: estimated };
@@ -608,9 +685,14 @@ function classifyRunActivity(run = {}) {
  * @param {ReadonlyArray<object>} runs
  * @param {number} [limit]
  */
-function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT) {
+function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT, offset = 0) {
   const list = Array.isArray(runs) ? runs : [];
-  const sliced = list.slice(0, Math.max(0, limit));
+  const max = Math.max(0, Number(limit) || 0);
+  const start = Math.max(0, Math.min(
+    Number.isInteger(offset) && offset > 0 ? offset : 0,
+    Math.max(0, list.length - max),
+  ));
+  const sliced = list.slice(start, start + max);
   return sliced.map((run) => {
     const activity = classifyRunActivity(run);
     return {
@@ -630,6 +712,47 @@ function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT) {
 }
 
 /**
+ * Collapse CR/LF to a single terminal-safe line (Ink wrap:truncate does not strip newlines).
+ * @param {unknown} value
+ * @param {string} [fallback]
+ * @returns {string}
+ */
+function terminalSafeSingleLine(value, fallback = '') {
+  if (value == null) return fallback;
+  return String(value)
+    .replace(/\r\n/g, ' ')
+    .replace(/[\r\n]/g, ' ')
+    .replace(/[ \t\f\v]+/g, ' ')
+    .trim();
+}
+
+/**
+ * One-line Recent Runs entry (no wrap). Truncates to fit content width.
+ * Normalizes activity_label / run_id / summary / last_event_at before truncating
+ * so embedded CR/LF cannot become extra physical Ink rows.
+ * @param {{ activity_label?: string, run_id?: string, summary?: string | null, last_event_at?: string | null }} run
+ * @param {number} columns
+ * @param {{ compact?: boolean }} [opts]
+ * @returns {string}
+ */
+function formatRecentRunEntryLine(run, columns, opts = {}) {
+  const compact = opts.compact === true;
+  const activity = terminalSafeSingleLine(run.activity_label, 'UNKNOWN') || 'UNKNOWN';
+  const runId = terminalSafeSingleLine(run.run_id, '');
+  const summary = terminalSafeSingleLine(run.summary, '');
+  const whenRaw = terminalSafeSingleLine(run.last_event_at, '');
+  const when = whenRaw === '' ? 'time unavailable' : whenRaw;
+  let line = `  ${activity}  ${runId}`
+    + (summary ? `  ${summary}` : '')
+    + (compact ? '' : `  ${when}`);
+  const max = Math.max(12, (Number.isFinite(Number(columns)) ? Number(columns) : 80) - 4);
+  if (line.length > max) {
+    line = `${line.slice(0, Math.max(1, max - 1))}…`;
+  }
+  return line;
+}
+
+/**
  * Build the landing view-model from shell adapter inputs.
  * @param {{
  *   home?: object,
@@ -641,6 +764,10 @@ function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT) {
  *   loading?: boolean,
  *   icons?: string,
  *   iconMode?: string,
+ *   art?: string,
+ *   artMode?: string,
+ *   guardianStyle?: string,
+ *   env?: NodeJS.ProcessEnv,
  * }} [options]
  */
 function buildLandingViewModel(options = {}) {
@@ -650,16 +777,159 @@ function buildLandingViewModel(options = {}) {
   const columns = Number.isFinite(Number(options.columns)) ? Number(options.columns) : 80;
   const rows = Number.isFinite(Number(options.rows)) ? Number(options.rows) : 24;
   const iconMode = resolveIconMode(options);
-  const resolved = resolveLandingComposition(columns, rows);
-  const layout = resolved.layout;
-  const composition = resolved.composition;
-  const showGuardian = composition.show_guardian === true;
-  const guardian_lines = showGuardian ? landingGuardianPlainLines(layout, iconMode) : [];
-  const guardian_rows = !showGuardian
-    ? []
-    : (layout === 'wide'
-      ? landingGuardianRowsWide(iconMode)
-      : (layout === 'mid' ? landingGuardianRowsMid(iconMode) : []));
+  const env = options.env && typeof options.env === 'object' ? options.env : process.env;
+  const layout = landingLayoutForViewport(columns, rows);
+  const artOpts = {
+    layout,
+    icons: iconMode,
+    art: options.art,
+    artMode: options.artMode,
+    guardianStyle: options.guardianStyle,
+    env,
+  };
+  let pixelArt = buildLandingGuardianArt(artOpts);
+  // Probe section icon height (lock v2 icons are two Braille rows).
+  const sectionIconProbe = sectionTitleWithPixelIcon('Quick Start', 'quick_start', artOpts);
+  const sectionIconRows = sectionIconProbe && typeof sectionIconProbe === 'object'
+    && Array.isArray(sectionIconProbe.lines)
+    ? sectionIconProbe.lines.length
+    : 0;
+
+  // Lock v2 3×5 pixel wordmark on wide arcade landings only (hero column budget).
+  // Mid/compact keep scannable uppercase text (gradient when truecolor).
+  // Structural glyphs are independent of colorEnabled / NO_COLOR (tones paint when color is on).
+  const truecolor = options.truecolor === true;
+  let product_rows = [];
+  if (layout === 'wide' && columns >= 100) {
+    product_rows = buildPixelWordmarkRows({
+      ...artOpts,
+      truecolor,
+    });
+  }
+  const product_segments = buildTextWordmarkSegments({
+    truecolor,
+    text: 'AI-MINIONS',
+  });
+  // Pixel rows + one text line when pixel is shown; text-only otherwise.
+  let productArtRows = product_rows.length > 0
+    ? product_rows.length + 1
+    : 1;
+
+  // Art-aware composition: demote art first (without consuming drop steps), then
+  // apply drop order. Typical ≥80×24 keeps full Quick Start + readiness details.
+  const composition = defaultLandingComposition(layout);
+  composition.section_icon_rows = sectionIconRows;
+  // Empty run boards: reserve one empty line, not recent_runs_limit phantom rows.
+  if (runs.length === 0) {
+    composition.recent_empty_short = true;
+  }
+  // Semantic labels replace the hero triad — drop before estimating row pressure.
+  if (pixelArt.hide_hero_triad && composition.show_triad) {
+    composition.show_triad = false;
+    composition.drops.push('hide_triad_semantic');
+  }
+  const runCount = runs.length;
+  const typicalViewport = isTypicalLandingViewport(columns, rows);
+  const estimateNow = () => estimateLandingCompositionRows(
+    composition,
+    layout,
+    columns,
+    composition.show_guardian ? pixelArt.rows.length : 0,
+    runCount,
+    composition.show_product ? productArtRows : 0,
+  );
+  let estimated = estimateNow();
+
+  // Art demotions — do not advance/skip LANDING_COMPOSITION_DROP_STEPS.
+  // Prefer compact lock art on typical viewports; only go minimal when still over.
+  while (estimated > rows) {
+    let demoted = false;
+    if (product_rows.length > 0) {
+      product_rows = [];
+      productArtRows = 1;
+      composition.drops.push('product_text');
+      demoted = true;
+    } else if (
+      pixelArt.variant === 'wide'
+      && pixelArt.rows.length > 0
+      && !composition.drops.includes('guardian_compact')
+    ) {
+      pixelArt = buildLandingGuardianArt({ ...artOpts, layout: 'mid' });
+      composition.drops.push('guardian_compact');
+      demoted = true;
+    } else if (
+      !typicalViewport
+      && pixelArt.variant === 'compact'
+      && pixelArt.rows.length > 0
+      && !composition.drops.includes('guardian_minimal')
+    ) {
+      pixelArt = buildLandingGuardianArt({ ...artOpts, layout: 'compact' });
+      composition.drops.push('guardian_minimal');
+      demoted = true;
+    }
+    if (!demoted) break;
+    estimated = estimateNow();
+  }
+
+  for (const step of LANDING_COMPOSITION_DROP_STEPS) {
+    if (estimated <= rows) break;
+    // recent_empty_short is empty-board only — never under-count real run rows.
+    if (step.id === 'recent_empty_short' && runCount > 0) {
+      continue;
+    }
+    if (step.id === 'recent_empty_short' && composition.recent_empty_short) {
+      continue;
+    }
+    if (step.id === 'reduce_recent' && (!composition.show_recent_runs || composition.recent_runs_limit <= 1)) {
+      continue;
+    }
+    // ≥80×24: never shrink Quick Start to CTA-only or strip readiness details/next.
+    if (
+      typicalViewport
+      && (
+        step.id === 'hide_readiness_details'
+        || step.id === 'hide_readiness_next'
+        || step.id === 'quick_start_primary_only'
+      )
+    ) {
+      continue;
+    }
+    // After hide_recent on typical mid/wide, if still over: demote compact→minimal once.
+    if (
+      typicalViewport
+      && step.id === 'hide_guardian'
+      && pixelArt.variant === 'compact'
+      && pixelArt.rows.length > 0
+      && !composition.drops.includes('guardian_minimal')
+    ) {
+      pixelArt = buildLandingGuardianArt({ ...artOpts, layout: 'compact' });
+      composition.drops.push('guardian_minimal');
+      estimated = estimateNow();
+      if (estimated <= rows) continue;
+    }
+    step.apply(composition);
+    composition.drops.push(step.id);
+    composition.show_primary_cta = true;
+    composition.show_readiness = true;
+    estimated = estimateNow();
+  }
+  const resolved = { layout, composition, estimated_rows: estimated };
+
+  const showGuardian = composition.show_guardian === true
+    && pixelArt.resolution.effective !== 'none';
+  let guardian_lines = [];
+  let guardian_rows = [];
+  if (showGuardian) {
+    if (pixelArt.resolution.effective === 'arcade' && pixelArt.rows.length > 0) {
+      guardian_rows = pixelArt.rows;
+      guardian_lines = pixelArt.lines;
+    } else {
+      guardian_lines = landingGuardianPlainLines(layout, iconMode);
+      guardian_rows = layout === 'wide'
+        ? landingGuardianRowsWide(iconMode)
+        : (layout === 'mid' ? landingGuardianRowsMid(iconMode) : []);
+    }
+  }
   const overall = options.loading === true
     ? {
       state: /** @type {LandingOverallState} */ ('loading'),
@@ -719,10 +989,22 @@ function buildLandingViewModel(options = {}) {
   const recentLimit = composition.show_recent_runs
     ? Math.max(0, Number(composition.recent_runs_limit) || 0)
     : 0;
-  const recent = buildRecentRunPreview(runs, recentLimit);
+  let recentOffset = Number.isInteger(options.recentRunsOffset) && options.recentRunsOffset > 0
+    ? options.recentRunsOffset
+    : 0;
   const selectedRunId = options.selectedRunId == null || options.selectedRunId === ''
     ? null
     : String(options.selectedRunId);
+  // Keep the selected run inside the visible Recent Runs window (scroll/pagination).
+  if (selectedRunId && recentLimit > 0) {
+    const selIdx = runs.findIndex((r) => String(r.run_id) === selectedRunId);
+    if (selIdx >= 0) {
+      if (selIdx < recentOffset) recentOffset = selIdx;
+      else if (selIdx >= recentOffset + recentLimit) recentOffset = selIdx - recentLimit + 1;
+      recentOffset = Math.max(0, Math.min(recentOffset, Math.max(0, runs.length - recentLimit)));
+    }
+  }
+  const recent = buildRecentRunPreview(runs, recentLimit, recentOffset);
   const selected = selectedRunId
     ? runs.find((r) => String(r.run_id) === selectedRunId) ?? null
     : (runs[0] ?? null);
@@ -788,6 +1070,36 @@ function buildLandingViewModel(options = {}) {
     ? quickStartAll.slice(0, Math.max(1, Number(composition.quick_start_limit) || 1))
     : [];
 
+  const sectionIcons = {
+    quick_start: sectionTitleWithPixelIcon('Quick Start', 'quick_start', {
+      icons: iconMode,
+      art: options.art,
+      artMode: options.artMode,
+      env,
+    }),
+    readiness: sectionTitleWithPixelIcon('System Readiness', 'readiness', {
+      icons: iconMode,
+      art: options.art,
+      artMode: options.artMode,
+      env,
+    }),
+    recent_runs: sectionTitleWithPixelIcon('Recent Runs', 'recent_runs', {
+      icons: iconMode,
+      art: options.art,
+      artMode: options.artMode,
+      env,
+    }),
+  };
+  /** Plain-string titles for text formatters (icon rows joined). */
+  const sectionTitles = Object.fromEntries(
+    Object.entries(sectionIcons).map(([key, value]) => {
+      if (value && typeof value === 'object' && Array.isArray(value.lines)) {
+        return [key, `${value.lines.join(' ')} ${value.label}`.trim()];
+      }
+      return [key, String(value ?? '')];
+    }),
+  );
+
   return {
     schema: LANDING_SCHEMA,
     kind: 'landing',
@@ -796,13 +1108,20 @@ function buildLandingViewModel(options = {}) {
     columns,
     rows,
     iconMode,
+    art: pixelArt.resolution,
+    guardian_style: pixelArt.resolution.guardianStyle,
     composition,
     estimated_rows: resolved.estimated_rows,
     show_guardian: showGuardian && guardian_lines.length > 0,
     guardian_lines,
     guardian_rows,
+    guardian_display_width: pixelArt.display_width,
+    section_icons: sectionIcons,
+    section_titles: sectionTitles,
     hero: {
       product: 'AI-MINIONS',
+      product_rows,
+      product_segments,
       tagline: 'Contract-First Multi-Agent Orchestration Harness',
       triad: 'Validate • Trace • Enforce',
       guardian_note: 'Cerberus guards contracts and gates — secondary system symbol',
@@ -903,16 +1222,9 @@ function formatLandingLines(landing, options = {}) {
         `  Showing ${landing.recent_runs_showing} of ${landing.recent_runs_total}`,
       );
       for (const run of landing.recent_runs) {
-        const summary = run.summary == null ? '(summary unavailable)' : run.summary;
-        const when = run.last_event_at == null ? 'time unavailable' : run.last_event_at;
-        const agents = run.agent_count == null ? 'agents unavailable' : `${run.agent_count} agents`;
-        lines.push(
-          `  ${run.activity_label}  ${run.run_id}  ${summary}`
-          + (narrow ? '' : `  ${when}  ${agents}`),
-        );
-        if (run.reason_code) {
-          lines.push(`    reason_code: ${run.reason_code}`);
-        }
+        lines.push(formatRecentRunEntryLine(run, landing.columns ?? (narrow ? 60 : 100), {
+          compact: narrow,
+        }));
       }
     }
   }
@@ -929,6 +1241,7 @@ function formatLandingLines(landing, options = {}) {
 /**
  * In-process Help topics (presentation only — never dispatch shell remounts).
  * Selecting a topic must stay mounted; digits here are topic keys, not Quick Start.
+ * Catalog covers navigation + selected-run Overview / Monitor / Evidence / Explain.
  * @returns {ReadonlyArray<{ id: string, key: string, label: string, lines: string[] }>}
  */
 function helpTopics() {
@@ -936,7 +1249,7 @@ function helpTopics() {
     Object.freeze({
       id: 'navigation',
       key: '1',
-      label: 'Navigation goals',
+      label: 'Help overview · Navigation',
       lines: Object.freeze([
         'Navigation goals (shell surfaces):',
         '  Home (h)            Task-first landing',
@@ -950,22 +1263,60 @@ function helpTopics() {
       ]),
     }),
     Object.freeze({
-      id: 'run_context',
+      id: 'overview',
       key: '2',
-      label: 'When a run is selected',
+      label: 'Overview (o)',
       lines: Object.freeze([
-        'When a run is selected (from Home / Runs):',
-        '  Overview (o)   Status / next_safe_action',
-        '  Monitor (m)    Live phase + reason codes',
-        '  Evidence (e)   Attach / bundle availability',
-        '  Explain (x)    Explain next safe action',
+        'Overview (hotkey o) — when a run is selected:',
+        '  Shows the seeded selected-run status snapshot on the shell model.',
+        '  Fields: result_code · status · outcome · reason_code · next_safe_action.',
+        '  In-process only — no remount, no fresh status query.',
+        '  Fresh status: CLI `ai-minions status` or slash `/status`.',
         '',
-        'These keys are inactive while this Help surface is open.',
+        'This key is inactive while the Help surface is open (use Esc → Home first).',
+      ]),
+    }),
+    Object.freeze({
+      id: 'monitor',
+      key: '3',
+      label: 'Monitor (m)',
+      lines: Object.freeze([
+        'Monitor (hotkey m) — when a run is selected:',
+        '  Live phase + reason codes for the selected run (read-only).',
+        '  Opens the live monitor surface inside Ink when a run is selected.',
+        '',
+        'This key is inactive while the Help surface is open (use Esc → Home first).',
+      ]),
+    }),
+    Object.freeze({
+      id: 'evidence',
+      key: '4',
+      label: 'Evidence (e)',
+      lines: Object.freeze([
+        'Evidence (hotkey e) — when a run is selected:',
+        '  Seeded attach / bundle availability from the shell evidence model.',
+        '  In-process only — no attach prompt, no remount.',
+        '  Attach generation: nested pane / CLI `ai-minions attach` / slash `/attach`.',
+        '',
+        'Digit 4 here opens this topic — never Settings (that would remount / look like quit).',
+      ]),
+    }),
+    Object.freeze({
+      id: 'explain',
+      key: '5',
+      label: 'Explain (x)',
+      lines: Object.freeze([
+        'Explain (hotkey x) — when a run is selected:',
+        '  Shares the Overview status surface (reason_code / next_safe_action).',
+        '  Seeded snapshot only — never synthesized from presentation text.',
+        '  Fresh explain: CLI / slash `/explain`.',
+        '',
+        'This key is inactive while the Help surface is open (use Esc → Home first).',
       ]),
     }),
     Object.freeze({
       id: 'keys',
-      key: '3',
+      key: '6',
       label: 'Keys and input',
       lines: Object.freeze([
         'Keys:',
@@ -973,29 +1324,35 @@ function helpTopics() {
         '  Top-level s is ignored (use Runs / ↑↓).',
         '  Legacy readline matrix: AI_MINIONS_TUI_LEGACY=1 only.',
         '',
-        'Inside Help: ↑/↓ topics · 1–5 open topic · Enter open · Esc close topic / Home.',
+        'Inside Help: ↑/↓ topics · digit open topic · Enter open · Esc close topic / Home.',
       ]),
     }),
     Object.freeze({
       id: 'display',
-      key: '4',
+      key: '7',
       label: 'Icons and display',
       lines: Object.freeze([
         'Icons: AI_MINIONS_TUI_ICONS=nerd|unicode|ascii',
         '  Default nerd — operator choice; not auto glyph detect.',
         '  NO_COLOR does not switch icon mode.',
         '',
+        'Art: AI_MINIONS_TUI_ART=auto|arcade|text|none',
+        '  auto → arcade for nerd/unicode; text for ascii.',
+        '  Invalid ART values fail closed to auto; reason stays in debug across remounts.',
+        '  Guardian: AI_MINIONS_TUI_GUARDIAN=neon|semantic (default semantic=lock v2; neon opt-in).',
+        '',
         'Selecting this topic never opens Settings (that would remount / look like quit).',
       ]),
     }),
     Object.freeze({
       id: 'limits',
-      key: '5',
+      key: '8',
       label: 'Honest product limits',
       lines: Object.freeze([
         'Operator modules remain authoritative.',
         'Not claimed: Web UI · mouse clicks on labels · durable resume.',
         'Help topics are in-process only — no nested readline from this surface.',
+        'Cold start always lands on Home — Start New Run requires an explicit open.',
       ]),
     }),
   ]);
@@ -1081,6 +1438,7 @@ module.exports = {
   RECENT_RUNS_LIMIT,
   LANDING_CHROME_ROWS,
   LANDING_COMPOSITION_DROP_STEPS,
+  isTypicalLandingViewport,
   landingLayoutForViewport,
   defaultLandingComposition,
   estimateLandingCompositionRows,
@@ -1090,6 +1448,7 @@ module.exports = {
   deriveLandingOverall,
   classifyRunActivity,
   buildRecentRunPreview,
+  formatRecentRunEntryLine,
   buildLandingViewModel,
   formatLandingLines,
   helpTopics,

@@ -3,16 +3,17 @@
   Cerberus master mark — AI-MINIONS brand guardian.
   Geometric three-headed symbol for Validate / Trace / Enforce.
   Official vector source for docs, GitHub, and Web UI.
-  Derived from approved Cerberus option C TUI render
-  (GitHub issue attachment ee018a2f-ff28-4561-b5f0-e7a9c7fbf88c).
+  Visual SoT (operator 2026-07-28): assets/mockups/gui-landing-detailed-v1.png
+  (detailed three-head Cerberus with chains + hex core). Prior option C lineage retained.
   Provenance: see assets/CERBERUS-ART-LICENSE.md
+  TUI pixel derivative must NOT overwrite this file (see assets/mockups/tui-landing-pixel-v1.png).
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 300" role="img" aria-labelledby="title desc">
   <title id="title">Cerberus — AI-MINIONS guardian mark</title>
   <desc id="desc">
-    Geometric wireframe three-headed guardian matching approved option C:
+    Geometric wireframe three-headed guardian aligned to the approved GUI landing mockup:
     left Validate (cyan, checkmark), center Trace (violet, circuit brow + hex core),
-    right Enforce (amber, lock), linked by chain motifs. Decorative brand asset;
+    right Enforce (amber, lock), linked by chain motifs. Decorative brand asset for GUI/docs;
     not a runtime TUI glyph sheet.
   </desc>
   <defs>

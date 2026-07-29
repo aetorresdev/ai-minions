@@ -7,7 +7,7 @@ Locked operator decisions for the AI-MINIONS Ink fullscreen shell and related br
 | In scope | Out of scope |
 |----------|----------------|
 | Color tokens, icon modes, degradation, gradient rules | Shipping font binaries in-repo by default |
-| Cerberus TUI component policy (textual / Nerd) | PNG as the TUI Cerberus path |
+| Cerberus TUI art modes `arcade\|text\|none` (Semantic Guardians default; Neon opt-in) | PNG as the TUI Cerberus path |
 | Official SVG for docs / GitHub / Web UI | Web UI implementation in this document |
 | Config surface `icons=nerd\|unicode\|ascii` | Mouse / pointer interaction |
 
@@ -79,26 +79,43 @@ Rules:
 
 | Condition | Color | Icons | Cerberus mark | Hierarchy |
 |-----------|-------|-------|---------------|-----------|
-| Full rich TTY + Nerd Font installed & selected | Truecolor optional on wordmark/accent | `nerd` (operator choice) | Wide textual / Nerd component | Labels + focus + borders |
-| 256-color only | Named / indexed tokens; no required gradient | Same configured mode (no auto glyph degrade) | Compact | Same |
-| `NO_COLOR` / CI | No color | Prefer documenting `ascii` (or `unicode`) in operator profiles; not auto-proven from `NO_COLOR` alone | Minimal / ascii geometry | Labels + borders + explicit state text only |
-| SSH / unknown glyph coverage | As terminal allows | Operator should set `unicode` or `ascii`; coverage is not auto-detected | Minimal | May tofu under `nerd` without Nerd Font |
-| Narrow / short TTY | As above | As above | Drop decorative Cerberus before Start New Run / Overall / recent runs | Task-first preserved |
+| Full rich TTY + Nerd Font installed & selected | Truecolor optional on wordmark/accent | `nerd` (operator choice) | Arcade Semantic Guardians (default) or Neon (`AI_MINIONS_TUI_GUARDIAN=neon`); `AI_MINIONS_TUI_ART=arcade\|text\|none` | Labels + focus + borders |
+| 256-color only | Named / indexed tokens; no required gradient | Same configured mode (no auto glyph degrade) | Same configured art/guardian mode (compact when mid) | Same |
+| `NO_COLOR` / CI | No color (styling only — does **not** auto-change art or icon mode) | Configured mode kept; prefer documenting `ascii`/`unicode` in operator profiles | Configured mode kept (`arcade`/`text`/`none`) | Labels + borders + explicit state text only |
+| SSH / unknown glyph coverage | As terminal allows | Operator should set `unicode` or `ascii`; coverage is not auto-detected | Configured mode kept; may tofu under `nerd` without Nerd Font | Same |
+| Narrow / short TTY | As above | As above | Compact → minimal → omit decorative guardian; at **80×24** Recent Runs **may be omitted** to keep compact guardian + **Start New Run** + Overall | Task-first preserved |
 
 ## Cerberus in the TUI
 
-- **Not PNG.** Runtime path is a deterministic **textual / Nerd** component with variants: **wide / compact / minimal**.
-- Cerberus is a **secondary** brand guardian: supports the brand; never displaces `AI-MINIONS`, **Start New Run**, Overall readiness, or recent-runs summary.
-- Drop order under space pressure: decorative Cerberus **before** Start New Run / Overall / recent runs.
-- Splash (brand prelude) remains skippable and bounded; it is not the landing.
+- **Not PNG / not Kitty / not Sixel.** Runtime path is deterministic terminal cells with variants: **wide / compact / minimal**.
+- Default presentation under `AI_MINIONS_TUI_ART=auto`: **arcade** block-sprite Cerberus for `icons=nerd|unicode`; textual/ASCII path for `icons=ascii`. Overrides: `arcade|text|none`. Invalid values fail closed to `auto` with an observable reason.
+- Guardian comparison: `AI_MINIONS_TUI_GUARDIAN=neon|semantic`. **Default `semantic`** (Cerberus terminal pixel-art lock v2 Braille matrices — `orchestrator/modules/operator/terminal-pixel-art.js` + `assets/semantic-guardians-matrix.json`; labels under heads). **Neon** is opt-in (`AI_MINIONS_TUI_GUARDIAN=neon`) for the compact VTE/block checkpoint. Invalid guardian values fail closed to `semantic` with an observable reason. Invalid `AI_MINIONS_TUI_ART` values fail closed to `auto` with a reason that persists in shell debug/evidence across remounts.
+- Cerberus is a **secondary** brand guardian: supports the brand; never displaces `AI-MINIONS`, **Start New Run**, or Overall readiness. Under height pressure (including **80×24**), **Recent Runs may be reduced or omitted** so compact guardian + CTA + Overall still fit.
+- **Brand wordmark:** lock v2 3×5 block pixel wordmark when arcade + width allows; otherwise per-character text with optional truecolor cyan→violet→amber gradient. Under `NO_COLOR`, readable uppercase `AI-MINIONS` without claiming gradient.
+- Optional pixel section icons (Quick Start / System Readiness / Recent Runs) use lock v2 Braille dot matrices and always keep text labels.
+- Drop order under space pressure (operator intent; matches code):
+  1. Never drop **Start New Run** or the **Overall** readiness line.
+  2. Early art demotions (do not consume drop steps): pixel wordmark → text → wide guardian → compact. Prefer **keeping full Quick Start (1–5)** and **System Readiness** over tall guardian art.
+  3. Mid (≥80 cols): guardian sits **beside** the brand column (same idea as wide) so compact lock art does not stack above the hero.
+  4. Then `LANDING_COMPOSITION_DROP_STEPS`: empty-board short Recent (no runs only) → reduce Recent to 1 → hide decorative guardian note / tagline / triad → **hide Recent** → (only after that, if still over on typical TTYs) compact → minimal guardian → omit guardian → (extreme short TTY only) readiness details/next → Quick Start primary-only → hide Quick Start → hide product.
+  5. On typical viewports **≥80×24**, do **not** apply readiness-detail / next / Quick-Start-primary cuts — menus beat Recent and art density. At **80×24**, Semantic may use **minimal** (`V/T/E`) guardian so QS + readiness fit; at **120×36**, prefer **compact** lock art with VALIDATE/TRACE/ENFORCE labels.
+  6. Each Recent Runs entry is a **single truncated line** (CR/LF normalized before truncate).
+- Splash (brand prelude) remains skippable and bounded; it is not the landing. Splash + landing share the same guardian default (Semantic) and wordmark treatment.
+- **PUA scope:** lock v2 matrices and section icons introduce **no** Nerd/Private Use Area glyphs. Global `icons=nerd` (default operator choice in `operator-tui-icons.js`) remains a separate, explicit TTY profile — not claimed as “no Nerd-PUA” for the whole TUI.
 
 ## Official art (off-TTY)
 
 | Asset | Path | Use |
 |-------|------|-----|
-| Master SVG | `assets/cerberus-master.svg` | Docs, GitHub, Web UI |
+| Master SVG | `assets/cerberus-master.svg` | Docs, GitHub, Web UI (GUI path) |
 | License / provenance | `assets/CERBERUS-ART-LICENSE.md` | Redistribution and attribution |
+| TUI mockup SoT | `assets/mockups/tui-landing-pixel-v1.png` | Review evidence for arcade TUI — not Ink runtime (real PNG; Semantic Guardians v3 reference) |
+| GUI mockup SoT | `assets/mockups/gui-landing-detailed-v1.png` | Review evidence for future GUI — not a shipped GUI (real PNG) |
+| Lock sheet (review) | `assets/mockups/semantic-guardians-lock-sheet-v2.png` | Matrix vs reference comparison — not Ink runtime |
+| Terminal geometry lock | `orchestrator/modules/operator/assets/semantic-guardians-matrix.json` | Deterministic Semantic Guardians cells |
 | PNG 1× / 2× | Generate only if an external platform requires raster | Not the TUI path |
+
+**Provenance (terminal lock v2):** integrated from operator delivery `ai-minions-terminal-pixel-art-lock-v2` (2026-07-29). Fixture regen is intentional (`scripts/regenerate-terminal-pixel-art-fixtures.js` / `scripts/regenerate-pixel-art-checkpoints.js`); validation tests never rewrite fixtures.
 
 ## Landing composition (visual constraints)
 
