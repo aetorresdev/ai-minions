@@ -299,8 +299,11 @@ Before cutting an alpha/pre-release tag, run the **published dependency scope**
 scan. Scope is defined in root **`.trivy.yaml`**.
 
 **CI:** GitHub Actions workflow **`security-trivy-scan`** uses
-[`aquasecurity/trivy-action`](https://github.com/aquasecurity/trivy-action) —
+[`aquasecurity/trivy-action`](https://github.com/aquasecurity/trivy-action)
+**pinned to `v0.36.0`** (see `.github/workflows/security-trivy-scan.yml`) —
 job summary + `trivy-security-report` artifact (txt/json/sarif) for CERBERUS.
+CI provisions the scanner itself; no local install is required to get a
+supported scan of a PR or `master` push.
 
 **Local (operator):**
 
@@ -313,6 +316,41 @@ Equivalent:
 ```bash
 trivy fs --config .trivy.yaml --scanners vuln,secret --ignore-unfixed --exit-code 1 .
 ```
+
+**Provisioning Trivy locally** (only needed for the local gate, not for CI):
+
+- Official install docs: <https://aquasecurity.github.io/trivy/latest/getting-started/installation/>
+- macOS: `brew install aquasecurity/trivy/trivy`
+- Or download a release binary and either put it on `PATH` or point the gate
+  at it with `TRIVY_BIN=/path/to/trivy`.
+- If Trivy cannot be installed locally, rely on the **CI path**
+  (`security-trivy-scan`) as the supported alternative — it is the
+  authoritative pre-merge scan regardless of what ran locally.
+
+### Gate status semantics (machine-readable)
+
+`scripts/release-trivy-gate.sh` prints a stable `status=<VALUE>` line and uses
+these exit codes. Release evidence (changelog / checklist) must quote the
+actual status, never assume `PASS`:
+
+| Status | Meaning | Exit code |
+|--------|---------|-----------|
+| `PASS` | Scanner ran; published scope clean of HIGH/CRITICAL fixed vulns and secrets. | `0` |
+| `BLOCKED` | Prerequisite missing — `trivy` not found. Gate did **not** run. **Default** outcome for a missing scanner. | `2` |
+| `FAIL` | Scanner ran and found HIGH/CRITICAL fixed vulns or secrets in published scope. | `1` |
+| `SKIPPED` | Explicit operator opt-out only: `RELEASE_TRIVY_GATE_SKIP_REASON="<why>"` was set while the scanner was missing. Recorded reason must appear in release evidence. **Not** used silently — there is no default/implicit skip path. | `0` |
+
+**A missing scanner is `BLOCKED`, never `PASS`, and never `SKIPPED` unless the
+operator explicitly set `RELEASE_TRIVY_GATE_SKIP_REASON`.** `SKIPPED` still
+means the gate produced **no vulnerability/secret evidence** for that run —
+CI `security-trivy-scan` on the merge SHA remains the required evidence
+before tagging.
+
+**`npm audit` is supplementary, not a substitute for this gate.** It may be
+used as a remediation helper (see below) or for extra visibility on Node
+dependency advisories, but it does **not** satisfy the Trivy vulnerability
+gate and must not be cited as such in release evidence unless a future policy
+revision says otherwise.
 
 **In scope (must be clean):**
 
@@ -329,11 +367,16 @@ trivy fs --config .trivy.yaml --scanners vuln,secret --ignore-unfixed --exit-cod
 | `plugins/` | Claude Code **local marketplace cache** — gitignored, not shipped in `git clone`. Third-party `bun.lock` trees under `external_plugins/` are operator-installed samples; ai-minions does not publish or support those runtimes as release artifacts. Operators who enable channel plugins must patch upstream locks or accept vendor risk separately. |
 | `projects/`, `metrics/`, session trees | Host runtime data — not repository content |
 
-**Remediation when gate fails:**
+**Remediation when gate fails (`status=FAIL`):**
 
 1. MCP locks: `cd mcp-servers/<server> && uv lock --upgrade-package <pkg>` then re-run the gate.
-2. Orchestrator npm: `cd orchestrator && npm audit fix` (or explicit dependency bump) when `package-lock.json` reports HIGH/CRITICAL **fixed** issues.
+2. Orchestrator npm: `cd orchestrator && npm audit fix` (or explicit dependency bump) when `package-lock.json` reports HIGH/CRITICAL **fixed** issues. `npm audit` here is a **remediation helper only** — re-run `scripts/release-trivy-gate.sh` afterward for the approved PASS/FAIL evidence; `npm audit` output alone is not release evidence.
 3. Do **not** silence HIGH/CRITICAL in published scope without OWNER rationale recorded in release notes.
+
+**Remediation when gate is blocked (`status=BLOCKED`):** install Trivy locally
+(see provisioning above) or cite the CI `security-trivy-scan` run on the
+relevant SHA as evidence instead. Do **not** record `PASS` for a run that
+printed `BLOCKED`.
 
 ---
 

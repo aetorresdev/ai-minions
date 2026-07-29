@@ -22,7 +22,7 @@ Twenty-sixth beta pre-release: **Fullscreen TUI Completion + Live Harness Eviden
 | Operator TUI | Interactive cockpit MVP (readline lineage) | Ink 7 fullscreen shell · splash · theme · guided · monitor · slash |
 | Unit tests (orchestrator) | 1553/1554 pass (1 skipped) @ `bc6cf2c` | TUI quality **190/190** · splash/theme + shell foundation green on release-prep tree |
 
-**Release:** reserved until Phase B annotated tag `v0.26.0-beta.1` (blocked until first-run reason-code honesty and Trivy prerequisite PASS/BLOCKED/SKIPPED semantics land).
+**Release:** reserved until Phase B annotated tag `v0.26.0-beta.1` (blocked until first-run reason-code honesty lands; Trivy prerequisite PASS/BLOCKED/SKIPPED semantics now implemented — see below).
 
 **Evidence (operator):**
 
@@ -35,7 +35,8 @@ Twenty-sixth beta pre-release: **Fullscreen TUI Completion + Live Harness Eviden
 - Product version sync: `PRODUCT_VERSION` = `v0.26.0-beta.1` matches this section
 - Contracts: `operator-cockpit-contract.md`, `alpha-release-checklist.md` v0.26 section, Ink 7 ADR
 - Lane: live harness + integrated quality merged on `master` @ `c1cfb26`+; tip includes hotkey/silent-quit polish @ `80c67af`
-- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → required before Phase B; missing scanner must be **BLOCKED**, not PASS
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **PASS** on this workspace (Trivy `0.69.1`, published scope clean); gate now emits stable `status=PASS|BLOCKED|FAIL|SKIPPED` and defaults missing scanner to **BLOCKED**, never PASS — see [security-posture.md](docs/orchestrator/security-posture.md#gate-status-semantics-machine-readable)
+- Gate contract test: `node --test tests/release-trivy-gate.test.mjs` → **PASS**
 
 **Alpha limitations (not production):**
 

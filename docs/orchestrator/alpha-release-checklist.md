@@ -1571,7 +1571,7 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 - [x] Integrated TUI quality gate — merged @ `c1cfb26` (PR #348)
 - [x] Brand splash + theme polish + claims negatives — this Phase A release-prep PR
 - [ ] First-run reason-code honesty — **tag blocker** (document/resolve before Phase B)
-- [ ] Trivy prerequisite PASS/BLOCKED/SKIPPED honesty — **tag blocker** (document/resolve before Phase B)
+- [x] Trivy prerequisite PASS/BLOCKED/SKIPPED honesty — `scripts/release-trivy-gate.sh` emits stable `status=PASS|BLOCKED|FAIL|SKIPPED`; missing scanner defaults to `BLOCKED` (exit 2), never `PASS`; `SKIPPED` requires explicit `RELEASE_TRIVY_GATE_SKIP_REASON`; see [security-posture.md](security-posture.md#gate-status-semantics-machine-readable) and `tests/release-trivy-gate.test.mjs`
 - [ ] Release-prep CERBERUS Approve + Phase B cut
 
 ### Forbidden release claims (v0.26)
