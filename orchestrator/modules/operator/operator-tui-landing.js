@@ -792,10 +792,10 @@ function buildLandingViewModel(options = {}) {
 
   // Lock v2 3×5 pixel wordmark on wide arcade landings only (hero column budget).
   // Mid/compact keep scannable uppercase text (gradient when truecolor).
+  // Structural glyphs are independent of colorEnabled / NO_COLOR (tones paint when color is on).
   const truecolor = options.truecolor === true;
-  const colorEnabled = options.colorEnabled !== false;
   let product_rows = [];
-  if (colorEnabled && layout === 'wide' && columns >= 100) {
+  if (layout === 'wide' && columns >= 100) {
     product_rows = buildPixelWordmarkRows({
       ...artOpts,
       truecolor,

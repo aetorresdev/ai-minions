@@ -14,6 +14,10 @@ const path = require('node:path');
 const { buildShellModel } = require('../modules/operator/operator-tui-shell-model');
 
 async function main() {
+  // Match CI / checkpoint tests: host NO_COLOR must not rewrite structural snapshots.
+  delete process.env.NO_COLOR;
+  process.env.FORCE_COLOR = '0';
+
   const { renderOperatorTuiShellToString } = await import(
     '../modules/operator/operator-tui-shell-render.mjs'
   );
@@ -39,6 +43,7 @@ async function main() {
     icons: 'unicode',
     truecolor: false,
     art: 'arcade',
+    colorEnabled: true,
   };
 
   for (const [style, file] of [

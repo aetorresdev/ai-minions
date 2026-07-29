@@ -173,57 +173,93 @@ test('first-paint pixel renderer performs no I/O (sync pure matrices)', () => {
 });
 
 test('checkpoint 120x36: Neon vs Semantic share operational content; fixtures immutable', async () => {
-  const { renderOperatorTuiShellToString } = await import(
-    '../../modules/operator/operator-tui-shell-render.mjs'
-  );
-  const { measureLandingRender } = await import(
-    '../../scripts/lib/tui-landing-render-metrics.mjs'
-  );
-  const base = {
-    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
-    pathActivation: { status: 'ready', on_path: true },
-    credentials: { credential_sufficiency: 'not_required', providers: [] },
-    runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
-    contentSurface: 'home',
-    selectedNavId: 'launcher',
-    columns: 120,
-    rows: 36,
-    icons: 'unicode',
-    truecolor: false,
-    art: 'arcade',
-  };
-  const neonModel = buildShellModel({ ...base, guardianStyle: 'neon' });
-  const semanticModel = buildShellModel({ ...base, guardianStyle: 'semantic' });
-  const neonOut = renderOperatorTuiShellToString(neonModel, { columns: 120, rows: 36 });
-  const semanticOut = renderOperatorTuiShellToString(semanticModel, { columns: 120, rows: 36 });
+  // Fixtures are color-on structural snapshots (CI has no NO_COLOR). Isolate from host NO_COLOR.
+  const prevNoColor = process.env.NO_COLOR;
+  const prevForceColor = process.env.FORCE_COLOR;
+  delete process.env.NO_COLOR;
+  process.env.FORCE_COLOR = '0';
+  try {
+    const { renderOperatorTuiShellToString } = await import(
+      '../../modules/operator/operator-tui-shell-render.mjs'
+    );
+    const { measureLandingRender } = await import(
+      '../../scripts/lib/tui-landing-render-metrics.mjs'
+    );
+    const base = {
+      aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+      pathActivation: { status: 'ready', on_path: true },
+      credentials: { credential_sufficiency: 'not_required', providers: [] },
+      runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
+      contentSurface: 'home',
+      selectedNavId: 'launcher',
+      columns: 120,
+      rows: 36,
+      icons: 'unicode',
+      truecolor: false,
+      art: 'arcade',
+      colorEnabled: true,
+    };
+    const neonModel = buildShellModel({ ...base, guardianStyle: 'neon' });
+    const semanticModel = buildShellModel({ ...base, guardianStyle: 'semantic' });
+    assert.ok(neonModel.landing.hero.product_rows.length >= 5, 'neon wide arcade keeps pixel wordmark');
+    // Semantic guardian is taller — composition may demote product_rows to plain text.
+    const neonOut = renderOperatorTuiShellToString(neonModel, { columns: 120, rows: 36 });
+    const semanticOut = renderOperatorTuiShellToString(semanticModel, { columns: 120, rows: 36 });
 
-  for (const [label, out] of [['neon', neonOut], ['semantic', semanticOut]]) {
-    assert.match(out, /Start New Run/, label);
-    assert.match(out, /Overall:/, label);
-    assert.match(out, /System Readiness/, label);
-    assert.match(out, /Recent Runs/, label);
-    assert.match(out, /AI-MINIONS/, label);
-    assert.ok(!/F1|F2|health bar|99%/.test(out), `${label}: no fabricated chrome`);
-    const m = measureLandingRender(out, { columns: 120, rows: 36 });
-    assert.ok(m.rendered_lines <= 36, `${label}: rows ${m.rendered_lines} > 36`);
-    assert.ok(m.max_display_width <= 120, `${label}: width ${m.max_display_width} > 120`);
-    assert.equal(m.fits_viewport, true, `${label}: must fit 120×36`);
+    for (const [label, out] of [['neon', neonOut], ['semantic', semanticOut]]) {
+      assert.match(out, /Start New Run/, label);
+      assert.match(out, /Overall:/, label);
+      assert.match(out, /System Readiness/, label);
+      assert.match(out, /Recent Runs/, label);
+      assert.match(out, /AI-MINIONS/, label);
+      assert.ok(!/F1|F2|health bar|99%/.test(out), `${label}: no fabricated chrome`);
+      const m = measureLandingRender(out, { columns: 120, rows: 36 });
+      assert.ok(m.rendered_lines <= 36, `${label}: rows ${m.rendered_lines} > 36`);
+      assert.ok(m.max_display_width <= 120, `${label}: width ${m.max_display_width} > 120`);
+      assert.equal(m.fits_viewport, true, `${label}: must fit 120×36`);
+    }
+    assert.match(neonOut, /Validate • Trace • Enforce|Validate/);
+    assert.match(semanticOut, /VALIDATE/);
+    assert.match(semanticOut, /TRACE/);
+    assert.match(semanticOut, /ENFORCE/);
+    assert.ok(
+      !/Validate • Trace • Enforce/.test(semanticOut)
+        || (semanticOut.match(/VALIDATE/g) || []).length >= 1,
+    );
+
+    const neonPath = path.join(CHECKPOINT_DIR, 'neon-120x36.txt');
+    const semanticPath = path.join(CHECKPOINT_DIR, 'semantic-guardians-120x36.txt');
+    assert.ok(fs.existsSync(neonPath), 'neon checkpoint fixture missing — run regenerate-pixel-art-checkpoints.js');
+    assert.ok(fs.existsSync(semanticPath), 'semantic checkpoint fixture missing — run regenerate-pixel-art-checkpoints.js');
+    assert.equal(neonOut, fs.readFileSync(neonPath, 'utf8'));
+    assert.equal(semanticOut, fs.readFileSync(semanticPath, 'utf8'));
+  } finally {
+    if (prevNoColor === undefined) delete process.env.NO_COLOR;
+    else process.env.NO_COLOR = prevNoColor;
+    if (prevForceColor === undefined) delete process.env.FORCE_COLOR;
+    else process.env.FORCE_COLOR = prevForceColor;
   }
-  assert.match(neonOut, /Validate • Trace • Enforce|Validate/);
-  assert.match(semanticOut, /VALIDATE/);
-  assert.match(semanticOut, /TRACE/);
-  assert.match(semanticOut, /ENFORCE/);
-  assert.ok(
-    !/Validate • Trace • Enforce/.test(semanticOut)
-      || (semanticOut.match(/VALIDATE/g) || []).length >= 1,
-  );
+});
 
-  const neonPath = path.join(CHECKPOINT_DIR, 'neon-120x36.txt');
-  const semanticPath = path.join(CHECKPOINT_DIR, 'semantic-guardians-120x36.txt');
-  assert.ok(fs.existsSync(neonPath), 'neon checkpoint fixture missing — run regenerate-pixel-art-checkpoints.js');
-  assert.ok(fs.existsSync(semanticPath), 'semantic checkpoint fixture missing — run regenerate-pixel-art-checkpoints.js');
-  assert.equal(neonOut, fs.readFileSync(neonPath, 'utf8'));
-  assert.equal(semanticOut, fs.readFileSync(semanticPath, 'utf8'));
+test('wide arcade neon pixel wordmark survives host NO_COLOR', () => {
+  const prev = process.env.NO_COLOR;
+  process.env.NO_COLOR = '1';
+  try {
+    const landing = buildLandingViewModel({
+      home: readyHome(),
+      columns: 120,
+      rows: 36,
+      icons: 'unicode',
+      art: 'arcade',
+      guardianStyle: 'neon',
+      colorEnabled: false,
+      truecolor: false,
+    });
+    assert.ok(landing.hero.product_rows.length >= 5, 'NO_COLOR must not drop structural neon wordmark');
+  } finally {
+    if (prev === undefined) delete process.env.NO_COLOR;
+    else process.env.NO_COLOR = prev;
+  }
 });
 
 test('production Ink renderer: semantic/neon fit 120×36, 80×24, 50×16 without wrap overflow', async () => {
