@@ -335,11 +335,16 @@ function LandingHomeView(props) {
     ...primaryChildren,
   );
 
-  // Guardian ≤ ~30% of 120 cols; size from measured sprite + padding/border.
+  // Guardian column: Neon stays compact (~30% of 120). Semantic lock v2 wide is
+  // ~58 cells — do not clamp to 36 or Braille rows wrap and corrupt the matrix.
   const guardianArtWidth = Number(landing.guardian_display_width) > 0
     ? Number(landing.guardian_display_width)
     : 22;
-  const guardianColumnWidth = Math.min(36, Math.max(22, guardianArtWidth + 4));
+  const maxGuardianCols = Math.max(36, Math.floor(Number(model.columns) * 0.55));
+  const guardianColumnWidth = Math.min(
+    maxGuardianCols,
+    Math.max(22, guardianArtWidth + 4),
+  );
   const guardianColumn = showGuardian && landingLayout === 'wide'
     ? React.createElement(
       Box,

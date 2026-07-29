@@ -31,6 +31,7 @@ const {
 } = require('./operator-tui-landing');
 const { resolveIconMode } = require('./operator-tui-icons');
 const { detectTruecolor } = require('./operator-tui-theme');
+const { formatArtResolutionDebug } = require('./operator-tui-pixel-art');
 
 const SHELL_SCHEMA = '1';
 const FOCUS_TARGETS = Object.freeze(['nav', 'content', 'input']);
@@ -687,9 +688,15 @@ function shellModelToOptions(model) {
     icons: model.iconMode,
     iconMode: model.iconMode,
     truecolor: model.truecolor,
-    art: model.landing?.art?.mode ?? model.landing?.art?.requested ?? undefined,
-    artMode: model.landing?.art?.mode ?? undefined,
-    guardianStyle: model.landing?.guardian_style
+    // Prefer requested so invalid ART_ENV reasons re-resolve across remounts.
+    art: model.landing?.art?.requested
+      ?? model.landing?.art?.mode
+      ?? undefined,
+    artMode: model.landing?.art?.requested
+      ?? model.landing?.art?.mode
+      ?? undefined,
+    guardianStyle: model.landing?.art?.guardianStyleRequested
+      ?? model.landing?.guardian_style
       ?? model.landing?.art?.guardianStyle
       ?? undefined,
     productVersion: model.version,
@@ -712,6 +719,8 @@ function formatShellText(model) {
     `nav: ${model.navItems.map((n) => (n.id === model.selectedNavId ? `>${n.label}` : n.label)).join(' | ')}`,
     `selected_run: ${model.selectedRunId ?? '(none)'}`,
   ];
+  const artDebug = formatArtResolutionDebug(model.landing?.art);
+  if (artDebug) lines.push(`tui_art: ${artDebug}`);
   if (model.activeWorkflow) {
     lines.push(
       `workflow: kind=${model.activeWorkflow.kind ?? '-'} step=${model.activeWorkflow.step ?? '-'}`,

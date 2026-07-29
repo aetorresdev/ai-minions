@@ -89,9 +89,9 @@ Rules:
 
 - **Not PNG / not Kitty / not Sixel.** Runtime path is deterministic terminal cells with variants: **wide / compact / minimal**.
 - Default presentation under `AI_MINIONS_TUI_ART=auto`: **arcade** block-sprite Cerberus for `icons=nerd|unicode`; textual/ASCII path for `icons=ascii`. Overrides: `arcade|text|none`. Invalid values fail closed to `auto` with an observable reason.
-- Guardian comparison: `AI_MINIONS_TUI_GUARDIAN=neon|semantic`. **Default `semantic`** matches the approved TUI mockup (`assets/mockups/tui-landing-pixel-v1.png`) — labels under heads; Neon remains an explicit override.
+- Guardian comparison: `AI_MINIONS_TUI_GUARDIAN=neon|semantic`. **Default `neon`** (implementation baseline). **Semantic Guardians** is opt-in (`AI_MINIONS_TUI_GUARDIAN=semantic`) and renders the Cerberus terminal pixel-art lock v2 Braille matrices (`orchestrator/modules/operator/terminal-pixel-art.js` + `assets/semantic-guardians-matrix.json`) — labels under heads; not generic Unicode section substitutes. Invalid `AI_MINIONS_TUI_ART` values fail closed to `auto` with a reason that persists in shell debug/evidence across remounts.
 - Cerberus is a **secondary** brand guardian: supports the brand; never displaces `AI-MINIONS`, **Start New Run**, Overall readiness, or recent-runs summary.
-- Optional pixel section icons (Quick Start / System Readiness / Recent Runs) remain decorative and always keep text labels.
+- Optional pixel section icons (Quick Start / System Readiness / Recent Runs) use lock v2 Braille dot matrices and always keep text labels.
 - Drop order under space pressure: decorative Cerberus **before** Start New Run / Overall / recent runs.
 - Splash (brand prelude) remains skippable and bounded; it is not the landing.
 
@@ -101,9 +101,13 @@ Rules:
 |-------|------|-----|
 | Master SVG | `assets/cerberus-master.svg` | Docs, GitHub, Web UI (GUI path) |
 | License / provenance | `assets/CERBERUS-ART-LICENSE.md` | Redistribution and attribution |
-| TUI mockup SoT | `assets/mockups/tui-landing-pixel-v1.png` | Review evidence for arcade TUI — not Ink runtime |
-| GUI mockup SoT | `assets/mockups/gui-landing-detailed-v1.png` | Review evidence for future GUI — not a shipped GUI |
+| TUI mockup SoT | `assets/mockups/tui-landing-pixel-v1.png` | Review evidence for arcade TUI — not Ink runtime (real PNG; Semantic Guardians v3 reference) |
+| GUI mockup SoT | `assets/mockups/gui-landing-detailed-v1.png` | Review evidence for future GUI — not a shipped GUI (real PNG) |
+| Lock sheet (review) | `assets/mockups/semantic-guardians-lock-sheet-v2.png` | Matrix vs reference comparison — not Ink runtime |
+| Terminal geometry lock | `orchestrator/modules/operator/assets/semantic-guardians-matrix.json` | Deterministic Semantic Guardians cells |
 | PNG 1× / 2× | Generate only if an external platform requires raster | Not the TUI path |
+
+**Provenance (terminal lock v2):** integrated from operator delivery `ai-minions-terminal-pixel-art-lock-v2` (2026-07-29). Fixture regen is intentional (`scripts/regenerate-terminal-pixel-art-fixtures.js` / `scripts/regenerate-pixel-art-checkpoints.js`); validation tests never rewrite fixtures.
 
 ## Landing composition (visual constraints)
 

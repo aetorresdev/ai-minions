@@ -1,9 +1,9 @@
 {
   "meta": {
-    "tip_sha": "1c750f8aa64461485677cc23f0770d7b0eb45ecc",
+    "tip_sha": "042ba1687a87f40eb4fc53ccebd6965ed2b1c14d",
     "ink_version": "7.1.1",
     "node": "v24.11.1",
-    "collected_at": "2026-07-29T18:35:24.111Z",
+    "collected_at": "2026-07-29T20:55:38.758Z",
     "method": "ink.renderToString",
     "note": "Contract snapshots only — not clipped TTY / visual UX evidence. Use capture-tui-landing-tty.sh for real terminal frames."
   },
@@ -25,7 +25,7 @@
       "fixture": "tests/fixtures/tui/landing/ready-80x24.txt",
       "columns": 80,
       "rows": 24,
-      "rendered_lines": 21,
+      "rendered_lines": 22,
       "max_display_width": 80,
       "viewport_columns": 80,
       "viewport_rows": 24,
@@ -51,7 +51,7 @@
       "fixture": "tests/fixtures/tui/landing/ready-nerd-80x24.txt",
       "columns": 80,
       "rows": 24,
-      "rendered_lines": 21,
+      "rendered_lines": 22,
       "max_display_width": 80,
       "viewport_columns": 80,
       "viewport_rows": 24,

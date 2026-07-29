@@ -4,9 +4,17 @@
  * Terminal-native arcade / pixel-art sprites for the Ink landing.
  * Deterministic cell matrices only — no Kitty/iTerm2/Sixel, no raster I/O,
  * no network, no subprocess on first paint.
+ *
+ * Semantic Guardians geometry is locked by Cerberus terminal pixel-art lock v2
+ * (`terminal-pixel-art.js` + `assets/semantic-guardians-matrix.json`).
  */
 
 const { resolveIconMode } = require('./operator-tui-icons');
+const {
+  ICONS: LOCK_ICONS,
+  MATRIX_COLORS,
+  guardianRows: lockGuardianRows,
+} = require('./terminal-pixel-art');
 
 const ART_ENV = 'AI_MINIONS_TUI_ART';
 const GUARDIAN_STYLE_ENV = 'AI_MINIONS_TUI_GUARDIAN';
@@ -15,10 +23,19 @@ const GUARDIAN_STYLES = Object.freeze(['neon', 'semantic']);
 /** Fail-closed documented default when ART_ENV is missing or invalid. */
 const DEFAULT_ART_MODE = 'auto';
 /**
- * Operator-approved TUI mockup (assets/mockups/tui-landing-pixel-v1.png) locks
- * Semantic Guardians (labels under heads). Neon remains available via env/override.
+ * Neon remains the implementation baseline (comparison checkpoint).
+ * Semantic Guardians (lock v2 braille matrices) is opt-in via env/override.
  */
-const DEFAULT_GUARDIAN_STYLE = 'semantic';
+const DEFAULT_GUARDIAN_STYLE = 'neon';
+
+/** Map lock palette hex → splash ArtTone for Ink theme coloring. */
+const HEX_TO_TONE = Object.freeze({
+  [MATRIX_COLORS.C]: 'validate',
+  [MATRIX_COLORS.B]: 'validate',
+  [MATRIX_COLORS.V]: 'trace',
+  [MATRIX_COLORS.M]: 'trace',
+  [MATRIX_COLORS.A]: 'enforce',
+});
 
 /**
  * @typedef {'auto'|'arcade'|'text'|'none'} ArtMode
@@ -33,13 +50,13 @@ const DEFAULT_GUARDIAN_STYLE = 'semantic';
  *   effective: 'arcade'|'text'|'none',
  *   reason: string | null,
  *   guardianStyle: GuardianStyle,
+ *   guardianStyleRequested: string,
  *   guardianStyleReason: string | null,
  * }} ArtResolution
  */
 
 /**
  * Approximate terminal column width for sprite cells (no ANSI).
- * Block / half-block glyphs used here are width 1; CJK-wide rarely appears.
  * @param {string} text
  * @returns {number}
  */
@@ -49,7 +66,6 @@ function measureArtDisplayWidth(text) {
     const cp = ch.codePointAt(0);
     if (cp == null) continue;
     if (cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f)) continue;
-    // Fullwidth / emoji presentation ranges — treat as 2 when present.
     if (
       (cp >= 0x1100 && cp <= 0x115f)
       || (cp >= 0x2e80 && cp <= 0xa4cf)
@@ -136,6 +152,7 @@ function resolveArtMode(options = {}, env = process.env) {
     effective,
     reason,
     guardianStyle,
+    guardianStyleRequested: styleRequested || DEFAULT_GUARDIAN_STYLE,
     guardianStyleReason,
   };
 }
@@ -150,6 +167,17 @@ function resolvePixelCerberusVariant(layout) {
   if (v === 'wide' || v === 'full') return 'wide';
   if (v === 'minimal' || v === 'compact') return 'minimal';
   return 'compact';
+}
+
+/**
+ * Map landing layout → lock matrix variant name.
+ * @param {CerberusVariant} variant
+ * @returns {'showcase'|'wide'|'compact'|null}
+ */
+function lockVariantForCerberus(variant) {
+  if (variant === 'wide') return 'wide';
+  if (variant === 'compact') return 'compact';
+  return null;
 }
 
 /**
@@ -168,6 +196,28 @@ function seg(text, tone = 'muted', bold = false) {
  */
 function row(...segments) {
   return { segments };
+}
+
+/**
+ * Convert lock cell rows (char/fg) into Ink ArtRows (tone segments).
+ * @param {Array<Array<{ char: string, fg: string | null }>>} cellRows
+ * @returns {ArtRow[]}
+ */
+function cellRowsToArtRows(cellRows) {
+  return (cellRows || []).map((cells) => {
+    /** @type {ArtSegment[]} */
+    const segments = [];
+    for (const cell of cells) {
+      const tone = cell.fg ? (HEX_TO_TONE[cell.fg] || 'muted') : 'muted';
+      const prev = segments.at(-1);
+      if (prev && prev.tone === tone && !prev.bold) {
+        prev.text += cell.char;
+      } else {
+        segments.push({ text: cell.char, tone });
+      }
+    }
+    return { segments };
+  });
 }
 
 /**
@@ -242,19 +292,55 @@ function neonCerberusRows(variant, iconMode) {
 }
 
 /**
- * Semantic Guardians — closed mouths; labels under heads replace hero triad.
- * Aligned to assets/mockups/tui-landing-pixel-v1.png (approved TUI visual SoT).
- * Meaning must not depend on color alone (labels + distinct marks).
+ * Label offsets under lock heads (matches terminal-pixel-art drawGuardianLabels).
+ * @param {'showcase'|'wide'|'compact'} lockVariant
+ * @returns {ArtRow}
+ */
+function semanticLabelRow(lockVariant) {
+  const positions = lockVariant === 'showcase'
+    ? [
+      ['VALIDATE', 5, 'validate'],
+      ['TRACE', 32, 'trace'],
+      ['ENFORCE', 55, 'enforce'],
+    ]
+    : lockVariant === 'wide'
+      ? [
+        ['VALIDATE', 4, 'validate'],
+        ['TRACE', 27, 'trace'],
+        ['ENFORCE', 47, 'enforce'],
+      ]
+      : [
+        ['VALIDATE', 1, 'validate'],
+        ['TRACE', 20, 'trace'],
+        ['ENFORCE', 33, 'enforce'],
+      ];
+  const width = lockVariant === 'showcase' ? 68 : (lockVariant === 'wide' ? 58 : 42);
+  /** @type {ArtSegment[]} */
+  const segments = [];
+  let cursor = 0;
+  for (const [label, offset, tone] of positions) {
+    if (offset > cursor) {
+      segments.push({ text: ' '.repeat(offset - cursor), tone: 'muted' });
+      cursor = offset;
+    }
+    segments.push({ text: label, tone: /** @type {ArtTone} */ (tone), bold: true });
+    cursor += label.length;
+  }
+  if (cursor < width) {
+    segments.push({ text: ' '.repeat(width - cursor), tone: 'muted' });
+  }
+  return { segments };
+}
+
+/**
+ * Semantic Guardians — Cerberus lock v2 braille matrices (faithful heads).
+ * Labels under heads replace the hero triad. No generic ▶/▣/◷ substitutes.
  * @param {CerberusVariant} variant
  * @param {string} iconMode
  * @returns {ArtRow[]}
  */
 function semanticCerberusRows(variant, iconMode) {
   const ascii = resolveIconMode({ icons: iconMode }) === 'ascii';
-  // Facial marks: shield/check · path/nodes · lock/gate
-  const markV = ascii ? '+' : '▣';
-  const markT = ascii ? '*' : '◈';
-  const markE = ascii ? '#' : '▤';
   if (variant === 'minimal') {
     return [
       row(
@@ -266,78 +352,13 @@ function semanticCerberusRows(variant, iconMode) {
       ),
     ];
   }
-  if (variant === 'compact' || ascii) {
-    if (ascii) {
-      return [
-        row(seg('/\\ /\\ /\\', 'muted')),
-        row(
-          seg(markV, 'validate', true),
-          seg(' ', 'muted'),
-          seg(markT, 'trace', true),
-          seg(' ', 'muted'),
-          seg(markE, 'enforce', true),
-        ),
-        row(
-          seg('VAL', 'validate', true),
-          seg(' ', 'muted'),
-          seg('TRC', 'trace', true),
-          seg(' ', 'muted'),
-          seg('ENF', 'enforce', true),
-        ),
-      ];
-    }
-    return [
-      row(seg('▄▀▄ ▄▀▄ ▄▀▄', 'muted')),
-      row(
-        seg('█', 'validate'),
-        seg(markV, 'validate', true),
-        seg('█', 'validate'),
-        seg(' ', 'muted'),
-        seg('█', 'trace'),
-        seg(markT, 'trace', true),
-        seg('█', 'trace'),
-        seg(' ', 'muted'),
-        seg('█', 'enforce'),
-        seg(markE, 'enforce', true),
-        seg('█', 'enforce'),
-      ),
-      row(
-        seg('VAL', 'validate', true),
-        seg(' ', 'muted'),
-        seg('TRC', 'trace', true),
-        seg(' ', 'muted'),
-        seg('ENF', 'enforce', true),
-      ),
-    ];
+  const lockVariant = lockVariantForCerberus(variant) || 'compact';
+  if (ascii) {
+    const textRows = lockGuardianRows(lockVariant, 'text');
+    return [...cellRowsToArtRows(textRows), semanticLabelRow(lockVariant)];
   }
-  // Wide — three wolf heads + explicit labels (mockup composition).
-  return [
-    row(seg(' ▄▀▀▄ ▄▀▀▄ ▄▀▀▄', 'muted')),
-    row(
-      seg('▄█', 'validate'),
-      seg(markV, 'validate', true),
-      seg('█▄', 'validate'),
-      seg('▄█', 'trace'),
-      seg(markT, 'trace', true),
-      seg('█▄', 'trace'),
-      seg('▄█', 'enforce'),
-      seg(markE, 'enforce', true),
-      seg('█▄', 'enforce'),
-    ),
-    row(
-      seg(' ███ ', 'validate'),
-      seg(' ███ ', 'trace'),
-      seg(' ███', 'enforce'),
-    ),
-    row(seg(' ▀██▀  ▀██▀  ▀██▀', 'muted')),
-    row(
-      seg('VALIDATE', 'validate', true),
-      seg(' ', 'muted'),
-      seg('TRACE', 'trace', true),
-      seg(' ', 'muted'),
-      seg('ENFORCE', 'enforce', true),
-    ),
-  ];
+  const artRows = cellRowsToArtRows(lockGuardianRows(lockVariant, 'braille'));
+  return [...artRows, semanticLabelRow(lockVariant)];
 }
 
 /**
@@ -398,7 +419,7 @@ function buildLandingGuardianArt(options = {}) {
 }
 
 /**
- * Small decorative section icons (always keep text labels in the UI).
+ * Lock v2 section icons — Braille dot matrices (not generic ▶/▣/◷).
  * @param {'quick_start'|'readiness'|'recent_runs'} id
  * @param {{ icons?: string, iconMode?: string, art?: string, artMode?: string, env?: NodeJS.ProcessEnv }} [options]
  * @returns {string}
@@ -409,10 +430,19 @@ function sectionPixelIcon(id, options = {}) {
   if (resolution.effective !== 'arcade') return '';
   const iconMode = resolveIconMode(options, env);
   const ascii = iconMode === 'ascii';
-  if (id === 'quick_start') return ascii ? '>' : '▶';
-  if (id === 'readiness') return ascii ? '#' : '▣';
-  if (id === 'recent_runs') return ascii ? 'o' : '◷';
-  return '';
+  if (ascii) {
+    if (id === 'quick_start') return '>';
+    if (id === 'readiness') return '#';
+    if (id === 'recent_runs') return 'o';
+    return '';
+  }
+  const lockIcon = id === 'quick_start'
+    ? LOCK_ICONS.quickStart
+    : (id === 'readiness'
+      ? LOCK_ICONS.readiness
+      : (id === 'recent_runs' ? LOCK_ICONS.recentRuns : null));
+  if (!lockIcon || !lockIcon[0]) return '';
+  return lockIcon[0].map((cell) => cell.char).join('').trimEnd();
 }
 
 /**
@@ -426,6 +456,27 @@ function sectionTitleWithPixelIcon(label, id, options = {}) {
   const icon = sectionPixelIcon(id, options);
   if (!icon) return String(label ?? '');
   return `${icon} ${label}`;
+}
+
+/**
+ * Stable debug/evidence line for art resolution (survives remounts when
+ * options carry `requested` or env still holds the invalid value).
+ * @param {ArtResolution | null | undefined} resolution
+ * @returns {string | null}
+ */
+function formatArtResolutionDebug(resolution) {
+  if (!resolution || typeof resolution !== 'object') return null;
+  const parts = [
+    `art_requested=${resolution.requested}`,
+    `art_mode=${resolution.mode}`,
+    `art_effective=${resolution.effective}`,
+    `guardian=${resolution.guardianStyle}`,
+  ];
+  if (resolution.reason) parts.push(`art_reason=${resolution.reason}`);
+  if (resolution.guardianStyleReason) {
+    parts.push(`guardian_reason=${resolution.guardianStyleReason}`);
+  }
+  return parts.join(' ');
 }
 
 module.exports = {
@@ -445,4 +496,5 @@ module.exports = {
   buildLandingGuardianArt,
   sectionPixelIcon,
   sectionTitleWithPixelIcon,
+  formatArtResolutionDebug,
 };

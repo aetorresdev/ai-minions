@@ -2,6 +2,7 @@
 
 /**
  * Arcade / pixel-art Cerberus — unit + checkpoint comparison fixtures.
+ * Checkpoint validation never rewrites fixtures (use scripts/regenerate-*).
  */
 
 const assert = require('node:assert/strict');
@@ -12,6 +13,7 @@ const test = require('node:test');
 const {
   ART_ENV,
   GUARDIAN_STYLE_ENV,
+  DEFAULT_GUARDIAN_STYLE,
   resolveArtMode,
   buildLandingGuardianArt,
   neonCerberusRows,
@@ -20,9 +22,10 @@ const {
   measureArtRowsWidth,
   sectionPixelIcon,
   sectionTitleWithPixelIcon,
+  formatArtResolutionDebug,
 } = require('../../modules/operator/operator-tui-pixel-art');
 const { buildLandingViewModel } = require('../../modules/operator/operator-tui-landing');
-const { buildShellModel } = require('../../modules/operator/operator-tui-shell-model');
+const { buildShellModel, formatShellText, shellModelToOptions } = require('../../modules/operator/operator-tui-shell-model');
 
 const CHECKPOINT_DIR = path.join(__dirname, '../fixtures/tui/pixel-art-checkpoint');
 
@@ -55,14 +58,17 @@ test('resolveArtMode: auto/arcade/text/none and invalid fail-closed', () => {
   assert.equal(bad.mode, 'auto');
   assert.equal(bad.effective, 'arcade'); // default icons=nerd → arcade under auto
   assert.match(String(bad.reason), /invalid_art_mode:sixel/);
+  assert.equal(bad.requested, 'sixel');
 });
 
-test('resolveArtMode: guardian style neon|semantic; invalid → semantic', () => {
+test('resolveArtMode: guardian style neon|semantic; default neon; invalid → neon', () => {
+  assert.equal(DEFAULT_GUARDIAN_STYLE, 'neon');
   assert.equal(resolveArtMode({ guardianStyle: 'semantic' }, {}).guardianStyle, 'semantic');
   assert.equal(resolveArtMode({ guardianStyle: 'neon' }, {}).guardianStyle, 'neon');
-  assert.equal(resolveArtMode({}, {}).guardianStyle, 'semantic', 'approved TUI mockup default');
+  assert.equal(resolveArtMode({}, {}).guardianStyle, 'neon');
   const bad = resolveArtMode({ guardianStyle: 'ember' }, {});
-  assert.equal(bad.guardianStyle, 'semantic');
+  assert.equal(bad.guardianStyle, 'neon');
+  assert.equal(bad.guardianStyleRequested, 'ember');
   assert.match(String(bad.guardianStyleReason), /invalid_guardian_style:ember/);
 });
 
@@ -75,8 +81,13 @@ test('neon and semantic wide sprites are deterministic matrices', () => {
   assert.ok(flattenArtRows(semantic).some((l) => /VALIDATE/.test(l)));
   assert.ok(flattenArtRows(semantic).some((l) => /TRACE/.test(l)));
   assert.ok(flattenArtRows(semantic).some((l) => /ENFORCE/.test(l)));
-  assert.ok(measureArtRowsWidth(neon) <= 30, 'guardian ≤ ~30% of 120 cols');
-  assert.ok(measureArtRowsWidth(semantic) <= 36);
+  // Neon stays compact; Semantic uses lock v2 wide (58 cols + labels).
+  assert.ok(measureArtRowsWidth(neon) <= 30, 'neon guardian ≤ ~30% of 120 cols');
+  assert.ok(measureArtRowsWidth(semantic) <= 68, 'semantic lock wide ≤ showcase width');
+  // Faithful Braille cells — not five-line filled-block approximations alone.
+  const joined = flattenArtRows(semantic).join('\n');
+  assert.match(joined, /[\u2800-\u28ff]/u);
+  assert.doesNotMatch(joined, /[▶▣◷]/u);
 });
 
 test('ascii arcade sprites avoid block tofu path', () => {
@@ -94,6 +105,7 @@ test('buildLandingGuardianArt: none omits; text leaves splash path empty; arcade
   const arcade = buildLandingGuardianArt({ layout: 'wide', icons: 'unicode', art: 'arcade' });
   assert.ok(arcade.rows.length > 0);
   assert.equal(arcade.resolution.effective, 'arcade');
+  assert.equal(arcade.resolution.guardianStyle, 'neon');
 });
 
 test('landing wires arcade guardian and section icons; semantic hides triad', () => {
@@ -110,7 +122,9 @@ test('landing wires arcade guardian and section icons; semantic hides triad', ()
   assert.ok(neon.guardian_lines.some((l) => /CERBERUS/.test(l)));
   assert.equal(neon.composition.show_triad, true);
   assert.match(neon.section_titles.quick_start, /Quick Start/);
-  assert.ok(sectionPixelIcon('quick_start', { art: 'arcade', icons: 'unicode' }));
+  const icon = sectionPixelIcon('quick_start', { art: 'arcade', icons: 'unicode' });
+  assert.ok(icon);
+  assert.doesNotMatch(icon, /[▶▣◷]/u);
 
   const semantic = buildLandingViewModel({
     home: readyHome(),
@@ -125,7 +139,7 @@ test('landing wires arcade guardian and section icons; semantic hides triad', ()
   assert.equal(semantic.guardian_style, 'semantic');
 });
 
-test('default arcade guardian follows approved TUI mockup (semantic)', () => {
+test('default arcade guardian is Neon (Semantic opt-in)', () => {
   const landing = buildLandingViewModel({
     home: readyHome(),
     columns: 120,
@@ -133,13 +147,12 @@ test('default arcade guardian follows approved TUI mockup (semantic)', () => {
     icons: 'unicode',
     art: 'arcade',
   });
-  assert.equal(landing.guardian_style, 'semantic');
-  assert.equal(landing.composition.show_triad, false);
-  assert.ok(landing.guardian_lines.some((l) => /VALIDATE/.test(l)));
+  assert.equal(landing.guardian_style, 'neon');
+  assert.equal(landing.composition.show_triad, true);
+  assert.ok(landing.guardian_lines.some((l) => /CERBERUS/.test(l)));
 });
 
 test('first-paint pixel renderer performs no I/O (sync pure matrices)', () => {
-  // Sprite builders are sync pure functions — no fs/net/child_process imports in module.
   const src = fs.readFileSync(
     path.join(__dirname, '../../modules/operator/operator-tui-pixel-art.js'),
     'utf8',
@@ -152,7 +165,7 @@ test('first-paint pixel renderer performs no I/O (sync pure matrices)', () => {
   buildLandingGuardianArt({ layout: 'wide', icons: 'unicode', art: 'arcade' });
 });
 
-test('checkpoint 120x36: Neon vs Semantic Guardians share operational fixture', async () => {
+test('checkpoint 120x36: Neon vs Semantic share operational content; fixtures immutable', async () => {
   const { renderOperatorTuiShellToString } = await import(
     '../../modules/operator/operator-tui-shell-render.mjs'
   );
@@ -186,20 +199,17 @@ test('checkpoint 120x36: Neon vs Semantic Guardians share operational fixture', 
   assert.match(semanticOut, /VALIDATE/);
   assert.match(semanticOut, /TRACE/);
   assert.match(semanticOut, /ENFORCE/);
-  // Semantic replaces duplicated triad beside wordmark.
   assert.ok(
     !/Validate • Trace • Enforce/.test(semanticOut)
       || (semanticOut.match(/VALIDATE/g) || []).length >= 1,
   );
 
-  fs.mkdirSync(CHECKPOINT_DIR, { recursive: true });
   const neonPath = path.join(CHECKPOINT_DIR, 'neon-120x36.txt');
   const semanticPath = path.join(CHECKPOINT_DIR, 'semantic-guardians-120x36.txt');
-  // Always refresh checkpoint renders so operators review tip SHA output.
-  fs.writeFileSync(neonPath, neonOut, 'utf8');
-  fs.writeFileSync(semanticPath, semanticOut, 'utf8');
-  assert.ok(fs.existsSync(neonPath));
-  assert.ok(fs.existsSync(semanticPath));
+  assert.ok(fs.existsSync(neonPath), 'neon checkpoint fixture missing — run regenerate-pixel-art-checkpoints.js');
+  assert.ok(fs.existsSync(semanticPath), 'semantic checkpoint fixture missing — run regenerate-pixel-art-checkpoints.js');
+  assert.equal(neonOut, fs.readFileSync(neonPath, 'utf8'));
+  assert.equal(semanticOut, fs.readFileSync(semanticPath, 'utf8'));
 });
 
 test('env ART_ENV / GUARDIAN_STYLE_ENV honored', () => {
@@ -208,4 +218,35 @@ test('env ART_ENV / GUARDIAN_STYLE_ENV honored', () => {
   assert.equal(r.effective, 'none');
   assert.equal(r.guardianStyle, 'semantic');
   assert.equal(sectionTitleWithPixelIcon('Quick Start', 'quick_start', { env }), 'Quick Start');
+});
+
+test('invalid ART reason persists in debug across shellModelToOptions remount', () => {
+  const model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
+    contentSurface: 'home',
+    selectedNavId: 'launcher',
+    columns: 120,
+    rows: 36,
+    icons: 'unicode',
+    art: 'sixel',
+  });
+  assert.match(String(model.landing.art.reason), /invalid_art_mode:sixel/);
+  const debug = formatShellText(model);
+  assert.match(debug, /art_reason=invalid_art_mode:sixel/);
+  assert.match(String(formatArtResolutionDebug(model.landing.art)), /invalid_art_mode:sixel/);
+
+  const remountOpts = shellModelToOptions(model);
+  assert.equal(remountOpts.art, 'sixel');
+  const remounted = buildShellModel({
+    ...remountOpts,
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
+  });
+  assert.match(String(remounted.landing.art.reason), /invalid_art_mode:sixel/);
+  assert.match(formatShellText(remounted), /art_reason=invalid_art_mode:sixel/);
 });
