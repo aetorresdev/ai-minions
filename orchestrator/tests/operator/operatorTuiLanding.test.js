@@ -172,6 +172,8 @@ test('landing: loading first-paint does not invent ready', () => {
     }),
     runs: { runs: [] },
     loading: true,
+    columns: 120,
+    rows: 36,
   });
   assert.equal(landing.overall.state, 'loading');
   assert.notEqual(landing.overall.state, 'ready');
@@ -408,16 +410,16 @@ test('landingLayoutForViewport: wide / mid / compact thresholds', () => {
 });
 
 test('resolveLandingComposition: fits row budget; keeps Start New Run + Overall', () => {
-  const mid = resolveLandingComposition(80, 24);
+  // Mid estimate without art height uses compact lock default (9 rows).
+  const mid = resolveLandingComposition(80, 24, { guardianArtRows: 9, sectionIconRows: 2 });
   assert.equal(mid.layout, 'mid');
   assert.equal(mid.composition.show_primary_cta, true);
   assert.equal(mid.composition.show_readiness, true);
   assert.ok(mid.estimated_rows <= 24);
-  assert.ok(mid.composition.drops.includes('hide_guardian'));
+  // Lock v2: keep compact guardian at ≥80×24; recent may drop first.
+  assert.equal(mid.composition.show_guardian, true);
   assert.ok(mid.composition.drops.includes('hide_recent'));
-  const gDrop = mid.composition.drops.indexOf('hide_guardian');
-  const rDrop = mid.composition.drops.indexOf('hide_recent');
-  assert.ok(gDrop >= 0 && rDrop >= 0 && gDrop < rDrop, 'Cerberus drops before recent runs');
+  assert.ok(!mid.composition.drops.includes('hide_guardian'));
 
   const compact = resolveLandingComposition(50, 16);
   assert.equal(compact.layout, 'compact');
@@ -498,9 +500,9 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       fixture: 'ready-80x24.txt',
       layout: 'mid',
       options: readyShellOptions({ columns: 80, rows: 24 }),
-      expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/, /System Readiness/],
-      // 80×24 drops decorative guardian + recent before sacrificing CTA / Overall.
-      expectNot: [/VALIDATE|CERBERUS/, /Recent Runs/],
+      expectMatch: [/AI-MINIONS/, /VALIDATE|CERBERUS/, /Start New Run/, /Overall:/, /System Readiness/],
+      // Lock v2 mid: compact guardian stays; recent may drop under row pressure.
+      expectNot: [],
     },
     {
       id: 'ready_50x16',
@@ -530,8 +532,8 @@ test('Ink wide/mid/compact landing fits viewport and matches fixtures', async ()
       fixture: 'ready-nerd-80x24.txt',
       layout: 'mid',
       options: readyShellOptions({ columns: 80, rows: 24, icons: 'nerd' }),
-      expectMatch: [/AI-MINIONS/, /Start New Run/, /Overall:/, /System Readiness/],
-      expectNot: [/VALIDATE|CERBERUS/, /Recent Runs/],
+      expectMatch: [/AI-MINIONS/, /VALIDATE|CERBERUS/, /Start New Run/, /Overall:/, /System Readiness/],
+      expectNot: [],
     },
   ];
 

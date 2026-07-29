@@ -420,42 +420,55 @@ function buildLandingGuardianArt(options = {}) {
 
 /**
  * Lock v2 section icons — Braille dot matrices (not generic ▶/▣/◷).
+ * Icons are two Braille rows; callers must render the full block (no silent truncate).
  * @param {'quick_start'|'readiness'|'recent_runs'} id
  * @param {{ icons?: string, iconMode?: string, art?: string, artMode?: string, env?: NodeJS.ProcessEnv }} [options]
- * @returns {string}
+ * @returns {string[]}
  */
-function sectionPixelIcon(id, options = {}) {
+function sectionPixelIconRows(id, options = {}) {
   const env = options.env ?? process.env;
   const resolution = resolveArtMode(options, env);
-  if (resolution.effective !== 'arcade') return '';
+  if (resolution.effective !== 'arcade') return [];
   const iconMode = resolveIconMode(options, env);
   const ascii = iconMode === 'ascii';
   if (ascii) {
-    if (id === 'quick_start') return '>';
-    if (id === 'readiness') return '#';
-    if (id === 'recent_runs') return 'o';
-    return '';
+    if (id === 'quick_start') return ['>'];
+    if (id === 'readiness') return ['#'];
+    if (id === 'recent_runs') return ['o'];
+    return [];
   }
   const lockIcon = id === 'quick_start'
     ? LOCK_ICONS.quickStart
     : (id === 'readiness'
       ? LOCK_ICONS.readiness
       : (id === 'recent_runs' ? LOCK_ICONS.recentRuns : null));
-  if (!lockIcon || !lockIcon[0]) return '';
-  return lockIcon[0].map((cell) => cell.char).join('').trimEnd();
+  if (!lockIcon || !lockIcon.length) return [];
+  return lockIcon.map((row) => row.map((cell) => cell.char).join('').trimEnd());
 }
 
 /**
- * Prefix a section title with a pixel icon when arcade art is active.
+ * Single-line join of lock icon rows (tests / plain-text). Prefer sectionPixelIconRows
+ * + block render in Ink so both Braille rows stay visible.
+ * @param {'quick_start'|'readiness'|'recent_runs'} id
+ * @param {{ icons?: string, iconMode?: string, art?: string, artMode?: string, env?: NodeJS.ProcessEnv }} [options]
+ * @returns {string}
+ */
+function sectionPixelIcon(id, options = {}) {
+  return sectionPixelIconRows(id, options).join('\n');
+}
+
+/**
+ * Structured section title with full lock icon block (all Braille rows).
  * @param {string} label
  * @param {'quick_start'|'readiness'|'recent_runs'} id
  * @param {object} [options]
- * @returns {string}
+ * @returns {{ lines: string[], label: string } | string}
  */
 function sectionTitleWithPixelIcon(label, id, options = {}) {
-  const icon = sectionPixelIcon(id, options);
-  if (!icon) return String(label ?? '');
-  return `${icon} ${label}`;
+  const lines = sectionPixelIconRows(id, options);
+  const text = String(label ?? '');
+  if (!lines.length) return text;
+  return { lines, label: text };
 }
 
 /**
@@ -495,6 +508,7 @@ module.exports = {
   semanticCerberusRows,
   buildLandingGuardianArt,
   sectionPixelIcon,
+  sectionPixelIconRows,
   sectionTitleWithPixelIcon,
   formatArtResolutionDebug,
 };

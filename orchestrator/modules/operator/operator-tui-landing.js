@@ -58,6 +58,7 @@ function landingLayoutForViewport(columns, rows) {
  *   show_recent_runs: boolean,
  *   recent_runs_limit: number,
  *   recent_empty_short: boolean,
+ *   section_icon_rows?: number,
  *   drops: string[],
  * }} LandingComposition
  */
@@ -87,14 +88,15 @@ function defaultLandingComposition(layout) {
     show_recent_runs: true,
     recent_runs_limit: RECENT_RUNS_LIMIT,
     recent_empty_short: false,
+    section_icon_rows: 0,
     drops: [],
   };
 }
 
 /**
  * Drop order for row pressure — lowest priority first.
- * Decorative Cerberus drops before Start New Run / Overall / recent runs
- * (visual-system secondary policy). Never drops Start New Run or Overall.
+ * Lock v2 (≥80×24): keep compact guardian through panel pressure; drop recent
+ * and decorative copy before omitting Cerberus. Never drops Start New Run or Overall.
  */
 const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
   {
@@ -104,22 +106,9 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
     },
   },
   {
-    id: 'hide_guardian',
-    apply(c) {
-      c.show_guardian = false;
-    },
-  },
-  {
     id: 'hide_guardian_note',
     apply(c) {
       c.show_guardian_note = false;
-    },
-  },
-  {
-    id: 'hide_recent',
-    apply(c) {
-      c.show_recent_runs = false;
-      c.recent_runs_limit = 0;
     },
   },
   {
@@ -154,6 +143,19 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
     },
   },
   {
+    id: 'hide_recent',
+    apply(c) {
+      c.show_recent_runs = false;
+      c.recent_runs_limit = 0;
+    },
+  },
+  {
+    id: 'hide_guardian',
+    apply(c) {
+      c.show_guardian = false;
+    },
+  },
+  {
     id: 'hide_quick_start',
     apply(c) {
       c.show_quick_start = false;
@@ -173,9 +175,10 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
  * @param {LandingComposition} composition
  * @param {LandingLayoutMode} layout
  * @param {number} columns
+ * @param {number} [guardianArtRows] actual guardian_rows.length when known
  * @returns {number}
  */
-function estimateLandingCompositionRows(composition, layout, columns) {
+function estimateLandingCompositionRows(composition, layout, columns, guardianArtRows) {
   const cols = Number.isFinite(columns) && columns >= 1 ? columns : 80;
   const contentWidth = Math.max(16, cols - 4);
 
@@ -188,11 +191,16 @@ function estimateLandingCompositionRows(composition, layout, columns) {
     hero += cols < 56 ? 2 : 1;
   }
 
-  // Wide guardian sits in a bordered column (6 art lines + 2 borders).
-  // Mid guardian is unbordered stacked art (3 lines).
-  const guardianLines = composition.show_guardian
-    ? (layout === 'wide' ? 8 : 3)
-    : 0;
+  // Wide guardian sits in a bordered column (art rows + 2 borders).
+  // Mid guardian is unbordered stacked art (lock compact = 8 + label).
+  // Prefer caller-supplied guardian_rows.length — never hardcode lock height as 8 alone.
+  let guardianLines = 0;
+  if (composition.show_guardian) {
+    const artN = Number.isFinite(Number(guardianArtRows)) && Number(guardianArtRows) > 0
+      ? Math.floor(Number(guardianArtRows))
+      : (layout === 'wide' ? 8 : (layout === 'mid' ? 9 : 0));
+    guardianLines = layout === 'wide' ? artN + 2 : artN;
+  }
 
   let bodyTop;
   if (layout === 'wide' && composition.show_guardian) {
@@ -205,7 +213,8 @@ function estimateLandingCompositionRows(composition, layout, columns) {
 
   let quickInner = 0;
   if (composition.show_quick_start) {
-    quickInner = 1; // title
+    // Title may include a 2-row lock icon block beside the label.
+    quickInner = composition.section_icon_rows > 1 ? 2 : 1;
     if (composition.show_quick_start_hint) {
       // Mid/wide Quick Start is width 36; hint wraps on that pane.
       const qsContentWidth = layout === 'compact'
@@ -218,7 +227,7 @@ function estimateLandingCompositionRows(composition, layout, columns) {
 
   let readyInner = 0;
   if (composition.show_readiness) {
-    readyInner = 2; // title + Overall
+    readyInner = (composition.section_icon_rows > 1 ? 2 : 1) + 1; // title + Overall
     if (composition.show_readiness_next) {
       // Mid readiness pane shares the row with Quick Start (~cols-36).
       const readyWidth = layout === 'compact'
@@ -232,11 +241,12 @@ function estimateLandingCompositionRows(composition, layout, columns) {
 
   let recentInner = 0;
   if (composition.show_recent_runs) {
-    recentInner = 1;
-    if (composition.recent_runs_limit > 0) {
-      recentInner += 1 + composition.recent_runs_limit;
-    } else if (composition.recent_empty_short) {
+    recentInner = composition.section_icon_rows > 1 ? 2 : 1;
+    // Empty short takes precedence over limit — empty boards do not reserve N run rows.
+    if (composition.recent_empty_short) {
       recentInner += 1;
+    } else if (composition.recent_runs_limit > 0) {
+      recentInner += 1 + composition.recent_runs_limit;
     } else {
       recentInner += Math.max(1, Math.ceil(90 / contentWidth));
     }
@@ -258,17 +268,28 @@ function estimateLandingCompositionRows(composition, layout, columns) {
  * content before sacrificing Start New Run or the explicit Overall readiness line.
  * @param {unknown} columns
  * @param {unknown} rows
+ * @param {{ guardianArtRows?: number, sectionIconRows?: number }} [opts]
  * @returns {{ layout: LandingLayoutMode, composition: LandingComposition, estimated_rows: number }}
  */
-function resolveLandingComposition(columns, rows) {
+function resolveLandingComposition(columns, rows, opts = {}) {
   const cols = Number(columns);
   const r = Number(rows);
   const c = Number.isFinite(cols) && cols >= 1 ? cols : 80;
   const rowCount = Number.isFinite(r) && r >= 1 ? Math.floor(r) : 24;
   const layout = landingLayoutForViewport(c, rowCount);
   const composition = defaultLandingComposition(layout);
+  const guardianArtRows = Number(opts.guardianArtRows);
+  const sectionIconRows = Number(opts.sectionIconRows);
+  if (Number.isFinite(sectionIconRows) && sectionIconRows > 0) {
+    composition.section_icon_rows = Math.floor(sectionIconRows);
+  }
 
-  let estimated = estimateLandingCompositionRows(composition, layout, c);
+  let estimated = estimateLandingCompositionRows(
+    composition,
+    layout,
+    c,
+    Number.isFinite(guardianArtRows) ? guardianArtRows : undefined,
+  );
   for (const step of LANDING_COMPOSITION_DROP_STEPS) {
     if (estimated <= rowCount) break;
     step.apply(composition);
@@ -276,7 +297,12 @@ function resolveLandingComposition(columns, rows) {
     // Invariants: primary CTA + Overall readiness always remain.
     composition.show_primary_cta = true;
     composition.show_readiness = true;
-    estimated = estimateLandingCompositionRows(composition, layout, c);
+    estimated = estimateLandingCompositionRows(
+      composition,
+      layout,
+      c,
+      Number.isFinite(guardianArtRows) ? guardianArtRows : undefined,
+    );
   }
 
   return { layout, composition, estimated_rows: estimated };
@@ -659,21 +685,77 @@ function buildLandingViewModel(options = {}) {
   const rows = Number.isFinite(Number(options.rows)) ? Number(options.rows) : 24;
   const iconMode = resolveIconMode(options);
   const env = options.env && typeof options.env === 'object' ? options.env : process.env;
-  const resolved = resolveLandingComposition(columns, rows);
-  const layout = resolved.layout;
-  const composition = { ...resolved.composition };
-  const pixelArt = buildLandingGuardianArt({
+  const layout = landingLayoutForViewport(columns, rows);
+  const artOpts = {
     layout,
     icons: iconMode,
     art: options.art,
     artMode: options.artMode,
     guardianStyle: options.guardianStyle,
     env,
-  });
-  // Semantic Guardians carry VALIDATE/TRACE/ENFORCE under heads — drop duplicate triad.
+  };
+  let pixelArt = buildLandingGuardianArt(artOpts);
+  // Probe section icon height (lock v2 icons are two Braille rows).
+  const sectionIconProbe = sectionTitleWithPixelIcon('Quick Start', 'quick_start', artOpts);
+  const sectionIconRows = sectionIconProbe && typeof sectionIconProbe === 'object'
+    && Array.isArray(sectionIconProbe.lines)
+    ? sectionIconProbe.lines.length
+    : 0;
+
+  // Art-aware composition loop: estimate from real art height; degrade wide→compact
+  // before hide_guardian (lock v2 responsive table).
+  const composition = defaultLandingComposition(layout);
+  composition.section_icon_rows = sectionIconRows;
+  // Empty run boards: reserve one empty line, not recent_runs_limit phantom rows.
+  if (runs.length === 0) {
+    composition.recent_empty_short = true;
+  }
+  // Semantic labels replace the hero triad — drop before estimating row pressure.
   if (pixelArt.hide_hero_triad && composition.show_triad) {
     composition.show_triad = false;
+    composition.drops.push('hide_triad_semantic');
   }
+  let estimated = estimateLandingCompositionRows(
+    composition,
+    layout,
+    columns,
+    pixelArt.rows.length,
+  );
+  for (const step of LANDING_COMPOSITION_DROP_STEPS) {
+    if (estimated <= rows) break;
+    if (
+      step.id === 'hide_guardian'
+      && layout === 'wide'
+      && pixelArt.variant === 'wide'
+      && pixelArt.rows.length > 0
+    ) {
+      const compactArt = buildLandingGuardianArt({ ...artOpts, layout: 'mid' });
+      const estCompact = estimateLandingCompositionRows(
+        composition,
+        layout,
+        columns,
+        compactArt.rows.length,
+      );
+      if (estCompact <= rows) {
+        pixelArt = compactArt;
+        composition.drops.push('guardian_compact');
+        estimated = estCompact;
+        continue;
+      }
+    }
+    step.apply(composition);
+    composition.drops.push(step.id);
+    composition.show_primary_cta = true;
+    composition.show_readiness = true;
+    estimated = estimateLandingCompositionRows(
+      composition,
+      layout,
+      columns,
+      composition.show_guardian ? pixelArt.rows.length : 0,
+    );
+  }
+  const resolved = { layout, composition, estimated_rows: estimated };
+
   const showGuardian = composition.show_guardian === true
     && pixelArt.resolution.effective !== 'none';
   let guardian_lines = [];
@@ -837,6 +919,15 @@ function buildLandingViewModel(options = {}) {
       env,
     }),
   };
+  /** Plain-string titles for text formatters (icon rows joined). */
+  const sectionTitles = Object.fromEntries(
+    Object.entries(sectionIcons).map(([key, value]) => {
+      if (value && typeof value === 'object' && Array.isArray(value.lines)) {
+        return [key, `${value.lines.join(' ')} ${value.label}`.trim()];
+      }
+      return [key, String(value ?? '')];
+    }),
+  );
 
   return {
     schema: LANDING_SCHEMA,
@@ -854,7 +945,8 @@ function buildLandingViewModel(options = {}) {
     guardian_lines,
     guardian_rows,
     guardian_display_width: pixelArt.display_width,
-    section_titles: sectionIcons,
+    section_icons: sectionIcons,
+    section_titles: sectionTitles,
     hero: {
       product: 'AI-MINIONS',
       tagline: 'Contract-First Multi-Agent Orchestration Harness',

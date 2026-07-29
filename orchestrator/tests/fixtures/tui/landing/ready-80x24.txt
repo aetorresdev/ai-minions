@@ -1,21 +1,21 @@
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║ [>] ai-minions                                                v0.26.0-beta.1 ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
+ ▄▀▄ ▄▀▄ ▄▀▄
+ █V█ █T█ █E█
+ CERBERUS
  AI-MINIONS
- Contract-First Multi-Agent Orchestration Harness
- Validate • Trace • Enforce
  › 1. Start New Run
-╔═══════════════════════╗┌─────────────────────────────────────────────────────┐
-║  ⣿⣦⡀ Quick Start      ║│ ⡞⣒⢳ System Readiness                                │
-║ keyboard — not        ║│ Overall: Ready                                      │
-║ clickable             ║│ next: Start New Run — try the canonical fixture for │
-║ › 1. Start New Run    ║│ a low-risk first success                            │
-║   2. Browse Runs      ║│   Model Policy: local_only                          │
-║   3. System Status    ║│   Credentials: not_required                         │
-║   4. Settings         ║│   Environment: OK                                   │
-║   5. Help             ║│   ai-minions Path: ready                            │
-║                       ║│   Overall Status: READY                             │
-╚═══════════════════════╝└─────────────────────────────────────────────────────┘
+╔══════════════════════════════════╗┌──────────────────────────────────────────┐
+║  ⣿⣦⡀ Quick Start                 ║│ ⡞⣒⢳ System Readiness                     │
+║  ⣿⠟⠁                             ║│ ⢧⠭⡼                                      │
+║ › 1. Start New Run               ║│ Overall: Ready                           │
+╚══════════════════════════════════╝└──────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ⡔⡍⢢ Recent Runs                                                              │
+│ ⠣⣈⠜                                                                          │
+│   No runs yet: Start New Run                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ >                                                                            │
 └──────────────────────────────────────────────────────────────────────────────┘

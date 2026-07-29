@@ -65,7 +65,7 @@ async function defaultLoadFixturePrompt(fixtureId) {
 function renderGuardianSegments(theme, segments, keyPrefix) {
   return React.createElement(
     Box,
-    { key: keyPrefix, flexDirection: 'row' },
+    { key: keyPrefix, flexDirection: 'row', flexShrink: 0 },
     ...(segments || []).map((seg, idx) => React.createElement(
       Text,
       {
@@ -73,9 +73,48 @@ function renderGuardianSegments(theme, segments, keyPrefix) {
         bold: seg.bold === true,
         color: splashToneColor(theme, seg.tone),
         dimColor: seg.tone === 'muted',
+        wrap: 'truncate',
       },
       seg.text,
     )),
+  );
+}
+
+/**
+ * Section title with optional multi-row lock icon (lock v2 icons are 2 Braille rows).
+ * @param {object} theme
+ * @param {string | { lines?: string[], label?: string } | null | undefined} title
+ * @param {string} fallback
+ */
+function renderSectionTitle(theme, title, fallback) {
+  if (title && typeof title === 'object' && Array.isArray(title.lines) && title.lines.length > 0) {
+    const label = String(title.label ?? fallback);
+    return React.createElement(
+      Box,
+      { flexDirection: 'row', flexShrink: 0 },
+      React.createElement(
+        Box,
+        { flexDirection: 'column', flexShrink: 0, marginRight: 1 },
+        ...title.lines.map((line, idx) => React.createElement(
+          Text,
+          { key: `sec-ico-${idx}`, color: theme.accent },
+          line,
+        )),
+      ),
+      React.createElement(
+        Text,
+        { bold: theme.sectionBold, color: theme.accent },
+        label,
+      ),
+    );
+  }
+  const text = typeof title === 'string' && title
+    ? title
+    : fallback;
+  return React.createElement(
+    Text,
+    { bold: theme.sectionBold, color: theme.accent },
+    text,
   );
 }
 
@@ -163,11 +202,11 @@ function LandingHomeView(props) {
         width: compact ? undefined : 36,
         flexGrow: compact ? 1 : 0,
       },
-      React.createElement(
-        Text,
-        { bold: theme.sectionBold, color: theme.accent },
-        (landing.section_titles && landing.section_titles.quick_start)
-          || 'Quick Start',
+      renderSectionTitle(
+        theme,
+        (landing.section_icons && landing.section_icons.quick_start)
+          || (landing.section_titles && landing.section_titles.quick_start),
+        'Quick Start',
       ),
       ...(comp.show_quick_start_hint
         ? [React.createElement(
@@ -207,11 +246,11 @@ function LandingHomeView(props) {
       paddingX: 1,
       flexGrow: comp.show_recent_runs || comp.show_quick_start ? 1 : 0,
     },
-    React.createElement(
-      Text,
-      { bold: theme.sectionBold, color: theme.accent },
-      (landing.section_titles && landing.section_titles.readiness)
-        || 'System Readiness',
+    renderSectionTitle(
+      theme,
+      (landing.section_icons && landing.section_icons.readiness)
+        || (landing.section_titles && landing.section_titles.readiness),
+      'System Readiness',
     ),
     React.createElement(
       Text,
@@ -247,11 +286,11 @@ function LandingHomeView(props) {
         paddingX: 1,
         flexGrow: 1,
       },
-      React.createElement(
-        Text,
-        { bold: theme.sectionBold, color: theme.accent },
-        (landing.section_titles && landing.section_titles.recent_runs)
-          || 'Recent Runs',
+      renderSectionTitle(
+        theme,
+        (landing.section_icons && landing.section_icons.recent_runs)
+          || (landing.section_titles && landing.section_titles.recent_runs),
+        'Recent Runs',
       ),
       ...(landing.recent_runs.length
         ? [
@@ -331,15 +370,19 @@ function LandingHomeView(props) {
 
   const primaryBrand = React.createElement(
     Box,
-    { flexDirection: 'column', flexGrow: 1, paddingX: 1 },
+    { flexDirection: 'column', flexGrow: 1, flexShrink: 1, paddingX: 1 },
     ...primaryChildren,
   );
 
   // Guardian column: Neon stays compact (~30% of 120). Semantic lock v2 wide is
-  // ~58 cells — do not clamp to 36 or Braille rows wrap and corrupt the matrix.
+  // ~58 cells — reserve exact width with flexShrink:0 so Yoga cannot shrink the
+  // column (shrink wraps Braille rows and doubles rendered height).
   const guardianArtWidth = Number(landing.guardian_display_width) > 0
     ? Number(landing.guardian_display_width)
     : 22;
+  const guardianArtRows = Array.isArray(landing.guardian_rows)
+    ? landing.guardian_rows.length
+    : 0;
   const maxGuardianCols = Math.max(36, Math.floor(Number(model.columns) * 0.55));
   const guardianColumnWidth = Math.min(
     maxGuardianCols,
@@ -354,6 +397,8 @@ function LandingHomeView(props) {
         borderStyle: 'single',
         borderColor: theme.muted,
         width: guardianColumnWidth,
+        flexShrink: 0,
+        height: guardianArtRows + 2,
       },
       ...landing.guardian_rows.map((row, idx) => renderGuardianSegments(
         theme,
@@ -366,7 +411,12 @@ function LandingHomeView(props) {
   const guardianMid = showGuardian && landingLayout === 'mid'
     ? React.createElement(
       Box,
-      { flexDirection: 'column', paddingX: 1 },
+      {
+        flexDirection: 'column',
+        paddingX: 1,
+        flexShrink: 0,
+        height: guardianArtRows > 0 ? guardianArtRows : undefined,
+      },
       ...landing.guardian_rows.map((row, idx) => renderGuardianSegments(
         theme,
         row.segments || [],

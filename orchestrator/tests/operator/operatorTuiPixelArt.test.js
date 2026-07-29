@@ -124,7 +124,9 @@ test('landing wires arcade guardian and section icons; semantic hides triad', ()
   assert.match(neon.section_titles.quick_start, /Quick Start/);
   const icon = sectionPixelIcon('quick_start', { art: 'arcade', icons: 'unicode' });
   assert.ok(icon);
+  assert.ok(icon.includes('\n'), 'lock v2 section icons are two Braille rows');
   assert.doesNotMatch(icon, /[▶▣◷]/u);
+  assert.equal(icon.split('\n').length, 2);
 
   const semantic = buildLandingViewModel({
     home: readyHome(),
@@ -169,6 +171,9 @@ test('checkpoint 120x36: Neon vs Semantic share operational content; fixtures im
   const { renderOperatorTuiShellToString } = await import(
     '../../modules/operator/operator-tui-shell-render.mjs'
   );
+  const { measureLandingRender } = await import(
+    '../../scripts/lib/tui-landing-render-metrics.mjs'
+  );
   const base = {
     aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
     pathActivation: { status: 'ready', on_path: true },
@@ -194,6 +199,10 @@ test('checkpoint 120x36: Neon vs Semantic share operational content; fixtures im
     assert.match(out, /Recent Runs/, label);
     assert.match(out, /AI-MINIONS/, label);
     assert.ok(!/F1|F2|health bar|99%/.test(out), `${label}: no fabricated chrome`);
+    const m = measureLandingRender(out, { columns: 120, rows: 36 });
+    assert.ok(m.rendered_lines <= 36, `${label}: rows ${m.rendered_lines} > 36`);
+    assert.ok(m.max_display_width <= 120, `${label}: width ${m.max_display_width} > 120`);
+    assert.equal(m.fits_viewport, true, `${label}: must fit 120×36`);
   }
   assert.match(neonOut, /Validate • Trace • Enforce|Validate/);
   assert.match(semanticOut, /VALIDATE/);
@@ -210,6 +219,55 @@ test('checkpoint 120x36: Neon vs Semantic share operational content; fixtures im
   assert.ok(fs.existsSync(semanticPath), 'semantic checkpoint fixture missing — run regenerate-pixel-art-checkpoints.js');
   assert.equal(neonOut, fs.readFileSync(neonPath, 'utf8'));
   assert.equal(semanticOut, fs.readFileSync(semanticPath, 'utf8'));
+});
+
+test('production Ink renderer: semantic/neon fit 120×36, 80×24, 50×16 without wrap overflow', async () => {
+  const { renderOperatorTuiShellToString } = await import(
+    '../../modules/operator/operator-tui-shell-render.mjs'
+  );
+  const { measureLandingRender } = await import(
+    '../../scripts/lib/tui-landing-render-metrics.mjs'
+  );
+  const base = {
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    runsPayload: { runs: [], result_code: 'RUNS_EMPTY' },
+    contentSurface: 'home',
+    selectedNavId: 'launcher',
+    icons: 'unicode',
+    truecolor: false,
+    art: 'arcade',
+  };
+  for (const [columns, rows] of [[120, 36], [80, 24], [50, 16]]) {
+    for (const guardianStyle of ['neon', 'semantic']) {
+      const model = buildShellModel({ ...base, columns, rows, guardianStyle });
+      const out = renderOperatorTuiShellToString(model, { columns, rows });
+      const m = measureLandingRender(out, { columns, rows });
+      const id = `${guardianStyle}@${columns}x${rows}`;
+      assert.ok(
+        m.rendered_lines <= rows,
+        `${id}: rows ${m.rendered_lines} > ${rows} (reject overflow)`,
+      );
+      assert.ok(
+        m.max_display_width <= columns,
+        `${id}: width ${m.max_display_width} > ${columns} (reject wrap)`,
+      );
+      assert.equal(m.fits_viewport, true, `${id}: fits_viewport`);
+      assert.match(out, /Start New Run/, id);
+      assert.match(out, /Overall:/, id);
+      if (columns >= 80 && rows >= 24 && guardianStyle === 'semantic') {
+        assert.ok(
+          model.landing.guardian_rows.length > 0,
+          `${id}: lock v2 compact/wide guardian required`,
+        );
+        assert.match(out, /VALIDATE/, id);
+      }
+      if (columns < 80 || rows < 24) {
+        assert.equal(model.landing.guardian_rows.length, 0, `${id}: minimal hides art`);
+      }
+    }
+  }
 });
 
 test('env ART_ENV / GUARDIAN_STYLE_ENV honored', () => {

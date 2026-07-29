@@ -92,8 +92,9 @@ Rules:
 - Guardian comparison: `AI_MINIONS_TUI_GUARDIAN=neon|semantic`. **Default `neon`** (implementation baseline). **Semantic Guardians** is opt-in (`AI_MINIONS_TUI_GUARDIAN=semantic`) and renders the Cerberus terminal pixel-art lock v2 Braille matrices (`orchestrator/modules/operator/terminal-pixel-art.js` + `assets/semantic-guardians-matrix.json`) — labels under heads; not generic Unicode section substitutes. Invalid `AI_MINIONS_TUI_ART` values fail closed to `auto` with a reason that persists in shell debug/evidence across remounts.
 - Cerberus is a **secondary** brand guardian: supports the brand; never displaces `AI-MINIONS`, **Start New Run**, Overall readiness, or recent-runs summary.
 - Optional pixel section icons (Quick Start / System Readiness / Recent Runs) use lock v2 Braille dot matrices and always keep text labels.
-- Drop order under space pressure: decorative Cerberus **before** Start New Run / Overall / recent runs.
+- Drop order under space pressure: decorative copy and recent-runs summary drop before omitting Cerberus; lock v2 keeps **compact guardian at ≥80×24** (wide → compact → minimal → omit). Never drop **Start New Run** or Overall readiness.
 - Splash (brand prelude) remains skippable and bounded; it is not the landing.
+- **PUA scope:** lock v2 matrices and section icons introduce **no** Nerd/Private Use Area glyphs. Global `icons=nerd` (default operator choice in `operator-tui-icons.js`) remains a separate, explicit TTY profile — not claimed as “no Nerd-PUA” for the whole TUI.
 
 ## Official art (off-TTY)
 
