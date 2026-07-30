@@ -91,9 +91,12 @@ function validateTargetRepo(repoRoot) {
 
 /**
  * @param {Awaited<ReturnType<typeof runOperatorDoctor>>} doctorResult
+ * @param {boolean} [configPresent] Whether `.ai-minions/model_policy.json` exists.
+ *   Defaults to `true` to preserve prior classification behavior for callers
+ *   that don't know the config state (e.g. unit tests exercising this in isolation).
  * @returns {string}
  */
-function classifyDoctorFailure(doctorResult) {
+function classifyDoctorFailure(doctorResult, configPresent = true) {
   const fails = doctorResult.report.checks.filter((c) => c.status === 'fail');
   for (const f of fails) {
     const code = String(f.operator_reason_code || f.reason_code || '');
@@ -107,9 +110,19 @@ function classifyDoctorFailure(doctorResult) {
     if (code.includes('MODEL')) {
       return FIRST_RUN_REASON_CODES.MODEL_BLOCKED;
     }
+    // On a clean checkout (no config yet), config/bootstrap/preflight failures
+    // (including RUNTIME_PREFLIGHT_BLOCKED) are the expected pre-init state,
+    // not a distinct error — fall through to NEEDS_INIT below instead of
+    // reporting them as CONFIG_INVALID/UNKNOWN_ERROR.
+    if (!configPresent) {
+      continue;
+    }
     if (code.includes('CONFIG') || code.includes('BOOTSTRAP')) {
       return FIRST_RUN_REASON_CODES.CONFIG_INVALID;
     }
+  }
+  if (!configPresent) {
+    return FIRST_RUN_REASON_CODES.NEEDS_INIT;
   }
   return FIRST_RUN_REASON_CODES.UNKNOWN_ERROR;
 }
@@ -385,7 +398,7 @@ async function runFirstRun(options = {}) {
 
   const configPresent = hasInitConfig(repoRoot);
   if (!doctor.ok) {
-    const reason_code = classifyDoctorFailure(doctor);
+    const reason_code = classifyDoctorFailure(doctor, configPresent);
     const next_safe_action = deriveFirstRunNextSafeAction(reason_code, !configPresent);
     const payload = {
       ok: false,
