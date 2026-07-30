@@ -3,28 +3,46 @@
 #
 # Machine-readable contract (stdout, always the last line before exit):
 #   status=PASS     — scanner ran, published scope clean. Exit 0.
-#   status=BLOCKED  — prerequisite missing (scanner not found), gate did not run. Exit 2.
-#   status=FAIL     — scanner ran, found HIGH/CRITICAL fixed vulns or secrets. Exit 1.
-#   status=SKIPPED  — explicit documented operator opt-out via RELEASE_TRIVY_GATE_SKIP_REASON.
-#                     Exit 0. NOT used for a missing scanner by default — see below.
+#   status=BLOCKED  — prerequisite / operational failure (scanner missing, not a real
+#                     Trivy binary, uv lock failure, scanner error other than findings).
+#                     Gate did not produce PASS/FAIL scan evidence. Exit 2.
+#   status=FAIL     — real Trivy ran and reported HIGH/CRITICAL fixed vulns or secrets
+#                     via its reserved findings exit code (1). Exit 1.
+#   status=SKIPPED  — explicit documented operator opt-out via RELEASE_TRIVY_GATE_SKIP_REASON
+#                     (non-empty after trim). Exit 0. NOT used for a missing scanner by default.
 #
-# A missing scanner is BLOCKED, never SKIPPED-by-accident and never PASS. SKIPPED only
-# fires when the operator sets RELEASE_TRIVY_GATE_SKIP_REASON to a non-empty reason string,
-# which is echoed back into release evidence for CERBERUS/operator audit.
+# A missing or fake scanner is BLOCKED, never SKIPPED-by-accident and never PASS. SKIPPED only
+# fires when the operator sets RELEASE_TRIVY_GATE_SKIP_REASON to a non-empty (after trim) reason
+# string, which is echoed back into release evidence for CERBERUS/operator audit.
 #
 # Env overrides:
 #   TRIVY_BIN                     — path/name of the trivy binary (default: "trivy"). Lets
 #                                    callers (tests, alt installs) point at a specific binary
-#                                    without mutating PATH.
-#   RELEASE_TRIVY_GATE_SKIP_REASON — non-empty string to explicitly skip a missing scanner.
-#                                    Documented operator override only; not a CI default.
+#                                    without mutating PATH. Must respond to --version with
+#                                    output matching "trivy" (case-insensitive); otherwise BLOCKED.
+#   RELEASE_TRIVY_GATE_SKIP_REASON — non-empty (after trim) string to explicitly skip a missing
+#                                    scanner. Documented operator override only; not a CI default.
+#
+# Exit-code contract for the scanner itself:
+#   0 — clean (PASS)
+#   1 — findings (FAIL) — reserved; only a validated Trivy binary may produce this gate status
+#   other — operational error → BLOCKED (never FAIL)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 TRIVY_BIN="${TRIVY_BIN:-trivy}"
-SKIP_REASON="${RELEASE_TRIVY_GATE_SKIP_REASON:-}"
+# Trim surrounding whitespace; whitespace-only reasons are not SKIPPED.
+SKIP_REASON="$(printf '%s' "${RELEASE_TRIVY_GATE_SKIP_REASON:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
+emit_blocked() {
+  local msg="$1"
+  echo "release-trivy-gate: BLOCKED — $msg" >&2
+  remediation
+  echo "status=BLOCKED"
+  exit 2
+}
 
 remediation() {
   cat >&2 <<'EOF'
@@ -50,26 +68,43 @@ if ! command -v "$TRIVY_BIN" >/dev/null 2>&1; then
     echo "status=SKIPPED"
     exit 0
   fi
-  echo "release-trivy-gate: BLOCKED — trivy ('$TRIVY_BIN') not found on PATH; prerequisite missing, gate did not run" >&2
-  remediation
-  echo "status=BLOCKED"
-  exit 2
+  emit_blocked "trivy ('$TRIVY_BIN') not found on PATH; prerequisite missing, gate did not run"
 fi
 
-echo "release-trivy-gate: using $("$TRIVY_BIN" --version 2>&1 | head -n1)" >&2
+# Reject arbitrary executables masquerading as Trivy (/bin/true → fake PASS, /bin/false → fake FAIL).
+version_out=""
+version_rc=0
+version_out="$("$TRIVY_BIN" --version 2>&1)" || version_rc=$?
+if [[ "$version_rc" -ne 0 ]] || ! printf '%s' "$version_out" | grep -qi 'trivy'; then
+  emit_blocked "TRIVY_BIN ('$TRIVY_BIN') is not a usable Trivy binary (--version must succeed and mention trivy)"
+fi
+echo "release-trivy-gate: using $(printf '%s\n' "$version_out" | head -n1)" >&2
 
 if command -v uv >/dev/null 2>&1; then
   for dir in mcp-servers/compact-handoff mcp-servers/orchestrator-state; do
-    [[ -f "$dir/pyproject.toml" ]] && (cd "$dir" && uv lock --quiet)
+    if [[ -f "$dir/pyproject.toml" ]]; then
+      if ! (cd "$dir" && uv lock --quiet); then
+        emit_blocked "uv lock failed in $dir (operational prerequisite; gate did not scan)"
+      fi
+    fi
   done
 fi
 
-if "$TRIVY_BIN" fs --config .trivy.yaml --scanners vuln,secret --ignore-unfixed --exit-code 1 .; then
-  echo "release-trivy-gate: OK (HIGH/CRITICAL fixed vulns + secrets clean in published scope)"
-  echo "status=PASS"
-  exit 0
-else
-  echo "release-trivy-gate: FAIL — HIGH/CRITICAL fixed vulns or secrets found in published scope" >&2
-  echo "status=FAIL"
-  exit 1
-fi
+scan_rc=0
+"$TRIVY_BIN" fs --config .trivy.yaml --scanners vuln,secret --ignore-unfixed --exit-code 1 . || scan_rc=$?
+
+case "$scan_rc" in
+  0)
+    echo "release-trivy-gate: OK (HIGH/CRITICAL fixed vulns + secrets clean in published scope)"
+    echo "status=PASS"
+    exit 0
+    ;;
+  1)
+    echo "release-trivy-gate: FAIL — HIGH/CRITICAL fixed vulns or secrets found in published scope" >&2
+    echo "status=FAIL"
+    exit 1
+    ;;
+  *)
+    emit_blocked "trivy exited $scan_rc (operational/scanner error; not treated as findings)"
+    ;;
+esac

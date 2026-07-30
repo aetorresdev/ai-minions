@@ -10,6 +10,7 @@ on:
       - "orchestrator/package.json"
       - "orchestrator/package-lock.json"
       - "scripts/release-trivy-gate.sh"
+      - "tests/release-trivy-gate.test.mjs"
       - ".trivy.yaml"
       - ".gitignore"
       - ".github/workflows/security-trivy-scan.yml"
@@ -20,6 +21,7 @@ on:
       - "orchestrator/package.json"
       - "orchestrator/package-lock.json"
       - "scripts/release-trivy-gate.sh"
+      - "tests/release-trivy-gate.test.mjs"
       - ".trivy.yaml"
       - ".gitignore"
       - ".github/workflows/security-trivy-scan.yml"
@@ -29,6 +31,13 @@ permissions:
   contents: read
 
 jobs:
+  gate-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gate status contract tests
+        run: node --test tests/release-trivy-gate.test.mjs
+
   trivy:
     runs-on: ubuntu-latest
     env:

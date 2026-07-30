@@ -335,10 +335,10 @@ actual status, never assume `PASS`:
 
 | Status | Meaning | Exit code |
 |--------|---------|-----------|
-| `PASS` | Scanner ran; published scope clean of HIGH/CRITICAL fixed vulns and secrets. | `0` |
-| `BLOCKED` | Prerequisite missing — `trivy` not found. Gate did **not** run. **Default** outcome for a missing scanner. | `2` |
-| `FAIL` | Scanner ran and found HIGH/CRITICAL fixed vulns or secrets in published scope. | `1` |
-| `SKIPPED` | Explicit operator opt-out only: `RELEASE_TRIVY_GATE_SKIP_REASON="<why>"` was set while the scanner was missing. Recorded reason must appear in release evidence. **Not** used silently — there is no default/implicit skip path. | `0` |
+| `PASS` | Validated Trivy ran; published scope clean of HIGH/CRITICAL fixed vulns and secrets. | `0` |
+| `BLOCKED` | Prerequisite / operational failure — `trivy` missing, `TRIVY_BIN` not a real Trivy (`--version` must mention trivy), `uv lock` failed, or scanner exited with a non-findings code. Gate did **not** produce PASS/FAIL scan evidence. **Default** for a missing scanner. | `2` |
+| `FAIL` | Validated Trivy ran and reported findings via reserved exit code `1` (HIGH/CRITICAL fixed vulns or secrets). Other scanner exits are **not** FAIL. | `1` |
+| `SKIPPED` | Explicit operator opt-out only: `RELEASE_TRIVY_GATE_SKIP_REASON` is non-empty **after trim** while the scanner was missing. Whitespace-only values are treated as unset. Recorded reason must appear in release evidence. **Not** used silently. | `0` |
 
 **A missing scanner is `BLOCKED`, never `PASS`, and never `SKIPPED` unless the
 operator explicitly set `RELEASE_TRIVY_GATE_SKIP_REASON`.** `SKIPPED` still
