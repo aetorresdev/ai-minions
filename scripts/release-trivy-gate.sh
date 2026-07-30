@@ -29,7 +29,7 @@ SKIP_REASON="${RELEASE_TRIVY_GATE_SKIP_REASON:-}"
 remediation() {
   cat >&2 <<'EOF'
 release-trivy-gate: remediation
-  Install Trivy locally (official docs): https://aquasecurity.github.io/trivy/latest/getting-started/installation/
+  Install Trivy locally (official docs): https://trivy.dev/docs/latest/getting-started/installation/
     macOS (Homebrew):   brew install aquasecurity/trivy/trivy
     Debian/Ubuntu (apt): see install docs above for the aquasecurity apt repo
     Or download a release binary and put it on PATH / set TRIVY_BIN.

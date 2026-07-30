@@ -319,7 +319,7 @@ trivy fs --config .trivy.yaml --scanners vuln,secret --ignore-unfixed --exit-cod
 
 **Provisioning Trivy locally** (only needed for the local gate, not for CI):
 
-- Official install docs: <https://aquasecurity.github.io/trivy/latest/getting-started/installation/>
+- Official install docs: <https://trivy.dev/docs/latest/getting-started/installation/>
 - macOS: `brew install aquasecurity/trivy/trivy`
 - Or download a release binary and either put it on `PATH` or point the gate
   at it with `TRIVY_BIN=/path/to/trivy`.
