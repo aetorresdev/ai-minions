@@ -283,6 +283,34 @@ test('short TTY splash first paint stays within reported rows and shows continue
   assert.match(splash, /not Web UI|Presentation polish/i);
 });
 
+test('typical 80×24 first-paint splash keeps Cerberus brand markers inside frame', async () => {
+  const { renderOperatorTuiShellToString } = await import(
+    '../../modules/operator/operator-tui-shell-render.mjs'
+  );
+  const {
+    buildFirstPaintShellModel,
+  } = require('../../modules/operator/operator-tui-shell-entry');
+  const rows = 24;
+  const model = buildFirstPaintShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    columns: 80,
+    rows,
+    colorEnabled: false,
+  });
+  assert.equal(model.readiness, 'loading');
+  const splash = renderOperatorTuiShellToString(model, { columns: 80, rows, showSplash: true });
+  const lineCount = splash.split('\n').length;
+  assert.ok(lineCount <= rows, `expected ≤${rows} lines, got ${lineCount}`);
+  assert.match(splash, /CERBERUS/i);
+  assert.match(splash, /AI-MINIONS/i);
+  assert.match(splash, /VALIDATE|Validate/);
+  assert.match(splash, /TRACE|Trace/);
+  assert.match(splash, /ENFORCE|Enforce/);
+  assert.match(splash, /readiness=loading/);
+  assert.match(splash, /Press any key|continue/i);
+  assert.match(splash, /Presentation polish only/i);
+});
+
 test('buildFirstPaintShellModel is version + loading/unavailable only', () => {
   const {
     buildFirstPaintShellModel,

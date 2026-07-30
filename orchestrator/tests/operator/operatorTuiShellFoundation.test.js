@@ -2262,7 +2262,8 @@ test('cold-start drain truncation reports real ink/react flags; interactive shel
     stdout.destroy();
   }
 
-  // With splash: splash imports Ink/React once → flags true; interactive shell never mounts.
+  // With splash: drain still runs before Ink — truncation aborts with flags false;
+  // neither splash nor interactive shell mounts.
   {
     const stdin = createNeverEmptyColdStartStdin();
     const stdout = new PassThrough();
@@ -2295,12 +2296,62 @@ test('cold-start drain truncation reports real ink/react flags; interactive shel
     assert.equal(result.reason_code, TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED);
     assert.equal(result.ok, false);
     assert.equal(result.exitCode, 1);
-    assert.equal(splashMounts, 1, 'splash renderer must run before drain truncation');
-    assert.equal(result.ink_loaded, true, 'splash already loaded Ink — must not report false');
-    assert.equal(result.react_loaded, true, 'splash already loaded React — must not report false');
+    assert.equal(splashMounts, 0, 'drain truncation must abort before splash Ink mount');
+    assert.equal(result.ink_loaded, false, 'Ink must not load when drain aborts before mount');
+    assert.equal(result.react_loaded, false, 'React must not load when drain aborts before mount');
     assert.equal(interactiveMounts, 0, 'interactive shell must not mount after truncation');
     stdout.destroy();
   }
+});
+
+test('cold start drains residual stdin before brand splash (does not auto-dismiss)', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  // Leftover Enter/`1` from a prior session — must be drained before splash mounts.
+  stdin.write('\r1\r');
+  const order = [];
+  let splashSeen = false;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    splashMs: 0,
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    loadRuns: () => canonicalRunsResult([]),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async (opts) => {
+        if (opts.showSplash === true) {
+          splashSeen = true;
+          order.push('splash');
+          assert.equal(opts.splashOnly, true);
+          assert.equal(opts.model?.readiness, 'loading');
+          // Buffer must already be empty — residual keys must not reach splash input.
+          assert.equal(
+            typeof stdin.readableLength === 'number' ? stdin.readableLength : 0,
+            0,
+            'stdin must be drained before brand splash mount',
+          );
+          return { aborted: false };
+        }
+        order.push('shell');
+        assert.equal(opts.showSplash, false);
+        assert.equal(opts.model?.contentSurface, 'home');
+        if (typeof opts.onRequestAction === 'function') {
+          opts.onRequestAction('quit');
+        }
+        return { aborted: false, requestedAction: 'quit' };
+      },
+    }),
+    executeAction: async () => {
+      throw new Error('cold start splash regression must not executeAction');
+    },
+  });
+  assert.equal(splashSeen, true, 'brand splash must mount on cold start');
+  assert.deepEqual(order, ['splash', 'shell']);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  stdin.destroy();
+  stdout.destroy();
 });
 
 test('Recent Runs selection stays on visible window; hidden panel skips content focus', () => {

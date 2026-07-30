@@ -371,6 +371,28 @@ async function runOperatorTuiShell(options = {}) {
   /** @type {{ renderOperatorTuiShell: Function } | null} */
   let cachedRenderer = null;
 
+  // Drain leftover stdin BEFORE any Ink mount (brand splash or shell). Residual
+  // Enter/`1` from a prior session must not auto-dismiss the splash or skip landing.
+  try {
+    drainStdinColdStart(stdin);
+  } catch (err) {
+    if (err && err.code === 'COLD_START_STDIN_DRAIN_TRUNCATED') {
+      if (guard && !guard.restored) guard.restore('cold_start_drain_truncated');
+      return {
+        ok: false,
+        exitCode: 1,
+        reason_code: TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED,
+        // Drain runs before Ink import — flags stay false when truncation aborts.
+        ink_loaded: inkLoaded,
+        react_loaded: reactLoaded,
+        text: String(err.message || err),
+        model: null,
+        guard,
+      };
+    }
+    throw err;
+  }
+
   // First-paint splash gate: mount bounded minimal model before discovery.
   if (wantsSplash) {
     try {
@@ -428,28 +450,6 @@ async function runOperatorTuiShell(options = {}) {
     guard = createTerminalGuard({ stdin, stdout });
   } else {
     discoverShellBootstrap();
-  }
-
-  // Drop terminal leftovers from a prior session / splash dismiss before first
-  // interactive shell frame — residual Enter/`1` must not skip landing into Start New Run.
-  try {
-    drainStdinColdStart(stdin);
-  } catch (err) {
-    if (err && err.code === 'COLD_START_STDIN_DRAIN_TRUNCATED') {
-      if (guard && !guard.restored) guard.restore('cold_start_drain_truncated');
-      return {
-        ok: false,
-        exitCode: 1,
-        reason_code: TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED,
-        // Preserve actual load flags — splash may already have imported Ink/React.
-        ink_loaded: inkLoaded,
-        react_loaded: reactLoaded,
-        text: String(err.message || err),
-        model: null,
-        guard,
-      };
-    }
-    throw err;
   }
 
   try {

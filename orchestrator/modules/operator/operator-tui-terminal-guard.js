@@ -64,7 +64,8 @@ const COLD_START_DRAIN_SAFETY_MAX = 1_048_576;
 
 /**
  * Cold-start only: discard the **entire** existing stdin buffer before the first
- * Ink shell mount so a prior session's Enter/`1` cannot auto-open Start New Run.
+ * Ink mount (brand splash or shell) so a prior session's Enter/`1` cannot
+ * auto-dismiss the splash or auto-open Start New Run.
  * Drains until empty. A safety ceiling aborts with `COLD_START_STDIN_DRAIN_TRUNCATED`
  * when more data remains (fail closed — do not mount with leftovers).
  * @param {NodeJS.ReadStream | { read?: Function, readableLength?: number } | null | undefined} stdin

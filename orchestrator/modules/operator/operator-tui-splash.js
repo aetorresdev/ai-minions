@@ -571,18 +571,45 @@ function buildSplashContent(options = {}) {
   // Pixel art + scannable uppercase line (gradient when truecolor; plain under NO_COLOR).
   wordmarkRows = [...wordmarkRows, { segments: wmSegs }];
 
-  const lines = [
-    ...flattenArtRows(artRows),
-    ...flattenArtRows(wordmarkRows),
-  ];
   const triadSegs = triadSegments();
-  const showTriad = !(
+  let showTriad = !(
     resolution.effective === 'arcade'
     && resolution.guardianStyle === 'semantic'
     && pixelVariant !== 'minimal'
   );
+  let showProductTagline = density !== 'minimal';
+  let showSpacers = density === 'full';
+
+  // Double-border Ink frame consumes 2 rows — keep brand art + CERBERUS inside viewport.
+  const borderRows = 2;
+  const chromeHeight = () => (
+    (showProductTagline ? 1 : 0)
+    + (showTriad ? 1 : 0)
+    + 1 // subtitle (version · readiness)
+    + 1 // continue hint
+    + 1 // presentation disclaimer
+    + (showSpacers ? 2 : 0)
+  );
+  let contentHeight = artRows.length + wordmarkRows.length + chromeHeight();
+  while (contentHeight + borderRows > frameHeight && showSpacers) {
+    showSpacers = false;
+    contentHeight = artRows.length + wordmarkRows.length + chromeHeight();
+  }
+  while (contentHeight + borderRows > frameHeight && wordmarkRows.length > 1) {
+    // Prefer scannable uppercase wordmark over tall pixel glyphs when the frame is tight.
+    wordmarkRows = wordmarkRows.slice(-1);
+    contentHeight = artRows.length + wordmarkRows.length + chromeHeight();
+  }
+  while (contentHeight + borderRows > frameHeight && showProductTagline) {
+    showProductTagline = false;
+    contentHeight = artRows.length + wordmarkRows.length + chromeHeight();
+  }
+
   return {
-    lines,
+    lines: [
+      ...flattenArtRows(artRows),
+      ...flattenArtRows(wordmarkRows),
+    ],
     rows: artRows,
     wordmarkRows,
     density,
@@ -590,8 +617,8 @@ function buildSplashContent(options = {}) {
     iconMode,
     guardianStyle: resolution.guardianStyle,
     frameHeight,
-    showProductTagline: density !== 'minimal',
-    showSpacers: density === 'full',
+    showProductTagline,
+    showSpacers,
     showTriad,
     wordmark: BRAND_WORDMARK,
     wordmarkSegments: wmSegs,
