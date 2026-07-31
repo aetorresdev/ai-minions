@@ -6,37 +6,39 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
-## [0.26.0-beta.1] - 2026-07-27
+## [0.26.0-beta.1] - 2026-07-31
 
-Twenty-sixth beta pre-release: **Fullscreen TUI Completion + Live Harness Evidence** — Node.js 22 baseline, Ink 7 fullscreen shell with guided launcher, live run monitor, slash commands, integrated TUI quality gate, live canonical-fixture harness path, plus release closeout **brand splash** and friendlier color/typography contrast — without production TUI SLA, Web UI, mouse interaction, durable resume, canonical Loop Contract, Execution Graph runtime, context-package runtime, progressive disclosure runtime, hybrid cloud routing, RAG, or cohort gate change.
+Twenty-sixth beta pre-release: **Fullscreen TUI Completion + Live Harness Evidence** — Node.js 22 baseline, Ink 7 fullscreen shell with task-first landing composition, guided launcher, live run monitor, native Ink workflows, slash commands, integrated TUI quality gate plus UX acceptance companion gate, live canonical-fixture harness path, Cerberus brand splash with arcade/pixel-art guardians and semantic theme tokens, GUI art handoff, first-run reason-code honesty, and Trivy gate PASS/BLOCKED/SKIPPED honesty — without production TUI SLA, Web UI, mouse interaction, durable resume, canonical Loop Contract, Execution Graph runtime, context-package runtime, progressive disclosure runtime, hybrid cloud routing, RAG, or cohort gate change.
 
-**Release claim:** operators on declared tested platforms can use the fullscreen Ink 7 shell (`ai-minions tui`) with first-paint brand splash (skippable), guided supported-mode launch, live visibility into authoritative bounded-run state, implemented slash vocabulary, and recorded TUI quality / live harness evidence surfaces — **not** production-ready TUI · **not** Web UI · **not** mouse clicks · **not** Canonical Loop Contract shipped · **not** Execution Graph runtime shipped · **not** bounded context-package runtime shipped · **not** progressive disclosure shipped · **not** hybrid cloud routing · **not** durable resume · **not** RAG/retrieval · **not** cohort gate open without independent evidence.
+**Release claim:** operators on declared tested platforms can use the fullscreen Ink 7 shell (`ai-minions tui`) with task-first landing (primary action identifiable without documentation), first-paint skippable brand splash, compact system-readiness surface with explicit text/icon states, bounded recent-runs preview, native Ink launcher and run browser, live visibility into authoritative bounded-run state, implemented slash vocabulary, and recorded TUI quality / UX acceptance / live harness evidence surfaces — **not** production-ready TUI · **not** Web UI · **not** mouse clicks · **not** Canonical Loop Contract shipped · **not** Execution Graph runtime shipped · **not** bounded context-package runtime shipped · **not** progressive disclosure shipped · **not** hybrid cloud routing · **not** durable resume · **not** RAG/retrieval · **not** cohort gate open without independent evidence.
 
 **Prerequisite:** `v0.25.0-beta.1` @ `95f084e`.
 
-**Since [0.25.0-beta.1]:** v0.25 shipped tester evidence + cockpit MVP. v0.26 completes the fullscreen Ink shell track (Node 22 · foundation · guided launcher · live monitor · slash · live harness · integrated quality) and adds presentation polish (splash + theme). Deferred Loop/Graph/context-runtime contracts stay out of this tag.
+**Since [0.25.0-beta.1]:** v0.25 shipped tester evidence + cockpit MVP. v0.26 completes the fullscreen Ink shell track (Node 22 · foundation · guided launcher · live monitor · slash · live harness · integrated quality) and adds the UX expansion: task-first landing, native Ink workflows replacing nested readline splits, UX acceptance release gate, Cerberus brand splash (option C direction) with arcade/pixel-art guardians, semantic theme tokens, and splash cold-start stdin drain hardening. Tag-blocker honesty gates (first-run reason codes · Trivy status semantics) landed before this cut. Deferred Loop/Graph/context-runtime contracts stay out of this tag.
 
 | Area | `v0.25.0-beta.1` | `v0.26.0-beta.1` (delta) |
 |------|------------------|---------------------------|
-| Focus | Beta tester evidence + Operator TUI MVP | Fullscreen TUI completion + live harness evidence |
-| Operator TUI | Interactive cockpit MVP (readline lineage) | Ink 7 fullscreen shell · splash · theme · guided · monitor · slash |
-| Unit tests (orchestrator) | 1553/1554 pass (1 skipped) @ `bc6cf2c` | TUI quality **190/190** · splash/theme + shell foundation green on release-prep tree |
+| Focus | Beta tester evidence + Operator TUI MVP | Fullscreen TUI completion + live harness evidence + UX expansion |
+| Operator TUI | Interactive cockpit MVP (readline lineage) | Ink 7 fullscreen shell · task-first landing · native workflows · splash/theme · guided · monitor · slash · UX acceptance gate |
+| Unit tests (orchestrator) | 1553/1554 pass (1 skipped) @ `bc6cf2c` | **1802/1803** pass (1 skipped) @ validation snapshot `3f54fe5` (docs-only; runtime/test baseline inherited from `master` `38735ef`) · TUI quality **307/307** |
 
-**Release:** reserved until Phase B annotated tag `v0.26.0-beta.1` (blocked until first-run reason-code honesty lands; Trivy prerequisite PASS/BLOCKED/SKIPPED semantics now implemented — see below).
+**Release:** reserved until Phase B annotated tag `v0.26.0-beta.1`. Tag-blocker honesty gates resolved (first-run reason codes PR [#371](https://github.com/aetorresdev/ai-minions/pull/371) @ `c237355` · Trivy gate honesty PR [#372](https://github.com/aetorresdev/ai-minions/pull/372) merge `fa2d04b`); **one honest open gate remains**: `test:tui-release` release preflight is **BLOCKED** on manual first-time-user evidence (see Notes).
 
 **Evidence (operator):**
 
-- Unit + hooks: `cd orchestrator && npm test` → TUI quality **190/190** after splash inclusion; shell/splash foundation PASS on release-prep tree (host git-worktree isolation suite may flake when sandbox blocks nested worktrees — re-run on CI/operator host before Phase B)
-- TUI quality: `cd orchestrator && npm run test:tui-quality` → **190/190** on release-prep tree
+- Unit + hooks: `cd orchestrator && npm test` → **1802/1803** pass (1 skipped) — PR [#374](https://github.com/aetorresdev/ai-minions/pull/374) validation snapshot `3f54fe5` (docs-only; runtime/test baseline inherited from `master` @ `38735ef`, 2026-07-31)
+- TUI quality: `cd orchestrator && npm run test:tui-quality` → **307/307** on release-prep tree
+- TUI release gate: `cd orchestrator && npm run test:tui-release` → automated acceptance **17/17** pass, but release preflight verdict **`blocked`** with reason `manual_first_time_user:blocked` (evidence registry `orchestrator/modules/operator/tui-ux-acceptance-evidence.registry.json`) — recorded honestly; not a PASS
 - Splash/theme + shell: `node --test tests/operator/operatorTuiSplashTheme.test.js tests/operator/operatorTuiShellFoundation.test.js` → **PASS**
 - Usage docs: `node scripts/verify-usage-docs.mjs` → **OK**
 - Claim audit: `node scripts/audit-product-claims.mjs` → **OK** (includes deferred context-runtime / loop / graph negatives)
 - Changelog format: `node --test orchestrator/tests/changelogReleaseFormat.test.js` → **OK**
 - Product version sync: `PRODUCT_VERSION` = `v0.26.0-beta.1` matches this section
-- Contracts: `operator-cockpit-contract.md`, `alpha-release-checklist.md` v0.26 section, Ink 7 ADR
-- Lane: live harness + integrated quality merged on `master` @ `c1cfb26`+; tip includes hotkey/silent-quit polish @ `80c67af`
-- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **PASS** on this workspace (Trivy `0.69.1`, published scope clean); gate now emits stable `status=PASS|BLOCKED|FAIL|SKIPPED` and defaults missing scanner to **BLOCKED**, never PASS — see [security-posture.md](docs/orchestrator/security-posture.md#gate-status-semantics-machine-readable)
+- Contracts: `operator-cockpit-contract.md`, `alpha-release-checklist.md` v0.26 section, Ink 7 ADR, [security-posture.md](docs/orchestrator/security-posture.md#gate-status-semantics-machine-readable)
+- Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **`status=PASS`** on release-prep tree (Trivy `0.69.1`, published scope clean, 2026-07-31); gate emits stable `status=PASS|BLOCKED|FAIL|SKIPPED` and defaults missing scanner to **BLOCKED**, never PASS
 - Gate contract test: `node --test tests/release-trivy-gate.test.mjs` → **PASS**
+- Lane on `master` @ `38735ef`: shipped UX expansion items listed in the sections below (delivered PR set excludes open/deferred [#355](https://github.com/aetorresdev/ai-minions/pull/355) and unmerged/superseded [#360](https://github.com/aetorresdev/ai-minions/pull/360)) — theme/splash precursor `e5df1cb` · task-first landing `46b6655` · native Ink workflows `ec11650` · Cerberus brand splash `1d7c78f` · visual system `d4f061d` · landing composition `b4acb8b` · UX acceptance gate `c0166f0` · arcade Cerberus + nav hardening + GUI art handoff PR [#370](https://github.com/aetorresdev/ai-minions/pull/370) squash @ `4e0a0e7` · splash cold-start drain PR [#373](https://github.com/aetorresdev/ai-minions/pull/373) merge `38735ef`
+- CI (run URLs): [orchestrator-unit-tests](https://github.com/aetorresdev/ai-minions/actions/runs/30669382209) · [orchestrator-e2e](https://github.com/aetorresdev/ai-minions/actions/runs/30669382272) · [Link Check](https://github.com/aetorresdev/ai-minions/actions/runs/30669382224) · [Markdown Lint](https://github.com/aetorresdev/ai-minions/actions/runs/30669382210) · [Installed CLI Docker live](https://github.com/aetorresdev/ai-minions/actions/runs/30669382220) — green on lane tip `b4148b6` (PR #373; inherited per `release-workflow.md` A3 docs-only rule); [security-trivy-scan](https://github.com/aetorresdev/ai-minions/actions/runs/30669420323) green on `fa2d04b` push
 
 **Alpha limitations (not production):**
 
@@ -46,23 +48,38 @@ Twenty-sixth beta pre-release: **Fullscreen TUI Completion + Live Harness Eviden
 - **Not** bounded context-package runtime · progressive tool/skill/context disclosure · per-invocation context hashes.
 - **Not** durable resume/rerun · hybrid cloud routing · RAG / GraphRAG / retrieval stacks.
 - **Not** security gate PASS when Trivy did not execute.
+- **Not** TUI release-gate PASS: manual first-time-user evidence still outstanding (`manual_first_time_user:blocked`).
 - **Not** cohort gate open without independent required evidence.
 
 ### Added
 
-- Initial brand splash screen on first Ink mount (ASCII; auto-dismiss / any key; `AI_MINIONS_TUI_SKIP_SPLASH=1` skips). Presentation only.
-- Friendlier Ink shell color hierarchy and bold/dim typography contrast (cyan/blue accents, focus borders, selected nav); respects `NO_COLOR`.
+- Task-first landing composition: hero region with Cerberus graphic + wordmark, Quick Start with primary `Start New Run` action, compact System Readiness surface, bounded Recent Runs preview, footer control hints matching implemented keys (PRs [#357](https://github.com/aetorresdev/ai-minions/pull/357), [#364](https://github.com/aetorresdev/ai-minions/pull/364)).
+- Native Ink workflows for launcher and run browser; nested readline interaction split removed (PR [#358](https://github.com/aetorresdev/ai-minions/pull/358)).
+- UX acceptance companion gate `npm run test:tui-ux` wired into `npm run test:tui-release` with evidence-registry preflight that blocks (never fabricates PASS) when first-time/platform evidence is missing (PR [#368](https://github.com/aetorresdev/ai-minions/pull/368)).
+- Cerberus brand splash (approved option C direction) with arcade/pixel-art rendering and **Semantic Guardians** default guardian set; `AI_MINIONS_TUI_GUARDIAN=neon` opt-in (PRs [#361](https://github.com/aetorresdev/ai-minions/pull/361), [#370](https://github.com/aetorresdev/ai-minions/pull/370)).
+- Semantic TUI theme tokens (brand/role/execution-state) consumed by Ink components; `NO_COLOR` preserves hierarchy, labels, and blocked-vs-failed distinction (PRs [#352](https://github.com/aetorresdev/ai-minions/pull/352), [#365](https://github.com/aetorresdev/ai-minions/pull/365)).
+- First-run reason-code honesty: preflight-blocked doctor failures map to `NEEDS_INIT` on clean checkout instead of misleading failure codes (PR [#371](https://github.com/aetorresdev/ai-minions/pull/371)).
+- Trivy gate status honesty: stable machine-readable `status=PASS|BLOCKED|FAIL|SKIPPED`; missing scanner defaults to `BLOCKED` (exit 2), never PASS; `SKIPPED` requires explicit `RELEASE_TRIVY_GATE_SKIP_REASON`; dev-deps false negative closed and findings remediated (PR [#372](https://github.com/aetorresdev/ai-minions/pull/372)).
+- Splash cold-start hardening: stdin fully drained before first Ink mount (fail closed on truncation); renderer import ordered before post-discovery drain; residual Enter/`1` cannot auto-dismiss splash or skip landing (PR [#373](https://github.com/aetorresdev/ai-minions/pull/373)).
+- GUI design handoff: approved detailed Cerberus master art preserved for future GUI work — design continuity only, not a GUI runtime claim (PR [#370](https://github.com/aetorresdev/ai-minions/pull/370)).
 - Claims-audit negatives rejecting premature context-runtime / Loop Contract / Execution Graph shipped wording.
 
 ### Changed
 
-- Operator cockpit contract and usage smoke guide document splash + theme polish.
-- Release checklist / product version aligned to `v0.26.0-beta.1` Phase A preparation.
+- Friendlier Ink shell color hierarchy and bold/dim typography contrast via semantic tokens (cyan/blue/magenta brand accents; green/yellow/red reserved for runtime states); respects `NO_COLOR`.
+- Operator cockpit contract and usage smoke guide document landing composition, splash, theme, and UX acceptance gate.
+- System Status, Settings, Help stay Ink-local without session-exit remounts (PRs [#359](https://github.com/aetorresdev/ai-minions/pull/359), [#362](https://github.com/aetorresdev/ai-minions/pull/362), [#367](https://github.com/aetorresdev/ai-minions/pull/367)).
+- Release checklist / product version aligned to `v0.26.0-beta.1` Phase B preparation.
+
+### Security
+
+- Trivy pre-tag gate now fail-closed on missing scanner and honest about `SKIPPED`; dev-dependency findings remediated (PR [#372](https://github.com/aetorresdev/ai-minions/pull/372)).
 
 ### Notes
 
-- Phase B (annotated tag, GitHub pre-release, `release` branch align) stays unchecked until first-run reason-code honesty and Trivy prerequisite semantics are resolved and CERBERUS Approves the cut.
-- Splash/theme must not be marketed as new harness, loop, or graph capability.
+- Phase B (annotated tag, GitHub pre-release, `release` branch align) stays unchecked until CERBERUS Approves the release-prep PR and the operator executes the cut.
+- **Open release-gate decision (operator):** `test:tui-release` preflight remains **BLOCKED** on `manual_first_time_user:blocked`. Tag cut is gated on an explicit operator decision: either collect manual first-time-user evidence before the cut, or cut with the BLOCKED item recorded as a known limitation. This section does not fake a PASS.
+- Splash/theme/landing work is presentation only; it must not be marketed as new harness, loop, graph, or orchestration capability.
 
 ## [0.25.0-beta.1] - 2026-07-20
 

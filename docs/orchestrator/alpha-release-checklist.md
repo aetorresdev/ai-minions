@@ -1558,7 +1558,7 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 
 ## v0.26.0-beta.1 — Fullscreen TUI Completion + Live Harness Evidence
 
-**Scope:** Node.js 22 · Ink 7 fullscreen shell · guided launcher · live run monitor · slash commands · live canonical harness evidence · integrated TUI quality gate · **brand splash + friendlier color/typography theme** (presentation only). **Prerequisite:** v0.25 @ `95f084e`. **Beta continuity** — not production TUI, Loop Contract, Execution Graph, or context-package runtime. **Tag only** after Phase A merge + tag-blocker honesty (first-run reason codes · Trivy PASS/BLOCKED/SKIPPED) + CERBERUS Approve.
+**Scope:** Node.js 22 · Ink 7 fullscreen shell · task-first landing composition · native Ink workflows · guided launcher · live run monitor · slash commands · live canonical harness evidence · integrated TUI quality gate + UX acceptance companion gate · **brand splash + semantic theme tokens** (presentation only) · **tag-blocker honesty** (first-run reason codes · Trivy PASS/BLOCKED/SKIPPED). **Prerequisite:** v0.25 @ `95f084e`. **Beta continuity** — not production TUI, Loop Contract, Execution Graph, or context-package runtime. **Tag only** after release-prep merge + CERBERUS Approve + explicit operator decision on the open `test:tui-release` BLOCKED gate.
 
 ### Must-have bundle
 
@@ -1569,14 +1569,42 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 - [x] Slash commands — merged on critical path
 - [x] Live harness Sudoku evidence path — merged @ `e058f45` (PR #347)
 - [x] Integrated TUI quality gate — merged @ `c1cfb26` (PR #348)
-- [x] Brand splash + theme polish + claims negatives — this Phase A release-prep PR
-- [ ] First-run reason-code honesty — **tag blocker** (document/resolve before Phase B)
-- [x] Trivy prerequisite PASS/BLOCKED/SKIPPED honesty — `scripts/release-trivy-gate.sh` emits stable `status=PASS|BLOCKED|FAIL|SKIPPED`; missing scanner defaults to `BLOCKED` (exit 2), never `PASS`; `SKIPPED` requires explicit `RELEASE_TRIVY_GATE_SKIP_REASON`; see [security-posture.md](security-posture.md#gate-status-semantics-machine-readable) and `tests/release-trivy-gate.test.mjs`
-- [ ] Release-prep CERBERUS Approve + Phase B cut
+- [x] Launcher soft-handoff / exit-lag fix — merged @ `c4c0ed5` (PR #351)
+- [x] Theme/splash precursor + claims negatives — merged @ `e5df1cb` (PR #352)
+- [x] Task-first landing + navigation architecture — merged @ `46b6655` (PR #357, #353)
+- [x] Native Ink workflows (launcher + run browser) — merged @ `ec11650` (PR #358, #354)
+- [x] Ink-local session/Help/System Status fixes — merged @ `d567305` / `e8c16b9` / `4f1334d` (PRs #359, #362, #367)
+- [x] Cerberus option C brand splash — merged @ `1d7c78f` (PR #361)
+- [x] Task-first landing composition (approved) — merged @ `b4acb8b` (PR #364, #363)
+- [x] TUI visual system lock — merged @ `d4f061d` (PR #365)
+- [x] UX acceptance companion gate (`test:tui-ux` + `test:tui-release` canonical) — merged @ `c0166f0` (PR #368, #356)
+- [x] Arcade Cerberus + Semantic Guardians default + nav hardening + GUI art handoff — squash merged @ `4e0a0e7` (PR #370, #366/#369)
+- [x] First-run reason-code honesty — merged @ `c237355` (PR #371, #323); preflight-blocked doctor failures map to `NEEDS_INIT` on clean checkout
+- [x] Trivy prerequisite PASS/BLOCKED/SKIPPED honesty — merged @ `fa2d04b` (PR #372, #324); `scripts/release-trivy-gate.sh` emits stable `status=PASS|BLOCKED|FAIL|SKIPPED`; missing scanner defaults to `BLOCKED` (exit 2), never `PASS`; `SKIPPED` requires explicit `RELEASE_TRIVY_GATE_SKIP_REASON`; dev-deps false negative closed + findings remediated; see [security-posture.md](security-posture.md#gate-status-semantics-machine-readable) and `tests/release-trivy-gate.test.mjs`
+- [x] Brand splash cold-start stdin drain + renderer exception contract — merged @ `38735ef` (PR #373); CERBERUS Approve with non-blocking note
+- [ ] Release-prep CERBERUS Approve + Phase B cut — **this release-prep PR**
+
+### v0.26 validation log
+
+| Date | Context | Outcome |
+|------|---------|---------|
+| 2026-07-31 | Runtime/test baseline @ `38735ef` (lane merge; inherited unchanged by docs-only PR #374 validation snapshot `3f54fe5`) | `cd orchestrator && npm test` → **1802/1803** pass (1 skipped) |
+| 2026-07-31 | Runtime/test baseline @ `38735ef` (inherited by docs-only PR #374 validation snapshot `3f54fe5`) | `cd orchestrator && npm run test:tui-quality` → **307/307** pass |
+| 2026-07-31 | Runtime/test baseline @ `38735ef` (inherited by docs-only PR #374 validation snapshot `3f54fe5`) | `cd orchestrator && npm run test:tui-release` → automated UX acceptance **17/17** pass; release preflight verdict **`blocked`** — reason `manual_first_time_user:blocked` (honest; **not** a PASS) |
+| 2026-07-31 | Runtime/test baseline @ `38735ef` (inherited by docs-only PR #374 validation snapshot `3f54fe5`) | `bash scripts/release-trivy-gate.sh` → **`status=PASS`** (Trivy `0.69.1`; published scope clean) |
+| 2026-07-31 | PR #374 validation snapshot `3f54fe5` | `node scripts/verify-usage-docs.mjs` → **OK** |
+| 2026-07-31 | PR #374 validation snapshot `3f54fe5` | `node scripts/audit-product-claims.mjs` → **OK** (deferred context-runtime / loop / graph negatives included) |
+| 2026-07-31 | PR #374 validation snapshot `3f54fe5` | `node --test orchestrator/tests/changelogReleaseFormat.test.js` + `productVersionSync.test.js` → **14/14 OK** |
+| 2026-07-31 | PR #374 validation snapshot `3f54fe5` | `markdownlint-cli2` on `CHANGELOG.md` + `docs/orchestrator/alpha-release-checklist.md` → **0 issues** (full-repo CI lint green via linked run below) |
+| 2026-07-31 | CI | [orchestrator-unit-tests](https://github.com/aetorresdev/ai-minions/actions/runs/30669382209) · [orchestrator-e2e](https://github.com/aetorresdev/ai-minions/actions/runs/30669382272) · [Link Check](https://github.com/aetorresdev/ai-minions/actions/runs/30669382224) · [Markdown Lint](https://github.com/aetorresdev/ai-minions/actions/runs/30669382210) · [Installed CLI Docker live](https://github.com/aetorresdev/ai-minions/actions/runs/30669382220) green on lane tip `b4148b6` (PR #373; inherited per [release-workflow.md](release-workflow.md) A3 docs-only rule); [security-trivy-scan](https://github.com/aetorresdev/ai-minions/actions/runs/30669420323) green on `fa2d04b` push |
+
+### Open release gate (honest, operator decision required)
+
+- [ ] **`test:tui-release` manual first-time-user evidence** — preflight **BLOCKED** (`manual_first_time_user:blocked`; registry `orchestrator/modules/operator/tui-ux-acceptance-evidence.registry.json`). Do **not** mark resolved without real manual evidence. Operator decides: collect evidence before tag, **or** cut with this BLOCKED item recorded as a known limitation. Agents must not fake PASS.
 
 ### Forbidden release claims (v0.26)
 
-"production-ready TUI" · "Web UI shipped" · "mouse interaction shipped" · "Canonical Loop Contract shipped" · "Execution Graph runtime shipped" · "bounded context-package runtime shipped" · "progressive disclosure shipped" · "automatically sends only the context each agent needs" · "unused tools and skills are hidden per step" · "required instructions can never be truncated" · "every invocation has a reproducible context hash" · "hybrid cloud routing shipped" · "durable resume" · RAG/retrieval stacks · "security PASS" when Trivy did not run · "cohort gate open" without independent evidence.
+"production-ready TUI" · "Web UI shipped" · "mouse interaction shipped" · "Canonical Loop Contract shipped" · "Execution Graph runtime shipped" · "bounded context-package runtime shipped" · "progressive disclosure shipped" · "automatically sends only the context each agent needs" · "unused tools and skills are hidden per step" · "required instructions can never be truncated" · "every invocation has a reproducible context hash" · "hybrid cloud routing shipped" · "durable resume" · RAG/retrieval stacks · "security PASS" when Trivy did not run · "TUI release gate PASS" while `manual_first_time_user:blocked` · "GUI runtime shipped" (art handoff only) · "cohort gate open" without independent evidence.
 
 ### Release execution plan (Phase B — operator steps)
 
@@ -1588,7 +1616,7 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 
 ### Release artifact (source snapshot)
 
-- [x] **Changelog:** section **[0.26.0-beta.1] - 2026-07-27** (Phase A)
+- [x] **Changelog:** section **[0.26.0-beta.1] - 2026-07-31** (Phase B release-prep; header date adjustable at publish)
 - [ ] **Execution plan post-tag** — tag · pre-release URL · `release` branch · governance record `evidence_status: complete`
 
 ## Future alpha / beta gates (positioning)
