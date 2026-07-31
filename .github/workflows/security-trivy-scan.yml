@@ -63,6 +63,22 @@ jobs:
       - name: Prepare report directory
         run: mkdir -p trivy-reports
 
+      # Scope guard: the lockfile ships the full dependency tree, so the scan must
+      # include devDependencies. A config regression here would silently under-report
+      # (false PASS) — fail the job before any report is produced.
+      - name: Verify dev-dependencies scanning is enabled
+        run: |
+          awk '
+            /^[[:space:]]*#/ { next }
+            /^pkg:[[:space:]]*$/ { in_pkg=1; next }
+            /^[A-Za-z]/ { in_pkg=0 }
+            in_pkg && $1 == "include-dev-deps:" && $2 == "true" { found=1 }
+            END { exit(found ? 0 : 1) }
+          ' .trivy.yaml || {
+            echo "::error::.trivy.yaml must set pkg.include-dev-deps: true — devDependency findings would be silently excluded"
+            exit 1
+          }
+
       - name: Trivy report (JSON)
         uses: aquasecurity/trivy-action@v0.36.0
         with:

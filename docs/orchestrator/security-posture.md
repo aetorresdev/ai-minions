@@ -298,6 +298,14 @@ Planned or post-alpha unless code says otherwise:
 Before cutting an alpha/pre-release tag, run the **published dependency scope**
 scan. Scope is defined in root **`.trivy.yaml`**.
 
+The scope covers the **full shipped lockfile, including `devDependencies`**
+(`pkg.include-dev-deps: true`). Tooling and misclassified packages live in the
+same lockfile an operator installs from; a production-only scan can report
+`PASS` while HIGH/CRITICAL findings sit in dev-classified packages. Both the
+local gate and the CI workflow **refuse to produce scan evidence when the flag
+is missing** (`BLOCKED` locally, a failing step in CI), so the scope cannot
+silently regress.
+
 **CI:** GitHub Actions workflow **`security-trivy-scan`** uses
 [`aquasecurity/trivy-action`](https://github.com/aquasecurity/trivy-action)
 **pinned to `v0.36.0`** (see `.github/workflows/security-trivy-scan.yml`) —
@@ -336,7 +344,7 @@ actual status, never assume `PASS`:
 | Status | Meaning | Exit code |
 |--------|---------|-----------|
 | `PASS` | Validated Trivy ran; published scope clean of HIGH/CRITICAL fixed vulns and secrets. | `0` |
-| `BLOCKED` | Prerequisite / operational failure — `trivy` missing, `TRIVY_BIN` not a real Trivy (`--version` must mention trivy), `uv lock` failed, or scanner exited with a non-findings code. Gate did **not** produce PASS/FAIL scan evidence. **Default** for a missing scanner. | `2` |
+| `BLOCKED` | Prerequisite / operational failure — `trivy` missing, `TRIVY_BIN` not a real Trivy (`--version` must print a `Version: X.Y.Z` first line and `--help` must mention trivy), trivy config missing or without `pkg.include-dev-deps: true`, `uv lock` failed, or scanner exited with a non-findings code. Gate did **not** produce PASS/FAIL scan evidence. **Default** for a missing scanner. | `2` |
 | `FAIL` | Validated Trivy ran and reported findings via reserved exit code `1` (HIGH/CRITICAL fixed vulns or secrets). Other scanner exits are **not** FAIL. | `1` |
 | `SKIPPED` | Explicit operator opt-out only: `RELEASE_TRIVY_GATE_SKIP_REASON` is non-empty **after trim** while the scanner was missing. Whitespace-only values are treated as unset. Recorded reason must appear in release evidence. **Not** used silently. | `0` |
 
@@ -350,13 +358,15 @@ before tagging.
 used as a remediation helper (see below) or for extra visibility on Node
 dependency advisories, but it does **not** satisfy the Trivy vulnerability
 gate and must not be cited as such in release evidence unless a future policy
-revision says otherwise.
+revision says otherwise. In particular, `npm audit --omit=dev` reporting zero
+findings is **never** evidence of a clean scope: it excludes the devDependency
+tree by construction, which is exactly where tooling-only advisories hide.
 
 **In scope (must be clean):**
 
 | Path | Role |
 |------|------|
-| `orchestrator/package-lock.json` | Node orchestrator runtime |
+| `orchestrator/package-lock.json` | Node orchestrator runtime — full tree, `devDependencies` included (`pkg.include-dev-deps`) |
 | `mcp-servers/*/uv.lock` | MCP Python transitive pins (`uv sync` reproducibility) |
 | `scripts/hooks/` | Python hook sources (secret scanner) |
 

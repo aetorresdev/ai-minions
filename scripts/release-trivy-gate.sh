@@ -4,7 +4,8 @@
 # Machine-readable contract (stdout, always the last line before exit):
 #   status=PASS     — scanner ran, published scope clean. Exit 0.
 #   status=BLOCKED  — prerequisite / operational failure (scanner missing, not a real
-#                     Trivy binary, uv lock failure, scanner error other than findings).
+#                     Trivy binary, uv lock failure, trivy config missing or without
+#                     pkg.include-dev-deps: true, scanner error other than findings).
 #                     Gate did not produce PASS/FAIL scan evidence. Exit 2.
 #   status=FAIL     — real Trivy ran and reported HIGH/CRITICAL fixed vulns or secrets
 #                     via its reserved findings exit code (1). Exit 1.
@@ -18,8 +19,11 @@
 # Env overrides:
 #   TRIVY_BIN                     — path/name of the trivy binary (default: "trivy"). Lets
 #                                    callers (tests, alt installs) point at a specific binary
-#                                    without mutating PATH. Must respond to --version with
-#                                    output matching "trivy" (case-insensitive); otherwise BLOCKED.
+#                                    without mutating PATH. Must respond to --version with a
+#                                    "Version: X.Y.Z" first line and to --help with output
+#                                    mentioning "trivy" (case-insensitive); otherwise BLOCKED.
+#                                    (--version alone prints no product name on real Trivy,
+#                                    so the name is verified via --help usage text.)
 #   RELEASE_TRIVY_GATE_SKIP_REASON — non-empty (after trim) string to explicitly skip a missing
 #                                    scanner. Documented operator override only; not a CI default.
 #
@@ -33,8 +37,23 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 TRIVY_BIN="${TRIVY_BIN:-trivy}"
+TRIVY_CONFIG="${TRIVY_CONFIG:-.trivy.yaml}"
 # Trim surrounding whitespace; whitespace-only reasons are not SKIPPED.
 SKIP_REASON="$(printf '%s' "${RELEASE_TRIVY_GATE_SKIP_REASON:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
+# Dev-dependency coverage is part of the gate contract. The lockfile ships the full
+# dependency tree; a scan limited to production deps can report PASS while HIGH/CRITICAL
+# findings sit in devClassified packages (the npm audit --omit=dev blind spot). A config
+# that drops pkg.include-dev-deps is a silent scope regression — BLOCKED, never PASS.
+config_includes_dev_deps() {
+  awk '
+    /^[[:space:]]*#/ { next }
+    /^pkg:[[:space:]]*$/ { in_pkg=1; next }
+    /^[A-Za-z]/ { in_pkg=0 }
+    in_pkg && $1 == "include-dev-deps:" && $2 == "true" { found=1 }
+    END { exit(found ? 0 : 1) }
+  ' "$1"
+}
 
 emit_blocked() {
   local msg="$1"
@@ -72,13 +91,29 @@ if ! command -v "$TRIVY_BIN" >/dev/null 2>&1; then
 fi
 
 # Reject arbitrary executables masquerading as Trivy (/bin/true → fake PASS, /bin/false → fake FAIL).
+# Real `trivy --version` prints only "Version: X.Y.Z" plus DB metadata — no product name —
+# so a name check on --version would BLOCK the real scanner. Shape is checked on --version,
+# product name on --help usage text; both must succeed.
 version_out=""
 version_rc=0
 version_out="$("$TRIVY_BIN" --version 2>&1)" || version_rc=$?
-if [[ "$version_rc" -ne 0 ]] || ! printf '%s' "$version_out" | grep -qi 'trivy'; then
-  emit_blocked "TRIVY_BIN ('$TRIVY_BIN') is not a usable Trivy binary (--version must succeed and mention trivy)"
+help_out=""
+help_rc=0
+help_out="$("$TRIVY_BIN" --help 2>&1)" || help_rc=$?
+if [[ "$version_rc" -ne 0 ]] || ! printf '%s\n' "$version_out" | head -n1 | grep -Eq '^Version: [0-9]'; then
+  emit_blocked "TRIVY_BIN ('$TRIVY_BIN') is not a usable Trivy binary (--version must succeed with a 'Version: X.Y.Z' first line)"
+fi
+if [[ "$help_rc" -ne 0 ]] || ! printf '%s' "$help_out" | grep -qi 'trivy'; then
+  emit_blocked "TRIVY_BIN ('$TRIVY_BIN') is not a usable Trivy binary (--help must succeed and mention trivy)"
 fi
 echo "release-trivy-gate: using $(printf '%s\n' "$version_out" | head -n1)" >&2
+
+if [[ ! -f "$TRIVY_CONFIG" ]]; then
+  emit_blocked "trivy config '$TRIVY_CONFIG' not found; cannot verify dev-deps scan scope"
+fi
+if ! config_includes_dev_deps "$TRIVY_CONFIG"; then
+  emit_blocked "trivy config '$TRIVY_CONFIG' does not set 'pkg.include-dev-deps: true' — dev dependencies would be silently excluded (false-PASS risk)"
+fi
 
 if command -v uv >/dev/null 2>&1; then
   for dir in mcp-servers/compact-handoff mcp-servers/orchestrator-state; do
@@ -91,7 +126,7 @@ if command -v uv >/dev/null 2>&1; then
 fi
 
 scan_rc=0
-"$TRIVY_BIN" fs --config .trivy.yaml --scanners vuln,secret --ignore-unfixed --exit-code 1 . || scan_rc=$?
+"$TRIVY_BIN" fs --config "$TRIVY_CONFIG" --scanners vuln,secret --ignore-unfixed --exit-code 1 . || scan_rc=$?
 
 case "$scan_rc" in
   0)

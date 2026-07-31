@@ -31,19 +31,20 @@ function runGate(extraEnv = {}) {
 }
 
 /**
- * Write a tiny fake "trivy" that prints a version line and exits with the given scan rc.
- * @param {{ versionLine?: string, versionRc?: number, scanRc?: number }} opts
+ * Write a tiny fake "trivy" that prints version/help lines and exits with the given scan rc.
+ * @param {{ versionLine?: string, versionRc?: number, helpLine?: string, scanRc?: number }} opts
  */
 function makeFakeTrivy(opts = {}) {
   const {
     versionLine = "Version: 0.0.0-test",
     versionRc = 0,
+    helpLine = "Usage: trivy [global flags] command [flags] target",
     scanRc = 0,
   } = opts;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trivy-gate-fake-"));
   const bin = path.join(dir, "trivy");
-  // Fake binary: --version prints versionLine; any other invocation exits scanRc.
-  // Include "trivy" in the version string only when versionLine contains it (callers control).
+  // Fake binary: --version prints versionLine, --help prints helpLine;
+  // any other invocation exits scanRc. Callers control both text payloads.
   fs.writeFileSync(
     bin,
     `#!/usr/bin/env bash
@@ -51,12 +52,46 @@ if [[ "\${1:-}" == "--version" ]]; then
   printf '%s\\n' ${JSON.stringify(versionLine)}
   exit ${versionRc}
 fi
+if [[ "\${1:-}" == "--help" ]]; then
+  printf '%s\\n' ${JSON.stringify(helpLine)}
+  exit 0
+fi
 exit ${scanRc}
 `,
     { mode: 0o755 },
   );
   return { dir, bin };
 }
+
+/**
+ * Copy the gate script into a throwaway repo layout (scripts/ + .trivy.yaml) so tests
+ * can exercise config-dependent paths without mutating the real repository config.
+ * @param {{ configContent: string }} opts
+ */
+function makeTempRepo(opts) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trivy-gate-repo-"));
+  fs.mkdirSync(path.join(dir, "scripts"), { recursive: true });
+  fs.copyFileSync(GATE_SCRIPT, path.join(dir, "scripts", "release-trivy-gate.sh"));
+  fs.writeFileSync(path.join(dir, ".trivy.yaml"), opts.configContent);
+  return dir;
+}
+
+/** @param {string} repoDir @param {Record<string,string|undefined>} extraEnv */
+function runGateIn(repoDir, extraEnv = {}) {
+  return spawnSync("bash", [path.join(repoDir, "scripts", "release-trivy-gate.sh")], {
+    encoding: "utf8",
+    cwd: repoDir,
+    env: {
+      ...process.env,
+      TRIVY_BIN: "/nonexistent/trivy-release-trivy-gate-test",
+      RELEASE_TRIVY_GATE_SKIP_REASON: "",
+      ...extraEnv,
+    },
+  });
+}
+
+const CONFIG_WITH_DEV_DEPS = "severity:\n  - HIGH\npkg:\n  include-dev-deps: true\n";
+const CONFIG_WITHOUT_DEV_DEPS = "severity:\n  - HIGH\n";
 
 describe("release-trivy-gate.sh", () => {
   it("is BLOCKED (never PASS) when trivy is missing, with non-zero exit", () => {
@@ -122,6 +157,41 @@ describe("release-trivy-gate.sh", () => {
     assert.equal(result.status, 2);
     assert.match(result.stdout, /^status=BLOCKED$/m);
     assert.doesNotMatch(result.stdout, /^status=FAIL$/m);
+  });
+
+  it("rejects a binary with a Version-shaped --version but no trivy in --help — BLOCKED", () => {
+    const fake = makeFakeTrivy({
+      versionLine: "Version: 9.9.9",
+      helpLine: "Usage: totally-not-a-scanner [flags]",
+    });
+    try {
+      const result = runGate({
+        TRIVY_BIN: fake.bin,
+        RELEASE_TRIVY_GATE_SKIP_REASON: "",
+      });
+      assert.equal(result.status, 2);
+      assert.match(result.stdout, /^status=BLOCKED$/m);
+      assert.match(result.stderr, /not a usable Trivy/);
+    } finally {
+      fs.rmSync(fake.dir, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts real-Trivy-shaped --version output (no product name in it)", () => {
+    // Real `trivy --version` prints "Version: X.Y.Z" + DB metadata, no "trivy" string.
+    const fake = makeFakeTrivy({
+      versionLine: "Version: 0.69.1",
+      scanRc: 0,
+    });
+    const repo = makeTempRepo({ configContent: CONFIG_WITH_DEV_DEPS });
+    try {
+      const result = runGateIn(repo, { TRIVY_BIN: fake.bin });
+      assert.equal(result.status, 0);
+      assert.match(result.stdout, /^status=PASS$/m);
+    } finally {
+      fs.rmSync(fake.dir, { recursive: true, force: true });
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
   });
 
   it("maps scanner exit 1 from a validated Trivy binary to status=FAIL", () => {
@@ -200,5 +270,63 @@ describe("release-trivy-gate.sh", () => {
     assert.match(doc, /\bBLOCKED\b/);
     assert.match(doc, /\bSKIPPED\b/);
     assert.match(doc, /supplementary/i);
+  });
+
+  it("is BLOCKED (never PASS) when the trivy config drops pkg.include-dev-deps", () => {
+    const fake = makeFakeTrivy({ versionLine: "Version: 0.0.0-test (trivy)", scanRc: 0 });
+    const repo = makeTempRepo({ configContent: CONFIG_WITHOUT_DEV_DEPS });
+    try {
+      const result = runGateIn(repo, { TRIVY_BIN: fake.bin });
+      assert.equal(result.status, 2);
+      assert.match(result.stdout, /^status=BLOCKED$/m);
+      assert.doesNotMatch(result.stdout, /^status=PASS$/m);
+      assert.match(result.stderr, /include-dev-deps/);
+    } finally {
+      fs.rmSync(fake.dir, { recursive: true, force: true });
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("is BLOCKED when the trivy config file is missing entirely", () => {
+    const fake = makeFakeTrivy({ versionLine: "Version: 0.0.0-test (trivy)", scanRc: 0 });
+    const repo = makeTempRepo({ configContent: CONFIG_WITH_DEV_DEPS });
+    fs.rmSync(path.join(repo, ".trivy.yaml"));
+    try {
+      const result = runGateIn(repo, { TRIVY_BIN: fake.bin });
+      assert.equal(result.status, 2);
+      assert.match(result.stdout, /^status=BLOCKED$/m);
+      assert.match(result.stderr, /not found/);
+    } finally {
+      fs.rmSync(fake.dir, { recursive: true, force: true });
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("emits status=PASS in a repo whose config enables pkg.include-dev-deps", () => {
+    const fake = makeFakeTrivy({ versionLine: "Version: 0.0.0-test (trivy)", scanRc: 0 });
+    const repo = makeTempRepo({ configContent: CONFIG_WITH_DEV_DEPS });
+    try {
+      const result = runGateIn(repo, { TRIVY_BIN: fake.bin });
+      assert.equal(result.status, 0);
+      assert.match(result.stdout, /^status=PASS$/m);
+    } finally {
+      fs.rmSync(fake.dir, { recursive: true, force: true });
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("repo .trivy.yaml enables pkg.include-dev-deps (dev-deps scan contract)", () => {
+    const config = fs.readFileSync(path.join(REPO_ROOT, ".trivy.yaml"), "utf8");
+    assert.match(config, /^pkg:\s*$/m);
+    assert.match(config, /^\s+include-dev-deps:\s*true\s*$/m);
+  });
+
+  it("CI workflow enforces dev-deps scanning and runs this gate contract suite", () => {
+    const workflow = fs.readFileSync(
+      path.join(REPO_ROOT, ".github", "workflows", "security-trivy-scan.yml"),
+      "utf8",
+    );
+    assert.match(workflow, /include-dev-deps/);
+    assert.match(workflow, /release-trivy-gate\.test\.mjs/);
   });
 });
