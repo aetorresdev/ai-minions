@@ -469,9 +469,26 @@ async function runOperatorTuiShell(options = {}) {
   // straight into the launcher workflow). On the splash route the renderer is
   // already cached from the splash gate, so this is a no-op there.
   if (!cachedRenderer) {
-    cachedRenderer = await importRenderer();
-    inkLoaded = true;
-    reactLoaded = true;
+    try {
+      cachedRenderer = await importRenderer();
+      inkLoaded = true;
+      reactLoaded = true;
+    } catch (err) {
+      // Same contract as the splash-route import failure: restore the guard and
+      // surface a result payload — never let the rejection escape the entry.
+      if (guard && !guard.restored) guard.restore('renderer_exception');
+      return {
+        ok: false,
+        exitCode: 1,
+        reason_code: TUI_SHELL_REASON.RENDERER_EXCEPTION,
+        ink_loaded: inkLoaded,
+        react_loaded: reactLoaded,
+        text: formatShellText(model),
+        model,
+        guard,
+        error: String(err && err.message ? err.message : err),
+      };
+    }
   }
 
   // Second drain: runs after the renderer import, immediately before the first

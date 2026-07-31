@@ -374,6 +374,15 @@ test('key 1 and Enter open native launcher workflow (no nested executeAction), n
       buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
       assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
       assessPath: () => ({ status: 'ready', on_path: true }),
+      importRenderer: async () => {
+        // CI=true makes Ink default to non-interactive (frames written only on
+        // unmount), so the first-paint signal would never fire. Force interactive
+        // for this mount only — production keeps Ink's CI/TTY auto-detection.
+        const mod = await import('../../modules/operator/operator-tui-shell-render.mjs');
+        return {
+          renderOperatorTuiShell: (opts) => mod.renderOperatorTuiShell({ ...opts, interactive: true }),
+        };
+      },
       executeAction: async (opts) => {
         actions.push(opts.actionId);
         return {
@@ -972,6 +981,39 @@ test('renderer exception restores terminal', async () => {
   assert.equal(result.ok, false);
   assert.equal(result.reason_code, TUI_SHELL_REASON.RENDERER_EXCEPTION);
   assert.equal(result.guard.restored, true);
+});
+
+test('skipSplash renderer import failure resolves as renderer exception with guard restored', async () => {
+  // No-splash route imports the renderer after discovery (import-before-drain);
+  // a rejection there must follow the splash-route contract — result payload,
+  // load flags false, guard restored — never an escaping rejection.
+  const { stdin, stdout } = createFakeTtyStreams();
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 1,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => {
+      throw new Error('simulated renderer import failure');
+    },
+    executeAction: async () => {
+      throw new Error('renderer import failure must not executeAction');
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.RENDERER_EXCEPTION);
+  assert.equal(result.ink_loaded, false);
+  assert.equal(result.react_loaded, false);
+  assert.equal(result.guard.restored, true);
+  assert.match(result.error, /simulated renderer import failure/);
+  stdin.destroy();
+  stdout.destroy();
 });
 
 test('interactive render with fake TTY auto-quits and restores', async () => {
