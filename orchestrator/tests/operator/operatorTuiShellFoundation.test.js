@@ -344,9 +344,27 @@ test('hotkey matrix: labeled keys dispatch panes; only q ends session', () => {
 });
 
 test('key 1 and Enter open native launcher workflow (no nested executeAction), never silent quit', async () => {
+  // Keys typed before the first interactive mount are cold-start noise and get
+  // drained by design — wait for the first stdout paint (mount evidence) before
+  // writing, otherwise the hotkey races the renderer import window.
+  function waitForFirstPaint(stdout, timeoutMs = 2000) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        stdout.off('data', onData);
+        reject(new Error('shell did not paint within timeout'));
+      }, timeoutMs);
+      const onData = () => {
+        clearTimeout(timer);
+        stdout.off('data', onData);
+        resolve();
+      };
+      stdout.on('data', onData);
+    });
+  }
   async function runWithKey(writeKey) {
     const actions = [];
     const { stdin, stdout } = createFakeTtyStreams();
+    const painted = waitForFirstPaint(stdout);
     const promise = runOperatorTuiShell({
       isTTY: true,
       stdin,
@@ -356,6 +374,15 @@ test('key 1 and Enter open native launcher workflow (no nested executeAction), n
       buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
       assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
       assessPath: () => ({ status: 'ready', on_path: true }),
+      importRenderer: async () => {
+        // CI=true makes Ink default to non-interactive (frames written only on
+        // unmount), so the first-paint signal would never fire. Force interactive
+        // for this mount only — production keeps Ink's CI/TTY auto-detection.
+        const mod = await import('../../modules/operator/operator-tui-shell-render.mjs');
+        return {
+          renderOperatorTuiShell: (opts) => mod.renderOperatorTuiShell({ ...opts, interactive: true }),
+        };
+      },
       executeAction: async (opts) => {
         actions.push(opts.actionId);
         return {
@@ -372,7 +399,7 @@ test('key 1 and Enter open native launcher workflow (no nested executeAction), n
         };
       },
     });
-    await new Promise((r) => setTimeout(r, 100));
+    await painted;
     stdin.write(writeKey);
     await new Promise((r) => setTimeout(r, 80));
     stdin.write('q');
@@ -954,6 +981,39 @@ test('renderer exception restores terminal', async () => {
   assert.equal(result.ok, false);
   assert.equal(result.reason_code, TUI_SHELL_REASON.RENDERER_EXCEPTION);
   assert.equal(result.guard.restored, true);
+});
+
+test('skipSplash renderer import failure resolves as renderer exception with guard restored', async () => {
+  // No-splash route imports the renderer after discovery (import-before-drain);
+  // a rejection there must follow the splash-route contract — result payload,
+  // load flags false, guard restored — never an escaping rejection.
+  const { stdin, stdout } = createFakeTtyStreams();
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 1,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => {
+      throw new Error('simulated renderer import failure');
+    },
+    executeAction: async () => {
+      throw new Error('renderer import failure must not executeAction');
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.RENDERER_EXCEPTION);
+  assert.equal(result.ink_loaded, false);
+  assert.equal(result.react_loaded, false);
+  assert.equal(result.guard.restored, true);
+  assert.match(result.error, /simulated renderer import failure/);
+  stdin.destroy();
+  stdout.destroy();
 });
 
 test('interactive render with fake TTY auto-quits and restores', async () => {
@@ -2262,7 +2322,8 @@ test('cold-start drain truncation reports real ink/react flags; interactive shel
     stdout.destroy();
   }
 
-  // With splash: splash imports Ink/React once → flags true; interactive shell never mounts.
+  // With splash: drain still runs before Ink — truncation aborts with flags false;
+  // neither splash nor interactive shell mounts.
   {
     const stdin = createNeverEmptyColdStartStdin();
     const stdout = new PassThrough();
@@ -2295,12 +2356,326 @@ test('cold-start drain truncation reports real ink/react flags; interactive shel
     assert.equal(result.reason_code, TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED);
     assert.equal(result.ok, false);
     assert.equal(result.exitCode, 1);
-    assert.equal(splashMounts, 1, 'splash renderer must run before drain truncation');
-    assert.equal(result.ink_loaded, true, 'splash already loaded Ink — must not report false');
-    assert.equal(result.react_loaded, true, 'splash already loaded React — must not report false');
+    assert.equal(splashMounts, 0, 'drain truncation must abort before splash Ink mount');
+    assert.equal(result.ink_loaded, false, 'Ink must not load when drain aborts before mount');
+    assert.equal(result.react_loaded, false, 'React must not load when drain aborts before mount');
     assert.equal(interactiveMounts, 0, 'interactive shell must not mount after truncation');
     stdout.destroy();
   }
+});
+
+test('cold start drains stdin buffered during discovery (no splash route)', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  let shellMounts = 0;
+  let bufferedAtMount = null;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 1,
+    autoQuitMs: 80,
+    loadRuns: () => {
+      // Operator types `1` + Enter while run discovery is in flight.
+      stdin.write('1\r');
+      return canonicalRunsResult([]);
+    },
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async (opts) => {
+        shellMounts += 1;
+        bufferedAtMount = stdin.readableLength;
+        // Simulate Ink keypress handling: a buffered `1` at mount dispatches the launcher.
+        const b = stdin.read(1);
+        if (b && b[0] === 0x31) {
+          if (typeof opts.onRequestAction === 'function') opts.onRequestAction('launcher');
+          return { aborted: false, requestedAction: 'launcher' };
+        }
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+    executeAction: async () => {
+      throw new Error('discovery drain regression must not executeAction');
+    },
+  });
+  assert.equal(shellMounts, 1);
+  assert.equal(bufferedAtMount, 0, 'stdin must be drained after discovery before shell mount');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.OK);
+  assert.equal(result.model?.contentSurface, 'home');
+  assert.equal(result.model?.activeWorkflow, null);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('cold start drains stdin buffered during renderer import (no splash route)', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  let shellMounts = 0;
+  let bufferedAtMount = null;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 1,
+    autoQuitMs: 80,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => {
+      // Real Ink repro: operator types `1` + Enter while the renderer imports.
+      // The post-import drain must clear it before the first shell mount.
+      stdin.write('1\r');
+      return {
+        renderOperatorTuiShell: async (opts) => {
+          shellMounts += 1;
+          bufferedAtMount = stdin.readableLength;
+          // Simulate Ink keypress handling: a buffered `1` at mount dispatches the launcher.
+          const b = stdin.read(1);
+          if (b && b[0] === 0x31) {
+            if (typeof opts.onRequestAction === 'function') opts.onRequestAction('launcher');
+            return { aborted: false, requestedAction: 'launcher' };
+          }
+          return { aborted: false, requestedAction: null };
+        },
+      };
+    },
+    executeAction: async () => {
+      throw new Error('import-window drain regression must not executeAction');
+    },
+  });
+  assert.equal(shellMounts, 1);
+  assert.equal(bufferedAtMount, 0, 'stdin must be drained after renderer import before shell mount');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.OK);
+  assert.equal(result.model?.contentSurface, 'home');
+  assert.equal(result.model?.activeWorkflow, null);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('cold start drains stdin buffered during discovery (splash route)', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  const order = [];
+  let shellMounts = 0;
+  let bufferedAtFirstShellMount = null;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    splashMs: 0,
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    loadRuns: () => {
+      // Operator types `1` + Enter while run discovery is in flight (post-splash).
+      stdin.write('1\r');
+      return canonicalRunsResult([]);
+    },
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async (opts) => {
+        if (opts.showSplash === true) {
+          order.push('splash');
+          assert.equal(opts.splashOnly, true);
+          return { aborted: false };
+        }
+        shellMounts += 1;
+        order.push('shell');
+        if (shellMounts === 1) {
+          bufferedAtFirstShellMount = stdin.readableLength;
+          // Simulate Ink keypress handling: a buffered `1` at mount dispatches the launcher.
+          const b = stdin.read(1);
+          if (b && b[0] === 0x31) {
+            if (typeof opts.onRequestAction === 'function') opts.onRequestAction('launcher');
+            return { aborted: false, requestedAction: 'launcher' };
+          }
+        }
+        if (typeof opts.onRequestAction === 'function') opts.onRequestAction('quit');
+        return { aborted: false, requestedAction: 'quit' };
+      },
+    }),
+    executeAction: async () => {
+      throw new Error('discovery drain regression must not executeAction');
+    },
+  });
+  assert.deepEqual(order, ['splash', 'shell'], 'no remount into launcher workflow after drained key');
+  assert.equal(bufferedAtFirstShellMount, 0, 'stdin must be drained after discovery before shell mount');
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.equal(result.model?.contentSurface, 'home');
+  assert.equal(result.model?.activeWorkflow, null);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+/**
+ * Stdin that reads empty until discovery floods it past the safety ceiling —
+ * trips only the post-discovery drain, never the pre-splash one.
+ */
+function createDiscoveryFloodStdin() {
+  const state = { flooded: false };
+  return {
+    isTTY: true,
+    isRaw: false,
+    setRawMode(mode) {
+      this.isRaw = Boolean(mode);
+      return this;
+    },
+    ref() { return this; },
+    unref() { return this; },
+    resume() { return this; },
+    pause() { return this; },
+    isPaused() { return false; },
+    flood() { state.flooded = true; },
+    get readableLength() {
+      return state.flooded ? 4096 : 0;
+    },
+    read(n) {
+      if (!state.flooded) return null;
+      return Buffer.alloc(Math.max(1, Number(n) || 1), 0x31);
+    },
+  };
+}
+
+test('post-discovery drain truncation aborts before shell mount with real ink flags', async () => {
+  const sharedHarness = {
+    isTTY: true,
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    executeAction: async () => {
+      throw new Error('truncation must not executeAction');
+    },
+  };
+  const stdoutFor = () => {
+    const stdout = new PassThrough();
+    stdout.isTTY = true;
+    stdout.columns = 100;
+    stdout.rows = 30;
+    stdout.getColorDepth = () => 1;
+    stdout.ref = () => stdout;
+    stdout.unref = () => stdout;
+    return stdout;
+  };
+
+  // No splash: renderer imports BEFORE the post-discovery drain → flags report
+  // the real loaded state (true) when truncation aborts; shell never mounts.
+  {
+    const stdin = createDiscoveryFloodStdin();
+    const stdout = stdoutFor();
+    let interactiveMounts = 0;
+    const result = await runOperatorTuiShell({
+      ...sharedHarness,
+      stdin,
+      stdout,
+      skipSplash: true,
+      maxLoops: 1,
+      loadRuns: () => {
+        stdin.flood();
+        return canonicalRunsResult([]);
+      },
+      importRenderer: async () => ({
+        renderOperatorTuiShell: async () => {
+          interactiveMounts += 1;
+          return { aborted: false, requestedAction: null };
+        },
+      }),
+    });
+    assert.equal(result.reason_code, TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED);
+    assert.equal(result.ok, false);
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.ink_loaded, true, 'renderer imports before the post-discovery drain');
+    assert.equal(result.react_loaded, true, 'renderer imports before the post-discovery drain');
+    assert.equal(interactiveMounts, 0, 'interactive shell must not mount after post-discovery truncation');
+    stdout.destroy();
+  }
+
+  // Splash: Ink/React already loaded for the splash → truncation reports true flags.
+  {
+    const stdin = createDiscoveryFloodStdin();
+    const stdout = stdoutFor();
+    let splashMounts = 0;
+    let interactiveMounts = 0;
+    const result = await runOperatorTuiShell({
+      ...sharedHarness,
+      stdin,
+      stdout,
+      splashMs: 0,
+      loadRuns: () => {
+        stdin.flood();
+        return canonicalRunsResult([]);
+      },
+      importRenderer: async () => ({
+        renderOperatorTuiShell: async (opts) => {
+          if (opts.showSplash === true) {
+            splashMounts += 1;
+            assert.equal(opts.splashOnly, true);
+            return { aborted: false };
+          }
+          interactiveMounts += 1;
+          return { aborted: false, requestedAction: null };
+        },
+      }),
+    });
+    assert.equal(result.reason_code, TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED);
+    assert.equal(result.ok, false);
+    assert.equal(result.exitCode, 1);
+    assert.equal(splashMounts, 1, 'splash mounts before the discovery flood');
+    assert.equal(result.ink_loaded, true, 'post-splash truncation must report the real ink flag');
+    assert.equal(result.react_loaded, true, 'post-splash truncation must report the real react flag');
+    assert.equal(interactiveMounts, 0, 'interactive shell must not mount after post-discovery truncation');
+    stdout.destroy();
+  }
+});
+
+test('cold start drains residual stdin before brand splash (does not auto-dismiss)', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  // Leftover Enter/`1` from a prior session — must be drained before splash mounts.
+  stdin.write('\r1\r');
+  const order = [];
+  let splashSeen = false;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    splashMs: 0,
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    loadRuns: () => canonicalRunsResult([]),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async (opts) => {
+        if (opts.showSplash === true) {
+          splashSeen = true;
+          order.push('splash');
+          assert.equal(opts.splashOnly, true);
+          assert.equal(opts.model?.readiness, 'loading');
+          // Buffer must already be empty — residual keys must not reach splash input.
+          assert.equal(
+            typeof stdin.readableLength === 'number' ? stdin.readableLength : 0,
+            0,
+            'stdin must be drained before brand splash mount',
+          );
+          return { aborted: false };
+        }
+        order.push('shell');
+        assert.equal(opts.showSplash, false);
+        assert.equal(opts.model?.contentSurface, 'home');
+        if (typeof opts.onRequestAction === 'function') {
+          opts.onRequestAction('quit');
+        }
+        return { aborted: false, requestedAction: 'quit' };
+      },
+    }),
+    executeAction: async () => {
+      throw new Error('cold start splash regression must not executeAction');
+    },
+  });
+  assert.equal(splashSeen, true, 'brand splash must mount on cold start');
+  assert.deepEqual(order, ['splash', 'shell']);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  stdin.destroy();
+  stdout.destroy();
 });
 
 test('Recent Runs selection stays on visible window; hidden panel skips content focus', () => {

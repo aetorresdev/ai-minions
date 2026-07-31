@@ -1390,6 +1390,7 @@ function buildContentLines(model) {
  *   showSplash?: boolean,
  *   splashOnly?: boolean,
  *   splashMs?: number,
+ *   interactive?: boolean,
  *   onModelChange?: (model: object) => void,
  *   onRequestAction?: (actionId: string) => void,
  * }} options
@@ -1425,6 +1426,8 @@ export async function renderOperatorTuiShell(options) {
       stderr: options.stderr,
       exitOnCtrlC: false,
       patchConsole: false,
+      // Undefined defers to Ink's CI/TTY detection; explicit boolean overrides it.
+      interactive: options.interactive,
     },
   );
   await instance.waitUntilExit();
