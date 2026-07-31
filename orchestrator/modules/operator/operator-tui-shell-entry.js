@@ -463,10 +463,20 @@ async function runOperatorTuiShell(options = {}) {
     discoverShellBootstrap();
   }
 
-  // Second drain: readiness/run discovery may take long enough for the operator
-  // to buffer keys (real Ink repro: `1` typed during discovery reaches the shell
-  // mount and skips landing home straight into the launcher workflow). Drain again
-  // immediately before the first interactive shell mount — with and without splash.
+  // Import the renderer BEFORE the post-discovery drain: the dynamic import may
+  // take long enough for the operator to buffer keys (real Ink repro: `1` typed
+  // during discovery/import reaches the shell mount and skips landing home
+  // straight into the launcher workflow). On the splash route the renderer is
+  // already cached from the splash gate, so this is a no-op there.
+  if (!cachedRenderer) {
+    cachedRenderer = await importRenderer();
+    inkLoaded = true;
+    reactLoaded = true;
+  }
+
+  // Second drain: runs after the renderer import, immediately before the first
+  // interactive shell mount — with and without splash — so keys buffered during
+  // discovery or import cannot reach the mount.
   const preShellAbort = coldStartDrainTruncationAbort();
   if (preShellAbort) return preShellAbort;
 
