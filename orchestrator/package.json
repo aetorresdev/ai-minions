@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "MODE protocol orchestrator for ai-minions — state store gates, traces, optional MCP",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "main": "agents.js",
   "scripts": {

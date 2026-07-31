@@ -194,20 +194,22 @@ describe("release-trivy-gate.sh", () => {
     }
   });
 
+  // Scanner-exit mapping tests run in a throwaway repo (no mcp-servers/*/pyproject.toml)
+  // so the gate never reaches its real `uv lock` branch — deterministic on hosts where
+  // uv exists but its cache is not writable.
   it("maps scanner exit 1 from a validated Trivy binary to status=FAIL", () => {
     const fake = makeFakeTrivy({
       versionLine: "Version: 0.0.0-test (trivy)",
       scanRc: 1,
     });
+    const repo = makeTempRepo({ configContent: CONFIG_WITH_DEV_DEPS });
     try {
-      const result = runGate({
-        TRIVY_BIN: fake.bin,
-        RELEASE_TRIVY_GATE_SKIP_REASON: "",
-      });
+      const result = runGateIn(repo, { TRIVY_BIN: fake.bin });
       assert.equal(result.status, 1);
       assert.match(result.stdout, /^status=FAIL$/m);
     } finally {
       fs.rmSync(fake.dir, { recursive: true, force: true });
+      fs.rmSync(repo, { recursive: true, force: true });
     }
   });
 
@@ -216,16 +218,15 @@ describe("release-trivy-gate.sh", () => {
       versionLine: "Version: 0.0.0-test (trivy)",
       scanRc: 3,
     });
+    const repo = makeTempRepo({ configContent: CONFIG_WITH_DEV_DEPS });
     try {
-      const result = runGate({
-        TRIVY_BIN: fake.bin,
-        RELEASE_TRIVY_GATE_SKIP_REASON: "",
-      });
+      const result = runGateIn(repo, { TRIVY_BIN: fake.bin });
       assert.equal(result.status, 2);
       assert.match(result.stdout, /^status=BLOCKED$/m);
       assert.match(result.stderr, /operational\/scanner error/);
     } finally {
       fs.rmSync(fake.dir, { recursive: true, force: true });
+      fs.rmSync(repo, { recursive: true, force: true });
     }
   });
 
