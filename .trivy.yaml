@@ -6,6 +6,12 @@ severity:
   - HIGH
   - CRITICAL
 
+# Dev dependencies are part of the shipped lockfile scope — scanning only
+# production deps hides real findings (npm audit --omit=dev blind spot).
+# scripts/release-trivy-gate.sh refuses PASS when this flag is missing.
+pkg:
+  include-dev-deps: true
+
 scan:
   skip-dirs:
     - plugins

@@ -39,7 +39,7 @@ Product direction is to adopt **Ink 7** (React renderer for CLIs) rather than ru
 
 ## Constraints and assumptions
 
-- Runtime: Node.js `>=22` (`engines` + CI matrix including 24).
+- Runtime: Node.js `>=22.13` (`engines` + CI matrix including 24).
 - Package manager: npm; orchestrator remains CommonJS at the package root with **dynamic `import()`** for Ink’s ESM surface.
 - React is a required peer/runtime dependency of Ink 7 (React 19.x in the spike lockfile).
 - `NO_COLOR` must continue to disable colorized operator/shareable output; spike view-model honors `NO_COLOR`.
