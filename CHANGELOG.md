@@ -20,13 +20,13 @@ Twenty-sixth beta pre-release: **Fullscreen TUI Completion + Live Harness Eviden
 |------|------------------|---------------------------|
 | Focus | Beta tester evidence + Operator TUI MVP | Fullscreen TUI completion + live harness evidence + UX expansion |
 | Operator TUI | Interactive cockpit MVP (readline lineage) | Ink 7 fullscreen shell · task-first landing · native workflows · splash/theme · guided · monitor · slash · UX acceptance gate |
-| Unit tests (orchestrator) | 1553/1554 pass (1 skipped) @ `bc6cf2c` | **1802/1803** pass (1 skipped) @ `3f54fe5` (docs-only; runtime/test baseline inherited from `master` `38735ef`) · TUI quality **307/307** |
+| Unit tests (orchestrator) | 1553/1554 pass (1 skipped) @ `bc6cf2c` | **1802/1803** pass (1 skipped) @ validation snapshot `3f54fe5` (docs-only; runtime/test baseline inherited from `master` `38735ef`) · TUI quality **307/307** |
 
 **Release:** reserved until Phase B annotated tag `v0.26.0-beta.1`. Tag-blocker honesty gates resolved (first-run reason codes PR [#371](https://github.com/aetorresdev/ai-minions/pull/371) @ `c237355` · Trivy gate honesty PR [#372](https://github.com/aetorresdev/ai-minions/pull/372) merge `fa2d04b`); **one honest open gate remains**: `test:tui-release` release preflight is **BLOCKED** on manual first-time-user evidence (see Notes).
 
 **Evidence (operator):**
 
-- Unit + hooks: `cd orchestrator && npm test` → **1802/1803** pass (1 skipped) — PR [#374](https://github.com/aetorresdev/ai-minions/pull/374) head `3f54fe5` (docs-only; runtime/test baseline inherited from `master` @ `38735ef`, 2026-07-31)
+- Unit + hooks: `cd orchestrator && npm test` → **1802/1803** pass (1 skipped) — PR [#374](https://github.com/aetorresdev/ai-minions/pull/374) validation snapshot `3f54fe5` (docs-only; runtime/test baseline inherited from `master` @ `38735ef`, 2026-07-31)
 - TUI quality: `cd orchestrator && npm run test:tui-quality` → **307/307** on release-prep tree
 - TUI release gate: `cd orchestrator && npm run test:tui-release` → automated acceptance **17/17** pass, but release preflight verdict **`blocked`** with reason `manual_first_time_user:blocked` (evidence registry `orchestrator/modules/operator/tui-ux-acceptance-evidence.registry.json`) — recorded honestly; not a PASS
 - Splash/theme + shell: `node --test tests/operator/operatorTuiSplashTheme.test.js tests/operator/operatorTuiShellFoundation.test.js` → **PASS**
