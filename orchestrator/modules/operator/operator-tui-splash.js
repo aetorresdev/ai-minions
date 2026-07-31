@@ -2,7 +2,8 @@
 
 /**
  * Brand splash helpers for the Ink fullscreen shell (presentation only).
- * Cerberus textual / Nerd component (wide | compact | minimal) — never PNG.
+ * Cerberus art: Semantic Guardians (lock v2 braille matrices) is the default;
+ * Neon block art is opt-in via AI_MINIONS_TUI_GUARDIAN=neon (wide | compact | minimal) — never PNG.
  * Icon modes: nerd | unicode | ascii (explicit operator choice; no auto-tofu claims).
  * Vertically degrades for short TTYs so first paint fits the reported viewport.
  */

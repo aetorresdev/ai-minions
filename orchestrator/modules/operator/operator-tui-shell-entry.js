@@ -371,27 +371,38 @@ async function runOperatorTuiShell(options = {}) {
   /** @type {{ renderOperatorTuiShell: Function } | null} */
   let cachedRenderer = null;
 
+  /**
+   * Drain leftover stdin before an Ink mount. On safety-ceiling truncation,
+   * restore the guard and return an abort payload with the ink/react load flags
+   * as of drain time (pre-splash: both false; after splash: both true).
+   * @returns {object | null} abort result, or null when the buffer is clean
+   */
+  function coldStartDrainTruncationAbort() {
+    try {
+      drainStdinColdStart(stdin);
+      return null;
+    } catch (err) {
+      if (err && err.code === 'COLD_START_STDIN_DRAIN_TRUNCATED') {
+        if (guard && !guard.restored) guard.restore('cold_start_drain_truncated');
+        return {
+          ok: false,
+          exitCode: 1,
+          reason_code: TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED,
+          ink_loaded: inkLoaded,
+          react_loaded: reactLoaded,
+          text: String(err.message || err),
+          model: null,
+          guard,
+        };
+      }
+      throw err;
+    }
+  }
+
   // Drain leftover stdin BEFORE any Ink mount (brand splash or shell). Residual
   // Enter/`1` from a prior session must not auto-dismiss the splash or skip landing.
-  try {
-    drainStdinColdStart(stdin);
-  } catch (err) {
-    if (err && err.code === 'COLD_START_STDIN_DRAIN_TRUNCATED') {
-      if (guard && !guard.restored) guard.restore('cold_start_drain_truncated');
-      return {
-        ok: false,
-        exitCode: 1,
-        reason_code: TUI_SHELL_REASON.COLD_START_DRAIN_TRUNCATED,
-        // Drain runs before Ink import — flags stay false when truncation aborts.
-        ink_loaded: inkLoaded,
-        react_loaded: reactLoaded,
-        text: String(err.message || err),
-        model: null,
-        guard,
-      };
-    }
-    throw err;
-  }
+  const preMountAbort = coldStartDrainTruncationAbort();
+  if (preMountAbort) return preMountAbort;
 
   // First-paint splash gate: mount bounded minimal model before discovery.
   if (wantsSplash) {
@@ -451,6 +462,13 @@ async function runOperatorTuiShell(options = {}) {
   } else {
     discoverShellBootstrap();
   }
+
+  // Second drain: readiness/run discovery may take long enough for the operator
+  // to buffer keys (real Ink repro: `1` typed during discovery reaches the shell
+  // mount and skips landing home straight into the launcher workflow). Drain again
+  // immediately before the first interactive shell mount — with and without splash.
+  const preShellAbort = coldStartDrainTruncationAbort();
+  if (preShellAbort) return preShellAbort;
 
   try {
     while (loops < maxLoops) {
