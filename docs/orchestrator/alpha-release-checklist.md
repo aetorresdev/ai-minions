@@ -1588,14 +1588,15 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 
 | Date | Context | Outcome |
 |------|---------|---------|
-| 2026-07-31 | Release-prep tree @ `38735ef` | `cd orchestrator && npm test` → **1802/1803** pass (1 skipped) |
-| 2026-07-31 | Release-prep tree @ `38735ef` | `cd orchestrator && npm run test:tui-quality` → **307/307** pass |
-| 2026-07-31 | Release-prep tree @ `38735ef` | `cd orchestrator && npm run test:tui-release` → automated UX acceptance **17/17** pass; release preflight verdict **`blocked`** — reason `manual_first_time_user:blocked` (honest; **not** a PASS) |
-| 2026-07-31 | Release-prep tree @ `38735ef` | `bash scripts/release-trivy-gate.sh` → **`status=PASS`** (Trivy `0.69.1`; published scope clean) |
-| 2026-07-31 | Release-prep tree @ `38735ef` | `node scripts/verify-usage-docs.mjs` → **OK** |
-| 2026-07-31 | Release-prep tree @ `38735ef` | `node scripts/audit-product-claims.mjs` → **OK** (deferred context-runtime / loop / graph negatives included) |
-| 2026-07-31 | Release-prep tree @ `38735ef` | `node --test orchestrator/tests/changelogReleaseFormat.test.js` + `productVersionSync.test.js` → **OK** |
-| 2026-07-31 | CI | orchestrator-unit-tests · orchestrator-e2e · Link Check · Markdown Lint · Installed CLI Docker live green on lane tip `b4148b6` (PR #373); security-trivy-scan green on `fa2d04b` push |
+| 2026-07-31 | Runtime/test baseline @ `38735ef` (lane merge; inherited unchanged by docs-only PR #374 head `3f54fe5`) | `cd orchestrator && npm test` → **1802/1803** pass (1 skipped) |
+| 2026-07-31 | Runtime/test baseline @ `38735ef` (inherited by docs-only PR #374 head `3f54fe5`) | `cd orchestrator && npm run test:tui-quality` → **307/307** pass |
+| 2026-07-31 | Runtime/test baseline @ `38735ef` (inherited by docs-only PR #374 head `3f54fe5`) | `cd orchestrator && npm run test:tui-release` → automated UX acceptance **17/17** pass; release preflight verdict **`blocked`** — reason `manual_first_time_user:blocked` (honest; **not** a PASS) |
+| 2026-07-31 | Runtime/test baseline @ `38735ef` (inherited by docs-only PR #374 head `3f54fe5`) | `bash scripts/release-trivy-gate.sh` → **`status=PASS`** (Trivy `0.69.1`; published scope clean) |
+| 2026-07-31 | PR #374 head `3f54fe5` | `node scripts/verify-usage-docs.mjs` → **OK** |
+| 2026-07-31 | PR #374 head `3f54fe5` | `node scripts/audit-product-claims.mjs` → **OK** (deferred context-runtime / loop / graph negatives included) |
+| 2026-07-31 | PR #374 head `3f54fe5` | `node --test orchestrator/tests/changelogReleaseFormat.test.js` + `productVersionSync.test.js` → **14/14 OK** |
+| 2026-07-31 | PR #374 head `3f54fe5` | `markdownlint-cli2` on `CHANGELOG.md` + `docs/orchestrator/alpha-release-checklist.md` → **0 issues** (full-repo CI lint green via linked run below) |
+| 2026-07-31 | CI | [orchestrator-unit-tests](https://github.com/aetorresdev/ai-minions/actions/runs/30669382209) · [orchestrator-e2e](https://github.com/aetorresdev/ai-minions/actions/runs/30669382272) · [Link Check](https://github.com/aetorresdev/ai-minions/actions/runs/30669382224) · [Markdown Lint](https://github.com/aetorresdev/ai-minions/actions/runs/30669382210) · [Installed CLI Docker live](https://github.com/aetorresdev/ai-minions/actions/runs/30669382220) green on lane tip `b4148b6` (PR #373; inherited per [release-workflow.md](release-workflow.md) A3 docs-only rule); [security-trivy-scan](https://github.com/aetorresdev/ai-minions/actions/runs/30669420323) green on `fa2d04b` push |
 
 ### Open release gate (honest, operator decision required)
 

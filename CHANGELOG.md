@@ -20,13 +20,13 @@ Twenty-sixth beta pre-release: **Fullscreen TUI Completion + Live Harness Eviden
 |------|------------------|---------------------------|
 | Focus | Beta tester evidence + Operator TUI MVP | Fullscreen TUI completion + live harness evidence + UX expansion |
 | Operator TUI | Interactive cockpit MVP (readline lineage) | Ink 7 fullscreen shell · task-first landing · native workflows · splash/theme · guided · monitor · slash · UX acceptance gate |
-| Unit tests (orchestrator) | 1553/1554 pass (1 skipped) @ `bc6cf2c` | **1802/1803** pass (1 skipped) @ `38735ef` · TUI quality **307/307** |
+| Unit tests (orchestrator) | 1553/1554 pass (1 skipped) @ `bc6cf2c` | **1802/1803** pass (1 skipped) @ `3f54fe5` (docs-only; runtime/test baseline inherited from `master` `38735ef`) · TUI quality **307/307** |
 
 **Release:** reserved until Phase B annotated tag `v0.26.0-beta.1`. Tag-blocker honesty gates resolved (first-run reason codes PR [#371](https://github.com/aetorresdev/ai-minions/pull/371) @ `c237355` · Trivy gate honesty PR [#372](https://github.com/aetorresdev/ai-minions/pull/372) merge `fa2d04b`); **one honest open gate remains**: `test:tui-release` release preflight is **BLOCKED** on manual first-time-user evidence (see Notes).
 
 **Evidence (operator):**
 
-- Unit + hooks: `cd orchestrator && npm test` → **1802/1803** pass (1 skipped) on release-prep tree @ `38735ef` (2026-07-31)
+- Unit + hooks: `cd orchestrator && npm test` → **1802/1803** pass (1 skipped) — PR [#374](https://github.com/aetorresdev/ai-minions/pull/374) head `3f54fe5` (docs-only; runtime/test baseline inherited from `master` @ `38735ef`, 2026-07-31)
 - TUI quality: `cd orchestrator && npm run test:tui-quality` → **307/307** on release-prep tree
 - TUI release gate: `cd orchestrator && npm run test:tui-release` → automated acceptance **17/17** pass, but release preflight verdict **`blocked`** with reason `manual_first_time_user:blocked` (evidence registry `orchestrator/modules/operator/tui-ux-acceptance-evidence.registry.json`) — recorded honestly; not a PASS
 - Splash/theme + shell: `node --test tests/operator/operatorTuiSplashTheme.test.js tests/operator/operatorTuiShellFoundation.test.js` → **PASS**
@@ -37,8 +37,8 @@ Twenty-sixth beta pre-release: **Fullscreen TUI Completion + Live Harness Eviden
 - Contracts: `operator-cockpit-contract.md`, `alpha-release-checklist.md` v0.26 section, Ink 7 ADR, [security-posture.md](docs/orchestrator/security-posture.md#gate-status-semantics-machine-readable)
 - Pre-tag scan: `bash scripts/release-trivy-gate.sh` → **`status=PASS`** on release-prep tree (Trivy `0.69.1`, published scope clean, 2026-07-31); gate emits stable `status=PASS|BLOCKED|FAIL|SKIPPED` and defaults missing scanner to **BLOCKED**, never PASS
 - Gate contract test: `node --test tests/release-trivy-gate.test.mjs` → **PASS**
-- Lane on `master` @ `38735ef`: UX expansion PRs [#351](https://github.com/aetorresdev/ai-minions/pull/351)–[#368](https://github.com/aetorresdev/ai-minions/pull/368) (theme/splash precursor `e5df1cb` · task-first landing `46b6655` · native Ink workflows `ec11650` · Cerberus brand splash `1d7c78f` · visual system `d4f061d` · landing composition `b4acb8b` · UX acceptance gate `c0166f0`) · arcade Cerberus + nav hardening + GUI art handoff PR [#370](https://github.com/aetorresdev/ai-minions/pull/370) squash @ `4e0a0e7` · splash cold-start drain PR [#373](https://github.com/aetorresdev/ai-minions/pull/373) merge `38735ef`
-- CI: orchestrator-unit-tests, orchestrator-e2e, Link Check, Markdown Lint, Installed CLI Docker live — green on lane tip `b4148b6` (PR #373); security-trivy-scan green on `fa2d04b` push
+- Lane on `master` @ `38735ef`: shipped UX expansion items listed in the sections below (delivered PR set excludes open/deferred [#355](https://github.com/aetorresdev/ai-minions/pull/355) and unmerged/superseded [#360](https://github.com/aetorresdev/ai-minions/pull/360)) — theme/splash precursor `e5df1cb` · task-first landing `46b6655` · native Ink workflows `ec11650` · Cerberus brand splash `1d7c78f` · visual system `d4f061d` · landing composition `b4acb8b` · UX acceptance gate `c0166f0` · arcade Cerberus + nav hardening + GUI art handoff PR [#370](https://github.com/aetorresdev/ai-minions/pull/370) squash @ `4e0a0e7` · splash cold-start drain PR [#373](https://github.com/aetorresdev/ai-minions/pull/373) merge `38735ef`
+- CI (run URLs): [orchestrator-unit-tests](https://github.com/aetorresdev/ai-minions/actions/runs/30669382209) · [orchestrator-e2e](https://github.com/aetorresdev/ai-minions/actions/runs/30669382272) · [Link Check](https://github.com/aetorresdev/ai-minions/actions/runs/30669382224) · [Markdown Lint](https://github.com/aetorresdev/ai-minions/actions/runs/30669382210) · [Installed CLI Docker live](https://github.com/aetorresdev/ai-minions/actions/runs/30669382220) — green on lane tip `b4148b6` (PR #373; inherited per `release-workflow.md` A3 docs-only rule); [security-trivy-scan](https://github.com/aetorresdev/ai-minions/actions/runs/30669420323) green on `fa2d04b` push
 
 **Alpha limitations (not production):**
 
