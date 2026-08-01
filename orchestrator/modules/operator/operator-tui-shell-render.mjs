@@ -53,6 +53,35 @@ const path = require('node:path');
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const FIXTURES_DATA = path.join(REPO_ROOT, 'scripts', 'lib', 'canonical-real-task-fixtures-data.mjs');
 
+// Ink styles Text/borders via chalk, whose level is snapshot at import from
+// the ambient terminal (supports-color keys on TTY/TERM/COLORTERM/FORCE_COLOR;
+// NO_COLOR is never consulted). Resolve chalk from Ink's own location — it may
+// be nested under ink/node_modules, and importing 'chalk' here could bind a
+// different instance than the one Ink renders with.
+const inkChalkSpecifier = require.resolve('chalk', {
+  paths: [path.dirname(require.resolve('ink'))],
+});
+const { default: inkChalk } = await import(pathToFileURL(inkChalkSpecifier).href);
+
+/**
+ * When the shell model disables color (NO_COLOR / explicit colorEnabled:false),
+ * zero SGR may be emitted on every host — pin Ink's chalk to level 0 for the
+ * render instead of inheriting the operator's interactive-terminal
+ * capabilities. Level is restored afterwards.
+ * @param {boolean} disabled
+ * @param {() => unknown} fn
+ */
+function withColorDisabled(disabled, fn) {
+  if (!disabled) return fn();
+  const prev = inkChalk.level;
+  inkChalk.level = 0;
+  try {
+    return fn();
+  } finally {
+    inkChalk.level = prev;
+  }
+}
+
 async function defaultLoadFixturePrompt(fixtureId) {
   const mod = await import(pathToFileURL(FIXTURES_DATA).href);
   const fixture = mod.getFixture(fixtureId);
@@ -1401,36 +1430,46 @@ export async function renderOperatorTuiShell(options) {
   let requestedAction = null;
   const showSplash = options.showSplash === true;
   const splashOnly = options.splashOnly === true;
-  const instance = render(
-    React.createElement(OperatorTuiRoot, {
-      initialModel: options.model,
-      showSplash,
-      splashOnly,
-      splashMs: options.splashMs,
-      autoQuitMs: options.autoQuitMs,
-      onModelChange: options.onModelChange,
-      onAbort: () => {
-        aborted = true;
+  // Hold chalk at level 0 for the whole session when the model disables color —
+  // Ink re-renders on every state change, so a sync scope is not enough.
+  const suppressColor = Boolean(options.model) && options.model.colorEnabled === false;
+  const prevChalkLevel = suppressColor ? inkChalk.level : undefined;
+  if (suppressColor) inkChalk.level = 0;
+  let instance;
+  try {
+    instance = render(
+      React.createElement(OperatorTuiRoot, {
+        initialModel: options.model,
+        showSplash,
+        splashOnly,
+        splashMs: options.splashMs,
+        autoQuitMs: options.autoQuitMs,
+        onModelChange: options.onModelChange,
+        onAbort: () => {
+          aborted = true;
+        },
+        onRequestAction: (actionId) => {
+          requestedAction = actionId;
+          // Forward to shell entry callback (belt-and-suspenders with return value).
+          if (typeof options.onRequestAction === 'function') {
+            options.onRequestAction(actionId);
+          }
+        },
+      }),
+      {
+        stdin: options.stdin,
+        stdout: options.stdout,
+        stderr: options.stderr,
+        exitOnCtrlC: false,
+        patchConsole: false,
+        // Undefined defers to Ink's CI/TTY detection; explicit boolean overrides it.
+        interactive: options.interactive,
       },
-      onRequestAction: (actionId) => {
-        requestedAction = actionId;
-        // Forward to shell entry callback (belt-and-suspenders with return value).
-        if (typeof options.onRequestAction === 'function') {
-          options.onRequestAction(actionId);
-        }
-      },
-    }),
-    {
-      stdin: options.stdin,
-      stdout: options.stdout,
-      stderr: options.stderr,
-      exitOnCtrlC: false,
-      patchConsole: false,
-      // Undefined defers to Ink's CI/TTY detection; explicit boolean overrides it.
-      interactive: options.interactive,
-    },
-  );
-  await instance.waitUntilExit();
+    );
+    await instance.waitUntilExit();
+  } finally {
+    if (suppressColor) inkChalk.level = prevChalkLevel;
+  }
   return { aborted, requestedAction, frames: null };
 }
 
@@ -1443,12 +1482,16 @@ export function renderOperatorTuiShellToString(model, opts = {}) {
   const columns = opts.columns ?? model.columns ?? 80;
   const rows = opts.rows ?? model.rows ?? 24;
   const showSplash = opts.showSplash === true;
-  return renderToString(
-    React.createElement(OperatorTuiRoot, {
-      initialModel: buildShellModel({ ...shellModelToOptions(model), columns, rows }),
-      showSplash,
-    }),
-    { columns },
+  const initialModel = buildShellModel({ ...shellModelToOptions(model), columns, rows });
+  return withColorDisabled(
+    initialModel.colorEnabled === false,
+    () => renderToString(
+      React.createElement(OperatorTuiRoot, {
+        initialModel,
+        showSplash,
+      }),
+      { columns },
+    ),
   );
 }
 

@@ -93,6 +93,47 @@ exit "$rc"
 }
 
 /**
+ * BSD script(1) stub (macOS flavor): rejects -c/-e, takes `script [-q] file
+ * command...`, runs the command into the file, and ALWAYS exits 0 — real BSD
+ * script does not propagate the child exit status.
+ * @returns {string} directory to prepend to PATH
+ */
+function makeFakeBsdScriptDir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tui-fake-bsd-script-'));
+  const body = `#!/usr/bin/env bash
+set -u
+for arg in "$@"; do
+  case "$arg" in
+    -c|-e|--command|--return)
+      echo "script: illegal option -- \${arg#-}" >&2
+      echo "usage: script [-q] [file [command ...]]" >&2
+      exit 1
+      ;;
+  esac
+done
+out=/dev/null
+args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -q) shift ;;
+    *)
+      out="$1"
+      shift
+      args=("$@")
+      break
+      ;;
+  esac
+done
+if [[ \${#args[@]} -gt 0 ]]; then
+  "\${args[@]}" >"$out" 2>/dev/null
+fi
+exit 0
+`;
+  fs.writeFileSync(path.join(dir, 'script'), body, { mode: 0o755 });
+  return dir;
+}
+
+/**
  * Build an isolated git repo that mirrors the script's expected layout.
  * @param {{ cliBody?: string, commit?: boolean }} [opts]
  */
@@ -190,6 +231,26 @@ exit 2
 }
 
 /**
+ * Build a bin directory with symlinks to the host tools the capture script
+ * needs — deliberately WITHOUT timeout/gtimeout, simulating stock macOS so the
+ * bash watchdog fallback is exercised on any host.
+ * @returns {string} directory to use as the full PATH suffix
+ */
+function makeRestrictedBinDir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tui-restricted-bin-'));
+  const tools = [
+    'bash', 'cat', 'chmod', 'dirname', 'env', 'git', 'head', 'mkdir',
+    'mktemp', 'node', 'rm', 'sleep', 'tr',
+  ];
+  for (const tool of tools) {
+    const found = spawnSync('bash', ['-c', `command -v ${tool}`], { encoding: 'utf8' });
+    assert.equal(found.status, 0, `host tool required for restricted-PATH test: ${tool}`);
+    fs.symlinkSync(found.stdout.trim(), path.join(dir, tool));
+  }
+  return dir;
+}
+
+/**
  * @param {string} script
  * @param {string[]} args
  * @param {NodeJS.ProcessEnv} [env]
@@ -197,6 +258,20 @@ exit 2
  */
 function runCapture(script, args, env = {}, pathPrefix = []) {
   const fakeScriptDir = makeFakeScriptDir();
+  const prefix = [...pathPrefix, fakeScriptDir].join(path.delimiter);
+  return spawnSync('bash', [script, ...args], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      ...env,
+      PATH: `${prefix}${path.delimiter}${env.PATH || process.env.PATH || ''}`,
+    },
+  });
+}
+
+/** Same as runCapture but with the BSD script(1) stub (stock macOS flavor). */
+function runCaptureBsd(script, args, env = {}, pathPrefix = []) {
+  const fakeScriptDir = makeFakeBsdScriptDir();
   const prefix = [...pathPrefix, fakeScriptDir].join(path.delimiter);
   return spawnSync('bash', [script, ...args], {
     encoding: 'utf8',
@@ -321,5 +396,105 @@ describe('capture-tui-landing-tty.sh (executed)', () => {
     assert.equal(r.status, 2);
     assert.match(r.stderr, /dirty worktree/);
     assert.equal(fs.existsSync(`${out}.meta.json`), false);
+  });
+
+  it('falls back to the bash watchdog when timeout(1) is absent (stock macOS)', () => {
+    const h = makeHarness();
+    const out = path.join(h.root, 'cap-watchdog.typescript');
+    const r = runCapture(h.script, ['80', '24', out], {
+      PATH: makeRestrictedBinDir(),
+      FAKE_TUI_FRAME: MARKERS,
+      FAKE_TUI_EXIT: '0',
+      FAKE_CHECKOUT_VERSION: 'v0.99.0-checkout',
+    });
+    assert.equal(r.status, 0, `${r.stderr}\n${r.stdout}`);
+    assert.match(r.stdout, /runner_kind=checkout-cli/);
+    const meta = JSON.parse(fs.readFileSync(`${out}.meta.json`, 'utf8'));
+    assert.equal(meta.script_rc, 0);
+    assert.equal(meta.runner_version, 'v0.99.0-checkout');
+    assert.ok(fs.readFileSync(out, 'utf8').includes('Start New Run'));
+  });
+
+  it('watchdog kills a hung runner at the deadline and reports script_rc=124', () => {
+    const hangCli = `#!/usr/bin/env node
+'use strict';
+if (process.argv[2] === '--version') {
+  process.stdout.write('v0.99.0-checkout\\n');
+  process.exit(0);
+}
+process.stdout.write(${JSON.stringify(MARKERS)});
+setTimeout(() => process.exit(0), 30000);
+`;
+    const h = makeHarness({ cliBody: hangCli });
+    const out = path.join(h.root, 'cap-watchdog-kill.typescript');
+    const r = runCapture(h.script, ['80', '24', out], {
+      PATH: makeRestrictedBinDir(),
+      FAKE_CHECKOUT_VERSION: 'v0.99.0-checkout',
+    });
+    assert.equal(r.status, 0, `${r.stderr}\n${r.stdout}`);
+    assert.match(r.stdout, /script_rc=124/);
+    const meta = JSON.parse(fs.readFileSync(`${out}.meta.json`, 'utf8'));
+    assert.equal(meta.script_rc, 124);
+    assert.equal(meta.runner_version, 'v0.99.0-checkout');
+  });
+
+  it('BSD script flavor: captures via argv form and reports runner rc 0', () => {
+    const h = makeHarness();
+    const out = path.join(h.root, 'cap-bsd.typescript');
+    const r = runCaptureBsd(h.script, ['80', '24', out], {
+      FAKE_CHECKOUT_VERSION: 'v0.99.0-checkout',
+      FAKE_TUI_EXIT: '0',
+      FAKE_TUI_FRAME: MARKERS,
+    });
+    assert.equal(r.status, 0, `${r.stderr}\n${r.stdout}`);
+    assert.match(r.stdout, /script_rc=0/);
+    const meta = JSON.parse(fs.readFileSync(`${out}.meta.json`, 'utf8'));
+    assert.equal(meta.script_rc, 0);
+    assert.equal(meta.runner_version, 'v0.99.0-checkout');
+    assert.ok(fs.readFileSync(out, 'utf8').includes('Start New Run'));
+  });
+
+  it('BSD script flavor: surfaces runner failure rc although script exits 0', () => {
+    const h = makeHarness();
+    const out = path.join(h.root, 'cap-bsd-crash.typescript');
+    const r = runCaptureBsd(h.script, ['80', '24', out], {
+      FAKE_TUI_FRAME: MARKERS,
+      FAKE_TUI_EXIT: '1',
+    });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /unexpected script_rc=1/);
+  });
+
+  it('BSD script flavor: accepts runner rc 124 (deadline kill) when markers exist', () => {
+    const h = makeHarness();
+    const out = path.join(h.root, 'cap-bsd-timeout.typescript');
+    const r = runCaptureBsd(h.script, ['80', '24', out], {
+      FAKE_TUI_FRAME: MARKERS,
+      FAKE_TUI_EXIT: '124',
+      FAKE_CHECKOUT_VERSION: 'v0.99.0-checkout',
+    });
+    assert.equal(r.status, 0, `${r.stderr}\n${r.stdout}`);
+    const meta = JSON.parse(fs.readFileSync(`${out}.meta.json`, 'utf8'));
+    assert.equal(meta.script_rc, 124);
+    assert.equal(meta.runner_version, 'v0.99.0-checkout');
+  });
+
+  // Full stock-macOS matrix cell: BSD script(1) AND no timeout/gtimeout on PATH
+  // at once, so the rc sidecar must wrap the bash watchdog (not GNU timeout).
+  it('BSD script flavor + no timeout/gtimeout: sidecar rc wraps the bash watchdog', () => {
+    const h = makeHarness();
+    const out = path.join(h.root, 'cap-bsd-watchdog.typescript');
+    const r = runCaptureBsd(h.script, ['80', '24', out], {
+      PATH: makeRestrictedBinDir(),
+      FAKE_TUI_FRAME: MARKERS,
+      FAKE_TUI_EXIT: '124',
+      FAKE_CHECKOUT_VERSION: 'v0.99.0-checkout',
+    });
+    assert.equal(r.status, 0, `${r.stderr}\n${r.stdout}`);
+    const meta = JSON.parse(fs.readFileSync(`${out}.meta.json`, 'utf8'));
+    assert.equal(meta.script_rc, 124);
+    assert.equal(meta.runner_version, 'v0.99.0-checkout');
+    assert.match(meta.command, /timeout-watchdog\.sh/);
+    assert.ok(fs.readFileSync(out, 'utf8').includes('Start New Run'));
   });
 });

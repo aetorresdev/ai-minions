@@ -1601,6 +1601,7 @@ Git tag `v0.22.0-beta.1` @ `52a7172` tree retains CHANGELOG `[0.22.0-alpha.1]` f
 ### Open release gate (honest, operator decision required)
 
 - [ ] **`test:tui-release` manual first-time-user evidence** — preflight **BLOCKED** (`manual_first_time_user:blocked`; registry `orchestrator/modules/operator/tui-ux-acceptance-evidence.registry.json`). Do **not** mark resolved without real manual evidence. Operator decides: collect evidence before tag, **or** cut with this BLOCKED item recorded as a known limitation. Agents must not fake PASS.
+- [ ] **macOS real rerun with Node 24.18.1 (mandatory pre-tag evidence)** — the macOS/Node portability fix (PR #375) was validated on Linux (Node 22/24/26) and in a simulated CERBERUS env; the real macOS rerun (`cd orchestrator && npm test`, expect 0 failures) must be executed on the post-merge `master` tip and recorded in the v0.26 validation log **before tag**. Simulated-env evidence alone does not satisfy this gate.
 
 ### Forbidden release claims (v0.26)
 

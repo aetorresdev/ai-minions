@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Capture a real terminal frame of the operator TUI landing (visual composition).
 # Requires a TTY-capable host. Output is typescript(1) text — not Ink renderToString.
+# Deadline enforcement uses GNU timeout / gtimeout when present, otherwise a bash
+# watchdog fallback so stock macOS hosts (no coreutils) keep 124-on-kill semantics.
 #
 # Default runner: checkout CLI only (node orchestrator/ai-minions-cli.js tui).
 # Installed/global binary is opt-in only — never preferred automatically.
@@ -119,16 +121,63 @@ bin_version() {
   fi
 }
 
+# Portable deadline prefix. GNU timeout (util-linux/coreutils) or gtimeout (brew
+# coreutils on macOS); stock macOS has neither, so fall back to a bash watchdog
+# wrapper that preserves timeout(1) semantics: exit 124 when the deadline kills
+# the child. The wrapper must live inside the PTY command, so it is generated as
+# a file (exported bash functions would not survive script(1) spawning $SHELL,
+# which may be zsh on macOS).
+WRAP_DIR=""
+ensure_wrap_dir() {
+  if [[ -z "$WRAP_DIR" ]]; then
+    WRAP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/tui-capture-wrap.XXXXXX")"
+    trap 'rm -rf "$WRAP_DIR"' EXIT
+  fi
+}
+
+TIMEOUT_PREFIX=()
+WATCHDOG_WRAPPER=""
+if command -v timeout >/dev/null 2>&1; then
+  TIMEOUT_PREFIX=(timeout 3s)
+elif command -v gtimeout >/dev/null 2>&1; then
+  TIMEOUT_PREFIX=(gtimeout 3s)
+else
+  ensure_wrap_dir
+  WATCHDOG_WRAPPER="$WRAP_DIR/timeout-watchdog.sh"
+  cat > "$WATCHDOG_WRAPPER" <<'WATCHDOG_EOF'
+#!/usr/bin/env bash
+# timeout(1) fallback for hosts without GNU coreutils (e.g. stock macOS).
+set -u
+secs="$1"
+shift
+"$@" &
+child=$!
+( sleep "$secs"; kill -TERM "$child" 2>/dev/null ) &
+watchdog=$!
+wait "$child" 2>/dev/null
+rc=$?
+kill "$watchdog" 2>/dev/null
+wait "$watchdog" 2>/dev/null
+# 143 = 128 + SIGTERM (deadline fired); GNU timeout reports this as 124.
+if [[ "$rc" -eq 143 ]]; then
+  rc=124
+fi
+exit "$rc"
+WATCHDOG_EOF
+  chmod +x "$WATCHDOG_WRAPPER"
+  TIMEOUT_PREFIX=(bash "$WATCHDOG_WRAPPER" 3)
+fi
+
 if [[ "$USE_INSTALLED" -eq 1 ]]; then
   RUNNER_KIND="installed-bin"
   RUNNER_PATH="$(resolve_installed_bin)"
   RUNNER_VERSION="$(bin_version "$RUNNER_PATH")"
-  INNER_CMD=(timeout 3s "$RUNNER_PATH" tui)
+  INNER_CMD=("${TIMEOUT_PREFIX[@]}" "$RUNNER_PATH" tui)
 else
   RUNNER_KIND="checkout-cli"
   RUNNER_PATH="$CHECKOUT_CLI"
   RUNNER_VERSION="$(bin_version "$CHECKOUT_CLI")"
-  INNER_CMD=(timeout 3s node "$CHECKOUT_CLI" tui)
+  INNER_CMD=("${TIMEOUT_PREFIX[@]}" node "$CHECKOUT_CLI" tui)
 fi
 
 export COLUMNS="$COLS"
@@ -149,7 +198,10 @@ fi
 set +e
 if script -q -c true /dev/null 2>/dev/null; then
   # Join safely for script -c string; paths with spaces are quoted.
-  SCRIPT_CMD="timeout 3s"
+  SCRIPT_CMD=""
+  for tok in "${TIMEOUT_PREFIX[@]}"; do
+    SCRIPT_CMD+="${SCRIPT_CMD:+ }$(printf '%q' "$tok")"
+  done
   if [[ "$RUNNER_KIND" == "checkout-cli" ]]; then
     SCRIPT_CMD+=" node $(printf '%q' "$CHECKOUT_CLI") tui"
   else
@@ -162,13 +214,31 @@ if script -q -c true /dev/null 2>/dev/null; then
   fi
   CAPTURE_RC=$?
 else
-  # util-linux: file then -- command; BSD variants accept command argv after file.
-  if [[ "$script_supports_return" -eq 1 ]]; then
-    script -q -e "$OUT" -- "${INNER_CMD[@]}"
-  else
-    script -q "$OUT" -- "${INNER_CMD[@]}"
-  fi
+  # BSD script(1) (macOS): script [-q] file command... — no -c/-e flags, and a
+  # literal '--' would be executed as the command. BSD script also does not
+  # propagate the child exit status, so record the runner rc via a wrapper
+  # sidecar and prefer it over script's own exit code.
+  ensure_wrap_dir
+  RC_FILE="$WRAP_DIR/runner.rc"
+  RC_WRAPPER="$WRAP_DIR/runner-rc.sh"
+  cat > "$RC_WRAPPER" <<'RC_EOF'
+#!/usr/bin/env bash
+# BSD script(1) exits 0 regardless of the child status; record the real runner
+# rc to a sidecar so the caller can still enforce the 0/124 contract.
+set -u
+rc_file="$1"
+shift
+"$@"
+rc=$?
+printf '%s' "$rc" > "$rc_file" 2>/dev/null || true
+exit "$rc"
+RC_EOF
+  chmod +x "$RC_WRAPPER"
+  script -q "$OUT" bash "$RC_WRAPPER" "$RC_FILE" "${INNER_CMD[@]}"
   CAPTURE_RC=$?
+  if [[ -s "$RC_FILE" ]]; then
+    CAPTURE_RC="$(tr -d '[:space:]' < "$RC_FILE")"
+  fi
 fi
 set -e
 

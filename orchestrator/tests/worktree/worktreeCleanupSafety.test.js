@@ -65,7 +65,9 @@ test("validateCleanupTarget rejects unsafe paths (table)", () => {
 
   const ok = validateCleanupTarget(safe, { allowedRoot: allowed, repoRoot: repo });
   assert.equal(ok.ok, true);
-  assert.equal(ok.resolved_path, path.resolve(safe));
+  // realpath both sides: macOS /var → /private/var symlink makes
+  // path.resolve and fs.realpathSync disagree on the same directory.
+  assert.equal(ok.resolved_path, fs.realpathSync(path.resolve(safe)));
 });
 
 test("removeIsolatedWorktree rejects unsafe cleanup target before git remove", () => {
