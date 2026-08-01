@@ -115,6 +115,9 @@ test('production Ink shell rejects overflow/wrap on lock viewports', async () =>
     selectedNavId: 'launcher',
     icons: 'unicode',
     truecolor: false,
+    // Geometry lock: pin color off so ambient terminal capabilities (chalk
+    // level on a color TTY) cannot interleave SGR into the rendered text.
+    colorEnabled: false,
     art: 'arcade',
     guardianStyle: 'semantic',
   };

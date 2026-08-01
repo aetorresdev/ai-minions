@@ -29,9 +29,11 @@ const LANDING_FIXTURES_DIR = path.join(__dirname, '../fixtures/tui/landing');
 const ESC = String.fromCharCode(0x1b);
 const BEL = String.fromCharCode(0x07);
 const CSI8 = String.fromCharCode(0x9b);
-const ANSI_ESCAPE_RE = new RegExp(
-  `${ESC}(?:\\[[0-9;?]*[ -/]*[@-~]|\\][^${BEL}${ESC}]*(?:${BEL}|${ESC}\\\\)|[()][AB012]|[=>])|${CSI8}[0-9;?]*[ -/]*[@-~]`,
-);
+const ANSI_ESCAPE_PATTERN = `${ESC}(?:\\[[0-9;?]*[ -/]*[@-~]|\\][^${BEL}${ESC}]*(?:${BEL}|${ESC}\\\\)|[()][AB012]|[=>])|${CSI8}[0-9;?]*[ -/]*[@-~]`;
+const ANSI_ESCAPE_RE = new RegExp(ANSI_ESCAPE_PATTERN);
+// Strip must be global — a non-global replace removes only the first sequence
+// and miscounts width on hosts where Ink/chalk emits SGR (color-capable TTY).
+const ANSI_ESCAPE_STRIP_RE = new RegExp(ANSI_ESCAPE_PATTERN, 'g');
 const ESC_CHAR_RE = new RegExp(ESC);
 
 function readLandingFixture(name) {
@@ -55,7 +57,7 @@ function displayWidthApprox(line) {
 
 function measureLandingViewport(text, columns, rows) {
   const raw = String(text);
-  const plain = raw.replace(ANSI_ESCAPE_RE, '');
+  const plain = raw.replace(ANSI_ESCAPE_STRIP_RE, '');
   const lines = plain.replace(/\s+$/, '').split('\n');
   const max_display_width = lines.reduce((m, l) => Math.max(m, displayWidthApprox(l)), 0);
   return {
@@ -112,6 +114,10 @@ function readyShellOptions(overrides = {}) {
     // Match capture fixtures: portable unicode (runtime default remains nerd).
     icons: 'unicode',
     truecolor: false,
+    // Geometry/content contracts are color-independent: pin color off so the
+    // render cannot inherit ambient terminal capabilities (chalk level) from
+    // the host running the tests — fixtures and regexes expect plain text.
+    colorEnabled: false,
     ...overrides,
   };
 }

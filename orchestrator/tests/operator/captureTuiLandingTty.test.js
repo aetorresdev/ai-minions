@@ -93,6 +93,47 @@ exit "$rc"
 }
 
 /**
+ * BSD script(1) stub (macOS flavor): rejects -c/-e, takes `script [-q] file
+ * command...`, runs the command into the file, and ALWAYS exits 0 — real BSD
+ * script does not propagate the child exit status.
+ * @returns {string} directory to prepend to PATH
+ */
+function makeFakeBsdScriptDir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tui-fake-bsd-script-'));
+  const body = `#!/usr/bin/env bash
+set -u
+for arg in "$@"; do
+  case "$arg" in
+    -c|-e|--command|--return)
+      echo "script: illegal option -- \${arg#-}" >&2
+      echo "usage: script [-q] [file [command ...]]" >&2
+      exit 1
+      ;;
+  esac
+done
+out=/dev/null
+args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -q) shift ;;
+    *)
+      out="$1"
+      shift
+      args=("$@")
+      break
+      ;;
+  esac
+done
+if [[ \${#args[@]} -gt 0 ]]; then
+  "\${args[@]}" >"$out" 2>/dev/null
+fi
+exit 0
+`;
+  fs.writeFileSync(path.join(dir, 'script'), body, { mode: 0o755 });
+  return dir;
+}
+
+/**
  * Build an isolated git repo that mirrors the script's expected layout.
  * @param {{ cliBody?: string, commit?: boolean }} [opts]
  */
@@ -217,6 +258,20 @@ function makeRestrictedBinDir() {
  */
 function runCapture(script, args, env = {}, pathPrefix = []) {
   const fakeScriptDir = makeFakeScriptDir();
+  const prefix = [...pathPrefix, fakeScriptDir].join(path.delimiter);
+  return spawnSync('bash', [script, ...args], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      ...env,
+      PATH: `${prefix}${path.delimiter}${env.PATH || process.env.PATH || ''}`,
+    },
+  });
+}
+
+/** Same as runCapture but with the BSD script(1) stub (stock macOS flavor). */
+function runCaptureBsd(script, args, env = {}, pathPrefix = []) {
+  const fakeScriptDir = makeFakeBsdScriptDir();
   const prefix = [...pathPrefix, fakeScriptDir].join(path.delimiter);
   return spawnSync('bash', [script, ...args], {
     encoding: 'utf8',
@@ -378,6 +433,47 @@ setTimeout(() => process.exit(0), 30000);
     });
     assert.equal(r.status, 0, `${r.stderr}\n${r.stdout}`);
     assert.match(r.stdout, /script_rc=124/);
+    const meta = JSON.parse(fs.readFileSync(`${out}.meta.json`, 'utf8'));
+    assert.equal(meta.script_rc, 124);
+    assert.equal(meta.runner_version, 'v0.99.0-checkout');
+  });
+
+  it('BSD script flavor: captures via argv form and reports runner rc 0', () => {
+    const h = makeHarness();
+    const out = path.join(h.root, 'cap-bsd.typescript');
+    const r = runCaptureBsd(h.script, ['80', '24', out], {
+      FAKE_CHECKOUT_VERSION: 'v0.99.0-checkout',
+      FAKE_TUI_EXIT: '0',
+      FAKE_TUI_FRAME: MARKERS,
+    });
+    assert.equal(r.status, 0, `${r.stderr}\n${r.stdout}`);
+    assert.match(r.stdout, /script_rc=0/);
+    const meta = JSON.parse(fs.readFileSync(`${out}.meta.json`, 'utf8'));
+    assert.equal(meta.script_rc, 0);
+    assert.equal(meta.runner_version, 'v0.99.0-checkout');
+    assert.ok(fs.readFileSync(out, 'utf8').includes('Start New Run'));
+  });
+
+  it('BSD script flavor: surfaces runner failure rc although script exits 0', () => {
+    const h = makeHarness();
+    const out = path.join(h.root, 'cap-bsd-crash.typescript');
+    const r = runCaptureBsd(h.script, ['80', '24', out], {
+      FAKE_TUI_FRAME: MARKERS,
+      FAKE_TUI_EXIT: '1',
+    });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /unexpected script_rc=1/);
+  });
+
+  it('BSD script flavor: accepts runner rc 124 (deadline kill) when markers exist', () => {
+    const h = makeHarness();
+    const out = path.join(h.root, 'cap-bsd-timeout.typescript');
+    const r = runCaptureBsd(h.script, ['80', '24', out], {
+      FAKE_TUI_FRAME: MARKERS,
+      FAKE_TUI_EXIT: '124',
+      FAKE_CHECKOUT_VERSION: 'v0.99.0-checkout',
+    });
+    assert.equal(r.status, 0, `${r.stderr}\n${r.stdout}`);
     const meta = JSON.parse(fs.readFileSync(`${out}.meta.json`, 'utf8'));
     assert.equal(meta.script_rc, 124);
     assert.equal(meta.runner_version, 'v0.99.0-checkout');

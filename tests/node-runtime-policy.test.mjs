@@ -54,8 +54,8 @@ describe("node-runtime-policy", () => {
     }
   });
 
-  it("accepts Node 22 and 24", () => {
-    for (const version of ["22.0.0", "v22.11.1", "24.0.0"]) {
+  it("accepts Node 22, 24 and 26", () => {
+    for (const version of ["22.0.0", "v22.11.1", "24.0.0", "v26.5.0"]) {
       const result = assessNodeRuntime(version);
       assert.equal(result.ok, true);
       assert.equal(result.reason_code, null);

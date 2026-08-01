@@ -17,9 +17,12 @@ const CLEAR_SEQUENCE = '\u001b[2J\u001b[H';
 
 /**
  * Discard only residual dispatch CR/LF left after Ink hotkey/Enter (at most one
- * newline: `\n`, `\r`, or `\r\n`). Reads **one byte at a time** so a typed answer
- * already buffered after Enter is never pulled into a discard buffer; non-residue
- * bytes are requeued via `unshift` for the nested readline prompt.
+ * newline: `\n`, `\r`, or `\r\n`). The buffered remainder is requeued via a
+ * **single** `unshift` so a typed answer already buffered after Enter keeps its
+ * bytes and order for the nested readline prompt. (Byte-wise `read(1)` +
+ * `unshift(byte)` is not portable: Node ≥26 `read()` after `unshift` returns
+ * only the requeued chunk, so consumers draining the buffer in one `read()`
+ * would lose the answer's trailing newline.)
  * @param {NodeJS.ReadStream | { read?: Function, unshift?: Function, readableLength?: number } | null | undefined} stdin
  * @returns {number} residue bytes discarded (0–2)
  */
@@ -27,33 +30,38 @@ function drainStdin(stdin) {
   if (!stdin || typeof stdin.read !== 'function') return 0;
   if (typeof stdin.readableLength === 'number' && stdin.readableLength === 0) return 0;
 
-  const toByte = (chunk) => {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), 'utf8');
-    return buf.length ? buf[0] : null;
-  };
-  const requeue = (byte) => {
-    if (typeof stdin.unshift === 'function') stdin.unshift(Buffer.from([byte]));
-  };
+  const toBuffer = (chunk) => (Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), 'utf8'));
 
   try {
-    const first = stdin.read(1);
-    if (first == null) return 0;
-    const b0 = toByte(first);
-    if (b0 == null) return 0;
-
-    if (b0 === 0x0a) return 1;
-    if (b0 === 0x0d) {
-      const second = stdin.read(1);
-      if (second != null) {
-        const b1 = toByte(second);
-        if (b1 === 0x0a) return 2;
-        if (b1 != null) requeue(b1);
-      }
-      return 1;
+    if (typeof stdin.unshift !== 'function') {
+      // No way to requeue — consume a byte only when it is certain residue.
+      const first = stdin.read(1);
+      if (first == null) return 0;
+      const buf = toBuffer(first);
+      if (buf.length === 0) return 0;
+      if (buf[0] === 0x0a || buf[0] === 0x0d) return 1;
+      return 0;
     }
-    // Not dispatch residue — put the byte back for readline.
-    requeue(b0);
-    return 0;
+
+    let buffered = null;
+    for (;;) {
+      const chunk = stdin.read();
+      if (chunk == null) break;
+      const buf = toBuffer(chunk);
+      if (buf.length === 0) continue;
+      buffered = buffered === null ? buf : Buffer.concat([buffered, buf]);
+    }
+    if (buffered === null || buffered.length === 0) return 0;
+
+    let stripped = 0;
+    if (buffered[0] === 0x0a) {
+      stripped = 1;
+    } else if (buffered[0] === 0x0d) {
+      stripped = buffered.length > 1 && buffered[1] === 0x0a ? 2 : 1;
+    }
+    const rest = buffered.subarray(stripped);
+    if (rest.length > 0) stdin.unshift(rest);
+    return stripped;
   } catch {
     return 0;
   }

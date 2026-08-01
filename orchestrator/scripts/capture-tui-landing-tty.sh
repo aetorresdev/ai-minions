@@ -127,6 +127,14 @@ bin_version() {
 # the child. The wrapper must live inside the PTY command, so it is generated as
 # a file (exported bash functions would not survive script(1) spawning $SHELL,
 # which may be zsh on macOS).
+WRAP_DIR=""
+ensure_wrap_dir() {
+  if [[ -z "$WRAP_DIR" ]]; then
+    WRAP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/tui-capture-wrap.XXXXXX")"
+    trap 'rm -rf "$WRAP_DIR"' EXIT
+  fi
+}
+
 TIMEOUT_PREFIX=()
 WATCHDOG_WRAPPER=""
 if command -v timeout >/dev/null 2>&1; then
@@ -134,7 +142,7 @@ if command -v timeout >/dev/null 2>&1; then
 elif command -v gtimeout >/dev/null 2>&1; then
   TIMEOUT_PREFIX=(gtimeout 3s)
 else
-  WRAP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/tui-capture-wrap.XXXXXX")"
+  ensure_wrap_dir
   WATCHDOG_WRAPPER="$WRAP_DIR/timeout-watchdog.sh"
   cat > "$WATCHDOG_WRAPPER" <<'WATCHDOG_EOF'
 #!/usr/bin/env bash
@@ -157,7 +165,6 @@ fi
 exit "$rc"
 WATCHDOG_EOF
   chmod +x "$WATCHDOG_WRAPPER"
-  trap 'rm -rf "$WRAP_DIR"' EXIT
   TIMEOUT_PREFIX=(bash "$WATCHDOG_WRAPPER" 3)
 fi
 
@@ -207,13 +214,31 @@ if script -q -c true /dev/null 2>/dev/null; then
   fi
   CAPTURE_RC=$?
 else
-  # util-linux: file then -- command; BSD variants accept command argv after file.
-  if [[ "$script_supports_return" -eq 1 ]]; then
-    script -q -e "$OUT" -- "${INNER_CMD[@]}"
-  else
-    script -q "$OUT" -- "${INNER_CMD[@]}"
-  fi
+  # BSD script(1) (macOS): script [-q] file command... — no -c/-e flags, and a
+  # literal '--' would be executed as the command. BSD script also does not
+  # propagate the child exit status, so record the runner rc via a wrapper
+  # sidecar and prefer it over script's own exit code.
+  ensure_wrap_dir
+  RC_FILE="$WRAP_DIR/runner.rc"
+  RC_WRAPPER="$WRAP_DIR/runner-rc.sh"
+  cat > "$RC_WRAPPER" <<'RC_EOF'
+#!/usr/bin/env bash
+# BSD script(1) exits 0 regardless of the child status; record the real runner
+# rc to a sidecar so the caller can still enforce the 0/124 contract.
+set -u
+rc_file="$1"
+shift
+"$@"
+rc=$?
+printf '%s' "$rc" > "$rc_file" 2>/dev/null || true
+exit "$rc"
+RC_EOF
+  chmod +x "$RC_WRAPPER"
+  script -q "$OUT" bash "$RC_WRAPPER" "$RC_FILE" "${INNER_CMD[@]}"
   CAPTURE_RC=$?
+  if [[ -s "$RC_FILE" ]]; then
+    CAPTURE_RC="$(tr -d '[:space:]' < "$RC_FILE")"
+  fi
 fi
 set -e
 

@@ -68,7 +68,9 @@ describe("worktree-isolation", () => {
     assert.ok(fs.existsSync(created.worktree_path));
     const binding = readWorktreeBinding(created.worktree_path);
     assert.equal(binding.task_id, "task-wt-1");
-    assert.equal(binding.repo_root, repo);
+    // git rev-parse resolves symlinks (macOS /var → /private/var), so compare
+    // against the realpath of the mkdtemp repo, not the raw path.
+    assert.equal(binding.repo_root, fs.realpathSync(repo));
     assert.ok(created.contract);
     assert.equal(created.contract.run_id, "task-wt-1");
     assert.equal(created.contract.worktree_isolated, true);
