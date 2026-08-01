@@ -84,6 +84,7 @@ class TestSkillRegistryEnforcer(unittest.TestCase):
             text=True,
             capture_output=True,
             env=env,
+            check=False,
         )
 
     def test_enforce_unset_exits_zero(self):
@@ -130,6 +131,7 @@ class TestSkillRegistryEnforcer(unittest.TestCase):
             text=True,
             capture_output=True,
             env=env,
+            check=False,
         )
         self.assertEqual(r.returncode, 0, r.stderr)
 
@@ -163,6 +165,7 @@ class TestSkillRegistryEnforcer(unittest.TestCase):
             text=True,
             capture_output=True,
             env=env,
+            check=False,
         )
         self.assertEqual(r.returncode, 0)
 

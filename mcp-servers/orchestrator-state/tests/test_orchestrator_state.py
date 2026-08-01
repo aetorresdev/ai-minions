@@ -6,7 +6,6 @@ import json
 from unittest.mock import patch
 
 import pytest
-
 import server as srv
 
 
@@ -101,7 +100,7 @@ def test_register_task_open_envelope(state_root):
     assert opened["events_tail"][0]["type"] == "task_registered"
 
 
-def test_register_task_rejects_duplicate(state_root):  # noqa: ARG001
+def test_register_task_rejects_duplicate(state_root):
     srv.register_task(goal="g", task_id="dup")
     out = json.loads(srv.register_task(goal="g2", task_id="dup"))
     assert out["ok"] is False

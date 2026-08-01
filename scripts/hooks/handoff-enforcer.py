@@ -52,7 +52,7 @@ def active_task_id(mode: str) -> str | None:
     return None
 
 
-def flag_path(task_id: str = None) -> Path:
+def flag_path(task_id: str | None = None) -> Path:
     """
     Flag keyed by task_id when available (shared across all agent processes in a
     multi-agent run). Falls back to SESSION_ID for single-agent sessions.

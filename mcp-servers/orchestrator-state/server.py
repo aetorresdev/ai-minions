@@ -284,11 +284,10 @@ def _run_transition_checks(
     errors: list[str] = []
     max_it = int(envelope.get("max_iterations") or 3)
 
-    if iteration is not None:
-        if iteration > max_it:
-            errors.append(
-                f"handoff iteration {iteration} exceeds max_iterations {max_it} — escalate to ORCHESTRATOR"
-            )
+    if iteration is not None and iteration > max_it:
+        errors.append(
+            f"handoff iteration {iteration} exceeds max_iterations {max_it} — escalate to ORCHESTRATOR"
+        )
 
     ok_align, align_msg = _check_alignment_required(envelope, handoff_yaml)
     if not ok_align:
@@ -457,7 +456,7 @@ def validate_goal_alignment(
         raw = _call_ollama(_alignment_prompt(handoff_yaml, g))
     except httpx.ConnectError:
         return json.dumps({"ok": False, "error": "Ollama not reachable", "ollama_url": OLLAMA_URL})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — MCP tool boundary: return error strings, never raise
         return json.dumps({"ok": False, "error": str(e)})
 
     parsed = _parse_alignment_json(raw)

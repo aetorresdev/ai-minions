@@ -35,7 +35,7 @@ def _ollama_reachable() -> bool:
     try:
         r = httpx.get("http://127.0.0.1:11434/api/tags", timeout=2.0)
         return r.status_code == 200
-    except Exception:
+    except httpx.HTTPError:
         return False
 
 
@@ -52,10 +52,9 @@ async def _run_stdio_session(
             "ORCHESTRATOR_STATE_ROOT": str(state_root),
         },
     )
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            await body(session)
+    async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+        await session.initialize()
+        await body(session)
 
 
 async def _e2e_minimal_body(session: ClientSession) -> None:

@@ -39,8 +39,8 @@ jobs:
           npm ci
 
       - name: Install Python linter
-        # Pin: ruff 0.16+ enables new defaults (e.g. PLW1510) that fail this tree.
-        run: pip install "ruff==0.15.22"
+        # Single source of truth for the ruff pin (also enforced by lint:py locally).
+        run: pip install "ruff==$(tr -d '[:space:]' < orchestrator/scripts/ruff-version.txt)"
 
       - name: Static lint (eslint, ruff, docs-claims, boundaries, hooks)
         run: |
