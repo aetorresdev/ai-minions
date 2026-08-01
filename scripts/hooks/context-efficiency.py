@@ -41,8 +41,8 @@ State stored in:
 import json
 import os
 import sys
-from pathlib import Path
 from collections import Counter
+from pathlib import Path
 
 SESSIONS_DIR = Path.home() / ".claude/metrics/sessions"
 SESSION_ID   = os.environ.get("CLAUDE_SESSION_ID", "unknown")

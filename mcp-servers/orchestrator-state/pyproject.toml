@@ -3,12 +3,18 @@ name = "orchestrator-state"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.28.1",
+    # Stay on SDK v1 until servers migrate FastMCP → MCPServer (mcp 2.x).
+    "mcp>=1.28.1,<2",
     "httpx>=0.27.0",
     "pyyaml>=6.0.1",
 ]
 
 [project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+# uv installs default groups on plain `uv sync`; keeps local `uv run pytest`
+# working without `--extra dev`. The optional extra above stays for pip/CI.
+[dependency-groups]
 dev = ["pytest>=8.0"]
 
 [tool.pytest.ini_options]

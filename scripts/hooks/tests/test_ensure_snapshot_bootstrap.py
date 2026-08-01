@@ -21,6 +21,7 @@ class TestEnsureSnapshotBootstrap(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 env=env,
+                check=False,
             )
             self.assertEqual(r.returncode, 0)
             snapshot = Path(project) / "state" / "project_state.md"
@@ -33,29 +34,25 @@ class TestEnsureSnapshotBootstrap(unittest.TestCase):
             state_dir.mkdir(parents=True)
             snapshot = state_dir / "project_state.md"
             snapshot.write_text(
-                "\n".join(
-                    [
-                        "# PROJECT STATE SNAPSHOT",
-                        "## Goal",
-                        "[Describe the current main objective]",
-                        "## Current status",
-                        "ok",
-                        "## Decisions made",
-                        "- x",
-                        "## Constraints",
-                        "- y",
-                        "## Files touched",
-                        "- z",
-                        "## Pending tasks",
-                        "- [ ] a",
-                        "## Risks / open issues",
-                        "- r",
-                        "## Exact next step",
-                        "[Single next concrete action]",
-                        "## Resume prompt for another LLM/provider",
-                        "Continue",
-                    ]
-                ),
+                "# PROJECT STATE SNAPSHOT\n"
+                "## Goal\n"
+                "[Describe the current main objective]\n"
+                "## Current status\n"
+                "ok\n"
+                "## Decisions made\n"
+                "- x\n"
+                "## Constraints\n"
+                "- y\n"
+                "## Files touched\n"
+                "- z\n"
+                "## Pending tasks\n"
+                "- [ ] a\n"
+                "## Risks / open issues\n"
+                "- r\n"
+                "## Exact next step\n"
+                "[Single next concrete action]\n"
+                "## Resume prompt for another LLM/provider\n"
+                "Continue",
                 encoding="utf-8",
             )
             env = {**os.environ, "CLAUDE_PROJECT_DIR": project}
@@ -65,6 +62,7 @@ class TestEnsureSnapshotBootstrap(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 env=env,
+                check=False,
             )
             self.assertEqual(r.returncode, 0)
             self.assertIn("SNAPSHOT_WARN", r.stderr)

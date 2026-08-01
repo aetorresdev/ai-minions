@@ -10,8 +10,9 @@ Tools:
     validate_goal_alignment(handoff_yaml, goal, flow_mode)
 """
 import json
+from typing import Any
+
 import httpx
-from typing import Any, Dict, Tuple, Union
 from mcp.server.fastmcp import FastMCP
 
 OLLAMA_URL   = "http://localhost:11434/api/generate"
@@ -62,7 +63,7 @@ Rules:
 """
 
 
-def call_ollama(prompt: str, num_predict: int = 512) -> Tuple[str, Dict[str, int]]:
+def call_ollama(prompt: str, num_predict: int = 512) -> tuple[str, dict[str, int]]:
     """Returns (response_text, usage_dict) where usage has Ollama token counts when present."""
     payload = {
         "model": OLLAMA_MODEL,
@@ -106,10 +107,10 @@ def compact_handoff(
     text: str,
     mode_completed: str = "DEV",
     next_mode: str = "QA",
-    iteration: Union[int, str] = 1,
-    max_iterations: Union[int, str] = 3,
+    iteration: int | str = 1,
+    max_iterations: int | str = 3,
     flow_mode: str = "single_agent",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Compact an agent's raw output into a structured handoff YAML.
     Call this at the end of EVERY MODE before transitioning to the next.
@@ -145,7 +146,7 @@ Produce the handoff YAML:"""
         return "error: Ollama not reachable at localhost:11434 — is it running?"
     except httpx.HTTPStatusError as e:
         return f"error: Ollama returned {e.response.status_code}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — MCP tool boundary: return error strings, never raise
         return f"error: {e}"
 
     yaml_body = strip_fences(result)
@@ -180,7 +181,7 @@ Finding: """ + finding + "\n\nClassification:"
         result, _usage = call_ollama(prompt, num_predict=64)
     except httpx.ConnectError:
         return "error: Ollama not reachable at localhost:11434"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — MCP tool boundary: return error strings, never raise
         return f"error: {e}"
 
     return result.strip()
@@ -226,7 +227,7 @@ Answer in JSON only, no explanation outside the JSON:
         raw, _usage = call_ollama(prompt, num_predict=256)
     except httpx.ConnectError:
         return json.dumps({"error": "Ollama not reachable at localhost:11434"})
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — MCP tool boundary: return error strings, never raise
         return json.dumps({"error": str(e)})
 
     # Extract JSON from response

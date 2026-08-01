@@ -98,8 +98,8 @@ jobs:
                 node --version
                 apt-get update -qq
                 apt-get install -y -qq curl ca-certificates python3-pip
-                # Pin: ruff 0.16+ enables new defaults (e.g. PLW1510) that fail this tree.
-                pip3 install --break-system-packages -q "ruff==0.15.22"
+                # Single source of truth for the ruff pin (also enforced by lint:py locally).
+                pip3 install --break-system-packages -q "ruff==$(tr -d '[:space:]' < orchestrator/scripts/ruff-version.txt)"
                 curl -LsSf https://astral.sh/uv/0.6.14/install.sh | sh
                 export PATH="$HOME/.local/bin:$PATH"
                 cd orchestrator && npm ci

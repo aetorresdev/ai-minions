@@ -58,7 +58,7 @@ def session_id(transcript: Path | None = None) -> str:
 
 def derive_scope_from_goal(goal: str) -> tuple[str, str | None]:
     g = (goal or "").strip()
-    epic = re.search(r"\b(?:epic|scope)\s*:\s*(.+)", g, re.I)
+    epic = re.search(r"\b(?:epic|scope)\s*:\s*(.+)", g, re.IGNORECASE)
     if epic and epic.group(1).strip():
         return epic.group(1).strip()[:200], None
     if len(g) >= 12:
@@ -91,10 +91,10 @@ def load_orch_run_context() -> dict:
     return raw if isinstance(raw, dict) else {}
 
 sys.path.insert(0, str(Path(__file__).parent))
-from constants import (  # noqa: E402
+from constants import (
+    FALLBACK_PRICING_PROFILE,
     MODE_RE,
     PRICE,
-    FALLBACK_PRICING_PROFILE,
     cost_from_tokens,
     resolve_pricing_profile,
 )

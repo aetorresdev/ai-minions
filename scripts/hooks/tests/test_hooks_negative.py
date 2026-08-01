@@ -19,6 +19,7 @@ class TestContextEfficiencyNegative(unittest.TestCase):
             text=True,
             capture_output=True,
             env={**os.environ, "CLAUDE_SESSION_ID": "test-neg-ctx-1"},
+            check=False,
         )
         self.assertEqual(r.returncode, 0)
 
@@ -29,6 +30,7 @@ class TestContextEfficiencyNegative(unittest.TestCase):
             input="",
             text=True,
             capture_output=True,
+            check=False,
         )
         self.assertEqual(r.returncode, 0)
 
@@ -45,6 +47,7 @@ class TestFlowMetricsMissingSession(unittest.TestCase):
             env=env,
             capture_output=True,
             text=True,
+            check=False,
         )
         self.assertEqual(r.returncode, 0)
 

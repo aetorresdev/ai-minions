@@ -21,7 +21,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from constants import MODE_RE, cost_from_tokens as _cost_from_tokens
+from constants import MODE_RE
+from constants import cost_from_tokens as _cost_from_tokens
 
 # ── Config ────────────────────────────────────────────────────────────────────
 SESSIONS_DIR = Path.home() / ".claude/metrics/sessions"

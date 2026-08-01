@@ -1,0 +1,9 @@
+# Ruff config for shared Python (scripts/hooks + mcp-servers).
+# Version pinned in orchestrator/scripts/ruff-version.txt (local == CI).
+
+[lint.per-file-ignores]
+# Hooks run inside the Claude Code hook chain and must never break it: any
+# failure degrades to a no-op so the agent session continues. Broad
+# except/pass|continue at hook boundaries is therefore intentional design —
+# do not "fix" by narrowing exception types or adding re-raises.
+"scripts/hooks/**" = ["BLE001", "S110", "S112"]

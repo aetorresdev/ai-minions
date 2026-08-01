@@ -24,6 +24,16 @@ The **MODE contract** and strict-mode behavior are defined only under `docs/orch
 
 ---
 
+## Python lint (ruff) version pin
+
+`lint:py` runs ruff against `scripts/hooks/` + `mcp-servers/`. The ruff version is pinned in
+**`orchestrator/scripts/ruff-version.txt`** (single source of truth): CI installs that exact release and
+`orchestrator/scripts/lint-py.js` enforces it locally — PATH `ruff` is used only when it matches the pin,
+otherwise the script falls back to `uvx ruff@<pin>`. To bump ruff, edit `ruff-version.txt`, run
+`npm run lint:py`, and fix/triage new findings in the same change. Hook error handling under
+`scripts/hooks/**` is intentionally broad (hooks must never break the hook chain); the per-file ignores
+with the rationale live in the root `ruff.toml`.
+
 ## Runtime vs development
 
 | Mode | `mcp-servers` | `scripts/hooks` |
