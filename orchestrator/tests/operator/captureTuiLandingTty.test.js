@@ -478,4 +478,23 @@ setTimeout(() => process.exit(0), 30000);
     assert.equal(meta.script_rc, 124);
     assert.equal(meta.runner_version, 'v0.99.0-checkout');
   });
+
+  // Full stock-macOS matrix cell: BSD script(1) AND no timeout/gtimeout on PATH
+  // at once, so the rc sidecar must wrap the bash watchdog (not GNU timeout).
+  it('BSD script flavor + no timeout/gtimeout: sidecar rc wraps the bash watchdog', () => {
+    const h = makeHarness();
+    const out = path.join(h.root, 'cap-bsd-watchdog.typescript');
+    const r = runCaptureBsd(h.script, ['80', '24', out], {
+      PATH: makeRestrictedBinDir(),
+      FAKE_TUI_FRAME: MARKERS,
+      FAKE_TUI_EXIT: '124',
+      FAKE_CHECKOUT_VERSION: 'v0.99.0-checkout',
+    });
+    assert.equal(r.status, 0, `${r.stderr}\n${r.stdout}`);
+    const meta = JSON.parse(fs.readFileSync(`${out}.meta.json`, 'utf8'));
+    assert.equal(meta.script_rc, 124);
+    assert.equal(meta.runner_version, 'v0.99.0-checkout');
+    assert.match(meta.command, /timeout-watchdog\.sh/);
+    assert.ok(fs.readFileSync(out, 'utf8').includes('Start New Run'));
+  });
 });
