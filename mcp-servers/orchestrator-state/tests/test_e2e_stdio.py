@@ -33,7 +33,13 @@ def _tool_text(result: mcp_types.CallToolResult) -> str:
 
 def _ollama_reachable() -> bool:
     try:
-        r = httpx.get("http://127.0.0.1:11434/api/tags", timeout=2.0)
+        # Local loopback probe must ignore ALL_PROXY/HTTP_PROXY — otherwise a
+        # SOCKS proxy without socksio raises ImportError at collection time.
+        r = httpx.get(
+            "http://127.0.0.1:11434/api/tags",
+            timeout=2.0,
+            trust_env=False,
+        )
         return r.status_code == 200
     except httpx.HTTPError:
         return False
