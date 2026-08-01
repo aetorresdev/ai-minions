@@ -14,6 +14,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: astral-sh/setup-uv@v5
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -21,7 +23,6 @@ jobs:
       - name: Install deps and run tests
         run: |
           cd mcp-servers/orchestrator-state
-          python -m venv .venv
-          .venv/bin/pip install -U pip
-          .venv/bin/pip install -e ".[dev]"
-          .venv/bin/pytest tests/ -v --tb=short
+          # Locked install (respects uv.lock + dependency-groups.dev / pytest).
+          uv sync --frozen
+          uv run pytest tests/ -v --tb=short
