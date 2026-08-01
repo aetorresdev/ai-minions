@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Capture a real terminal frame of the operator TUI landing (visual composition).
 # Requires a TTY-capable host. Output is typescript(1) text — not Ink renderToString.
+# Deadline enforcement uses GNU timeout / gtimeout when present, otherwise a bash
+# watchdog fallback so stock macOS hosts (no coreutils) keep 124-on-kill semantics.
 #
 # Default runner: checkout CLI only (node orchestrator/ai-minions-cli.js tui).
 # Installed/global binary is opt-in only — never preferred automatically.
@@ -119,16 +121,56 @@ bin_version() {
   fi
 }
 
+# Portable deadline prefix. GNU timeout (util-linux/coreutils) or gtimeout (brew
+# coreutils on macOS); stock macOS has neither, so fall back to a bash watchdog
+# wrapper that preserves timeout(1) semantics: exit 124 when the deadline kills
+# the child. The wrapper must live inside the PTY command, so it is generated as
+# a file (exported bash functions would not survive script(1) spawning $SHELL,
+# which may be zsh on macOS).
+TIMEOUT_PREFIX=()
+WATCHDOG_WRAPPER=""
+if command -v timeout >/dev/null 2>&1; then
+  TIMEOUT_PREFIX=(timeout 3s)
+elif command -v gtimeout >/dev/null 2>&1; then
+  TIMEOUT_PREFIX=(gtimeout 3s)
+else
+  WRAP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/tui-capture-wrap.XXXXXX")"
+  WATCHDOG_WRAPPER="$WRAP_DIR/timeout-watchdog.sh"
+  cat > "$WATCHDOG_WRAPPER" <<'WATCHDOG_EOF'
+#!/usr/bin/env bash
+# timeout(1) fallback for hosts without GNU coreutils (e.g. stock macOS).
+set -u
+secs="$1"
+shift
+"$@" &
+child=$!
+( sleep "$secs"; kill -TERM "$child" 2>/dev/null ) &
+watchdog=$!
+wait "$child" 2>/dev/null
+rc=$?
+kill "$watchdog" 2>/dev/null
+wait "$watchdog" 2>/dev/null
+# 143 = 128 + SIGTERM (deadline fired); GNU timeout reports this as 124.
+if [[ "$rc" -eq 143 ]]; then
+  rc=124
+fi
+exit "$rc"
+WATCHDOG_EOF
+  chmod +x "$WATCHDOG_WRAPPER"
+  trap 'rm -rf "$WRAP_DIR"' EXIT
+  TIMEOUT_PREFIX=(bash "$WATCHDOG_WRAPPER" 3)
+fi
+
 if [[ "$USE_INSTALLED" -eq 1 ]]; then
   RUNNER_KIND="installed-bin"
   RUNNER_PATH="$(resolve_installed_bin)"
   RUNNER_VERSION="$(bin_version "$RUNNER_PATH")"
-  INNER_CMD=(timeout 3s "$RUNNER_PATH" tui)
+  INNER_CMD=("${TIMEOUT_PREFIX[@]}" "$RUNNER_PATH" tui)
 else
   RUNNER_KIND="checkout-cli"
   RUNNER_PATH="$CHECKOUT_CLI"
   RUNNER_VERSION="$(bin_version "$CHECKOUT_CLI")"
-  INNER_CMD=(timeout 3s node "$CHECKOUT_CLI" tui)
+  INNER_CMD=("${TIMEOUT_PREFIX[@]}" node "$CHECKOUT_CLI" tui)
 fi
 
 export COLUMNS="$COLS"
@@ -149,7 +191,10 @@ fi
 set +e
 if script -q -c true /dev/null 2>/dev/null; then
   # Join safely for script -c string; paths with spaces are quoted.
-  SCRIPT_CMD="timeout 3s"
+  SCRIPT_CMD=""
+  for tok in "${TIMEOUT_PREFIX[@]}"; do
+    SCRIPT_CMD+="${SCRIPT_CMD:+ }$(printf '%q' "$tok")"
+  done
   if [[ "$RUNNER_KIND" == "checkout-cli" ]]; then
     SCRIPT_CMD+=" node $(printf '%q' "$CHECKOUT_CLI") tui"
   else

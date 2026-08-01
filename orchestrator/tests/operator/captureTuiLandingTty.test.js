@@ -190,6 +190,26 @@ exit 2
 }
 
 /**
+ * Build a bin directory with symlinks to the host tools the capture script
+ * needs — deliberately WITHOUT timeout/gtimeout, simulating stock macOS so the
+ * bash watchdog fallback is exercised on any host.
+ * @returns {string} directory to use as the full PATH suffix
+ */
+function makeRestrictedBinDir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tui-restricted-bin-'));
+  const tools = [
+    'bash', 'cat', 'chmod', 'dirname', 'env', 'git', 'head', 'mkdir',
+    'mktemp', 'node', 'rm', 'sleep', 'tr',
+  ];
+  for (const tool of tools) {
+    const found = spawnSync('bash', ['-c', `command -v ${tool}`], { encoding: 'utf8' });
+    assert.equal(found.status, 0, `host tool required for restricted-PATH test: ${tool}`);
+    fs.symlinkSync(found.stdout.trim(), path.join(dir, tool));
+  }
+  return dir;
+}
+
+/**
  * @param {string} script
  * @param {string[]} args
  * @param {NodeJS.ProcessEnv} [env]
@@ -321,5 +341,45 @@ describe('capture-tui-landing-tty.sh (executed)', () => {
     assert.equal(r.status, 2);
     assert.match(r.stderr, /dirty worktree/);
     assert.equal(fs.existsSync(`${out}.meta.json`), false);
+  });
+
+  it('falls back to the bash watchdog when timeout(1) is absent (stock macOS)', () => {
+    const h = makeHarness();
+    const out = path.join(h.root, 'cap-watchdog.typescript');
+    const r = runCapture(h.script, ['80', '24', out], {
+      PATH: makeRestrictedBinDir(),
+      FAKE_TUI_FRAME: MARKERS,
+      FAKE_TUI_EXIT: '0',
+      FAKE_CHECKOUT_VERSION: 'v0.99.0-checkout',
+    });
+    assert.equal(r.status, 0, `${r.stderr}\n${r.stdout}`);
+    assert.match(r.stdout, /runner_kind=checkout-cli/);
+    const meta = JSON.parse(fs.readFileSync(`${out}.meta.json`, 'utf8'));
+    assert.equal(meta.script_rc, 0);
+    assert.equal(meta.runner_version, 'v0.99.0-checkout');
+    assert.ok(fs.readFileSync(out, 'utf8').includes('Start New Run'));
+  });
+
+  it('watchdog kills a hung runner at the deadline and reports script_rc=124', () => {
+    const hangCli = `#!/usr/bin/env node
+'use strict';
+if (process.argv[2] === '--version') {
+  process.stdout.write('v0.99.0-checkout\\n');
+  process.exit(0);
+}
+process.stdout.write(${JSON.stringify(MARKERS)});
+setTimeout(() => process.exit(0), 30000);
+`;
+    const h = makeHarness({ cliBody: hangCli });
+    const out = path.join(h.root, 'cap-watchdog-kill.typescript');
+    const r = runCapture(h.script, ['80', '24', out], {
+      PATH: makeRestrictedBinDir(),
+      FAKE_CHECKOUT_VERSION: 'v0.99.0-checkout',
+    });
+    assert.equal(r.status, 0, `${r.stderr}\n${r.stdout}`);
+    assert.match(r.stdout, /script_rc=124/);
+    const meta = JSON.parse(fs.readFileSync(`${out}.meta.json`, 'utf8'));
+    assert.equal(meta.script_rc, 124);
+    assert.equal(meta.runner_version, 'v0.99.0-checkout');
   });
 });
