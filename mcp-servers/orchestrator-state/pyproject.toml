@@ -11,5 +11,10 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 
+# uv installs default groups on plain `uv sync`; keeps local `uv run pytest`
+# working without `--extra dev`. The optional extra above stays for pip/CI.
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
