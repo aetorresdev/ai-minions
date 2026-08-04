@@ -986,13 +986,138 @@ const TUI_UX_EVIDENCE_REGISTRY_RELATIVE = path.join(
   'tui-ux-acceptance-evidence.registry.json',
 );
 
+/** Repo-relative directory for first-time manual evidence artifacts. */
+const TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR = path.join(
+  'docs',
+  'evidence',
+  'tui-manual-first-time',
+);
+
+/**
+ * When manualEvidence.status is pass, require an explicit `artifacts` list of
+ * repo-relative paths under docs/evidence/tui-manual-first-time/ and verify
+ * each file exists with minimal content. Path substring notes alone are not enough.
+ *
+ * @param {{
+ *   registry: object,
+ *   repoRoot: string,
+ *   existsSync?: typeof fs.existsSync,
+ *   readFileSync?: typeof fs.readFileSync,
+ *   statSync?: typeof fs.statSync,
+ * }} opts
+ * @returns {{ ok: boolean, reasons: string[] }}
+ */
+function validateManualFirstTimeArtifacts(opts) {
+  const registry = opts.registry;
+  const manual = registry && registry.manualEvidence;
+  if (!manual || typeof manual !== 'object' || manual.status !== 'pass') {
+    return { ok: true, reasons: [] };
+  }
+
+  /** @type {string[]} */
+  const reasons = [];
+  const exists = opts.existsSync ?? fs.existsSync;
+  const readFile = opts.readFileSync ?? fs.readFileSync;
+  const stat = opts.statSync ?? fs.statSync;
+  const repoRoot = opts.repoRoot;
+  const artifacts = Array.isArray(manual.artifacts) ? manual.artifacts.map(String) : null;
+
+  if (!artifacts || artifacts.length === 0) {
+    return { ok: false, reasons: ['manual_first_time_user:artifacts_required'] };
+  }
+
+  const evidencePrefix = `${TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR}${path.sep}`.replace(/\\/g, '/');
+  let hasObservations = false;
+  let hasTypescript = false;
+  let hasMeta = false;
+
+  for (const relRaw of artifacts) {
+    const rel = String(relRaw).replace(/\\/g, '/');
+    if (!rel || rel.startsWith('/') || rel.includes('..') || !rel.startsWith(evidencePrefix.replace(/\\/g, '/'))) {
+      reasons.push(`manual_first_time_user:artifact_path_invalid:${rel || '(empty)'}`);
+      continue;
+    }
+    const abs = path.join(repoRoot, ...rel.split('/'));
+    if (!exists(abs)) {
+      reasons.push(`manual_first_time_user:artifact_missing:${rel}`);
+      continue;
+    }
+    let st;
+    try {
+      st = stat(abs);
+    } catch {
+      reasons.push(`manual_first_time_user:artifact_unreadable:${rel}`);
+      continue;
+    }
+    if (!st.isFile() || st.size <= 0) {
+      reasons.push(`manual_first_time_user:artifact_empty:${rel}`);
+      continue;
+    }
+
+    if (rel.endsWith('first-time-observations.json')) {
+      hasObservations = true;
+      try {
+        const obs = JSON.parse(String(readFile(abs, 'utf8')));
+        if (!obs || obs.script_id !== TUI_UX_FIRST_TIME_SCRIPT.id) {
+          reasons.push(`manual_first_time_user:observations_invalid:${rel}`);
+        }
+      } catch {
+        reasons.push(`manual_first_time_user:observations_invalid_json:${rel}`);
+      }
+    } else if (rel.endsWith('.typescript')) {
+      hasTypescript = true;
+      const body = String(readFile(abs, 'utf8'));
+      if (!/Start New Run|Overall:|AI-MINIONS|ai-minions/i.test(body)) {
+        reasons.push(`manual_first_time_user:typescript_content_weak:${rel}`);
+      }
+    } else if (rel.endsWith('.meta.json')) {
+      hasMeta = true;
+      try {
+        const meta = JSON.parse(String(readFile(abs, 'utf8')));
+        if (!meta || typeof meta.source_tip_sha !== 'string' || !meta.source_tip_sha.trim()) {
+          reasons.push(`manual_first_time_user:meta_missing_source_tip_sha:${rel}`);
+        }
+      } catch {
+        reasons.push(`manual_first_time_user:meta_invalid_json:${rel}`);
+      }
+    }
+  }
+
+  if (!hasObservations) {
+    reasons.push('manual_first_time_user:observations_required');
+  }
+  if (!hasTypescript) {
+    reasons.push('manual_first_time_user:typescript_required');
+  }
+  if (!hasMeta) {
+    reasons.push('manual_first_time_user:meta_required');
+  }
+
+  const macos = registry.platformEvidence
+    && registry.platformEvidence.overrides
+    && registry.platformEvidence.overrides.macos_node22_tty;
+  if (macos && macos.status === 'pass') {
+    const evidenceText = String(macos.evidence || '');
+    const referenced = artifacts.some((rel) => evidenceText.includes(rel));
+    if (!referenced) {
+      reasons.push('manual_first_time_user:macos_evidence_paths_unreferenced');
+    }
+  }
+
+  return { ok: reasons.length === 0, reasons };
+}
+
 /**
  * Load the explicit UX acceptance evidence registry and evaluate the companion verdict.
  * Missing / blocked / fail → non-pass. Used by `test:tui-release` preflight.
+ * A manualEvidence status of pass additionally requires verifiable on-disk artifacts.
  *
  * @param {{
  *   registryPath?: string,
+ *   repoRoot?: string,
  *   readFileSync?: typeof fs.readFileSync,
+ *   existsSync?: typeof fs.existsSync,
+ *   statSync?: typeof fs.statSync,
  *   buildPlatformEvidence?: typeof buildPlatformEvidenceRecord,
  * }} [opts]
  * @returns {{
@@ -1006,6 +1131,7 @@ function evaluateUxAcceptanceEvidenceRegistry(opts = {}) {
   const buildPlatform = opts.buildPlatformEvidence ?? buildPlatformEvidenceRecord;
   const registryPath = opts.registryPath
     ?? path.join(__dirname, 'tui-ux-acceptance-evidence.registry.json');
+  const repoRoot = opts.repoRoot ?? path.join(__dirname, '..', '..', '..');
   let raw;
   try {
     raw = readFile(registryPath, 'utf8');
@@ -1058,7 +1184,7 @@ function evaluateUxAcceptanceEvidenceRegistry(opts = {}) {
     })
     : undefined;
 
-  const verdict = evaluateUxAcceptanceVerdict({
+  let verdict = evaluateUxAcceptanceVerdict({
     automatedUxOk: registry.automatedUxOk === true,
     // Pass through as-is so omission stays blocked (do not coerce undefined → false).
     semanticGateOk: Object.prototype.hasOwnProperty.call(registry, 'semanticGateOk')
@@ -1067,6 +1193,21 @@ function evaluateUxAcceptanceEvidenceRegistry(opts = {}) {
     manualEvidence: registry.manualEvidence,
     platformEvidence,
   });
+
+  const artifactCheck = validateManualFirstTimeArtifacts({
+    registry,
+    repoRoot,
+    existsSync: opts.existsSync,
+    readFileSync: readFile,
+    statSync: opts.statSync,
+  });
+  if (!artifactCheck.ok) {
+    verdict = {
+      verdict: 'blocked',
+      reasons: [...artifactCheck.reasons, ...verdict.reasons.filter((r) => !artifactCheck.reasons.includes(r))],
+      command_set: [...TUI_RELEASE_COMMAND_SET],
+    };
+  }
 
   return { registryPath, registry, verdict };
 }
@@ -1081,7 +1222,9 @@ module.exports = {
   TUI_UX_JOURNEYS,
   TUI_UX_FIRST_TIME_SCRIPT,
   TUI_UX_EVIDENCE_REGISTRY_RELATIVE,
+  TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR,
   missingStatusTokens,
+  validateManualFirstTimeArtifacts,
   assertFocusWithoutColorAlone,
   observeCriticalPath,
   assertCriticalPathVisible,
