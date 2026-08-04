@@ -700,10 +700,15 @@ function buildRecentRunPreview(runs, limit = RECENT_RUNS_LIMIT, offset = 0) {
       summary: run.goal_summary == null || run.goal_summary === ''
         ? null
         : String(run.goal_summary),
+      created_at: run.created_at == null ? null : String(run.created_at),
       last_event_at: run.last_event_at == null ? null : String(run.last_event_at),
       status: run.status == null ? null : String(run.status),
       outcome: run.outcome == null ? null : String(run.outcome),
       reason_code: run.reason_code == null ? null : String(run.reason_code),
+      current_phase: run.current_phase == null ? null : String(run.current_phase),
+      result_code: run.result_code == null ? null : String(run.result_code),
+      next_safe_action: run.next_safe_action == null ? null : String(run.next_safe_action),
+      action_eligibility: run.action_eligibility == null ? null : String(run.action_eligibility),
       agent_count: run.agent_count == null ? null : Number(run.agent_count),
       activity_state: activity.state,
       activity_label: activity.label,

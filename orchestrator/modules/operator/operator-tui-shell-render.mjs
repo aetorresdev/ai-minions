@@ -940,13 +940,18 @@ function ShellApp(props) {
         if (surface === 'config') {
           opts.configModel = seedConfigModelFromShell(current);
         }
-        if (surface === 'status') {
+        if (surface === 'status' || surface === 'monitor') {
           const keepAuthoritative = current.status?.available === true
             && current.selectedRunId
             && String(current.status.run_id) === String(current.selectedRunId);
           if (!keepAuthoritative) {
             const seeded = seedStatusResultFromSelectedRun(current);
             if (seeded) opts.statusResult = seeded;
+          }
+          // Monitor stays Ink-local: seed from status snapshot (no nested executeAction).
+          if (surface === 'monitor') {
+            opts.monitorSource = opts.statusResult ?? current.statusResult ?? current.monitorSource;
+            opts.selectedNavId = 'monitor';
           }
         }
         commit(buildShellModel(opts));
@@ -1318,13 +1323,25 @@ function buildContentLines(model) {
     if (!model.status.available) {
       return ['(status unavailable)', `selected: ${model.selectedRunId ?? '-'}`];
     }
+    const eligibility = model.status.action_eligibility ?? 'inspect';
+    const eligibilityLabel = eligibility === 'continue_current'
+      ? 'Continue current (inspect first; Resume not claimed)'
+      : eligibility === 'unavailable'
+        ? 'Unavailable — inspect reason_code'
+        : 'Inspect only — no Resume claimed';
     return [
       `run_id: ${model.status.run_id ?? '-'}`,
+      `title: ${model.status.goal_summary ?? '(unavailable)'}`,
+      `created_at: ${model.status.created_at ?? '(unavailable)'}`,
+      `updated_at: ${model.status.last_event_at ?? '(unavailable)'}`,
+      `current_phase: ${model.status.current_phase ?? '-'}`,
       `result_code: ${model.status.result_code ?? '-'}`,
       `status: ${model.status.status ?? '-'}`,
       `outcome: ${model.status.outcome ?? '-'}`,
       `reason_code: ${model.status.reason_code ?? '-'}`,
+      `action: ${eligibilityLabel}`,
       `next_safe_action: ${model.status.next_safe_action ?? '-'}`,
+      'Esc back to run list · selection preserved',
     ];
   }
   if (model.contentSurface === 'evidence') {

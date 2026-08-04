@@ -295,7 +295,7 @@ function isShellSessionEndAction(actionId) {
 function isInkLocalShellAction(actionId) {
   const id = String(actionId ?? '').trim().toLowerCase();
   // `runs` / launcher are Phase-1 native workflows (still Ink-mounted, separate path).
-  // Overview / Explain / Evidence / Settings stay in-process like Help / System Status —
+  // Overview / Explain / Evidence / Monitor / Settings stay in-process like Help —
   // never soft-handoff into nested readline (silent-quit lookalike / lost remount).
   return id === 'home'
     || id === 'help'
@@ -306,6 +306,8 @@ function isInkLocalShellAction(actionId) {
     || id === 'overview'
     || id === 'explain'
     || id === 'evidence'
+    || id === 'monitor'
+    || id === 'lifecycle'
     || id === 'config'
     || id === 'settings';
 }
@@ -329,7 +331,7 @@ function isInkLocalRemountFallbackAction(actionId) {
 
 /**
  * @param {unknown} actionId
- * @returns {'home'|'help'|'diagnostics'|'status'|'evidence'|'config'|null}
+ * @returns {'home'|'help'|'diagnostics'|'status'|'evidence'|'monitor'|'config'|null}
  */
 function contentSurfaceForLocalAction(actionId) {
   const id = String(actionId ?? '').trim().toLowerCase();
@@ -341,6 +343,7 @@ function contentSurfaceForLocalAction(actionId) {
   // Explain shares the status surface (reason_code / next_safe_action) — no nested pane.
   if (id === 'status' || id === 'overview' || id === 'explain') return 'status';
   if (id === 'evidence') return 'evidence';
+  if (id === 'monitor' || id === 'lifecycle') return 'monitor';
   if (id === 'config' || id === 'settings') return 'config';
   return null;
 }
@@ -381,12 +384,38 @@ function seedConfigModelFromShell(model) {
 }
 
 /**
+ * Derive operator-facing action eligibility from authoritative status/outcome.
+ * Never claims product Resume — only Inspect / Continue current / Unavailable.
+ * @param {{ status?: string | null, outcome?: string | null }} run
+ * @returns {'inspect'|'continue_current'|'unavailable'}
+ */
+function deriveRunActionEligibility(run) {
+  const status = String(run?.status ?? '').toLowerCase();
+  const outcome = String(run?.outcome ?? '').toLowerCase();
+  const terminal = new Set([
+    'success', 'failed', 'blocked', 'exhausted', 'cancelled', 'complete', 'fail',
+  ]);
+  if (status === 'running' || status === 'active' || outcome === 'running') {
+    return 'continue_current';
+  }
+  if (terminal.has(status) || terminal.has(outcome)) {
+    return 'inspect';
+  }
+  if (status === 'invalid' || outcome === 'unknown') {
+    return 'unavailable';
+  }
+  // Non-terminal / interrupted without a running label — inspect first; no Resume claim.
+  return 'inspect';
+}
+
+/**
  * Derive Overview status snapshot from the selected run board row
  * (authoritative list fields only — does not invent doctor/status JSON).
  * @param {{
  *   selectedRunId?: string | null,
  *   runs?: { runs?: object[] },
  *   landing?: { recent_runs?: object[] },
+ *   status?: object | null,
  * } | null | undefined} model
  * @returns {object | null}
  */
@@ -404,6 +433,12 @@ function seedStatusResultFromSelectedRun(model) {
       outcome: model.status.outcome ?? null,
       reason_code: model.status.reason_code ?? null,
       next_safe_action: model.status.next_safe_action ?? null,
+      current_phase: model.status.current_phase ?? null,
+      goal_summary: model.status.goal_summary ?? null,
+      created_at: model.status.created_at ?? null,
+      last_event_at: model.status.last_event_at ?? null,
+      action_eligibility: model.status.action_eligibility
+        ?? deriveRunActionEligibility(model.status),
     };
   }
   const board = Array.isArray(model?.runs?.runs) ? model.runs.runs : [];
@@ -419,6 +454,11 @@ function seedStatusResultFromSelectedRun(model) {
       outcome: null,
       reason_code: null,
       next_safe_action: null,
+      current_phase: null,
+      goal_summary: null,
+      created_at: null,
+      last_event_at: null,
+      action_eligibility: 'unavailable',
     };
   }
   return {
@@ -428,6 +468,15 @@ function seedStatusResultFromSelectedRun(model) {
     outcome: run.outcome == null ? null : String(run.outcome),
     reason_code: run.reason_code == null ? null : String(run.reason_code),
     next_safe_action: run.next_safe_action == null ? null : String(run.next_safe_action),
+    current_phase: run.current_phase == null ? null : String(run.current_phase),
+    goal_summary: run.goal_summary == null && run.summary == null
+      ? null
+      : String(run.goal_summary ?? run.summary),
+    created_at: run.created_at == null ? null : String(run.created_at),
+    last_event_at: run.last_event_at == null && run.updated_at == null
+      ? null
+      : String(run.last_event_at ?? run.updated_at),
+    action_eligibility: deriveRunActionEligibility(run),
   };
 }
 
@@ -1046,6 +1095,7 @@ module.exports = {
   contentSurfaceForLocalAction,
   seedConfigModelFromShell,
   seedStatusResultFromSelectedRun,
+  deriveRunActionEligibility,
   focusTargetsForModel,
   navItemsForMovement,
   helpTopics,

@@ -46,6 +46,51 @@ function latestEventTimestamp(rows) {
 }
 
 /**
+ * @param {object[]} rows
+ * @returns {number | null}
+ */
+function earliestEventTimestamp(rows) {
+  let earliest = null;
+  for (const row of rows) {
+    if (
+      !row
+      || typeof row.ts_ms !== 'number'
+      || !Number.isFinite(new Date(row.ts_ms).getTime())
+    ) continue;
+    if (earliest == null || row.ts_ms < earliest) earliest = row.ts_ms;
+  }
+  return earliest;
+}
+
+/**
+ * Goal from first session_start only — never invent from prose/logs.
+ * @param {object[]} rows
+ * @returns {string | null}
+ */
+function goalSummaryFromRows(rows) {
+  for (const row of rows) {
+    if (!row || row.event !== 'session_start') continue;
+    if (typeof row.goal === 'string' && row.goal.trim()) return row.goal.trim();
+  }
+  return null;
+}
+
+/**
+ * Honest action eligibility label for list/detail (no product Resume).
+ * @param {{ status?: string | null, outcome?: string | null }} run
+ * @returns {'inspect'|'continue_current'|'unavailable'}
+ */
+function actionEligibilityFromStatus(run) {
+  const status = String(run?.status ?? '').toLowerCase();
+  const outcome = String(run?.outcome ?? '').toLowerCase();
+  if (status === 'running' || status === 'active' || outcome === 'running') {
+    return 'continue_current';
+  }
+  if (status === 'invalid') return 'unavailable';
+  return 'inspect';
+}
+
+/**
  * @param {string} value
  * @returns {string}
  */
@@ -77,15 +122,22 @@ function buildRunListEntry(filePath, ctx) {
   }
 
   const lastEventTs = latestEventTimestamp(ctx.rows);
+  const firstEventTs = earliestEventTimestamp(ctx.rows);
+  const goalSummary = goalSummaryFromRows(ctx.rows);
   // Selection resolves trace basenames, so do not trust an embedded task_id as the CLI selector.
   const runId = fallbackRunId;
+  const status = ctx.status_label;
+  const outcome = ctx.summary?.outcome ?? 'unknown';
   return {
     run_id: runId,
     result_code: ctx.run_state?.result_code ?? 'RUN_FOUND',
-    status: ctx.status_label,
-    outcome: ctx.summary?.outcome ?? 'unknown',
+    status,
+    outcome,
     current_phase: ctx.summary?.current_phase ?? null,
+    created_at: firstEventTs == null ? null : new Date(firstEventTs).toISOString(),
     last_event_at: lastEventTs == null ? null : new Date(lastEventTs).toISOString(),
+    goal_summary: goalSummary,
+    action_eligibility: actionEligibilityFromStatus({ status, outcome }),
     trace_file: filePath,
     reason_code: ctx.run_state?.blocking_reason_code ?? null,
     select_command: `ai-minions status --run-id ${formatRunIdArg(runId)}`,
@@ -239,6 +291,9 @@ module.exports = {
   MAX_RUNS_LIMIT,
   normalizeRunsLimit,
   latestEventTimestamp,
+  earliestEventTimestamp,
+  goalSummaryFromRows,
+  actionEligibilityFromStatus,
   formatRunIdArg,
   buildRunListEntry,
   sortRunListEntries,
