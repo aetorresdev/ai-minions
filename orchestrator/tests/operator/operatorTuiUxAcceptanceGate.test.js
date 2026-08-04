@@ -8,6 +8,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const {
@@ -20,6 +21,7 @@ const {
   TUI_UX_JOURNEYS,
   TUI_UX_FIRST_TIME_SCRIPT,
   TUI_UX_EVIDENCE_REGISTRY_RELATIVE,
+  TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR,
   missingStatusTokens,
   assertFocusWithoutColorAlone,
   observeCriticalPath,
@@ -30,6 +32,7 @@ const {
   assertUxJourneyOutcome,
   evaluateUxAcceptanceVerdict,
   evaluateUxAcceptanceEvidenceRegistry,
+  validateManualFirstTimeArtifacts,
   journeyById,
 } = require('../../modules/operator/operator-tui-ux-acceptance');
 
@@ -397,16 +400,239 @@ test('evaluateUxAcceptanceVerdict: fail / blocked / pass honesty', () => {
 });
 
 test('evidence registry preflight blocks when first-time / platform evidence is missing', () => {
-  const result = evaluateUxAcceptanceEvidenceRegistry();
+  // Fixture registry — must not depend on the committed live registry status.
+  // Flipping the live registry to pass (after real macOS evidence) must not break this assertion.
+  const fixturePath = path.join(
+    os.tmpdir(),
+    `tui-ux-evidence-blocked-${process.pid}-${Date.now()}.json`,
+  );
+  fs.writeFileSync(
+    fixturePath,
+    `${JSON.stringify({
+      schema: '1',
+      kind: 'tui_ux_acceptance_evidence_registry',
+      semanticGateOk: true,
+      automatedUxOk: true,
+      manualEvidence: {
+        status: 'blocked',
+        note: 'fixture: first-time-user evidence not recorded',
+      },
+      platformEvidence: {
+        automatedGateOk: true,
+        overrides: {
+          macos_node22_tty: {
+            status: 'blocked',
+            evidence: 'fixture: pending interactive macOS Node 22 TTY smoke',
+          },
+        },
+      },
+    }, null, 2)}\n`,
+    'utf8',
+  );
+  try {
+    const result = evaluateUxAcceptanceEvidenceRegistry({ registryPath: fixturePath });
+    assert.equal(result.verdict.verdict, 'blocked');
+    assert.ok(result.verdict.reasons.length >= 1);
+    assert.ok(
+      result.verdict.reasons.some((r) => r.includes('manual_first_time_user')
+        || r.includes('macos_node22_tty')
+        || r.includes('platform_evidence')),
+    );
+
+    const { main } = require('../../scripts/tui-ux-release-preflight');
+    assert.equal(main(['--registry', fixturePath]), 1);
+  } finally {
+    fs.unlinkSync(fixturePath);
+  }
+});
+
+test('committed evidence registry is honest for release preflight', () => {
+  const registryPath = path.join(
+    __dirname,
+    '../../modules/operator/tui-ux-acceptance-evidence.registry.json',
+  );
+  const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+  const { main } = require('../../scripts/tui-ux-release-preflight');
+  const result = evaluateUxAcceptanceEvidenceRegistry({ registryPath });
+  const manualStatus = registry.manualEvidence && registry.manualEvidence.status;
+  const macos = registry.platformEvidence
+    && registry.platformEvidence.overrides
+    && registry.platformEvidence.overrides.macos_node22_tty;
+
+  if (manualStatus === 'pass') {
+    // Manual + macos TTY evidence recorded. Overall preflight may still be
+    // blocked on linux_node* slots (stamped only when the gate runs on Linux).
+    assert.ok(
+      !result.verdict.reasons.some((r) => String(r).startsWith('manual_first_time_user:')),
+      result.verdict.reasons.join(', '),
+    );
+    assert.equal(macos && macos.status, 'pass');
+    assert.ok(Array.isArray(registry.manualEvidence.artifacts));
+    assert.ok(registry.manualEvidence.artifacts.length >= 3);
+    const art = validateManualFirstTimeArtifacts({
+      registry,
+      repoRoot: path.join(__dirname, '../../..'),
+    });
+    assert.equal(art.ok, true, art.reasons.join(', '));
+    const code = main([]);
+    if (result.verdict.verdict === 'pass') {
+      assert.equal(code, 0);
+    } else {
+      assert.equal(code, 1);
+      assert.equal(result.verdict.verdict, 'blocked');
+    }
+    return;
+  }
+
+  // Default honest state until macOS first-time evidence is recorded.
+  assert.equal(manualStatus, 'blocked');
   assert.equal(result.verdict.verdict, 'blocked');
-  assert.ok(result.verdict.reasons.length >= 1);
-  assert.ok(
-    result.verdict.reasons.some((r) => r.includes('manual_first_time_user')
-      || r.includes('macos_node22_tty')
-      || r.includes('platform_evidence')),
+  assert.ok(result.verdict.reasons.some((r) => r.includes('manual_first_time_user')));
+  assert.equal(main([]), 1);
+});
+
+test('manualEvidence pass with missing artifact paths is blocked (no fake PASS)', () => {
+  const fixturePath = path.join(
+    os.tmpdir(),
+    `tui-ux-evidence-fake-pass-${process.pid}-${Date.now()}.json`,
+  );
+  const missing = `${TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR}/macos-node22-journey.typescript`
+    .replace(/\\/g, '/');
+  fs.writeFileSync(
+    fixturePath,
+    `${JSON.stringify({
+      schema: '1',
+      kind: 'tui_ux_acceptance_evidence_registry',
+      semanticGateOk: true,
+      automatedUxOk: true,
+      manualEvidence: {
+        status: 'pass',
+        note: `fake pass with missing paths under ${TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR}/`,
+        artifacts: [
+          `${TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR}/first-time-observations.json`.replace(/\\/g, '/'),
+          missing,
+          `${TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR}/macos-node22-landing-80x24.typescript.meta.json`
+            .replace(/\\/g, '/'),
+        ],
+      },
+      platformEvidence: {
+        automatedGateOk: true,
+        platform: 'linux',
+        nodeMajor: 22,
+        overrides: {
+          linux_node24: { status: 'pass', evidence: 'ci' },
+          macos_node22_tty: {
+            status: 'pass',
+            evidence: `PTY: ${missing}`,
+          },
+        },
+      },
+    }, null, 2)}\n`,
+    'utf8',
+  );
+  try {
+    const result = evaluateUxAcceptanceEvidenceRegistry({ registryPath: fixturePath });
+    assert.equal(result.verdict.verdict, 'blocked');
+    assert.ok(result.verdict.reasons.some((r) => r.includes('artifact_missing')
+      || r.includes('artifacts_required')
+      || r.includes('observations_required')));
+    const { main } = require('../../scripts/tui-ux-release-preflight');
+    assert.equal(main(['--registry', fixturePath]), 1);
+  } finally {
+    fs.unlinkSync(fixturePath);
+  }
+});
+
+test('manualEvidence pass with real on-disk artifacts exercises PASS branch', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tui-ux-evidence-pass-'));
+  const evidenceDir = path.join(root, TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR);
+  fs.mkdirSync(evidenceDir, { recursive: true });
+
+  const observationsRel = `${TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR}/first-time-observations.json`
+    .replace(/\\/g, '/');
+  const journeyRel = `${TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR}/macos-node22-journey.typescript`
+    .replace(/\\/g, '/');
+  const landingRel = `${TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR}/macos-node22-landing-80x24.typescript`
+    .replace(/\\/g, '/');
+  const metaRel = `${landingRel}.meta.json`;
+
+  fs.writeFileSync(
+    path.join(root, ...observationsRel.split('/')),
+    `${JSON.stringify({
+      script_id: TUI_UX_FIRST_TIME_SCRIPT.id,
+      completed_without_intervention: 'yes',
+      wrong_turn_count: 0,
+      points_of_confusion: '',
+      unsupported_assumption: '',
+      terminal_platform_version: 'fixture',
+      run_or_evidence_ids: 'fixture-run',
+    }, null, 2)}\n`,
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(root, ...journeyRel.split('/')),
+    'fixture journey typescript\nStart New Run\nOverall: ready\nAI-MINIONS\n',
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(root, ...landingRel.split('/')),
+    'fixture landing typescript\nStart New Run\nOverall: ready\n',
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(root, ...metaRel.split('/')),
+    `${JSON.stringify({
+      source_tip_sha: 'deadbeef',
+      runner_kind: 'fixture',
+      runner_version: '0',
+      ink_version: '0',
+      script_rc: 0,
+    }, null, 2)}\n`,
+    'utf8',
   );
 
-  const { main } = require('../../scripts/tui-ux-release-preflight');
-  const code = main([]);
-  assert.equal(code, 1);
+  const registryPath = path.join(root, 'registry.json');
+  fs.writeFileSync(
+    registryPath,
+    `${JSON.stringify({
+      schema: '1',
+      kind: 'tui_ux_acceptance_evidence_registry',
+      semanticGateOk: true,
+      automatedUxOk: true,
+      manualEvidence: {
+        status: 'pass',
+        note: `fixture recorded; artifacts under ${TUI_UX_MANUAL_FIRST_TIME_EVIDENCE_DIR}/`,
+        artifacts: [observationsRel, journeyRel, landingRel, metaRel],
+      },
+      platformEvidence: {
+        automatedGateOk: true,
+        platform: 'linux',
+        nodeMajor: 22,
+        overrides: {
+          linux_node24: { status: 'pass', evidence: 'ci fixture' },
+          macos_node22_tty: {
+            status: 'pass',
+            evidence: `interactive fixture; PTY: ${journeyRel} + ${landingRel} (${metaRel})`,
+          },
+        },
+      },
+    }, null, 2)}\n`,
+    'utf8',
+  );
+
+  try {
+    const result = evaluateUxAcceptanceEvidenceRegistry({
+      registryPath,
+      repoRoot: root,
+    });
+    assert.equal(result.verdict.verdict, 'pass', result.verdict.reasons.join(', '));
+    assert.deepEqual(result.verdict.reasons, []);
+
+    const { main } = require('../../scripts/tui-ux-release-preflight');
+    assert.equal(main(['--registry', registryPath, '--repo-root', root]), 0);
+    // Without --repo-root, default repo root cannot see temp artifacts → blocked.
+    assert.equal(main(['--registry', registryPath]), 1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

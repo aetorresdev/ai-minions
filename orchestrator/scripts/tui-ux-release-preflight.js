@@ -19,8 +19,12 @@ function main(argv = process.argv.slice(2)) {
   const registryPath = registryArgIdx >= 0 && argv[registryArgIdx + 1]
     ? path.resolve(argv[registryArgIdx + 1])
     : undefined;
+  const repoRootIdx = argv.indexOf('--repo-root');
+  const repoRoot = repoRootIdx >= 0 && argv[repoRootIdx + 1]
+    ? path.resolve(argv[repoRootIdx + 1])
+    : undefined;
 
-  const result = evaluateUxAcceptanceEvidenceRegistry({ registryPath });
+  const result = evaluateUxAcceptanceEvidenceRegistry({ registryPath, repoRoot });
   const { verdict } = result;
 
   const payload = {
