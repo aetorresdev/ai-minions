@@ -129,25 +129,35 @@ function adaptRunsList(payload) {
     ? payload.json
     : payload;
   const runs = Array.isArray(body?.runs)
-    ? body.runs.map((run) => ({
-      run_id: String(run.run_id ?? ''),
-      status: run.status ?? null,
-      outcome: run.outcome ?? null,
-      result_code: run.result_code ?? null,
-      reason_code: run.reason_code ?? null,
-      current_phase: run.current_phase ?? null,
-      last_event_at: run.last_event_at == null ? null : String(run.last_event_at),
-      created_at: run.created_at == null ? null : String(run.created_at),
-      // Pass through only when operator list already provided them — never invent.
-      goal_summary: run.goal_summary == null && run.goal == null
+    ? body.runs.map((run) => {
+      const status = run.status == null ? null : String(run.status);
+      let actionEligibility = run.action_eligibility == null
         ? null
-        : String(run.goal_summary ?? run.goal),
-      agent_count: run.agent_count == null && run.agents_count == null
-        ? null
-        : Number(run.agent_count ?? run.agents_count),
-      next_safe_action: run.next_safe_action == null ? null : String(run.next_safe_action),
-      action_eligibility: run.action_eligibility == null ? null : String(run.action_eligibility),
-    }))
+        : String(run.action_eligibility);
+      // Corrupt / invalid list rows fail closed — never present as Inspect.
+      if (actionEligibility == null && String(status ?? '').toLowerCase() === 'invalid') {
+        actionEligibility = 'unavailable';
+      }
+      return {
+        run_id: String(run.run_id ?? ''),
+        status,
+        outcome: run.outcome ?? null,
+        result_code: run.result_code ?? null,
+        reason_code: run.reason_code ?? null,
+        current_phase: run.current_phase ?? null,
+        last_event_at: run.last_event_at == null ? null : String(run.last_event_at),
+        created_at: run.created_at == null ? null : String(run.created_at),
+        // Pass through only when operator list already provided them — never invent.
+        goal_summary: run.goal_summary == null && run.goal == null
+          ? null
+          : String(run.goal_summary ?? run.goal),
+        agent_count: run.agent_count == null && run.agents_count == null
+          ? null
+          : Number(run.agent_count ?? run.agents_count),
+        next_safe_action: run.next_safe_action == null ? null : String(run.next_safe_action),
+        action_eligibility: actionEligibility,
+      };
+    })
     : [];
   return {
     schema: ADAPTER_SCHEMA,
@@ -214,9 +224,16 @@ function adaptSelectedRunStatus(statusResult) {
     ?? null;
   const createdAt = statusResult.created_at == null ? null : String(statusResult.created_at);
   const lastEventAt = statusResult.last_event_at == null ? null : String(statusResult.last_event_at);
-  const actionEligibility = statusResult.action_eligibility == null
+  let actionEligibility = statusResult.action_eligibility == null
     ? null
     : String(statusResult.action_eligibility);
+  // Missing eligibility on invalid status → Unavailable (not Inspect).
+  if (
+    actionEligibility == null
+    && String(status ?? '').toLowerCase() === 'invalid'
+  ) {
+    actionEligibility = 'unavailable';
+  }
   return {
     schema: ADAPTER_SCHEMA,
     kind: 'selected_run_status',

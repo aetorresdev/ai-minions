@@ -86,8 +86,60 @@ function actionEligibilityFromStatus(run) {
   if (status === 'running' || status === 'active' || outcome === 'running') {
     return 'continue_current';
   }
-  if (status === 'invalid') return 'unavailable';
+  if (status === 'invalid' || outcome === 'unknown') {
+    return 'unavailable';
+  }
   return 'inspect';
+}
+
+/**
+ * Operator-facing eligibility label — never invents product Resume.
+ * Missing / unknown eligibility → Unavailable (fail closed).
+ * @param {unknown} eligibility
+ * @returns {string}
+ */
+function actionEligibilityDisplayLabel(eligibility) {
+  const e = String(eligibility ?? '').trim().toLowerCase();
+  if (e === 'continue_current') {
+    return 'Continue current (inspect first; Resume not claimed)';
+  }
+  if (e === 'inspect') {
+    return 'Inspect only — no Resume claimed';
+  }
+  return 'Unavailable — inspect reason_code';
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+function fieldOrUnavailable(value) {
+  if (value == null || value === '') return '(unavailable)';
+  return String(value);
+}
+
+/**
+ * Visible Runs-board / Recent-detail lines for one run (title, dates, phase, reason, eligibility).
+ * @param {object} run
+ * @param {{ selected?: boolean }} [opts]
+ * @returns {string[]}
+ */
+function formatRunsBoardEntryLines(run, opts = {}) {
+  const selected = opts.selected === true;
+  const mark = selected ? '>' : ' ';
+  const runId = run?.run_id == null || run.run_id === '' ? '-' : String(run.run_id);
+  const eligibility = run?.action_eligibility == null || run.action_eligibility === ''
+    ? 'unavailable'
+    : String(run.action_eligibility);
+  return [
+    `${mark} ${runId}  ${run?.status ?? '-'} / ${run?.outcome ?? '-'} / ${run?.result_code ?? '-'}`,
+    `  title: ${fieldOrUnavailable(run?.goal_summary ?? run?.summary)}`,
+    `  created_at: ${fieldOrUnavailable(run?.created_at)}`,
+    `  updated_at: ${fieldOrUnavailable(run?.last_event_at ?? run?.updated_at)}`,
+    `  phase: ${fieldOrUnavailable(run?.current_phase)}`,
+    `  reason_code: ${fieldOrUnavailable(run?.reason_code)}`,
+    `  action: ${actionEligibilityDisplayLabel(eligibility)}`,
+  ];
 }
 
 /**
@@ -113,7 +165,10 @@ function buildRunListEntry(filePath, ctx) {
       status: 'invalid',
       outcome: null,
       current_phase: null,
+      created_at: null,
       last_event_at: null,
+      goal_summary: null,
+      action_eligibility: 'unavailable',
       trace_file: filePath,
       reason_code: ctx.reason_code ?? 'OPERATOR_TRACE_INVALID',
       select_command: `ai-minions status --run-id ${formatRunIdArg(fallbackRunId)}`,
@@ -294,6 +349,9 @@ module.exports = {
   earliestEventTimestamp,
   goalSummaryFromRows,
   actionEligibilityFromStatus,
+  actionEligibilityDisplayLabel,
+  fieldOrUnavailable,
+  formatRunsBoardEntryLines,
   formatRunIdArg,
   buildRunListEntry,
   sortRunListEntries,

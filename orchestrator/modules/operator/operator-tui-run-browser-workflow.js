@@ -15,6 +15,11 @@ const {
   formatRunStatusPaneText,
   loadRunStatusPane,
 } = require('./operator-run-selector-tui');
+const {
+  formatRunsBoardEntryLines,
+  fieldOrUnavailable,
+  actionEligibilityDisplayLabel,
+} = require('./operator-run-list');
 
 const RUN_BROWSER_WORKFLOW_KIND = 'run_browser';
 
@@ -30,10 +35,15 @@ const RUN_BROWSER_WORKFLOW_KIND = 'run_browser';
  */
 function createRunBrowserWorkflow(opts = {}) {
   const runs = Array.isArray(opts.runs) ? opts.runs : [];
-  const options = runs.map((run) => ({
-    id: String(run.run_id),
-    label: `${run.run_id}  status=${run.status ?? '-'}  outcome=${run.outcome ?? '-'}  result_code=${run.result_code ?? '-'}`,
-  }));
+  const options = runs.map((run) => {
+    const detailLines = formatRunsBoardEntryLines(run, { selected: false }).slice(1);
+    return {
+      id: String(run.run_id),
+      label: `${run.run_id}  ${run.status ?? '-'} / ${run.outcome ?? '-'} / ${run.result_code ?? '-'}`,
+      note: detailLines.map((line) => line.trim()).join(' · ')
+        || `title: ${fieldOrUnavailable(null)} · action: ${actionEligibilityDisplayLabel('unavailable')}`,
+    };
+  });
   let cursorIndex = 0;
   if (opts.selectedRunId) {
     const idx = runs.findIndex((r) => String(r.run_id) === String(opts.selectedRunId));

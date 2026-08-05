@@ -47,6 +47,11 @@ const {
 } = require('./operator-tui-launcher-workflow.js');
 const { formatSlashHelpText } = require('./operator-tui-slash-commands.js');
 const { adaptActionResult } = require('./operator-tui-adapters.js');
+const {
+  formatRunsBoardEntryLines,
+  actionEligibilityDisplayLabel,
+  fieldOrUnavailable,
+} = require('./operator-run-list.js');
 const { pathToFileURL, fileURLToPath } = require('node:url');
 const path = require('node:path');
 
@@ -1314,32 +1319,29 @@ function buildContentLines(model) {
   }
   if (model.contentSurface === 'runs') {
     if (!model.runs.runs.length) return ['(none)', `result_code: ${model.runs.result_code}`];
-    return model.runs.runs.map((run) => (
-      `${run.run_id === model.selectedRunId ? '>' : ' '} ${run.run_id} `
-      + `${run.status ?? '-'} / ${run.outcome ?? '-'} / ${run.result_code ?? '-'}`
-    ));
+    return model.runs.runs.flatMap((run) => formatRunsBoardEntryLines(run, {
+      selected: run.run_id === model.selectedRunId,
+    }));
   }
   if (model.contentSurface === 'status') {
     if (!model.status.available) {
       return ['(status unavailable)', `selected: ${model.selectedRunId ?? '-'}`];
     }
-    const eligibility = model.status.action_eligibility ?? 'inspect';
-    const eligibilityLabel = eligibility === 'continue_current'
-      ? 'Continue current (inspect first; Resume not claimed)'
-      : eligibility === 'unavailable'
-        ? 'Unavailable — inspect reason_code'
-        : 'Inspect only — no Resume claimed';
+    // Missing eligibility fails closed to Unavailable (never invent Inspect/Resume).
+    const eligibility = model.status.action_eligibility == null || model.status.action_eligibility === ''
+      ? 'unavailable'
+      : model.status.action_eligibility;
     return [
       `run_id: ${model.status.run_id ?? '-'}`,
-      `title: ${model.status.goal_summary ?? '(unavailable)'}`,
-      `created_at: ${model.status.created_at ?? '(unavailable)'}`,
-      `updated_at: ${model.status.last_event_at ?? '(unavailable)'}`,
-      `current_phase: ${model.status.current_phase ?? '-'}`,
+      `title: ${fieldOrUnavailable(model.status.goal_summary)}`,
+      `created_at: ${fieldOrUnavailable(model.status.created_at)}`,
+      `updated_at: ${fieldOrUnavailable(model.status.last_event_at)}`,
+      `current_phase: ${fieldOrUnavailable(model.status.current_phase)}`,
       `result_code: ${model.status.result_code ?? '-'}`,
       `status: ${model.status.status ?? '-'}`,
       `outcome: ${model.status.outcome ?? '-'}`,
-      `reason_code: ${model.status.reason_code ?? '-'}`,
-      `action: ${eligibilityLabel}`,
+      `reason_code: ${fieldOrUnavailable(model.status.reason_code)}`,
+      `action: ${actionEligibilityDisplayLabel(eligibility)}`,
       `next_safe_action: ${model.status.next_safe_action ?? '-'}`,
       'Esc back to run list · selection preserved',
     ];

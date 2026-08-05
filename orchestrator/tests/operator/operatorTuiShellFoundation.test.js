@@ -1539,6 +1539,79 @@ test('seeded Overview carries title/dates/eligibility without inventing Resume',
   assert.ok(lines.includes('no Resume claimed'));
 });
 
+test('runs board lines render title/dates/phase/reason/eligibility with unavailable fallbacks', async () => {
+  const { buildShellModel } = require('../../modules/operator/operator-tui-shell-model');
+  const { buildContentLines } = await import('../../modules/operator/operator-tui-shell-render.mjs');
+  const model = buildShellModel({
+    contentSurface: 'runs',
+    selectedRunId: 'r-rich',
+    runsPayload: {
+      result_code: 'RUNS_OK',
+      runs: [
+        {
+          run_id: 'r-rich',
+          status: 'blocked',
+          outcome: 'blocked',
+          result_code: 'RUN_FOUND',
+          goal_summary: 'canonical fixture blocked path',
+          created_at: '2026-08-01T00:00:00.000Z',
+          last_event_at: '2026-08-01T00:01:00.000Z',
+          current_phase: 'review',
+          reason_code: 'CERBERUS_REJECT',
+          action_eligibility: 'inspect',
+        },
+        {
+          run_id: 'r-bare',
+          status: 'invalid',
+          outcome: null,
+          result_code: 'RUN_TRACE_INVALID',
+          reason_code: 'OPERATOR_TRACE_INVALID',
+          // intentionally omit title/dates/phase/eligibility
+        },
+      ],
+    },
+  });
+  const lines = buildContentLines(model).join('\n');
+  assert.match(lines, /> r-rich {2}blocked \/ blocked \/ RUN_FOUND/);
+  assert.match(lines, /title: canonical fixture blocked path/);
+  assert.match(lines, /created_at: 2026-08-01T00:00:00\.000Z/);
+  assert.match(lines, /updated_at: 2026-08-01T00:01:00\.000Z/);
+  assert.match(lines, /phase: review/);
+  assert.match(lines, /reason_code: CERBERUS_REJECT/);
+  assert.match(lines, /Inspect only — no Resume claimed/);
+  assert.match(lines, / r-bare {2}invalid \/ - \/ RUN_TRACE_INVALID/);
+  assert.match(lines, /title: \(unavailable\)/);
+  assert.match(lines, /created_at: \(unavailable\)/);
+  assert.match(lines, /updated_at: \(unavailable\)/);
+  assert.match(lines, /phase: \(unavailable\)/);
+  assert.match(lines, /Unavailable — inspect reason_code/);
+  assert.equal(model.runs.runs[1].action_eligibility, 'unavailable');
+});
+
+test('invalid status without eligibility renders Unavailable not Inspect', async () => {
+  const { buildShellModel } = require('../../modules/operator/operator-tui-shell-model');
+  const { adaptSelectedRunStatus } = require('../../modules/operator/operator-tui-adapters');
+  const { buildContentLines } = await import('../../modules/operator/operator-tui-shell-render.mjs');
+  const adapted = adaptSelectedRunStatus({
+    run_id: 'corrupt-1',
+    status: 'invalid',
+    result_code: 'RUN_TRACE_INVALID',
+    reason_code: 'OPERATOR_TRACE_INVALID',
+    // no action_eligibility — must not become Inspect
+  });
+  assert.equal(adapted.action_eligibility, 'unavailable');
+  const model = buildShellModel({
+    statusResult: adapted,
+    selectedRunId: 'corrupt-1',
+    contentSurface: 'status',
+  });
+  const lines = buildContentLines(model).join('\n');
+  assert.match(lines, /status: invalid/);
+  assert.match(lines, /RUN_TRACE_INVALID/);
+  assert.match(lines, /Unavailable — inspect reason_code/);
+  assert.equal(lines.includes('Inspect only'), false);
+});
+
 test('System Status hotkey 3 and Enter stay mounted; Settings stays Ink-local', async () => {
   const { RESTORE_SEQUENCE: restoreSeq } = require('../../modules/operator/operator-tui-terminal-guard');
   const { stdin, stdout } = createFakeTtyStreams();

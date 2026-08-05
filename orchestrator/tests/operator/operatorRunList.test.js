@@ -9,6 +9,7 @@ const path = require("node:path");
 const {
   DEFAULT_RUNS_LIMIT,
   formatRunIdArg,
+  formatRunsBoardEntryLines,
   normalizeRunsLimit,
   runOperatorRuns,
 } = require("../../modules/operator/operator-run-list");
@@ -47,10 +48,63 @@ describe("operator-run-list", () => {
     assert.equal(result.json.runs[1].result_code, "RUN_FOUND");
     assert.equal(result.json.runs[2].result_code, "RUN_TRACE_INVALID");
     assert.equal(result.json.runs[2].last_event_at, null);
+    assert.equal(result.json.runs[2].created_at, null);
+    assert.equal(result.json.runs[2].goal_summary, null);
+    assert.equal(result.json.runs[2].current_phase, null);
+    assert.equal(result.json.runs[2].action_eligibility, "unavailable");
     assert.equal(
       result.json.runs[0].select_command,
       "ai-minions status --run-id newer",
     );
+  });
+
+  it("corrupt-trace list entry emits unavailable eligibility and null metadata", () => {
+    const tracesDir = fs.mkdtempSync(path.join(os.tmpdir(), "ai-minions-runs-corrupt-"));
+    fs.writeFileSync(path.join(tracesDir, "corrupt.jsonl"), "{not-json\n", "utf8");
+
+    const result = runOperatorRuns({ tracesDir, limit: 5, json: true });
+    assert.equal(result.ok, true);
+    assert.equal(result.json.run_count, 1);
+    const corrupt = result.json.runs[0];
+    assert.equal(corrupt.run_id, "corrupt");
+    assert.equal(corrupt.status, "invalid");
+    assert.equal(corrupt.result_code, "RUN_TRACE_INVALID");
+    assert.equal(corrupt.action_eligibility, "unavailable");
+    assert.equal(corrupt.goal_summary, null);
+    assert.equal(corrupt.created_at, null);
+    assert.equal(corrupt.last_event_at, null);
+    assert.equal(corrupt.current_phase, null);
+    assert.equal(corrupt.outcome, null);
+
+    const lines = formatRunsBoardEntryLines(corrupt, { selected: true }).join("\n");
+    assert.match(lines, /^> corrupt/);
+    assert.match(lines, /title: \(unavailable\)/);
+    assert.match(lines, /created_at: \(unavailable\)/);
+    assert.match(lines, /updated_at: \(unavailable\)/);
+    assert.match(lines, /phase: \(unavailable\)/);
+    assert.match(lines, /Unavailable — inspect reason_code/);
+  });
+
+  it("valid list entry board lines include title, dates, phase, reason, eligibility", () => {
+    const lines = formatRunsBoardEntryLines({
+      run_id: "r-rich",
+      status: "blocked",
+      outcome: "blocked",
+      result_code: "RUN_FOUND",
+      goal_summary: "canonical fixture blocked path",
+      created_at: "2026-08-01T00:00:00.000Z",
+      last_event_at: "2026-08-01T00:01:00.000Z",
+      current_phase: "review",
+      reason_code: "CERBERUS_REJECT",
+      action_eligibility: "inspect",
+    }, { selected: true }).join("\n");
+    assert.match(lines, /^> r-rich {2}blocked \/ blocked \/ RUN_FOUND/);
+    assert.match(lines, /title: canonical fixture blocked path/);
+    assert.match(lines, /created_at: 2026-08-01T00:00:00\.000Z/);
+    assert.match(lines, /updated_at: 2026-08-01T00:01:00\.000Z/);
+    assert.match(lines, /phase: review/);
+    assert.match(lines, /reason_code: CERBERUS_REJECT/);
+    assert.match(lines, /Inspect only — no Resume claimed/);
   });
 
   it("returns RUNS_EMPTY with exit 0 when no traces exist", () => {
