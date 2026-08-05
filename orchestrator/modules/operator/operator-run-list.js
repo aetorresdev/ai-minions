@@ -46,6 +46,127 @@ function latestEventTimestamp(rows) {
 }
 
 /**
+ * @param {object[]} rows
+ * @returns {number | null}
+ */
+function earliestEventTimestamp(rows) {
+  let earliest = null;
+  for (const row of rows) {
+    if (
+      !row
+      || typeof row.ts_ms !== 'number'
+      || !Number.isFinite(new Date(row.ts_ms).getTime())
+    ) continue;
+    if (earliest == null || row.ts_ms < earliest) earliest = row.ts_ms;
+  }
+  return earliest;
+}
+
+/**
+ * Goal from first session_start only — never invent from prose/logs.
+ * @param {object[]} rows
+ * @returns {string | null}
+ */
+function goalSummaryFromRows(rows) {
+  for (const row of rows) {
+    if (!row || row.event !== 'session_start') continue;
+    if (typeof row.goal === 'string' && row.goal.trim()) return row.goal.trim();
+  }
+  return null;
+}
+
+/**
+ * Legacy helper retained for unit callers — do **not** use in buildRunListEntry.
+ * List production must not invent inspect/continue from status/outcome when the
+ * trace never carried action_eligibility; use normalizeActionEligibility instead.
+ * @param {{ status?: string | null, outcome?: string | null }} run
+ * @returns {'inspect'|'continue_current'|'unavailable'}
+ */
+function actionEligibilityFromStatus(run) {
+  const status = String(run?.status ?? '').toLowerCase();
+  const outcome = String(run?.outcome ?? '').toLowerCase();
+  if (status === 'running' || status === 'active' || outcome === 'running') {
+    return 'continue_current';
+  }
+  if (status === 'invalid' || outcome === 'unknown') {
+    return 'unavailable';
+  }
+  return 'inspect';
+}
+
+/**
+ * Normalize list/status action_eligibility for adapters and Overview seed.
+ * Absent/blank → unavailable. Invalid status forces unavailable even if a
+ * conflicting value (e.g. inspect) arrives. Never invents Inspect from status.
+ * @param {unknown} raw
+ * @param {unknown} [status]
+ * @returns {'inspect'|'continue_current'|'unavailable'}
+ */
+function normalizeActionEligibility(raw, status) {
+  if (String(status ?? '').toLowerCase() === 'invalid') {
+    return 'unavailable';
+  }
+  if (raw == null || String(raw).trim() === '') {
+    return 'unavailable';
+  }
+  const e = String(raw).trim().toLowerCase();
+  if (e === 'inspect' || e === 'continue_current' || e === 'unavailable') {
+    return e;
+  }
+  return 'unavailable';
+}
+
+/**
+ * Operator-facing eligibility label — never invents product Resume.
+ * Missing / unknown eligibility → Unavailable (fail closed).
+ * @param {unknown} eligibility
+ * @returns {string}
+ */
+function actionEligibilityDisplayLabel(eligibility) {
+  const e = String(eligibility ?? '').trim().toLowerCase();
+  if (e === 'continue_current') {
+    return 'Continue current (inspect first; Resume not claimed)';
+  }
+  if (e === 'inspect') {
+    return 'Inspect only — no Resume claimed';
+  }
+  return 'Unavailable — inspect reason_code';
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+function fieldOrUnavailable(value) {
+  if (value == null || value === '') return '(unavailable)';
+  return String(value);
+}
+
+/**
+ * Visible Runs-board / Recent-detail lines for one run (title, dates, phase, reason, eligibility).
+ * @param {object} run
+ * @param {{ selected?: boolean }} [opts]
+ * @returns {string[]}
+ */
+function formatRunsBoardEntryLines(run, opts = {}) {
+  const selected = opts.selected === true;
+  const mark = selected ? '>' : ' ';
+  const runId = run?.run_id == null || run.run_id === '' ? '-' : String(run.run_id);
+  const eligibility = run?.action_eligibility == null || run.action_eligibility === ''
+    ? 'unavailable'
+    : String(run.action_eligibility);
+  return [
+    `${mark} ${runId}  ${run?.status ?? '-'} / ${run?.outcome ?? '-'} / ${run?.result_code ?? '-'}`,
+    `  title: ${fieldOrUnavailable(run?.goal_summary ?? run?.summary)}`,
+    `  created_at: ${fieldOrUnavailable(run?.created_at)}`,
+    `  updated_at: ${fieldOrUnavailable(run?.last_event_at ?? run?.updated_at)}`,
+    `  phase: ${fieldOrUnavailable(run?.current_phase)}`,
+    `  reason_code: ${fieldOrUnavailable(run?.reason_code)}`,
+    `  action: ${actionEligibilityDisplayLabel(eligibility)}`,
+  ];
+}
+
+/**
  * @param {string} value
  * @returns {string}
  */
@@ -68,7 +189,10 @@ function buildRunListEntry(filePath, ctx) {
       status: 'invalid',
       outcome: null,
       current_phase: null,
+      created_at: null,
       last_event_at: null,
+      goal_summary: null,
+      action_eligibility: 'unavailable',
       trace_file: filePath,
       reason_code: ctx.reason_code ?? 'OPERATOR_TRACE_INVALID',
       select_command: `ai-minions status --run-id ${formatRunIdArg(fallbackRunId)}`,
@@ -77,15 +201,27 @@ function buildRunListEntry(filePath, ctx) {
   }
 
   const lastEventTs = latestEventTimestamp(ctx.rows);
+  const firstEventTs = earliestEventTimestamp(ctx.rows);
+  const goalSummary = goalSummaryFromRows(ctx.rows);
   // Selection resolves trace basenames, so do not trust an embedded task_id as the CLI selector.
   const runId = fallbackRunId;
+  const status = ctx.status_label;
+  const outcome = ctx.summary?.outcome ?? 'unknown';
+  // Traces do not carry action_eligibility — do not invent inspect/continue from
+  // status/outcome. Pass absent through normalize → unavailable (fail closed).
+  const rawEligibility = ctx.run_state?.action_eligibility
+    ?? ctx.summary?.action_eligibility
+    ?? null;
   return {
     run_id: runId,
     result_code: ctx.run_state?.result_code ?? 'RUN_FOUND',
-    status: ctx.status_label,
-    outcome: ctx.summary?.outcome ?? 'unknown',
+    status,
+    outcome,
     current_phase: ctx.summary?.current_phase ?? null,
+    created_at: firstEventTs == null ? null : new Date(firstEventTs).toISOString(),
     last_event_at: lastEventTs == null ? null : new Date(lastEventTs).toISOString(),
+    goal_summary: goalSummary,
+    action_eligibility: normalizeActionEligibility(rawEligibility, status),
     trace_file: filePath,
     reason_code: ctx.run_state?.blocking_reason_code ?? null,
     select_command: `ai-minions status --run-id ${formatRunIdArg(runId)}`,
@@ -239,6 +375,13 @@ module.exports = {
   MAX_RUNS_LIMIT,
   normalizeRunsLimit,
   latestEventTimestamp,
+  earliestEventTimestamp,
+  goalSummaryFromRows,
+  actionEligibilityFromStatus,
+  normalizeActionEligibility,
+  actionEligibilityDisplayLabel,
+  fieldOrUnavailable,
+  formatRunsBoardEntryLines,
   formatRunIdArg,
   buildRunListEntry,
   sortRunListEntries,

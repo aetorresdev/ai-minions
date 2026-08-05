@@ -1349,21 +1349,28 @@ test('resolveShellActionToken maps cockpit keys', () => {
   assert.equal(resolveShellActionToken('5'), 'help');
 });
 
-test('Overview/Explain/Evidence hotkeys stay Ink-local (zero executeAction)', async () => {
+test('Overview/Explain/Evidence/Monitor hotkeys stay Ink-local (zero executeAction)', async () => {
   assert.equal(isInkLocalShellAction('status'), true);
   assert.equal(isInkLocalShellAction('explain'), true);
   assert.equal(isInkLocalShellAction('evidence'), true);
+  assert.equal(isInkLocalShellAction('monitor'), true);
   assert.equal(contentSurfaceForLocalAction('status'), 'status');
   assert.equal(contentSurfaceForLocalAction('explain'), 'status');
   assert.equal(contentSurfaceForLocalAction('evidence'), 'evidence');
+  assert.equal(contentSurfaceForLocalAction('monitor'), 'monitor');
   const {
     isInkLocalRemountFallbackAction,
+    deriveRunActionEligibility,
   } = require('../../modules/operator/operator-tui-shell-model');
   assert.equal(isInkLocalRemountFallbackAction('help'), true);
   assert.equal(isInkLocalRemountFallbackAction('diagnostics'), true);
   assert.equal(isInkLocalRemountFallbackAction('status'), false);
   assert.equal(isInkLocalRemountFallbackAction('explain'), false);
   assert.equal(isInkLocalRemountFallbackAction('evidence'), false);
+  assert.equal(isInkLocalRemountFallbackAction('monitor'), false);
+  assert.equal(deriveRunActionEligibility({ status: 'failed', outcome: 'failed' }), 'inspect');
+  assert.equal(deriveRunActionEligibility({ status: 'running' }), 'continue_current');
+  assert.equal(deriveRunActionEligibility({ status: 'invalid' }), 'unavailable');
 
   const { stdin, stdout } = createFakeTtyStreams();
   const out = [];
@@ -1405,6 +1412,11 @@ test('Overview/Explain/Evidence hotkeys stay Ink-local (zero executeAction)', as
         outcome: 'blocked',
         result_code: 'RUN_FOUND',
         reason_code: 'CERBERUS_REJECT',
+        goal_summary: 'canonical fixture blocked path',
+        created_at: '2026-08-01T00:00:00.000Z',
+        last_event_at: '2026-08-01T00:01:00.000Z',
+        current_phase: 'review',
+        action_eligibility: 'inspect',
       },
     ]),
     buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
@@ -1451,11 +1463,15 @@ test('Overview/Explain/Evidence hotkeys stay Ink-local (zero executeAction)', as
   stdin.write('e'); // Evidence → evidence surface
   await new Promise((r) => setTimeout(r, 80));
   softAt.push({ label: 'after_e', soft: softCount(), mounts: mountCount });
-  assert.deepEqual(actions, [], 'o/x/e must not open nested executeAction');
-  assert.equal(mountCount, 1, 'o→x→e must keep a single Ink renderer mount');
-  assert.equal(softAt[softAt.length - 1].soft, 0, 'o→x→e must emit zero SOFT_HANDOFF_SEQUENCE');
+  stdin.write('m'); // Monitor → monitor surface (must stay mounted)
+  await new Promise((r) => setTimeout(r, 80));
+  softAt.push({ label: 'after_m', soft: softCount(), mounts: mountCount });
+  assert.deepEqual(actions, [], 'o/x/e/m must not open nested executeAction');
+  assert.equal(mountCount, 1, 'o→x→e→m must keep a single Ink renderer mount');
+  assert.equal(softAt[softAt.length - 1].soft, 0, 'o→x→e→m must emit zero SOFT_HANDOFF_SEQUENCE');
   assert.ok(surfaces.includes('status'), 'Overview/Explain must set seeded status surface');
   assert.ok(surfaces.includes('evidence'), 'Evidence must set seeded evidence surface');
+  assert.ok(surfaces.includes('monitor'), 'Monitor must set monitor surface');
   for (const snap of softAt) {
     if (snap.label === 'start') {
       assert.ok(snap.mounts <= 1, snap.label);
@@ -1466,7 +1482,7 @@ test('Overview/Explain/Evidence hotkeys stay Ink-local (zero executeAction)', as
   }
   stdin.write('\x1b'); // Esc → home (still local)
   await new Promise((r) => setTimeout(r, 80));
-  assert.deepEqual(actions, [], 'Esc from evidence stays local');
+  assert.deepEqual(actions, [], 'Esc from monitor stays local');
   assert.equal(mountCount, 1, 'Esc home must not remount');
   assert.equal(softCount(), 0, 'Esc home must not soft-handoff');
   stdin.write('q');
@@ -1481,6 +1497,183 @@ test('Overview/Explain/Evidence hotkeys stay Ink-local (zero executeAction)', as
     || /ATTACH_UNAVAILABLE/.test(String(result.text ?? '')));
   stdin.destroy();
   stdout.destroy();
+});
+
+test('seeded Overview carries title/dates/eligibility without inventing Resume', async () => {
+  const {
+    seedStatusResultFromSelectedRun,
+    buildShellModel,
+  } = require('../../modules/operator/operator-tui-shell-model');
+  const { buildContentLines } = await import('../../modules/operator/operator-tui-shell-render.mjs');
+  const seeded = seedStatusResultFromSelectedRun({
+    selectedRunId: 'task-5d3cdbc7',
+    runs: {
+      runs: [{
+        run_id: 'task-5d3cdbc7',
+        status: 'failed',
+        outcome: 'failed',
+        result_code: 'RUN_FOUND',
+        reason_code: 'OUTPUT_BUDGET_EXHAUSTED',
+        goal_summary: 'Sudoku HTML generation',
+        created_at: '2026-08-01T12:00:00.000Z',
+        last_event_at: '2026-08-01T12:05:00.000Z',
+        current_phase: 'review',
+        next_safe_action: 'inspect planner output-contract evidence',
+      }],
+    },
+  });
+  assert.equal(seeded.goal_summary, 'Sudoku HTML generation');
+  assert.equal(seeded.created_at, '2026-08-01T12:00:00.000Z');
+  // Legacy row without action_eligibility must not invent Inspect from status.
+  assert.equal(seeded.action_eligibility, 'unavailable');
+  const model = buildShellModel({
+    statusResult: {
+      ...seeded,
+      action_eligibility: 'inspect',
+    },
+    selectedRunId: 'task-5d3cdbc7',
+    contentSurface: 'status',
+    runsPayload: {
+      runs: [{ ...seeded, action_eligibility: 'inspect' }],
+      result_code: 'RUNS_OK',
+    },
+  });
+  const lines = buildContentLines(model).join('\n');
+  assert.match(lines, /title: Sudoku HTML generation/);
+  assert.match(lines, /created_at: 2026-08-01T12:00:00.000Z/);
+  assert.match(lines, /OUTPUT_BUDGET_EXHAUSTED/);
+  assert.match(lines, /Inspect only/);
+  assert.ok(lines.includes('no Resume claimed'));
+});
+
+test('Runs → Overview keeps unavailable for legacy row without eligibility', async () => {
+  const {
+    seedStatusResultFromSelectedRun,
+    buildShellModel,
+    shellModelToOptions,
+  } = require('../../modules/operator/operator-tui-shell-model');
+  const { adaptRunsList } = require('../../modules/operator/operator-tui-adapters');
+  const { buildContentLines } = await import('../../modules/operator/operator-tui-shell-render.mjs');
+  const adapted = adaptRunsList({
+    result_code: 'RUNS_OK',
+    runs: [{
+      run_id: 'legacy-blocked',
+      status: 'blocked',
+      outcome: 'blocked',
+      result_code: 'RUN_FOUND',
+      reason_code: 'CERBERUS_REJECT',
+      goal_summary: 'legacy board row',
+      created_at: '2026-08-01T00:00:00.000Z',
+      last_event_at: '2026-08-01T00:01:00.000Z',
+      current_phase: 'review',
+      // intentionally omit action_eligibility
+    }],
+  });
+  assert.equal(adapted.runs[0].action_eligibility, 'unavailable');
+  const runsModel = buildShellModel({
+    contentSurface: 'runs',
+    selectedRunId: 'legacy-blocked',
+    runsPayload: adapted,
+  });
+  const runsLines = buildContentLines(runsModel).join('\n');
+  assert.match(runsLines, /Unavailable — inspect reason_code/);
+  assert.equal(runsLines.includes('Inspect only'), false);
+
+  const seeded = seedStatusResultFromSelectedRun(runsModel);
+  assert.equal(seeded.action_eligibility, 'unavailable');
+  const overview = buildShellModel({
+    ...shellModelToOptions(runsModel),
+    statusResult: seeded,
+    contentSurface: 'status',
+    selectedRunId: 'legacy-blocked',
+  });
+  const overviewLines = buildContentLines(overview).join('\n');
+  assert.match(overviewLines, /Unavailable — inspect reason_code/);
+  assert.equal(overviewLines.includes('Inspect only'), false);
+
+  // Invalid with conflicting inspect still forced unavailable.
+  const invalidAdapted = adaptRunsList({
+    runs: [{
+      run_id: 'bad',
+      status: 'invalid',
+      result_code: 'RUN_TRACE_INVALID',
+      action_eligibility: 'inspect',
+    }],
+  });
+  assert.equal(invalidAdapted.runs[0].action_eligibility, 'unavailable');
+});
+
+test('runs board lines render title/dates/phase/reason/eligibility with unavailable fallbacks', async () => {
+  const { buildShellModel } = require('../../modules/operator/operator-tui-shell-model');
+  const { buildContentLines } = await import('../../modules/operator/operator-tui-shell-render.mjs');
+  const model = buildShellModel({
+    contentSurface: 'runs',
+    selectedRunId: 'r-rich',
+    runsPayload: {
+      result_code: 'RUNS_OK',
+      runs: [
+        {
+          run_id: 'r-rich',
+          status: 'blocked',
+          outcome: 'blocked',
+          result_code: 'RUN_FOUND',
+          goal_summary: 'canonical fixture blocked path',
+          created_at: '2026-08-01T00:00:00.000Z',
+          last_event_at: '2026-08-01T00:01:00.000Z',
+          current_phase: 'review',
+          reason_code: 'CERBERUS_REJECT',
+          action_eligibility: 'inspect',
+        },
+        {
+          run_id: 'r-bare',
+          status: 'invalid',
+          outcome: null,
+          result_code: 'RUN_TRACE_INVALID',
+          reason_code: 'OPERATOR_TRACE_INVALID',
+          // intentionally omit title/dates/phase/eligibility
+        },
+      ],
+    },
+  });
+  const lines = buildContentLines(model).join('\n');
+  assert.match(lines, /> r-rich {2}blocked \/ blocked \/ RUN_FOUND/);
+  assert.match(lines, /title: canonical fixture blocked path/);
+  assert.match(lines, /created_at: 2026-08-01T00:00:00\.000Z/);
+  assert.match(lines, /updated_at: 2026-08-01T00:01:00\.000Z/);
+  assert.match(lines, /phase: review/);
+  assert.match(lines, /reason_code: CERBERUS_REJECT/);
+  assert.match(lines, /Inspect only — no Resume claimed/);
+  assert.match(lines, / r-bare {2}invalid \/ - \/ RUN_TRACE_INVALID/);
+  assert.match(lines, /title: \(unavailable\)/);
+  assert.match(lines, /created_at: \(unavailable\)/);
+  assert.match(lines, /updated_at: \(unavailable\)/);
+  assert.match(lines, /phase: \(unavailable\)/);
+  assert.match(lines, /Unavailable — inspect reason_code/);
+  assert.equal(model.runs.runs[1].action_eligibility, 'unavailable');
+});
+
+test('invalid status without eligibility renders Unavailable not Inspect', async () => {
+  const { buildShellModel } = require('../../modules/operator/operator-tui-shell-model');
+  const { adaptSelectedRunStatus } = require('../../modules/operator/operator-tui-adapters');
+  const { buildContentLines } = await import('../../modules/operator/operator-tui-shell-render.mjs');
+  const adapted = adaptSelectedRunStatus({
+    run_id: 'corrupt-1',
+    status: 'invalid',
+    result_code: 'RUN_TRACE_INVALID',
+    reason_code: 'OPERATOR_TRACE_INVALID',
+    // no action_eligibility — must not become Inspect
+  });
+  assert.equal(adapted.action_eligibility, 'unavailable');
+  const model = buildShellModel({
+    statusResult: adapted,
+    selectedRunId: 'corrupt-1',
+    contentSurface: 'status',
+  });
+  const lines = buildContentLines(model).join('\n');
+  assert.match(lines, /status: invalid/);
+  assert.match(lines, /RUN_TRACE_INVALID/);
+  assert.match(lines, /Unavailable — inspect reason_code/);
+  assert.equal(lines.includes('Inspect only'), false);
 });
 
 test('System Status hotkey 3 and Enter stay mounted; Settings stays Ink-local', async () => {
