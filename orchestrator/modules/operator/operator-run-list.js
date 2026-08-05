@@ -76,7 +76,9 @@ function goalSummaryFromRows(rows) {
 }
 
 /**
- * Honest action eligibility label for list/detail (no product Resume).
+ * Legacy helper retained for unit callers — do **not** use in buildRunListEntry.
+ * List production must not invent inspect/continue from status/outcome when the
+ * trace never carried action_eligibility; use normalizeActionEligibility instead.
  * @param {{ status?: string | null, outcome?: string | null }} run
  * @returns {'inspect'|'continue_current'|'unavailable'}
  */
@@ -205,6 +207,11 @@ function buildRunListEntry(filePath, ctx) {
   const runId = fallbackRunId;
   const status = ctx.status_label;
   const outcome = ctx.summary?.outcome ?? 'unknown';
+  // Traces do not carry action_eligibility — do not invent inspect/continue from
+  // status/outcome. Pass absent through normalize → unavailable (fail closed).
+  const rawEligibility = ctx.run_state?.action_eligibility
+    ?? ctx.summary?.action_eligibility
+    ?? null;
   return {
     run_id: runId,
     result_code: ctx.run_state?.result_code ?? 'RUN_FOUND',
@@ -214,7 +221,7 @@ function buildRunListEntry(filePath, ctx) {
     created_at: firstEventTs == null ? null : new Date(firstEventTs).toISOString(),
     last_event_at: lastEventTs == null ? null : new Date(lastEventTs).toISOString(),
     goal_summary: goalSummary,
-    action_eligibility: actionEligibilityFromStatus({ status, outcome }),
+    action_eligibility: normalizeActionEligibility(rawEligibility, status),
     trace_file: filePath,
     reason_code: ctx.run_state?.blocking_reason_code ?? null,
     select_command: `ai-minions status --run-id ${formatRunIdArg(runId)}`,

@@ -52,10 +52,65 @@ describe("operator-run-list", () => {
     assert.equal(result.json.runs[2].goal_summary, null);
     assert.equal(result.json.runs[2].current_phase, null);
     assert.equal(result.json.runs[2].action_eligibility, "unavailable");
+    // Valid traces also omit original eligibility — producer must not invent inspect.
+    assert.equal(result.json.runs[0].action_eligibility, "unavailable");
+    assert.equal(result.json.runs[1].action_eligibility, "unavailable");
     assert.equal(
       result.json.runs[0].select_command,
       "ai-minions status --run-id newer",
     );
+  });
+
+  it("blocked legacy trace via buildRunListEntry stays unavailable (not invent Inspect)", () => {
+    const tracesDir = fs.mkdtempSync(path.join(os.tmpdir(), "ai-minions-runs-blocked-"));
+    writeTrace(tracesDir, "blocked-legacy", [
+      {
+        event: "session_start",
+        task_id: "blocked-legacy",
+        flow_mode: "single_agent",
+        goal: "legacy blocked path",
+        ts_ms: 100,
+      },
+      {
+        event: "session_end",
+        task_id: "blocked-legacy",
+        done: false,
+        gate_blocks: 1,
+        ts_ms: 200,
+      },
+    ]);
+
+    const result = runOperatorRuns({ tracesDir, limit: 5, json: true });
+    assert.equal(result.ok, true);
+    assert.equal(result.json.run_count, 1);
+    const blocked = result.json.runs[0];
+    assert.equal(blocked.run_id, "blocked-legacy");
+    assert.equal(blocked.status, "blocked");
+    assert.equal(blocked.outcome, "blocked");
+    assert.equal(blocked.goal_summary, "legacy blocked path");
+    // Producer path: no original action_eligibility on the trace → unavailable.
+    assert.equal(blocked.action_eligibility, "unavailable");
+
+    const lines = formatRunsBoardEntryLines(blocked, { selected: true }).join("\n");
+    assert.match(lines, /Unavailable — inspect reason_code/);
+    assert.equal(lines.includes("Inspect only"), false);
+
+    const {
+      adaptRunsList,
+    } = require("../../modules/operator/operator-tui-adapters");
+    const {
+      seedStatusResultFromSelectedRun,
+      buildShellModel,
+    } = require("../../modules/operator/operator-tui-shell-model");
+    const adapted = adaptRunsList(result.json);
+    assert.equal(adapted.runs[0].action_eligibility, "unavailable");
+    const model = buildShellModel({
+      contentSurface: "runs",
+      selectedRunId: "blocked-legacy",
+      runsPayload: adapted,
+    });
+    const seeded = seedStatusResultFromSelectedRun(model);
+    assert.equal(seeded.action_eligibility, "unavailable");
   });
 
   it("corrupt-trace list entry emits unavailable eligibility and null metadata", () => {
