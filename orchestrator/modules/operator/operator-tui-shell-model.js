@@ -32,6 +32,7 @@ const {
 const { resolveIconMode } = require('./operator-tui-icons');
 const { detectTruecolor } = require('./operator-tui-theme');
 const { formatArtResolutionDebug } = require('./operator-tui-pixel-art');
+const { normalizeActionEligibility } = require('./operator-run-list');
 
 const SHELL_SCHEMA = '1';
 const FOCUS_TARGETS = Object.freeze(['nav', 'content', 'input']);
@@ -437,8 +438,11 @@ function seedStatusResultFromSelectedRun(model) {
       goal_summary: model.status.goal_summary ?? null,
       created_at: model.status.created_at ?? null,
       last_event_at: model.status.last_event_at ?? null,
-      action_eligibility: model.status.action_eligibility
-        ?? deriveRunActionEligibility(model.status),
+      // Pass through normalized eligibility only — never invent Inspect from status.
+      action_eligibility: normalizeActionEligibility(
+        model.status.action_eligibility,
+        model.status.status,
+      ),
     };
   }
   const board = Array.isArray(model?.runs?.runs) ? model.runs.runs : [];
@@ -461,10 +465,11 @@ function seedStatusResultFromSelectedRun(model) {
       action_eligibility: 'unavailable',
     };
   }
+  const status = run.status == null ? null : String(run.status);
   return {
     run_id: String(run.run_id),
     result_code: run.result_code == null ? null : String(run.result_code),
-    status: run.status == null ? null : String(run.status),
+    status,
     outcome: run.outcome == null ? null : String(run.outcome),
     reason_code: run.reason_code == null ? null : String(run.reason_code),
     next_safe_action: run.next_safe_action == null ? null : String(run.next_safe_action),
@@ -476,7 +481,8 @@ function seedStatusResultFromSelectedRun(model) {
     last_event_at: run.last_event_at == null && run.updated_at == null
       ? null
       : String(run.last_event_at ?? run.updated_at),
-    action_eligibility: deriveRunActionEligibility(run),
+    // Legacy rows without action_eligibility stay unavailable (Runs ↔ Overview parity).
+    action_eligibility: normalizeActionEligibility(run.action_eligibility, status),
   };
 }
 

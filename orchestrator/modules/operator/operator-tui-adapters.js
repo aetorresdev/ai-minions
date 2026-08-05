@@ -8,6 +8,7 @@
 
 const { COCKPIT_ACTIONS, formatNonTtyGuidance } = require('./operator-cockpit-tui');
 const { adaptShellNavigation } = require('./operator-tui-landing');
+const { normalizeActionEligibility } = require('./operator-run-list');
 
 const ADAPTER_SCHEMA = '1';
 
@@ -131,13 +132,6 @@ function adaptRunsList(payload) {
   const runs = Array.isArray(body?.runs)
     ? body.runs.map((run) => {
       const status = run.status == null ? null : String(run.status);
-      let actionEligibility = run.action_eligibility == null
-        ? null
-        : String(run.action_eligibility);
-      // Corrupt / invalid list rows fail closed — never present as Inspect.
-      if (actionEligibility == null && String(status ?? '').toLowerCase() === 'invalid') {
-        actionEligibility = 'unavailable';
-      }
       return {
         run_id: String(run.run_id ?? ''),
         status,
@@ -155,7 +149,8 @@ function adaptRunsList(payload) {
           ? null
           : Number(run.agent_count ?? run.agents_count),
         next_safe_action: run.next_safe_action == null ? null : String(run.next_safe_action),
-        action_eligibility: actionEligibility,
+        // Absent/blank → unavailable; invalid forces unavailable (even if inspect).
+        action_eligibility: normalizeActionEligibility(run.action_eligibility, status),
       };
     })
     : [];
@@ -224,16 +219,6 @@ function adaptSelectedRunStatus(statusResult) {
     ?? null;
   const createdAt = statusResult.created_at == null ? null : String(statusResult.created_at);
   const lastEventAt = statusResult.last_event_at == null ? null : String(statusResult.last_event_at);
-  let actionEligibility = statusResult.action_eligibility == null
-    ? null
-    : String(statusResult.action_eligibility);
-  // Missing eligibility on invalid status → Unavailable (not Inspect).
-  if (
-    actionEligibility == null
-    && String(status ?? '').toLowerCase() === 'invalid'
-  ) {
-    actionEligibility = 'unavailable';
-  }
   return {
     schema: ADAPTER_SCHEMA,
     kind: 'selected_run_status',
@@ -247,7 +232,9 @@ function adaptSelectedRunStatus(statusResult) {
     goal_summary: goalSummary == null || goalSummary === '' ? null : String(goalSummary),
     created_at: createdAt,
     last_event_at: lastEventAt,
-    action_eligibility: actionEligibility,
+    // Absent/blank → unavailable; invalid forces unavailable (even if inspect).
+    // Do not invent Inspect from status/outcome when the field was missing.
+    action_eligibility: normalizeActionEligibility(statusResult.action_eligibility, status),
     available: true,
   };
 }

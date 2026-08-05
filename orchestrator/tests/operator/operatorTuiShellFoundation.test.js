@@ -1524,12 +1524,19 @@ test('seeded Overview carries title/dates/eligibility without inventing Resume',
   });
   assert.equal(seeded.goal_summary, 'Sudoku HTML generation');
   assert.equal(seeded.created_at, '2026-08-01T12:00:00.000Z');
-  assert.equal(seeded.action_eligibility, 'inspect');
+  // Legacy row without action_eligibility must not invent Inspect from status.
+  assert.equal(seeded.action_eligibility, 'unavailable');
   const model = buildShellModel({
-    statusResult: seeded,
+    statusResult: {
+      ...seeded,
+      action_eligibility: 'inspect',
+    },
     selectedRunId: 'task-5d3cdbc7',
     contentSurface: 'status',
-    runsPayload: { runs: [seeded], result_code: 'RUNS_OK' },
+    runsPayload: {
+      runs: [{ ...seeded, action_eligibility: 'inspect' }],
+      result_code: 'RUNS_OK',
+    },
   });
   const lines = buildContentLines(model).join('\n');
   assert.match(lines, /title: Sudoku HTML generation/);
@@ -1537,6 +1544,63 @@ test('seeded Overview carries title/dates/eligibility without inventing Resume',
   assert.match(lines, /OUTPUT_BUDGET_EXHAUSTED/);
   assert.match(lines, /Inspect only/);
   assert.ok(lines.includes('no Resume claimed'));
+});
+
+test('Runs → Overview keeps unavailable for legacy row without eligibility', async () => {
+  const {
+    seedStatusResultFromSelectedRun,
+    buildShellModel,
+    shellModelToOptions,
+  } = require('../../modules/operator/operator-tui-shell-model');
+  const { adaptRunsList } = require('../../modules/operator/operator-tui-adapters');
+  const { buildContentLines } = await import('../../modules/operator/operator-tui-shell-render.mjs');
+  const adapted = adaptRunsList({
+    result_code: 'RUNS_OK',
+    runs: [{
+      run_id: 'legacy-blocked',
+      status: 'blocked',
+      outcome: 'blocked',
+      result_code: 'RUN_FOUND',
+      reason_code: 'CERBERUS_REJECT',
+      goal_summary: 'legacy board row',
+      created_at: '2026-08-01T00:00:00.000Z',
+      last_event_at: '2026-08-01T00:01:00.000Z',
+      current_phase: 'review',
+      // intentionally omit action_eligibility
+    }],
+  });
+  assert.equal(adapted.runs[0].action_eligibility, 'unavailable');
+  const runsModel = buildShellModel({
+    contentSurface: 'runs',
+    selectedRunId: 'legacy-blocked',
+    runsPayload: adapted,
+  });
+  const runsLines = buildContentLines(runsModel).join('\n');
+  assert.match(runsLines, /Unavailable — inspect reason_code/);
+  assert.equal(runsLines.includes('Inspect only'), false);
+
+  const seeded = seedStatusResultFromSelectedRun(runsModel);
+  assert.equal(seeded.action_eligibility, 'unavailable');
+  const overview = buildShellModel({
+    ...shellModelToOptions(runsModel),
+    statusResult: seeded,
+    contentSurface: 'status',
+    selectedRunId: 'legacy-blocked',
+  });
+  const overviewLines = buildContentLines(overview).join('\n');
+  assert.match(overviewLines, /Unavailable — inspect reason_code/);
+  assert.equal(overviewLines.includes('Inspect only'), false);
+
+  // Invalid with conflicting inspect still forced unavailable.
+  const invalidAdapted = adaptRunsList({
+    runs: [{
+      run_id: 'bad',
+      status: 'invalid',
+      result_code: 'RUN_TRACE_INVALID',
+      action_eligibility: 'inspect',
+    }],
+  });
+  assert.equal(invalidAdapted.runs[0].action_eligibility, 'unavailable');
 });
 
 test('runs board lines render title/dates/phase/reason/eligibility with unavailable fallbacks', async () => {

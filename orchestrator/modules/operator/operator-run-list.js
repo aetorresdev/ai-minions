@@ -93,6 +93,28 @@ function actionEligibilityFromStatus(run) {
 }
 
 /**
+ * Normalize list/status action_eligibility for adapters and Overview seed.
+ * Absent/blank → unavailable. Invalid status forces unavailable even if a
+ * conflicting value (e.g. inspect) arrives. Never invents Inspect from status.
+ * @param {unknown} raw
+ * @param {unknown} [status]
+ * @returns {'inspect'|'continue_current'|'unavailable'}
+ */
+function normalizeActionEligibility(raw, status) {
+  if (String(status ?? '').toLowerCase() === 'invalid') {
+    return 'unavailable';
+  }
+  if (raw == null || String(raw).trim() === '') {
+    return 'unavailable';
+  }
+  const e = String(raw).trim().toLowerCase();
+  if (e === 'inspect' || e === 'continue_current' || e === 'unavailable') {
+    return e;
+  }
+  return 'unavailable';
+}
+
+/**
  * Operator-facing eligibility label — never invents product Resume.
  * Missing / unknown eligibility → Unavailable (fail closed).
  * @param {unknown} eligibility
@@ -349,6 +371,7 @@ module.exports = {
   earliestEventTimestamp,
   goalSummaryFromRows,
   actionEligibilityFromStatus,
+  normalizeActionEligibility,
   actionEligibilityDisplayLabel,
   fieldOrUnavailable,
   formatRunsBoardEntryLines,
