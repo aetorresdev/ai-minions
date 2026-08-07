@@ -120,6 +120,7 @@ const ENTRIES = {
   'tests/roleCapabilityProbes.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/runtimePreflight.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/localCapGateTransportBudget.test.js': { owner: 'tools', kind: 'unit' },
+  'tests/ollamaToolLoop.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/localModelPolicy.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/localModelSelection.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/mcp-client.test.js': { owner: 'tools', kind: 'unit' },
