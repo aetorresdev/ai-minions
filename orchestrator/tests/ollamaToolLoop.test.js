@@ -86,6 +86,40 @@ describe("ollama-tools executors", () => {
     assert.match(out, /\[truncated: showing first/);
   });
 
+  it("bounded read never buffers the whole file (fd + hard byte cap)", () => {
+    fs.writeFileSync(path.join(tmpDir, "huge.txt"), "x".repeat(MAX_READ_BYTES * 4), "utf8");
+
+    const origReadSync = fs.readSync;
+    const origReadFileSync = fs.readFileSync;
+    /** @type {number[]} */
+    const requestedLengths = [];
+    let readFileSyncCalls = 0;
+    fs.readSync = function (fd, buffer, offset, length, _position) {
+      requestedLengths.push(length);
+      return origReadSync.apply(fs, arguments);
+    };
+    fs.readFileSync = function () {
+      readFileSyncCalls++;
+      return origReadFileSync.apply(fs, arguments);
+    };
+    try {
+      const out = executeOllamaTool("read_file", { path: "huge.txt" }, { cwd: tmpDir });
+      assert.match(out, /\[truncated: showing first/);
+    } finally {
+      fs.readSync = origReadSync;
+      fs.readFileSync = origReadFileSync;
+    }
+
+    assert.equal(readFileSyncCalls, 0, "read path must not use fs.readFileSync");
+    assert.ok(requestedLengths.length > 0, "readSync was used");
+    for (const len of requestedLengths) {
+      assert.ok(
+        len <= MAX_READ_BYTES + 1,
+        `readSync requested ${len} bytes > cap ${MAX_READ_BYTES + 1}`,
+      );
+    }
+  });
+
   it("unknown tool returns error string, never throws", () => {
     const out = executeOllamaTool("rm_rf", {}, { cwd: tmpDir });
     assert.match(out, /^error: unknown tool/);

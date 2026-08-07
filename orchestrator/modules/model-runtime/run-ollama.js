@@ -209,8 +209,10 @@ function runOllama(
             const toolCalls = Array.isArray(rawCalls)
               ? rawCalls
                   .map((c) => ({
-                    type: 'function',
+                    ...c,
+                    type: c?.type ?? 'function',
                     function: {
+                      ...(c?.function ?? {}),
                       name: c?.function?.name != null ? String(c.function.name) : '',
                       arguments: c?.function?.arguments && typeof c.function.arguments === 'object'
                         ? c.function.arguments
