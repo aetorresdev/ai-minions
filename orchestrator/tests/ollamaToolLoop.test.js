@@ -48,23 +48,27 @@ describe("ollama-tools executors", () => {
 
   it("read_file reads a file inside cwd", () => {
     const out = executeOllamaTool("read_file", { path: "a.txt" }, { cwd: tmpDir });
-    assert.equal(out, "hello");
+    assert.equal(out.ok, true);
+    assert.equal(out.output, "hello");
   });
 
   it("write_file writes inside cwd and creates parents", () => {
     const out = executeOllamaTool("write_file", { path: "sub/b.txt", content: "xyz" }, { cwd: tmpDir });
-    assert.match(out, /^ok: wrote 3 bytes/);
+    assert.equal(out.ok, true);
+    assert.match(out.output, /^ok: wrote 3 bytes/);
     assert.equal(fs.readFileSync(path.join(tmpDir, "sub", "b.txt"), "utf8"), "xyz");
   });
 
   it("rejects absolute paths outside cwd", () => {
     const out = executeOllamaTool("read_file", { path: "/etc/passwd" }, { cwd: tmpDir });
-    assert.match(out, /^error: absolute path outside working directory/);
+    assert.equal(out.ok, false);
+    assert.match(out.output, /^error: absolute path outside working directory/);
   });
 
   it("rejects .. escapes", () => {
     const out = executeOllamaTool("write_file", { path: "../evil.txt", content: "x" }, { cwd: tmpDir });
-    assert.match(out, /^error: path escapes working directory/);
+    assert.equal(out.ok, false);
+    assert.match(out.output, /^error: path escapes working directory/);
   });
 
   it("rejects symlink escapes", () => {
@@ -73,7 +77,8 @@ describe("ollama-tools executors", () => {
       fs.writeFileSync(path.join(outside, "secret.txt"), "s3cret", "utf8");
       fs.symlinkSync(outside, path.join(tmpDir, "link"));
       const out = executeOllamaTool("read_file", { path: "link/secret.txt" }, { cwd: tmpDir });
-      assert.match(out, /^error:/);
+      assert.equal(out.ok, false);
+      assert.match(out.output, /^error:/);
       assert.equal(resolveConfinedPath(tmpDir, "link/secret.txt").ok, false);
     } finally {
       fs.rmSync(outside, { recursive: true, force: true });
@@ -83,7 +88,8 @@ describe("ollama-tools executors", () => {
   it("truncates large reads", () => {
     fs.writeFileSync(path.join(tmpDir, "big.txt"), "x".repeat(MAX_READ_BYTES + 100), "utf8");
     const out = executeOllamaTool("read_file", { path: "big.txt" }, { cwd: tmpDir });
-    assert.match(out, /\[truncated: showing first/);
+    assert.equal(out.ok, true);
+    assert.match(out.output, /\[truncated: showing first/);
   });
 
   it("bounded read never buffers the whole file (fd + hard byte cap)", () => {
@@ -104,7 +110,7 @@ describe("ollama-tools executors", () => {
     };
     try {
       const out = executeOllamaTool("read_file", { path: "huge.txt" }, { cwd: tmpDir });
-      assert.match(out, /\[truncated: showing first/);
+      assert.match(out.output, /\[truncated: showing first/);
     } finally {
       fs.readSync = origReadSync;
       fs.readFileSync = origReadFileSync;
@@ -122,7 +128,8 @@ describe("ollama-tools executors", () => {
 
   it("unknown tool returns error string, never throws", () => {
     const out = executeOllamaTool("rm_rf", {}, { cwd: tmpDir });
-    assert.match(out, /^error: unknown tool/);
+    assert.equal(out.ok, false);
+    assert.match(out.output, /^error: unknown tool/);
   });
 
   it("role tool grants: dev rw, qa/cerberus read-only, orchestrator none", () => {
@@ -302,6 +309,8 @@ describe("runOllamaWithTools loop", () => {
     const toolMsg = bodies[1].messages.find((m) => m.role === "tool");
     assert.match(toolMsg.content, /^error: absolute path outside working directory/);
     assert.equal(out.content, "blocked path rejected");
+    assert.equal(out.tools_used[0].allowed, true);
+    assert.equal(out.tools_used[0].succeeded, false, "executor error must surface as succeeded=false");
   });
 
   it("caps loop at maxToolRounds", async () => {
@@ -325,5 +334,178 @@ describe("runOllamaWithTools loop", () => {
     const out = await runOllama("sys", [{ role: "user", content: "x" }], { model: "m", cwd: tmpDir });
     assert.equal(out.content, "ok");
     assert.deepEqual(out.tool_calls, []);
+  });
+});
+
+describe("askAgent local tool path", () => {
+  let tmpDir;
+  let agents;
+  let ollamaRuntime;
+  let original;
+  const savedEnv = {};
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ollama-agents-"));
+    for (const k of ["ORCH_MODEL_MODE", "OLLAMA_MODEL"]) {
+      savedEnv[k] = process.env[k];
+    }
+    process.env.ORCH_MODEL_MODE = "local_only";
+    process.env.OLLAMA_MODEL = "stub-model";
+    ollamaRuntime = require("../modules/model-runtime/run-ollama");
+    original = ollamaRuntime.runOllamaWithTools;
+    agents = require("../modules/shared/agents");
+  });
+
+  afterEach(() => {
+    ollamaRuntime.runOllamaWithTools = original;
+    for (const k of ["ORCH_MODEL_MODE", "OLLAMA_MODEL"]) {
+      if (savedEnv[k] == null) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    }
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("tool note leads the system prompt for tool-capable roles", async () => {
+    let seenSystem = "";
+    ollamaRuntime.runOllamaWithTools = async (systemPrompt) => {
+      seenSystem = systemPrompt;
+      return { content: "files_read:\n  - a.js\nfiles_modified:\n  - a.js\nvalidation_run: none", tools_used: [], tool_calls: [] };
+    };
+    await agents.askAgent("dev-frontend", "Create a.js", { cwd: tmpDir });
+    assert.match(seenSystem, /^## FILE TOOLS AVAILABLE/);
+    assert.match(seenSystem, /Never claim you read or wrote a file without an actual tool call/);
+  });
+
+  it("retries once with a compact prompt when the model returns empty content and no tool calls", async () => {
+    const calls = [];
+    ollamaRuntime.runOllamaWithTools = async (_sys, messages) => {
+      calls.push(messages[messages.length - 1].content);
+      if (calls.length === 1) return { content: "", tool_calls: [], tools_used: [] };
+      return { content: "files_read:\n  - a.js\nfiles_modified:\n  - a.js\nvalidation_run: none", tool_calls: [], tools_used: [] };
+    };
+    const { output, context_stats } = await agents.askAgent("dev-frontend", "Your task:\nCreate a.js", { cwd: tmpDir });
+    assert.equal(calls.length, 2);
+    assert.match(calls[1], new RegExp(`Working directory: ${tmpDir.replace(/[/\\]/g, "\\$&")}`));
+    assert.match(output, /files_read/);
+    assert.equal(context_stats.ollama_retried_after_empty, 1);
+  });
+
+  it("does not retry when the first reply already has content or tool calls", async () => {
+    let calls = 0;
+    ollamaRuntime.runOllamaWithTools = async () => {
+      calls += 1;
+      return { content: "files_read:\n  - a.js\nfiles_modified:\n  - a.js\nvalidation_run: none", tool_calls: [], tools_used: [] };
+    };
+    const { context_stats } = await agents.askAgent("dev-frontend", "Create a.js", { cwd: tmpDir });
+    assert.equal(calls, 1);
+    assert.equal(context_stats.ollama_retried_after_empty, undefined);
+  });
+
+  it("dev contract passes when files were actually written via write_file (YAML contract missing)", async () => {
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "Created the page with an inline grid and actions.",
+      tool_calls: [],
+      tools_used: [
+        { name: "write_file", args: { path: "sudoku.html" }, allowed: true, succeeded: true },
+        { name: "write_file", args: { path: "sudoku.html" }, allowed: true, succeeded: true },
+      ],
+    });
+    const { output } = await agents.askAgent("dev-frontend", "Create sudoku.html", { cwd: tmpDir });
+    assert.match(output, /files_read:\n {2}- sudoku\.html/);
+    assert.match(output, /files_modified:\n {2}- sudoku\.html/);
+    assert.match(output, /validation_run: write_file tool executed \(1 file\(s\)\)/);
+  });
+
+  it("dev contract still fails when no file was actually written", async () => {
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "I would create sudoku.html now.",
+      tool_calls: [],
+      tools_used: [{ name: "read_file", args: { path: "sudoku.html" }, allowed: true, succeeded: true }],
+    });
+    await assert.rejects(
+      () => agents.askAgent("dev-frontend", "Create sudoku.html", { cwd: tmpDir }),
+      /\[output contract\]/,
+    );
+  });
+
+  it("allowed-but-failed write_file does NOT trigger the contract bypass", async () => {
+    // Executor rejected the write (escape/oversize/IO) — allowed but not succeeded.
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "I wrote sudoku.html for you.",
+      tool_calls: [],
+      tools_used: [
+        { name: "write_file", args: { path: "../sudoku.html" }, allowed: true, succeeded: false },
+      ],
+    });
+    await assert.rejects(
+      () => agents.askAgent("dev-frontend", "Create sudoku.html", { cwd: tmpDir }),
+      /\[output contract\]/,
+    );
+  });
+
+  it("unallowed write_file does NOT trigger the contract bypass", async () => {
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "I wrote sudoku.html for you.",
+      tool_calls: [],
+      tools_used: [
+        { name: "write_file", args: { path: "sudoku.html" }, allowed: false, succeeded: false },
+      ],
+    });
+    await assert.rejects(
+      () => agents.askAgent("dev-frontend", "Create sudoku.html", { cwd: tmpDir }),
+      /\[output contract\]/,
+    );
+  });
+
+  it("failed compact retry is traced: exactly two calls and ollama_retried_after_empty=1 on the error", async () => {
+    let calls = 0;
+    ollamaRuntime.runOllamaWithTools = async () => {
+      calls += 1;
+      return { content: "", tool_calls: [], tools_used: [] };
+    };
+    let caught = null;
+    try {
+      await agents.askAgent("dev-frontend", "Your task:\nCreate a.js", { cwd: tmpDir });
+    } catch (err) {
+      caught = err;
+    }
+    assert.ok(caught, "expected contract failure");
+    assert.equal(calls, 2, "first attempt + exactly one compact retry");
+    assert.match(caught.message, /\[output contract\]/);
+    assert.equal(caught.context_stats?.ollama_retried_after_empty, 1);
+  });
+
+  it("retry that throws (timeout/HTTP) still carries ollama_retried_after_empty=1", async () => {
+    let calls = 0;
+    ollamaRuntime.runOllamaWithTools = async () => {
+      calls += 1;
+      if (calls === 1) return { content: "", tool_calls: [], tools_used: [] };
+      const err = new Error("Ollama HTTP 502");
+      err.context_stats = { ollama_prompt_tokens: 3 };
+      throw err;
+    };
+    let caught = null;
+    try {
+      await agents.askAgent("dev-frontend", "Your task:\nCreate a.js", { cwd: tmpDir });
+    } catch (err) {
+      caught = err;
+    }
+    assert.ok(caught, "expected thrown error from retry");
+    assert.equal(calls, 2);
+    assert.match(caught.message, /Ollama HTTP 502/);
+    assert.equal(caught.context_stats?.ollama_retried_after_empty, 1);
+    assert.equal(caught.context_stats?.ollama_prompt_tokens, 3, "prior stats preserved");
+  });
+
+  it("qa never gets write_file bypass — classification contract still enforced", async () => {
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "Looks fine.",
+      tool_calls: [],
+      tools_used: [{ name: "read_file", args: { path: "sudoku.html" }, allowed: true }],
+    });
+    await assert.rejects(
+      () => agents.askAgent("qa", "Verify sudoku.html", { cwd: tmpDir, phase: "verify" }),
+      /classify at least one finding/,
+    );
   });
 });

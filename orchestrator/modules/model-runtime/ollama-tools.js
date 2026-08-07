@@ -103,25 +103,26 @@ function resolveConfinedPath(cwd, relPath) {
 
 /**
  * Execute one tool call confined to cwd. Never throws — errors are returned
- * as tool output so the model can recover.
+ * as tool output so the model can recover. `ok` reports real success so
+ * callers can distinguish a delivered write from a rejected one.
  * @param {string} name
  * @param {unknown} args
  * @param {{ cwd: string }} opts
- * @returns {string}
+ * @returns {{ ok: boolean, output: string }}
  */
 function executeOllamaTool(name, args, opts) {
   const cwd = path.resolve(String(opts?.cwd ?? process.cwd()));
   const a = args && typeof args === 'object' ? args : {};
   if (name === 'read_file') {
     const r = resolveConfinedPath(cwd, a.path);
-    if (!r.ok) return `error: ${r.error}`;
+    if (!r.ok) return { ok: false, output: `error: ${r.error}` };
     let stat;
     try {
       stat = fs.statSync(r.abs);
     } catch {
-      return `error: file not found: ${a.path}`;
+      return { ok: false, output: `error: file not found: ${a.path}` };
     }
-    if (!stat.isFile()) return `error: not a regular file: ${a.path}`;
+    if (!stat.isFile()) return { ok: false, output: `error: not a regular file: ${a.path}` };
     // Bounded read: never buffer more than MAX_READ_BYTES + 1, regardless of file size.
     const fd = fs.openSync(r.abs, 'r');
     let raw;
@@ -133,28 +134,31 @@ function executeOllamaTool(name, args, opts) {
       fs.closeSync(fd);
     }
     if (raw.length > MAX_READ_BYTES) {
-      return raw.subarray(0, MAX_READ_BYTES).toString('utf8')
-        + `\n[truncated: showing first ${MAX_READ_BYTES} of ${stat.size} bytes]`;
+      return {
+        ok: true,
+        output: raw.subarray(0, MAX_READ_BYTES).toString('utf8')
+          + `\n[truncated: showing first ${MAX_READ_BYTES} of ${stat.size} bytes]`,
+      };
     }
-    return raw.toString('utf8');
+    return { ok: true, output: raw.toString('utf8') };
   }
   if (name === 'write_file') {
     const r = resolveConfinedPath(cwd, a.path);
-    if (!r.ok) return `error: ${r.error}`;
+    if (!r.ok) return { ok: false, output: `error: ${r.error}` };
     const content = String(a.content ?? '');
     const bytes = Buffer.byteLength(content, 'utf8');
     if (bytes > MAX_WRITE_BYTES) {
-      return `error: content too large (${bytes} bytes > ${MAX_WRITE_BYTES} limit)`;
+      return { ok: false, output: `error: content too large (${bytes} bytes > ${MAX_WRITE_BYTES} limit)` };
     }
     try {
       fs.mkdirSync(path.dirname(r.abs), { recursive: true });
       fs.writeFileSync(r.abs, content, 'utf8');
     } catch (err) {
-      return `error: write failed: ${err.message}`;
+      return { ok: false, output: `error: write failed: ${err.message}` };
     }
-    return `ok: wrote ${bytes} bytes to ${path.relative(cwd, r.abs)}`;
+    return { ok: true, output: `ok: wrote ${bytes} bytes to ${path.relative(cwd, r.abs)}` };
   }
-  return `error: unknown tool: ${name}`;
+  return { ok: false, output: `error: unknown tool: ${name}` };
 }
 
 module.exports = {

@@ -179,6 +179,18 @@ E2E and local harnesses may route **all** roles through Ollama when **`OLLAMA_MO
 
 **Scope boundary:** the two lanes above measure only DEV **output-shape** compliance under **`skipStateMcp: true`** (degraded E2E). They do **not** prove **`validate_goal_alignment`**, **`advance_mode`**, or other **strict** gates for any particular goal. A green **`first_shot_pass_rate`** run is **orthogonal** to “strict path healthy end-to-end” — see **`strict-mode.md`** § *DEV first-shot metric vs strict path*.
 
+### Ollama tool calling (local file tools)
+
+Worker roles on the Ollama route run a **tool-calling loop** (`runOllamaWithTools` in `run-ollama.js`) over `/api/chat`: the model replies with `message.tool_calls`, the harness executes them, and results are fed back as `{ role: "tool", tool_name, content }` until the model answers with plain text or `maxToolRounds` (default 6) is hit. Tools are **disabled** for structured `plan`/`decide` phases and when `ORCH_OLLAMA_TOOLS=0`.
+
+- **Executors are confined to the run cwd** (`ollama-tools.js`): no absolute paths outside it, no `..` escapes, no symlink escapes; reads are byte-bounded (fd + `readSync`, never whole-file buffering) and writes are size-capped.
+- **Grants per role:** `dev-*` → `read_file` + `write_file`; `qa` / `cerberus` → `read_file` only; orchestrator/summarizer → none. The grant is **enforced in the loop**, not just advertised: a fabricated call to a non-granted tool returns an error to the model and is recorded with `allowed: false`.
+- **Every tool call is recorded** in `tools_used` as `{ name, args, allowed, succeeded }`. `succeeded` reflects the executor's real outcome — a granted-but-failed write (escape, oversize content, I/O error) is `succeeded: false` and must not be treated as delivered work.
+- **Tool note placement:** for tool-capable roles the `## FILE TOOLS AVAILABLE` note **leads** the system prompt; appended at the end it was empirically ignored by local models (observed: zero tool engagement, prose-only replies tripping contract gates).
+- **Bounded compact retry:** when the first reply has **no content, no `tool_calls`, and no `tools_used`**, `askAgent()` issues **one** compact retry (task + working directory only, no context block). The attempt is marked **before** the second call; if the second call throws (timeout / HTTP / parse), the marker is attached to `err.context_stats` before rethrow. On both success and failure, `step-execution` emits those stats into the production trace via `emitContextStatsRows()` (so `ollama_retried_after_empty: 1` is visible in JSONL / metrics, not only on the thrown error object).
+
+**DEV contract evidence from tools:** on the Ollama route only, when `validateOutput()` fails with `files_read_missing` / `files_read_empty` / `validation_run_missing` **and** at least one `write_file` call has `allowed === true && succeeded === true`, the contract is synthesized from the written paths (`files_read` / `files_modified` = written paths, `validation_run: write_file tool executed`) and re-validated. An allowed-but-failed or unallowed write never triggers this. **QA / CERBERUS have no bypass** — their finding-classification contract is always enforced as written.
+
 ### Orchestrator with Ollama (plan / decide JSON)
 
 When **`OLLAMA_MODEL`** is set, the orchestrator role uses **`runOllama`** like other Ollama-backed roles. Small coders often reply with markdown or prose instead of a single JSON object, which makes **`validateOutput("orchestrator", …)`** fail with **`orchestrator: output is not valid JSON`** before any DEV step runs.

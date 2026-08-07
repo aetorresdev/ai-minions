@@ -27,6 +27,7 @@ const {
   formatCostTokenRunSummaryLines,
 } = require('./operator-cost-token-summary');
 const { buildLoopEnvelopeFromRows } = require('./operator-tui-loop-envelope');
+const { runMetaFromRows } = require('./operator-run-meta');
 
 /**
  * @param {object[]} rows
@@ -214,11 +215,15 @@ function formatOperatorStatusText(ctx, options = {}) {
   const { ansi, colorOutcome } = require('./terminal-style');
   const useColor = options.useColor === true;
   const { summary, status_label: statusLabel, run_state: runState } = ctx;
+  const runMeta = runMetaFromRows(ctx.rows);
   const lines = [
     ansi(useColor, '1', 'ai-minions status'),
     `  status:           ${colorOutcome(statusLabel, useColor)}`,
     `  result_code:      ${runState.result_code}`,
     `  run_id:           ${ctx.run_id}`,
+    `  goal:             ${runMeta.goal_summary ?? 'unavailable'}`,
+    `  created:          ${runMeta.created_at ?? 'unavailable'}`,
+    `  updated:          ${runMeta.last_event_at ?? 'unavailable'}`,
     `  outcome:          ${colorOutcome(summary.outcome, useColor)}`,
     `  current_phase:    ${summary.current_phase ?? '-'}`,
     `  last_successful_phase: ${runState.last_successful_phase ?? '-'}`,
@@ -324,10 +329,14 @@ function buildOperatorStatusJson(ctx) {
     run_state: ctx.run_state,
     status_label: ctx.status_label,
   });
+  const runMeta = runMetaFromRows(ctx.rows);
   return {
     command: 'status',
     run_id: ctx.run_id,
     trace_file: ctx.trace_file,
+    goal_summary: runMeta.goal_summary,
+    created_at: runMeta.created_at,
+    last_event_at: runMeta.last_event_at,
     status: ctx.status_label,
     run_state_visibility: ctx.run_state,
     tool_failure_summary: ctx.run_state.tool_failure_summary,

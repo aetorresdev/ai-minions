@@ -152,6 +152,45 @@ describe("operator-trace-command status labels", () => {
     assert.equal(explain.json.context_authority_status.availability, "unavailable");
   });
 
+  it("status surfaces goal + created/updated dates in text and json", () => {
+    const rows = [
+      { event: "session_start", task_id: "meta-run", goal: "Create sudoku.html", ts_ms: 1690000000000 },
+      { event: "agent_start", task_id: "meta-run", ts_ms: 1690000060000 },
+    ];
+    const ctx = loadOperatorTraceContext({
+      filePath: "/tmp/meta.jsonl",
+      existsSync: () => true,
+      readFileSync: () => rows.map((r) => JSON.stringify(r)).join("\n") + "\n",
+      repoRoot: "/tmp/repo",
+    });
+    assert.equal(ctx.ok, true);
+    const status = runOperatorStatus({ loadContext: () => ctx });
+    assert.match(status.text, /goal:\s+Create sudoku\.html/);
+    assert.match(status.text, /created:\s+2023-07-22T04:26:40\.000Z/);
+    assert.match(status.text, /updated:\s+2023-07-22T04:27:40\.000Z/);
+    assert.equal(status.json.goal_summary, "Create sudoku.html");
+    assert.equal(status.json.created_at, "2023-07-22T04:26:40.000Z");
+    assert.equal(status.json.last_event_at, "2023-07-22T04:27:40.000Z");
+  });
+
+  it("status falls back to unavailable when goal/timestamps are absent", () => {
+    const rows = [{ event: "contract_fail", task_id: "meta-run" }];
+    const ctx = loadOperatorTraceContext({
+      filePath: "/tmp/meta-empty.jsonl",
+      existsSync: () => true,
+      readFileSync: () => rows.map((r) => JSON.stringify(r)).join("\n") + "\n",
+      repoRoot: "/tmp/repo",
+    });
+    assert.equal(ctx.ok, true);
+    const status = runOperatorStatus({ loadContext: () => ctx });
+    assert.match(status.text, /goal:\s+unavailable/);
+    assert.match(status.text, /created:\s+unavailable/);
+    assert.match(status.text, /updated:\s+unavailable/);
+    assert.equal(status.json.goal_summary, null);
+    assert.equal(status.json.created_at, null);
+    assert.equal(status.json.last_event_at, null);
+  });
+
   it("exposes run_state on complete fixture", () => {
     const ctx = loadOperatorTraceContext({
       filePath: path.join(FIXTURES, "complete.v1.jsonl"),
