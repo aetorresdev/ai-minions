@@ -615,7 +615,18 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
         "",
         `Reply now. Use the file tools (${toolDefs.map((t) => t.function.name).join(", ")}) where the task requires reading or writing files, then give your final answer in the required output format.`,
       ].join("\n");
-      const retried = await callFn(toolNote + systemForOllama, [{ role: "user", content: retryPrompt }], callArgs);
+      let retried;
+      try {
+        retried = await callFn(toolNote + systemForOllama, [{ role: "user", content: retryPrompt }], callArgs);
+      } catch (retryErr) {
+        // Timeout / HTTP / parse failures on the second call must still carry
+        // the retry marker into the production trace via err.context_stats.
+        const prior = retryErr.context_stats && typeof retryErr.context_stats === "object"
+          ? retryErr.context_stats
+          : {};
+        retryErr.context_stats = { ...prior, ollama_retried_after_empty: 1 };
+        throw retryErr;
+      }
       if ((retried.content && String(retried.content).trim())
         || (Array.isArray(retried.tool_calls) && retried.tool_calls.length)
         || (Array.isArray(retried.tools_used) && retried.tools_used.length)) {

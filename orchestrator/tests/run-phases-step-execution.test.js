@@ -97,6 +97,45 @@ describe("run-phases/step-execution — executeStepAgentInvocation", () => {
     assert.equal(traces.some((t) => t.event === "agent_done"), false);
   });
 
+  it("emits err.context_stats via emitContextStatsRows on contract_fail (retry marker survives)", async () => {
+    /** @type {object[]} */
+    const emitted = [];
+    const { ctx, traces } = makeCtx({
+      emitContextStatsRows: (stats, agent, iteration, _g, _i, loc) => {
+        emitted.push({ stats, agent, iteration, loc });
+      },
+    });
+    const { step } = makeStepDeps({
+      askAgent: async () => {
+        const err = new Error("[output contract] files_read empty");
+        err.gate_id = "files_read_empty";
+        err.context_stats = { ollama_retried_after_empty: 1, ollama_prompt_tokens: 12 };
+        throw err;
+      },
+    });
+    const out = await executeStepAgentInvocation(ctx, step);
+    assert.equal(out.action, "continue");
+    assertSubsequence(traceEvents(traces), ["agent_start", "contract_fail"]);
+    assert.equal(emitted.length, 1, "error path must emit context_stats rows");
+    assert.equal(emitted[0].agent, "dev-backend");
+    assert.equal(emitted[0].stats.ollama_retried_after_empty, 1);
+    assert.equal(emitted[0].loc.step_id, "step-1");
+  });
+
+  it("does not emit context_stats on contract_fail when err carries none", async () => {
+    let emitCalls = 0;
+    const { ctx } = makeCtx({
+      emitContextStatsRows: () => { emitCalls += 1; },
+    });
+    const { step } = makeStepDeps({
+      askAgent: async () => {
+        throw new Error("plain failure without stats");
+      },
+    });
+    await executeStepAgentInvocation(ctx, step);
+    assert.equal(emitCalls, 0);
+  });
+
   it("breaks iteration on critical role contract_fail", async () => {
     const { ctx, traces } = makeCtx();
     const { step } = makeStepDeps({

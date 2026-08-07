@@ -121,6 +121,28 @@ async function executeStepAgentInvocation(ctx, step) {
       critical: isCritical,
       ...(gateId ? { gate_id: gateId } : {}),
     });
+    // Preserve retry/token markers carried on the error (e.g. ollama_retried_after_empty)
+    // so production traces and metrics see the same evidence as the unit path.
+    const failStats = err.context_stats && typeof err.context_stats === "object"
+      ? err.context_stats
+      : null;
+    if (failStats) {
+      ctx.emitModelFallbackLifecycleIfNeeded(
+        ctx.traceEvent,
+        ctx.taskId,
+        agentId,
+        failStats,
+        { iteration: ctx.iterations(), step_id: stepId, step_index: stepIndex, ...graphMeta, ...intentStep },
+      );
+      ctx.emitContextStatsRows(
+        failStats,
+        agentId,
+        ctx.iterations(),
+        graphMeta,
+        intentStep,
+        { step_id: stepId, step_index: stepIndex },
+      );
+    }
     setStepFailedAndClear(runState);
     ctx.log(agentId, `🟥 Output contract failed: ${err.message}`);
     const artifact = {

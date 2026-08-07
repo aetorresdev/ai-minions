@@ -475,6 +475,28 @@ describe("askAgent local tool path", () => {
     assert.equal(caught.context_stats?.ollama_retried_after_empty, 1);
   });
 
+  it("retry that throws (timeout/HTTP) still carries ollama_retried_after_empty=1", async () => {
+    let calls = 0;
+    ollamaRuntime.runOllamaWithTools = async () => {
+      calls += 1;
+      if (calls === 1) return { content: "", tool_calls: [], tools_used: [] };
+      const err = new Error("Ollama HTTP 502");
+      err.context_stats = { ollama_prompt_tokens: 3 };
+      throw err;
+    };
+    let caught = null;
+    try {
+      await agents.askAgent("dev-frontend", "Your task:\nCreate a.js", { cwd: tmpDir });
+    } catch (err) {
+      caught = err;
+    }
+    assert.ok(caught, "expected thrown error from retry");
+    assert.equal(calls, 2);
+    assert.match(caught.message, /Ollama HTTP 502/);
+    assert.equal(caught.context_stats?.ollama_retried_after_empty, 1);
+    assert.equal(caught.context_stats?.ollama_prompt_tokens, 3, "prior stats preserved");
+  });
+
   it("qa never gets write_file bypass — classification contract still enforced", async () => {
     ollamaRuntime.runOllamaWithTools = async () => ({
       content: "Looks fine.",
