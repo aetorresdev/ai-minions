@@ -201,3 +201,46 @@ test('formatRunIdArg-safe select_command retained on pane for unsafe ids', () =>
   );
   assert.match(model.select_command, /'task \$\(x\)'/);
 });
+
+test('status pane surfaces title/created/updated/phase from entry and rows', () => {
+  const entry = {
+    run_id: 'meta-run',
+    result_code: 'RUN_FOUND',
+    status: 'failed',
+    outcome: 'failed',
+    goal_summary: 'Create sudoku.html',
+    created_at: '2026-08-01T12:00:00.000Z',
+    last_event_at: '2026-08-01T12:30:00.000Z',
+    current_phase: 'review',
+    reason_code: 'finding_classification_missing',
+    select_command: 'ai-minions status --run-id meta-run',
+    trace_file: '/tmp/meta-run.jsonl',
+  };
+  const model = buildRunStatusPaneModel(entry, {
+    ok: true,
+    status_label: 'failed',
+    rows: [
+      { event: 'session_start', goal: 'Create sudoku.html', ts_ms: Date.parse('2026-08-01T12:00:00.000Z') },
+      { event: 'contract_fail', ts_ms: Date.parse('2026-08-01T12:30:00.000Z') },
+    ],
+    summary: { outcome: 'failed', current_phase: 'review', next_safe_action: 'inspect' },
+    run_state: {
+      result_code: 'RUN_FOUND',
+      blocking_reason_code: 'finding_classification_missing',
+      next_safe_action: 'inspect',
+      attach_available: false,
+      attach_bundle_available: false,
+      attach_action_available: true,
+    },
+    trace_file: '/tmp/meta-run.jsonl',
+  });
+  assert.equal(model.goal_summary, 'Create sudoku.html');
+  assert.equal(model.created_at, '2026-08-01T12:00:00.000Z');
+  assert.equal(model.last_event_at, '2026-08-01T12:30:00.000Z');
+  assert.equal(model.current_phase, 'review');
+  const text = formatRunStatusPaneText(model, { useColor: false });
+  assert.match(text, /title:\s+Create sudoku\.html/);
+  assert.match(text, /created:\s+2026-08-01T12:00:00\.000Z/);
+  assert.match(text, /updated:\s+2026-08-01T12:30:00\.000Z/);
+  assert.match(text, /current_phase:\s+review/);
+});

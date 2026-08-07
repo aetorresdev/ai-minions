@@ -11,6 +11,7 @@ const path = require('path');
 const { ansi, colorOutcome } = require('./terminal-style');
 const { runOperatorRuns, formatRunIdArg } = require('./operator-run-list');
 const { loadOperatorTraceContext } = require('./operator-trace-command');
+const { runMetaFromRows } = require('./operator-run-meta');
 
 const RUN_SELECTOR_SCHEMA = '1';
 
@@ -108,9 +109,25 @@ function formatRunStatusPaneText(pane, options = {}) {
         : '(attach not available for this result)'
     );
 
+  const goal = pane.goal_summary == null || pane.goal_summary === ''
+    ? 'unavailable'
+    : String(pane.goal_summary);
+  const created = pane.created_at == null || pane.created_at === ''
+    ? 'unavailable'
+    : String(pane.created_at);
+  const updated = pane.last_event_at == null || pane.last_event_at === ''
+    ? 'unavailable'
+    : String(pane.last_event_at);
+  const phase = pane.current_phase == null || pane.current_phase === ''
+    ? 'unavailable'
+    : String(pane.current_phase);
   const lines = [
     section('== Status pane =='),
     `  run_id:                 ${pane.run_id}`,
+    `  title:                  ${goal}`,
+    `  created:                ${created}`,
+    `  updated:                ${updated}`,
+    `  current_phase:          ${phase}`,
     `  trace_basename:         ${basename}`,
     `  result_code:            ${pane.result_code}`,
     `  status:                 ${colorOutcome(pane.status ?? 'unknown', useColor)}`,
@@ -165,6 +182,10 @@ function buildRunStatusPaneModel(entry, ctx) {
       result_code: resultCode,
       status: resultCode === 'RUN_TRACE_INVALID' ? 'invalid' : (entry.status ?? 'unknown'),
       outcome: null,
+      goal_summary: entry.goal_summary ?? null,
+      created_at: entry.created_at ?? null,
+      last_event_at: entry.last_event_at ?? null,
+      current_phase: entry.current_phase ?? null,
       reason_code: reasonCode,
       next_safe_action: nextSafe,
       attach_available: false,
@@ -187,12 +208,18 @@ function buildRunStatusPaneModel(entry, ctx) {
     attachHint = '(attach action not available for this run state)';
   }
 
+  // Prefer list-entry meta (same source as the run board); fall back to rows.
+  const fromRows = runMetaFromRows(ctx.rows);
   return {
     run_id: runId,
     trace_basename: basename,
     result_code: rs?.result_code ?? entry.result_code ?? 'RUN_FOUND',
     status: ctx.status_label ?? entry.status ?? 'unknown',
     outcome: summary?.outcome ?? entry.outcome ?? null,
+    goal_summary: entry.goal_summary ?? fromRows.goal_summary ?? null,
+    created_at: entry.created_at ?? fromRows.created_at ?? null,
+    last_event_at: entry.last_event_at ?? fromRows.last_event_at ?? null,
+    current_phase: entry.current_phase ?? summary?.current_phase ?? null,
     reason_code: rs?.blocking_reason_code ?? entry.reason_code ?? null,
     next_safe_action: rs?.next_safe_action ?? summary?.next_safe_action ?? null,
     attach_available: rs?.attach_available ?? null,

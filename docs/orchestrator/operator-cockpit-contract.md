@@ -104,7 +104,7 @@ Fullscreen action ids (task-first / contextual). Nested readline panes may still
 |-----------------|---------------------------|
 | `home` (`h`) | Task-first landing surface (`buildLandingViewModel` / `formatLandingLines`) |
 | `launcher` (`1`) | Native Ink workflow (`operator-tui-launcher-workflow.js`) → on confirm `runOperatorGuidedLauncherPane({ selections })` → `runSmoke` / `runStart` |
-| `runs` (`2`) | Native Ink run browser + overview (`operator-tui-run-browser-workflow.js`); opens from startup `model.runs` snapshot; overview reuses `loadRunStatusPane` |
+| `runs` (`2`) | Native Ink run browser + overview (`operator-tui-run-browser-workflow.js`); opens from startup `model.runs` snapshot; overview reuses `loadRunStatusPane`. **One number per run** (detail lines are unnumbered); footer shows `selected N/M · run_id`; duplicate `run_id` rows are deduped. Overview status pane includes `title` / `created` / `updated` / `current_phase` (unavailable when absent — never invented). |
 | `diagnostics` (`3`) | System Status / advanced diagnostics (`formatDiagnosticsLines`) — raw path/git/credential fields |
 | `config` (`4`) | Settings — **seeded** path/credentials readiness snapshot (`seedConfigModelFromShell` / `adaptConfigReadiness`) — **in-process**, no remount. Seed honesty: `snapshot_ok=true`, `doctor_status=not_run`, `doctor_ok=null` (snapshot ≠ doctor; no doctor claim until CLI `/doctor`). Full doctor refresh: CLI `ai-minions doctor` or slash `/doctor` |
 | `help` (`5` / `?`) | Help topic browser (`formatHelpLines` / `helpTopics`) — **in-process only**; catalog includes Navigation, Overview, Monitor, Evidence, Explain, Keys, Display, Limits; topic digits never remount Settings/launcher |

@@ -16,7 +16,6 @@ const {
   loadRunStatusPane,
 } = require('./operator-run-selector-tui');
 const {
-  formatRunsBoardEntryLines,
   fieldOrUnavailable,
   actionEligibilityDisplayLabel,
 } = require('./operator-run-list');
@@ -33,17 +32,65 @@ const RUN_BROWSER_WORKFLOW_KIND = 'run_browser';
  *   selectedRunId?: string | null,
  * }} [opts]
  */
+/**
+ * One list row per run_id (newest-first list may still carry duplicates from
+ * mixed snapshots/fixtures). Prefer the first occurrence.
+ * @param {object[]} runs
+ * @returns {object[]}
+ */
+function dedupeRunsById(runs) {
+  const seen = new Set();
+  const out = [];
+  for (const run of runs) {
+    const id = String(run?.run_id ?? '');
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(run);
+  }
+  return out;
+}
+
+/**
+ * Compact title for browse rows (full title still available in overview).
+ * @param {object} run
+ * @returns {string}
+ */
+function shortRunTitle(run) {
+  const raw = typeof run?.goal_summary === 'string' && run.goal_summary.trim()
+    ? run.goal_summary.trim()
+    : (typeof run?.summary === 'string' && run.summary.trim() ? run.summary.trim() : '');
+  if (!raw) return '(no title)';
+  return raw.length > 42 ? `${raw.slice(0, 39)}...` : raw;
+}
+
+/**
+ * Keep browse rows short so numbered headers stay on-screen (long multi-line
+ * notes were pushing `N.` rows out of the content viewport — looked like gaps).
+ * @param {object} run
+ * @returns {string[]}
+ */
+function browseNoteLines(run) {
+  return [
+    `title: ${fieldOrUnavailable(run?.goal_summary ?? run?.summary)}`,
+    `updated: ${fieldOrUnavailable(run?.last_event_at ?? run?.updated_at)}`
+      + ` · phase: ${fieldOrUnavailable(run?.current_phase)}`
+      + ` · reason: ${fieldOrUnavailable(run?.reason_code)}`,
+    `action: ${actionEligibilityDisplayLabel(
+      run?.action_eligibility == null || run.action_eligibility === ''
+        ? 'unavailable'
+        : String(run.action_eligibility),
+    )}`,
+  ];
+}
+
 function createRunBrowserWorkflow(opts = {}) {
-  const runs = Array.isArray(opts.runs) ? opts.runs : [];
-  const options = runs.map((run) => {
-    const detailLines = formatRunsBoardEntryLines(run, { selected: false }).slice(1);
-    return {
-      id: String(run.run_id),
-      label: `${run.run_id}  ${run.status ?? '-'} / ${run.outcome ?? '-'} / ${run.result_code ?? '-'}`,
-      note: detailLines.map((line) => line.trim()).join(' · ')
-        || `title: ${fieldOrUnavailable(null)} · action: ${actionEligibilityDisplayLabel('unavailable')}`,
-    };
-  });
+  const runs = dedupeRunsById(Array.isArray(opts.runs) ? opts.runs : []);
+  const options = runs.map((run) => ({
+    id: String(run.run_id),
+    // Short numbered row — title lives in unnumbered noteLines below.
+    label: `${run.run_id}  ${run.status ?? '-'} / ${run.outcome ?? '-'} / ${run.result_code ?? '-'} · ${shortRunTitle(run)}`,
+    noteLines: browseNoteLines(run),
+  }));
   let cursorIndex = 0;
   if (opts.selectedRunId) {
     const idx = runs.findIndex((r) => String(r.run_id) === String(opts.selectedRunId));
@@ -124,11 +171,19 @@ function formatRunBrowserWorkflowLines(workflow) {
       'Esc back to run list · selection preserved',
     ].filter(Boolean);
   }
+  const select = workflow.select;
+  const current = select?.options?.[select.cursorIndex] ?? null;
+  const total = Array.isArray(select?.options) ? select.options.length : 0;
+  const selectedN = total ? (select.cursorIndex ?? 0) + 1 : 0;
+  const selectionFooter = total
+    ? `selected ${selectedN}/${total} · ${current?.id ?? '-'}  (↑/↓ changes selection; detail lines are not selectable)`
+    : null;
   return [
     'Run browser (native)',
     snapshotNote,
-    ...formatSelectLines(workflow.select, {
-      title: 'Newest-first runs (read-only)',
+    ...formatSelectLines(select, {
+      title: 'Newest-first runs (read-only) — one number per run',
+      selectionFooter,
       hint: '↑/↓ move · Enter open overview · Esc cancel',
     }),
   ];
