@@ -327,3 +327,107 @@ describe("runOllamaWithTools loop", () => {
     assert.deepEqual(out.tool_calls, []);
   });
 });
+
+describe("askAgent local tool path", () => {
+  let tmpDir;
+  let agents;
+  let ollamaRuntime;
+  let original;
+  const savedEnv = {};
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ollama-agents-"));
+    for (const k of ["ORCH_MODEL_MODE", "OLLAMA_MODEL"]) {
+      savedEnv[k] = process.env[k];
+    }
+    process.env.ORCH_MODEL_MODE = "local_only";
+    process.env.OLLAMA_MODEL = "stub-model";
+    ollamaRuntime = require("../modules/model-runtime/run-ollama");
+    original = ollamaRuntime.runOllamaWithTools;
+    agents = require("../modules/shared/agents");
+  });
+
+  afterEach(() => {
+    ollamaRuntime.runOllamaWithTools = original;
+    for (const k of ["ORCH_MODEL_MODE", "OLLAMA_MODEL"]) {
+      if (savedEnv[k] == null) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    }
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("tool note leads the system prompt for tool-capable roles", async () => {
+    let seenSystem = "";
+    ollamaRuntime.runOllamaWithTools = async (systemPrompt) => {
+      seenSystem = systemPrompt;
+      return { content: "files_read:\n  - a.js\nfiles_modified:\n  - a.js\nvalidation_run: none", tools_used: [], tool_calls: [] };
+    };
+    await agents.askAgent("dev-frontend", "Create a.js", { cwd: tmpDir });
+    assert.match(seenSystem, /^## FILE TOOLS AVAILABLE/);
+    assert.match(seenSystem, /Never claim you read or wrote a file without an actual tool call/);
+  });
+
+  it("retries once with a compact prompt when the model returns empty content and no tool calls", async () => {
+    const calls = [];
+    ollamaRuntime.runOllamaWithTools = async (_sys, messages) => {
+      calls.push(messages[messages.length - 1].content);
+      if (calls.length === 1) return { content: "", tool_calls: [], tools_used: [] };
+      return { content: "files_read:\n  - a.js\nfiles_modified:\n  - a.js\nvalidation_run: none", tool_calls: [], tools_used: [] };
+    };
+    const { output, context_stats } = await agents.askAgent("dev-frontend", "Your task:\nCreate a.js", { cwd: tmpDir });
+    assert.equal(calls.length, 2);
+    assert.match(calls[1], new RegExp(`Working directory: ${tmpDir.replace(/[/\\]/g, "\\$&")}`));
+    assert.match(output, /files_read/);
+    assert.equal(context_stats.ollama_retried_after_empty, 1);
+  });
+
+  it("does not retry when the first reply already has content or tool calls", async () => {
+    let calls = 0;
+    ollamaRuntime.runOllamaWithTools = async () => {
+      calls += 1;
+      return { content: "files_read:\n  - a.js\nfiles_modified:\n  - a.js\nvalidation_run: none", tool_calls: [], tools_used: [] };
+    };
+    const { context_stats } = await agents.askAgent("dev-frontend", "Create a.js", { cwd: tmpDir });
+    assert.equal(calls, 1);
+    assert.equal(context_stats.ollama_retried_after_empty, undefined);
+  });
+
+  it("dev contract passes when files were actually written via write_file (YAML contract missing)", async () => {
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "Created the page with an inline grid and actions.",
+      tool_calls: [],
+      tools_used: [
+        { name: "write_file", args: { path: "sudoku.html" }, allowed: true },
+        { name: "write_file", args: { path: "sudoku.html" }, allowed: true },
+      ],
+    });
+    const { output } = await agents.askAgent("dev-frontend", "Create sudoku.html", { cwd: tmpDir });
+    assert.match(output, /files_read:\n {2}- sudoku\.html/);
+    assert.match(output, /files_modified:\n {2}- sudoku\.html/);
+    assert.match(output, /validation_run: write_file tool executed \(1 file\(s\)\)/);
+  });
+
+  it("dev contract still fails when no file was actually written", async () => {
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "I would create sudoku.html now.",
+      tool_calls: [],
+      tools_used: [{ name: "read_file", args: { path: "sudoku.html" }, allowed: true }],
+    });
+    await assert.rejects(
+      () => agents.askAgent("dev-frontend", "Create sudoku.html", { cwd: tmpDir }),
+      /\[output contract\]/,
+    );
+  });
+
+  it("qa never gets write_file bypass — classification contract still enforced", async () => {
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "Looks fine.",
+      tool_calls: [],
+      tools_used: [{ name: "read_file", args: { path: "sudoku.html" }, allowed: true }],
+    });
+    await assert.rejects(
+      () => agents.askAgent("qa", "Verify sudoku.html", { cwd: tmpDir, phase: "verify" }),
+      /classify at least one finding/,
+    );
+  });
+});

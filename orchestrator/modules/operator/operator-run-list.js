@@ -10,6 +10,11 @@ const path = require('path');
 
 const { loadOperatorTraceContext } = require('./operator-trace-command');
 const { ansi, colorOutcome } = require('./terminal-style');
+const {
+  latestEventTimestamp,
+  earliestEventTimestamp,
+  goalSummaryFromRows,
+} = require('./operator-run-meta');
 
 const RUN_LIST_SCHEMA_VERSION = '1';
 const DEFAULT_RUNS_LIMIT = 20;
@@ -26,53 +31,6 @@ function normalizeRunsLimit(value) {
     return null;
   }
   return parsed;
-}
-
-/**
- * @param {object[]} rows
- * @returns {number | null}
- */
-function latestEventTimestamp(rows) {
-  let latest = null;
-  for (const row of rows) {
-    if (
-      !row
-      || typeof row.ts_ms !== 'number'
-      || !Number.isFinite(new Date(row.ts_ms).getTime())
-    ) continue;
-    if (latest == null || row.ts_ms > latest) latest = row.ts_ms;
-  }
-  return latest;
-}
-
-/**
- * @param {object[]} rows
- * @returns {number | null}
- */
-function earliestEventTimestamp(rows) {
-  let earliest = null;
-  for (const row of rows) {
-    if (
-      !row
-      || typeof row.ts_ms !== 'number'
-      || !Number.isFinite(new Date(row.ts_ms).getTime())
-    ) continue;
-    if (earliest == null || row.ts_ms < earliest) earliest = row.ts_ms;
-  }
-  return earliest;
-}
-
-/**
- * Goal from first session_start only — never invent from prose/logs.
- * @param {object[]} rows
- * @returns {string | null}
- */
-function goalSummaryFromRows(rows) {
-  for (const row of rows) {
-    if (!row || row.event !== 'session_start') continue;
-    if (typeof row.goal === 'string' && row.goal.trim()) return row.goal.trim();
-  }
-  return null;
 }
 
 /**
