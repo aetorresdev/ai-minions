@@ -14,7 +14,7 @@
 
 ## Host hooks
 
-Claude Code hooks under `scripts/hooks/` (including `context-efficiency.py` and `skill-registry-enforcer.py`) call the activation helper (or bash equivalent) and **exit 0** when inactive. They must not treat prompt text or `ORCH_SKILL_REGISTRY_ENFORCE=1` alone as activation.
+Claude Code hooks under `scripts/hooks/` (including `context-efficiency.py`, `skill-registry-enforcer.py`, `agent-metrics.py`, and `mem0-search.py`) call the activation helper (or bash equivalent) and **exit 0** when inactive. They must not treat prompt text, `ORCH_SKILL_REGISTRY_ENFORCE=1`, or legacy `orch-session` flags as activation.
 
 ## Cursor
 

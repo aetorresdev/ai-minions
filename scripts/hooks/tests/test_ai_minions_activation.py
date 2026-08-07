@@ -229,6 +229,68 @@ class TestHooksInactiveNoOp(unittest.TestCase):
             self.assertEqual(r.returncode, 0)
             self.assertEqual(r.stdout.strip(), "")
 
+    def _agent_metrics_payload(self) -> str:
+        return json.dumps(
+            {
+                "tool_name": "Agent",
+                "tool_input": {"description": "explore codebase"},
+                "tool_response": {
+                    "agentType": "explore",
+                    "status": "completed",
+                    "totalTokens": 42,
+                    "totalDurationMs": 100,
+                    "totalToolUseCount": 1,
+                    "usage": {
+                        "input_tokens": 20,
+                        "output_tokens": 22,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    },
+                },
+            }
+        )
+
+    def test_agent_metrics_noop_without_activation(self):
+        home = tempfile.mkdtemp()
+        env = self._env(HOME=home, CLAUDE_SESSION_ID="agent-metrics-inactive")
+        metrics = Path(home) / ".claude" / "metrics" / "agent-metrics.jsonl"
+        r = subprocess.run(
+            [sys.executable, str(HOOKS_DIR / "agent-metrics.py")],
+            input=self._agent_metrics_payload(),
+            text=True,
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), "")
+        self.assertFalse(metrics.exists())
+
+    def test_agent_metrics_writes_when_active(self):
+        home = tempfile.mkdtemp()
+        env = self._env(
+            HOME=home,
+            CLAUDE_SESSION_ID="agent-metrics-active",
+            AI_MINIONS_ACTIVE="1",
+            AI_MINIONS_RUN_ID="task-agent-metrics",
+        )
+        metrics = Path(home) / ".claude" / "metrics" / "agent-metrics.jsonl"
+        r = subprocess.run(
+            [sys.executable, str(HOOKS_DIR / "agent-metrics.py")],
+            input=self._agent_metrics_payload(),
+            text=True,
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("additionalContext", r.stdout)
+        self.assertTrue(metrics.exists())
+        line = metrics.read_text(encoding="utf-8").strip().splitlines()[-1]
+        record = json.loads(line)
+        self.assertEqual(record.get("agent_type"), "explore")
+        self.assertEqual(record.get("total_tokens"), 42)
+
 
 class TestCursorRulesNotAlwaysApply(unittest.TestCase):
     def test_orchestrator_mdc_always_apply_false(self):
