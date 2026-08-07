@@ -174,6 +174,16 @@ describe("ai-minions-cli-install", () => {
     assert.ok(fs.existsSync(report.config_path));
     assert.equal(fs.readFileSync(report.config_path, "utf8").trim(), repoRoot);
     assert.match(buildShimSource(), /AI_MINIONS_HOME/);
+    assert.match(buildShimSource(), /invokerCwd/);
+    assert.doesNotMatch(buildShimSource(), /cwd:\s*realRepo/);
+  });
+
+  it("buildShimSource preserves invoker cwd (does not chdir to product home)", () => {
+    const src = buildShimSource();
+    assert.match(src, /const invokerCwd = process\.cwd\(\)/);
+    assert.match(src, /cwd:\s*invokerCwd/);
+    assert.doesNotMatch(src, /cwd:\s*realRepo/);
+    assert.match(src, /AI_MINIONS_HOME:\s*realRepo/);
   });
 
   it("runCliInstall materializes with PATH activation warn when bin dir missing from PATH", async () => {

@@ -4,6 +4,10 @@
 
 **Related:** [Install Ollama paths](install-ollama-docker-paths.md) · [Fresh-clone evidence](fresh-clone-evidence.md) · [Human-ready rehearsal](human-ready-rehearsal-evidence.md) · [Model config ownership](../orchestrator/model-config-ownership.md)
 
+### Operator working directory vs product home
+
+The PATH shim resolves the product via `AI_MINIONS_HOME` / `~/.config/ai-minions/home` but **preserves the invoker cwd** (`process.cwd()` at invoke). Agent prompts (`Working directory: …`), confined tools, and run artifacts follow that cwd — not the install root. After upgrading the shim source, **re-run** `node scripts/install-ai-minions.mjs` so `~/.local/bin/ai-minions` is regenerated; an old shim that `chdir`s into the clone will keep the fixed-path bug.
+
 ---
 
 ## What counts as evidence (v0.20)

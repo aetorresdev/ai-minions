@@ -136,7 +136,8 @@ function resolveConfigRepoRoot(cwd) {
 }
 
 /**
- * Resolve config-write target for init (operator project cwd, not product install home).
+ * Resolve operator project cwd (init config target, run working directory base).
+ * This is NOT the product install home — see resolveProductHome.
  * @param {string | undefined} cwd
  */
 function resolveInstallRepoRoot(cwd) {
@@ -155,6 +156,25 @@ function resolveInstallRepoRoot(cwd) {
   }
 
   return candidate;
+}
+
+/**
+ * Resolve product install root (clone with orchestrator/package.json).
+ * Precedence: AI_MINIONS_HOME → REPO_ROOT → lift-from-cwd heuristics.
+ * Used for layout checks when the operator cwd is outside the clone.
+ * @param {string | undefined} cwd
+ * @returns {string}
+ */
+function resolveProductHome(cwd) {
+  for (const key of ['AI_MINIONS_HOME', 'REPO_ROOT']) {
+    const raw = process.env[key];
+    if (!raw || !String(raw).trim()) continue;
+    const home = path.resolve(String(raw).trim());
+    if (fs.existsSync(path.join(home, 'orchestrator', 'package.json'))) {
+      return home;
+    }
+  }
+  return resolveInstallRepoRoot(cwd);
 }
 
 /**
@@ -946,6 +966,7 @@ module.exports = {
   deriveInitNextSafeAction,
   defaultTracePath,
   resolveInstallRepoRoot,
+  resolveProductHome,
   resolveConfigRepoRoot,
   recordProductCliFriction,
   runInit,
