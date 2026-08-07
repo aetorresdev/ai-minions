@@ -232,6 +232,46 @@ describe("runner-launcher", () => {
     assert.equal(launched.task_id, "task-runner-1");
   });
 
+  it("launchRun sets AI_MINIONS_ACTIVE and RUN_ID for child hooks during run", async () => {
+    const prevActive = process.env.AI_MINIONS_ACTIVE;
+    const prevRun = process.env.AI_MINIONS_RUN_ID;
+    delete process.env.AI_MINIONS_ACTIVE;
+    delete process.env.AI_MINIONS_RUN_ID;
+    let seenActive;
+    let seenRunId;
+    try {
+      await launchRun({
+        goal: "activate marker",
+        taskId: "task-activation-1",
+        buildRunPreflight: async () => ({
+          ok: true,
+          model_policy: "local_only",
+          blockers: [],
+          provider: "ollama",
+          selected_model: "qwen2.5-coder:7b",
+          override_source: "auto",
+          selection_reason: "auto",
+          discovered_models: [],
+          ollama_reachable: true,
+        }),
+        run: async (_goal, opts) => {
+          seenActive = process.env.AI_MINIONS_ACTIVE;
+          seenRunId = process.env.AI_MINIONS_RUN_ID;
+          assert.equal(opts.taskId, "task-activation-1");
+          return { done: true, taskId: "task-activation-1", summary: "ok", iterations: 1 };
+        },
+      });
+      assert.equal(seenActive, "1");
+      assert.equal(seenRunId, "task-activation-1");
+      assert.notEqual(process.env.AI_MINIONS_ACTIVE, "1");
+    } finally {
+      if (prevActive === undefined) delete process.env.AI_MINIONS_ACTIVE;
+      else process.env.AI_MINIONS_ACTIVE = prevActive;
+      if (prevRun === undefined) delete process.env.AI_MINIONS_RUN_ID;
+      else process.env.AI_MINIONS_RUN_ID = prevRun;
+    }
+  });
+
   it("loadRunStatusFromTrace reads session_end from fixture", () => {
     const tracePath = path.join(__dirname, "..", "fixtures", "golden-path-clean-v1.jsonl");
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runner-status-"));

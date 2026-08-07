@@ -22,6 +22,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from ai_minions_activation import is_ai_minions_active
 from gate_logger import log_gate_event
 
 METRICS_DIR = Path.home() / ".claude/metrics"
@@ -62,7 +63,7 @@ def flag_path(task_id: str | None = None) -> Path:
 
 
 def is_orchestrator_session() -> bool:
-    return (METRICS_DIR / f"orch-session-{SESSION_ID}.flag").exists()
+    return is_ai_minions_active()
 
 
 def handle_post_tool(hook: dict):
@@ -148,6 +149,9 @@ def handle_pre_tool(hook: dict):
 
 
 def main():
+    if not is_ai_minions_active():
+        sys.exit(0)
+
     try:
         raw = sys.stdin.read()
         hook = json.loads(raw) if raw.strip() else {}

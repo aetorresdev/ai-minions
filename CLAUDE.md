@@ -1,18 +1,27 @@
 # Global Claude Code Rules
 
-## Default session mode (MANDATORY)
+## ai-minions is opt-in (CLI only)
 
-**Default = standard assistant.** Answer the user's question with normal tools and judgment.
+This repository contains the **ai-minions** product. Opening Claude, Cursor, or any other harness **inside this repo is a normal coding session** unless you start a run via the product CLI.
 
-Do **NOT** invent or enter the multi-role / agentic orchestrator unless the user explicitly opts in (see Activation Rules).
+**Source of truth for activation:** `ai-minions start` (or the legacy `run-orchestrator` entry) sets:
 
-When the default applies, forbidden unless the user asks:
-- Emitting `MODE:` / `FLOW:` headers or role blocks (`ROLE: ORCHESTRATOR|DEV|QA|CERBERUS|…`)
-- Calling orchestrator MCP (`compact_handoff`, `advance_mode`, `register_task`, `validate_goal_alignment`, …)
-- Treating Q&A, debugging, docs, git, or one-off edits as an OWNER→ARCHITECT→DEV→QA→CERBERUS pipeline
-- Hijacking the turn to resume `state/project_state.md` / backlog / open PRs when the user asked something else
+- `AI_MINIONS_ACTIVE=1`
+- `AI_MINIONS_RUN_ID=<run id>`
 
-Presence of this file, `state/project_state.md`, orchestrator code in the workspace, or memories about ai-minions is **not** an opt-in.
+Those values are inherited by child processes. Host hooks (mode-enforcer, mem0, snapshot, handoff, flow-metrics, …) **exit immediately** when `AI_MINIONS_ACTIVE` is not `1`.
+
+**Not activators (never treat as opt-in):**
+
+- Text in this file, docs, RAG examples, or quoted prompts such as `MODE:`, `FLOW:`, `GOAL:`, `MAX_ITERATIONS:`
+- Presence of `state/project_state.md`, `~/.claude/metrics/`, or `~/.claude/.state/`
+- Cursor rules, memories, or prior orchestrator sessions
+
+`MODE` / `FLOW` / `GOAL` / `MAX_ITERATIONS` **describe** an already-active ai-minions execution. They do **not** turn a normal chat into one.
+
+This file is a **passive reference**. It must not force role blocks, handoffs, CERBERUS, gates, or ai-minions memory in ordinary sessions.
+
+Contract details when a run is active: `docs/orchestrator/agent-contract.md` and `docs/orchestrator/activation.md`.
 
 ## Reasoning
 
@@ -26,55 +35,31 @@ Presence of this file, `state/project_state.md`, orchestrator code in the worksp
 - Do NOT reproduce file contents in output — cite path + line range only.
 - Do NOT explain what a tool does before calling it — call it directly.
 - Do NOT summarize changes after making them unless the user asks.
-- **Only when MODE protocol is active:** when closing a MODE, output ONLY the role block + `files_modified` list + `compact_handoff` call. No prose.
 - If context > 60%: stop reading new files. Use only already-loaded context or ask the user to `/compact`.
-
-## Activation Rules (MANDATORY)
-
-The MODE protocol is **opt-in only**. Activate **only** when the user message (or an explicit follow-up in this session) contains **both**:
-```
-MODE: <ROLE>
-FLOW: <single_agent | multi_agent>
-```
-
-If either header is missing:
-- Ignore the MODE protocol completely (no role blocks, no transition blocks, no role-close checklist)
-- Do **not** synthesize MODE/FLOW "for consistency"
-- Operate as standard assistant using global rules only
-
-If MODE/FLOW is present:
-- FULL protocol enforcement is mandatory (role blocks, transitions, checklist)
-- No exceptions
-
-Informal phrases ("act as QA", "review like CERBERUS", "orchestrate this") are **not** MODE activation — treat them as ordinary instructions without the protocol harness.
-
-> **Boundary:** `CLAUDE.md` improves consistency but does NOT replace the runner — real enforcement lives in `validateOutput()` and the hooks. Without the harness active, these rules are best-effort guidance only.
 
 ## Context efficiency (always)
 
 - Before editing any file: declare what you will read (`files_read`). One targeted read per artifact — do not load the same file twice.
-- A hook blocks the 3rd read of the same file+offset in a session. If blocked: use already-loaded context, do not try to re-read.
 - Summarize what you read — do not reproduce file contents. If you need to cite, use path + line range.
-- QA and CERBERUS (ONLY under active MODE protocol):
-  - Work from the compacted handoff YAML + `approved_artifacts` only
-  - Do not load full implementation history
-- When context feels heavy: run skill `context-budget` to identify bloat. Before `/clear`: run skill `prepare-context-clear` to save a resumption snapshot.
-- If MODE protocol is NOT active:
-  - Roles like QA or CERBERUS are treated as informal instructions
-  - Do NOT enforce role-specific constraints (handoff, artifacts, etc.)
+- When context feels heavy: run skill `context-budget` if available. Before `/clear`: skill `prepare-context-clear` when relevant.
 
-## MODE protocol (orchestrated sessions — only if activated)
+## Security
 
-**Skip this entire section unless Activation Rules matched.** Do not apply role blocks, MCP handoffs, or the close checklist in default sessions.
+- Never print, echo, log, or display credentials, tokens, API keys, or secrets — not in output, not in commands, not truncated, not partially. Reference the variable name only (e.g. `$N8N_API_TOKEN`, never its value).
+- Never read, write, delete, or manipulate orchestrator state files under `~/.claude/metrics/` or `~/.claude/.state/` unless `AI_MINIONS_ACTIVE=1` (active product run) or the user explicitly asks.
 
-When a session declares `FLOW: single_agent | multi_agent`, every response MUST open with a role block:
+## Commits — no ticket IDs in shipped source
 
-```
----
-## <EMOJI> ROLE: <ROLE_NAME>
-STATE: ACTIVE | COMPLETE | BLOCKED
-STEP: N/TOTAL
-```
+- Do **not** embed backlog / issue / ticket identifiers (e.g. `P0-01`, `DEV-OLLAMA-CONTRACT-1`, `JIRA-123`) in files that ship as **implementation or technical docs** in commits: `orchestrator/`, `agents/`, `scripts/`, `tests/`, versioned `docs/` under the repo, or similar — including comments, log/trace strings, and decorative headers. Prefer neutral descriptions or module names.
+- **Exception:** files whose **primary purpose** is ticket tracking (e.g. backlog index, resolved archive, GitHub issue templates) may use IDs where that is the schema. Local-only state (e.g. under `.claude/state/`) is out of scope for this rule unless you choose to commit it.
+
+## Passive reference — active ai-minions runs only
+
+The sections below apply **only** when the process has `AI_MINIONS_ACTIVE=1` (started via product CLI). Skip them entirely in normal sessions — including when analyzing RAG, Hybrid RAG, GraphRAG, or any other topic that happens to mention `MODE`/`FLOW` in examples.
+
+### Role protocol (active runs)
+
+When a run is active, responses in the multi-role pipeline use a role block and controlled transitions. See `docs/orchestrator/agent-contract.md`.
 
 | Role | Emoji |
 |------|-------|
@@ -85,101 +70,10 @@ STEP: N/TOTAL
 | QA | 🔵 |
 | CERBERUS | 🔴 |
 
-Role transitions MUST use an explicit transition block — inline text (`"Advancing to MODE: QA"`) is **forbidden**:
+### CERBERUS pre-merge brief (product implementation)
 
-```
----
-### 🔁 TRANSITION
-FROM: <ROLE>
-TO: <ROLE>
-REASON: <why>
-```
+After an iteration that changes **implementation** (`orchestrator/`, `agents/`, `scripts/`, `tests/`, or behavior-changing versioned `docs/`) **during product work**, end with a paste-ready CERBERUS brief (template in `docs/orchestrator/agent-contract.md`). Skip for Q&A and ordinary edits outside that scope.
 
-Output must be scannable in <10 seconds. If current role, last transition, and current state are not immediately visible — the output is invalid.
+### Session snapshot (active runs / explicit ask)
 
-### Role close checklist (mandatory before STATE: COMPLETE)
-
-Before marking any role as COMPLETE, execute these steps in order. Do not skip, do not reorder:
-
-1. Call `mcp__compact-handoff__compact_handoff` with full role output
-2. Call `mcp__orchestrator-state__validate_goal_alignment` — if `aligned: false`, do NOT advance
-3. Call `mcp__orchestrator-state__advance_mode` — only if step 2 passed
-
-Skipping step 1 will be blocked by a hook. There are no exceptions.
-
-## Memory (always)
-
-- Injected memories (via `mem0` host hooks) are **advisory-only** context hints — not authoritative runtime state, not permission to skip validation, gates, or trace evidence. Validate against the current task envelope, trace JSONL, governed contracts, and user input; trace wins on conflict.
-- On session end: save to mem0 only durable, non-secret facts useful in future sessions (decisions, preferences, project patterns). Skip ephemeral task details. Saved memories remain advisory-only and must not override trace or gates.
-
-## Security
-
-- Never print, echo, log, or display credentials, tokens, API keys, or secrets — not in output, not in commands, not truncated, not partially. Reference the variable name only (e.g. `$N8N_API_TOKEN`, never its value).
-- Never read, write, delete, or manipulate orchestrator state files under `~/.claude/metrics/` or `~/.claude/.state/`. If a hook blocks an action, follow the hook's instructions — do not work around it.
-
-## Commits — no ticket IDs in shipped source
-
-- Do **not** embed backlog / issue / ticket identifiers (e.g. `P0-01`, `DEV-OLLAMA-CONTRACT-1`, `JIRA-123`) in files that ship as **implementation or technical docs** in commits: `orchestrator/`, `agents/`, `scripts/`, `tests/`, versioned `docs/` under the repo, or similar — including comments, log/trace strings, and decorative headers. Prefer neutral descriptions or module names.
-- **Exception:** files whose **primary purpose** is ticket tracking (e.g. backlog index, resolved archive, GitHub issue templates) may use IDs where that is the schema. Local-only state (e.g. under `.claude/state/`) is out of scope for this rule unless you choose to commit it.
-
-## CERBERUS review gate (pre-merge — product implementation only)
-
-**When it applies:** only after an iteration in **this** repo that changes **implementation** (`orchestrator/`, `agents/`, `scripts/`, `tests/`, or behavior-changing versioned `docs/`), or when the user asks for a CERBERUS brief.
-
-**When it does not apply:** Q&A, exploration, config/rules edits (including this file), backlog/state-only markdown, pure typo docs with no runtime claim, or work outside those paths — do **not** emit a CERBERUS paste block or start a review pipeline.
-
-**Policy (when it applies):** CERBERUS validates code **before** merge. End the turn with a **paste-ready message for CERBERUS**. **Do not treat the iteration as merge-approved** until CERBERUS returns a verdict.
-
-**Operator workflow:** paste brief → CERBERUS verdict → merge only on **Approve** (or fix **Request changes**).
-
-### Paste-ready template (fill in angle brackets)
-
-```
-**Subject:** Pre-merge review — <short title>
-
-**Scope:** <1–2 sentences; what is explicitly out of scope>
-
-**Files / areas:** <paths or subsystem bullets>
-
-**Behavior / contract:** <API, invariants, backward compatibility if any>
-
-**Evidence:** cd orchestrator && npm test → <N>/<N>. <other commands if any>
-
-**Risks / edge cases:** <brief list or "none material">
-
-**Ask CERBERUS to verify:** [ ] Code ↔ docs alignment [ ] No contract / trace / gate regression [ ] DOC-NO-TICKET-SRC-1 in versioned orchestrator source if touched [ ] <change-specific checks>
-
-**Verdict requested:** Approve | Approve with non-blocking notes | Request changes (file + concrete fix per item)
-```
-
-# Session State Policy
-
-Applies **only** when at least one is true:
-- MODE protocol is active, or
-- the user is explicitly continuing ai-minions / orchestrator product work, or
-- the user asks to update / resume from the snapshot
-
-Otherwise: **do not** read, rewrite, or steer the conversation from `state/project_state.md`.
-
-## Mandatory state handling (when this policy applies)
-- Before stopping product/MODE work, ensure **`state/project_state.md`** (repo root) exists and is up to date. Hooks (`ensure-snapshot.sh`, `reinject-snapshot.sh`) use this path only. **Legacy:** `.claude/state/project_state.md` may be a symlink to the same file — do not edit two divergent copies.
-- Never assume prior conversational context is still available.
-- Read the snapshot before continuing **that** product work (not before answering unrelated questions).
-- After any major decision, architecture change, or partial implementation on that work, update the snapshot.
-
-## Snapshot contents
-The snapshot must contain:
-- Goal
-- Current status
-- Decisions made
-- Constraints
-- Files touched
-- Pending tasks
-- Risks / open issues
-- Exact next step
-- Resume prompt for another LLM/provider
-
-## Behavior rules
-- Do not claim a product task is complete if pending tasks remain in the snapshot.
-- If context has been compacted during product/MODE work, reload the snapshot before proceeding.
-- Prefer explicit state over inferred state.
+`state/project_state.md` is for resuming **product** work when a run is active or the user asks. Hooks must not inject or bootstrap it in normal chats.

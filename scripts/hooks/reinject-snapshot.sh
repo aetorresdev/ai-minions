@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Do not inject project_state into ordinary chats in this repo.
+if [[ "${AI_MINIONS_ACTIVE:-}" != "1" ]]; then
+  exit 0
+fi
+
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 SNAPSHOT_FILE="$PROJECT_DIR/state/project_state.md"
 

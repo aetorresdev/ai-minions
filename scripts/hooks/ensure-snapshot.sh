@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Normal Claude/Cursor sessions must not bootstrap orchestrator snapshots.
+if [[ "${AI_MINIONS_ACTIVE:-}" != "1" ]]; then
+  exit 0
+fi
+
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 STATE_DIR="$PROJECT_DIR/state"
 SNAPSHOT_FILE="$STATE_DIR/project_state.md"

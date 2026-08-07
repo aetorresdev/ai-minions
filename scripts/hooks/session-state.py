@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from ai_minions_activation import is_ai_minions_active
 from constants import MODE_RE
 from constants import cost_from_tokens as _cost_from_tokens
 
@@ -206,6 +207,9 @@ def write_loop_trace(session_id: str, tool_name: str, tool_input: dict, current_
 
 
 def main():
+    if not is_ai_minions_active():
+        sys.exit(0)
+
     try:
         raw = sys.stdin.read()
         if not raw.strip():

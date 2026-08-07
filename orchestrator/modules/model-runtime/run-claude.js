@@ -57,6 +57,8 @@ function runClaude(prompt, { cwd, model, maxTokens, traceRole = "ORCHESTRATOR", 
     maxBuffer: 10 * 1024 * 1024,
     timeout: timeoutMs,
     cwd: cwd || process.cwd(),
+    // Inherit AI_MINIONS_ACTIVE / AI_MINIONS_RUN_ID from launchRun so host hooks opt in.
+    env: process.env,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(result.stderr || "claude CLI error");

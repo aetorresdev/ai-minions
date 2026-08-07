@@ -24,7 +24,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-ORCHESTRATOR_JS = os.path.expanduser("~/.claude/examples/orchestrator/run-orchestrator.js")
+sys.path.insert(0, str(Path(__file__).parent))
+from ai_minions_activation import is_ai_minions_active
+
+ORCHESTRATOR_JS = os.path.expanduser("~/.claude/orchestrator/run-orchestrator.js")
 NODE_BIN        = os.environ.get("NODE_BIN", "node")
 AGENT_STATE_FILE = Path.home() / ".claude/metrics/active-agent.json"
 
@@ -86,6 +89,10 @@ def launch_orchestrator(fields: dict) -> str:
 
 
 def main():
+    # Never launch from MODE/FLOW text alone — only when CLI/runner already activated.
+    if not is_ai_minions_active():
+        sys.exit(0)
+
     prompt = os.environ.get("CLAUDE_USER_PROMPT", "").strip()
     if not prompt:
         sys.exit(0)

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # mem0-stop.sh — runs on session Stop, reminds Claude to save memories to mem0
-# Only outputs if OpenMemory is reachable
+# Only outputs if OpenMemory is reachable and ai-minions activated this session.
+
+if [[ "${AI_MINIONS_ACTIVE:-}" != "1" ]]; then
+  exit 0
+fi
 
 MEM0_URL="http://localhost:8765"
 USER_ID="andres"

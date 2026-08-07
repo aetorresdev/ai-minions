@@ -26,6 +26,8 @@ const { setModelProfile } = require("./agents");
 const { configureLocalModelPolicy } = require("./local-model-policy");
 const { loadMinionsProjectConfig } = require("./minions-config");
 const { printOperatorCliHelp, printRunOrchestratorUsageBrief } = require("./operator-cli-help");
+const { activateAiMinionsEnv } = require("./modules/shared/ai-minions-activation");
+const { randomUUID } = require("crypto");
 
 function loadModelsConfig() {
   const configPath = path.join(__dirname, "models.json");
@@ -115,6 +117,9 @@ async function main() {
       : "";
   const maxIterDisplay = maxIterationsFromCli != null ? maxIterationsFromCli : "(env ORCH_MAX_ITERATIONS or 3)";
   console.log(`Flow: ${flowMode} | Max iterations: ${maxIterDisplay}${profile ? ` | Profile: ${profile}` : ""}${cliModel ? ` | Model: ${cliModel}` : ""}${skipGates ? " | Gates: DISABLED" : ""}${handoffNote}\n`);
+
+  if (!taskId) taskId = `task-${randomUUID().slice(0, 8)}`;
+  activateAiMinionsEnv(process.env, { runId: taskId });
 
   const result = await run(goal.trim(), {
     ...(maxIterationsFromCli != null ? { maxIterations: maxIterationsFromCli } : {}),
