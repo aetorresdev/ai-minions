@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from ai_minions_activation import is_ai_minions_active
 from gate_logger import log_gate_event
 
 REGISTRY_REL = Path("orchestrator/modules/tools/skill-registry.v1.json")
@@ -60,6 +61,10 @@ def current_role() -> str:
 
 def handle_pre_tool(hook: dict) -> None:
     if os.environ.get("ORCH_SKILL_REGISTRY_ENFORCE", "").strip() != "1":
+        sys.exit(0)
+
+    # Enforce only inside an active ai-minions run (CLI env), even when the flag is set.
+    if not is_ai_minions_active():
         sys.exit(0)
 
     tool_name = hook.get("tool_name") or hook.get("toolName", "")

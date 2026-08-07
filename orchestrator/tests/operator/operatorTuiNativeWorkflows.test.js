@@ -277,6 +277,54 @@ describe('operator-tui-run-browser-workflow', () => {
     assert.equal(back.workflow.step, 'browse');
     assert.equal(back.selectedRunId, 'run-a');
   });
+
+  it('numbers runs sequentially 1..N with unnumbered detail lines and selection footer', () => {
+    const runs = [
+      {
+        run_id: 'task-aaa', status: 'failed', outcome: 'failed', result_code: 'RUN_FOUND',
+        goal_summary: 'Build sudoku.html', reason_code: 'finding_classification_missing',
+        created_at: '2026-08-01T12:00:00.000Z', last_event_at: '2026-08-01T12:05:00.000Z',
+        current_phase: 'review',
+      },
+      {
+        run_id: 'task-bbb', status: 'blocked', outcome: 'blocked', result_code: 'RUN_FOUND',
+        goal_summary: 'Other goal', reason_code: 'MAX_ITERATIONS_CERBERUS_BLOCKERS',
+      },
+      {
+        run_id: 'task-ccc', status: 'complete', outcome: 'success', result_code: 'RUN_FOUND',
+        goal_summary: null,
+      },
+    ];
+    const wf = createRunBrowserWorkflow({ runs });
+    const text = formatRunBrowserWorkflowLines(wf).join('\n');
+    assert.match(text, /> 1\. task-aaa/);
+    assert.match(text, / {2}2\. task-bbb/);
+    assert.match(text, / {2}3\. task-ccc/);
+    assert.doesNotMatch(text, /\n\s*[4-9]\. /);
+    assert.match(text, /selected 1\/3 · task-aaa/);
+    assert.match(text, /detail lines are not selectable/);
+    // Detail lines exist but are not numbered.
+    assert.match(text, /^\s+title: Build sudoku\.html$/m);
+    assert.match(text, /updated:.*phase:.*reason:/);
+    assert.doesNotMatch(text, /^\s+\d+\.\s+title:/m);
+  });
+
+  it('dedupes duplicate run_id rows so one logical run is one number', () => {
+    const runs = [
+      { run_id: 'task-dup', status: 'failed', outcome: 'failed', reason_code: 'A', goal_summary: 'Sudoku' },
+      { run_id: 'task-dup', status: 'failed', outcome: 'failed', reason_code: 'B', goal_summary: 'Sudoku' },
+      { run_id: 'task-dup', status: 'failed', outcome: 'failed', reason_code: 'C', goal_summary: 'Sudoku' },
+      { run_id: 'task-other', status: 'done', outcome: 'pass', goal_summary: 'Other' },
+    ];
+    const wf = createRunBrowserWorkflow({ runs });
+    assert.equal(wf.runs.length, 2);
+    assert.equal(wf.select.options.length, 2);
+    const text = formatRunBrowserWorkflowLines(wf).join('\n');
+    assert.match(text, /> 1\. task-dup/);
+    assert.match(text, / {2}2\. task-other/);
+    assert.match(text, /selected 1\/2 · task-dup/);
+    assert.equal(wf.runs[0].reason_code, 'A', 'keeps first (newest-first) occurrence');
+  });
 });
 
 describe('native workflow shell bridge', () => {

@@ -60,7 +60,14 @@ class TestSkillRegistryEnforcer(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
-    def _run(self, *, enforce: str | None = "1", skill: str = "demo-skill", role: str = "ORCHESTRATOR"):
+    def _run(
+        self,
+        *,
+        enforce: str | None = "1",
+        skill: str = "demo-skill",
+        role: str = "ORCHESTRATOR",
+        activate: bool = True,
+    ):
         env = {
             k: v
             for k, v in os.environ.items()
@@ -70,6 +77,8 @@ class TestSkillRegistryEnforcer(unittest.TestCase):
                 "ORCH_SKILL_REGISTRY_TEST_MODE",
                 "ORCH_SKILL_REGISTRY_ACTIVE_ROLE",
                 "CLAUDE_PROJECT_DIR",
+                "AI_MINIONS_ACTIVE",
+                "AI_MINIONS_RUN_ID",
             )
         }
         env["CLAUDE_HOOK_EVENT"] = "PreToolUse"
@@ -78,6 +87,9 @@ class TestSkillRegistryEnforcer(unittest.TestCase):
         env["ORCH_SKILL_REGISTRY_ACTIVE_ROLE"] = role
         if enforce is not None:
             env["ORCH_SKILL_REGISTRY_ENFORCE"] = enforce
+        if activate:
+            env["AI_MINIONS_ACTIVE"] = "1"
+            env["AI_MINIONS_RUN_ID"] = "task-skill-registry-test"
         return subprocess.run(
             [sys.executable, str(SCRIPT)],
             input=skill_pre_tool_payload(skill),
@@ -90,6 +102,12 @@ class TestSkillRegistryEnforcer(unittest.TestCase):
     def test_enforce_unset_exits_zero(self):
         r = self._run(enforce=None, skill="totally-unknown-skill")
         self.assertEqual(r.returncode, 0)
+
+    def test_enforce_without_cli_activation_is_noop(self):
+        """ORCH_SKILL_REGISTRY_ENFORCE alone must not gate a normal Claude/Cursor session."""
+        r = self._run(skill="totally-unknown-skill", activate=False)
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), "")
 
     def test_unknown_skill_denied_when_enforced(self):
         r = self._run(skill="totally-unknown-skill")
@@ -125,6 +143,8 @@ class TestSkillRegistryEnforcer(unittest.TestCase):
         env["HOME"] = str(self.root)
         env["ORCH_SKILL_REGISTRY_ENFORCE"] = "1"
         env["ORCH_SKILL_REGISTRY_ACTIVE_ROLE"] = "OWNER"
+        env["AI_MINIONS_ACTIVE"] = "1"
+        env["AI_MINIONS_RUN_ID"] = "task-skill-registry-test"
         r = subprocess.run(
             [sys.executable, str(SCRIPT)],
             input=skill_pre_tool_payload("demo-skill"),
@@ -152,6 +172,8 @@ class TestSkillRegistryEnforcer(unittest.TestCase):
         env["ORCH_SKILL_REGISTRY_ENFORCE"] = "1"
         env["ORCH_SKILL_REGISTRY_TEST_MODE"] = "1"
         env["ORCH_SKILL_REGISTRY_ACTIVE_ROLE"] = "ORCHESTRATOR"
+        env["AI_MINIONS_ACTIVE"] = "1"
+        env["AI_MINIONS_RUN_ID"] = "task-skill-registry-test"
         payload = json.dumps(
             {
                 "hook_event_name": "PreToolUse",

@@ -12,6 +12,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from ai_minions_activation import is_ai_minions_active
+
 MEM0_URL = "http://localhost:8765"
 USER_ID = "andres"
 MAX_RESULTS = 5
@@ -116,6 +119,11 @@ def orchestrator_context(prompt: str) -> str | None:
 
 
 def main():
+    # Opt-in only: normal Claude/Cursor sessions in this repo must not load
+    # ai-minions memory or MODE tracking. FLOW:/MODE: in docs or quotes never activate.
+    if not is_ai_minions_active():
+        sys.exit(0)
+
     session_id = os.environ.get("CLAUDE_SESSION_ID", "unknown")
 
     # UserPromptSubmit passes data via stdin as JSON (VSCode/Cursor extension)
@@ -142,18 +150,10 @@ def main():
 
     parts = []
 
-    # Inject MODE tracking instruction if this is an orchestrator session
+    # Describe an already-active run (env marker). Do not write metrics flags.
     orch_ctx = orchestrator_context(prompt)
     if orch_ctx:
         parts.append(orch_ctx)
-        # Write flag so mode-enforcer.py knows this session requires MODE declarations
-        try:
-            flag_dir = Path(os.path.expanduser("~/.claude/metrics"))
-            flag_dir.mkdir(parents=True, exist_ok=True)
-            session_id = os.environ.get("CLAUDE_SESSION_ID", "unknown")
-            (flag_dir / f"orch-session-{session_id}.flag").write_text("1")
-        except Exception:
-            pass
 
     # Try semantic search first, fall back to filter
     results = search_memories(prompt)

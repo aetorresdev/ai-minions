@@ -152,6 +152,7 @@ const ENTRIES = {
   'tests/recoverySweep.test.js': { owner: 'recovery', kind: 'unit' },
   'tests/releaseGovernanceContract.test.js': { owner: 'contracts', kind: 'contract' },
   'tests/repoRoot.test.js': { owner: 'shared', kind: 'unit' },
+  'tests/shared/aiMinionsActivation.test.js': { owner: 'shared', kind: 'unit' },
   'tests/reviewRecord.test.js': { owner: 'gates', kind: 'unit' },
   'tests/rolePermissionMatrix.test.js': { owner: 'permissions', kind: 'unit' },
   'tests/roleSurfacesParity.test.js': { owner: 'permissions', kind: 'contract' },

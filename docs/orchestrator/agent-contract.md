@@ -533,12 +533,14 @@ This reduces self-confirmation bias. See [mcp-task-examples.md](mcp-task-example
 
 ## What happens outside the harness
 
+**Activation:** see [activation.md](activation.md). Host hooks and ai-minions role/gate machinery require **both** `AI_MINIONS_ACTIVE=1` and a non-empty `AI_MINIONS_RUN_ID` from the product CLI. `CLAUDE.md` and `MODE`/`FLOW` text are not activators.
+
 This table clarifies what the system guarantees depending on which components are active.
 
 | Component | Active | Guarantee |
 |-----------|--------|-----------|
-| `CLAUDE.md` only | Always (Cursor loads it) | Best-effort consistency — the model *tends* to follow the rules, but nothing enforces them mechanically |
-| Hooks (`scripts/hooks/`) | When Cursor hook events fire | Gate events logged; `advance_mode` blocked if `compact_handoff` not called; mode/QA/handoff violations surfaced |
+| `CLAUDE.md` only | Always (passive reference) | Consistency aid only — must not force the multi-role pipeline in ordinary chats |
+| Hooks (`scripts/hooks/`) | Only when `AI_MINIONS_ACTIVE=1` **and** `AI_MINIONS_RUN_ID` set (else no-op) | Gate events logged; `advance_mode` blocked if `compact_handoff` not called; mode/QA/handoff violations surfaced |
 | `validateOutput()` (Node runner) | When `askAgent()` is called in code | Hard contract enforcement — throws on missing `files_read`, empty output, missing validation run |
 | `orchestrator-state` MCP | When explicitly called by the agent | Append-only event log, hash chain, artifact gating, iteration cap |
 | All of the above | Full orchestrated session | Full enforcement: gates, state store, artifact approval, alignment validation |

@@ -1336,9 +1336,10 @@ test('run browser keeps one numbered row per run when notes are long (no wrap ma
     '../../modules/operator/operator-tui-shell-render.mjs'
   );
   const { openNativeWorkflow } = require('../../modules/operator/operator-tui-native-workflows.js');
+  const { formatRunBrowserWorkflowLines } = require('../../modules/operator/operator-tui-run-browser-workflow.js');
   const model = buildShellModel({
     columns: 80,
-    rows: 24,
+    rows: 40,
     skipSplash: true,
     runsPayload: canonicalRunsResult([
       {
@@ -1358,6 +1359,14 @@ test('run browser keeps one numbered row per run when notes are long (no wrap ma
   });
   const workflow = openNativeWorkflow(model, 'runs');
   assert.ok(workflow, 'runs workflow opens');
+  // Full workflow text (not viewport-clipped) must keep sequential numbers.
+  const full = formatRunBrowserWorkflowLines(workflow).join('\n');
+  assert.match(full, /> 1\. task-5d3cdbc7/);
+  assert.match(full, / {2}2\. task-aaaa1111/);
+  assert.match(full, / {2}3\. task-bbbb2222/);
+  assert.match(full, /selected 1\/3 · task-5d3cdbc7/);
+  assert.doesNotMatch(full, /\n\s*[4-9]\. /);
+
   const browserModel = buildShellModel({
     ...shellModelToOptions(model),
     activeWorkflow: workflow,
@@ -1365,8 +1374,9 @@ test('run browser keeps one numbered row per run when notes are long (no wrap ma
     focus: 'content',
     selectedNavId: 'runs',
   });
-  const out = renderOperatorTuiShellToString(browserModel, { columns: 80 });
-  assert.match(out, /> 1\. task-5d3cdbc7/);
+  const out = renderOperatorTuiShellToString(browserModel, { columns: 80, rows: 40 });
+  // Tall viewport must still show the first numbered row (no scroll-off of headers).
+  assert.match(out, /1\. task-5d3cdbc7/);
   assert.match(out, /2\. task-aaaa1111/);
   assert.match(out, /3\. task-bbbb2222/);
   const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');

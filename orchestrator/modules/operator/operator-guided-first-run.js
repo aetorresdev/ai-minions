@@ -19,8 +19,10 @@ const COLLECT_REPORT_SCRIPT = path.join(REPO_ROOT, 'scripts', 'collect-run-repor
  * @param {string | undefined} cwd
  */
 function resolveRepo(cwd) {
-  const { resolveInstallRepoRoot } = require('./ai-minions-cli');
-  return resolveInstallRepoRoot(cwd);
+  // Product layout (orchestrator/package.json) — prefer AI_MINIONS_HOME when the
+  // operator cwd is outside the clone (installed shim no longer chdirs).
+  const { resolveProductHome } = require('./ai-minions-cli');
+  return resolveProductHome(cwd);
 }
 
 /** @type {typeof import('./ai-minions-cli').runStart} */

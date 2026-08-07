@@ -1,80 +1,18 @@
 ---
-description: Multi-role orchestrator (MODE, handoffs). Contract at docs/orchestrator/agent-contract.md relative to this repo root. See docs/orchestrator/PATHS.md if workspace is elsewhere.
+description: Optional pointer to ai-minions multi-role contract. Never auto-apply. Activation is CLI env only (AI_MINIONS_ACTIVE).
 alwaysApply: false
 ---
 
-# Project Orchestrator (optimized)
+# ai-minions orchestrator (manual integration only)
 
-**Canonical contract (path from repo root):** `docs/orchestrator/agent-contract.md` — § Skills and MCP by role.
-**If this rule lives in another repo:** set contract path to absolute path of that file in your clone, or copy `docs/orchestrator/` into the project. See `docs/orchestrator/PATHS.md`.  
-**MCP examples:** `docs/orchestrator/mcp-task-examples.md`
+**Do not enable `alwaysApply`.** This rule must stay off for every-chat use.
 
-**Skills:** live under `skills/` in this repo (convention: clone repo as `~/.claude`). When orchestrating, @mention `docs/orchestrator/agent-contract.md` for full tables.
+Activation of ai-minions is **not** this file and **not** `MODE:`/`FLOW:` text. Only the product CLI sets `AI_MINIONS_ACTIVE=1` + `AI_MINIONS_RUN_ID` (see `docs/orchestrator/activation.md`).
 
-## Non-negotiables
+When the user explicitly asks to work inside an **already active** ai-minions run, use the contract:
 
-0. **Commits — no ticket IDs in shipped source:** Do not add backlog/issue/ticket identifiers to `orchestrator/`, `agents/`, `tests/`, `scripts/`, or versioned technical `docs/` that will be committed (comments, strings, headers). Dedicated backlog/resolved files where IDs are the schema are exempt.
-1. **Role block format (mandatory):** Every response opens with a role block — no exceptions:
-   ```
-   ---
-   ## <EMOJI> ROLE: <ROLE_NAME>
-   STATE: ACTIVE | COMPLETE | BLOCKED
-   STEP: N/TOTAL
-   ```
-   Emoji: ⚫ ORCHESTRATOR · 🟣 OWNER · 🟠 ARCHITECT · 🟢 DEV · 🔵 QA · 🔴 CERBERUS
-2. **Role transitions (mandatory):** Insert a transition block before every role switch:
-   ```
-   ---
-   ### 🔁 TRANSITION
-   FROM: <ROLE>
-   TO: <ROLE>
-   REASON: <why>
-   ```
-   Inline transition text (`"Advancing to MODE: QA"`) is **forbidden**.
-3. **Session header (ORCHESTRATOR first response):** declare `FLOW: single_agent | multi_agent`, `GOAL: <one line>`, `MAX_ITERATIONS: 3`. All handoffs inherit `flow_mode` from this.
-4. **One MODE per response** (ORCHESTRATOR may output plan + single next MODE only).
-5. **FORBID:** DEV self-QA/self-CERBERUS; CERBERUS must not implement in same turn.
-6. **Role close checklist (mandatory before STATE: COMPLETE) — execute in order, no exceptions:**
-   1. `mcp__compact-handoff__compact_handoff(text=<full output>, mode_completed=<MODE>, next_mode=<next>, flow_mode=<FLOW>)` — never write handoff YAML by hand
-   2. `mcp__orchestrator-state__validate_goal_alignment(...)` — if `aligned: false`, do NOT advance
-   3. `mcp__orchestrator-state__advance_mode(...)` — only if step 2 passed
-   Skipping step 1 will be blocked by a hook.
-7. **ORCHESTRATOR validates before advancing:** call `mcp__compact-handoff__validate_goal_alignment(handoff_yaml=<yaml>, goal=<GOAL>, flow_mode=<FLOW>)`. If `aligned: false` → do not advance MODE.
-8. **Transitions:** ORCHESTRATOR or user advances MODE. Chain: `brief → ARCHITECT? → DEV → QA → CERBERUS → …`
-9. **Skills per task:** ORCHESTRATOR names skills explicitly — e.g. `creating-diagrams`, `designing-terraform`, `managing-n8n`, `creating-terraform`.
-10. **CERBERUS:** separate chat or mcp_task when possible — reduces auto-confirmation bias.
-11. **Validation before DEV handoff:** Not lint-only. Run what the stack needs: **Terraform** → fmt + **`terraform init`** + **`terraform validate`** + project linters (tflint/checkov if present) + **module tests** if the repo has them. **Other code** → project linter + deps/install if needed + **module/unit tests** per README/CI. If commands cannot run here, state that in handoff `risks` and list exact commands for QA/human.
-12. **Authoritative state store (strict orchestration):** Disk store + MCP are authority; chat is not. See contract § *Authoritative state (state store)* and `docs/orchestrator/mcp-task-examples.md § State store flow`.
+- `docs/orchestrator/agent-contract.md`
+- `docs/orchestrator/mcp-task-examples.md`
+- `docs/orchestrator/PATHS.md`
 
-    ```
-    # 1. Session start
-    mcp__orchestrator-state__register_task(
-      goal="<GOAL>", task_id="<slug>", flow_mode="<FLOW>",
-      max_iterations=3, approved_artifacts='["path/a.tf"]'
-    )
-
-    # 2. Before advancing to QA/CERBERUS from DEV/ARCHITECT
-    mcp__orchestrator-state__record_artifact(task_id="<slug>", path="path/a.tf")
-    mcp__compact-handoff__compact_handoff(text=<full DEV output>, mode_completed="DEV", next_mode="QA", ...)
-    mcp__orchestrator-state__validate_goal_alignment(task_id="<slug>", handoff_yaml=<yaml>)
-    mcp__orchestrator-state__validate_transition(task_id="<slug>", from_mode="DEV", to_mode="QA", handoff_yaml=<yaml>, iteration=1)
-    mcp__orchestrator-state__advance_mode(task_id="<slug>", to_mode="QA", from_mode="DEV", handoff_yaml=<yaml>, iteration=1)
-
-    # 3. Session end
-    mcp__orchestrator-state__close_task(task_id="<slug>", reason="done")
-    ```
-13. **`session_id`** on the envelope is optional audit metadata only until a **dedicated runner** enforces real session isolation — do not treat it as proof of isolation by itself.
-14. **Context efficiency (all roles):** Before reading any file, declare `files_read: [list]` — must not be empty. Read only those files, only relevant sections. **Gate (ARCHITECT + DEV):** `validateOutput()` rejects if `files_read[]` is missing or empty, or if `files_modified` contains a path not in `files_read`. Enforces consistency, not completeness.
-
-## Quick ALLOW/FORBID
-
-| MODE | FORBID |
-|------|--------|
-| ORCHESTRATOR | Implement code; do deep review substituting QA/CERBERUS |
-| OWNER | Implement; review implementation in detail |
-| ARCHITECT | Write application code; complete HCL/Terraform |
-| DEV | Evaluate "overall quality"; assume QA or CERBERUS role |
-| QA | Write production code; approve without evidence; return to DEV without classifying findings |
-| CERBERUS | Implement or patch in the same turn; propose detailed solutions |
-
-Set `alwaysApply: true` for every-chat orchestration hints.
+For normal Claude/Cursor work in this repository (including RAG design/implementation), ignore multi-role blocks, handoffs, and CERBERUS pipeline machinery.

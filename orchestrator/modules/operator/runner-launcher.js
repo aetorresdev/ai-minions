@@ -20,6 +20,11 @@ const {
   extractRoleRoutingFromTrace,
   formatTraceRoleRoutingText,
 } = require('../../runner-model-routing');
+const {
+  ACTIVE_ENV,
+  RUN_ID_ENV,
+  activateAiMinionsEnv,
+} = require('../shared/ai-minions-activation');
 
 /**
  * @param {string[]} keys
@@ -148,7 +153,15 @@ async function launchRun(options) {
 
   // Root path until run-control physical slice moves orchestrator.js.
   const runFn = options.run ?? require("../../orchestrator").run;
-  const envKeys = ['ORCH_MODEL_MODE', 'ORCH_ALLOW_REMOTE_MODELS', 'ORCH_NON_INTERACTIVE', 'OLLAMA_HOST', 'OLLAMA_PORT'];
+  const envKeys = [
+    'ORCH_MODEL_MODE',
+    'ORCH_ALLOW_REMOTE_MODELS',
+    'ORCH_NON_INTERACTIVE',
+    'OLLAMA_HOST',
+    'OLLAMA_PORT',
+    ACTIVE_ENV,
+    RUN_ID_ENV,
+  ];
   const prevEnv = saveEnv(envKeys);
 
   try {
@@ -160,6 +173,11 @@ async function launchRun(options) {
         process.env.OLLAMA_PORT = String(preflight.resolved_endpoint.port);
       }
     }
+
+    // Opt-in marker for host hooks + child Claude: never MODE/FLOW text or stale flags.
+    const activationRunId = options.taskId || `task-${randomUUID().slice(0, 8)}`;
+    if (!options.taskId) options.taskId = activationRunId;
+    activateAiMinionsEnv(process.env, { runId: activationRunId });
 
     configureLocalModelPolicy({
       cliModel: options.model ?? null,

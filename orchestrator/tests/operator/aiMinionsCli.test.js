@@ -1,6 +1,6 @@
 "use strict";
 
-const { describe, it } = require("node:test");
+const { describe, it, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -17,6 +17,7 @@ const {
   runStart,
   defaultTracePath,
   resolveInstallRepoRoot,
+  resolveProductHome,
   recordProductCliFriction,
   enforceNodeRuntimeOrExit,
   NODE_VERSION_UNSUPPORTED,
@@ -491,6 +492,39 @@ describe("ai-minions-cli resolveInstallRepoRoot", () => {
 
   it("keeps clone root when cwd is repo root", () => {
     assert.equal(resolveInstallRepoRoot(REPO_ROOT), REPO_ROOT);
+  });
+});
+
+describe("ai-minions-cli resolveProductHome", () => {
+  const saved = {};
+
+  afterEach(() => {
+    for (const k of ["AI_MINIONS_HOME", "REPO_ROOT"]) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+      delete saved[k];
+    }
+  });
+
+  it("prefers AI_MINIONS_HOME over invoker cwd when product layout is present", () => {
+    saved.AI_MINIONS_HOME = process.env.AI_MINIONS_HOME;
+    saved.REPO_ROOT = process.env.REPO_ROOT;
+    process.env.AI_MINIONS_HOME = REPO_ROOT;
+    delete process.env.REPO_ROOT;
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ai-minions-outside-"));
+    try {
+      assert.equal(resolveProductHome(outside), path.resolve(REPO_ROOT));
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to cwd heuristics when AI_MINIONS_HOME unset", () => {
+    saved.AI_MINIONS_HOME = process.env.AI_MINIONS_HOME;
+    saved.REPO_ROOT = process.env.REPO_ROOT;
+    delete process.env.AI_MINIONS_HOME;
+    delete process.env.REPO_ROOT;
+    assert.equal(resolveProductHome(REPO_ROOT), REPO_ROOT);
   });
 });
 

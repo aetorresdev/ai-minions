@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from ai_minions_activation import is_ai_minions_active
 from constants import cost_from_tokens
 
 METRICS_FILE = Path.home() / ".claude/metrics/agent-metrics.jsonl"
@@ -27,6 +28,10 @@ def estimate_cost(usage: dict) -> float:
 
 
 def main():
+    # Normal Claude/Cursor sessions must not write agent-metrics or inject context.
+    if not is_ai_minions_active():
+        sys.exit(0)
+
     # Claude Code passes hook data via stdin as JSON
     try:
         raw = sys.stdin.read()

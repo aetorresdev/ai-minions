@@ -770,6 +770,10 @@ def _scope_display(data: dict) -> str:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
+    from ai_minions_activation import is_ai_minions_active
+    if not is_ai_minions_active():
+        sys.exit(0)
+
     transcript = find_transcript()
     if not transcript:
         sys.exit(0)  # silent — no transcript found

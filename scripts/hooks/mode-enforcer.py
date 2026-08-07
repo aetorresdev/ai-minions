@@ -3,18 +3,9 @@
 mode-enforcer.py — PreToolUse hook
 
 Blocks tool calls until the model declares MODE: <ROLE> in its response,
-when the session was started with a FLOW: single_agent|multi_agent header.
+only when ai-minions activated this process (AI_MINIONS_ACTIVE=1).
 
-Detection:
-- mem0-search.py writes ~/.claude/metrics/orch-session-<SESSION_ID>.flag
-  when it detects a FLOW header in the prompt
-- session-state.py writes ~/.claude/metrics/sessions/<SESSION_ID>.json
-  with modes.current populated after each tool call
-
-Flow:
-  1. Flag exists? → orchestrator session
-  2. modes.current set in session state? → model already declared MODE → allow
-  3. Neither → block with demand to declare MODE
+Activation is CLI/runner env only — not MODE/FLOW text, not stale metrics flags.
 """
 import json
 import os
@@ -22,6 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+from ai_minions_activation import is_ai_minions_active
 from gate_logger import log_gate_event
 
 METRICS_DIR  = Path.home() / ".claude/metrics"
@@ -32,8 +24,7 @@ SKIP_TOOLS = {"TodoWrite", "ToolSearch", "AskUserQuestion"}
 
 
 def is_orchestrator_session() -> bool:
-    flag = METRICS_DIR / f"orch-session-{SESSION_ID}.flag"
-    return flag.exists()
+    return is_ai_minions_active()
 
 
 def mode_already_declared() -> bool:

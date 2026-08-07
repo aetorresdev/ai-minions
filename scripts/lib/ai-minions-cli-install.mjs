@@ -133,6 +133,10 @@ if (!realCli.startsWith(realRepo + path.sep) && realCli !== realRepo) {
   fail(SHIM_REASON.SHIM_VALIDATION_FAILED, 'product CLI path escapes AI_MINIONS_HOME');
 }
 
+// Product home travels via env. Do NOT chdir into the install root — that
+// conflates product location with the operator working directory (agents,
+// tools, and "Working directory:" traces must follow the invoker cwd).
+const invokerCwd = process.cwd();
 const env = {
   ...process.env,
   AI_MINIONS_HOME: realRepo,
@@ -141,7 +145,7 @@ const env = {
 
 const result = spawnSync(process.execPath, [realCli, ...process.argv.slice(2)], {
   stdio: 'inherit',
-  cwd: realRepo,
+  cwd: invokerCwd,
   env,
 });
 

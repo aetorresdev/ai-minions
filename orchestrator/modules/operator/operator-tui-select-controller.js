@@ -11,6 +11,7 @@
  *   label: string,
  *   disabled?: boolean,
  *   note?: string | null,
+ *   noteLines?: string[] | null,
  *   reason_code?: string | null,
  * }} SelectOption
  *
@@ -32,6 +33,9 @@ function createSelectState(options, opts = {}) {
     label: String(o.label ?? o.id),
     disabled: o.disabled === true,
     note: o.note == null ? null : String(o.note),
+    noteLines: Array.isArray(o.noteLines)
+      ? o.noteLines.map((line) => String(line)).filter((line) => line.length > 0)
+      : null,
     reason_code: o.reason_code == null ? null : String(o.reason_code),
   })) : [];
   const max = Math.max(list.length - 1, 0);
@@ -156,13 +160,20 @@ function formatSelectLines(state, opts = {}) {
     options.forEach((opt, index) => {
       const marker = index === state.cursorIndex ? '>' : ' ';
       const disabled = opt.disabled ? ' (disabled)' : '';
+      // Exactly one numbered row per option — detail lines must never consume indices.
       lines.push(`${marker} ${index + 1}. ${opt.label}${disabled}`);
-      if (opt.note) lines.push(`       ${opt.note}`);
+      const detailLines = Array.isArray(opt.noteLines) && opt.noteLines.length
+        ? opt.noteLines
+        : (opt.note ? [opt.note] : []);
+      for (const detail of detailLines) {
+        lines.push(`       ${detail}`);
+      }
       if (opt.disabled && opt.reason_code) {
         lines.push(`       reason_code: ${opt.reason_code}`);
       }
     });
   }
+  if (opts.selectionFooter) lines.push(String(opts.selectionFooter));
   lines.push(opts.hint ?? '↑/↓ move · Enter confirm · Esc cancel');
   return lines;
 }
