@@ -114,6 +114,8 @@ Fullscreen action ids (task-first / contextual). Nested readline panes may still
 | `explain` (`x`, contextual) | Explain shares the Overview **status** surface (reason_code / next_safe_action from the seeded snapshot — never synthesized from presentation text). Fresh explain: CLI / slash `/explain` |
 | quit (`q`) | exit `0`, terminal restored, no operator side effects |
 
+**`ai-minions status` execution meta:** the CLI status surface (text and `--json`) carries run identity fields sourced from the trace rows themselves — `goal` (`goal_summary`), `created` (`created_at`), `updated` (`last_event_at`) — via the shared helpers in `operator-run-meta.js` (same source as the run list). Goal comes only from the first `session_start` row; dates come from min/max `ts_ms`. Absent data renders `unavailable` (text) / `null` (json) — never invented.
+
 **Legacy-only (not fullscreen top-level):** `select` (`s`), digit `4`→attach, digit `5`→config — see [Legacy readline cockpit aliases](#3-legacy-readline-cockpit-aliases-rollback--power-user-only).
 
 ## Slash commands

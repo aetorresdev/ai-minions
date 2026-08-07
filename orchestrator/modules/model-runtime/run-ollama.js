@@ -277,7 +277,8 @@ const DEFAULT_MAX_TOOL_ROUNDS = 6;
  *   maxToolRounds?: number,
  * }} [options]
  * @returns {Promise<object>} runOllama result of the final round, plus
- *   `tools_used: { name: string, args: object }[]` and `tool_rounds: number`.
+ *   `tools_used: { name: string, args: object, allowed: boolean, succeeded: boolean }[]`
+ *   and `tool_rounds: number`.
  */
 async function runOllamaWithTools(systemPrompt, messages, options = {}) {
   const { tools, maxToolRounds = DEFAULT_MAX_TOOL_ROUNDS, ...callOpts } = options;
@@ -305,11 +306,14 @@ async function runOllamaWithTools(systemPrompt, messages, options = {}) {
     for (const call of out.tool_calls) {
       const name = call.function.name;
       const args = call.function.arguments;
-      const result = allowedToolNames.has(name)
+      const allowed = allowedToolNames.has(name);
+      const result = allowed
         ? executeOllamaTool(name, args, { cwd })
-        : `error: tool not allowed for this agent: ${name}`;
-      toolsUsed.push({ name, args, allowed: allowedToolNames.has(name) });
-      history.push({ role: 'tool', tool_name: name, content: result });
+        : { ok: false, output: `error: tool not allowed for this agent: ${name}` };
+      // succeeded reflects real executor success — a rejected/failed write must
+      // not count as filesystem evidence downstream.
+      toolsUsed.push({ name, args, allowed, succeeded: result.ok === true });
+      history.push({ role: 'tool', tool_name: name, content: result.output });
     }
     out = await module.exports.runOllama(systemPrompt, history, { ...callOpts, tools });
   }

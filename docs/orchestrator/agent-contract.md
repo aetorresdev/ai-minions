@@ -192,6 +192,8 @@ Then read only those files, only the relevant sections. Summarize what you read 
 - `files_modified` missing in DEV output → rejected (absence bypasses the output validation gate)
 - DEV strict mode: every path in `files_modified` must appear in `files_read` — if not → rejected
 
+**Local-tool evidence bypass (DEV only, Ollama route):** when the model actually delivered files through the confined `write_file` tool, the YAML keys above may be synthesized from tool evidence — but **only** for `write_file` calls recorded with `allowed === true` **and** `succeeded === true` (a rejected grant, path escape, oversize content, or I/O failure never counts). The synthesized contract lists the written paths as `files_read`/`files_modified` and `validation_run: write_file tool executed`. **QA and CERBERUS have no bypass** — their classification/finding contracts are always enforced as written. See `model-routing.md` § *Ollama tool calling* for the loop, grants, and retry semantics.
+
 **Known limitation:** the gate enforces *consistency* (what you touch, you declared) — not *completeness* (whether you declared enough). An agent that reads `service.js` but misses `config.js` as a dependency will pass the gate. Completeness requires semantic knowledge of the codebase.
 
 **Trade-off:** ARCHITECT is now a critical point in the flow. If ARCHITECT declares an incomplete `files_read`, DEV cannot freely explore to compensate — the gate will block it. This is intentional: incomplete exploration by ARCHITECT is a visible, traceable failure rather than a silent cost overrun.

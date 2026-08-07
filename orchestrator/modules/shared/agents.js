@@ -598,12 +598,15 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
     // Small models sometimes return an empty completion with no tool calls on
     // the first attempt; one compact retry (task only, no context block) is
     // cheaper than burning a full run iteration on a transient degenerate reply.
+    // The attempt is marked BEFORE the second call so failure paths still carry
+    // ollama_retried_after_empty=1 in context_stats / trace.
     if (
       toolDefs.length
       && !(raw.content && String(raw.content).trim())
       && !(Array.isArray(raw.tool_calls) && raw.tool_calls.length)
       && !(Array.isArray(raw.tools_used) && raw.tools_used.length)
     ) {
+      raw.retried_after_empty = true;
       const retryPrompt = [
         `Working directory: ${cwd ?? process.cwd()}`,
         "",
@@ -616,10 +619,10 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       if ((retried.content && String(retried.content).trim())
         || (Array.isArray(retried.tool_calls) && retried.tool_calls.length)
         || (Array.isArray(retried.tools_used) && retried.tools_used.length)) {
-        retried.retried_after_empty = true;
         if (Array.isArray(raw.tools_used) && Array.isArray(retried.tools_used)) {
           retried.tools_used = [...raw.tools_used, ...retried.tools_used];
         }
+        retried.retried_after_empty = true;
         raw = retried;
       }
     }
@@ -636,22 +639,24 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       if (raw.eval_count != null) failStats.ollama_completion_tokens = raw.eval_count;
       if (raw.num_predict != null) failStats.num_predict = raw.num_predict;
       if (raw.inference_profile_mode) failStats.inference_profile_mode = raw.inference_profile_mode;
+      if (raw.retried_after_empty === true) failStats.ollama_retried_after_empty = 1;
       if (Object.keys(failStats).length) err.context_stats = failStats;
       throw err;
     }
     const output = agentId.startsWith("dev-") ? normalizeDevContractText(rawOut) : rawOut;
     let check = validateOutput(agentId, output, { phase, qaPhase });
-    // Tool-executed DEV delivery: when the model actually wrote files via the
-    // write_file tool, the filesystem evidence satisfies files_read /
-    // files_modified / validation_run even if the YAML contract was not emitted.
+    // Tool-executed DEV delivery: only a write_file call that was both granted
+    // AND actually succeeded counts as filesystem evidence. A rejected
+    // (unallowed) or failed (escape/oversize/IO error) write must never
+    // synthesize files_read/files_modified/validation_run.
     if (
       !check.valid
       && agentId.startsWith("dev-")
       && ["files_read_missing", "files_read_empty", "validation_run_missing"].includes(check.gate_id)
       && Array.isArray(raw.tools_used)
-      && raw.tools_used.some((t) => t.allowed !== false && t.name === "write_file")
+      && raw.tools_used.some((t) => t.name === "write_file" && t.allowed === true && t.succeeded === true)
     ) {
-      const writes = raw.tools_used.filter((t) => t.allowed !== false && t.name === "write_file");
+      const writes = raw.tools_used.filter((t) => t.name === "write_file" && t.allowed === true && t.succeeded === true);
       const paths = [...new Set(writes.map((t) => String(t.args?.path ?? "")).filter(Boolean))];
       if (paths.length) {
         const list = paths.map((p) => `  - ${p}`).join("\n");
@@ -679,6 +684,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       const failStats = { ...(check.context_stats || {}) };
       if (raw.prompt_eval_count != null) failStats.ollama_prompt_tokens = raw.prompt_eval_count;
       if (raw.eval_count != null) failStats.ollama_completion_tokens = raw.eval_count;
+      if (raw.retried_after_empty === true) failStats.ollama_retried_after_empty = 1;
       if (Object.keys(failStats).length) err.context_stats = failStats;
       throw err;
     }
