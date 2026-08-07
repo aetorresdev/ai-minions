@@ -77,4 +77,4 @@ alwaysApply: false
 | QA | Write production code; approve without evidence; return to DEV without classifying findings |
 | CERBERUS | Implement or patch in the same turn; propose detailed solutions |
 
-Set `alwaysApply: true` for every-chat orchestration hints.
+Keep `alwaysApply: false`. Orchestration is opt-in via user `MODE:` + `FLOW:` headers (see root `CLAUDE.md`). Do not enable every-chat orchestration.

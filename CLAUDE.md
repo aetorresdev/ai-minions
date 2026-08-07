@@ -1,5 +1,19 @@
 # Global Claude Code Rules
 
+## Default session mode (MANDATORY)
+
+**Default = standard assistant.** Answer the user's question with normal tools and judgment.
+
+Do **NOT** invent or enter the multi-role / agentic orchestrator unless the user explicitly opts in (see Activation Rules).
+
+When the default applies, forbidden unless the user asks:
+- Emitting `MODE:` / `FLOW:` headers or role blocks (`ROLE: ORCHESTRATOR|DEV|QA|CERBERUS|…`)
+- Calling orchestrator MCP (`compact_handoff`, `advance_mode`, `register_task`, `validate_goal_alignment`, …)
+- Treating Q&A, debugging, docs, git, or one-off edits as an OWNER→ARCHITECT→DEV→QA→CERBERUS pipeline
+- Hijacking the turn to resume `state/project_state.md` / backlog / open PRs when the user asked something else
+
+Presence of this file, `state/project_state.md`, orchestrator code in the workspace, or memories about ai-minions is **not** an opt-in.
+
 ## Reasoning
 
 - Internal reasoning: max 2 sentences, max 200 characters. If longer, truncate hard and continue.
@@ -12,23 +26,27 @@
 - Do NOT reproduce file contents in output — cite path + line range only.
 - Do NOT explain what a tool does before calling it — call it directly.
 - Do NOT summarize changes after making them unless the user asks.
-- When closing a MODE: output ONLY the role block + `files_modified` list + `compact_handoff` call. No prose.
+- **Only when MODE protocol is active:** when closing a MODE, output ONLY the role block + `files_modified` list + `compact_handoff` call. No prose.
 - If context > 60%: stop reading new files. Use only already-loaded context or ask the user to `/compact`.
 
 ## Activation Rules (MANDATORY)
 
-The MODE protocol is ONLY activated when:
-- The user explicitly provides a header with:
-  MODE: <ROLE>
-  FLOW: <single_agent | multi_agent>
+The MODE protocol is **opt-in only**. Activate **only** when the user message (or an explicit follow-up in this session) contains **both**:
+```
+MODE: <ROLE>
+FLOW: <single_agent | multi_agent>
+```
 
-If no MODE/FLOW header is present:
-- Ignore the MODE protocol completely
+If either header is missing:
+- Ignore the MODE protocol completely (no role blocks, no transition blocks, no role-close checklist)
+- Do **not** synthesize MODE/FLOW "for consistency"
 - Operate as standard assistant using global rules only
 
 If MODE/FLOW is present:
 - FULL protocol enforcement is mandatory (role blocks, transitions, checklist)
 - No exceptions
+
+Informal phrases ("act as QA", "review like CERBERUS", "orchestrate this") are **not** MODE activation — treat them as ordinary instructions without the protocol harness.
 
 > **Boundary:** `CLAUDE.md` improves consistency but does NOT replace the runner — real enforcement lives in `validateOutput()` and the hooks. Without the harness active, these rules are best-effort guidance only.
 
@@ -45,7 +63,9 @@ If MODE/FLOW is present:
   - Roles like QA or CERBERUS are treated as informal instructions
   - Do NOT enforce role-specific constraints (handoff, artifacts, etc.)
 
-## MODE protocol (orchestrated sessions)
+## MODE protocol (orchestrated sessions — only if activated)
+
+**Skip this entire section unless Activation Rules matched.** Do not apply role blocks, MCP handoffs, or the close checklist in default sessions.
 
 When a session declares `FLOW: single_agent | multi_agent`, every response MUST open with a role block:
 
@@ -102,11 +122,13 @@ Skipping step 1 will be blocked by a hook. There are no exceptions.
 - Do **not** embed backlog / issue / ticket identifiers (e.g. `P0-01`, `DEV-OLLAMA-CONTRACT-1`, `JIRA-123`) in files that ship as **implementation or technical docs** in commits: `orchestrator/`, `agents/`, `scripts/`, `tests/`, versioned `docs/` under the repo, or similar — including comments, log/trace strings, and decorative headers. Prefer neutral descriptions or module names.
 - **Exception:** files whose **primary purpose** is ticket tracking (e.g. backlog index, resolved archive, GitHub issue templates) may use IDs where that is the schema. Local-only state (e.g. under `.claude/state/`) is out of scope for this rule unless you choose to commit it.
 
-## CERBERUS review gate (pre-merge, each implementation iteration)
+## CERBERUS review gate (pre-merge — product implementation only)
 
-**Policy:** CERBERUS validates code **before** merge. After each iteration that changes **implementation** (`orchestrator/`, `agents/`, `scripts/`, `tests/`, or behavior-changing versioned `docs/`), the assistant **must** end the turn with a **paste-ready message for CERBERUS** (operator pastes it into the CERBERUS review thread). **Do not treat the iteration as merge-approved** until CERBERUS returns a verdict.
+**When it applies:** only after an iteration in **this** repo that changes **implementation** (`orchestrator/`, `agents/`, `scripts/`, `tests/`, or behavior-changing versioned `docs/`), or when the user asks for a CERBERUS brief.
 
-**Out of scope for mandatory brief:** backlog-only / archive-only / state-only markdown, or pure doc typo fixes with **no** contract or runtime implication — unless the user asks for CERBERUS anyway.
+**When it does not apply:** Q&A, exploration, config/rules edits (including this file), backlog/state-only markdown, pure typo docs with no runtime claim, or work outside those paths — do **not** emit a CERBERUS paste block or start a review pipeline.
+
+**Policy (when it applies):** CERBERUS validates code **before** merge. End the turn with a **paste-ready message for CERBERUS**. **Do not treat the iteration as merge-approved** until CERBERUS returns a verdict.
 
 **Operator workflow:** paste brief → CERBERUS verdict → merge only on **Approve** (or fix **Request changes**).
 
@@ -132,11 +154,18 @@ Skipping step 1 will be blocked by a hook. There are no exceptions.
 
 # Session State Policy
 
-## Mandatory state handling
-- Before stopping, always ensure **`state/project_state.md`** (repo root) exists and is up to date. Hooks (`ensure-snapshot.sh`, `reinject-snapshot.sh`) use this path only. **Legacy:** `.claude/state/project_state.md` may be a symlink to the same file — do not edit two divergent copies.
+Applies **only** when at least one is true:
+- MODE protocol is active, or
+- the user is explicitly continuing ai-minions / orchestrator product work, or
+- the user asks to update / resume from the snapshot
+
+Otherwise: **do not** read, rewrite, or steer the conversation from `state/project_state.md`.
+
+## Mandatory state handling (when this policy applies)
+- Before stopping product/MODE work, ensure **`state/project_state.md`** (repo root) exists and is up to date. Hooks (`ensure-snapshot.sh`, `reinject-snapshot.sh`) use this path only. **Legacy:** `.claude/state/project_state.md` may be a symlink to the same file — do not edit two divergent copies.
 - Never assume prior conversational context is still available.
-- If `state/project_state.md` exists, read it before continuing work.
-- After any major decision, architecture change, or partial implementation, update the snapshot.
+- Read the snapshot before continuing **that** product work (not before answering unrelated questions).
+- After any major decision, architecture change, or partial implementation on that work, update the snapshot.
 
 ## Snapshot contents
 The snapshot must contain:
@@ -151,6 +180,6 @@ The snapshot must contain:
 - Resume prompt for another LLM/provider
 
 ## Behavior rules
-- Do not claim a task is complete if pending tasks remain in the snapshot.
-- If context has been compacted, reload the snapshot before proceeding.
+- Do not claim a product task is complete if pending tasks remain in the snapshot.
+- If context has been compacted during product/MODE work, reload the snapshot before proceeding.
 - Prefer explicit state over inferred state.
