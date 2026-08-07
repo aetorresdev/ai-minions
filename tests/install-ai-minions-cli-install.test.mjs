@@ -30,6 +30,36 @@ function makeHostReadyRepo() {
   return tmp;
 }
 
+/** Fixture CLI that prints child cwd + product-home env for runtime boundary checks. */
+function makeProbeRepo() {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cli-install-probe-"));
+  const orch = path.join(tmp, "orchestrator");
+  fs.mkdirSync(orch, { recursive: true });
+  fs.writeFileSync(path.join(orch, "package.json"), '{"name":"test"}\n');
+  fs.writeFileSync(
+    path.join(orch, "ai-minions-cli.js"),
+    [
+      "#!/usr/bin/env node",
+      "process.stdout.write(JSON.stringify({",
+      "  cwd: process.cwd(),",
+      "  AI_MINIONS_HOME: process.env.AI_MINIONS_HOME || null,",
+      "  REPO_ROOT: process.env.REPO_ROOT || null,",
+      "}) + '\\n');",
+      "",
+    ].join("\n"),
+  );
+  fs.mkdirSync(path.join(orch, "node_modules"), { recursive: true });
+  return tmp;
+}
+
+function realpathOrSelf(p) {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
 /**
  * @param {string} shimPath
  * @param {{ homeDir: string, aiMinionsHome?: string, args?: string[] }} options
@@ -184,6 +214,41 @@ describe("ai-minions-cli-install", () => {
     assert.match(src, /cwd:\s*invokerCwd/);
     assert.doesNotMatch(src, /cwd:\s*realRepo/);
     assert.match(src, /AI_MINIONS_HOME:\s*realRepo/);
+  });
+
+  it("installed shim keeps invoker cwd and sets AI_MINIONS_HOME/REPO_ROOT to product clone", async () => {
+    const productHome = makeProbeRepo();
+    const invokerCwd = fs.mkdtempSync(path.join(os.tmpdir(), "cli-invoker-"));
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-home-"));
+    const binDir = path.join(homeDir, "bin");
+    const configDir = defaultConfigDir(homeDir);
+
+    const report = await runCliInstall({
+      repoRoot: productHome,
+      homeDir,
+      binDir,
+      configDir,
+      pathEnv: binDir,
+    });
+    assert.equal(report.ok, true);
+
+    const result = spawnSync(report.shim_path, [], {
+      encoding: "utf8",
+      cwd: invokerCwd,
+      env: {
+        ...process.env,
+        HOME: homeDir,
+        PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        AI_MINIONS_HOME: productHome,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const probe = JSON.parse(String(result.stdout || "").trim());
+    assert.equal(realpathOrSelf(probe.cwd), realpathOrSelf(invokerCwd));
+    assert.notEqual(realpathOrSelf(probe.cwd), realpathOrSelf(productHome));
+    assert.equal(realpathOrSelf(probe.AI_MINIONS_HOME), realpathOrSelf(productHome));
+    assert.equal(realpathOrSelf(probe.REPO_ROOT), realpathOrSelf(productHome));
   });
 
   it("runCliInstall materializes with PATH activation warn when bin dir missing from PATH", async () => {

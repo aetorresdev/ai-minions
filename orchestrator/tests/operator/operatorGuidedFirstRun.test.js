@@ -77,6 +77,36 @@ describe("operator-guided-first-run", () => {
     assert.equal(hasInitConfig(repoRoot), false);
   });
 
+  it("runFirstRun from outside clone uses AI_MINIONS_HOME as product root", async () => {
+    const productHome = makeRepoWithOrch();
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "guided-outside-"));
+    const prevHome = process.env.AI_MINIONS_HOME;
+    const prevRepo = process.env.REPO_ROOT;
+    process.env.AI_MINIONS_HOME = productHome;
+    delete process.env.REPO_ROOT;
+    try {
+      const result = await runFirstRun({
+        cwd: outside,
+        install: false,
+        json: true,
+        runOperatorDoctor: async (opts) => {
+          assert.equal(path.resolve(opts.repoRoot), path.resolve(productHome));
+          return { ok: true, report: { checks: [] } };
+        },
+      });
+      assert.equal(result.ok, true);
+      assert.equal(result.reason_code, FIRST_RUN_REASON_CODES.NEEDS_INIT);
+      assert.ok(result.json);
+      assert.equal(path.resolve(result.json.repo_root), path.resolve(productHome));
+      assert.notEqual(path.resolve(result.json.repo_root), path.resolve(outside));
+    } finally {
+      if (prevHome === undefined) delete process.env.AI_MINIONS_HOME;
+      else process.env.AI_MINIONS_HOME = prevHome;
+      if (prevRepo === undefined) delete process.env.REPO_ROOT;
+      else process.env.REPO_ROOT = prevRepo;
+    }
+  });
+
   it("runFirstRun returns READY when doctor ok and config present", async () => {
     const repoRoot = makeRepoWithOrch();
     const configDir = path.join(repoRoot, ".ai-minions");
