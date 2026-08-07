@@ -122,10 +122,19 @@ function executeOllamaTool(name, args, opts) {
       return `error: file not found: ${a.path}`;
     }
     if (!stat.isFile()) return `error: not a regular file: ${a.path}`;
-    const raw = fs.readFileSync(r.abs);
+    // Bounded read: never buffer more than MAX_READ_BYTES + 1, regardless of file size.
+    const fd = fs.openSync(r.abs, 'r');
+    let raw;
+    try {
+      const buf = Buffer.alloc(MAX_READ_BYTES + 1);
+      const n = fs.readSync(fd, buf, 0, MAX_READ_BYTES + 1, 0);
+      raw = buf.subarray(0, n);
+    } finally {
+      fs.closeSync(fd);
+    }
     if (raw.length > MAX_READ_BYTES) {
       return raw.subarray(0, MAX_READ_BYTES).toString('utf8')
-        + `\n[truncated: showing first ${MAX_READ_BYTES} of ${raw.length} bytes]`;
+        + `\n[truncated: showing first ${MAX_READ_BYTES} of ${stat.size} bytes]`;
     }
     return raw.toString('utf8');
   }

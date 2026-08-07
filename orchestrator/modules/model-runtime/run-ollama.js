@@ -204,16 +204,20 @@ function runOllama(
             }
             const content = parsed.message?.content?.trim() || '';
             const rawCalls = parsed.message?.tool_calls;
-            /** @type {{ name: string, args: Record<string, unknown> }[]} */
+            // Canonical Ollama shape, preserved verbatim for history replay.
+            /** @type {{ type: string, function: { name: string, arguments: Record<string, unknown> } }[]} */
             const toolCalls = Array.isArray(rawCalls)
               ? rawCalls
                   .map((c) => ({
-                    name: c?.function?.name != null ? String(c.function.name) : '',
-                    args: c?.function?.arguments && typeof c.function.arguments === 'object'
-                      ? c.function.arguments
-                      : {},
+                    type: 'function',
+                    function: {
+                      name: c?.function?.name != null ? String(c.function.name) : '',
+                      arguments: c?.function?.arguments && typeof c.function.arguments === 'object'
+                        ? c.function.arguments
+                        : {},
+                    },
                   }))
-                  .filter((c) => c.name)
+                  .filter((c) => c.function.name)
               : [];
             /** @type {{
              *   content: string,
@@ -280,6 +284,12 @@ async function runOllamaWithTools(systemPrompt, messages, options = {}) {
   const toolsUsed = [];
   const cwd = callOpts.cwd != null ? String(callOpts.cwd) : process.cwd();
 
+  // Only tools advertised in this request may execute — the model can
+  // fabricate any name, so enforce the grant before the executor.
+  const allowedToolNames = new Set(
+    (Array.isArray(tools) ? tools : []).map((t) => t?.function?.name).filter(Boolean),
+  );
+
   // Indirect through module.exports so tests can stub the runOllama export.
   let out = await module.exports.runOllama(systemPrompt, history, { ...callOpts, tools });
   let rounds = 0;
@@ -291,9 +301,13 @@ async function runOllamaWithTools(systemPrompt, messages, options = {}) {
       tool_calls: out.tool_calls,
     });
     for (const call of out.tool_calls) {
-      const result = executeOllamaTool(call.name, call.args, { cwd });
-      toolsUsed.push({ name: call.name, args: call.args });
-      history.push({ role: 'tool', name: call.name, content: result });
+      const name = call.function.name;
+      const args = call.function.arguments;
+      const result = allowedToolNames.has(name)
+        ? executeOllamaTool(name, args, { cwd })
+        : `error: tool not allowed for this agent: ${name}`;
+      toolsUsed.push({ name, args, allowed: allowedToolNames.has(name) });
+      history.push({ role: 'tool', tool_name: name, content: result });
     }
     out = await module.exports.runOllama(systemPrompt, history, { ...callOpts, tools });
   }

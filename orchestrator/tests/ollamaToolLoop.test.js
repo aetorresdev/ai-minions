@@ -170,6 +170,62 @@ describe("runOllamaWithTools loop", () => {
     assert.match(toolMsg.content, /sudoku/);
   });
 
+  it("continuation request uses canonical Ollama tool message format", async () => {
+    await bindServer((body) => {
+      if (body.messages.length === 2) {
+        return {
+          message: {
+            content: "",
+            tool_calls: [{ function: { name: "read_file", arguments: { path: "sudoku.html" } } }],
+          },
+          done_reason: "stop",
+        };
+      }
+      return { message: { content: "done" }, done_reason: "stop" };
+    });
+
+    await runOllamaWithTools("sys", [{ role: "user", content: "review it" }], {
+      model: "m", cwd: tmpDir, tools: toolDefsForAgent("qa"), traceRole: "QA",
+    });
+
+    const assistantMsg = bodies[1].messages.find((m) => m.role === "assistant");
+    assert.ok(assistantMsg, "assistant tool_call message preserved");
+    assert.ok(Array.isArray(assistantMsg.tool_calls), "assistant keeps tool_calls array");
+    assert.equal(assistantMsg.tool_calls[0].type, "function");
+    assert.equal(assistantMsg.tool_calls[0].function.name, "read_file");
+    assert.deepEqual(assistantMsg.tool_calls[0].function.arguments, { path: "sudoku.html" });
+
+    const toolMsg = bodies[1].messages.find((m) => m.role === "tool");
+    assert.equal(toolMsg.tool_name, "read_file");
+    assert.equal(typeof toolMsg.content, "string");
+    assert.ok(!("name" in toolMsg), "tool result uses tool_name, not name");
+  });
+
+  it("rejects tool calls not granted to the role (qa cannot write_file)", async () => {
+    await bindServer((body) => {
+      if (body.messages.length === 2) {
+        return {
+          message: {
+            content: "",
+            // Fabricated call: qa was only granted read_file.
+            tool_calls: [{ function: { name: "write_file", arguments: { path: "evil.txt", content: "pwn" } } }],
+          },
+          done_reason: "stop",
+        };
+      }
+      return { message: { content: "understood" }, done_reason: "stop" };
+    });
+
+    const out = await runOllamaWithTools("sys", [{ role: "user", content: "x" }], {
+      model: "m", cwd: tmpDir, tools: toolDefsForAgent("qa"), traceRole: "QA",
+    });
+
+    assert.equal(fs.existsSync(path.join(tmpDir, "evil.txt")), false, "write_file must not execute for qa");
+    const toolMsg = bodies[1].messages.find((m) => m.role === "tool");
+    assert.match(toolMsg.content, /^error: tool not allowed for this agent: write_file/);
+    assert.equal(out.tools_used[0].allowed, false);
+  });
+
   it("write_file through the loop materializes the artifact", async () => {
     await bindServer((body) => {
       if (body.messages.length === 2) {
