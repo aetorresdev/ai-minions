@@ -1,5 +1,5 @@
-# Source from bash hooks: early-exit unless ai-minions CLI/runner activated this process.
-# Usage: source "$(dirname "$0")/lib/require-ai-minions-active.sh"  OR  path relative to hook.
-if [[ "${AI_MINIONS_ACTIVE:-}" != "1" ]]; then
+# Source from bash hooks: early-exit unless CLI/runner set both activation markers.
+# Usage: path relative to hook, or source from scripts/hooks/lib/
+if [[ "${AI_MINIONS_ACTIVE:-}" != "1" || -z "${AI_MINIONS_RUN_ID:-}" ]]; then
   exit 0
 fi

@@ -9,7 +9,9 @@ const RUN_ID_ENV = 'AI_MINIONS_RUN_ID';
  * @returns {boolean}
  */
 function isAiMinionsActive(env = process.env) {
-  return String(env[ACTIVE_ENV] ?? '').trim() === '1';
+  const active = String(env[ACTIVE_ENV] ?? '').trim() === '1';
+  const runId = String(env[RUN_ID_ENV] ?? '').trim();
+  return active && Boolean(runId);
 }
 
 /**

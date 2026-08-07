@@ -19,12 +19,19 @@ from ai_minions_activation import is_ai_minions_active
 
 
 class TestActivationHelper(unittest.TestCase):
-    def test_active_only_when_env_is_one(self):
+    def test_active_requires_active_flag_and_run_id(self):
         self.assertFalse(is_ai_minions_active({}))
         self.assertFalse(is_ai_minions_active({"AI_MINIONS_ACTIVE": "0"}))
         self.assertFalse(is_ai_minions_active({"AI_MINIONS_ACTIVE": "true"}))
-        self.assertTrue(is_ai_minions_active({"AI_MINIONS_ACTIVE": "1"}))
-        self.assertTrue(is_ai_minions_active({"AI_MINIONS_ACTIVE": " 1 "}))
+        self.assertFalse(is_ai_minions_active({"AI_MINIONS_ACTIVE": "1"}))
+        self.assertFalse(
+            is_ai_minions_active({"AI_MINIONS_ACTIVE": "1", "AI_MINIONS_RUN_ID": ""})
+        )
+        self.assertTrue(
+            is_ai_minions_active(
+                {"AI_MINIONS_ACTIVE": " 1 ", "AI_MINIONS_RUN_ID": "task-x"}
+            )
+        )
 
 
 class TestHooksInactiveNoOp(unittest.TestCase):
@@ -130,7 +137,11 @@ class TestHooksInactiveNoOp(unittest.TestCase):
 
     def test_ensure_snapshot_runs_when_active(self):
         with tempfile.TemporaryDirectory() as project:
-            env = self._env(CLAUDE_PROJECT_DIR=project, AI_MINIONS_ACTIVE="1")
+            env = self._env(
+                CLAUDE_PROJECT_DIR=project,
+                AI_MINIONS_ACTIVE="1",
+                AI_MINIONS_RUN_ID="task-snap",
+            )
             r = subprocess.run(
                 ["bash", str(HOOKS_DIR / "ensure-snapshot.sh")],
                 input='{"stop_hook_active": false}',
@@ -141,6 +152,66 @@ class TestHooksInactiveNoOp(unittest.TestCase):
             )
             self.assertEqual(r.returncode, 0)
             self.assertTrue((Path(project) / "state" / "project_state.md").exists())
+
+    def test_context_efficiency_noop_without_activation(self):
+        home = tempfile.mkdtemp()
+        env = self._env(HOME=home, CLAUDE_SESSION_ID="ctx-sess", CLAUDE_HOOK_EVENT="PreToolUse")
+        payload = json.dumps(
+            {
+                "tool_name": "Read",
+                "tool_input": {"file_path": "/tmp/readme.md", "offset": 0},
+            }
+        )
+        r = subprocess.run(
+            [sys.executable, str(HOOKS_DIR / "context-efficiency.py")],
+            input=payload,
+            text=True,
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stdout.strip(), "")
+        session = Path(home) / ".claude" / "metrics" / "sessions" / "ctx-sess.json"
+        self.assertFalse(session.exists())
+
+    def test_context_efficiency_blocks_third_read_when_active(self):
+        home = tempfile.mkdtemp()
+        env = self._env(
+            HOME=home,
+            CLAUDE_SESSION_ID="ctx-active",
+            CLAUDE_HOOK_EVENT="PreToolUse",
+            AI_MINIONS_ACTIVE="1",
+            AI_MINIONS_RUN_ID="task-ctx",
+        )
+        payload = json.dumps(
+            {
+                "tool_name": "Read",
+                "tool_input": {"file_path": "/tmp/readme.md", "offset": 0},
+            }
+        )
+        for _ in range(2):
+            r = subprocess.run(
+                [sys.executable, str(HOOKS_DIR / "context-efficiency.py")],
+                input=payload,
+                text=True,
+                capture_output=True,
+                env=env,
+                check=False,
+            )
+            self.assertEqual(r.returncode, 0)
+            self.assertEqual(r.stdout.strip(), "")
+        r = subprocess.run(
+            [sys.executable, str(HOOKS_DIR / "context-efficiency.py")],
+            input=payload,
+            text=True,
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+        self.assertEqual(r.returncode, 0)
+        out = json.loads(r.stdout)
+        self.assertEqual(out.get("decision"), "block")
 
     def test_reinject_snapshot_silent_without_activation(self):
         with tempfile.TemporaryDirectory() as project:

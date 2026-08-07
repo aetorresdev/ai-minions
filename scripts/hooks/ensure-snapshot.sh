@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Normal Claude/Cursor sessions must not bootstrap orchestrator snapshots.
-if [[ "${AI_MINIONS_ACTIVE:-}" != "1" ]]; then
+if [[ "${AI_MINIONS_ACTIVE:-}" != "1" || -z "${AI_MINIONS_RUN_ID:-}" ]]; then
   exit 0
 fi
 

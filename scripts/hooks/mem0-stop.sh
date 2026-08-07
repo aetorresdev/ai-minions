@@ -2,7 +2,7 @@
 # mem0-stop.sh — runs on session Stop, reminds Claude to save memories to mem0
 # Only outputs if OpenMemory is reachable and ai-minions activated this session.
 
-if [[ "${AI_MINIONS_ACTIVE:-}" != "1" ]]; then
+if [[ "${AI_MINIONS_ACTIVE:-}" != "1" || -z "${AI_MINIONS_RUN_ID:-}" ]]; then
   exit 0
 fi
 

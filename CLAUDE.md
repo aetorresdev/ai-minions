@@ -9,7 +9,7 @@ This repository contains the **ai-minions** product. Opening Claude, Cursor, or 
 - `AI_MINIONS_ACTIVE=1`
 - `AI_MINIONS_RUN_ID=<run id>`
 
-Those values are inherited by child processes. Host hooks (mode-enforcer, mem0, snapshot, handoff, flow-metrics, …) **exit immediately** when `AI_MINIONS_ACTIVE` is not `1`.
+Those values are inherited by child processes. Host hooks (mode-enforcer, mem0, snapshot, handoff, flow-metrics, context-efficiency, skill-registry, …) **exit immediately** unless **both** markers are present.
 
 **Not activators (never treat as opt-in):**
 
@@ -55,7 +55,7 @@ Contract details when a run is active: `docs/orchestrator/agent-contract.md` and
 
 ## Passive reference — active ai-minions runs only
 
-The sections below apply **only** when the process has `AI_MINIONS_ACTIVE=1` (started via product CLI). Skip them entirely in normal sessions — including when analyzing RAG, Hybrid RAG, GraphRAG, or any other topic that happens to mention `MODE`/`FLOW` in examples.
+The sections below apply **only** when the process has `AI_MINIONS_ACTIVE=1` and `AI_MINIONS_RUN_ID` (started via product CLI). Skip them entirely in normal sessions — including when analyzing RAG, Hybrid RAG, GraphRAG, or any other topic that happens to mention `MODE`/`FLOW` in examples.
 
 ### Role protocol (active runs)
 

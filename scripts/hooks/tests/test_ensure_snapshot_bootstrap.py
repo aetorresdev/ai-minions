@@ -13,7 +13,12 @@ HOOKS_DIR = Path(__file__).resolve().parent.parent
 class TestEnsureSnapshotBootstrap(unittest.TestCase):
     def test_missing_snapshot_creates_template_and_exits_zero(self):
         with tempfile.TemporaryDirectory() as project:
-            env = {**os.environ, "CLAUDE_PROJECT_DIR": project, "AI_MINIONS_ACTIVE": "1"}
+            env = {
+                **os.environ,
+                "CLAUDE_PROJECT_DIR": project,
+                "AI_MINIONS_ACTIVE": "1",
+                "AI_MINIONS_RUN_ID": "task-snap-bootstrap",
+            }
             script = HOOKS_DIR / "ensure-snapshot.sh"
             r = subprocess.run(
                 [str(script)],
@@ -55,7 +60,12 @@ class TestEnsureSnapshotBootstrap(unittest.TestCase):
                 "Continue",
                 encoding="utf-8",
             )
-            env = {**os.environ, "CLAUDE_PROJECT_DIR": project, "AI_MINIONS_ACTIVE": "1"}
+            env = {
+                **os.environ,
+                "CLAUDE_PROJECT_DIR": project,
+                "AI_MINIONS_ACTIVE": "1",
+                "AI_MINIONS_RUN_ID": "task-snap-warn",
+            }
             r = subprocess.run(
                 [str(HOOKS_DIR / "ensure-snapshot.sh")],
                 input='{"stop_hook_active": false}',

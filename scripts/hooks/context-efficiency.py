@@ -44,6 +44,9 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from ai_minions_activation import is_ai_minions_active
+
 SESSIONS_DIR = Path.home() / ".claude/metrics/sessions"
 SESSION_ID   = os.environ.get("CLAUDE_SESSION_ID", "unknown")
 STATE_FILE   = SESSIONS_DIR / f"{SESSION_ID}.json"
@@ -214,6 +217,9 @@ def handle_post_tool(hook: dict):
 # ── Entry point ────────────────────────────────────────────────────────────────
 
 def main():
+    if not is_ai_minions_active():
+        sys.exit(0)
+
     try:
         raw = sys.stdin.read()
         hook = json.loads(raw) if raw.strip() else {}

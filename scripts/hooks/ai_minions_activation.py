@@ -14,9 +14,11 @@ RUN_ID_ENV = "AI_MINIONS_RUN_ID"
 
 
 def is_ai_minions_active(env: dict | None = None) -> bool:
-    """True only when the CLI/runner set AI_MINIONS_ACTIVE=1."""
+    """True only when CLI/runner set AI_MINIONS_ACTIVE=1 and a non-empty RUN_ID."""
     source = env if env is not None else os.environ
-    return str(source.get(ACTIVE_ENV, "") or "").strip() == "1"
+    active = str(source.get(ACTIVE_ENV, "") or "").strip() == "1"
+    run_id = str(source.get(RUN_ID_ENV, "") or "").strip()
+    return active and bool(run_id)
 
 
 def ai_minions_run_id(env: dict | None = None) -> str | None:
