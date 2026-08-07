@@ -1210,6 +1210,7 @@ function ShellApp(props) {
               key: `c-${idx}`,
               dimColor: line.startsWith('('),
               color: line.startsWith('(') ? theme.muted : undefined,
+              wrap: 'truncate',
             },
             line,
           )),

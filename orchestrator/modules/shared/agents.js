@@ -33,7 +33,8 @@ const {
   extractContextStats,
   cerberusFindingHasAnchor,
 } = require("../../agents/validate-output");
-const { runOllama } = require("../model-runtime/run-ollama");
+const { runOllama, runOllamaWithTools } = require("../model-runtime/run-ollama");
+const { toolDefsForAgent } = require("../model-runtime/ollama-tools");
 const { runClaude, MAX_OUTPUT_TOKENS } = require("../model-runtime/run-claude");
 const { summarizeHandoff } = require("../model-runtime/summarize-handoff");
 const {
@@ -563,12 +564,22 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
         systemForOllama = `${agent.system}${OLLAMA_DEV_SYSTEM_APPEND}`;
       }
     }
-    const raw = await runOllama(systemForOllama, [{ role: "user", content: userMessage }], {
+    const isStructuredPhase = phase === "plan" || phase === "decide";
+    // Tool loop: worker roles get confined file tools so local models can
+    // actually read/write artifacts (no tools on structured JSON phases).
+    const toolsEnabled = process.env.ORCH_OLLAMA_TOOLS !== "0" && !isStructuredPhase;
+    const toolDefs = toolsEnabled ? toolDefsForAgent(agentId) : [];
+    const toolNote = toolDefs.length
+      ? `\n\n---\n## LOCAL FILE TOOLS\n\nYou can call tools to work with files inside the working directory: ${toolDefs.map((t) => t.function.name).join(", ")}. Use them instead of claiming file contents you have not read; actually create files you are asked to produce.`
+      : "";
+    const callFn = toolDefs.length ? runOllamaWithTools : runOllama;
+    const raw = await callFn(systemForOllama + toolNote, [{ role: "user", content: userMessage }], {
       model,
       cwd,
       traceRole: agent.mode,
       traceAgentId: agentId,
-      ...(phase === "plan" || phase === "decide" ? { format: "json" } : {}),
+      ...(isStructuredPhase ? { format: "json" } : {}),
+      ...(toolDefs.length ? { tools: toolDefs } : {}),
     });
     const rawOut = raw.content == null ? "" : String(raw.content);
     if (!rawOut.trim() && raw.done_reason === "length") {
@@ -604,6 +615,9 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
     const context_stats = { ...extracted, ...(check.context_stats || {}) };
     if (raw.prompt_eval_count != null) context_stats.ollama_prompt_tokens = raw.prompt_eval_count;
     if (raw.eval_count != null) context_stats.ollama_completion_tokens = raw.eval_count;
+    if (Array.isArray(raw.tools_used) && raw.tools_used.length) {
+      context_stats.ollama_tool_calls = raw.tools_used.length;
+    }
     return { output, context_stats };
   }
   assertRemoteProviderBlocked({ provider: agent.provider, agentId, backend: "claude" });

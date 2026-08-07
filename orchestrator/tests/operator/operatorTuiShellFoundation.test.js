@@ -1331,6 +1331,54 @@ test('Ink renderToString shows shell chrome', async () => {
   assert.match(out, /Recent Runs/);
 });
 
+test('run browser keeps one numbered row per run when notes are long (no wrap mangling)', async () => {
+  const { renderOperatorTuiShellToString } = await import(
+    '../../modules/operator/operator-tui-shell-render.mjs'
+  );
+  const { openNativeWorkflow } = require('../../modules/operator/operator-tui-native-workflows.js');
+  const model = buildShellModel({
+    columns: 80,
+    rows: 24,
+    skipSplash: true,
+    runsPayload: canonicalRunsResult([
+      {
+        run_id: 'task-5d3cdbc7', status: 'failed', outcome: 'failed', result_code: 'RUN_FOUND',
+        reason_code: 'OUTPUT_BUDGET_EXHAUSTED', goal_summary: 'Sudoku HTML generation',
+        created_at: '2026-08-01T12:00:00.000Z', last_event_at: '2026-08-01T12:05:00.000Z',
+        current_phase: 'dev', action_eligibility: 'unavailable',
+      },
+      {
+        run_id: 'task-aaaa1111', status: 'complete', outcome: 'success', result_code: 'RUN_FOUND',
+        goal_summary: 'Solar system demo',
+        created_at: '2026-08-01T10:00:00.000Z', last_event_at: '2026-08-01T10:30:00.000Z',
+        current_phase: 'done',
+      },
+      { run_id: 'task-bbbb2222', status: 'blocked', outcome: 'blocked', result_code: 'RUN_FOUND', goal_summary: 'x' },
+    ]),
+  });
+  const workflow = openNativeWorkflow(model, 'runs');
+  assert.ok(workflow, 'runs workflow opens');
+  const browserModel = buildShellModel({
+    ...shellModelToOptions(model),
+    activeWorkflow: workflow,
+    contentSurface: 'run_browser',
+    focus: 'content',
+    selectedNavId: 'runs',
+  });
+  const out = renderOperatorTuiShellToString(browserModel, { columns: 80 });
+  assert.match(out, /> 1\. task-5d3cdbc7/);
+  assert.match(out, /2\. task-aaaa1111/);
+  assert.match(out, /3\. task-bbbb2222/);
+  const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
+  for (const line of out.split('\n')) {
+    const visible = line.replace(ansiPattern, '');
+    assert.ok(
+      visible.length <= 80,
+      `rendered line exceeds 80 cols (${visible.length}): ${visible}`,
+    );
+  }
+});
+
 test('resolveShellActionToken maps cockpit keys', () => {
   assert.equal(resolveShellActionToken('1'), 'launcher');
   assert.equal(resolveShellActionToken('launcher'), 'launcher');
