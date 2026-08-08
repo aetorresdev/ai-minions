@@ -266,6 +266,7 @@ function printAiMinionsCliHelp(options = {}) {
     "  --allow-public-local-runtime  Opt in to public_endpoint targets",
     "  --no-install             Skip npm ci when node_modules missing",
     "  --skip-runtime-integration  Skip MCP register + hook wiring (observable skipped)",
+    "  --require-runtime-integration  Fail init when Claude Code runtime host is unavailable",
     "  --live                   Require claude CLI + auth checks (doctor)",
     "  --json                   Machine-readable report",
     "",

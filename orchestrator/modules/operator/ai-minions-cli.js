@@ -189,6 +189,7 @@ function parseAiMinionsArgs(argv) {
   out.migrateModelPolicy = argv.includes('--migrate-model-policy');
   out.force = argv.includes('--force');
   out.skipRuntimeIntegration = argv.includes('--skip-runtime-integration');
+  out.requireRuntimeIntegration = argv.includes('--require-runtime-integration');
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--run' && argv[i + 1] && !out.runId) out.runId = argv[++i];
@@ -320,6 +321,11 @@ function deriveInitNextSafeAction(report, meta = {}) {
       ?? 'local_only',
   ).trim() || 'local_only';
 
+  // Optional host missing: product path succeeded; do not frame as blockers / reinstall.
+  if (report.ok && report.runtime_integration_status === 'unavailable') {
+    return 'Optional: install Claude Code and re-run ai-minions init to wire MCP/hooks; local_only product is ready';
+  }
+
   const pathActivation = meta.pathActivation;
   if (pathActivation?.status === 'activation_required' && pathActivation.path_remediation) {
     return `Activate PATH: ${pathActivation.path_remediation} — then run: ai-minions doctor --model-policy ${modelPolicy}`;
@@ -403,6 +409,7 @@ function formatStartText(launched, meta = {}) {
  *   migrateModelPolicy?: boolean,
  *   force?: boolean,
  *   skipRuntimeIntegration?: boolean,
+ *   requireRuntimeIntegration?: boolean,
  *   loadInstallModule?: () => Promise<typeof import('../../../../scripts/install-ai-minions.mjs')>,
  * }} [options]
  */
@@ -424,6 +431,7 @@ async function runInit(options = {}) {
     migrateModelPolicy: options.migrateModelPolicy === true,
     force: options.force === true,
     skipRuntimeIntegration: options.skipRuntimeIntegration === true,
+    requireRuntimeIntegration: options.requireRuntimeIntegration === true,
   });
   const modelPolicy = report.model_policy ?? options.modelPolicy ?? 'local_only';
   const credentials = assessProviderCredentials({
@@ -801,6 +809,7 @@ async function main() {
       migrateModelPolicy: opts.migrateModelPolicy === true,
       force: opts.force === true,
       skipRuntimeIntegration: opts.skipRuntimeIntegration === true,
+      requireRuntimeIntegration: opts.requireRuntimeIntegration === true,
       ...endpointOptionsFromCli(opts),
     });
     if (result.json) {

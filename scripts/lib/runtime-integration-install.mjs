@@ -55,6 +55,7 @@ export function syncMcpVenv(mcpDir, options = {}) {
  * @param {{
  *   repoRoot: string,
  *   skip?: boolean,
+ *   require?: boolean,
  *   homeDir?: string,
  *   adapter?: ReturnType<typeof createClaudeCodeAdapter>,
  *   syncMcpVenvFn?: typeof syncMcpVenv,
@@ -113,28 +114,55 @@ export function runRuntimeIntegrationInstall(options) {
 
   const host = adapter.detectAvailable();
   if (!host.available) {
+    // Sync MCP venvs for the product anyway: the orchestrator can use
+    // compact-handoff / orchestrator-state via the direct transport
+    // (mcp-direct.py + per-server .venv) even when Claude Code is not installed.
+    /** @type {string[]} */
+    const venvSyncFailed = [];
     for (const spec of REQUIRED_MCP_SERVERS) {
+      const sync = syncFn(path.join(repoRoot, spec.rel_dir), { spawnSyncFn, env: options.env });
+      if (!sync.ok) venvSyncFailed.push(spec.server_id);
+      checks.push({
+        id: `mcp_venv:${spec.server_id}`,
+        reason_code: sync.ok
+          ? RUNTIME_REASON_CODES.CONFIGURED
+          : (sync.reason_code ?? RUNTIME_REASON_CODES.MCP_VENV_SYNC_FAILED),
+        status: sync.ok ? "pass" : "fail",
+        message: sync.ok
+          ? `MCP venv synced (${spec.server_id})`
+          : sync.message,
+      });
       mcp_registration[spec.server_id] = "unavailable";
     }
     for (const hook of REQUIRED_HOOKS) {
       hook_wiring[hook.hook_id] = "unavailable";
     }
+    const required = options.require === true;
+    const reason = host.reason_code ?? RUNTIME_REASON_CODES.UNAVAILABLE;
     checks.push({
       id: "runtime_host",
-      reason_code: host.reason_code ?? RUNTIME_REASON_CODES.UNAVAILABLE,
-      status: "fail",
+      reason_code: reason,
+      // Optional Claude Code host: warn. Explicit --require-runtime-integration: fail.
+      status: required ? "fail" : "warn",
       message: host.message,
     });
+    const venvsOk = venvSyncFailed.length === 0;
     return {
-      ok: false,
+      // Product local_only install must not look failed when only the optional host is missing.
+      // Venv sync failures are real product failures even when host is absent.
+      ok: venvsOk && !required,
+      required,
       runtime_host: adapter.id,
       runtime_integration_status: RUNTIME_INTEGRATION_STATUS.UNAVAILABLE,
       reason_code: RUNTIME_REASON_CODES.UNAVAILABLE,
       mcp_registration,
       hook_wiring,
       checks,
-      next_safe_action:
-        "Install Claude Code CLI (runtime host), ensure `claude` is on PATH, then re-run install — or pass --skip-runtime-integration",
+      next_safe_action: !venvsOk
+        ? `Fix MCP venv sync (install uv / repair ${venvSyncFailed.join(", ")} venvs), then re-run install`
+        : required
+          ? "Install Claude Code CLI (runtime host), ensure `claude` is on PATH, then re-run install — or omit --require-runtime-integration for local_only product use"
+          : "Optional: install Claude Code CLI and re-run install to wire MCP/hooks — product CLI works without it for local_only",
       settings_path: adapter.settingsPath,
     };
   }

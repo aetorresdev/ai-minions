@@ -297,7 +297,7 @@ describe('operator-tui-run-browser-workflow', () => {
     ];
     const wf = createRunBrowserWorkflow({ runs });
     const text = formatRunBrowserWorkflowLines(wf).join('\n');
-    assert.match(text, /> 1\. task-aaa/);
+    assert.match(text, /› 1\. task-aaa/);
     assert.match(text, / {2}2\. task-bbb/);
     assert.match(text, / {2}3\. task-ccc/);
     assert.doesNotMatch(text, /\n\s*[4-9]\. /);
@@ -307,6 +307,13 @@ describe('operator-tui-run-browser-workflow', () => {
     assert.match(text, /^\s+title: Build sudoku\.html$/m);
     assert.match(text, /updated:.*phase:.*reason:/);
     assert.doesNotMatch(text, /^\s+\d+\.\s+title:/m);
+    const { formatRunBrowserWorkflowEntries } = require('../../modules/operator/operator-tui-run-browser-workflow.js');
+    const entries = formatRunBrowserWorkflowEntries(wf);
+    const selectedOpts = entries.filter((e) => e.kind === 'option' && e.selected);
+    assert.equal(selectedOpts.length, 1);
+    assert.match(selectedOpts[0].text, /› 1\. task-aaa/);
+    assert.ok(entries.some((e) => e.kind === 'detail' && e.selected === true));
+    assert.ok(entries.some((e) => e.kind === 'detail' && e.selected !== true));
   });
 
   it('dedupes duplicate run_id rows so one logical run is one number', () => {
@@ -320,7 +327,7 @@ describe('operator-tui-run-browser-workflow', () => {
     assert.equal(wf.runs.length, 2);
     assert.equal(wf.select.options.length, 2);
     const text = formatRunBrowserWorkflowLines(wf).join('\n');
-    assert.match(text, /> 1\. task-dup/);
+    assert.match(text, /› 1\. task-dup/);
     assert.match(text, / {2}2\. task-other/);
     assert.match(text, /selected 1\/2 · task-dup/);
     assert.equal(wf.runs[0].reason_code, 'A', 'keeps first (newest-first) occurrence');

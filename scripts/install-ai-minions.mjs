@@ -392,6 +392,7 @@ export async function runHostPrereqChecks(repoRoot, orchDir, options = {}) {
  *   migrateModelPolicy?: boolean,
  *   force?: boolean,
  *   skipRuntimeIntegration?: boolean,
+ *   requireRuntimeIntegration?: boolean,
  *   runtimeIntegrationInstall?: typeof runRuntimeIntegrationInstall,
  *   runtimeHostAdapter?: object,
  *   homeDir?: string,
@@ -535,6 +536,7 @@ export async function runInstallAiMinions(options = {}) {
       runtimeIntegration = runRuntime({
         repoRoot,
         skip: options.skipRuntimeIntegration === true,
+        require: options.requireRuntimeIntegration === true,
         homeDir: options.homeDir,
         adapter: options.runtimeHostAdapter,
         spawnSyncFn: options.spawnSyncFn,
@@ -544,9 +546,18 @@ export async function runInstallAiMinions(options = {}) {
       });
     }
 
+    // UNAVAILABLE (no Claude Code) is optional only when the runtime result itself
+    // succeeded (runtimeIntegration.ok === true). A failed venv sync keeps
+    // status UNAVAILABLE but ok:false — that is a real product failure.
+    // SKIPPED (--skip-runtime-integration) is also non-blocking.
     const runtimeOk = runtimeIntegration == null
-      || runtimeIntegration.ok
-      || runtimeIntegration.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.SKIPPED;
+      || runtimeIntegration.ok === true
+      || runtimeIntegration.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.SKIPPED
+      || (
+        runtimeIntegration.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.UNAVAILABLE
+        && runtimeIntegration.ok === true
+        && options.requireRuntimeIntegration !== true
+      );
     const combinedChecks = [
       ...allChecks,
       ...(runtimeIntegration?.checks ?? []),
@@ -626,14 +637,28 @@ export function deriveInstallNextSafeAction(report) {
 
   if (report.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.SKIPPED) {
     return report.runtime_integration?.next_safe_action
-      ?? "Re-run install without --skip-runtime-integration to register MCP/hooks";
+      ?? "Optional: re-run install without --skip-runtime-integration to register MCP/hooks when using Claude Code";
+  }
+
+  // Optional host missing: product path succeeded; Claude Code is not the primary next step.
+  if (
+    report.ok
+    && report.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.UNAVAILABLE
+  ) {
+    if (report.cli_activation_ready === true || report.product_cli_ok === true) {
+      return "Run: ai-minions --help from outside orchestrator/ (product install complete; Claude Code MCP/hooks optional)";
+    }
+    if (report.cli_install == null) {
+      return "Product config/discovery OK for local_only (Claude Code MCP/hooks optional). Install PATH shim or run: ai-minions --help from the clone";
+    }
+    return "Run: ai-minions --help from outside orchestrator/ (product install complete; activate PATH if needed; Claude Code MCP/hooks optional)";
   }
 
   if (
     report.runtime_integration?.next_safe_action
     && report.runtime_integration_status
     && report.runtime_integration_status !== RUNTIME_INTEGRATION_STATUS.CONFIGURED
-    && report.product_cli_ok !== false
+    && report.ok === false
   ) {
     return report.runtime_integration.next_safe_action;
   }
@@ -707,11 +732,22 @@ export function formatReportText(report, options = {}) {
   const activationReady = report.cli_activation_ready === true;
   const needsActivation = productOk && !activationReady && Boolean(report.cli_install?.path_remediation);
 
-  if (!productOk && totalFails > 0) {
+  const runtimeUnavailableOptional =
+    report.ok
+    && report.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.UNAVAILABLE
+    && (productOk || report.cli_install == null);
+
+  if ((!productOk && totalFails > 0) || (!report.ok && totalFails > 0)) {
     lines.push(ansi(useColor, "1;31", `✗ INSTALL BLOCKED — ${totalFails} blocker(s)`));
   } else if (needsActivation) {
     lines.push(ansi(useColor, "33", "✓ install complete — activation required (PATH)"));
-  } else if (report.ok && productOk) {
+  } else if (runtimeUnavailableOptional) {
+    lines.push(ansi(
+      useColor,
+      "33",
+      "✓ install complete — runtime integration unavailable (optional; MCP/hooks not configured)",
+    ));
+  } else if (report.ok && (productOk || report.cli_install == null)) {
     lines.push(ansi(useColor, "1;32", "✓ install complete"));
   }
 
@@ -837,6 +873,7 @@ export function parseArgs(argv) {
     noInstall: argv.includes("--no-install"),
     skipCli: argv.includes("--skip-cli"),
     skipRuntimeIntegration: argv.includes("--skip-runtime-integration"),
+    requireRuntimeIntegration: argv.includes("--require-runtime-integration"),
     allowPublicLocalRuntime: argv.includes("--allow-public-local-runtime"),
     migrateModelPolicy: argv.includes("--migrate-model-policy"),
     force: argv.includes("--force"),
@@ -864,6 +901,8 @@ Options:
   --no-install           Skip npm ci even when node_modules is missing
   --skip-cli             Repo-local bootstrap only — do not install ~/.local/bin/ai-minions shim
   --skip-runtime-integration  Skip MCP register + hook wiring (observable skipped; not "configured")
+  --require-runtime-integration  Fail install when Claude Code runtime host is unavailable
+                         (default: host missing is a warning; local_only product install still ok)
   --bin-dir <path>       Override CLI shim directory (default: ~/.local/bin)
   --model-policy <mode>  local_only | remote_ok
                          local_only: fail when Ollama unreachable or no local models
@@ -906,6 +945,7 @@ See docs/orchestrator/model-config-ownership.md for YAML vs JSON ownership.
     cliInstallOptions: args.binDir ? { binDir: path.resolve(args.binDir) } : {},
     modelPolicy: args.modelPolicy,
     skipRuntimeIntegration: args.skipRuntimeIntegration === true,
+    requireRuntimeIntegration: args.requireRuntimeIntegration === true,
     localProvider: args.localProvider,
     ollamaHost: args.ollamaHost,
     ollamaPort: args.ollamaPort,
@@ -922,8 +962,15 @@ See docs/orchestrator/model-config-ownership.md for YAML vs JSON ownership.
     process.stdout.write(`${formatReportText(report)}\n`);
   }
 
-  // Exit 0 when host+shim materialized (PATH activation is a warn / next step).
-  const exitOk = args.skipCli ? report.ok : report.product_cli_ok === true;
+  // Exit 0 only when the product is ready (report.ok) and the CLI/shim is
+  // materialized. A shim on disk with a failed venv sync must not exit 0.
+  // Optional Claude Code absence stays non-blocking; --require-runtime-integration fails.
+  let exitOk = args.skipCli
+    ? report.ok === true
+    : report.ok === true && report.product_cli_ok === true;
+  if (args.requireRuntimeIntegration === true && report.ok !== true) {
+    exitOk = false;
+  }
   const useColor = shouldUseAnsiStdout();
 
   if (!exitOk) {

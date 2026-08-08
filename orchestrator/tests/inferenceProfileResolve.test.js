@@ -77,4 +77,37 @@ describe("resolveOllamaNumPredict", () => {
     assert.equal(out.inference_profile_mode, "default");
     assert.equal(out.profile_source, null);
   });
+
+  it("falls back to AI_MINIONS_HOME when goal cwd has no .ai-minions config", () => {
+    const fs = require("fs");
+    const os = require("os");
+    const path = require("path");
+    const productHome = fs.mkdtempSync(path.join(os.tmpdir(), "ai-minions-home-"));
+    const goalCwd = fs.mkdtempSync(path.join(os.tmpdir(), "ai-minions-goal-"));
+    fs.mkdirSync(path.join(productHome, ".ai-minions"), { recursive: true });
+    fs.writeFileSync(
+      path.join(productHome, ".ai-minions", "model_policy.json"),
+      JSON.stringify({ model_policy_version: 1, default_tier: "standard", tiers: { cheap: [], standard: [], strong: [], frontier: [] }, role_defaults: {}, rules: [] }),
+    );
+    const out = resolveOllamaNumPredict({
+      cwd: goalCwd,
+      env: { AI_MINIONS_HOME: productHome },
+      role: "DEV",
+      loadPolicy: (cwd) => {
+        if (path.resolve(cwd) === productHome) {
+          return {
+            policy: {
+              provider_inference_profiles: {
+                ollama: { default: { max_tokens: 8192, profile_source: "installer_default" } },
+              },
+            },
+          };
+        }
+        return { policy: {} };
+      },
+    });
+    assert.equal(out.num_predict, 8192);
+    assert.equal(out.inference_profile_mode, "applied");
+    assert.equal(out.profile_source, "installer_default");
+  });
 });

@@ -1361,7 +1361,7 @@ test('run browser keeps one numbered row per run when notes are long (no wrap ma
   assert.ok(workflow, 'runs workflow opens');
   // Full workflow text (not viewport-clipped) must keep sequential numbers.
   const full = formatRunBrowserWorkflowLines(workflow).join('\n');
-  assert.match(full, /> 1\. task-5d3cdbc7/);
+  assert.match(full, /› 1\. task-5d3cdbc7/);
   assert.match(full, / {2}2\. task-aaaa1111/);
   assert.match(full, / {2}3\. task-bbbb2222/);
   assert.match(full, /selected 1\/3 · task-5d3cdbc7/);

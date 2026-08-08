@@ -1,10 +1,17 @@
 /**
  * Resolve Ollama num_predict from env + provider_inference_profiles (ollama).
  * Precedence: OLLAMA_NUM_PREDICT → by_role max_tokens → default max_tokens → 2048.
+ *
+ * Config lookup: run/goal cwd first, then AI_MINIONS_HOME / REPO_ROOT when that
+ * points at a product install with .ai-minions config. Without this, runs
+ * launched outside the clone (e.g. cwd=/Users/cerberus) silently fall back to
+ * 2048 even though install wrote 8192 into the product config.
  */
 
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { loadModelPolicyConfig } = require('./model-policy-config');
 
 const DEFAULT_NUM_PREDICT = 2048;
@@ -66,17 +73,52 @@ function resolveOllamaNumPredict(options = {}) {
   }
 
   const loadPolicy = options.loadPolicy ?? loadModelPolicyConfig;
-  const cwd = options.cwd != null ? String(options.cwd) : process.cwd();
-  let policy;
-  try {
-    policy = loadPolicy(cwd).policy;
-  } catch {
+  const envMap = options.env ?? process.env;
+  const baseCwd = options.cwd != null ? String(options.cwd) : process.cwd();
+
+  const candidates = [baseCwd];
+  for (const key of ['AI_MINIONS_HOME', 'REPO_ROOT']) {
+    const raw = envMap[key];
+    if (raw && String(raw).trim()) {
+      candidates.push(path.resolve(String(raw).trim()));
+    }
+  }
+
+  let policy = null;
+  let policyLoadError = null;
+  for (const candidate of candidates) {
+    const hasConfig =
+      fs.existsSync(path.join(candidate, '.ai-minions', 'model_policy.json'))
+      || fs.existsSync(path.join(candidate, '.ai-minions', 'model-policy.yaml'));
+    if (!hasConfig) continue;
+    try {
+      policy = loadPolicy(candidate).policy;
+      break;
+    } catch (err) {
+      policyLoadError = err;
+      policy = null;
+      break;
+    }
+  }
+  if (!policy && policyLoadError) {
     return {
       num_predict: DEFAULT_NUM_PREDICT,
       profile_source: null,
       inference_profile_mode: 'default',
       role: normalizeTraceRole(options.role),
     };
+  }
+  if (!policy) {
+    try {
+      policy = loadPolicy(baseCwd).policy;
+    } catch {
+      return {
+        num_predict: DEFAULT_NUM_PREDICT,
+        profile_source: null,
+        inference_profile_mode: 'default',
+        role: normalizeTraceRole(options.role),
+      };
+    }
   }
 
   const profiles = policy?.provider_inference_profiles?.ollama;
