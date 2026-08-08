@@ -180,10 +180,59 @@ describe("runtime-integration-install", () => {
     assert.equal(out.required, false);
     assert.equal(out.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
     assert.equal(out.reason_code, RUNTIME_REASON_CODES.UNAVAILABLE);
-    assert.equal(out.checks[0]?.status, "warn");
+    const hostCheck = out.checks.find((c) => c.id === "runtime_host");
+    assert.equal(hostCheck?.status, "warn");
     assert.equal(out.mcp_registration["orchestrator-state"], "unavailable");
     assert.equal(out.hook_wiring["mode-enforcer"], "unavailable");
     assert.match(out.next_safe_action, /Optional:|local_only/i);
+  });
+
+  it("unavailable host still syncs MCP venvs for direct-transport local_only use", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-int-venv-"));
+    makeRepo(tmp);
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-home-"));
+    const synced = [];
+    const out = runRuntimeIntegrationInstall({
+      repoRoot: tmp,
+      homeDir: home,
+      adapter: createClaudeCodeAdapter({
+        homeDir: home,
+        spawnSyncFn: mockSpawn({ claudeMissing: true }),
+      }),
+      syncMcpVenvFn: (dir) => {
+        synced.push(dir);
+        return { ok: true, reason_code: null, message: "ok" };
+      },
+    });
+    assert.equal(out.ok, true);
+    assert.equal(out.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
+    assert.equal(synced.length, 2);
+    assert.ok(synced.some((d) => d.includes("orchestrator-state")));
+    assert.ok(synced.some((d) => d.includes("compact-handoff")));
+    const venvChecks = out.checks.filter((c) => c.id.startsWith("mcp_venv:"));
+    assert.equal(venvChecks.length, 2);
+    assert.ok(venvChecks.every((c) => c.status === "pass"));
+    assert.equal(out.mcp_registration["orchestrator-state"], "unavailable");
+  });
+
+  it("unavailable host fails overall when MCP venv sync fails", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-int-venv-fail-"));
+    makeRepo(tmp);
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-home-"));
+    const out = runRuntimeIntegrationInstall({
+      repoRoot: tmp,
+      homeDir: home,
+      adapter: createClaudeCodeAdapter({
+        homeDir: home,
+        spawnSyncFn: mockSpawn({ claudeMissing: true }),
+      }),
+      syncMcpVenvFn: () => ({ ok: false, reason_code: RUNTIME_REASON_CODES.MCP_VENV_SYNC_FAILED, message: "uv not found in PATH" }),
+    });
+    assert.equal(out.ok, false);
+    assert.equal(out.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
+    const venvChecks = out.checks.filter((c) => c.id.startsWith("mcp_venv:"));
+    assert.equal(venvChecks.length, 2);
+    assert.ok(venvChecks.every((c) => c.status === "fail"));
   });
 
   it("unavailable host fails when runtime integration is explicitly required", () => {
@@ -203,7 +252,8 @@ describe("runtime-integration-install", () => {
     assert.equal(out.ok, false);
     assert.equal(out.required, true);
     assert.equal(out.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
-    assert.equal(out.checks[0]?.status, "fail");
+    const hostCheck = out.checks.find((c) => c.id === "runtime_host");
+    assert.equal(hostCheck?.status, "fail");
     assert.match(out.next_safe_action, /require-runtime-integration|Claude Code/);
   });
 

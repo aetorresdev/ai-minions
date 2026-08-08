@@ -300,6 +300,34 @@ describe("ai-minions-cli formatters", () => {
     assert.doesNotMatch(action, /--model-policy local_only/);
   });
 
+  it("deriveInitNextSafeAction does not ask to reinstall when host is optional unavailable", () => {
+    const action = deriveInitNextSafeAction({
+      ok: true,
+      phase: "config_write",
+      model_policy: "local_only",
+      runtime_integration_status: "unavailable",
+      checks: [],
+    });
+    assert.match(action, /Optional: install Claude Code/i);
+    assert.match(action, /local_only product is ready/i);
+    assert.doesNotMatch(action, /Review blockers/);
+    assert.doesNotMatch(action, /then re-run: ai-minions init$/);
+  });
+
+  it("printAiMinionsCliHelp documents --require-runtime-integration", () => {
+    const { printAiMinionsCliHelp } = require("../../modules/operator/operator-cli-help");
+    const original = console.log;
+    let captured = "";
+    console.log = (line) => { captured += `${String(line)}\n`; };
+    try {
+      printAiMinionsCliHelp({ useColor: false });
+    } finally {
+      console.log = original;
+    }
+    assert.match(captured, /--require-runtime-integration/);
+    assert.match(captured, /--skip-runtime-integration/);
+  });
+
   it("formatInitText includes local_only credential note without secret values", () => {
     const secret = "sk-init-leak-probe";
     const text = formatInitText(

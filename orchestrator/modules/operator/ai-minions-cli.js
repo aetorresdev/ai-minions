@@ -321,6 +321,11 @@ function deriveInitNextSafeAction(report, meta = {}) {
       ?? 'local_only',
   ).trim() || 'local_only';
 
+  // Optional host missing: product path succeeded; do not frame as blockers / reinstall.
+  if (report.ok && report.runtime_integration_status === 'unavailable') {
+    return 'Optional: install Claude Code and re-run ai-minions init to wire MCP/hooks; local_only product is ready';
+  }
+
   const pathActivation = meta.pathActivation;
   if (pathActivation?.status === 'activation_required' && pathActivation.path_remediation) {
     return `Activate PATH: ${pathActivation.path_remediation} — then run: ai-minions doctor --model-policy ${modelPolicy}`;
