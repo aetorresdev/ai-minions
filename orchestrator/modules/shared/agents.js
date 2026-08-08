@@ -650,6 +650,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       if (raw.eval_count != null) failStats.ollama_completion_tokens = raw.eval_count;
       if (raw.num_predict != null) failStats.num_predict = raw.num_predict;
       if (raw.inference_profile_mode) failStats.inference_profile_mode = raw.inference_profile_mode;
+      if (raw.think != null) failStats.ollama_think = raw.think === true ? 1 : 0;
       if (raw.retried_after_empty === true) failStats.ollama_retried_after_empty = 1;
       if (Object.keys(failStats).length) err.context_stats = failStats;
       throw err;
@@ -695,6 +696,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       const failStats = { ...(check.context_stats || {}) };
       if (raw.prompt_eval_count != null) failStats.ollama_prompt_tokens = raw.prompt_eval_count;
       if (raw.eval_count != null) failStats.ollama_completion_tokens = raw.eval_count;
+      if (raw.think != null) failStats.ollama_think = raw.think === true ? 1 : 0;
       if (raw.retried_after_empty === true) failStats.ollama_retried_after_empty = 1;
       if (Object.keys(failStats).length) err.context_stats = failStats;
       throw err;
@@ -704,6 +706,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
     const context_stats = { ...extracted, ...(check.context_stats || {}) };
     if (raw.prompt_eval_count != null) context_stats.ollama_prompt_tokens = raw.prompt_eval_count;
     if (raw.eval_count != null) context_stats.ollama_completion_tokens = raw.eval_count;
+    if (raw.think != null) context_stats.ollama_think = raw.think === true ? 1 : 0;
     if (Array.isArray(raw.tools_used) && raw.tools_used.length) {
       context_stats.ollama_tool_calls = raw.tools_used.length;
     }

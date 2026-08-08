@@ -147,9 +147,11 @@ describe("runOllama budget + done_reason", () => {
       OLLAMA_HOST: process.env.OLLAMA_HOST,
       OLLAMA_PORT: process.env.OLLAMA_PORT,
       OLLAMA_NUM_PREDICT: process.env.OLLAMA_NUM_PREDICT,
+      OLLAMA_THINK: process.env.OLLAMA_THINK,
     };
     process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = "1";
     delete process.env.OLLAMA_NUM_PREDICT;
+    delete process.env.OLLAMA_THINK;
     serverPort = 19080 + Math.floor(Math.random() * 1000);
     process.env.OLLAMA_HOST = "127.0.0.1";
     process.env.OLLAMA_PORT = String(serverPort);
@@ -230,5 +232,45 @@ describe("runOllama budget + done_reason", () => {
     assert.equal(out.done_reason, "length");
     assert.equal(out.num_predict, 16384);
     assert.equal(out.inference_profile_mode, "applied");
+  });
+
+  it("sends think:false at the top level when profile thinking_mode is disabled", async () => {
+    const { runOllama } = require("../modules/model-runtime/run-ollama");
+    const out = await runOllama("sys", [{ role: "user", content: "hi" }], {
+      model: "m",
+      cwd: tmpDir,
+      traceRole: "ORCHESTRATOR",
+      timeoutMs: 5000,
+    });
+    assert.equal(lastBody.think, false);
+    assert.equal(lastBody.options.think, undefined);
+    assert.equal(out.think, false);
+    assert.equal(out.thinking_mode, "disabled");
+  });
+
+  it("omits think when profile thinking_mode is adaptive (no literal 'adaptive' sent)", async () => {
+    const { runOllama } = require("../modules/model-runtime/run-ollama");
+    const out = await runOllama("sys", [{ role: "user", content: "hi" }], {
+      model: "m",
+      cwd: tmpDir,
+      traceRole: "ARCHITECT",
+      timeoutMs: 5000,
+    });
+    assert.equal("think" in lastBody, false);
+    assert.equal(out.think, null);
+    assert.equal(out.thinking_mode, "adaptive");
+  });
+
+  it("OLLAMA_THINK env overrides the profile", async () => {
+    process.env.OLLAMA_THINK = "1";
+    const { runOllama } = require("../modules/model-runtime/run-ollama");
+    const out = await runOllama("sys", [{ role: "user", content: "hi" }], {
+      model: "m",
+      cwd: tmpDir,
+      traceRole: "ORCHESTRATOR",
+      timeoutMs: 5000,
+    });
+    assert.equal(lastBody.think, true);
+    assert.equal(out.think, true);
   });
 });
