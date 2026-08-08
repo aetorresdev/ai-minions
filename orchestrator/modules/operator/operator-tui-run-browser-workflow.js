@@ -8,7 +8,7 @@
 const {
   createSelectState,
   resolveSelectKeypress,
-  formatSelectLines,
+  formatSelectLineEntries,
 } = require('./operator-tui-select-controller');
 const {
   buildRunStatusPaneModel,
@@ -145,30 +145,37 @@ function openRunOverview(workflow, entry, opts = {}) {
 }
 
 /**
+ * Structured content rows for Ink (selection bold) and plain join for tests.
  * @param {object} workflow
- * @returns {string[]}
+ * @returns {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>}
  */
-function formatRunBrowserWorkflowLines(workflow) {
+function formatRunBrowserWorkflowEntries(workflow) {
   const snapshotNote =
     'Startup snapshot (shell entry) — may be stale after same-session launch; refreshes on remount/refresh';
   if (workflow.step === 'empty') {
     return [
-      'Run browser (native)',
-      snapshotNote,
-      'runs: (none)',
-      `result_code: ${workflow.result_code ?? 'RUNS_EMPTY'}`,
+      { text: 'Run browser (native)', kind: 'heading' },
+      { text: '', kind: 'spacer' },
+      { text: snapshotNote, kind: 'note', muted: true },
+      { text: '', kind: 'spacer' },
+      { text: 'runs: (none)', muted: true },
+      { text: `result_code: ${workflow.result_code ?? 'RUNS_EMPTY'}` },
       workflow.next_safe_action
-        ? `next_safe_action: ${workflow.next_safe_action}`
+        ? { text: `next_safe_action: ${workflow.next_safe_action}`, muted: true }
         : null,
-      'Esc back',
+      { text: 'Esc back', muted: true },
     ].filter(Boolean);
   }
   if (workflow.step === 'overview') {
     return [
-      'Selected run overview (native)',
-      ...(workflow.overviewLines || []),
-      workflow.inlineError ? `note: ${workflow.inlineError}` : null,
-      'Esc back to run list · selection preserved',
+      { text: 'Selected run overview (native)', kind: 'heading' },
+      { text: '', kind: 'spacer' },
+      ...(workflow.overviewLines || []).map((line) => ({ text: String(line), kind: 'overview' })),
+      workflow.inlineError
+        ? { text: `note: ${workflow.inlineError}`, muted: true, kind: 'note' }
+        : null,
+      { text: '', kind: 'spacer' },
+      { text: 'Esc back to run list · selection preserved', muted: true, kind: 'hint' },
     ].filter(Boolean);
   }
   const select = workflow.select;
@@ -179,14 +186,25 @@ function formatRunBrowserWorkflowLines(workflow) {
     ? `selected ${selectedN}/${total} · ${current?.id ?? '-'}  (↑/↓ changes selection; detail lines are not selectable)`
     : null;
   return [
-    'Run browser (native)',
-    snapshotNote,
-    ...formatSelectLines(select, {
+    { text: 'Run browser (native)', kind: 'heading' },
+    { text: '', kind: 'spacer' },
+    { text: snapshotNote, kind: 'note', muted: true },
+    { text: '', kind: 'spacer' },
+    ...formatSelectLineEntries(select, {
       title: 'Newest-first runs (read-only) — one number per run',
       selectionFooter,
       hint: '↑/↓ move · Enter open overview · Esc cancel',
+      padAfterTitle: true,
     }),
   ];
+}
+
+/**
+ * @param {object} workflow
+ * @returns {string[]}
+ */
+function formatRunBrowserWorkflowLines(workflow) {
+  return formatRunBrowserWorkflowEntries(workflow).map((e) => e.text);
 }
 
 /**
@@ -267,6 +285,7 @@ module.exports = {
   RUN_BROWSER_WORKFLOW_KIND,
   createRunBrowserWorkflow,
   openRunOverview,
+  formatRunBrowserWorkflowEntries,
   formatRunBrowserWorkflowLines,
   applyRunBrowserWorkflowKeypress,
 };

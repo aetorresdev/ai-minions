@@ -36,6 +36,7 @@ const {
 const {
   isNativeWorkflowAction,
   openNativeWorkflow,
+  formatNativeWorkflowEntries,
   formatNativeWorkflowLines,
   applyNativeWorkflowKeypress,
   surfaceForWorkflow,
@@ -1097,7 +1098,7 @@ function ShellApp(props) {
   });
 
   const narrow = model.layout === 'narrow';
-  const contentLines = buildContentLines(model);
+  const contentEntries = buildContentEntries(model);
   const readinessColor = model.readiness === 'ready'
     ? theme.ready
     : (model.readiness === 'blocked'
@@ -1198,22 +1199,39 @@ function ShellApp(props) {
         },
         React.createElement(
           Box,
-          { flexDirection: 'column' },
+          { flexDirection: 'column', paddingTop: 1 },
           React.createElement(
             Text,
             { bold: theme.sectionBold, color: theme.accent },
             `Content · ${model.contentSurface}`,
           ),
-          ...contentLines.map((line, idx) => React.createElement(
-            Text,
-            {
-              key: `c-${idx}`,
-              dimColor: line.startsWith('('),
-              color: line.startsWith('(') ? theme.muted : undefined,
-              wrap: 'truncate',
-            },
-            line,
-          )),
+          React.createElement(Text, { key: 'c-pad' }, ' '),
+          ...contentEntries.map((entry, idx) => {
+            const line = entry.text ?? '';
+            const selected = entry.selected === true;
+            const muted = entry.muted === true
+              || line.startsWith('(')
+              || entry.kind === 'note'
+              || entry.kind === 'hint'
+              || entry.kind === 'footer';
+            if (entry.kind === 'spacer' || line === '') {
+              return React.createElement(Text, { key: `c-${idx}` }, ' ');
+            }
+            return React.createElement(
+              Text,
+              {
+                key: `c-${idx}`,
+                bold: selected,
+                dimColor: muted && !selected,
+                color: selected
+                  ? theme.selected
+                  : (muted ? theme.muted : undefined),
+                // Truncate unselected noise; keep selected rows wrapping so the › marker stays visible.
+                wrap: selected ? 'wrap' : 'truncate',
+              },
+              line,
+            );
+          }),
         ),
       ),
     ),
@@ -1290,6 +1308,20 @@ function OperatorTuiRoot(props) {
     onAbort,
     onRequestAction,
   });
+}
+
+/**
+ * @param {object} model
+ * @returns {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>}
+ */
+function buildContentEntries(model) {
+  if (model.activeWorkflow) {
+    return formatNativeWorkflowEntries(model.activeWorkflow);
+  }
+  return buildContentLines(model).map((text) => ({
+    text: String(text),
+    muted: String(text).startsWith('('),
+  }));
 }
 
 /**
@@ -1519,6 +1551,7 @@ export {
   ShellApp,
   SplashApp,
   OperatorTuiRoot,
+  buildContentEntries,
   buildContentLines,
   formatField,
   shouldSkipSplash,

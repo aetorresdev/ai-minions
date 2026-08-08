@@ -14,6 +14,7 @@ const {
 const {
   RUN_BROWSER_WORKFLOW_KIND,
   createRunBrowserWorkflow,
+  formatRunBrowserWorkflowEntries,
   formatRunBrowserWorkflowLines,
   applyRunBrowserWorkflowKeypress,
 } = require('./operator-tui-run-browser-workflow');
@@ -98,17 +99,25 @@ function createAsyncTransitionGate() {
 
 /**
  * @param {object | null | undefined} workflow
+ * @returns {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>}
+ */
+function formatNativeWorkflowEntries(workflow) {
+  if (!workflow || typeof workflow !== 'object') return [];
+  if (workflow.kind === LAUNCHER_WORKFLOW_KIND) {
+    return formatLauncherWorkflowLines(workflow).map((text) => ({ text: String(text) }));
+  }
+  if (workflow.kind === RUN_BROWSER_WORKFLOW_KIND) {
+    return formatRunBrowserWorkflowEntries(workflow);
+  }
+  return [{ text: '(unknown native workflow)', muted: true }];
+}
+
+/**
+ * @param {object | null | undefined} workflow
  * @returns {string[]}
  */
 function formatNativeWorkflowLines(workflow) {
-  if (!workflow || typeof workflow !== 'object') return [];
-  if (workflow.kind === LAUNCHER_WORKFLOW_KIND) {
-    return formatLauncherWorkflowLines(workflow);
-  }
-  if (workflow.kind === RUN_BROWSER_WORKFLOW_KIND) {
-    return formatRunBrowserWorkflowLines(workflow);
-  }
-  return ['(unknown native workflow)'];
+  return formatNativeWorkflowEntries(workflow).map((e) => e.text);
 }
 
 /**
@@ -156,6 +165,7 @@ module.exports = {
   NATIVE_LAUNCHER_EXECUTE_ACTION,
   isNativeWorkflowAction,
   openNativeWorkflow,
+  formatNativeWorkflowEntries,
   formatNativeWorkflowLines,
   applyNativeWorkflowKeypress,
   surfaceForWorkflow,

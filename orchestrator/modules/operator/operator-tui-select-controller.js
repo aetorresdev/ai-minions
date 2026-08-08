@@ -145,37 +145,84 @@ function resolveSelectKeypress(input, key = {}, state) {
 }
 
 /**
- * Render lines for a select list (Ink content / tests).
+ * Structured select rows for Ink (bold/color) and plain string renderers.
+ * @typedef {{ text: string, selected?: boolean, muted?: boolean, kind?: string }} SelectLineEntry
+ *
  * @param {SelectState} state
- * @param {{ title?: string, hint?: string }} [opts]
- * @returns {string[]}
+ * @param {{ title?: string, hint?: string, selectionFooter?: string, padAfterTitle?: boolean }} [opts]
+ * @returns {SelectLineEntry[]}
  */
-function formatSelectLines(state, opts = {}) {
-  const lines = [];
-  if (opts.title) lines.push(String(opts.title));
+function formatSelectLineEntries(state, opts = {}) {
+  /** @type {SelectLineEntry[]} */
+  const entries = [];
+  if (opts.title) {
+    entries.push({ text: String(opts.title), kind: 'title' });
+    if (opts.padAfterTitle !== false) {
+      entries.push({ text: '', kind: 'spacer' });
+    }
+  }
   const options = state.options ?? [];
   if (!options.length) {
-    lines.push('(no choices)');
+    entries.push({ text: '(no choices)', muted: true, kind: 'empty' });
   } else {
     options.forEach((opt, index) => {
-      const marker = index === state.cursorIndex ? '>' : ' ';
+      const selected = index === state.cursorIndex;
+      // › is easier to spot than '>' in dense terminal chrome.
+      const marker = selected ? '›' : ' ';
       const disabled = opt.disabled ? ' (disabled)' : '';
       // Exactly one numbered row per option — detail lines must never consume indices.
-      lines.push(`${marker} ${index + 1}. ${opt.label}${disabled}`);
+      entries.push({
+        text: `${marker} ${index + 1}. ${opt.label}${disabled}`,
+        selected,
+        kind: 'option',
+      });
       const detailLines = Array.isArray(opt.noteLines) && opt.noteLines.length
         ? opt.noteLines
         : (opt.note ? [opt.note] : []);
       for (const detail of detailLines) {
-        lines.push(`       ${detail}`);
+        entries.push({
+          text: `       ${detail}`,
+          selected,
+          muted: !selected,
+          kind: 'detail',
+        });
       }
       if (opt.disabled && opt.reason_code) {
-        lines.push(`       reason_code: ${opt.reason_code}`);
+        entries.push({
+          text: `       reason_code: ${opt.reason_code}`,
+          selected,
+          muted: !selected,
+          kind: 'detail',
+        });
       }
+      // Breath between runs so the selected block reads as a unit.
+      entries.push({ text: '', kind: 'spacer' });
     });
+    // Drop trailing spacer after last option (footer/hint follow).
+    if (entries.length && entries[entries.length - 1].kind === 'spacer') {
+      entries.pop();
+    }
   }
-  if (opts.selectionFooter) lines.push(String(opts.selectionFooter));
-  lines.push(opts.hint ?? '↑/↓ move · Enter confirm · Esc cancel');
-  return lines;
+  if (opts.selectionFooter) {
+    entries.push({ text: '', kind: 'spacer' });
+    entries.push({ text: String(opts.selectionFooter), kind: 'footer', muted: true });
+  }
+  entries.push({
+    text: opts.hint ?? '↑/↓ move · Enter confirm · Esc cancel',
+    kind: 'hint',
+    muted: true,
+  });
+  return entries;
+}
+
+/**
+ * Render lines for a select list (Ink content / tests).
+ * @param {SelectState} state
+ * @param {{ title?: string, hint?: string, selectionFooter?: string, padAfterTitle?: boolean }} [opts]
+ * @returns {string[]}
+ */
+function formatSelectLines(state, opts = {}) {
+  return formatSelectLineEntries(state, opts).map((e) => e.text);
 }
 
 module.exports = {
@@ -183,5 +230,6 @@ module.exports = {
   moveSelectCursor,
   currentSelectOption,
   resolveSelectKeypress,
+  formatSelectLineEntries,
   formatSelectLines,
 };
