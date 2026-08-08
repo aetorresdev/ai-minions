@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
@@ -580,38 +581,81 @@ describe("runtime-integration-install", () => {
     makeRepo(tmp);
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-home-"));
     const binDir = path.join(home, "bin");
-    const env = {
-      ...process.env,
-      HOME: home,
-      AI_MINIONS_TEST_NODE_VERSION: "22.0.0",
-      PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
-    };
-    const result = spawnSync(
-      process.execPath,
-      [
-        path.join(REPO_ROOT, "scripts", "install-ai-minions.mjs"),
-        "--model-policy",
-        "local_only",
-        "--bin-dir",
-        binDir,
-        "--json",
-      ],
-      { encoding: "utf8", env, cwd: tmp },
+    const fakeBin = path.join(home, "fake-bin");
+    fs.mkdirSync(fakeBin, { recursive: true });
+
+    // Fake ruff: present (host prereq passes).
+    fs.writeFileSync(path.join(fakeBin, "ruff"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    // Fake uv: present for host prereq, fails on sync (MCP venv sync fails).
+    fs.writeFileSync(
+      path.join(fakeBin, "uv"),
+      "#!/bin/sh\nif [ \"$1\" = sync ]; then echo 'uv sync failed' >&2; exit 1; fi\nexit 0\n",
+      { mode: 0o755 },
     );
-    assert.notEqual(result.status, 0, `expected non-zero exit; stdout=${result.stdout} stderr=${result.stderr}`);
-    let report = null;
-    try {
-      report = JSON.parse(result.stdout);
-    } catch {
-      report = null;
-    }
-    if (report && typeof report === "object") {
-      assert.equal(report.ok, false);
-      assert.ok(
-        report.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.UNAVAILABLE
-          || report.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.FAILED,
-      );
-    }
+    // Fake claude: absent → runtime host unavailable (optional path, not configured).
+    // (No fake claude binary in fakeBin.)
+
+    // Fake Ollama /api/tags so local_only discovery succeeds deterministically.
+    const tags = JSON.stringify({ models: [{ name: "qwen2.5-coder:7b" }] });
+    const server = http.createServer((req, res) => {
+      if (req.url && req.url.includes("/api/tags")) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(tags);
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+
+    return new Promise((resolve, reject) => {
+      server.listen(0, "127.0.0.1", () => {
+        const port = server.address().port;
+        // Minimal PATH: hide any real claude binary so the host is deterministically
+        // unavailable; keep node dir + system bins for shim validation.
+        const env = {
+          ...process.env,
+          HOME: home,
+          OLLAMA_HOST: "127.0.0.1",
+          OLLAMA_PORT: String(port),
+          PATH: [
+            fakeBin,
+            binDir,
+            path.dirname(process.execPath),
+            "/usr/bin",
+            "/bin",
+          ].join(path.delimiter),
+        };
+        const result = spawnSync(
+          process.execPath,
+          [
+            path.join(REPO_ROOT, "scripts", "install-ai-minions.mjs"),
+            "--model-policy",
+            "local_only",
+            "--bin-dir",
+            binDir,
+            "--json",
+          ],
+          { encoding: "utf8", env, cwd: tmp },
+        );
+        server.close();
+        try {
+          assert.notEqual(result.status, 0, `expected non-zero exit; stdout=${result.stdout} stderr=${result.stderr}`);
+          const report = JSON.parse(result.stdout);
+          assert.equal(report.ok, false);
+          assert.ok(
+            report.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.UNAVAILABLE
+              || report.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.FAILED,
+            `unexpected runtime_integration_status: ${report.runtime_integration_status}`,
+          );
+          assert.ok(report.checks.some((c) => c.id.startsWith("mcp_venv:") && c.status === "fail"));
+          assert.equal(report.runtime_integration?.ok, false);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+      server.on("error", reject);
+    });
   });
 
   it("unavailable host with failed venv sync points at uv/venv repair", () => {
