@@ -55,6 +55,7 @@ export function syncMcpVenv(mcpDir, options = {}) {
  * @param {{
  *   repoRoot: string,
  *   skip?: boolean,
+ *   require?: boolean,
  *   homeDir?: string,
  *   adapter?: ReturnType<typeof createClaudeCodeAdapter>,
  *   syncMcpVenvFn?: typeof syncMcpVenv,
@@ -119,22 +120,28 @@ export function runRuntimeIntegrationInstall(options) {
     for (const hook of REQUIRED_HOOKS) {
       hook_wiring[hook.hook_id] = "unavailable";
     }
+    const required = options.require === true;
+    const reason = host.reason_code ?? RUNTIME_REASON_CODES.UNAVAILABLE;
     checks.push({
       id: "runtime_host",
-      reason_code: host.reason_code ?? RUNTIME_REASON_CODES.UNAVAILABLE,
-      status: "fail",
+      reason_code: reason,
+      // Optional Claude Code host: warn. Explicit --require-runtime-integration: fail.
+      status: required ? "fail" : "warn",
       message: host.message,
     });
     return {
-      ok: false,
+      // Product local_only install must not look failed when only the optional host is missing.
+      ok: !required,
+      required,
       runtime_host: adapter.id,
       runtime_integration_status: RUNTIME_INTEGRATION_STATUS.UNAVAILABLE,
       reason_code: RUNTIME_REASON_CODES.UNAVAILABLE,
       mcp_registration,
       hook_wiring,
       checks,
-      next_safe_action:
-        "Install Claude Code CLI (runtime host), ensure `claude` is on PATH, then re-run install — or pass --skip-runtime-integration",
+      next_safe_action: required
+        ? "Install Claude Code CLI (runtime host), ensure `claude` is on PATH, then re-run install — or omit --require-runtime-integration for local_only product use"
+        : "Optional: install Claude Code CLI and re-run install to wire MCP/hooks — product CLI works without it for local_only",
       settings_path: adapter.settingsPath,
     };
   }

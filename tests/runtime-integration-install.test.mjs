@@ -15,6 +15,7 @@ import {
 import { runRuntimeIntegrationInstall } from "../scripts/lib/runtime-integration-install.mjs";
 import {
   deriveInstallNextSafeAction,
+  formatReportText,
   parseArgs,
   runInstallAiMinions,
 } from "../scripts/install-ai-minions.mjs";
@@ -136,9 +137,13 @@ function mockSpawn({ registered = new Set(), failAdd = null, claudeMissing = fal
 }
 
 describe("runtime-integration-install", () => {
-  it("parseArgs recognizes --skip-runtime-integration", () => {
-    const args = parseArgs(["--skip-runtime-integration", "--json"]);
-    assert.equal(args.skipRuntimeIntegration, true);
+  it("parseArgs recognizes --skip-runtime-integration and --require-runtime-integration", () => {
+    const skip = parseArgs(["--skip-runtime-integration", "--json"]);
+    assert.equal(skip.skipRuntimeIntegration, true);
+    assert.equal(skip.requireRuntimeIntegration, false);
+    const req = parseArgs(["--require-runtime-integration"]);
+    assert.equal(req.requireRuntimeIntegration, true);
+    assert.equal(req.skipRuntimeIntegration, false);
   });
 
   it("skip path is observable and not configured", () => {
@@ -158,7 +163,7 @@ describe("runtime-integration-install", () => {
     assert.match(out.next_safe_action, /without --skip-runtime-integration/);
   });
 
-  it("unavailable host fails closed without silent skip", () => {
+  it("unavailable host is optional warn (not global fail) without silent skip", () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-int-unavail-"));
     makeRepo(tmp);
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-home-"));
@@ -171,10 +176,35 @@ describe("runtime-integration-install", () => {
       }),
       syncMcpVenvFn: () => ({ ok: true, reason_code: null, message: "ok" }),
     });
-    assert.equal(out.ok, false);
+    assert.equal(out.ok, true);
+    assert.equal(out.required, false);
     assert.equal(out.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
     assert.equal(out.reason_code, RUNTIME_REASON_CODES.UNAVAILABLE);
-    assert.match(out.next_safe_action, /Claude Code|skip-runtime-integration/);
+    assert.equal(out.checks[0]?.status, "warn");
+    assert.equal(out.mcp_registration["orchestrator-state"], "unavailable");
+    assert.equal(out.hook_wiring["mode-enforcer"], "unavailable");
+    assert.match(out.next_safe_action, /Optional:|local_only/i);
+  });
+
+  it("unavailable host fails when runtime integration is explicitly required", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-int-require-"));
+    makeRepo(tmp);
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-home-"));
+    const out = runRuntimeIntegrationInstall({
+      repoRoot: tmp,
+      homeDir: home,
+      require: true,
+      adapter: createClaudeCodeAdapter({
+        homeDir: home,
+        spawnSyncFn: mockSpawn({ claudeMissing: true }),
+      }),
+      syncMcpVenvFn: () => ({ ok: true, reason_code: null, message: "ok" }),
+    });
+    assert.equal(out.ok, false);
+    assert.equal(out.required, true);
+    assert.equal(out.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
+    assert.equal(out.checks[0]?.status, "fail");
+    assert.match(out.next_safe_action, /require-runtime-integration|Claude Code/);
   });
 
   it("clean install registers MCP and wires hooks idempotently", () => {
@@ -388,5 +418,73 @@ describe("runtime-integration-install", () => {
     assert.equal(report.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.CONFIGURED);
     assert.equal(report.phase, "runtime_integration");
     assert.equal(report.ok, true);
+  });
+
+  it("local_only install without Claude Code is ok with unavailable runtime warning", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-int-local-only-"));
+    makeRepo(tmp);
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-home-"));
+    const report = await runInstallAiMinions({
+      ...installHappyPathMocks(home),
+      repoRoot: tmp,
+      modelPolicy: "local_only",
+      cliInstall: false,
+      runtimeHostAdapter: createClaudeCodeAdapter({
+        homeDir: home,
+        spawnSyncFn: mockSpawn({ claudeMissing: true }),
+      }),
+      syncMcpVenvFn: () => ({ ok: true, reason_code: null, message: "ok" }),
+    });
+    assert.equal(report.ok, true);
+    assert.equal(report.model_backend, "ollama");
+    assert.equal(report.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
+    assert.equal(report.runtime_integration?.mcp_registration?.["orchestrator-state"], "unavailable");
+    assert.equal(report.runtime_integration?.hook_wiring?.["mode-enforcer"], "unavailable");
+    assert.ok(report.checks.some((c) => c.id === "runtime_host" && c.status === "warn"));
+    assert.ok(!report.checks.some((c) => c.id === "runtime_host" && c.status === "fail"));
+    assert.match(deriveInstallNextSafeAction(report), /ai-minions --help|optional/i);
+
+    const text = formatReportText(report, { useColor: false });
+    assert.match(text, /install complete/);
+    assert.match(text, /runtime integration unavailable \(optional/);
+    assert.match(text, /ok: true/);
+    assert.match(text, /runtime_integration_status: unavailable/i);
+    assert.match(text, /RUNTIME_HOST_UNAVAILABLE/);
+    assert.doesNotMatch(text, /INSTALL BLOCKED/);
+
+    const json = JSON.parse(JSON.stringify(report));
+    assert.equal(json.ok, true);
+    assert.equal(json.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
+  });
+
+  it("require-runtime-integration without Claude Code fails overall install", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-int-require-install-"));
+    makeRepo(tmp);
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-home-"));
+    const report = await runInstallAiMinions({
+      ...installHappyPathMocks(home),
+      repoRoot: tmp,
+      modelPolicy: "local_only",
+      cliInstall: false,
+      requireRuntimeIntegration: true,
+      runtimeHostAdapter: createClaudeCodeAdapter({
+        homeDir: home,
+        spawnSyncFn: mockSpawn({ claudeMissing: true }),
+      }),
+      syncMcpVenvFn: () => ({ ok: true, reason_code: null, message: "ok" }),
+    });
+    assert.equal(report.ok, false);
+    assert.equal(report.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
+    assert.ok(report.checks.some((c) => c.id === "runtime_host" && c.status === "fail"));
+    assert.match(deriveInstallNextSafeAction(report), /Claude Code|require-runtime-integration/);
+
+    const text = formatReportText(report, { useColor: false });
+    assert.match(text, /INSTALL BLOCKED/);
+    assert.match(text, /ok: false/);
+    assert.match(text, /runtime_integration_status: unavailable/i);
+
+    const json = JSON.parse(JSON.stringify(report));
+    assert.equal(json.ok, false);
+    assert.equal(json.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
   });
 });
