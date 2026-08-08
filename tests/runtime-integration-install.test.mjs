@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -14,6 +15,7 @@ import {
 } from "../scripts/lib/runtime-host-claude-code.mjs";
 import { runRuntimeIntegrationInstall } from "../scripts/lib/runtime-integration-install.mjs";
 import {
+  REPO_ROOT,
   deriveInstallNextSafeAction,
   formatReportText,
   parseArgs,
@@ -536,5 +538,101 @@ describe("runtime-integration-install", () => {
     const json = JSON.parse(JSON.stringify(report));
     assert.equal(json.ok, false);
     assert.equal(json.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
+  });
+
+  it("runInstallAiMinions fails overall when unavailable host has failed venv sync", async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-int-venv-install-"));
+    makeRepo(tmp);
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-home-"));
+    const report = await runInstallAiMinions({
+      ...installHappyPathMocks(home),
+      repoRoot: tmp,
+      modelPolicy: "local_only",
+      cliInstall: false,
+      runtimeHostAdapter: createClaudeCodeAdapter({
+        homeDir: home,
+        spawnSyncFn: mockSpawn({ claudeMissing: true }),
+      }),
+      syncMcpVenvFn: () => ({
+        ok: false,
+        reason_code: RUNTIME_REASON_CODES.MCP_VENV_SYNC_FAILED,
+        message: "uv not found in PATH",
+      }),
+    });
+    assert.equal(report.ok, false);
+    assert.equal(report.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
+    assert.equal(report.runtime_integration?.ok, false);
+    assert.ok(report.checks.some((c) => c.id === "runtime_host" && c.status === "warn"));
+    assert.ok(report.checks.some((c) => c.id.startsWith("mcp_venv:") && c.status === "fail"));
+    assert.match(deriveInstallNextSafeAction(report), /venv|uv/i);
+
+    const text = formatReportText(report, { useColor: false });
+    assert.match(text, /INSTALL BLOCKED/);
+    assert.match(text, /ok: false/);
+
+    const json = JSON.parse(JSON.stringify(report));
+    assert.equal(json.ok, false);
+    assert.equal(json.runtime_integration_status, RUNTIME_INTEGRATION_STATUS.UNAVAILABLE);
+  });
+
+  it("CLI exit code is non-zero when shim materializes but venv sync fails", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-int-exit-"));
+    makeRepo(tmp);
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-home-"));
+    const binDir = path.join(home, "bin");
+    const env = {
+      ...process.env,
+      HOME: home,
+      AI_MINIONS_TEST_NODE_VERSION: "22.0.0",
+      PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+    };
+    const result = spawnSync(
+      process.execPath,
+      [
+        path.join(REPO_ROOT, "scripts", "install-ai-minions.mjs"),
+        "--model-policy",
+        "local_only",
+        "--bin-dir",
+        binDir,
+        "--json",
+      ],
+      { encoding: "utf8", env, cwd: tmp },
+    );
+    assert.notEqual(result.status, 0, `expected non-zero exit; stdout=${result.stdout} stderr=${result.stderr}`);
+    let report = null;
+    try {
+      report = JSON.parse(result.stdout);
+    } catch {
+      report = null;
+    }
+    if (report && typeof report === "object") {
+      assert.equal(report.ok, false);
+      assert.ok(
+        report.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.UNAVAILABLE
+          || report.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.FAILED,
+      );
+    }
+  });
+
+  it("unavailable host with failed venv sync points at uv/venv repair", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-int-venv-action-"));
+    makeRepo(tmp);
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-home-"));
+    const out = runRuntimeIntegrationInstall({
+      repoRoot: tmp,
+      homeDir: home,
+      adapter: createClaudeCodeAdapter({
+        homeDir: home,
+        spawnSyncFn: mockSpawn({ claudeMissing: true }),
+      }),
+      syncMcpVenvFn: () => ({
+        ok: false,
+        reason_code: RUNTIME_REASON_CODES.MCP_VENV_SYNC_FAILED,
+        message: "uv not found in PATH",
+      }),
+    });
+    assert.equal(out.ok, false);
+    assert.match(out.next_safe_action, /uv|venv/i);
+    assert.doesNotMatch(out.next_safe_action, /Install Claude Code CLI/);
   });
 });

@@ -546,13 +546,16 @@ export async function runInstallAiMinions(options = {}) {
       });
     }
 
-    // UNAVAILABLE (no Claude Code) is optional unless --require-runtime-integration.
+    // UNAVAILABLE (no Claude Code) is optional only when the runtime result itself
+    // succeeded (runtimeIntegration.ok === true). A failed venv sync keeps
+    // status UNAVAILABLE but ok:false — that is a real product failure.
     // SKIPPED (--skip-runtime-integration) is also non-blocking.
     const runtimeOk = runtimeIntegration == null
       || runtimeIntegration.ok === true
       || runtimeIntegration.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.SKIPPED
       || (
         runtimeIntegration.runtime_integration_status === RUNTIME_INTEGRATION_STATUS.UNAVAILABLE
+        && runtimeIntegration.ok === true
         && options.requireRuntimeIntegration !== true
       );
     const combinedChecks = [
@@ -959,9 +962,12 @@ See docs/orchestrator/model-config-ownership.md for YAML vs JSON ownership.
     process.stdout.write(`${formatReportText(report)}\n`);
   }
 
-  // Exit 0 when host+shim materialized (PATH activation is a warn / next step).
-  // Optional Claude Code absence must not fail the process; --require-runtime-integration does.
-  let exitOk = args.skipCli ? report.ok : report.product_cli_ok === true;
+  // Exit 0 only when the product is ready (report.ok) and the CLI/shim is
+  // materialized. A shim on disk with a failed venv sync must not exit 0.
+  // Optional Claude Code absence stays non-blocking; --require-runtime-integration fails.
+  let exitOk = args.skipCli
+    ? report.ok === true
+    : report.ok === true && report.product_cli_ok === true;
   if (args.requireRuntimeIntegration === true && report.ok !== true) {
     exitOk = false;
   }

@@ -158,9 +158,11 @@ export function runRuntimeIntegrationInstall(options) {
       mcp_registration,
       hook_wiring,
       checks,
-      next_safe_action: required
-        ? "Install Claude Code CLI (runtime host), ensure `claude` is on PATH, then re-run install — or omit --require-runtime-integration for local_only product use"
-        : "Optional: install Claude Code CLI and re-run install to wire MCP/hooks — product CLI works without it for local_only",
+      next_safe_action: !venvsOk
+        ? `Fix MCP venv sync (install uv / repair ${venvSyncFailed.join(", ")} venvs), then re-run install`
+        : required
+          ? "Install Claude Code CLI (runtime host), ensure `claude` is on PATH, then re-run install — or omit --require-runtime-integration for local_only product use"
+          : "Optional: install Claude Code CLI and re-run install to wire MCP/hooks — product CLI works without it for local_only",
       settings_path: adapter.settingsPath,
     };
   }
