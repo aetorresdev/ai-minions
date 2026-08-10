@@ -53,7 +53,7 @@ def resolve_ollama_model(client: httpx.Client | None = None) -> str:
         if len(models) == 1:
             _model_cache = models[0]
             return _model_cache
-    except Exception:  # noqa: BLE001 — discovery is best-effort; fall back to default
+    except Exception:  # noqa: BLE001, S110 — discovery is best-effort; fall back to default
         pass
     _model_cache = OLLAMA_MODEL_DEFAULT
     return _model_cache
