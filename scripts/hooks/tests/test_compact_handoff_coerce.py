@@ -125,5 +125,31 @@ class TestResolveOllamaModel(unittest.TestCase):
         self.assertEqual(self.mod.resolve_ollama_model(client), self.mod.OLLAMA_MODEL_DEFAULT)
 
 
+class TestThinkFlag(unittest.TestCase):
+    """Compaction runs with think disabled so thinking models don't exhaust
+    num_predict on hidden reasoning and return empty output."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_compact_handoff()
+
+    def setUp(self):
+        self._backup = os.environ.get("COMPACT_HANDOFF_THINK")
+        os.environ.pop("COMPACT_HANDOFF_THINK", None)
+
+    def tearDown(self):
+        if self._backup is None:
+            os.environ.pop("COMPACT_HANDOFF_THINK", None)
+        else:
+            os.environ["COMPACT_HANDOFF_THINK"] = self._backup
+
+    def test_think_disabled_by_default(self):
+        self.assertEqual(self.mod._think_enabled(), False)
+
+    def test_think_env_opt_in(self):
+        os.environ["COMPACT_HANDOFF_THINK"] = "1"
+        self.assertEqual(self.mod._think_enabled(), True)
+
+
 if __name__ == "__main__":
     unittest.main()

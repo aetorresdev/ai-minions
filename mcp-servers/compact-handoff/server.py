@@ -101,6 +101,13 @@ Rules:
 """
 
 
+def _think_enabled() -> bool:
+    """Compaction is mechanical extraction — thinking spends num_predict on
+    hidden reasoning and can return an empty response (done_reason=length).
+    Disabled by default; COMPACT_HANDOFF_THINK=1 opts back in."""
+    return os.environ.get("COMPACT_HANDOFF_THINK", "").strip().lower() in ("1", "true", "on", "yes")
+
+
 def call_ollama(prompt: str, num_predict: int = 512) -> tuple[str, dict[str, int]]:
     """Returns (response_text, usage_dict) where usage has Ollama token counts when present."""
     with httpx.Client(timeout=90.0) as client:
@@ -108,6 +115,7 @@ def call_ollama(prompt: str, num_predict: int = 512) -> tuple[str, dict[str, int
             "model": resolve_ollama_model(client),
             "prompt": prompt,
             "stream": False,
+            "think": _think_enabled(),
             "options": {
                 "temperature": 0.1,
                 "num_predict": num_predict,
