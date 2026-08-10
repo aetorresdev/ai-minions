@@ -10,15 +10,53 @@ Tools:
     validate_goal_alignment(handoff_yaml, goal, flow_mode)
 """
 import json
+import os
 from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-OLLAMA_URL   = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5-coder:7b"
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+OLLAMA_URL   = f"{OLLAMA_BASE_URL}/api/generate"
+OLLAMA_MODEL_DEFAULT = "qwen2.5-coder:7b"
 
 mcp = FastMCP("compact-handoff")
+
+_model_cache: str | None = None
+
+
+def resolve_ollama_model(client: httpx.Client | None = None) -> str:
+    """Model for compaction: env override → single discovered local model → default.
+
+    Single-model installs (e.g. only qwen3.6 pulled) must not 404 because the
+    hardcoded default is absent. Result is cached for the server process.
+    """
+    global _model_cache
+    if _model_cache:
+        return _model_cache
+    env_model = (
+        os.environ.get("COMPACT_HANDOFF_OLLAMA_MODEL")
+        or os.environ.get("AI_MINIONS_OLLAMA_MODEL")
+        or os.environ.get("OLLAMA_MODEL")
+    )
+    if env_model and env_model.strip():
+        _model_cache = env_model.strip()
+        return _model_cache
+    try:
+        if client is not None:
+            resp = client.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5.0)
+        else:
+            with httpx.Client(timeout=5.0) as c:
+                resp = c.get(f"{OLLAMA_BASE_URL}/api/tags")
+        resp.raise_for_status()
+        models = [m.get("name") for m in (resp.json().get("models") or []) if m.get("name")]
+        if len(models) == 1:
+            _model_cache = models[0]
+            return _model_cache
+    except Exception:  # noqa: BLE001 — discovery is best-effort; fall back to default
+        pass
+    _model_cache = OLLAMA_MODEL_DEFAULT
+    return _model_cache
 
 HANDOFF_SCHEMA = """
 handoff:
@@ -65,16 +103,16 @@ Rules:
 
 def call_ollama(prompt: str, num_predict: int = 512) -> tuple[str, dict[str, int]]:
     """Returns (response_text, usage_dict) where usage has Ollama token counts when present."""
-    payload = {
-        "model": OLLAMA_MODEL,
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            "temperature": 0.1,
-            "num_predict": num_predict,
-        },
-    }
     with httpx.Client(timeout=90.0) as client:
+        payload = {
+            "model": resolve_ollama_model(client),
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.1,
+                "num_predict": num_predict,
+            },
+        }
         resp = client.post(OLLAMA_URL, json=payload)
         resp.raise_for_status()
         data = resp.json()
