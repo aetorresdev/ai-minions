@@ -85,6 +85,34 @@ describe("ollama-tools executors", () => {
     }
   });
 
+  it("accepts a cwd reached through a symlink (macOS tmpdir shape)", () => {
+    // macOS: os.tmpdir() → /var/folders/... (symlink to /private/var/...).
+    // Containment must compare realpath vs realpath, not the lexical root.
+    const realDir = fs.realpathSync(tmpDir);
+    const alias = path.join(os.tmpdir(), `ollama-tools-alias-${process.pid}`);
+    fs.symlinkSync(realDir, alias);
+    try {
+      const out = executeOllamaTool("read_file", { path: "a.txt" }, { cwd: alias });
+      assert.equal(out.ok, true);
+      assert.equal(out.output, "hello");
+      const wr = executeOllamaTool("write_file", { path: "sub/c.txt", content: "z" }, { cwd: alias });
+      assert.equal(wr.ok, true);
+      assert.equal(fs.readFileSync(path.join(tmpDir, "sub", "c.txt"), "utf8"), "z");
+      // Escape protection still applies through the alias.
+      const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ollama-tools-out2-"));
+      try {
+        fs.writeFileSync(path.join(outside, "secret.txt"), "s3cret", "utf8");
+        fs.symlinkSync(outside, path.join(tmpDir, "link2"));
+        const esc = executeOllamaTool("read_file", { path: "link2/secret.txt" }, { cwd: alias });
+        assert.equal(esc.ok, false);
+      } finally {
+        fs.rmSync(outside, { recursive: true, force: true });
+      }
+    } finally {
+      fs.unlinkSync(alias); // symlink, not a real dir — rmSync would follow it
+    }
+  });
+
   it("truncates large reads", () => {
     fs.writeFileSync(path.join(tmpDir, "big.txt"), "x".repeat(MAX_READ_BYTES + 100), "utf8");
     const out = executeOllamaTool("read_file", { path: "big.txt" }, { cwd: tmpDir });

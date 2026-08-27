@@ -35,6 +35,7 @@ const os     = require("node:os");
 const path   = require("node:path");
 const { run } = require("../orchestrator");
 const { setBackend } = require("../agents");
+const { materializeE2eModelPolicy, resolveRepoRoot } = require("./e2e-strict-shared");
 
 // ── Ollama helpers ────────────────────────────────────────────────────────────
 
@@ -111,6 +112,7 @@ describe("E2E — Orchestrator with Ollama", { concurrency: 1 }, () => {
     // Force all agent roles to use Ollama — no claude CLI calls during E2E tests
     process.env.OLLAMA_MODEL = ollamaModel;
     setBackend("ollama");
+    materializeE2eModelPolicy({ model: ollamaModel, host: OLLAMA_HOST, port: OLLAMA_PORT });
     console.log(`[e2e] Ollama ready — using model: ${ollamaModel}`);
     console.log(`[e2e] Available models: ${models.join(", ")}`);
     console.log(`[e2e] setBackend("ollama") — all agent roles will use Ollama`);
@@ -554,7 +556,12 @@ describe("E2E — Orchestrator with Ollama", { concurrency: 1 }, () => {
 
     function callDirect(server, tool, args) {
       const req = JSON.stringify({ server, tool, args });
-      const r = sp("python3", [MCP_DIRECT], { input: req, encoding: "utf8", timeout: 30000 });
+      const r = sp("python3", [MCP_DIRECT], {
+        input: req,
+        encoding: "utf8",
+        timeout: 30000,
+        env: { ...process.env, REPO_ROOT: resolveRepoRoot() },
+      });
       if (r.error) throw r.error;
       const raw = r.stdout.trim();
       // Output may be a multi-line JSON object or a YAML string (compact_handoff).

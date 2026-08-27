@@ -71,6 +71,12 @@ describe('install-model-config — build', () => {
     assert.equal(built.yamlPolicy.local_backend.support_status, 'supported');
     assert.ok(built.jsonPolicy.provider_inference_profiles.anthropic);
     assert.ok(built.jsonPolicy.provider_inference_profiles.ollama);
+    const ollamaProfiles = built.jsonPolicy.provider_inference_profiles.ollama;
+    assert.ok(ollamaProfiles.by_role, 'ollama by_role profile present');
+    assert.equal(ollamaProfiles.by_role.ARCHITECT.max_tokens, 8192);
+    assert.equal(ollamaProfiles.by_role.ARCHITECT.thinking_mode, 'disabled');
+    assert.equal(ollamaProfiles.by_role.CERBERUS.max_tokens, 8192);
+    assert.equal(ollamaProfiles.by_role.CERBERUS.thinking_mode, 'disabled');
     validateRuntimeYamlPolicy(built.yamlPolicy);
     validateModelPolicy(built.jsonPolicy);
   });

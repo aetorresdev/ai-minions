@@ -47,6 +47,33 @@ function positiveInt(value) {
 }
 
 /**
+ * Map provider-neutral thinking_mode to the Ollama /api/chat `think` field.
+ * Ollama accepts a boolean (or model-specific level strings) — never send the
+ * literal profile value: adaptive/unknown modes are omitted (model default).
+ * @param {unknown} mode
+ * @returns {boolean | undefined}
+ */
+function ollamaThinkFlagFromMode(mode) {
+  const m = String(mode ?? '').trim().toLowerCase();
+  if (m === 'disabled') return false;
+  if (m === 'enabled') return true;
+  return undefined;
+}
+
+/**
+ * OLLAMA_THINK env override: 1/true/on/yes → true; 0/false/off/no → false.
+ * @param {unknown} raw
+ * @returns {boolean | undefined}
+ */
+function parseThinkEnv(raw) {
+  const v = String(raw ?? '').trim().toLowerCase();
+  if (!v) return undefined;
+  if (['1', 'true', 'on', 'yes'].includes(v)) return true;
+  if (['0', 'false', 'off', 'no'].includes(v)) return false;
+  return undefined;
+}
+
+/**
  * @param {{
  *   cwd?: string,
  *   role?: string | null,
@@ -58,23 +85,35 @@ function positiveInt(value) {
  *   profile_source: string | null,
  *   inference_profile_mode: 'applied' | 'env' | 'default',
  *   role: string | null,
+ *   thinking_mode: string | null,
+ *   think: boolean | undefined,
  * }}
  */
-function resolveOllamaNumPredict(options = {}) {
-  const env = options.env ?? process.env;
-  const envPredict = positiveInt(env.OLLAMA_NUM_PREDICT);
-  if (envPredict != null) {
-    return {
-      num_predict: envPredict,
-      profile_source: 'env_ollama_num_predict',
-      inference_profile_mode: 'env',
-      role: normalizeTraceRole(options.role),
-    };
-  }
+function extractOllamaProfileThinking(policy, role) {
+  const profiles = policy?.provider_inference_profiles?.ollama;
+  const roleEntry = role && profiles?.by_role && typeof profiles.by_role === 'object'
+    ? profiles.by_role[role]
+    : null;
+  const defaultEntry = profiles?.default && typeof profiles.default === 'object'
+    ? profiles.default
+    : null;
+  const profileThinkingMode = typeof roleEntry?.thinking_mode === 'string'
+    ? roleEntry.thinking_mode
+    : (typeof defaultEntry?.thinking_mode === 'string' ? defaultEntry.thinking_mode : null);
+  return {
+    thinking_mode: profileThinkingMode,
+    think: ollamaThinkFlagFromMode(profileThinkingMode),
+    roleEntry,
+    defaultEntry,
+  };
+}
 
+function resolveOllamaNumPredict(options = {}) {
   const loadPolicy = options.loadPolicy ?? loadModelPolicyConfig;
   const envMap = options.env ?? process.env;
   const baseCwd = options.cwd != null ? String(options.cwd) : process.cwd();
+  const role = normalizeTraceRole(options.role);
+  const envPredict = positiveInt(envMap.OLLAMA_NUM_PREDICT);
 
   const candidates = [baseCwd];
   for (const key of ['AI_MINIONS_HOME', 'REPO_ROOT']) {
@@ -85,7 +124,6 @@ function resolveOllamaNumPredict(options = {}) {
   }
 
   let policy = null;
-  let policyLoadError = null;
   for (const candidate of candidates) {
     const hasConfig =
       fs.existsSync(path.join(candidate, '.ai-minions', 'model_policy.json'))
@@ -94,41 +132,48 @@ function resolveOllamaNumPredict(options = {}) {
     try {
       policy = loadPolicy(candidate).policy;
       break;
-    } catch (err) {
-      policyLoadError = err;
+    } catch {
       policy = null;
       break;
     }
-  }
-  if (!policy && policyLoadError) {
-    return {
-      num_predict: DEFAULT_NUM_PREDICT,
-      profile_source: null,
-      inference_profile_mode: 'default',
-      role: normalizeTraceRole(options.role),
-    };
   }
   if (!policy) {
     try {
       policy = loadPolicy(baseCwd).policy;
     } catch {
-      return {
-        num_predict: DEFAULT_NUM_PREDICT,
-        profile_source: null,
-        inference_profile_mode: 'default',
-        role: normalizeTraceRole(options.role),
-      };
+      policy = null;
     }
   }
 
-  const profiles = policy?.provider_inference_profiles?.ollama;
-  const role = normalizeTraceRole(options.role);
-  const roleEntry = role && profiles?.by_role && typeof profiles.by_role === 'object'
-    ? profiles.by_role[role]
-    : null;
-  const defaultEntry = profiles?.default && typeof profiles.default === 'object'
-    ? profiles.default
-    : null;
+  const {
+    thinking_mode: profileThinkingMode,
+    think: thinkFromProfile,
+    roleEntry,
+    defaultEntry,
+  } = extractOllamaProfileThinking(policy, role);
+
+  // OLLAMA_NUM_PREDICT wins even when model_policy.json is corrupt/unreadable.
+  if (envPredict != null) {
+    return {
+      num_predict: envPredict,
+      profile_source: 'env_ollama_num_predict',
+      inference_profile_mode: 'env',
+      role,
+      thinking_mode: profileThinkingMode,
+      think: thinkFromProfile,
+    };
+  }
+
+  if (!policy) {
+    return {
+      num_predict: DEFAULT_NUM_PREDICT,
+      profile_source: null,
+      inference_profile_mode: 'default',
+      role,
+      thinking_mode: profileThinkingMode,
+      think: thinkFromProfile,
+    };
+  }
 
   const roleTokens = roleEntry ? positiveInt(roleEntry.max_tokens) : null;
   if (roleTokens != null) {
@@ -139,6 +184,8 @@ function resolveOllamaNumPredict(options = {}) {
         : 'model_policy_json',
       inference_profile_mode: 'applied',
       role,
+      thinking_mode: profileThinkingMode,
+      think: thinkFromProfile,
     };
   }
 
@@ -151,6 +198,8 @@ function resolveOllamaNumPredict(options = {}) {
         : 'model_policy_json',
       inference_profile_mode: 'applied',
       role,
+      thinking_mode: profileThinkingMode,
+      think: thinkFromProfile,
     };
   }
 
@@ -159,11 +208,40 @@ function resolveOllamaNumPredict(options = {}) {
     profile_source: null,
     inference_profile_mode: 'default',
     role,
+    thinking_mode: profileThinkingMode,
+    think: thinkFromProfile,
+  };
+}
+
+/**
+ * Resolve the effective Ollama `think` flag for a call.
+ * Precedence: OLLAMA_THINK env → by_role thinking_mode → default thinking_mode → omit.
+ * @param {{
+ *   cwd?: string,
+ *   role?: string | null,
+ *   env?: NodeJS.ProcessEnv,
+ *   loadPolicy?: typeof loadModelPolicyConfig,
+ * }} [options]
+ * @returns {{ think: boolean | undefined, thinking_mode: string | null, profile_source: string | null }}
+ */
+function resolveOllamaThink(options = {}) {
+  const envMap = options.env ?? process.env;
+  const envThink = parseThinkEnv(envMap.OLLAMA_THINK);
+  if (envThink !== undefined) {
+    return { think: envThink, thinking_mode: null, profile_source: 'env_ollama_think' };
+  }
+  const budget = resolveOllamaNumPredict(options);
+  return {
+    think: budget.think,
+    thinking_mode: budget.thinking_mode,
+    profile_source: budget.profile_source,
   };
 }
 
 module.exports = {
   DEFAULT_NUM_PREDICT,
   resolveOllamaNumPredict,
+  resolveOllamaThink,
+  ollamaThinkFlagFromMode,
   normalizeTraceRole,
 };

@@ -76,6 +76,45 @@ function parseMcpDirectStdout(raw) {
   return t;
 }
 
+function resolveRepoRoot() {
+  return path.resolve(__dirname, "..", "..");
+}
+
+/**
+ * Materialize install-time model-policy.yaml for E2E/MCP-direct legs.
+ * CI sets OLLAMA_MODEL for the orchestrator Node path; compact-handoff reads
+ * default_model from YAML (not env). Does not overwrite model_policy.json routing.
+ * @param {{ repoRoot?: string, model?: string, host?: string, port?: number }} [options]
+ */
+function materializeE2eModelPolicy(options = {}) {
+  const repoRoot = options.repoRoot || resolveRepoRoot();
+  const model = options.model || process.env.OLLAMA_MODEL;
+  if (!model || !String(model).trim()) {
+    throw new Error("materializeE2eModelPolicy: model required");
+  }
+  let host = String(options.host || process.env.OLLAMA_HOST || "127.0.0.1").trim();
+  if (host === "localhost" || host === "0.0.0.0") host = "127.0.0.1";
+  const port = Number(options.port || process.env.OLLAMA_PORT || 11434);
+  const configDir = path.join(repoRoot, ".ai-minions");
+  fs.mkdirSync(configDir, { recursive: true });
+  const yaml = [
+    "model_policy_version: 1",
+    `default_model: ${String(model).trim()}`,
+    "local_backend:",
+    "  backend_id: ollama",
+    "  support_status: supported",
+    `  host: ${host}`,
+    `  port: ${port}`,
+    `  base_url: http://${host}:${port}`,
+    "  endpoint_scope: localhost",
+    "",
+  ].join("\n");
+  const configPath = path.join(configDir, "model-policy.yaml");
+  fs.writeFileSync(configPath, yaml, "utf8");
+  process.env.REPO_ROOT = repoRoot;
+  return { repoRoot, configPath };
+}
+
 function callMcpDirect(mcpScript, server, tool, args) {
   const py = process.env.ORCH_PYTHON || "python3";
   const payload = JSON.stringify({ server, tool, args });
@@ -85,6 +124,7 @@ function callMcpDirect(mcpScript, server, tool, args) {
     maxBuffer: 8 * 1024 * 1024,
     timeout: 120000,
     windowsHide: true,
+    env: { ...process.env, REPO_ROOT: resolveRepoRoot() },
   });
   if (r.error) throw r.error;
   if (r.status !== 0) {
@@ -167,6 +207,7 @@ async function initE2eStrictSuite() {
   }
   process.env.OLLAMA_MODEL = ollamaModel;
   setBackend("ollama");
+  materializeE2eModelPolicy({ model: ollamaModel, host: OLLAMA_HOST, port: OLLAMA_PORT });
   console.log(`[e2e-strict] Ollama model: ${ollamaModel} | ORCH_MCP_TRANSPORT=direct`);
   return { ollamaAvailable: true, ollamaModel, mcpDirectExists: true };
 }
@@ -187,4 +228,6 @@ module.exports = {
   traceDir,
   countGoalAlignmentInTrace,
   initE2eStrictSuite,
+  materializeE2eModelPolicy,
+  resolveRepoRoot,
 };

@@ -46,6 +46,7 @@ def _find_repo_root(start: str) -> str:
 
 REPO_ROOT = _find_repo_root(os.path.dirname(__file__))
 MCP_ROOT = os.path.join(REPO_ROOT, "mcp-servers")
+os.environ.setdefault("REPO_ROOT", REPO_ROOT)
 
 def _add_venv(name: str) -> None:
     venv = os.path.join(MCP_ROOT, name, ".venv", "lib")

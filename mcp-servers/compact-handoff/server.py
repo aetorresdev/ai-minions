@@ -4,21 +4,153 @@ compact-handoff MCP server
 Compacts agent output into a structured handoff YAML using a local Ollama model,
 and validates goal alignment before MODE transitions.
 
+Endpoint and model selection follow the install-time model-policy.yaml authority
+(AI_MINIONS_HOME / REPO_ROOT / cwd):
+
+- **Endpoint:** `local_backend` only (localhost/private_lan). `OLLAMA_BASE_URL`
+  and other ad-hoc URL env overrides are not honoured.
+- **Model:** `default_model` from the same YAML file written by the installer and
+  consumed by orchestrator `selectLocalModel()` when CLI/env overrides are absent.
+  Per-role tier routing stays in `model_policy.json` (orchestrator agents only);
+  compact-handoff is mode-agnostic compaction and does not read JSON routing.
+
 Tools:
     compact_handoff(text, mode_completed, next_mode, iteration, max_iterations, flow_mode)
     classify_finding(finding)
     validate_goal_alignment(handoff_yaml, goal, flow_mode)
 """
+from __future__ import annotations
+
+import ipaddress
 import json
+import os
+from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
+import yaml
 from mcp.server.fastmcp import FastMCP
 
-OLLAMA_URL   = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5-coder:7b"
-
 mcp = FastMCP("compact-handoff")
+
+_model_cache: str | None = None
+_endpoint_cache: tuple[str, str] | None = None
+
+MODEL_POLICY_REL = Path(".ai-minions") / "model-policy.yaml"
+
+
+def _config_roots() -> list[Path]:
+    roots: list[Path] = []
+    seen: set[Path] = set()
+    for key in ("AI_MINIONS_HOME", "REPO_ROOT"):
+        raw = os.environ.get(key, "").strip()
+        if not raw:
+            continue
+        root = Path(raw).expanduser().resolve()
+        if root not in seen:
+            roots.append(root)
+            seen.add(root)
+    cwd = Path.cwd().resolve()
+    if cwd not in seen:
+        roots.append(cwd)
+    return roots
+
+
+def _load_install_yaml() -> dict[str, Any] | None:
+    for root in _config_roots():
+        path = root / MODEL_POLICY_REL
+        if not path.is_file():
+            continue
+        with path.open(encoding="utf-8") as fh:
+            data = yaml.safe_load(fh)
+        if isinstance(data, dict):
+            return data
+    return None
+
+
+def classify_endpoint_scope(host: str) -> str:
+    h = host.strip().lower()
+    if h in ("localhost", "127.0.0.1", "::1"):
+        return "localhost"
+    if h.endswith(".local") or h == "host.docker.internal":
+        return "private_lan"
+    try:
+        addr = ipaddress.ip_address(h)
+        if addr.is_loopback:
+            return "localhost"
+        if addr.is_private:
+            return "private_lan"
+        return "public_endpoint"
+    except ValueError:
+        pass
+    if "." in h:
+        return "public_endpoint"
+    return "private_lan"
+
+
+def _endpoint_from_yaml(policy: dict[str, Any]) -> tuple[str, str]:
+    lb = policy.get("local_backend")
+    if not isinstance(lb, dict):
+        raise TypeError("compact-handoff: local_backend must be a mapping")
+    if not lb:
+        raise ValueError("compact-handoff: model-policy.yaml missing local_backend")
+    base_url = lb.get("base_url")
+    if isinstance(base_url, str) and base_url.strip():
+        normalized = base_url.strip().rstrip("/")
+        host = urlparse(normalized if "://" in normalized else f"http://{normalized}").hostname or ""
+        scope = classify_endpoint_scope(host)
+        if scope == "public_endpoint":
+            raise ValueError(f"compact-handoff: public Ollama endpoint blocked ({host})")
+        return normalized, scope
+    host = lb.get("host")
+    if isinstance(host, str) and host.strip():
+        port = int(lb.get("port") or 11434)
+        scope = classify_endpoint_scope(host.strip())
+        if scope == "public_endpoint":
+            raise ValueError(f"compact-handoff: public Ollama endpoint blocked ({host.strip()})")
+        return f"http://{host.strip()}:{port}", scope
+    raise ValueError("compact-handoff: local_backend has no host/base_url")
+
+
+def resolve_ollama_endpoint() -> tuple[str, str]:
+    """Return (base_url, endpoint_scope). Defaults to loopback when YAML absent."""
+    global _endpoint_cache
+    if _endpoint_cache:
+        return _endpoint_cache
+    policy = _load_install_yaml()
+    if policy:
+        _endpoint_cache = _endpoint_from_yaml(policy)
+        return _endpoint_cache
+    _endpoint_cache = ("http://127.0.0.1:11434", "localhost")
+    return _endpoint_cache
+
+
+def resolve_ollama_model(client: httpx.Client, base_url: str) -> str:
+    """Model from install YAML default_model, else exactly one discovered local tag."""
+    global _model_cache
+    if _model_cache:
+        return _model_cache
+    policy = _load_install_yaml()
+    if policy:
+        default_model = policy.get("default_model")
+        if isinstance(default_model, str) and default_model.strip():
+            _model_cache = default_model.strip()
+            return _model_cache
+    try:
+        resp = client.get(f"{base_url.rstrip('/')}/api/tags", timeout=5.0)
+        resp.raise_for_status()
+        models = [m.get("name") for m in (resp.json().get("models") or []) if m.get("name")]
+        if len(models) == 1:
+            _model_cache = models[0]
+            return _model_cache
+    except Exception:  # noqa: BLE001, S110 — discovery is best-effort before hard fail
+        pass
+    raise RuntimeError(
+        "compact-handoff: cannot resolve Ollama model — install model-policy.yaml "
+        "with default_model or pull exactly one local model",
+    )
+
 
 HANDOFF_SCHEMA = """
 handoff:
@@ -63,21 +195,41 @@ Rules:
 """
 
 
+def _think_enabled() -> bool:
+    """Compaction is mechanical extraction — thinking spends num_predict on
+    hidden reasoning and can return an empty response (done_reason=length).
+    Disabled by default; COMPACT_HANDOFF_THINK=1 opts back in."""
+    return os.environ.get("COMPACT_HANDOFF_THINK", "").strip().lower() in ("1", "true", "on", "yes")
+
+
+def _thinking_observed(data: dict[str, Any]) -> bool:
+    thinking = data.get("thinking")
+    return isinstance(thinking, str) and bool(thinking.strip())
+
+
 def call_ollama(prompt: str, num_predict: int = 512) -> tuple[str, dict[str, int]]:
     """Returns (response_text, usage_dict) where usage has Ollama token counts when present."""
-    payload = {
-        "model": OLLAMA_MODEL,
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            "temperature": 0.1,
-            "num_predict": num_predict,
-        },
-    }
+    base_url, _scope = resolve_ollama_endpoint()
+    generate_url = f"{base_url.rstrip('/')}/api/generate"
+    think = _think_enabled()
     with httpx.Client(timeout=90.0) as client:
-        resp = client.post(OLLAMA_URL, json=payload)
+        payload = {
+            "model": resolve_ollama_model(client, base_url),
+            "prompt": prompt,
+            "stream": False,
+            "think": think,
+            "options": {
+                "temperature": 0.1,
+                "num_predict": num_predict,
+            },
+        }
+        resp = client.post(generate_url, json=payload)
         resp.raise_for_status()
         data = resp.json()
+        if think is False and _thinking_observed(data):
+            raise RuntimeError(
+                "think:false ignored — Ollama returned thinking content on /api/generate",
+            )
         text = (data.get("response") or "").strip()
         usage = {
             "ollama_prompt_tokens": int(data.get("prompt_eval_count") or 0),
@@ -143,7 +295,8 @@ Produce the handoff YAML:"""
     try:
         result, usage = call_ollama(prompt)
     except httpx.ConnectError:
-        return "error: Ollama not reachable at localhost:11434 — is it running?"
+        base_url, _ = resolve_ollama_endpoint()
+        return f"error: Ollama not reachable at {base_url} — is it running?"
     except httpx.HTTPStatusError as e:
         return f"error: Ollama returned {e.response.status_code}"
     except Exception as e:  # noqa: BLE001 — MCP tool boundary: return error strings, never raise
@@ -180,7 +333,8 @@ Finding: """ + finding + "\n\nClassification:"
     try:
         result, _usage = call_ollama(prompt, num_predict=64)
     except httpx.ConnectError:
-        return "error: Ollama not reachable at localhost:11434"
+        base_url, _ = resolve_ollama_endpoint()
+        return f"error: Ollama not reachable at {base_url}"
     except Exception as e:  # noqa: BLE001 — MCP tool boundary: return error strings, never raise
         return f"error: {e}"
 
@@ -226,7 +380,8 @@ Answer in JSON only, no explanation outside the JSON:
     try:
         raw, _usage = call_ollama(prompt, num_predict=256)
     except httpx.ConnectError:
-        return json.dumps({"error": "Ollama not reachable at localhost:11434"})
+        base_url, _ = resolve_ollama_endpoint()
+        return json.dumps({"error": f"Ollama not reachable at {base_url}"})
     except Exception as e:  # noqa: BLE001 — MCP tool boundary: return error strings, never raise
         return json.dumps({"error": str(e)})
 

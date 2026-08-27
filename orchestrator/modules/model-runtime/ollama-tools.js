@@ -74,9 +74,19 @@ function toolDefsForAgent(agentId) {
  */
 function resolveConfinedPath(cwd, relPath) {
   const root = path.resolve(cwd);
+  // Canonical root: on macOS os.tmpdir() returns /var/... which is a symlink
+  // to /private/var/..., so containment must compare realpath vs realpath.
+  let rootReal = root;
+  try {
+    rootReal = fs.realpathSync(root);
+  } catch {
+    // root may not exist yet (write into a new cwd tree); lexical root stands.
+  }
   const rel = String(relPath ?? '').trim();
   if (!rel) return { ok: false, error: 'empty path' };
-  if (path.isAbsolute(rel) && !rel.startsWith(root + path.sep) && rel !== root) {
+  if (path.isAbsolute(rel)
+    && !rel.startsWith(root + path.sep) && rel !== root
+    && !rel.startsWith(rootReal + path.sep) && rel !== rootReal) {
     return { ok: false, error: `absolute path outside working directory: ${rel}` };
   }
   const abs = path.resolve(root, rel);
@@ -92,7 +102,7 @@ function resolveConfinedPath(cwd, relPath) {
   }
   try {
     const real = fs.realpathSync(probe);
-    if (real !== root && !real.startsWith(root + path.sep)) {
+    if (real !== rootReal && !real.startsWith(rootReal + path.sep)) {
       return { ok: false, error: `path escapes working directory via symlink: ${rel}` };
     }
   } catch {
