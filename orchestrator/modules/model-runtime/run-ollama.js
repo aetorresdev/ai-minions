@@ -17,6 +17,7 @@ const {
   applyOllamaHttpsTlsOptions,
 } = require('./local-runtime-endpoint');
 const { resolveOllamaNumPredict, resolveOllamaThink } = require('./inference-profile-resolve');
+const { assessOllamaThinkingCompliance } = require('./ollama-thinking-compliance');
 
 /**
  * @param {{
@@ -229,6 +230,21 @@ function runOllama(
                   }))
                   .filter((c) => c.function.name)
               : [];
+            const compliance = assessOllamaThinkingCompliance(thinking.think, parsed);
+            if (!compliance.ok) {
+              const err = new Error(
+                `[output contract] ollama: think:false ignored — model returned thinking content`,
+              );
+              err.code = 'OLLAMA_THINKING_NOT_DISABLED';
+              err.gate_id = compliance.gate_id;
+              err.context_stats = {
+                ollama_think_requested: compliance.ollama_think_requested,
+                ollama_thinking_observed: compliance.ollama_thinking_observed,
+                ollama_think: compliance.ollama_think,
+              };
+              reject(err);
+              return;
+            }
             /** @type {{
              *   content: string,
              *   prompt_eval_count?: number,
@@ -237,6 +253,10 @@ function runOllama(
              *   num_predict?: number,
              *   profile_source?: string | null,
              *   inference_profile_mode?: string,
+             *   think_requested?: boolean | null,
+             *   thinking_observed?: boolean,
+             *   ollama_think_requested?: number | null,
+             *   ollama_thinking_observed?: number,
              * }} */
             const out = {
               content,
@@ -246,6 +266,11 @@ function runOllama(
               inference_profile_mode: budget.inference_profile_mode,
               think: thinking.think ?? null,
               thinking_mode: thinking.thinking_mode,
+              think_requested: compliance.think_requested,
+              thinking_observed: compliance.thinking_observed,
+              ollama_think_requested: compliance.ollama_think_requested,
+              ollama_thinking_observed: compliance.ollama_thinking_observed,
+              ollama_think: compliance.ollama_think,
             };
             if (typeof parsed.done_reason === 'string' && parsed.done_reason) {
               out.done_reason = parsed.done_reason;

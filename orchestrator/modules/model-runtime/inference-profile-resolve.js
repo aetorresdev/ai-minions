@@ -89,10 +89,31 @@ function parseThinkEnv(raw) {
  *   think: boolean | undefined,
  * }}
  */
+function extractOllamaProfileThinking(policy, role) {
+  const profiles = policy?.provider_inference_profiles?.ollama;
+  const roleEntry = role && profiles?.by_role && typeof profiles.by_role === 'object'
+    ? profiles.by_role[role]
+    : null;
+  const defaultEntry = profiles?.default && typeof profiles.default === 'object'
+    ? profiles.default
+    : null;
+  const profileThinkingMode = typeof roleEntry?.thinking_mode === 'string'
+    ? roleEntry.thinking_mode
+    : (typeof defaultEntry?.thinking_mode === 'string' ? defaultEntry.thinking_mode : null);
+  return {
+    thinking_mode: profileThinkingMode,
+    think: ollamaThinkFlagFromMode(profileThinkingMode),
+    roleEntry,
+    defaultEntry,
+  };
+}
+
 function resolveOllamaNumPredict(options = {}) {
   const loadPolicy = options.loadPolicy ?? loadModelPolicyConfig;
   const envMap = options.env ?? process.env;
   const baseCwd = options.cwd != null ? String(options.cwd) : process.cwd();
+  const role = normalizeTraceRole(options.role);
+  const envPredict = positiveInt(envMap.OLLAMA_NUM_PREDICT);
 
   const candidates = [baseCwd];
   for (const key of ['AI_MINIONS_HOME', 'REPO_ROOT']) {
@@ -103,7 +124,6 @@ function resolveOllamaNumPredict(options = {}) {
   }
 
   let policy = null;
-  let policyLoadError = null;
   for (const candidate of candidates) {
     const hasConfig =
       fs.existsSync(path.join(candidate, '.ai-minions', 'model_policy.json'))
@@ -112,60 +132,43 @@ function resolveOllamaNumPredict(options = {}) {
     try {
       policy = loadPolicy(candidate).policy;
       break;
-    } catch (err) {
-      policyLoadError = err;
+    } catch {
       policy = null;
       break;
     }
-  }
-  if (!policy && policyLoadError) {
-    return {
-      num_predict: DEFAULT_NUM_PREDICT,
-      profile_source: null,
-      inference_profile_mode: 'default',
-      role: normalizeTraceRole(options.role),
-      thinking_mode: null,
-      think: undefined,
-    };
   }
   if (!policy) {
     try {
       policy = loadPolicy(baseCwd).policy;
     } catch {
-      return {
-        num_predict: DEFAULT_NUM_PREDICT,
-        profile_source: null,
-        inference_profile_mode: 'default',
-        role: normalizeTraceRole(options.role),
-        thinking_mode: null,
-        think: undefined,
-      };
+      policy = null;
     }
   }
 
-  const profiles = policy?.provider_inference_profiles?.ollama;
-  const role = normalizeTraceRole(options.role);
-  const roleEntry = role && profiles?.by_role && typeof profiles.by_role === 'object'
-    ? profiles.by_role[role]
-    : null;
-  const defaultEntry = profiles?.default && typeof profiles.default === 'object'
-    ? profiles.default
-    : null;
+  const {
+    thinking_mode: profileThinkingMode,
+    think: thinkFromProfile,
+    roleEntry,
+    defaultEntry,
+  } = extractOllamaProfileThinking(policy, role);
 
-  // thinking_mode resolves independently: a role entry without thinking_mode
-  // still inherits the default entry's mode.
-  const profileThinkingMode = typeof roleEntry?.thinking_mode === 'string'
-    ? roleEntry.thinking_mode
-    : (typeof defaultEntry?.thinking_mode === 'string' ? defaultEntry.thinking_mode : null);
-  const thinkFromProfile = ollamaThinkFlagFromMode(profileThinkingMode);
-
-  // Env budget override wins for num_predict but still carries profile thinking.
-  const envPredict = positiveInt(envMap.OLLAMA_NUM_PREDICT);
+  // OLLAMA_NUM_PREDICT wins even when model_policy.json is corrupt/unreadable.
   if (envPredict != null) {
     return {
       num_predict: envPredict,
       profile_source: 'env_ollama_num_predict',
       inference_profile_mode: 'env',
+      role,
+      thinking_mode: profileThinkingMode,
+      think: thinkFromProfile,
+    };
+  }
+
+  if (!policy) {
+    return {
+      num_predict: DEFAULT_NUM_PREDICT,
+      profile_source: null,
+      inference_profile_mode: 'default',
       role,
       thinking_mode: profileThinkingMode,
       think: thinkFromProfile,

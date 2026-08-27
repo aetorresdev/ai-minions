@@ -168,6 +168,19 @@ describe("resolveOllamaNumPredict", () => {
     assert.equal(out.inference_profile_mode, "env");
     assert.equal(out.think, false);
   });
+
+  it("OLLAMA_NUM_PREDICT env wins when model_policy.json load throws", () => {
+    const out = resolveOllamaNumPredict({
+      env: { OLLAMA_NUM_PREDICT: "4096" },
+      role: "DEV",
+      loadPolicy: () => {
+        throw new Error("corrupt model_policy.json");
+      },
+    });
+    assert.equal(out.num_predict, 4096);
+    assert.equal(out.inference_profile_mode, "env");
+    assert.equal(out.profile_source, "env_ollama_num_predict");
+  });
 });
 
 describe("ollamaThinkFlagFromMode", () => {

@@ -273,4 +273,67 @@ describe("runOllama budget + done_reason", () => {
     assert.equal(lastBody.think, true);
     assert.equal(out.think, true);
   });
+
+  it("rejects when think:false was sent but Ollama returned thinking content", async () => {
+    await new Promise((resolve) => server.close(resolve));
+    server = http.createServer((req, res) => {
+      if (req.url === "/api/chat" && req.method === "POST") {
+        let data = "";
+        req.on("data", (c) => { data += c; });
+        req.on("end", () => {
+          lastBody = JSON.parse(data);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            message: { content: "", thinking: "hidden reasoning" },
+            done_reason: "length",
+          }));
+        });
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise((resolve, reject) => {
+      server.listen(serverPort, "127.0.0.1", (err) => (err ? reject(err) : resolve()));
+    });
+    const { runOllama } = require("../modules/model-runtime/run-ollama");
+    await assert.rejects(
+      () => runOllama("sys", [{ role: "user", content: "hi" }], {
+        model: "m",
+        cwd: tmpDir,
+        traceRole: "ORCHESTRATOR",
+        timeoutMs: 5000,
+      }),
+      (err) => err.gate_id === "THINKING_NOT_DISABLED",
+    );
+  });
+
+  it("traces observed thinking state, not just the requested flag", async () => {
+    await new Promise((resolve) => server.close(resolve));
+    server = http.createServer((req, res) => {
+      if (req.url === "/api/chat" && req.method === "POST") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          message: { content: "ok", thinking: "   " },
+          done_reason: "stop",
+        }));
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise((resolve, reject) => {
+      server.listen(serverPort, "127.0.0.1", (err) => (err ? reject(err) : resolve()));
+    });
+    const { runOllama } = require("../modules/model-runtime/run-ollama");
+    const out = await runOllama("sys", [{ role: "user", content: "hi" }], {
+      model: "m",
+      cwd: tmpDir,
+      traceRole: "ORCHESTRATOR",
+      timeoutMs: 5000,
+    });
+    assert.equal(out.ollama_think_requested, 0);
+    assert.equal(out.ollama_thinking_observed, 0);
+    assert.equal(out.ollama_think, 0);
+  });
 });

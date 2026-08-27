@@ -6,4 +6,5 @@ dependencies = [
     # Stay on SDK v1 until servers migrate FastMCP → MCPServer (mcp 2.x).
     "mcp>=1.28.1,<2",
     "httpx>=0.27.0",
+    "pyyaml>=6.0.1",
 ]
