@@ -87,6 +87,42 @@ class TestEndpointConfinement(unittest.TestCase):
     def setUpClass(cls):
         cls.mod = _load_compact_handoff()
 
+    def setUp(self):
+        self.mod._endpoint_cache = None
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self._home = Path(self._tmpdir.name)
+        self._env_backup = {
+            k: os.environ.get(k)
+            for k in ("OLLAMA_BASE_URL", "AI_MINIONS_HOME", "REPO_ROOT")
+        }
+        for k in self._env_backup:
+            if k == "OLLAMA_BASE_URL":
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = str(self._home)
+        (self._home / ".ai-minions").mkdir(parents=True)
+
+    def tearDown(self):
+        self.mod._endpoint_cache = None
+        self._tmpdir.cleanup()
+        for k, v in self._env_backup.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def _write_policy(self, base_url: str = "http://127.0.0.1:11434") -> None:
+        payload = {
+            "local_backend": {
+                "base_url": base_url,
+                "endpoint_scope": "localhost",
+            },
+        }
+        (self._home / ".ai-minions" / "model-policy.yaml").write_text(
+            __import__("json").dumps(payload),
+            encoding="utf-8",
+        )
+
     def test_public_host_blocked(self):
         self.assertEqual(self.mod.classify_endpoint_scope("example.com"), "public_endpoint")
         with self.assertRaises(ValueError):
@@ -100,6 +136,13 @@ class TestEndpointConfinement(unittest.TestCase):
         )
         self.assertEqual(scope, "localhost")
         self.assertEqual(base, "http://127.0.0.1:11434")
+
+    def test_ollama_base_url_env_ignored(self):
+        self._write_policy("http://127.0.0.1:11434")
+        os.environ["OLLAMA_BASE_URL"] = "http://evil.example.com:11434"
+        base, scope = self.mod.resolve_ollama_endpoint()
+        self.assertEqual(base, "http://127.0.0.1:11434")
+        self.assertEqual(scope, "localhost")
 
 
 class _FakeTagsResponse:

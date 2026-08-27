@@ -5,8 +5,14 @@ Compacts agent output into a structured handoff YAML using a local Ollama model,
 and validates goal alignment before MODE transitions.
 
 Endpoint and model selection follow the install-time model-policy.yaml authority
-(AI_MINIONS_HOME / REPO_ROOT / cwd). Arbitrary OLLAMA_BASE_URL overrides are
-not honoured — only localhost/private_lan endpoints are allowed.
+(AI_MINIONS_HOME / REPO_ROOT / cwd):
+
+- **Endpoint:** `local_backend` only (localhost/private_lan). `OLLAMA_BASE_URL`
+  and other ad-hoc URL env overrides are not honoured.
+- **Model:** `default_model` from the same YAML file written by the installer and
+  consumed by orchestrator `selectLocalModel()` when CLI/env overrides are absent.
+  Per-role tier routing stays in `model_policy.json` (orchestrator agents only);
+  compact-handoff is mode-agnostic compaction and does not read JSON routing.
 
 Tools:
     compact_handoff(text, mode_completed, next_mode, iteration, max_iterations, flow_mode)

@@ -121,6 +121,8 @@ const ENTRIES = {
   'tests/runtimePreflight.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/localCapGateTransportBudget.test.js': { owner: 'tools', kind: 'unit' },
   'tests/ollamaToolLoop.test.js': { owner: 'model-runtime', kind: 'unit' },
+  'tests/ollamaThinkingCompliance.test.js': { owner: 'model-runtime', kind: 'unit' },
+  'tests/compactHandoffModelAuthority.test.js': { owner: 'model-runtime', kind: 'contract' },
   'tests/localModelPolicy.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/localModelSelection.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/mcp-client.test.js': { owner: 'tools', kind: 'unit' },
