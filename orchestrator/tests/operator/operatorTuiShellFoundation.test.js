@@ -1022,6 +1022,139 @@ test('duplicate nested attach rejects second executeAction while first pending',
   stdout.destroy();
 });
 
+test('duplicate START_RUN rejects second nested execute while launch pending', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  let executeCount = 0;
+  /** @type {() => void} */
+  let releaseFirst;
+  const firstGate = new Promise((resolve) => {
+    releaseFirst = resolve;
+  });
+  await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 4,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onNestedExecute }) => {
+        if (typeof onNestedExecute !== 'function') return { aborted: false, requestedAction: null };
+        const first = onNestedExecute({ actionId: NATIVE_LAUNCHER_EXECUTE_ACTION });
+        const second = onNestedExecute({ actionId: NATIVE_LAUNCHER_EXECUTE_ACTION });
+        releaseFirst();
+        await first;
+        const secondResult = await second;
+        assert.equal(secondResult?.model?.actionResult?.reason_code, 'TUI_ACTION_DUPLICATE');
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+    executeAction: async () => {
+      executeCount += 1;
+      if (executeCount === 1) await firstGate;
+      return {
+        quit: false,
+        selectedRunId: 'run-new',
+        contentSurface: 'action_result',
+        actionResult: {
+          action_id: NATIVE_LAUNCHER_EXECUTE_ACTION,
+          ok: true,
+          exit_code: 0,
+          reason_code: 'LAUNCH_OK',
+          text: 'ok',
+        },
+      };
+    },
+  });
+  assert.equal(executeCount, 1, 'serialize policy prevents duplicate START_RUN I/O');
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('slow nested status for run A does not overwrite after switching to run B', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  /** @type {() => void} */
+  let releaseStatus;
+  const statusGate = new Promise((resolve) => {
+    releaseStatus = resolve;
+  });
+  let statusCalls = 0;
+  const runs = [
+    { run_id: 'run-a', status: 'running', result_code: 'RUN_FOUND', goal_summary: 'A' },
+    { run_id: 'run-b', status: 'complete', result_code: 'RUN_FOUND', goal_summary: 'B' },
+  ];
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 4,
+    loadRuns: () => canonicalRunsResult(runs),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onNestedExecute, onModelChange, model }) => {
+        if (typeof onNestedExecute !== 'function') return { aborted: false, requestedAction: null };
+        const pending = onNestedExecute({ actionId: 'status', runId: 'run-a' });
+        await new Promise((resolve) => setImmediate(resolve));
+        if (typeof onModelChange === 'function') {
+          onModelChange(buildShellModel({
+            ...shellModelToOptions(model),
+            selectedRunId: 'run-b',
+            contentSurface: 'monitor',
+            selectedNavId: 'monitor',
+          }));
+        }
+        releaseStatus();
+        await pending;
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+    executeAction: async ({ actionId, selectedRunId }) => {
+      if (actionId === 'status' && selectedRunId === 'run-a') {
+        statusCalls += 1;
+        await statusGate;
+        return {
+          quit: false,
+          selectedRunId: 'run-a',
+          contentSurface: 'status',
+          statusResult: {
+            ok: true,
+            exitCode: 0,
+            json: {
+              run_id: 'run-a',
+              status: 'STALE_FROM_A',
+              operator_trace_summary: { outcome: 'failed', next_safe_action: 'none' },
+              run_state_visibility: { blocking_reason_code: 'STALE' },
+            },
+          },
+          actionResult: {
+            action_id: 'status',
+            ok: true,
+            exit_code: 0,
+            reason_code: 'STATUS_OK',
+            text: 'stale',
+          },
+          evidenceModel: null,
+          configModel: null,
+          runsPayload: null,
+        };
+      }
+      throw new Error(`unexpected executeAction ${actionId} ${selectedRunId}`);
+    },
+  });
+  assert.equal(statusCalls, 1);
+  assert.equal(result.model?.selectedRunId, 'run-b');
+  assert.notEqual(result.model?.status?.run_id, 'run-a');
+  assert.notEqual(result.model?.status?.status, 'STALE_FROM_A');
+  stdin.destroy();
+  stdout.destroy();
+});
+
 test('key 1 with leftover Enter opens native launcher (no nested readline)', async () => {
   const actions = [];
   const { stdin, stdout } = createFakeTtyStreams();
