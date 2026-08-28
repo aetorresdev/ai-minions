@@ -17,8 +17,12 @@ const {
 } = require('./operator-tui-shell-model.js');
 const {
   applyInkLocalSurfaceTransition,
+  applyNativeWorkflowTransition,
+  buildSlashMessageTransition,
   normalizeInkLocalActionToken,
+  resolveShellActionEffect,
 } = require('./operator-tui-shell-controller.js');
+const { resolveSlashCommandPlan } = require('./operator-tui-shell-actions.js');
 const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor, brandGradientStop } = require('./operator-tui-theme.js');
 const { chromeIcon, resolveIconMode } = require('./operator-tui-icons.js');
 const {
@@ -913,17 +917,10 @@ function ShellApp(props) {
     }
     if (intent.type === 'dispatch') {
       const actionId = intent.actionId;
-      if (isNativeWorkflowAction(actionId)) {
-        const workflow = openNativeWorkflow(current, actionId);
-        if (workflow) {
-          commit(buildShellModel({
-            ...shellModelToOptions(current),
-            activeWorkflow: workflow,
-            contentSurface: surfaceForWorkflow(workflow),
-            focus: 'content',
-            selectedNavId: actionId === 'smoke' ? 'launcher' : actionId,
-            commandInput: '',
-          }));
+      {
+        const next = applyNativeWorkflowTransition(current, actionId);
+        if (next) {
+          commit(next);
           return;
         }
       }
@@ -974,23 +971,34 @@ function ShellApp(props) {
       if (intent.type === 'input_submit' && intent.actionId) {
         const actionId = intent.actionId;
         const token = String(actionId).trim().toLowerCase();
+        if (token.startsWith('/')) {
+          const slashPlan = resolveSlashCommandPlan(token, { selectedRunId: current.selectedRunId });
+          if (slashPlan) {
+            const effect = resolveShellActionEffect(current, token, { slashPlan });
+            if (effect.kind === 'slash_message') {
+              commit(buildSlashMessageTransition(current, slashPlan));
+              return;
+            }
+            if (effect.kind === 'native_workflow' && effect.opts) {
+              commit(buildShellModel(effect.opts));
+              return;
+            }
+            if (effect.kind === 'ink_local' && effect.transition) {
+              commit(buildShellModel(effect.transition));
+              return;
+            }
+          }
+        }
         // Slash / typed tokens that map to Phase-1 native workflows stay in Ink.
         const nativeId = token === '/new' || token === 'new'
           ? 'launcher'
           : (token === '/runs' || token === 'runs'
             ? 'runs'
             : (token === 'select' || token === 's' ? 'select' : null));
-        if (nativeId && isNativeWorkflowAction(nativeId)) {
-          const workflow = openNativeWorkflow(current, nativeId);
-          if (workflow) {
-            commit(buildShellModel({
-              ...shellModelToOptions(current),
-              activeWorkflow: workflow,
-              contentSurface: surfaceForWorkflow(workflow),
-              focus: 'content',
-              selectedNavId: nativeId === 'runs' ? 'runs' : (nativeId === 'select' ? 'select' : 'launcher'),
-              commandInput: '',
-            }));
+        if (nativeId) {
+          const next = applyNativeWorkflowTransition(current, nativeId);
+          if (next) {
+            commit(next);
             return;
           }
         }

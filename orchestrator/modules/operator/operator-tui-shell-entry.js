@@ -18,13 +18,14 @@ const {
   buildShellModel,
   formatShellText,
   isShellSessionEndAction,
-  isInkLocalRemountFallbackAction,
   shellModelToOptions,
 } = require('./operator-tui-shell-model');
 const {
-  buildInkLocalSurfaceTransition,
-  shouldHandleLeakedInkLocalAction,
   selectedNavIdForSurface,
+  applyNativeWorkflowTransition,
+  buildSlashMessageTransition,
+  resolveShellActionEffect,
+  mergeActionOutcomeIntoEntryState,
 } = require('./operator-tui-shell-controller');
 const {
   executeShellAction,
@@ -41,9 +42,6 @@ const {
 const { adaptActionResult } = require('./operator-tui-adapters');
 const { shouldSkipSplash } = require('./operator-tui-splash');
 const {
-  isNativeWorkflowAction,
-  openNativeWorkflow,
-  surfaceForWorkflow,
   NATIVE_LAUNCHER_EXECUTE_ACTION,
 } = require('./operator-tui-native-workflows');
 
@@ -588,36 +586,10 @@ async function runOperatorTuiShell(options = {}) {
       // Phase-1 native workflows: choice/navigation stays in Ink. Opening launcher /
       // run browser from a remount path (e.g. slash that still exited) must not use
       // nested readline — remount with an active workflow instead.
-      if (
-        isNativeWorkflowAction(requestedAction)
-        && requestedAction !== NATIVE_LAUNCHER_EXECUTE_ACTION
-      ) {
-        const workflow = openNativeWorkflow(model, requestedAction);
-        if (workflow) {
-          model = buildShellModel({
-            ...shellModelToOptions(model),
-            aboutInfo,
-            credentials,
-            pathActivation,
-            runsPayload,
-            statusResult,
-            evidenceModel,
-            configModel,
-            launcherModel,
-            actionResult,
-            lifecycleSource,
-            monitorSource,
-            selectedRunId,
-            selectedNavId: requestedAction === 'smoke' ? 'launcher' : String(requestedAction),
-            activeWorkflow: workflow,
-            pendingLauncherSelections: null,
-            contentSurface: surfaceForWorkflow(workflow),
-            columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
-            rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
-            focus: 'content',
-            colorEnabled: useColor && process.env.NO_COLOR == null,
-            productVersion: aboutInfo.version,
-          });
+      {
+        const next = applyNativeWorkflowTransition(model, requestedAction);
+        if (next) {
+          model = next;
           prepareInkRemount({ stdin });
           guard = createTerminalGuard({ stdin, stdout });
           if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
@@ -725,36 +697,9 @@ async function runOperatorTuiShell(options = {}) {
       if (slashPlan) {
         const { plan } = slashPlan;
         if (plan.disposition === 'help' || plan.disposition === 'message') {
-          actionResult = adaptActionResult({
-            action_id: slashPlan.parsed.name ? `/${slashPlan.parsed.name}` : '/',
-            ok: plan.ok !== false,
-            exitCode: plan.exitCode ?? 1,
-            reason_code: plan.reason_code ?? null,
-            next_safe_action: plan.next_safe_action ?? null,
-            text: plan.text || '',
-          });
-          contentSurface = 'action_result';
-          model = buildShellModel({
-            aboutInfo,
-            credentials,
-            pathActivation,
-            runsPayload,
-            statusResult,
-            evidenceModel,
-            configModel,
-            launcherModel,
-            actionResult,
-            lifecycleSource,
-            monitorSource,
-            selectedRunId,
-            selectedNavId: model.selectedNavId,
-            contentSurface,
-            columns: model.columns,
-            rows: model.rows,
-            focus: 'input',
-            colorEnabled: model.colorEnabled,
-            productVersion: aboutInfo.version,
-          });
+          model = buildSlashMessageTransition(model, slashPlan);
+          contentSurface = model.contentSurface;
+          actionResult = model.actionResult;
           if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
             if (!guard.restored) guard.restore('normal');
             return {
@@ -768,65 +713,56 @@ async function runOperatorTuiShell(options = {}) {
               guard,
             };
           }
-          // Fresh guard for next Ink mount after slash help/message remount.
           guard = createTerminalGuard({ stdin, stdout });
           continue;
         }
 
         if (plan.disposition === 'dispatch' && plan.action_id) {
-          // Phase-1: /new and /runs open native Ink workflows (no nested readline).
-          if (isNativeWorkflowAction(plan.action_id)) {
-            const workflow = openNativeWorkflow(model, plan.action_id);
-            if (workflow) {
-              model = buildShellModel({
-                aboutInfo,
-                credentials,
-                pathActivation,
-                runsPayload,
-                statusResult,
-                evidenceModel,
-                configModel,
-                launcherModel,
-                actionResult,
-                lifecycleSource,
-                monitorSource,
-                selectedRunId: plan.run_id ?? selectedRunId,
-                selectedNavId: plan.action_id === 'smoke' ? 'launcher' : plan.action_id,
-                activeWorkflow: workflow,
-                pendingLauncherSelections: null,
-                contentSurface: surfaceForWorkflow(workflow),
-                columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
-                rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
-                focus: 'content',
-                colorEnabled: useColor && process.env.NO_COLOR == null,
-                productVersion: aboutInfo.version,
-              });
-              prepareInkRemount({ stdin });
-              guard = createTerminalGuard({ stdin, stdout });
-              if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
-                if (!guard.restored) guard.restore('normal');
-                return {
-                  ok: true,
-                  exitCode: lastExitCode,
-                  reason_code: TUI_SHELL_REASON.OK,
-                  ink_loaded: inkLoaded,
-                  react_loaded: reactLoaded,
-                  text: formatShellText(model),
-                  model,
-                  guard,
-                };
-              }
-              continue;
+          const effect = resolveShellActionEffect(model, requestedAction, { slashPlan });
+          if (effect.kind === 'native_workflow' && effect.opts) {
+            model = buildShellModel({
+              ...effect.opts,
+              aboutInfo,
+              credentials,
+              pathActivation,
+              runsPayload,
+              statusResult,
+              evidenceModel,
+              configModel,
+              launcherModel,
+              actionResult,
+              lifecycleSource,
+              monitorSource,
+              selectedRunId: effect.runId ?? selectedRunId,
+              columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
+              rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
+              colorEnabled: useColor && process.env.NO_COLOR == null,
+              productVersion: aboutInfo.version,
+            });
+            prepareInkRemount({ stdin });
+            guard = createTerminalGuard({ stdin, stdout });
+            if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
+              if (!guard.restored) guard.restore('normal');
+              return {
+                ok: true,
+                exitCode: lastExitCode,
+                reason_code: TUI_SHELL_REASON.OK,
+                ink_loaded: inkLoaded,
+                react_loaded: reactLoaded,
+                text: formatShellText(model),
+                model,
+                guard,
+              };
             }
+            continue;
           }
 
-          // Landing chrome fallback remount only (home/help/diagnostics).
-          // Overview / Explain / Evidence are Ink-local seeded surfaces — never remount here;
-          // slash `/status` / `/explain` fall through to executeAction for a fresh query.
-          if (isInkLocalRemountFallbackAction(plan.action_id)) {
-            const transition = buildInkLocalSurfaceTransition(model, plan.action_id);
-            const surface = transition?.contentSurface ?? 'home';
+          if ((effect.kind === 'ink_local' || effect.kind === 'ink_local_remount') && effect.transition) {
+            const surface = effect.transition.contentSurface ?? 'home';
             contentSurface = surface;
+            if (effect.transition.configModel) configModel = effect.transition.configModel;
+            if (effect.transition.statusResult) statusResult = effect.transition.statusResult;
+            if (effect.transition.monitorSource) monitorSource = effect.transition.monitorSource;
             prepareInkRemount({ stdin });
             guard = createTerminalGuard({ stdin, stdout });
             model = buildShellModel({
@@ -841,8 +777,8 @@ async function runOperatorTuiShell(options = {}) {
               actionResult,
               lifecycleSource,
               monitorSource,
-              selectedRunId: plan.run_id ?? selectedRunId,
-              selectedNavId: selectedNavIdForSurface(surface),
+              selectedRunId: effect.runId ?? selectedRunId,
+              selectedNavId: effect.transition.selectedNavId ?? selectedNavIdForSurface(surface),
               contentSurface: surface,
               columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
               rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
@@ -850,8 +786,8 @@ async function runOperatorTuiShell(options = {}) {
               colorEnabled: useColor && process.env.NO_COLOR == null,
               productVersion: aboutInfo.version,
               activeWorkflow: null,
-              helpOpenTopicId: transition?.helpOpenTopicId ?? null,
-              helpSelectedTopicId: transition?.helpSelectedTopicId,
+              helpOpenTopicId: effect.transition.helpOpenTopicId ?? null,
+              helpSelectedTopicId: effect.transition.helpSelectedTopicId,
             });
             if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
               if (!guard.restored) guard.restore('normal');
@@ -869,115 +805,123 @@ async function runOperatorTuiShell(options = {}) {
             continue;
           }
 
-          // Soft handoff already done by withTerminalGuard — do not emit alt-screen exit.
-          prepareNestedPaneIo({
-            stdin,
-            stdout,
-            banner: 'ai-minions tui · nested pane (session still active)',
-          });
-          let actionOutcome;
-          try {
-            actionOutcome = await executeAction({
-              actionId: plan.action_id,
-              selectedRunId: plan.run_id ?? selectedRunId,
-              skipRunPrompt: plan.skip_run_prompt === true,
-              cwd: options.cwd,
-              useColor,
+          if (effect.kind === 'nested_execute') {
+            prepareNestedPaneIo({
               stdin,
               stdout,
-              modelPolicy: aboutInfo.model_policy,
+              banner: 'ai-minions tui · nested pane (session still active)',
             });
-          } catch (err) {
-            if (!guard.restored) guard.restore('action_failure');
-            return {
-              ok: false,
-              exitCode: 1,
-              reason_code: TUI_SHELL_REASON.ACTION_FAILURE,
-              ink_loaded: inkLoaded,
-              react_loaded: reactLoaded,
-              text: formatShellText(model),
-              model,
-              guard,
-              error: String(err && err.message ? err.message : err),
-            };
-          }
+            let actionOutcome;
+            try {
+              actionOutcome = await executeAction({
+                actionId: effect.actionId ?? plan.action_id,
+                selectedRunId: effect.runId ?? plan.run_id ?? selectedRunId,
+                skipRunPrompt: effect.skipRunPrompt === true,
+                cwd: options.cwd,
+                useColor,
+                stdin,
+                stdout,
+                modelPolicy: aboutInfo.model_policy,
+              });
+            } catch (err) {
+              if (!guard.restored) guard.restore('action_failure');
+              return {
+                ok: false,
+                exitCode: 1,
+                reason_code: TUI_SHELL_REASON.ACTION_FAILURE,
+                ink_loaded: inkLoaded,
+                react_loaded: reactLoaded,
+                text: formatShellText(model),
+                model,
+                guard,
+                error: String(err && err.message ? err.message : err),
+              };
+            }
 
-          selectedRunId = actionOutcome.selectedRunId ?? selectedRunId;
-          actionResult = actionOutcome.actionResult;
-          contentSurface = actionOutcome.contentSurface ?? 'action_result';
-          if (actionOutcome.runsPayload) runsPayload = actionOutcome.runsPayload;
-          if (actionOutcome.statusResult) {
-            statusResult = actionOutcome.statusResult;
-            lifecycleSource = actionOutcome.statusResult.json
-              ?? actionOutcome.statusResult;
-            monitorSource = actionOutcome.statusResult;
-          }
-          if (actionOutcome.monitorSource) monitorSource = actionOutcome.monitorSource;
-          if (actionOutcome.evidenceModel) evidenceModel = actionOutcome.evidenceModel;
-          if (actionOutcome.configModel) configModel = actionOutcome.configModel;
-          if (Object.prototype.hasOwnProperty.call(actionOutcome, 'launcherModel')) {
-            launcherModel = actionOutcome.launcherModel;
-          }
-          lastExitCode = actionResult?.exit_code ?? lastExitCode;
+            ({
+              selectedRunId,
+              actionResult,
+              contentSurface,
+              runsPayload,
+              statusResult,
+              lifecycleSource,
+              monitorSource,
+              evidenceModel,
+              configModel,
+              launcherModel,
+              lastExitCode,
+            } = mergeActionOutcomeIntoEntryState({
+              selectedRunId,
+              actionResult,
+              contentSurface,
+              runsPayload,
+              statusResult,
+              lifecycleSource,
+              monitorSource,
+              evidenceModel,
+              configModel,
+              launcherModel,
+              lastExitCode,
+            }, actionOutcome));
 
-          if (actionOutcome.quit) {
-            if (!guard.restored) guard.restore('quit');
-            return {
-              ok: true,
-              exitCode: 0,
-              reason_code: TUI_SHELL_REASON.QUIT,
-              ink_loaded: inkLoaded,
-              react_loaded: reactLoaded,
-              text: formatShellText(model),
-              model,
-              guard,
-            };
-          }
+            if (actionOutcome.quit) {
+              if (!guard.restored) guard.restore('quit');
+              return {
+                ok: true,
+                exitCode: 0,
+                reason_code: TUI_SHELL_REASON.QUIT,
+                ink_loaded: inkLoaded,
+                react_loaded: reactLoaded,
+                text: formatShellText(model),
+                model,
+                guard,
+              };
+            }
 
-          prepareInkRemount({ stdin });
-          guard = createTerminalGuard({ stdin, stdout });
-          // Reuse readiness snapshot on remount — only config pane refreshes PATH/creds.
-          if (plan.action_id === 'config') {
-            aboutInfo = buildAbout({ cwd: options.cwd });
-            credentials = assessCredentials({ modelPolicy: aboutInfo.model_policy });
-            pathActivation = assessPath();
-          }
-          model = buildShellModel({
-            aboutInfo,
-            credentials,
-            pathActivation,
-            runsPayload,
-            statusResult,
-            evidenceModel,
-            configModel,
-            launcherModel,
-            actionResult,
-            lifecycleSource,
-            monitorSource,
-            selectedRunId,
-            selectedNavId: plan.action_id === 'quit' ? model.selectedNavId : plan.action_id,
-            contentSurface,
-            columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
-            rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
-            focus: 'input',
-            colorEnabled: useColor && process.env.NO_COLOR == null,
-            productVersion: aboutInfo.version,
-          });
+            prepareInkRemount({ stdin });
+            guard = createTerminalGuard({ stdin, stdout });
+            if (plan.action_id === 'config') {
+              aboutInfo = buildAbout({ cwd: options.cwd });
+              credentials = assessCredentials({ modelPolicy: aboutInfo.model_policy });
+              pathActivation = assessPath();
+            }
+            model = buildShellModel({
+              aboutInfo,
+              credentials,
+              pathActivation,
+              runsPayload,
+              statusResult,
+              evidenceModel,
+              configModel,
+              launcherModel,
+              actionResult,
+              lifecycleSource,
+              monitorSource,
+              selectedRunId,
+              selectedNavId: plan.action_id === 'quit' ? model.selectedNavId : plan.action_id,
+              contentSurface,
+              columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
+              rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
+              focus: 'input',
+              colorEnabled: useColor && process.env.NO_COLOR == null,
+              productVersion: aboutInfo.version,
+            });
 
-          if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
-            if (!guard.restored) guard.restore('normal');
-            return {
-              ok: lastExitCode === 0,
-              exitCode: lastExitCode,
-              reason_code: TUI_SHELL_REASON.OK,
-              ink_loaded: inkLoaded,
-              react_loaded: reactLoaded,
-              text: formatShellText(model),
-              model,
-              guard,
-            };
+            if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
+              if (!guard.restored) guard.restore('normal');
+              return {
+                ok: lastExitCode === 0,
+                exitCode: lastExitCode,
+                reason_code: TUI_SHELL_REASON.OK,
+                ink_loaded: inkLoaded,
+                react_loaded: reactLoaded,
+                text: formatShellText(model),
+                model,
+                guard,
+              };
+            }
+            continue;
           }
-          continue;
         }
       }
 
@@ -1016,63 +960,55 @@ async function runOperatorTuiShell(options = {}) {
         continue;
       }
 
-      // Resolved token may map to Phase-1 native workflows (e.g. hotkey "1" → launcher).
-      if (isNativeWorkflowAction(actionId) && actionId !== NATIVE_LAUNCHER_EXECUTE_ACTION) {
-        const workflow = openNativeWorkflow(model, actionId);
-        if (workflow) {
-          model = buildShellModel({
-            aboutInfo,
-            credentials,
-            pathActivation,
-            runsPayload,
-            statusResult,
-            evidenceModel,
-            configModel,
-            launcherModel,
-            actionResult,
-            lifecycleSource,
-            monitorSource,
-            selectedRunId,
-            selectedNavId: actionId === 'smoke' ? 'launcher' : actionId,
-            activeWorkflow: workflow,
-            pendingLauncherSelections: null,
-            contentSurface: surfaceForWorkflow(workflow),
-            columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
-            rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
-            focus: 'content',
-            colorEnabled: useColor && process.env.NO_COLOR == null,
-            productVersion: aboutInfo.version,
-          });
-          prepareInkRemount({ stdin });
-          guard = createTerminalGuard({ stdin, stdout });
-          if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
-            if (!guard.restored) guard.restore('normal');
-            return {
-              ok: true,
-              exitCode: lastExitCode,
-              reason_code: TUI_SHELL_REASON.OK,
-              ink_loaded: inkLoaded,
-              react_loaded: reactLoaded,
-              text: formatShellText(model),
-              model,
-              guard,
-            };
-          }
-          continue;
+      const tokenEffect = resolveShellActionEffect(model, actionId);
+      if (tokenEffect.kind === 'native_workflow' && tokenEffect.opts) {
+        model = buildShellModel({
+          ...tokenEffect.opts,
+          aboutInfo,
+          credentials,
+          pathActivation,
+          runsPayload,
+          statusResult,
+          evidenceModel,
+          configModel,
+          launcherModel,
+          actionResult,
+          lifecycleSource,
+          monitorSource,
+          selectedRunId,
+          columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
+          rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
+          colorEnabled: useColor && process.env.NO_COLOR == null,
+          productVersion: aboutInfo.version,
+        });
+        prepareInkRemount({ stdin });
+        guard = createTerminalGuard({ stdin, stdout });
+        if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
+          if (!guard.restored) guard.restore('normal');
+          return {
+            ok: true,
+            exitCode: lastExitCode,
+            reason_code: TUI_SHELL_REASON.OK,
+            ink_loaded: inkLoaded,
+            react_loaded: reactLoaded,
+            text: formatShellText(model),
+            model,
+            guard,
+          };
         }
+        continue;
       }
 
-      // Landing chrome fallback remount only. Overview / Explain / Evidence / Settings
-      // must switch inside the active Ink render (render.mjs) — never soft-handoff.
-      // If a harness leaks requestAction for an Ink-local id, remount the surface
-      // without nested readline (silent-quit lookalike).
-      if (shouldHandleLeakedInkLocalAction(actionId)) {
-        const transition = buildInkLocalSurfaceTransition(model, actionId);
-        const surface = transition?.contentSurface ?? 'home';
+      if (
+        (tokenEffect.kind === 'ink_local' || tokenEffect.kind === 'ink_local_remount')
+        && tokenEffect.transition
+      ) {
+        const transition = tokenEffect.transition;
+        const surface = transition.contentSurface ?? 'home';
         contentSurface = surface;
-        if (transition?.configModel) configModel = transition.configModel;
-        if (transition?.statusResult) statusResult = transition.statusResult;
-        if (transition?.monitorSource) monitorSource = transition.monitorSource;
+        if (transition.configModel) configModel = transition.configModel;
+        if (transition.statusResult) statusResult = transition.statusResult;
+        if (transition.monitorSource) monitorSource = transition.monitorSource;
         prepareInkRemount({ stdin });
         guard = createTerminalGuard({ stdin, stdout });
         model = buildShellModel({
@@ -1088,7 +1024,7 @@ async function runOperatorTuiShell(options = {}) {
           lifecycleSource,
           monitorSource,
           selectedRunId,
-          selectedNavId: transition?.selectedNavId ?? selectedNavIdForSurface(surface),
+          selectedNavId: transition.selectedNavId ?? selectedNavIdForSurface(surface),
           contentSurface: surface,
           columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
           rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
@@ -1096,8 +1032,8 @@ async function runOperatorTuiShell(options = {}) {
           colorEnabled: useColor && process.env.NO_COLOR == null,
           productVersion: aboutInfo.version,
           activeWorkflow: null,
-          helpOpenTopicId: transition?.helpOpenTopicId ?? null,
-          helpSelectedTopicId: transition?.helpSelectedTopicId,
+          helpOpenTopicId: transition.helpOpenTopicId ?? null,
+          helpSelectedTopicId: transition.helpSelectedTopicId,
         });
         if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
           if (!guard.restored) guard.restore('normal');
@@ -1112,6 +1048,10 @@ async function runOperatorTuiShell(options = {}) {
             guard,
           };
         }
+        continue;
+      }
+
+      if (tokenEffect.kind !== 'nested_execute') {
         continue;
       }
 

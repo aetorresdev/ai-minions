@@ -14,8 +14,14 @@ const {
   selectedNavIdForSurface,
   buildInkLocalSurfaceTransition,
   applyInkLocalSurfaceTransition,
+  buildNativeWorkflowTransition,
+  applyNativeWorkflowTransition,
+  buildSlashMessageTransition,
+  resolveShellActionEffect,
+  requiresNestedExecute,
   shouldHandleLeakedInkLocalAction,
 } = require('../../modules/operator/operator-tui-shell-controller');
+const { resolveSlashCommandPlan } = require('../../modules/operator/operator-tui-shell-actions');
 
 function baseModel(overrides = {}) {
   return buildShellModel({
@@ -39,6 +45,56 @@ test('classifyShellActionEffect partitions session-end, ink-local, nested', () =
   assert.equal(classifyShellActionEffect('q'), 'session_end');
   assert.equal(classifyShellActionEffect('help'), 'ink_local');
   assert.equal(classifyShellActionEffect('attach'), 'nested');
+});
+
+test('normalizeInkLocalActionToken maps /doctor to config', () => {
+  assert.equal(normalizeInkLocalActionToken('/doctor'), 'config');
+});
+
+test('requiresNestedExecute covers attach/status/explain only', () => {
+  assert.equal(requiresNestedExecute('attach'), true);
+  assert.equal(requiresNestedExecute('status'), true);
+  assert.equal(requiresNestedExecute('config'), false);
+  assert.equal(requiresNestedExecute('evidence'), false);
+});
+
+test('resolveShellActionEffect routes /doctor slash to ink-local config', () => {
+  const model = baseModel();
+  const slashPlan = resolveSlashCommandPlan('/doctor', { selectedRunId: null });
+  const effect = resolveShellActionEffect(model, '/doctor', { slashPlan });
+  assert.equal(effect.kind, 'ink_local');
+  assert.equal(effect.transition?.contentSurface, 'config');
+});
+
+test('resolveShellActionEffect routes /status slash to nested_execute', () => {
+  const model = baseModel({ selectedRunId: 'run-1' });
+  const slashPlan = resolveSlashCommandPlan('/status', { selectedRunId: 'run-1' });
+  const effect = resolveShellActionEffect(model, '/status', { slashPlan });
+  assert.equal(effect.kind, 'nested_execute');
+  assert.equal(effect.actionId, 'status');
+  assert.equal(effect.skipRunPrompt, true);
+});
+
+test('applyNativeWorkflowTransition opens launcher without remount fields', () => {
+  const model = baseModel();
+  const next = applyNativeWorkflowTransition(model, 'launcher');
+  assert.ok(next);
+  assert.equal(next.contentSurface, 'launcher_workflow');
+  assert.ok(next.activeWorkflow);
+  assert.equal(next.focus, 'content');
+});
+
+test('buildSlashMessageTransition keeps slash help in action_result surface', () => {
+  const model = baseModel();
+  const slashPlan = resolveSlashCommandPlan('/help', { selectedRunId: null });
+  const next = buildSlashMessageTransition(model, slashPlan);
+  assert.equal(next.contentSurface, 'action_result');
+  assert.equal(next.actionResult.reason_code, 'TUI_SLASH_HELP');
+});
+
+test('buildNativeWorkflowTransition returns null for attach', () => {
+  const model = baseModel();
+  assert.equal(buildNativeWorkflowTransition(model, 'attach'), null);
 });
 
 test('normalizeInkLocalActionToken maps slash and bare tokens', () => {

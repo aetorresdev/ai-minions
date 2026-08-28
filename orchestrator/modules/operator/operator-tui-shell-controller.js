@@ -1,5 +1,6 @@
 'use strict';
 
+const { adaptActionResult } = require('./operator-tui-adapters');
 const {
   buildShellModel,
   shellModelToOptions,
@@ -10,10 +11,23 @@ const {
   seedConfigModelFromShell,
   seedStatusResultFromSelectedRun,
 } = require('./operator-tui-shell-model');
+const {
+  isNativeWorkflowAction,
+  openNativeWorkflow,
+  surfaceForWorkflow,
+  NATIVE_LAUNCHER_EXECUTE_ACTION,
+} = require('./operator-tui-native-workflows');
 
 /**
- * @typedef {'ink_local'|'session_end'|'nested'} ShellActionEffectKind
+ * @typedef {'none'|'session_end'|'ink_local'|'ink_local_remount'|'native_workflow'|'slash_message'|'nested_execute'} ShellActionEffectKind
  */
+
+/** Actions that require nested operator modules (fresh query / prompts). */
+const NESTED_EXECUTE_ACTIONS = Object.freeze(new Set([
+  'attach',
+  'status',
+  'explain',
+]));
 
 /**
  * @param {unknown} actionId
@@ -26,7 +40,15 @@ function classifyShellActionEffect(actionId) {
 }
 
 /**
- * Normalize slash/bare tokens to ink-local action ids (help/home/diagnostics).
+ * @param {unknown} actionId
+ * @returns {boolean}
+ */
+function requiresNestedExecute(actionId) {
+  return NESTED_EXECUTE_ACTIONS.has(String(actionId ?? '').trim().toLowerCase());
+}
+
+/**
+ * Normalize slash/bare tokens to ink-local action ids (help/home/diagnostics/config).
  * @param {unknown} actionId
  * @returns {string}
  */
@@ -34,6 +56,7 @@ function normalizeInkLocalActionToken(actionId) {
   const token = String(actionId ?? '').trim().toLowerCase();
   if (token === '/home' || token === 'home') return 'home';
   if (token === '/diagnostics' || token === 'diagnostics') return 'diagnostics';
+  if (token === '/doctor' || token === 'doctor') return 'config';
   if (token === 'help' || token === '?' || token === '/help') return 'help';
   return token;
 }
@@ -104,6 +127,160 @@ function applyInkLocalSurfaceTransition(model, actionId) {
 }
 
 /**
+ * Build options for opening a Phase-1 native Ink workflow in-process.
+ * @param {object} model
+ * @param {unknown} actionId
+ * @param {object} [overrides]
+ * @returns {ReturnType<typeof shellModelToOptions> | null}
+ */
+function buildNativeWorkflowTransition(model, actionId, overrides = {}) {
+  const id = String(actionId ?? '');
+  if (!isNativeWorkflowAction(id) || id === NATIVE_LAUNCHER_EXECUTE_ACTION) return null;
+  const workflow = openNativeWorkflow(model, id);
+  if (!workflow) return null;
+  return {
+    ...shellModelToOptions(model),
+    activeWorkflow: workflow,
+    contentSurface: surfaceForWorkflow(workflow),
+    focus: 'content',
+    selectedNavId: id === 'smoke' ? 'launcher' : id,
+    commandInput: '',
+    pendingLauncherSelections: null,
+    ...overrides,
+  };
+}
+
+/**
+ * @param {object} model
+ * @param {unknown} actionId
+ * @param {object} [overrides]
+ * @returns {object | null}
+ */
+function applyNativeWorkflowTransition(model, actionId, overrides = {}) {
+  const opts = buildNativeWorkflowTransition(model, actionId, overrides);
+  if (!opts) return null;
+  return buildShellModel(opts);
+}
+
+/**
+ * Slash help/message surfaces stay in-process (no nested readline).
+ * @param {object} model
+ * @param {{ plan: object, parsed: object }} slash
+ * @returns {object}
+ */
+function buildSlashMessageTransition(model, slash) {
+  const { plan, parsed } = slash;
+  const actionId = parsed?.name ? `/${parsed.name}` : '/';
+  return buildShellModel({
+    ...shellModelToOptions(model),
+    contentSurface: 'action_result',
+    actionResult: adaptActionResult({
+      action_id: actionId,
+      ok: plan.ok !== false,
+      exitCode: plan.exitCode ?? 1,
+      reason_code: plan.reason_code ?? null,
+      next_safe_action: plan.next_safe_action ?? null,
+      text: plan.text || '',
+    }),
+    focus: plan.disposition === 'help' ? 'nav' : 'input',
+    commandInput: '',
+    activeWorkflow: null,
+  });
+}
+
+/**
+ * Resolve a requested action into a controller effect for render or entry.
+ * @param {object} model
+ * @param {unknown} actionId
+ * @param {{
+ *   slashPlan?: { plan: object, parsed: object } | null,
+ *   launcherSelections?: object | null,
+ * }} [ctx]
+ * @returns {{
+ *   kind: ShellActionEffectKind,
+ *   transition?: object,
+ *   opts?: object,
+ *   plan?: object,
+ *   parsed?: object,
+ *   actionId?: string,
+ *   runId?: string | null,
+ *   skipRunPrompt?: boolean,
+ *   launcherSelections?: object | null,
+ * }}
+ */
+function resolveShellActionEffect(model, actionId, ctx = {}) {
+  const raw = String(actionId ?? '').trim();
+  if (!raw) return { kind: 'none' };
+  if (isShellSessionEndAction(raw)) return { kind: 'session_end', actionId: raw };
+
+  const slashPlan = ctx.slashPlan ?? null;
+  if (slashPlan) {
+    const { plan, parsed } = slashPlan;
+    if (plan.disposition === 'help' || plan.disposition === 'message') {
+      return { kind: 'slash_message', plan, parsed };
+    }
+    if (plan.disposition === 'dispatch' && plan.action_id) {
+      return resolveDispatchEffect(model, plan.action_id, {
+        runId: plan.run_id ?? null,
+        skipRunPrompt: plan.skip_run_prompt === true,
+      });
+    }
+  }
+
+  if (raw === NATIVE_LAUNCHER_EXECUTE_ACTION) {
+    return {
+      kind: 'nested_execute',
+      actionId: raw,
+      launcherSelections: ctx.launcherSelections ?? model.pendingLauncherSelections ?? null,
+    };
+  }
+
+  return resolveDispatchEffect(model, raw, {});
+}
+
+/**
+ * @param {object} model
+ * @param {string} actionId
+ * @param {{ runId?: string | null, skipRunPrompt?: boolean }} ctx
+ */
+function resolveDispatchEffect(model, actionId, ctx) {
+  const id = String(actionId ?? '');
+
+  const nativeOpts = buildNativeWorkflowTransition(model, id, ctx.runId
+    ? { selectedRunId: ctx.runId }
+    : {});
+  if (nativeOpts) {
+    return { kind: 'native_workflow', opts: nativeOpts, actionId: id, runId: ctx.runId ?? null };
+  }
+
+  if (requiresNestedExecute(id)) {
+    return {
+      kind: 'nested_execute',
+      actionId: id,
+      runId: ctx.runId ?? null,
+      skipRunPrompt: ctx.skipRunPrompt === true,
+    };
+  }
+
+  const inkTransition = buildInkLocalSurfaceTransition(model, id);
+  if (inkTransition) {
+    return { kind: 'ink_local', transition: inkTransition, actionId: id, runId: ctx.runId ?? null };
+  }
+
+  if (shouldHandleLeakedInkLocalAction(id)) {
+    const transition = buildInkLocalSurfaceTransition(model, id);
+    return { kind: 'ink_local_remount', transition, actionId: id };
+  }
+
+  return {
+    kind: 'nested_execute',
+    actionId: id,
+    runId: ctx.runId ?? null,
+    skipRunPrompt: ctx.skipRunPrompt === true,
+  };
+}
+
+/**
  * Entry remount fallback: landing chrome always; other ink-local surfaces when leaked.
  * @param {unknown} actionId
  * @returns {boolean}
@@ -113,11 +290,47 @@ function shouldHandleLeakedInkLocalAction(actionId) {
   return isInkLocalRemountFallbackAction(token) || isInkLocalShellAction(token);
 }
 
+/**
+ * Merge executeAction outcome fields into entry-loop mutable state.
+ * @param {object} state
+ * @param {object} outcome
+ * @returns {object}
+ */
+function mergeActionOutcomeIntoEntryState(state, outcome) {
+  const next = { ...state };
+  if (outcome.selectedRunId != null) next.selectedRunId = outcome.selectedRunId;
+  if (outcome.actionResult) next.actionResult = outcome.actionResult;
+  if (outcome.contentSurface) next.contentSurface = outcome.contentSurface;
+  if (outcome.runsPayload) next.runsPayload = outcome.runsPayload;
+  if (outcome.statusResult) {
+    next.statusResult = outcome.statusResult;
+    next.lifecycleSource = outcome.statusResult.json ?? outcome.statusResult;
+    next.monitorSource = outcome.statusResult;
+  }
+  if (outcome.monitorSource) next.monitorSource = outcome.monitorSource;
+  if (outcome.evidenceModel) next.evidenceModel = outcome.evidenceModel;
+  if (outcome.configModel) next.configModel = outcome.configModel;
+  if (Object.prototype.hasOwnProperty.call(outcome, 'launcherModel')) {
+    next.launcherModel = outcome.launcherModel;
+  }
+  if (outcome.actionResult?.exit_code != null) {
+    next.lastExitCode = outcome.actionResult.exit_code;
+  }
+  return next;
+}
+
 module.exports = {
+  NESTED_EXECUTE_ACTIONS,
   classifyShellActionEffect,
+  requiresNestedExecute,
   normalizeInkLocalActionToken,
   selectedNavIdForSurface,
   buildInkLocalSurfaceTransition,
   applyInkLocalSurfaceTransition,
+  buildNativeWorkflowTransition,
+  applyNativeWorkflowTransition,
+  buildSlashMessageTransition,
+  resolveShellActionEffect,
   shouldHandleLeakedInkLocalAction,
+  mergeActionOutcomeIntoEntryState,
 };
