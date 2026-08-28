@@ -23,7 +23,14 @@ const {
 const {
   mergeActionOutcomeIntoEntryState,
   buildEntryModelAfterNestedExecute,
+  buildEntryShellModel,
 } = require('./operator-tui-shell-controller');
+const {
+  createTuiActionExecutor,
+  mapShellActionToActionKind,
+  TUI_ACTION_STATUS,
+  TUI_ACTION_REASON,
+} = require('./operator-tui-action-executor');
 const {
   executeShellAction,
 } = require('./operator-tui-shell-actions');
@@ -528,9 +535,41 @@ async function runOperatorTuiShell(options = {}) {
       colorEnabled: useColor && process.env.NO_COLOR == null,
     });
 
+    const actionExecutor = createTuiActionExecutor();
+
     const runNestedShellAction = async (nested) => {
       nestedExecutions += 1;
       const nestedActionId = nested?.actionId ?? '';
+      const actionKind = mapShellActionToActionKind(nestedActionId);
+      const actionContext = {
+        runId: nested.runId ?? selectedRunId ?? null,
+        surface: contentSurface ?? model.contentSurface ?? null,
+      };
+      const begun = actionExecutor.beginRequest({ actionKind, context: actionContext });
+      if (!begun.accepted) {
+        actionResult = {
+          action_id: nestedActionId,
+          ok: false,
+          exit_code: 0,
+          reason_code: begun.reason_code ?? TUI_ACTION_REASON.DUPLICATE_REJECTED,
+          text: 'Action already in progress.',
+        };
+        contentSurface = 'action_result';
+        model = buildEntryShellModel(entrySnapshot(), {
+          actionResult,
+          contentSurface,
+          selectedNavId: model.selectedNavId,
+          focus: 'nav',
+        });
+        return { model };
+      }
+
+      const activeRequestId = begun.request.request_id;
+      const timeoutMs = begun.request.policy?.timeout_ms;
+      const timeoutHandle = Number.isFinite(timeoutMs) && timeoutMs > 0
+        ? actionExecutor.scheduleTimeout(activeRequestId, timeoutMs)
+        : { cancel() {} };
+
       const nestedBanner = nestedActionId === NATIVE_LAUNCHER_EXECUTE_ACTION
         ? 'ai-minions tui · launching (session still active)'
         : 'ai-minions tui · nested pane (session still active)';
@@ -554,8 +593,23 @@ async function runOperatorTuiShell(options = {}) {
         } catch (err) {
           nestedExecuteError = err instanceof Error ? err : new Error(String(err));
           if (!guard.restored) guard.restore('action_failure');
+          actionExecutor.completeRequest(activeRequestId, {
+            status: TUI_ACTION_STATUS.FAILED,
+          });
           resumeInk = false;
           return { error: String(nestedExecuteError.message) };
+        }
+
+        const applyGate = actionExecutor.shouldApplyResult(activeRequestId, {
+          runId: selectedRunId,
+          surface: contentSurface,
+        });
+        if (!applyGate.apply) {
+          actionExecutor.completeRequest(activeRequestId, {
+            status: TUI_ACTION_STATUS.SUPERSEDED,
+            reason_code: applyGate.reason_code ?? TUI_ACTION_REASON.STALE_CONTEXT,
+          });
+          return { model };
         }
 
         try {
@@ -622,11 +676,19 @@ async function runOperatorTuiShell(options = {}) {
           && !Number.isFinite(options.autoQuitMs)
         ) {
           nestedSessionComplete = true;
+          actionExecutor.completeRequest(activeRequestId, { status: TUI_ACTION_STATUS.SUCCESS });
           return { sessionComplete: true, model };
         }
 
+        actionExecutor.completeRequest(activeRequestId, {
+          status: actionOutcome.actionResult?.ok === false
+            ? TUI_ACTION_STATUS.FAILED
+            : TUI_ACTION_STATUS.SUCCESS,
+          context: { runId: selectedRunId, surface: contentSurface },
+        });
         return { model };
       } finally {
+        timeoutHandle.cancel();
         if (resumeInk && !guard.restored) {
           resumeInkSession({ stdin, stdout });
         }
@@ -644,8 +706,16 @@ async function runOperatorTuiShell(options = {}) {
       autoQuitMs: options.autoQuitMs,
       showSplash: false,
       onModelChange: (next) => {
+        const prevRunId = model.selectedRunId;
+        const prevSurface = model.contentSurface;
         model = next;
         selectedRunId = next.selectedRunId;
+        if (prevRunId !== next.selectedRunId || prevSurface !== next.contentSurface) {
+          actionExecutor.noteContextChange({
+            runId: next.selectedRunId ?? null,
+            surface: next.contentSurface ?? null,
+          });
+        }
       },
       onRequestAction: (actionId) => {
         requestedAction = actionId;

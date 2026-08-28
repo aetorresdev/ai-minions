@@ -966,6 +966,61 @@ test('leaked non-session onRequestAction fails closed', async () => {
   stdout.destroy();
 });
 
+test('duplicate nested attach rejects second executeAction while first pending', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  let executeCount = 0;
+  /** @type {() => void} */
+  let releaseFirst;
+  const firstGate = new Promise((resolve) => {
+    releaseFirst = resolve;
+  });
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 4,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onNestedExecute }) => {
+        if (typeof onNestedExecute !== 'function') return { aborted: false, requestedAction: null };
+        const first = onNestedExecute({ actionId: 'attach' });
+        const second = onNestedExecute({ actionId: 'attach' });
+        releaseFirst();
+        await first;
+        await second;
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+    executeAction: async () => {
+      executeCount += 1;
+      if (executeCount === 1) await firstGate;
+      return {
+        quit: false,
+        selectedRunId: 'run-a',
+        contentSurface: 'action_result',
+        actionResult: {
+          action_id: 'attach',
+          ok: true,
+          exit_code: 0,
+          reason_code: 'ATTACH_OK',
+          text: 'ok',
+        },
+        evidenceModel: null,
+        configModel: null,
+        statusResult: null,
+        runsPayload: null,
+      };
+    },
+  });
+  assert.equal(executeCount, 1, 'nested busy gate prevents overlapping nested I/O');
+  stdin.destroy();
+  stdout.destroy();
+});
+
 test('key 1 with leftover Enter opens native launcher (no nested readline)', async () => {
   const actions = [];
   const { stdin, stdout } = createFakeTtyStreams();
