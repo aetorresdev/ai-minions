@@ -206,6 +206,42 @@ test('deferred completion applies only when request still current', async () => 
   assert.equal(applied.applied, false);
 });
 
+test('noteContextChange supersedes pending read when surface changes on same run', () => {
+  const executor = createTuiActionExecutor({ createId: () => 'req-status-surface' });
+  executor.beginRequest({
+    actionKind: TUI_ACTION_KIND.STATUS_REFRESH,
+    context: { runId: 'run-a', surface: 'status' },
+  });
+  executor.noteContextChange({ runId: 'run-a', surface: 'monitor' });
+  const gate = executor.shouldApplyResult('req-status-surface', {
+    runId: 'run-a',
+    surface: 'monitor',
+  });
+  assert.equal(gate.apply, false);
+  assert.equal(gate.reason_code, TUI_ACTION_REASON.STALE_CONTEXT);
+});
+
+test('cancelAllPending aborts every pending request', () => {
+  if (typeof AbortController !== 'function') return;
+  const executor = createTuiActionExecutor({
+    createId: (() => {
+      let n = 0;
+      return () => `req-${++n}`;
+    })(),
+  });
+  executor.beginRequest({
+    actionKind: TUI_ACTION_KIND.ATTACH_GENERATION,
+    context: { runId: 'run-a', surface: 'home' },
+  });
+  executor.beginRequest({
+    actionKind: TUI_ACTION_KIND.STATUS_REFRESH,
+    context: { runId: 'run-a', surface: 'status' },
+  });
+  const outcome = executor.cancelAllPending();
+  assert.equal(outcome.cancelled.length, 2);
+  assert.equal(outcome.cancelled.every((req) => req.status === TUI_ACTION_STATUS.CANCELLED), true);
+});
+
 test('executeShellAction rejects when abortSignal already aborted', async () => {
   const controller = new AbortController();
   controller.abort();

@@ -1110,7 +1110,11 @@ test('slow nested status for run A does not overwrite after switching to run B',
           }));
         }
         releaseStatus();
-        await pending;
+        const pendingResult = await pending;
+        assert.equal(
+          pendingResult?.model?.actionResult?.reason_code,
+          'TUI_ACTION_STALE_CONTEXT',
+        );
         return { aborted: false, requestedAction: null };
       },
     }),
@@ -1155,6 +1159,114 @@ test('slow nested status for run A does not overwrite after switching to run B',
   stdout.destroy();
 });
 
+test('cross-class nested submit while Io in flight returns TUI_ACTION_NESTED_IO_BUSY', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  /** @type {() => void} */
+  let releaseFirst;
+  const firstGate = new Promise((resolve) => {
+    releaseFirst = resolve;
+  });
+  let executeCount = 0;
+  await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 4,
+    loadRuns: () => canonicalRunsResult([{ run_id: 'run-a', status: 'running', result_code: 'RUN_FOUND' }]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onNestedExecute }) => {
+        if (typeof onNestedExecute !== 'function') return { aborted: false, requestedAction: null };
+        const first = onNestedExecute({ actionId: 'attach' });
+        await new Promise((resolve) => setImmediate(resolve));
+        const blocked = await onNestedExecute({ actionId: 'status', runId: 'run-a' });
+        assert.equal(blocked?.model?.actionResult?.reason_code, 'TUI_ACTION_NESTED_IO_BUSY');
+        releaseFirst();
+        await first;
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+    executeAction: async () => {
+      executeCount += 1;
+      if (executeCount === 1) await firstGate;
+      return {
+        quit: false,
+        selectedRunId: 'run-a',
+        contentSurface: 'action_result',
+        actionResult: { action_id: 'attach', ok: true, exit_code: 0, reason_code: 'ATTACH_OK', text: 'ok' },
+      };
+    },
+  });
+  assert.equal(executeCount, 1);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('ink-local status refresh stale after surface change exposes reason code', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  /** @type {() => void} */
+  let releaseStatus;
+  const statusGate = new Promise((resolve) => {
+    releaseStatus = resolve;
+  });
+  await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 4,
+    loadRuns: () => canonicalRunsResult([{ run_id: 'run-a', status: 'running', result_code: 'RUN_FOUND' }]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    runStatus: async ({ runId }) => {
+      await statusGate;
+      return {
+        ok: true,
+        exitCode: 0,
+        json: {
+          run_id: runId,
+          status: 'STALE_SURFACE',
+          operator_trace_summary: { outcome: 'failed', next_safe_action: 'none' },
+          run_state_visibility: { blocking_reason_code: 'STALE' },
+        },
+      };
+    },
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onInkLocalAsyncRead, onModelChange, model }) => {
+        const pending = onInkLocalAsyncRead({
+          actionId: 'status',
+          runId: 'run-a',
+          surface: 'status',
+        });
+        if (typeof onModelChange === 'function') {
+          onModelChange(buildShellModel({
+            ...shellModelToOptions(model),
+            selectedRunId: 'run-a',
+            contentSurface: 'status',
+            selectedNavId: 'status',
+          }));
+        }
+        onModelChange(buildShellModel({
+          ...shellModelToOptions(model),
+          selectedRunId: 'run-a',
+          contentSurface: 'monitor',
+          selectedNavId: 'monitor',
+        }));
+        releaseStatus();
+        const outcome = await pending;
+        assert.equal(outcome?.actionResult?.reason_code, 'TUI_ACTION_STALE_CONTEXT');
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+  });
+  stdin.destroy();
+  stdout.destroy();
+});
+
 test('ink-local async status read applies operator status without nested remount', async () => {
   const { stdin, stdout } = createFakeTtyStreams();
   let readCalls = 0;
@@ -1184,9 +1296,17 @@ test('ink-local async status read applies operator status without nested remount
       };
     },
     importRenderer: async () => ({
-      renderOperatorTuiShell: async ({ onInkLocalAsyncRead, onModelChange }) => {
+      renderOperatorTuiShell: async ({ onInkLocalAsyncRead, onModelChange, model }) => {
         if (typeof onInkLocalAsyncRead !== 'function') {
           throw new Error('onInkLocalAsyncRead required');
+        }
+        if (typeof onModelChange === 'function') {
+          onModelChange(buildShellModel({
+            ...shellModelToOptions(model),
+            selectedRunId: 'run-a',
+            contentSurface: 'status',
+            selectedNavId: 'status',
+          }));
         }
         const next = await onInkLocalAsyncRead({
           actionId: 'status',

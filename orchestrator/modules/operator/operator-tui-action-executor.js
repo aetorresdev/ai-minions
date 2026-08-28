@@ -24,6 +24,7 @@ const TUI_ACTION_KIND = Object.freeze({
 
 const TUI_ACTION_REASON = Object.freeze({
   DUPLICATE_REJECTED: 'TUI_ACTION_DUPLICATE',
+  NESTED_IO_BUSY: 'TUI_ACTION_NESTED_IO_BUSY',
   SUPERSEDED: 'TUI_ACTION_SUPERSEDED',
   TIMED_OUT: 'TUI_ACTION_TIMED_OUT',
   CANCELLED: 'TUI_ACTION_CANCELLED',
@@ -139,7 +140,37 @@ function contextsMatch(requestCtx, activeCtx, policy) {
   if (policy.scope === 'session') return true;
   const reqRun = requestCtx?.runId ?? null;
   const activeRun = activeCtx?.runId ?? null;
-  return reqRun === activeRun;
+  if (reqRun !== activeRun) return false;
+  const reqSurface = requestCtx?.surface ?? null;
+  const activeSurface = activeCtx?.surface ?? null;
+  if (reqSurface == null || activeSurface == null) return true;
+  return reqSurface === activeSurface;
+}
+
+/**
+ * @param {string} actionKind
+ * @returns {boolean}
+ */
+function activeKeyIncludesSurface(actionKind) {
+  return actionKind === TUI_ACTION_KIND.STATUS_REFRESH
+    || actionKind === TUI_ACTION_KIND.MONITOR_REFRESH
+    || actionKind === TUI_ACTION_KIND.READ_SURFACE;
+}
+
+/**
+ * @param {unknown} actionId
+ * @param {string} reasonCode
+ * @param {string} [text]
+ * @returns {{ action_id: string, ok: boolean, exit_code: number, reason_code: string, text: string }}
+ */
+function buildTerminalActionResult(actionId, reasonCode, text) {
+  return {
+    action_id: String(actionId ?? ''),
+    ok: false,
+    exit_code: 0,
+    reason_code: reasonCode,
+    text: text ?? reasonCode,
+  };
 }
 
 /**
@@ -151,6 +182,10 @@ function contextsMatch(requestCtx, activeCtx, policy) {
 function activeKeyFor(actionKind, context, policy) {
   if (policy.scope === 'session') return `session:${actionKind}`;
   const runId = context?.runId ?? '_none_';
+  if (activeKeyIncludesSurface(actionKind)) {
+    const surface = context?.surface ?? '_any_';
+    return `${actionKind}:${runId}:${surface}`;
+  }
   return `${actionKind}:${runId}`;
 }
 
@@ -336,6 +371,17 @@ function createTuiActionExecutor(options = {}) {
     return { ok: true, request: req };
   }
 
+  function cancelAllPending() {
+    /** @type {object[]} */
+    const cancelled = [];
+    for (const req of requests.values()) {
+      if (req.status !== TUI_ACTION_STATUS.PENDING) continue;
+      const outcome = cancelRequest(req.request_id);
+      if (outcome.ok && outcome.request) cancelled.push(outcome.request);
+    }
+    return { ok: true, cancelled };
+  }
+
   /**
    * @param {string} requestId
    * @param {number} timeoutMs
@@ -383,6 +429,7 @@ function createTuiActionExecutor(options = {}) {
     completeRequest,
     shouldApplyResult,
     cancelRequest,
+    cancelAllPending,
     noteContextChange,
     scheduleTimeout,
     isPending,
@@ -400,6 +447,8 @@ module.exports = {
   DEFAULT_ACTION_POLICIES,
   labelForActionKind,
   buildPendingOperatorAction,
+  buildTerminalActionResult,
+  activeKeyIncludesSurface,
   mapShellActionToActionKind,
   policyForActionKind,
   createTuiActionExecutor,

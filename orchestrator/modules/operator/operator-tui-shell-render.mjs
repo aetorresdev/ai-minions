@@ -743,6 +743,7 @@ function ShellApp(props) {
     onRequestAction,
     onNestedExecute,
     onInkLocalAsyncRead,
+    onCancelPendingAction,
     onNestedExecuteFailure,
   } = props;
   const { exit } = useApp();
@@ -779,6 +780,15 @@ function ShellApp(props) {
     requestAction(actionId);
   };
 
+  const commitActionOutcome = (result) => {
+    if (result?.model) {
+      commit(buildShellModel({
+        ...shellModelToOptions(result.model),
+        pendingOperatorAction: null,
+      }));
+    }
+  };
+
   const runNestedExecute = (nestedPayload) => {
     if (typeof onNestedExecute !== 'function') {
       requestNestedExecute(nestedPayload?.actionId ?? nestedPayload);
@@ -787,13 +797,12 @@ function ShellApp(props) {
     const nestedActionId = nestedPayload?.actionId ?? nestedPayload ?? '';
     if (nestedBusyRef.current) {
       void (async () => {
-        const result = await onNestedExecute(nestedPayload);
-        if (result?.model) {
-          commit(buildShellModel({
-            ...shellModelToOptions(result.model),
-            pendingOperatorAction: null,
-          }));
-        }
+        const result = await onNestedExecute({
+          ...nestedPayload,
+          actionId: nestedActionId,
+          rejectOnly: true,
+        });
+        commitActionOutcome(result);
       })();
       return;
     }
@@ -815,10 +824,7 @@ function ShellApp(props) {
           return;
         }
         if (result?.model) {
-          commit(buildShellModel({
-            ...shellModelToOptions(result.model),
-            pendingOperatorAction: null,
-          }));
+          commitActionOutcome(result);
           return;
         }
         commit(buildShellModel({
@@ -978,16 +984,20 @@ function ShellApp(props) {
 
   useInput((input, key) => {
     const current = modelRef.current;
-    if (nestedBusy || nestedBusyRef.current || current.pendingOperatorAction) return;
     const intent = resolveShellKeypress(input, key, current);
     const gate = transitionGateRef.current;
 
     if (intent.type === 'abort') {
       gate.invalidate();
+      if (typeof onCancelPendingAction === 'function') {
+        onCancelPendingAction();
+      }
       if (typeof onAbort === 'function') onAbort();
       exit();
       return;
     }
+
+    if (nestedBusy || nestedBusyRef.current || current.pendingOperatorAction) return;
     if (intent.type === 'workflow_key') {
       const keyObj = key && typeof key === 'object' ? key : {};
       const isEscape = Boolean(keyObj.escape) || input === '\u001b';
@@ -1307,6 +1317,7 @@ function OperatorTuiRoot(props) {
     onRequestAction,
     onNestedExecute,
     onInkLocalAsyncRead,
+    onCancelPendingAction,
     onNestedExecuteFailure,
   } = props;
   const { exit } = useApp();
@@ -1336,6 +1347,7 @@ function OperatorTuiRoot(props) {
     onRequestAction,
     onNestedExecute,
     onInkLocalAsyncRead,
+    onCancelPendingAction,
     onNestedExecuteFailure,
   });
 }
@@ -1506,6 +1518,7 @@ function buildContentLines(model) {
  *   onRequestAction?: (actionId: string) => void,
  *   onNestedExecute?: (nested: object) => Promise<{ model?: object, quit?: boolean, error?: string, sessionComplete?: boolean } | void>,
  *   onInkLocalAsyncRead?: (input: { actionId: string, runId?: string | null, surface?: string | null }) => Promise<object | null | void>,
+ *   onCancelPendingAction?: () => void,
  *   onNestedExecuteFailure?: (message: string) => void,
  * }} options
  */
@@ -1542,6 +1555,7 @@ export async function renderOperatorTuiShell(options) {
         },
         onNestedExecute: options.onNestedExecute,
         onInkLocalAsyncRead: options.onInkLocalAsyncRead,
+        onCancelPendingAction: options.onCancelPendingAction,
         onNestedExecuteFailure: options.onNestedExecuteFailure,
       }),
       {
