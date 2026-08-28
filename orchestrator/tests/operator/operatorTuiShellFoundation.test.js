@@ -1155,6 +1155,128 @@ test('slow nested status for run A does not overwrite after switching to run B',
   stdout.destroy();
 });
 
+test('ink-local async status read applies operator status without nested remount', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  let readCalls = 0;
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 4,
+    loadRuns: () => canonicalRunsResult([
+      { run_id: 'run-a', status: 'running', result_code: 'RUN_FOUND', goal_summary: 'A' },
+    ]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    runStatus: ({ runId }) => {
+      readCalls += 1;
+      return {
+        ok: true,
+        exitCode: 0,
+        json: {
+          run_id: runId,
+          status: 'RUNNING_FRESH',
+          operator_trace_summary: { outcome: 'running', next_safe_action: 'none' },
+          run_state_visibility: { blocking_reason_code: null },
+        },
+      };
+    },
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onInkLocalAsyncRead, onModelChange, model }) => {
+        if (typeof onInkLocalAsyncRead !== 'function') {
+          throw new Error('onInkLocalAsyncRead required');
+        }
+        const next = await onInkLocalAsyncRead({
+          actionId: 'status',
+          runId: 'run-a',
+          surface: 'status',
+        });
+        if (next && typeof onModelChange === 'function') onModelChange(next);
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+  });
+  assert.equal(readCalls, 1);
+  assert.equal(result.model?.status?.status, 'RUNNING_FRESH');
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('ink-local status refresh latest-wins keeps second result', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  let readCalls = 0;
+  /** @type {() => void} */
+  let releaseFirst;
+  const firstGate = new Promise((resolve) => {
+    releaseFirst = resolve;
+  });
+  await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 4,
+    loadRuns: () => canonicalRunsResult([
+      { run_id: 'run-a', status: 'running', result_code: 'RUN_FOUND', goal_summary: 'A' },
+    ]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    runStatus: ({ runId }) => {
+      readCalls += 1;
+      if (readCalls === 1) {
+        return (async () => {
+          await firstGate;
+          return {
+            ok: true,
+            exitCode: 0,
+            json: {
+              run_id: runId,
+              status: 'STALE_FIRST',
+              operator_trace_summary: { outcome: 'failed', next_safe_action: 'none' },
+              run_state_visibility: { blocking_reason_code: 'STALE' },
+            },
+          };
+        })();
+      }
+      return {
+        ok: true,
+        exitCode: 0,
+        json: {
+          run_id: runId,
+          status: 'FRESH_SECOND',
+          operator_trace_summary: { outcome: 'running', next_safe_action: 'none' },
+          run_state_visibility: { blocking_reason_code: null },
+        },
+      };
+    },
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onInkLocalAsyncRead }) => {
+        const first = onInkLocalAsyncRead({
+          actionId: 'status',
+          runId: 'run-a',
+          surface: 'status',
+        });
+        const second = onInkLocalAsyncRead({
+          actionId: 'status',
+          runId: 'run-a',
+          surface: 'status',
+        });
+        releaseFirst();
+        const secondResult = await second;
+        await first;
+        assert.equal(secondResult?.status?.status, 'FRESH_SECOND');
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+  });
+  assert.equal(readCalls, 1, 'superseded first read must not call runStatus');
+  stdin.destroy();
+  stdout.destroy();
+});
+
 test('key 1 with leftover Enter opens native launcher (no nested readline)', async () => {
   const actions = [];
   const { stdin, stdout } = createFakeTtyStreams();

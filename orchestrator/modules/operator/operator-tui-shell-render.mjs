@@ -19,6 +19,7 @@ const {
   applyShellActionEffectInRender,
 } = require('./operator-tui-shell-controller.js');
 const { buildPendingOperatorAction } = require('./operator-tui-action-executor.js');
+const { isInkLocalAsyncReadAction } = require('./operator-tui-ink-local-reads.js');
 const { resolveSlashCommandPlan } = require('./operator-tui-shell-actions.js');
 const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor, brandGradientStop } = require('./operator-tui-theme.js');
 const { chromeIcon, resolveIconMode } = require('./operator-tui-icons.js');
@@ -741,6 +742,7 @@ function ShellApp(props) {
     onAbort,
     onRequestAction,
     onNestedExecute,
+    onInkLocalAsyncRead,
     onNestedExecuteFailure,
   } = props;
   const { exit } = useApp();
@@ -911,11 +913,52 @@ function ShellApp(props) {
     return () => clearTimeout(timer);
   }, [autoQuitMs, exit]);
 
+  const triggerInkLocalAsyncRead = (actionId, currentModel) => {
+    if (typeof onInkLocalAsyncRead !== 'function') return;
+    if (!isInkLocalAsyncReadAction(actionId)) return;
+    const token = transitionGateRef.current.begin();
+    void (async () => {
+      commit(buildShellModel({
+        ...shellModelToOptions(currentModel),
+        pendingOperatorAction: buildPendingOperatorAction(actionId),
+      }));
+      try {
+        const result = await onInkLocalAsyncRead({
+          actionId,
+          runId: currentModel.selectedRunId ?? null,
+          surface: currentModel.contentSurface ?? null,
+        });
+        if (!transitionGateRef.current.isCurrent(token)) return;
+        if (result) {
+          commit(buildShellModel({
+            ...shellModelToOptions(result),
+            pendingOperatorAction: null,
+          }));
+          return;
+        }
+        commit(buildShellModel({
+          ...shellModelToOptions(modelRef.current),
+          pendingOperatorAction: null,
+        }));
+      } catch (err) {
+        if (!transitionGateRef.current.isCurrent(token)) return;
+        commit(buildShellModel({
+          ...shellModelToOptions(modelRef.current),
+          pendingOperatorAction: null,
+        }));
+        if (typeof onNestedExecuteFailure === 'function') {
+          onNestedExecuteFailure(String(err && err.message ? err.message : err));
+        }
+      }
+    })();
+  };
+
   const commitRenderAction = (actionId, ctx = {}) => {
     const current = modelRef.current;
     const outcome = applyShellActionEffectInRender(current, actionId, ctx);
     if (outcome.handled && outcome.model) {
       commit(outcome.model);
+      triggerInkLocalAsyncRead(actionId, outcome.model);
       return true;
     }
     if (outcome.sessionEnd) {
@@ -1263,6 +1306,7 @@ function OperatorTuiRoot(props) {
     onAbort,
     onRequestAction,
     onNestedExecute,
+    onInkLocalAsyncRead,
     onNestedExecuteFailure,
   } = props;
   const { exit } = useApp();
@@ -1291,6 +1335,7 @@ function OperatorTuiRoot(props) {
     onAbort,
     onRequestAction,
     onNestedExecute,
+    onInkLocalAsyncRead,
     onNestedExecuteFailure,
   });
 }
@@ -1460,6 +1505,7 @@ function buildContentLines(model) {
  *   onModelChange?: (model: object) => void,
  *   onRequestAction?: (actionId: string) => void,
  *   onNestedExecute?: (nested: object) => Promise<{ model?: object, quit?: boolean, error?: string, sessionComplete?: boolean } | void>,
+ *   onInkLocalAsyncRead?: (input: { actionId: string, runId?: string | null, surface?: string | null }) => Promise<object | null | void>,
  *   onNestedExecuteFailure?: (message: string) => void,
  * }} options
  */
@@ -1495,6 +1541,7 @@ export async function renderOperatorTuiShell(options) {
           }
         },
         onNestedExecute: options.onNestedExecute,
+        onInkLocalAsyncRead: options.onInkLocalAsyncRead,
         onNestedExecuteFailure: options.onNestedExecuteFailure,
       }),
       {
