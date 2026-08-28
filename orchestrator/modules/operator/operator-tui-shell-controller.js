@@ -41,8 +41,8 @@ function classifyShellPresentationRoute(actionId) {
   if (isShellSessionEndAction(actionId)) return 'session_end';
   const id = String(actionId ?? '').trim().toLowerCase();
   if (isNativeWorkflowAction(id) && id !== NATIVE_LAUNCHER_EXECUTE_ACTION) return 'native_workflow';
-  if (requiresNestedExecute(id)) return 'nested_execute';
   if (isInkLocalShellAction(id)) return 'ink_local';
+  if (id === NATIVE_LAUNCHER_EXECUTE_ACTION || requiresNestedExecute(id)) return 'nested_execute';
   return 'nested_execute';
 }
 
@@ -297,6 +297,9 @@ function resolveDispatchEffect(model, actionId, ctx) {
  */
 function resolvePresentationEffect(model, actionId) {
   const id = String(actionId ?? '');
+  if (isShellSessionEndAction(id)) {
+    return { kind: 'session_end', actionId: id };
+  }
 
   const nativeOpts = buildNativeWorkflowTransition(model, id);
   if (nativeOpts) {
@@ -316,6 +319,32 @@ function resolvePresentationEffect(model, actionId) {
 }
 
 /**
+ * Resolve an action for the entry remount loop.
+ * Slash tokens use dispatch resolver; leaked hotkeys use presentation resolver.
+ * @param {object} model
+ * @param {unknown} actionId
+ * @param {{
+ *   slashPlan?: { plan: object, parsed: object } | null,
+ *   resolvedToken?: string | null,
+ *   launcherSelections?: object | null,
+ * }} [ctx]
+ */
+function resolveEntryActionEffect(model, actionId, ctx = {}) {
+  const raw = String(actionId ?? '').trim();
+  if (isShellSessionEndAction(raw)) {
+    return { kind: 'session_end', actionId: raw };
+  }
+  if (ctx.slashPlan) {
+    return resolveShellActionEffect(model, actionId, {
+      slashPlan: ctx.slashPlan,
+      launcherSelections: ctx.launcherSelections ?? model.pendingLauncherSelections,
+    });
+  }
+  const token = ctx.resolvedToken ?? raw;
+  return resolvePresentationEffect(model, token);
+}
+
+/**
  * Apply a controller effect inside Ink render without unmounting.
  * @param {object} model
  * @param {unknown} actionId
@@ -323,6 +352,8 @@ function resolvePresentationEffect(model, actionId) {
  * @returns {{
  *   handled: boolean,
  *   model?: object,
+ *   sessionEnd?: boolean,
+ *   actionId?: string,
  *   nested?: { kind: 'nested_execute', actionId: string, runId?: string | null, skipRunPrompt?: boolean, launcherSelections?: object | null },
  * }}
  */
@@ -334,6 +365,13 @@ function applyShellActionEffectInRender(model, actionId, ctx = {}) {
     })
     : resolvePresentationEffect(model, actionId);
 
+  if (effect.kind === 'session_end') {
+    return {
+      handled: false,
+      sessionEnd: true,
+      actionId: effect.actionId ?? String(actionId ?? ''),
+    };
+  }
   if (effect.kind === 'slash_message') {
     return {
       handled: true,
@@ -515,6 +553,7 @@ module.exports = {
   buildEntryShellModel,
   materializeEntryRemountFromEffect,
   resolvePresentationEffect,
+  resolveEntryActionEffect,
   applyShellActionEffectInRender,
   shellActionStaysMountedInRender,
 };

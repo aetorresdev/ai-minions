@@ -23,6 +23,7 @@ const {
   buildEntryShellModel,
   materializeEntryRemountFromEffect,
   resolvePresentationEffect,
+  resolveEntryActionEffect,
   applyShellActionEffectInRender,
   shellActionStaysMountedInRender,
 } = require('../../modules/operator/operator-tui-shell-controller');
@@ -46,14 +47,16 @@ function baseModel(overrides = {}) {
   });
 }
 
-test('classifyShellPresentationRoute partitions session-end, ink-local, native, nested', () => {
+test('classifyShellPresentationRoute aligns with resolvePresentationEffect', () => {
   assert.equal(classifyShellPresentationRoute('q'), 'session_end');
   assert.equal(classifyShellPresentationRoute('help'), 'ink_local');
   assert.equal(classifyShellPresentationRoute('launcher'), 'native_workflow');
-  assert.equal(classifyShellPresentationRoute('status'), 'nested_execute');
-  assert.equal(classifyShellPresentationRoute('explain'), 'nested_execute');
+  assert.equal(classifyShellPresentationRoute('status'), 'ink_local');
+  assert.equal(classifyShellPresentationRoute('explain'), 'ink_local');
   assert.equal(classifyShellPresentationRoute('attach'), 'nested_execute');
   assert.equal(classifyShellPresentationRoute('monitor'), 'ink_local');
+  const model = baseModel({ selectedRunId: 'run-1' });
+  assert.equal(classifyShellPresentationRoute('status'), resolvePresentationEffect(model, 'status').kind);
 });
 
 test('normalizeInkLocalActionToken maps /doctor to config', () => {
@@ -235,6 +238,38 @@ test('monitor transition seeds monitorSource from status snapshot', () => {
   assert.equal(next.contentSurface, 'monitor');
   assert.equal(next.selectedNavId, 'monitor');
   assert.equal(next.monitorSource?.run_id, 'run-1');
+});
+
+test('applyShellActionEffectInRender exposes session_end for slash quit', () => {
+  const model = baseModel();
+  const slashPlan = resolveSlashCommandPlan('/quit', { selectedRunId: null });
+  const outcome = applyShellActionEffectInRender(model, '/quit', { slashPlan });
+  assert.equal(outcome.handled, false);
+  assert.equal(outcome.sessionEnd, true);
+  assert.equal(outcome.actionId, '/quit');
+  assert.equal(outcome.nested, undefined);
+});
+
+test('resolveEntryActionEffect uses presentation route for leaked hotkey status', () => {
+  const model = baseModel({
+    selectedRunId: 'run-1',
+    runsPayload: {
+      ok: true,
+      exitCode: 0,
+      result_code: 'RUNS_FOUND',
+      next_safe_action: 'none',
+      json: {
+        result_code: 'RUNS_FOUND',
+        runs: [{ run_id: 'run-1', status: 'running', outcome: 'running' }],
+        next_safe_action: 'none',
+      },
+    },
+  });
+  const leaked = resolveEntryActionEffect(model, 'status', { resolvedToken: 'status' });
+  assert.equal(leaked.kind, 'ink_local');
+  const slashPlan = resolveSlashCommandPlan('/status', { selectedRunId: 'run-1' });
+  const slash = resolveEntryActionEffect(model, '/status', { slashPlan });
+  assert.equal(slash.kind, 'nested_execute');
 });
 
 test('resolvePresentationEffect keeps hotkey status ink-local (seeded)', () => {

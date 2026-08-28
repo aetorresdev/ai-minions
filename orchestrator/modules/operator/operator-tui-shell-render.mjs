@@ -845,6 +845,10 @@ function ShellApp(props) {
       commit(outcome.model);
       return true;
     }
+    if (outcome.sessionEnd) {
+      requestAction(outcome.actionId ?? actionId);
+      return true;
+    }
     if (outcome.nested) {
       requestNestedExecute(outcome.nested.actionId ?? actionId);
       return true;

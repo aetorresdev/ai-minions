@@ -25,6 +25,7 @@ const {
   mergeActionOutcomeIntoEntryState,
   buildEntryShellModel,
   materializeEntryRemountFromEffect,
+  resolveEntryActionEffect,
 } = require('./operator-tui-shell-controller');
 const {
   executeShellAction,
@@ -630,7 +631,7 @@ async function runOperatorTuiShell(options = {}) {
 
       const slashPlan = resolveSlashCommandPlan(requestedAction, { selectedRunId });
       let resolvedActionId = requestedAction;
-      let effect = resolveShellActionEffect(model, requestedAction, {
+      let effect = resolveEntryActionEffect(model, requestedAction, {
         slashPlan,
         launcherSelections: model.pendingLauncherSelections,
       });
@@ -656,7 +657,21 @@ async function runOperatorTuiShell(options = {}) {
           continue;
         }
         resolvedActionId = token;
-        effect = resolveShellActionEffect(model, token);
+        effect = resolveEntryActionEffect(model, requestedAction, { resolvedToken: token });
+      }
+
+      if (effect.kind === 'session_end') {
+        if (!guard.restored) guard.restore('quit');
+        return {
+          ok: true,
+          exitCode: 0,
+          reason_code: TUI_SHELL_REASON.QUIT,
+          ink_loaded: inkLoaded,
+          react_loaded: reactLoaded,
+          text: formatShellText(model),
+          model,
+          guard,
+        };
       }
 
       const remountMaterial = materializeEntryRemountFromEffect(effect, entrySnapshot(), model);
