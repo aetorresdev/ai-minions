@@ -69,6 +69,44 @@ const DEFAULT_ACTION_POLICIES = Object.freeze({
  * @param {unknown} actionId
  * @returns {string}
  */
+/**
+ * @param {string} actionKind
+ * @param {unknown} [actionId]
+ * @returns {string}
+ */
+function labelForActionKind(actionKind, actionId) {
+  switch (actionKind) {
+    case TUI_ACTION_KIND.START_RUN:
+      return 'Launching run';
+    case TUI_ACTION_KIND.ATTACH_GENERATION:
+      return 'Attaching generation';
+    case TUI_ACTION_KIND.STATUS_REFRESH:
+      return 'Refreshing status';
+    case TUI_ACTION_KIND.MONITOR_REFRESH:
+      return 'Refreshing monitor';
+    case TUI_ACTION_KIND.CONTINUE_CURRENT:
+      return 'Continuing run';
+    default:
+      return `Running ${String(actionId ?? 'action')}`;
+  }
+}
+
+/**
+ * @param {unknown} actionId
+ * @param {{ actionKind?: string, requestId?: string | null, label?: string, started_at?: number | null }} [extras]
+ * @returns {{ action_id: string, action_kind: string, request_id: string | null, label: string, started_at: number | null }}
+ */
+function buildPendingOperatorAction(actionId, extras = {}) {
+  const actionKind = extras.actionKind ?? mapShellActionToActionKind(actionId);
+  return {
+    action_id: String(actionId ?? ''),
+    action_kind: actionKind,
+    request_id: extras.requestId ?? null,
+    label: extras.label ?? labelForActionKind(actionKind, actionId),
+    started_at: extras.started_at ?? null,
+  };
+}
+
 function mapShellActionToActionKind(actionId) {
   const id = String(actionId ?? '').trim().toLowerCase();
   if (id === NATIVE_LAUNCHER_EXECUTE_ACTION || id === 'launcher_execute') {
@@ -360,6 +398,8 @@ module.exports = {
   TUI_ACTION_KIND,
   TUI_ACTION_REASON,
   DEFAULT_ACTION_POLICIES,
+  labelForActionKind,
+  buildPendingOperatorAction,
   mapShellActionToActionKind,
   policyForActionKind,
   createTuiActionExecutor,

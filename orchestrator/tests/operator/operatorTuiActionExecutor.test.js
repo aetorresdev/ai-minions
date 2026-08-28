@@ -7,10 +7,32 @@ const {
   TUI_ACTION_STATUS,
   TUI_ACTION_KIND,
   TUI_ACTION_REASON,
+  buildPendingOperatorAction,
   mapShellActionToActionKind,
   createTuiActionExecutor,
 } = require('../../modules/operator/operator-tui-action-executor');
+const { buildShellModel } = require('../../modules/operator/operator-tui-shell-model');
 const { NATIVE_LAUNCHER_EXECUTE_ACTION } = require('../../modules/operator/operator-tui-native-workflows');
+
+test('buildPendingOperatorAction exposes operator-facing label', () => {
+  const pending = buildPendingOperatorAction('attach');
+  assert.equal(pending.action_kind, TUI_ACTION_KIND.ATTACH_GENERATION);
+  assert.match(pending.label, /Attaching generation/i);
+});
+
+test('buildShellModel footer shows pending operator action', () => {
+  const model = buildShellModel({
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    pathActivation: { status: 'ready', on_path: true },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    runsPayload: { runs: [], result_code: 'OK', next_safe_action: null },
+    pendingOperatorAction: buildPendingOperatorAction('status'),
+    columns: 80,
+    rows: 40,
+  });
+  assert.match(model.footerHints, /Refreshing status/i);
+  assert.match(model.footerHints, /action in progress/i);
+});
 
 test('mapShellActionToActionKind maps nested operator actions', () => {
   assert.equal(mapShellActionToActionKind(NATIVE_LAUNCHER_EXECUTE_ACTION), TUI_ACTION_KIND.START_RUN);

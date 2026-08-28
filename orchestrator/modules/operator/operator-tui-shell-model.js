@@ -92,6 +92,7 @@ function layoutModeForColumns(columns) {
  *   pendingLauncherSelections?: object | null,
  *   helpSelectedTopicId?: string | null,
  *   helpOpenTopicId?: string | null,
+ *   pendingOperatorAction?: { action_id?: string, action_kind?: string, request_id?: string | null, label?: string, started_at?: number | null } | null,
  * }} [options]
  */
 function buildShellModel(options = {}) {
@@ -192,7 +193,15 @@ function buildShellModel(options = {}) {
       ? String(options.helpOpenTopicId)
       : null);
   const useCompactHints = layout === 'narrow' || landingLayout === 'compact';
-  const footerHints = workflowActive
+  const pendingOperatorAction = options.pendingOperatorAction
+    && typeof options.pendingOperatorAction === 'object'
+    ? options.pendingOperatorAction
+    : null;
+  const footerHints = pendingOperatorAction
+    ? (useCompactHints
+      ? `${pendingOperatorAction.label ?? 'Working'}… · busy · Ctrl+C quit`
+      : `${pendingOperatorAction.label ?? 'Working'}… · action in progress · keys ignored · Ctrl+C=quit`)
+    : (workflowActive
     ? (workflowBusy
       ? (useCompactHints
         ? 'loading · Esc cancel · Ctrl+C quit'
@@ -212,7 +221,7 @@ function buildShellModel(options = {}) {
           : 'Help topics · ↑/↓ · Enter/digit open · Esc Home · q=quit · no remount'))
       : (useCompactHints
         ? landing.footer_hints_narrow
-        : landing.footer_hints_wide));
+        : landing.footer_hints_wide)));
 
   return {
     schema: SHELL_SCHEMA,
@@ -248,6 +257,7 @@ function buildShellModel(options = {}) {
     monitorSource: options.monitorSource ?? null,
     activeWorkflow,
     pendingLauncherSelections,
+    pendingOperatorAction,
     footerHints,
     disclaimer:
       'Task-first landing + guided launcher + live monitor + slash commands — operator modules remain authoritative. '
@@ -918,6 +928,7 @@ function shellModelToOptions(model) {
     pendingLauncherSelections: model.pendingLauncherSelections ?? null,
     helpSelectedTopicId: model.helpSelectedTopicId ?? null,
     helpOpenTopicId: model.helpOpenTopicId ?? null,
+    pendingOperatorAction: model.pendingOperatorAction ?? null,
   };
 }
 

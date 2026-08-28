@@ -18,6 +18,7 @@ const {
 const {
   applyShellActionEffectInRender,
 } = require('./operator-tui-shell-controller.js');
+const { buildPendingOperatorAction } = require('./operator-tui-action-executor.js');
 const { resolveSlashCommandPlan } = require('./operator-tui-shell-actions.js');
 const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor, brandGradientStop } = require('./operator-tui-theme.js');
 const { chromeIcon, resolveIconMode } = require('./operator-tui-icons.js');
@@ -781,9 +782,14 @@ function ShellApp(props) {
       requestNestedExecute(nestedPayload?.actionId ?? nestedPayload);
       return;
     }
+    const nestedActionId = nestedPayload?.actionId ?? nestedPayload ?? '';
     if (nestedBusyRef.current) return;
     nestedBusyRef.current = true;
     setNestedBusy(true);
+    commit(buildShellModel({
+      ...shellModelToOptions(modelRef.current),
+      pendingOperatorAction: buildPendingOperatorAction(nestedActionId),
+    }));
     void (async () => {
       try {
         const result = await onNestedExecute(nestedPayload);
@@ -795,7 +801,17 @@ function ShellApp(props) {
           exit();
           return;
         }
-        if (result?.model) commit(result.model);
+        if (result?.model) {
+          commit(buildShellModel({
+            ...shellModelToOptions(result.model),
+            pendingOperatorAction: null,
+          }));
+          return;
+        }
+        commit(buildShellModel({
+          ...shellModelToOptions(modelRef.current),
+          pendingOperatorAction: null,
+        }));
       } catch (err) {
         if (typeof onNestedExecuteFailure === 'function') {
           onNestedExecuteFailure(String(err && err.message ? err.message : err));
@@ -907,9 +923,8 @@ function ShellApp(props) {
   };
 
   useInput((input, key) => {
-    if (nestedBusy || nestedBusyRef.current) return;
-    // Always resolve against the latest model — avoid stale focus after nav moves.
     const current = modelRef.current;
+    if (nestedBusy || nestedBusyRef.current || current.pendingOperatorAction) return;
     const intent = resolveShellKeypress(input, key, current);
     const gate = transitionGateRef.current;
 
