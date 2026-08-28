@@ -974,7 +974,7 @@ test('duplicate nested attach rejects second executeAction while first pending',
   const firstGate = new Promise((resolve) => {
     releaseFirst = resolve;
   });
-  const result = await runOperatorTuiShell({
+  await runOperatorTuiShell({
     isTTY: true,
     stdin,
     stdout,
@@ -990,7 +990,7 @@ test('duplicate nested attach rejects second executeAction while first pending',
         const first = onNestedExecute({ actionId: 'attach' });
         const second = onNestedExecute({ actionId: 'attach' });
         releaseFirst();
-        const firstResult = await first;
+        await first;
         const secondResult = await second;
         assert.equal(secondResult?.model?.actionResult?.reason_code, 'TUI_ACTION_DUPLICATE');
         return { aborted: false, requestedAction: null };
@@ -1184,7 +1184,7 @@ test('ink-local async status read applies operator status without nested remount
       };
     },
     importRenderer: async () => ({
-      renderOperatorTuiShell: async ({ onInkLocalAsyncRead, onModelChange, model }) => {
+      renderOperatorTuiShell: async ({ onInkLocalAsyncRead, onModelChange }) => {
         if (typeof onInkLocalAsyncRead !== 'function') {
           throw new Error('onInkLocalAsyncRead required');
         }

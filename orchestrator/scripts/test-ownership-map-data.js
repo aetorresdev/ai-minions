@@ -86,6 +86,7 @@ const ENTRIES = {
   'tests/operator/operatorTuiShellFoundation.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiShellController.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiActionExecutor.test.js': { owner: 'operator', kind: 'unit' },
+  'tests/operator/operatorTuiInkLocalReads.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiNativeWorkflows.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiSplashTheme.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiLanding.test.js': { owner: 'operator', kind: 'unit' },
