@@ -31,6 +31,7 @@ const {
   createTerminalGuard,
   withTerminalGuard,
   prepareNestedPaneIo,
+  resumeInkSession,
   drainStdinColdStart,
 } = require('./operator-tui-terminal-guard');
 const { adaptActionResult } = require('./operator-tui-adapters');
@@ -141,7 +142,7 @@ function resolveColdStartShellSurface(options = {}) {
  * @param {{
  *   skipSplash?: boolean,
  *   autoQuitMs?: number,
- *   maxLoops?: number,
+ *   maxLoops?: number — max nested execute invocations per session (not Ink remount count),
  * }} options
  * @param {NodeJS.ProcessEnv} [env]
  * @returns {boolean}
@@ -172,7 +173,7 @@ function shouldShowProductionSplash(options = {}, env = process.env) {
  *   autoQuitMs?: number,
  *   skipSplash?: boolean,
  *   splashMs?: number,
- *   maxLoops?: number,
+ *   maxLoops?: number — max nested execute invocations per session (not Ink remount count),
  *   injectFailure?: 'renderer' | 'child' | null,
  *   preferLegacy?: boolean,
  *   buildAbout?: typeof buildAboutInfo,
@@ -535,77 +536,101 @@ async function runOperatorTuiShell(options = {}) {
         : 'ai-minions tui · nested pane (session still active)';
       prepareNestedPaneIo({ stdin, stdout, banner: nestedBanner });
 
-      let actionOutcome;
+      let resumeInk = true;
       try {
-        actionOutcome = await executeAction({
-          actionId: nestedActionId,
-          selectedRunId: nested.runId ?? selectedRunId,
-          skipRunPrompt: nested.skipRunPrompt === true,
-          cwd: options.cwd,
-          useColor,
-          stdin,
-          stdout,
-          modelPolicy: aboutInfo.model_policy,
-          launcherSelections: nested.launcherSelections ?? undefined,
-        });
-      } catch (err) {
-        nestedExecuteError = err instanceof Error ? err : new Error(String(err));
-        if (!guard.restored) guard.restore('action_failure');
-        return { error: String(nestedExecuteError.message) };
+        let actionOutcome;
+        try {
+          actionOutcome = await executeAction({
+            actionId: nestedActionId,
+            selectedRunId: nested.runId ?? selectedRunId,
+            skipRunPrompt: nested.skipRunPrompt === true,
+            cwd: options.cwd,
+            useColor,
+            stdin,
+            stdout,
+            modelPolicy: aboutInfo.model_policy,
+            launcherSelections: nested.launcherSelections ?? undefined,
+          });
+        } catch (err) {
+          nestedExecuteError = err instanceof Error ? err : new Error(String(err));
+          if (!guard.restored) guard.restore('action_failure');
+          resumeInk = false;
+          return { error: String(nestedExecuteError.message) };
+        }
+
+        try {
+          ({
+            selectedRunId,
+            actionResult,
+            contentSurface,
+            runsPayload,
+            statusResult,
+            lifecycleSource,
+            monitorSource,
+            evidenceModel,
+            configModel,
+            launcherModel,
+            lastExitCode,
+          } = mergeActionOutcomeIntoEntryState({
+            selectedRunId,
+            actionResult,
+            contentSurface,
+            runsPayload,
+            statusResult,
+            lifecycleSource,
+            monitorSource,
+            evidenceModel,
+            configModel,
+            launcherModel,
+            lastExitCode,
+          }, actionOutcome));
+        } catch (err) {
+          nestedExecuteError = err instanceof Error ? err : new Error(String(err));
+          if (!guard.restored) guard.restore('action_failure');
+          resumeInk = false;
+          return { error: String(nestedExecuteError.message) };
+        }
+
+        if (actionOutcome.quit) {
+          if (!guard.restored) guard.restore('quit');
+          nestedQuit = true;
+          resumeInk = false;
+          return { quit: true, model };
+        }
+
+        if (nestedActionId === 'config') {
+          aboutInfo = buildAbout({ cwd: options.cwd });
+          credentials = assessCredentials({ modelPolicy: aboutInfo.model_policy });
+          pathActivation = assessPath();
+        }
+
+        try {
+          model = buildEntryModelAfterNestedExecute(entrySnapshot(), model, nestedActionId);
+        } catch (err) {
+          nestedExecuteError = err instanceof Error ? err : new Error(String(err));
+          if (!guard.restored) guard.restore('action_failure');
+          resumeInk = false;
+          return { error: String(nestedExecuteError.message) };
+        }
+
+        if (actionOutcome.actionResult?.exit_code != null) {
+          lastExitCode = actionOutcome.actionResult.exit_code;
+        }
+
+        if (
+          nestedExecutions >= maxLoops
+          && !Number.isFinite(options.autoQuitMs)
+        ) {
+          nestedSessionComplete = true;
+          return { sessionComplete: true, model };
+        }
+
+        return { model };
+      } finally {
+        if (resumeInk && !guard.restored) {
+          resumeInkSession({ stdin, stdout });
+        }
       }
-
-      ({
-        selectedRunId,
-        actionResult,
-        contentSurface,
-        runsPayload,
-        statusResult,
-        lifecycleSource,
-        monitorSource,
-        evidenceModel,
-        configModel,
-        launcherModel,
-        lastExitCode,
-      } = mergeActionOutcomeIntoEntryState({
-        selectedRunId,
-        actionResult,
-        contentSurface,
-        runsPayload,
-        statusResult,
-        lifecycleSource,
-        monitorSource,
-        evidenceModel,
-        configModel,
-        launcherModel,
-        lastExitCode,
-      }, actionOutcome));
-
-      if (actionOutcome.quit) {
-        if (!guard.restored) guard.restore('quit');
-        nestedQuit = true;
-        return { quit: true, model };
-      }
-
-      if (nestedActionId === 'config') {
-        aboutInfo = buildAbout({ cwd: options.cwd });
-        credentials = assessCredentials({ modelPolicy: aboutInfo.model_policy });
-        pathActivation = assessPath();
-      }
-
-      model = buildEntryModelAfterNestedExecute(entrySnapshot(), model, nestedActionId);
-      if (actionOutcome.actionResult?.exit_code != null) {
-        lastExitCode = actionOutcome.actionResult.exit_code;
-      }
-
-      if (
-        nestedExecutions >= maxLoops
-        && !Number.isFinite(options.autoQuitMs)
-      ) {
-        nestedSessionComplete = true;
-        return { sessionComplete: true, model };
-      }
-
-      return { model };
     };
 
     let requestedAction = null;
@@ -626,6 +651,10 @@ async function runOperatorTuiShell(options = {}) {
         requestedAction = actionId;
       },
       onNestedExecute: runNestedShellAction,
+      onNestedExecuteFailure: (message) => {
+        nestedExecuteError = new Error(String(message));
+        if (!guard.restored) guard.restore('action_failure');
+      },
     }), 'normal');
 
     aborted = Boolean(renderResult?.aborted);
@@ -706,14 +735,15 @@ async function runOperatorTuiShell(options = {}) {
 
     if (!guard.restored) guard.restore('normal');
     return {
-      ok: true,
-      exitCode: 0,
-      reason_code: TUI_SHELL_REASON.OK,
+      ok: false,
+      exitCode: 1,
+      reason_code: TUI_SHELL_REASON.ACTION_FAILURE,
       ink_loaded: inkLoaded,
       react_loaded: reactLoaded,
       text: formatShellText(model),
       model,
       guard,
+      error: `Unexpected leaked action dispatch: ${requestedAction}`,
     };
   } catch (err) {
     if (!guard.restored) guard.restore('renderer_exception');

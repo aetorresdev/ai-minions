@@ -733,11 +733,20 @@ function SplashApp(props) {
 }
 
 function ShellApp(props) {
-  const { initialModel, autoQuitMs, onModelChange, onAbort, onRequestAction, onNestedExecute } = props;
+  const {
+    initialModel,
+    autoQuitMs,
+    onModelChange,
+    onAbort,
+    onRequestAction,
+    onNestedExecute,
+    onNestedExecuteFailure,
+  } = props;
   const { exit } = useApp();
   const { stdout } = useStdout();
   const [model, setModel] = useState(initialModel);
   const [nestedBusy, setNestedBusy] = useState(false);
+  const nestedBusyRef = useRef(false);
   const modelRef = useRef(model);
   modelRef.current = model;
   const transitionGateRef = useRef(createAsyncTransitionGate());
@@ -772,8 +781,10 @@ function ShellApp(props) {
       requestNestedExecute(nestedPayload?.actionId ?? nestedPayload);
       return;
     }
+    if (nestedBusyRef.current) return;
+    nestedBusyRef.current = true;
+    setNestedBusy(true);
     void (async () => {
-      setNestedBusy(true);
       try {
         const result = await onNestedExecute(nestedPayload);
         if (result?.error) {
@@ -785,7 +796,13 @@ function ShellApp(props) {
           return;
         }
         if (result?.model) commit(result.model);
+      } catch (err) {
+        if (typeof onNestedExecuteFailure === 'function') {
+          onNestedExecuteFailure(String(err && err.message ? err.message : err));
+        }
+        exit();
       } finally {
+        nestedBusyRef.current = false;
         setNestedBusy(false);
       }
     })();
@@ -890,7 +907,7 @@ function ShellApp(props) {
   };
 
   useInput((input, key) => {
-    if (nestedBusy) return;
+    if (nestedBusy || nestedBusyRef.current) return;
     // Always resolve against the latest model — avoid stale focus after nav moves.
     const current = modelRef.current;
     const intent = resolveShellKeypress(input, key, current);
@@ -1220,6 +1237,7 @@ function OperatorTuiRoot(props) {
     onAbort,
     onRequestAction,
     onNestedExecute,
+    onNestedExecuteFailure,
   } = props;
   const { exit } = useApp();
   const [phase, setPhase] = useState(showSplash ? 'splash' : 'shell');
@@ -1247,6 +1265,7 @@ function OperatorTuiRoot(props) {
     onAbort,
     onRequestAction,
     onNestedExecute,
+    onNestedExecuteFailure,
   });
 }
 
@@ -1415,6 +1434,7 @@ function buildContentLines(model) {
  *   onModelChange?: (model: object) => void,
  *   onRequestAction?: (actionId: string) => void,
  *   onNestedExecute?: (nested: object) => Promise<{ model?: object, quit?: boolean, error?: string, sessionComplete?: boolean } | void>,
+ *   onNestedExecuteFailure?: (message: string) => void,
  * }} options
  */
 export async function renderOperatorTuiShell(options) {
@@ -1449,6 +1469,7 @@ export async function renderOperatorTuiShell(options) {
           }
         },
         onNestedExecute: options.onNestedExecute,
+        onNestedExecuteFailure: options.onNestedExecuteFailure,
       }),
       {
         stdin: options.stdin,

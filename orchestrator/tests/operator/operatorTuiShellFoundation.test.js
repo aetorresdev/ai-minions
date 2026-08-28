@@ -38,11 +38,13 @@ const {
   withTerminalGuard,
   prepareNestedPaneIo,
   prepareInkRemount,
+  resumeInkSession,
   drainStdin,
   drainStdinColdStart,
   COLD_START_DRAIN_SAFETY_MAX,
   RESTORE_SEQUENCE,
   SOFT_HANDOFF_SEQUENCE,
+  INK_HIDE_CURSOR_SEQUENCE,
   CLEAR_SEQUENCE,
 } = require('../../modules/operator/operator-tui-terminal-guard');
 const {
@@ -864,6 +866,104 @@ test('prepareInkRemount resumes stdin after readline pause', () => {
   assert.equal(result.ok, true);
   assert.equal(result.resumed, true);
   assert.equal(resumed, 1);
+});
+
+test('resumeInkSession re-enables raw mode and hides cursor after nested I/O', () => {
+  const writes = [];
+  const stdin = {
+    isTTY: true,
+    isRaw: false,
+    isPaused: () => true,
+    resume() {
+      this.paused = false;
+    },
+    paused: true,
+    setRawMode(mode) {
+      this.isRaw = Boolean(mode);
+      return this;
+    },
+  };
+  const result = resumeInkSession({
+    stdin,
+    writeHideCursor: (seq) => writes.push(seq),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.raw, true);
+  assert.equal(result.resumed, true);
+  assert.equal(stdin.isRaw, true);
+  assert.ok(writes.includes(INK_HIDE_CURSOR_SEQUENCE));
+});
+
+test('single-mount nested execute restores raw mode for subsequent Ink input', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  stdin.isRaw = true;
+  let rawAfterNested = null;
+  await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 2,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onNestedExecute }) => {
+        assert.equal(stdin.isRaw, true, 'pre-nested mount must start in raw mode');
+        if (typeof onNestedExecute === 'function') {
+          await onNestedExecute({ actionId: 'attach' });
+        }
+        rawAfterNested = stdin.isRaw;
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+    executeAction: async () => ({
+      quit: false,
+      selectedRunId: null,
+      contentSurface: 'action_result',
+      actionResult: {
+        action_id: 'attach',
+        ok: true,
+        exit_code: 0,
+        reason_code: 'ATTACH_OK',
+        text: 'ok',
+      },
+      evidenceModel: null,
+      configModel: null,
+      statusResult: null,
+      runsPayload: null,
+    }),
+  });
+  assert.equal(rawAfterNested, true, 'post-nested must restore raw mode while Ink stays mounted');
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('leaked non-session onRequestAction fails closed', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 2,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onRequestAction }) => {
+        onRequestAction('attach');
+        return { aborted: false, requestedAction: 'attach' };
+      },
+    }),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
+  assert.match(String(result.error), /Unexpected leaked action dispatch/);
+  stdin.destroy();
+  stdout.destroy();
 });
 
 test('key 1 with leftover Enter opens native launcher (no nested readline)', async () => {
