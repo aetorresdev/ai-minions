@@ -22,6 +22,9 @@ const {
   shouldHandleLeakedInkLocalAction,
   buildEntryShellModel,
   materializeEntryRemountFromEffect,
+  resolvePresentationEffect,
+  applyShellActionEffectInRender,
+  shellActionStaysMountedInRender,
 } = require('../../modules/operator/operator-tui-shell-controller');
 const { resolveSlashCommandPlan } = require('../../modules/operator/operator-tui-shell-actions');
 
@@ -232,6 +235,55 @@ test('monitor transition seeds monitorSource from status snapshot', () => {
   assert.equal(next.contentSurface, 'monitor');
   assert.equal(next.selectedNavId, 'monitor');
   assert.equal(next.monitorSource?.run_id, 'run-1');
+});
+
+test('resolvePresentationEffect keeps hotkey status ink-local (seeded)', () => {
+  const model = baseModel({
+    selectedRunId: 'run-1',
+    runsPayload: {
+      ok: true,
+      exitCode: 0,
+      result_code: 'RUNS_FOUND',
+      next_safe_action: 'none',
+      json: {
+        result_code: 'RUNS_FOUND',
+        runs: [{ run_id: 'run-1', status: 'running', outcome: 'running' }],
+        next_safe_action: 'none',
+      },
+    },
+  });
+  const effect = resolvePresentationEffect(model, 'status');
+  assert.equal(effect.kind, 'ink_local');
+  assert.equal(effect.transition?.contentSurface, 'status');
+});
+
+test('resolvePresentationEffect routes attach to nested_execute', () => {
+  const model = baseModel();
+  const effect = resolvePresentationEffect(model, 'attach');
+  assert.equal(effect.kind, 'nested_execute');
+  assert.equal(effect.actionId, 'attach');
+});
+
+test('applyShellActionEffectInRender handles /doctor slash without nested', () => {
+  const model = baseModel();
+  const slashPlan = resolveSlashCommandPlan('/doctor', { selectedRunId: null });
+  const outcome = applyShellActionEffectInRender(model, '/doctor', { slashPlan });
+  assert.equal(outcome.handled, true);
+  assert.equal(outcome.model?.contentSurface, 'config');
+});
+
+test('applyShellActionEffectInRender defers slash /status to nested_execute', () => {
+  const model = baseModel({ selectedRunId: 'run-1' });
+  const slashPlan = resolveSlashCommandPlan('/status', { selectedRunId: 'run-1' });
+  const outcome = applyShellActionEffectInRender(model, '/status', { slashPlan });
+  assert.equal(outcome.handled, false);
+  assert.equal(outcome.nested?.actionId, 'status');
+});
+
+test('shellActionStaysMountedInRender is true for overview hotkey', () => {
+  const model = baseModel({ selectedRunId: 'run-1' });
+  assert.equal(shellActionStaysMountedInRender(model, 'overview'), true);
+  assert.equal(shellActionStaysMountedInRender(model, 'attach'), false);
 });
 
 test('materializeEntryRemountFromEffect builds native workflow model from snapshot', () => {

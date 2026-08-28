@@ -16,11 +16,7 @@ const {
   navItemsForMovement,
 } = require('./operator-tui-shell-model.js');
 const {
-  applyInkLocalSurfaceTransition,
-  applyNativeWorkflowTransition,
-  buildSlashMessageTransition,
-  normalizeInkLocalActionToken,
-  resolveShellActionEffect,
+  applyShellActionEffectInRender,
 } = require('./operator-tui-shell-controller.js');
 const { resolveSlashCommandPlan } = require('./operator-tui-shell-actions.js');
 const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor, brandGradientStop } = require('./operator-tui-theme.js');
@@ -50,8 +46,6 @@ const {
 const {
   completeFixtureLoad,
 } = require('./operator-tui-launcher-workflow.js');
-const { formatSlashHelpText } = require('./operator-tui-slash-commands.js');
-const { adaptActionResult } = require('./operator-tui-adapters.js');
 const {
   formatRunsBoardEntryLines,
   actionEligibilityDisplayLabel,
@@ -777,7 +771,7 @@ function ShellApp(props) {
         contentSurface: 'launcher_workflow',
         focus: 'content',
       }));
-      requestAction(NATIVE_LAUNCHER_EXECUTE_ACTION);
+      requestNestedExecute(NATIVE_LAUNCHER_EXECUTE_ACTION);
       return;
     }
     if (
@@ -838,6 +832,25 @@ function ShellApp(props) {
       onRequestAction(id);
     }
     exit();
+  };
+
+  const requestNestedExecute = (actionId) => {
+    requestAction(actionId);
+  };
+
+  const commitRenderAction = (actionId, ctx = {}) => {
+    const current = modelRef.current;
+    const outcome = applyShellActionEffectInRender(current, actionId, ctx);
+    if (outcome.handled && outcome.model) {
+      commit(outcome.model);
+      return true;
+    }
+    if (outcome.nested) {
+      requestNestedExecute(outcome.nested.actionId ?? actionId);
+      return true;
+    }
+    requestNestedExecute(actionId);
+    return false;
   };
 
   useInput((input, key) => {
@@ -916,23 +929,7 @@ function ShellApp(props) {
       return;
     }
     if (intent.type === 'dispatch') {
-      const actionId = intent.actionId;
-      {
-        const next = applyNativeWorkflowTransition(current, actionId);
-        if (next) {
-          commit(next);
-          return;
-        }
-      }
-      // Landing surfaces stay mounted — unmount+clear looks like TUI_SHELL_OK.
-      {
-        const next = applyInkLocalSurfaceTransition(current, actionId);
-        if (next) {
-          commit(next);
-          return;
-        }
-      }
-      requestAction(actionId);
+      commitRenderAction(intent.actionId);
       return;
     }
     if (intent.type === 'surface_home') {
@@ -971,64 +968,10 @@ function ShellApp(props) {
       if (intent.type === 'input_submit' && intent.actionId) {
         const actionId = intent.actionId;
         const token = String(actionId).trim().toLowerCase();
-        if (token.startsWith('/')) {
-          const slashPlan = resolveSlashCommandPlan(token, { selectedRunId: current.selectedRunId });
-          if (slashPlan) {
-            const effect = resolveShellActionEffect(current, token, { slashPlan });
-            if (effect.kind === 'slash_message') {
-              commit(buildSlashMessageTransition(current, slashPlan));
-              return;
-            }
-            if (effect.kind === 'native_workflow' && effect.opts) {
-              commit(buildShellModel(effect.opts));
-              return;
-            }
-            if (effect.kind === 'ink_local' && effect.transition) {
-              commit(buildShellModel(effect.transition));
-              return;
-            }
-          }
-        }
-        // Slash / typed tokens that map to Phase-1 native workflows stay in Ink.
-        const nativeId = token === '/new' || token === 'new'
-          ? 'launcher'
-          : (token === '/runs' || token === 'runs'
-            ? 'runs'
-            : (token === 'select' || token === 's' ? 'select' : null));
-        if (nativeId) {
-          const next = applyNativeWorkflowTransition(current, nativeId);
-          if (next) {
-            commit(next);
-            return;
-          }
-        }
-        // /help lists slash vocabulary in-process (no remount).
-        if (token === '/help') {
-          commit(buildShellModel({
-            ...shellModelToOptions(current),
-            contentSurface: 'action_result',
-            actionResult: adaptActionResult({
-              action_id: '/help',
-              ok: true,
-              exitCode: 0,
-              reason_code: 'TUI_SLASH_HELP',
-              text: formatSlashHelpText(),
-            }),
-            focus: 'nav',
-            commandInput: '',
-            activeWorkflow: null,
-          }));
-          return;
-        }
-        // Bare help/home/diagnostics (and /home, /diagnostics) switch surfaces without unmount.
-        {
-          const next = applyInkLocalSurfaceTransition(current, normalizeInkLocalActionToken(token));
-          if (next) {
-            commit(next);
-            return;
-          }
-        }
-        requestAction(actionId);
+        const slashPlan = token.startsWith('/')
+          ? resolveSlashCommandPlan(token, { selectedRunId: current.selectedRunId })
+          : null;
+        commitRenderAction(actionId, { slashPlan });
       }
       return;
     }

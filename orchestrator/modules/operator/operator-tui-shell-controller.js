@@ -288,6 +288,96 @@ function resolveDispatchEffect(model, actionId, ctx) {
 }
 
 /**
+ * Presentation-route resolver for Ink render (hotkeys + bare typed tokens).
+ * Seeded ink-local surfaces win over nested_execute for status/explain.
+ * Slash tokens must use resolveShellActionEffect with slashPlan instead.
+ * @param {object} model
+ * @param {unknown} actionId
+ * @returns {ReturnType<typeof resolveShellActionEffect>}
+ */
+function resolvePresentationEffect(model, actionId) {
+  const id = String(actionId ?? '');
+
+  const nativeOpts = buildNativeWorkflowTransition(model, id);
+  if (nativeOpts) {
+    return { kind: 'native_workflow', opts: nativeOpts, actionId: id };
+  }
+
+  const inkTransition = buildInkLocalSurfaceTransition(model, id);
+  if (inkTransition) {
+    return { kind: 'ink_local', transition: inkTransition, actionId: id };
+  }
+
+  if (id === NATIVE_LAUNCHER_EXECUTE_ACTION || requiresNestedExecute(id)) {
+    return { kind: 'nested_execute', actionId: id };
+  }
+
+  return { kind: 'nested_execute', actionId: id };
+}
+
+/**
+ * Apply a controller effect inside Ink render without unmounting.
+ * @param {object} model
+ * @param {unknown} actionId
+ * @param {{ slashPlan?: { plan: object, parsed: object } | null }} [ctx]
+ * @returns {{
+ *   handled: boolean,
+ *   model?: object,
+ *   nested?: { kind: 'nested_execute', actionId: string, runId?: string | null, skipRunPrompt?: boolean, launcherSelections?: object | null },
+ * }}
+ */
+function applyShellActionEffectInRender(model, actionId, ctx = {}) {
+  const effect = ctx.slashPlan
+    ? resolveShellActionEffect(model, actionId, {
+      slashPlan: ctx.slashPlan,
+      launcherSelections: model.pendingLauncherSelections,
+    })
+    : resolvePresentationEffect(model, actionId);
+
+  if (effect.kind === 'slash_message') {
+    return {
+      handled: true,
+      model: buildSlashMessageTransition(model, {
+        plan: effect.plan,
+        parsed: effect.parsed,
+      }),
+    };
+  }
+  if (effect.kind === 'native_workflow' && effect.opts) {
+    return { handled: true, model: buildShellModel(effect.opts) };
+  }
+  if ((effect.kind === 'ink_local' || effect.kind === 'ink_local_remount') && effect.transition) {
+    return { handled: true, model: buildShellModel(effect.transition) };
+  }
+  if (effect.kind === 'nested_execute') {
+    return {
+      handled: false,
+      nested: {
+        kind: 'nested_execute',
+        actionId: effect.actionId ?? String(actionId ?? ''),
+        runId: effect.runId ?? null,
+        skipRunPrompt: effect.skipRunPrompt === true,
+        launcherSelections: effect.launcherSelections ?? null,
+      },
+    };
+  }
+  return {
+    handled: false,
+    nested: { kind: 'nested_execute', actionId: String(actionId ?? '') },
+  };
+}
+
+/**
+ * @param {object} model
+ * @param {string} actionId
+ * @param {{ slashPlan?: { plan: object, parsed: object } | null }} [ctx]
+ * @returns {boolean}
+ */
+function shellActionStaysMountedInRender(model, actionId, ctx = {}) {
+  return applyShellActionEffectInRender(model, actionId, ctx).handled === true;
+}
+
+/**
  * Entry remount fallback: landing chrome always; other ink-local surfaces when leaked.
  * @param {unknown} actionId
  * @returns {boolean}
@@ -424,4 +514,7 @@ module.exports = {
   mergeActionOutcomeIntoEntryState,
   buildEntryShellModel,
   materializeEntryRemountFromEffect,
+  resolvePresentationEffect,
+  applyShellActionEffectInRender,
+  shellActionStaysMountedInRender,
 };
