@@ -13,12 +13,12 @@ const {
   closeHelpTopic,
   resolveShellKeypress,
   shellModelToOptions,
-  isInkLocalShellAction,
-  contentSurfaceForLocalAction,
-  seedConfigModelFromShell,
-  seedStatusResultFromSelectedRun,
   navItemsForMovement,
 } = require('./operator-tui-shell-model.js');
+const {
+  applyShellActionEffectInRender,
+} = require('./operator-tui-shell-controller.js');
+const { resolveSlashCommandPlan } = require('./operator-tui-shell-actions.js');
 const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor, brandGradientStop } = require('./operator-tui-theme.js');
 const { chromeIcon, resolveIconMode } = require('./operator-tui-icons.js');
 const {
@@ -46,8 +46,6 @@ const {
 const {
   completeFixtureLoad,
 } = require('./operator-tui-launcher-workflow.js');
-const { formatSlashHelpText } = require('./operator-tui-slash-commands.js');
-const { adaptActionResult } = require('./operator-tui-adapters.js');
 const {
   formatRunsBoardEntryLines,
   actionEligibilityDisplayLabel,
@@ -735,10 +733,20 @@ function SplashApp(props) {
 }
 
 function ShellApp(props) {
-  const { initialModel, autoQuitMs, onModelChange, onAbort, onRequestAction } = props;
+  const {
+    initialModel,
+    autoQuitMs,
+    onModelChange,
+    onAbort,
+    onRequestAction,
+    onNestedExecute,
+    onNestedExecuteFailure,
+  } = props;
   const { exit } = useApp();
   const { stdout } = useStdout();
   const [model, setModel] = useState(initialModel);
+  const [nestedBusy, setNestedBusy] = useState(false);
+  const nestedBusyRef = useRef(false);
   const modelRef = useRef(model);
   modelRef.current = model;
   const transitionGateRef = useRef(createAsyncTransitionGate());
@@ -750,6 +758,54 @@ function ShellApp(props) {
   const commit = (next) => {
     setModel(next);
     if (typeof onModelChange === 'function') onModelChange(next);
+  };
+
+  const requestAction = (actionId) => {
+    const id = actionId == null || String(actionId).trim() === ''
+      ? null
+      : String(actionId);
+    // Never unmount without an action id — that returns TUI_SHELL_OK and looks like a silent quit.
+    if (!id) return;
+    if (typeof onRequestAction === 'function') {
+      onRequestAction(id);
+    }
+    exit();
+  };
+
+  const requestNestedExecute = (actionId) => {
+    requestAction(actionId);
+  };
+
+  const runNestedExecute = (nestedPayload) => {
+    if (typeof onNestedExecute !== 'function') {
+      requestNestedExecute(nestedPayload?.actionId ?? nestedPayload);
+      return;
+    }
+    if (nestedBusyRef.current) return;
+    nestedBusyRef.current = true;
+    setNestedBusy(true);
+    void (async () => {
+      try {
+        const result = await onNestedExecute(nestedPayload);
+        if (result?.error) {
+          exit();
+          return;
+        }
+        if (result?.quit || result?.sessionComplete) {
+          exit();
+          return;
+        }
+        if (result?.model) commit(result.model);
+      } catch (err) {
+        if (typeof onNestedExecuteFailure === 'function') {
+          onNestedExecuteFailure(String(err && err.message ? err.message : err));
+        }
+        exit();
+      } finally {
+        nestedBusyRef.current = false;
+        setNestedBusy(false);
+      }
+    })();
   };
 
   const commitWorkflowResult = (current, result) => {
@@ -773,7 +829,11 @@ function ShellApp(props) {
         contentSurface: 'launcher_workflow',
         focus: 'content',
       }));
-      requestAction(NATIVE_LAUNCHER_EXECUTE_ACTION);
+      runNestedExecute({
+        kind: 'nested_execute',
+        actionId: NATIVE_LAUNCHER_EXECUTE_ACTION,
+        launcherSelections: result.selections,
+      });
       return;
     }
     if (
@@ -824,19 +884,30 @@ function ShellApp(props) {
     return () => clearTimeout(timer);
   }, [autoQuitMs, exit]);
 
-  const requestAction = (actionId) => {
-    const id = actionId == null || String(actionId).trim() === ''
-      ? null
-      : String(actionId);
-    // Never unmount without an action id — that returns TUI_SHELL_OK and looks like a silent quit.
-    if (!id) return;
-    if (typeof onRequestAction === 'function') {
-      onRequestAction(id);
+  const commitRenderAction = (actionId, ctx = {}) => {
+    const current = modelRef.current;
+    const outcome = applyShellActionEffectInRender(current, actionId, ctx);
+    if (outcome.handled && outcome.model) {
+      commit(outcome.model);
+      return true;
     }
-    exit();
+    if (outcome.sessionEnd) {
+      requestAction(outcome.actionId ?? actionId);
+      return true;
+    }
+    if (outcome.nested) {
+      runNestedExecute({
+        ...outcome.nested,
+        actionId: outcome.nested.actionId ?? actionId,
+      });
+      return true;
+    }
+    runNestedExecute({ kind: 'nested_execute', actionId: String(actionId ?? '') });
+    return false;
   };
 
   useInput((input, key) => {
+    if (nestedBusy || nestedBusyRef.current) return;
     // Always resolve against the latest model — avoid stale focus after nav moves.
     const current = modelRef.current;
     const intent = resolveShellKeypress(input, key, current);
@@ -912,58 +983,7 @@ function ShellApp(props) {
       return;
     }
     if (intent.type === 'dispatch') {
-      const actionId = intent.actionId;
-      if (isNativeWorkflowAction(actionId)) {
-        const workflow = openNativeWorkflow(current, actionId);
-        if (workflow) {
-          commit(buildShellModel({
-            ...shellModelToOptions(current),
-            activeWorkflow: workflow,
-            contentSurface: surfaceForWorkflow(workflow),
-            focus: 'content',
-            selectedNavId: actionId === 'smoke' ? 'launcher' : actionId,
-            commandInput: '',
-          }));
-          return;
-        }
-      }
-      // Landing surfaces stay mounted — unmount+clear looks like TUI_SHELL_OK.
-      if (isInkLocalShellAction(actionId)) {
-        const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
-        const opts = {
-          ...shellModelToOptions(current),
-          contentSurface: surface,
-          selectedNavId: surface === 'diagnostics' ? 'diagnostics'
-            : (surface === 'config' ? 'config' : surface),
-          focus: 'nav',
-          commandInput: '',
-          activeWorkflow: null,
-          helpOpenTopicId: surface === 'help' ? null : current.helpOpenTopicId,
-          helpSelectedTopicId: surface === 'help'
-            ? (current.helpSelectedTopicId ?? undefined)
-            : current.helpSelectedTopicId,
-        };
-        if (surface === 'config') {
-          opts.configModel = seedConfigModelFromShell(current);
-        }
-        if (surface === 'status' || surface === 'monitor') {
-          const keepAuthoritative = current.status?.available === true
-            && current.selectedRunId
-            && String(current.status.run_id) === String(current.selectedRunId);
-          if (!keepAuthoritative) {
-            const seeded = seedStatusResultFromSelectedRun(current);
-            if (seeded) opts.statusResult = seeded;
-          }
-          // Monitor stays Ink-local: seed from status snapshot (no nested executeAction).
-          if (surface === 'monitor') {
-            opts.monitorSource = opts.statusResult ?? current.statusResult ?? current.monitorSource;
-            opts.selectedNavId = 'monitor';
-          }
-        }
-        commit(buildShellModel(opts));
-        return;
-      }
-      requestAction(actionId);
+      commitRenderAction(intent.actionId);
       return;
     }
     if (intent.type === 'surface_home') {
@@ -1002,75 +1022,10 @@ function ShellApp(props) {
       if (intent.type === 'input_submit' && intent.actionId) {
         const actionId = intent.actionId;
         const token = String(actionId).trim().toLowerCase();
-        // Slash / typed tokens that map to Phase-1 native workflows stay in Ink.
-        const nativeId = token === '/new' || token === 'new'
-          ? 'launcher'
-          : (token === '/runs' || token === 'runs'
-            ? 'runs'
-            : (token === 'select' || token === 's' ? 'select' : null));
-        if (nativeId && isNativeWorkflowAction(nativeId)) {
-          const workflow = openNativeWorkflow(current, nativeId);
-          if (workflow) {
-            commit(buildShellModel({
-              ...shellModelToOptions(current),
-              activeWorkflow: workflow,
-              contentSurface: surfaceForWorkflow(workflow),
-              focus: 'content',
-              selectedNavId: nativeId === 'runs' ? 'runs' : (nativeId === 'select' ? 'select' : 'launcher'),
-              commandInput: '',
-            }));
-            return;
-          }
-        }
-        // /help lists slash vocabulary in-process (no remount).
-        if (token === '/help') {
-          commit(buildShellModel({
-            ...shellModelToOptions(current),
-            contentSurface: 'action_result',
-            actionResult: adaptActionResult({
-              action_id: '/help',
-              ok: true,
-              exitCode: 0,
-              reason_code: 'TUI_SLASH_HELP',
-              text: formatSlashHelpText(),
-            }),
-            focus: 'nav',
-            commandInput: '',
-            activeWorkflow: null,
-          }));
-          return;
-        }
-        // Bare help/home/diagnostics (and /home, /diagnostics) switch surfaces without unmount.
-        const localToken = token === '/home' || token === 'home' ? 'home'
-          : (token === '/diagnostics' || token === 'diagnostics' ? 'diagnostics'
-            : (token === 'help' || token === '?' ? 'help' : token));
-        if (isInkLocalShellAction(localToken)) {
-          const surface = contentSurfaceForLocalAction(localToken) ?? 'home';
-          const opts = {
-            ...shellModelToOptions(current),
-            contentSurface: surface,
-            selectedNavId: surface === 'diagnostics' ? 'diagnostics'
-              : (surface === 'config' ? 'config' : surface),
-            focus: 'nav',
-            commandInput: '',
-            activeWorkflow: null,
-          };
-          if (surface === 'config') {
-            opts.configModel = seedConfigModelFromShell(current);
-          }
-          if (surface === 'status') {
-            const keepAuthoritative = current.status?.available === true
-              && current.selectedRunId
-              && String(current.status.run_id) === String(current.selectedRunId);
-            if (!keepAuthoritative) {
-              const seeded = seedStatusResultFromSelectedRun(current);
-              if (seeded) opts.statusResult = seeded;
-            }
-          }
-          commit(buildShellModel(opts));
-          return;
-        }
-        requestAction(actionId);
+        const slashPlan = token.startsWith('/')
+          ? resolveSlashCommandPlan(token, { selectedRunId: current.selectedRunId })
+          : null;
+        commitRenderAction(actionId, { slashPlan });
       }
       return;
     }
@@ -1281,6 +1236,8 @@ function OperatorTuiRoot(props) {
     onModelChange,
     onAbort,
     onRequestAction,
+    onNestedExecute,
+    onNestedExecuteFailure,
   } = props;
   const { exit } = useApp();
   const [phase, setPhase] = useState(showSplash ? 'splash' : 'shell');
@@ -1307,6 +1264,8 @@ function OperatorTuiRoot(props) {
     onModelChange,
     onAbort,
     onRequestAction,
+    onNestedExecute,
+    onNestedExecuteFailure,
   });
 }
 
@@ -1474,6 +1433,8 @@ function buildContentLines(model) {
  *   interactive?: boolean,
  *   onModelChange?: (model: object) => void,
  *   onRequestAction?: (actionId: string) => void,
+ *   onNestedExecute?: (nested: object) => Promise<{ model?: object, quit?: boolean, error?: string, sessionComplete?: boolean } | void>,
+ *   onNestedExecuteFailure?: (message: string) => void,
  * }} options
  */
 export async function renderOperatorTuiShell(options) {
@@ -1507,6 +1468,8 @@ export async function renderOperatorTuiShell(options) {
             options.onRequestAction(actionId);
           }
         },
+        onNestedExecute: options.onNestedExecute,
+        onNestedExecuteFailure: options.onNestedExecuteFailure,
       }),
       {
         stdin: options.stdin,

@@ -12,6 +12,8 @@ const RESTORE_SEQUENCE = '\u001b[?1049l\u001b[?25h\u001b[0m';
  * Must NOT emit CSI ?1049l (alt-screen exit); that blank primary buffer looks like a quit.
  */
 const SOFT_HANDOFF_SEQUENCE = '\u001b[?25h\u001b[0m';
+/** Ink interactive mount: hide cursor (paired with prepareNestedPaneIo soft handoff). */
+const INK_HIDE_CURSOR_SEQUENCE = '\u001b[?25l';
 /** Clear screen + cursor home — erase leftover Ink frames before nested readline panes. */
 const CLEAR_SEQUENCE = '\u001b[2J\u001b[H';
 
@@ -208,6 +210,57 @@ function prepareInkRemount(options = {}) {
 }
 
 /**
+ * Restore stdin/terminal for an Ink mount that stayed in-process after nested I/O.
+ * Re-enables raw mode, resumes paused stdin, and hides the cursor.
+ * Does not leave alternate screen — session continues inside the active mount.
+ * @param {{
+ *   stdin?: NodeJS.ReadStream | { resume?: Function, isPaused?: Function, setRawMode?: Function, isRaw?: boolean },
+ *   stdout?: NodeJS.WriteStream | { write?: Function },
+ *   writeHideCursor?: (seq: string) => void,
+ * }} [options]
+ * @returns {{ ok: boolean, raw: boolean, resumed: boolean, hidCursor: boolean }}
+ */
+function resumeInkSession(options = {}) {
+  const stdin = options.stdin ?? process.stdin;
+  const stdout = options.stdout ?? process.stdout;
+  let raw = false;
+  let resumed = false;
+  let hidCursor = false;
+
+  if (stdin && typeof stdin.resume === 'function') {
+    try {
+      const paused = typeof stdin.isPaused === 'function' ? stdin.isPaused() : false;
+      if (paused) {
+        stdin.resume();
+        resumed = true;
+      }
+    } catch {
+      // non-fatal
+    }
+  }
+  if (stdin && typeof stdin.setRawMode === 'function') {
+    try {
+      stdin.setRawMode(true);
+      raw = true;
+    } catch {
+      // non-fatal
+    }
+  }
+  const writer = typeof options.writeHideCursor === 'function'
+    ? options.writeHideCursor
+    : (seq) => {
+      if (stdout && typeof stdout.write === 'function') stdout.write(seq);
+    };
+  try {
+    writer(INK_HIDE_CURSOR_SEQUENCE);
+    hidCursor = true;
+  } catch {
+    // non-fatal
+  }
+  return { ok: true, raw, resumed, hidCursor };
+}
+
+/**
  * @param {{
  *   stdin?: NodeJS.ReadStream | { isTTY?: boolean, isRaw?: boolean, setRawMode?: Function },
  *   stdout?: NodeJS.WriteStream | { isTTY?: boolean, write?: Function },
@@ -350,12 +403,14 @@ async function withTerminalGuard(guard, fn, reason = 'normal') {
 module.exports = {
   RESTORE_SEQUENCE,
   SOFT_HANDOFF_SEQUENCE,
+  INK_HIDE_CURSOR_SEQUENCE,
   CLEAR_SEQUENCE,
   COLD_START_DRAIN_SAFETY_MAX,
   drainStdin,
   drainStdinColdStart,
   prepareNestedPaneIo,
   prepareInkRemount,
+  resumeInkSession,
   createTerminalGuard,
   withTerminalGuard,
 };

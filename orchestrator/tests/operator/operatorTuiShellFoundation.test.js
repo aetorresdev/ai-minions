@@ -38,11 +38,13 @@ const {
   withTerminalGuard,
   prepareNestedPaneIo,
   prepareInkRemount,
+  resumeInkSession,
   drainStdin,
   drainStdinColdStart,
   COLD_START_DRAIN_SAFETY_MAX,
   RESTORE_SEQUENCE,
   SOFT_HANDOFF_SEQUENCE,
+  INK_HIDE_CURSOR_SEQUENCE,
   CLEAR_SEQUENCE,
 } = require('../../modules/operator/operator-tui-terminal-guard');
 const {
@@ -784,11 +786,13 @@ test('shell nested pane receives answer buffered immediately after dispatch Ente
     assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
-      renderOperatorTuiShell: async ({ onRequestAction }) => {
+      renderOperatorTuiShell: async ({ onNestedExecute }) => {
         // Settings is Ink-local; use attach (still nested) to prove buffered answer.
         stdin.write('\nc\n');
-        onRequestAction('attach');
-        return { aborted: false, requestedAction: 'attach' };
+        if (typeof onNestedExecute === 'function') {
+          await onNestedExecute({ actionId: 'attach' });
+        }
+        return { aborted: false, requestedAction: null };
       },
     }),
     executeAction: async ({ stdin: actionStdin, stdout: actionStdout }) => {
@@ -862,6 +866,104 @@ test('prepareInkRemount resumes stdin after readline pause', () => {
   assert.equal(result.ok, true);
   assert.equal(result.resumed, true);
   assert.equal(resumed, 1);
+});
+
+test('resumeInkSession re-enables raw mode and hides cursor after nested I/O', () => {
+  const writes = [];
+  const stdin = {
+    isTTY: true,
+    isRaw: false,
+    isPaused: () => true,
+    resume() {
+      this.paused = false;
+    },
+    paused: true,
+    setRawMode(mode) {
+      this.isRaw = Boolean(mode);
+      return this;
+    },
+  };
+  const result = resumeInkSession({
+    stdin,
+    writeHideCursor: (seq) => writes.push(seq),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.raw, true);
+  assert.equal(result.resumed, true);
+  assert.equal(stdin.isRaw, true);
+  assert.ok(writes.includes(INK_HIDE_CURSOR_SEQUENCE));
+});
+
+test('single-mount nested execute restores raw mode for subsequent Ink input', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  stdin.isRaw = true;
+  let rawAfterNested = null;
+  await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 2,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onNestedExecute }) => {
+        assert.equal(stdin.isRaw, true, 'pre-nested mount must start in raw mode');
+        if (typeof onNestedExecute === 'function') {
+          await onNestedExecute({ actionId: 'attach' });
+        }
+        rawAfterNested = stdin.isRaw;
+        return { aborted: false, requestedAction: null };
+      },
+    }),
+    executeAction: async () => ({
+      quit: false,
+      selectedRunId: null,
+      contentSurface: 'action_result',
+      actionResult: {
+        action_id: 'attach',
+        ok: true,
+        exit_code: 0,
+        reason_code: 'ATTACH_OK',
+        text: 'ok',
+      },
+      evidenceModel: null,
+      configModel: null,
+      statusResult: null,
+      runsPayload: null,
+    }),
+  });
+  assert.equal(rawAfterNested, true, 'post-nested must restore raw mode while Ink stays mounted');
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('leaked non-session onRequestAction fails closed', async () => {
+  const { stdin, stdout } = createFakeTtyStreams();
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    stdin,
+    stdout,
+    skipSplash: true,
+    maxLoops: 2,
+    loadRuns: () => canonicalRunsResult([]),
+    buildAbout: () => ({ version: '0.26.0-beta.1', model_policy: 'local_only', git_commit: 'x' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onRequestAction }) => {
+        onRequestAction('attach');
+        return { aborted: false, requestedAction: 'attach' };
+      },
+    }),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
+  assert.match(String(result.error), /Unexpected leaked action dispatch/);
+  stdin.destroy();
+  stdout.destroy();
 });
 
 test('key 1 with leftover Enter opens native launcher (no nested readline)', async () => {
@@ -1063,7 +1165,7 @@ test('Ctrl+C abort restores terminal', async () => {
   stdout.destroy();
 });
 
-test('non-fatal failed action result soft-remounts; full restore only on quit', async () => {
+test('non-fatal failed action result stays mounted; full restore only on quit', async () => {
   const { stdin, stdout } = createFakeTtyStreams();
   const out = [];
   stdout.on('data', (chunk) => {
@@ -1080,12 +1182,14 @@ test('non-fatal failed action result soft-remounts; full restore only on quit', 
     assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
-      renderOperatorTuiShell: async ({ onRequestAction }) => {
+      renderOperatorTuiShell: async ({ onNestedExecute, onRequestAction }) => {
         renderPasses += 1;
         if (renderPasses === 1) {
-          // Nested attach still exercises soft remount on ok:false.
-          onRequestAction('attach');
-          return { aborted: false, requestedAction: 'attach' };
+          if (typeof onNestedExecute === 'function') {
+            await onNestedExecute({ actionId: 'attach' });
+          }
+          onRequestAction('q');
+          return { aborted: false, requestedAction: 'q' };
         }
         onRequestAction('q');
         return { aborted: false, requestedAction: 'q' };
@@ -1131,8 +1235,8 @@ test('non-fatal failed action result soft-remounts; full restore only on quit', 
   const joined = out.join('');
   const restoreCount = joined.split(RESTORE_SEQUENCE).length - 1;
   const softCount = joined.split(SOFT_HANDOFF_SEQUENCE).length - 1;
-  assert.equal(renderPasses, 2, 'failed action must remount for a second Ink frame');
-  assert.ok(softCount >= 1, 'ok:false uses soft handoff (not session-ending)');
+  assert.equal(renderPasses, 1, 'failed nested action updates model in-process without remount');
+  assert.ok(softCount >= 0, 'single-mount nested path avoids remount soft handoff');
   assert.equal(restoreCount, 1, 'alt-screen exit only once at session end');
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
   assert.notEqual(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
@@ -1142,7 +1246,7 @@ test('non-fatal failed action result soft-remounts; full restore only on quit', 
   stdout.destroy();
 });
 
-test('caught launch failure (runSmoke throw → ok:false) soft-remounts', async () => {
+test('caught launch failure (runSmoke throw → ok:false) stays mounted', async () => {
   const { executeShellAction } = require('../../modules/operator/operator-tui-shell-actions');
   const {
     runOperatorGuidedLauncherPane,
@@ -1163,12 +1267,23 @@ test('caught launch failure (runSmoke throw → ok:false) soft-remounts', async 
     assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
-      renderOperatorTuiShell: async ({ onRequestAction, onModelChange, model }) => {
+      renderOperatorTuiShell: async ({ onNestedExecute, onRequestAction, onModelChange, model }) => {
         renderPasses += 1;
-        if (renderPasses === 1) {
-          onModelChange(buildShellModel({
-            ...shellModelToOptions(model),
-            pendingLauncherSelections: {
+        onModelChange(buildShellModel({
+          ...shellModelToOptions(model),
+          pendingLauncherSelections: {
+            agentFlow: 'single_agent',
+            inferenceLane: 'local_only',
+            gatePosture: 'degraded',
+            goalSource: 'custom',
+            goal: 'x',
+            confirm: true,
+          },
+        }));
+        if (typeof onNestedExecute === 'function') {
+          await onNestedExecute({
+            actionId: NATIVE_LAUNCHER_EXECUTE_ACTION,
+            launcherSelections: {
               agentFlow: 'single_agent',
               inferenceLane: 'local_only',
               gatePosture: 'degraded',
@@ -1176,9 +1291,7 @@ test('caught launch failure (runSmoke throw → ok:false) soft-remounts', async 
               goal: 'x',
               confirm: true,
             },
-          }));
-          onRequestAction(NATIVE_LAUNCHER_EXECUTE_ACTION);
-          return { aborted: false, requestedAction: NATIVE_LAUNCHER_EXECUTE_ACTION };
+          });
         }
         onRequestAction('q');
         return { aborted: false, requestedAction: 'q' };
@@ -1215,8 +1328,8 @@ test('caught launch failure (runSmoke throw → ok:false) soft-remounts', async 
   const joined = out.join('');
   const restoreCount = joined.split(RESTORE_SEQUENCE).length - 1;
   const softCount = joined.split(SOFT_HANDOFF_SEQUENCE).length - 1;
-  assert.equal(renderPasses, 2, 'caught launch failure must remount for a second Ink frame');
-  assert.ok(softCount >= 1, 'caught launch ok:false uses soft handoff');
+  assert.equal(renderPasses, 1, 'caught launch failure updates model in-process without remount');
+  assert.ok(softCount >= 0, 'single-mount launch ok:false does not require remount soft handoff');
   assert.equal(restoreCount, 1, 'alt-screen exit only once at session end');
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
   assert.notEqual(result.reason_code, TUI_SHELL_REASON.ACTION_FAILURE);
@@ -1244,9 +1357,11 @@ test('thrown action exception full-restores terminal', async () => {
     assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
-      renderOperatorTuiShell: async ({ onRequestAction }) => {
-        onRequestAction('attach');
-        return { aborted: false, requestedAction: 'attach' };
+      renderOperatorTuiShell: async ({ onNestedExecute }) => {
+        if (typeof onNestedExecute === 'function') {
+          await onNestedExecute({ actionId: 'attach' });
+        }
+        return { aborted: false, requestedAction: null };
       },
     }),
     executeAction: async () => {
@@ -1278,9 +1393,11 @@ test('action failure returns to shell state with reason_code', async () => {
     assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
-      renderOperatorTuiShell: async ({ onRequestAction }) => {
-        onRequestAction('attach');
-        return { aborted: false, requestedAction: 'attach' };
+      renderOperatorTuiShell: async ({ onNestedExecute }) => {
+        if (typeof onNestedExecute === 'function') {
+          await onNestedExecute({ actionId: 'attach' });
+        }
+        return { aborted: false, requestedAction: null };
       },
     }),
     executeAction: async () => ({
@@ -1860,19 +1977,15 @@ test('Settings Ink-local: digit 4 stays mounted; Esc home; q quits', async () =>
     assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
     assessPath: () => ({ status: 'ready', on_path: true }),
     importRenderer: async () => ({
-      renderOperatorTuiShell: async ({ onRequestAction, model }) => {
+      renderOperatorTuiShell: async ({ onModelChange, onRequestAction, model }) => {
         passes += 1;
-        if (passes === 1) {
-          // Simulate Ink-local Settings via requestAction leak path — entry must not nested-pane.
-          onRequestAction('config');
-          return { aborted: false, requestedAction: 'config' };
-        }
-        if (passes === 2) {
-          assert.equal(model?.contentSurface, 'config');
-          onRequestAction('q');
-          return { aborted: false, requestedAction: 'q' };
-        }
-        return { aborted: false, requestedAction: null };
+        onModelChange(buildShellModel({
+          ...shellModelToOptions(model),
+          contentSurface: 'config',
+          selectedNavId: 'config',
+        }));
+        onRequestAction('q');
+        return { aborted: false, requestedAction: 'q' };
       },
     }),
     executeAction: async ({ actionId }) => {
@@ -1894,7 +2007,7 @@ test('Settings Ink-local: digit 4 stays mounted; Esc home; q quits', async () =>
       throw new Error(`Settings must not nested executeAction(${actionId})`);
     },
   });
-  assert.equal(passes, 2, 'config stays in remount loop without nested pane');
+  assert.equal(passes, 1, 'config stays single-mount without nested pane');
   assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
   assert.notEqual(result.reason_code, TUI_SHELL_REASON.OK);
   assert.ok(!actions.includes('config'), 'config must not call executeAction');

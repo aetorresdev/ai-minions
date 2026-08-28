@@ -16,7 +16,7 @@ const {
   resolveShellActionToken,
   resolveSlashCommandPlan,
 } = require('../../modules/operator/operator-tui-shell-actions');
-const { buildShellModel, formatShellText } = require('../../modules/operator/operator-tui-shell-model');
+const { buildShellModel, formatShellText, shellModelToOptions } = require('../../modules/operator/operator-tui-shell-model');
 const {
   TUI_SHELL_REASON,
   runOperatorTuiShell,
@@ -307,8 +307,8 @@ describe('disclaimer honesty after slash commands', () => {
   });
 });
 
-describe('slash help/message remount recreates terminal guard', () => {
-  it('reserved slash → second Ink mount → q restores final mount', async () => {
+describe('slash help/message stays mounted; session end restores terminal guard', () => {
+  it('reserved slash message stays mounted → q restores final mount', async () => {
     const { stdin, stdout } = createFakeTtyStreams();
     let mounts = 0;
     const result = await runOperatorTuiShell({
@@ -317,14 +317,20 @@ describe('slash help/message remount recreates terminal guard', () => {
       stdout,
       maxLoops: 5,
       importRenderer: async () => ({
-        renderOperatorTuiShell: async ({ onRequestAction }) => {
+        renderOperatorTuiShell: async ({ onRequestAction, onModelChange, model }) => {
           mounts += 1;
           if (typeof stdin.setRawMode === 'function') stdin.setRawMode(true);
-          if (mounts === 1) {
-            // /help stays in Ink for real routes; reserved slash still remounts message.
-            onRequestAction('/goal');
-            return { aborted: false, requestedAction: '/goal' };
-          }
+          onModelChange(buildShellModel({
+            ...shellModelToOptions(model),
+            contentSurface: 'action_result',
+            actionResult: {
+              action_id: '/goal',
+              ok: false,
+              exit_code: 1,
+              reason_code: 'SLASH_RESERVED',
+              text: 'reserved',
+            },
+          }));
           onRequestAction('q');
           return { aborted: false, requestedAction: 'q' };
         },
@@ -347,30 +353,30 @@ describe('slash help/message remount recreates terminal guard', () => {
         throw new Error(`unexpected action ${actionId}`);
       },
     });
-    assert.equal(mounts, 2);
+    assert.equal(mounts, 1);
     assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
     assert.equal(result.guard.restored, true);
     assert.equal(stdin.isRaw, false);
     assert.ok(
       result.guard.mutations.some((m) => m.kind === 'restore_sequence'),
-      'final mount must execute restore_sequence (not skip a spent guard)',
+      'final session end must execute restore_sequence (not skip a spent guard)',
     );
     assert.equal(
       result.guard.mutations.some((m) => m.kind === 'restore_skipped'),
       false,
-      'fresh guard for remount must not skip restore',
+      'single mount must not skip restore',
     );
     stdin.destroy();
     stdout.destroy();
   });
 
-  it('/unknown → second Ink mount → Ctrl+C restores final mount', async () => {
+  it('/unknown message stays mounted → Ctrl+C restores final mount', async () => {
     const { stdin, stdout } = createFakeTtyStreams();
     let mounts = 0;
     /** @type {() => void} */
-    let markSecondMountReady = () => {};
-    const secondMountReady = new Promise((resolve) => {
-      markSecondMountReady = resolve;
+    let markMountReady = () => {};
+    const mountReady = new Promise((resolve) => {
+      markMountReady = resolve;
     });
     const promise = runOperatorTuiShell({
       ...shellEntryFixtures(),
@@ -378,18 +384,15 @@ describe('slash help/message remount recreates terminal guard', () => {
       stdout,
       maxLoops: 5,
       importRenderer: async () => ({
-        renderOperatorTuiShell: async ({ onRequestAction }) => {
+        renderOperatorTuiShell: async ({ onAbort }) => {
           mounts += 1;
           if (typeof stdin.setRawMode === 'function') stdin.setRawMode(true);
-          if (mounts === 1) {
-            onRequestAction('/foobar');
-            return { aborted: false, requestedAction: '/foobar' };
-          }
-          markSecondMountReady();
+          markMountReady();
           await new Promise((resolve) => {
             const onData = (chunk) => {
               if (String(chunk).includes('\u0003')) {
                 stdin.off('data', onData);
+                if (typeof onAbort === 'function') onAbort();
                 resolve();
               }
             };
@@ -399,10 +402,10 @@ describe('slash help/message remount recreates terminal guard', () => {
         },
       }),
     });
-    await secondMountReady;
+    await mountReady;
     stdin.write('\u0003');
     const result = await promise;
-    assert.equal(mounts, 2);
+    assert.equal(mounts, 1);
     assert.equal(result.reason_code, TUI_SHELL_REASON.ABORT);
     assert.equal(result.guard.restored, true);
     assert.equal(stdin.isRaw, false);

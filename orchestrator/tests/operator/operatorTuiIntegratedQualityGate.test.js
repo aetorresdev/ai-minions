@@ -387,9 +387,11 @@ test('fullscreen boot clean exit and failure paths restore terminal', async () =
     autoQuitMs: 40,
     maxLoops: 1,
     importRenderer: async () => ({
-      renderOperatorTuiShell: async ({ onRequestAction }) => {
-        onRequestAction('attach');
-        return { aborted: false, requestedAction: 'attach' };
+      renderOperatorTuiShell: async ({ onNestedExecute }) => {
+        if (typeof onNestedExecute === 'function') {
+          await onNestedExecute({ actionId: 'attach' });
+        }
+        return { aborted: false, requestedAction: null };
       },
     }),
     executeAction: async () => ({
