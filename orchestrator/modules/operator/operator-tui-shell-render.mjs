@@ -783,7 +783,18 @@ function ShellApp(props) {
       return;
     }
     const nestedActionId = nestedPayload?.actionId ?? nestedPayload ?? '';
-    if (nestedBusyRef.current) return;
+    if (nestedBusyRef.current) {
+      void (async () => {
+        const result = await onNestedExecute(nestedPayload);
+        if (result?.model) {
+          commit(buildShellModel({
+            ...shellModelToOptions(result.model),
+            pendingOperatorAction: null,
+          }));
+        }
+      })();
+      return;
+    }
     nestedBusyRef.current = true;
     setNestedBusy(true);
     commit(buildShellModel({

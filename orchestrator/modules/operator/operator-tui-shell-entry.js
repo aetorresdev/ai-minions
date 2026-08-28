@@ -589,8 +589,16 @@ async function runOperatorTuiShell(options = {}) {
             stdout,
             modelPolicy: aboutInfo.model_policy,
             launcherSelections: nested.launcherSelections ?? undefined,
+            abortSignal: begun.request.abortController?.signal ?? undefined,
           });
         } catch (err) {
+          if (err?.name === 'AbortError' || begun.request.abortController?.signal?.aborted) {
+            actionExecutor.completeRequest(activeRequestId, {
+              status: TUI_ACTION_STATUS.CANCELLED,
+              reason_code: TUI_ACTION_REASON.CANCELLED,
+            });
+            return { model };
+          }
           nestedExecuteError = err instanceof Error ? err : new Error(String(err));
           if (!guard.restored) guard.restore('action_failure');
           actionExecutor.completeRequest(activeRequestId, {

@@ -990,8 +990,9 @@ test('duplicate nested attach rejects second executeAction while first pending',
         const first = onNestedExecute({ actionId: 'attach' });
         const second = onNestedExecute({ actionId: 'attach' });
         releaseFirst();
-        await first;
-        await second;
+        const firstResult = await first;
+        const secondResult = await second;
+        assert.equal(secondResult?.model?.actionResult?.reason_code, 'TUI_ACTION_DUPLICATE');
         return { aborted: false, requestedAction: null };
       },
     }),

@@ -12,6 +12,7 @@ const {
   createTuiActionExecutor,
 } = require('../../modules/operator/operator-tui-action-executor');
 const { buildShellModel } = require('../../modules/operator/operator-tui-shell-model');
+const { executeShellAction } = require('../../modules/operator/operator-tui-shell-actions');
 const { NATIVE_LAUNCHER_EXECUTE_ACTION } = require('../../modules/operator/operator-tui-native-workflows');
 
 test('buildPendingOperatorAction exposes operator-facing label', () => {
@@ -203,4 +204,20 @@ test('deferred completion applies only when request still current', async () => 
     context: { runId: 'run-b', surface: 'monitor' },
   });
   assert.equal(applied.applied, false);
+});
+
+test('executeShellAction rejects when abortSignal already aborted', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    () => executeShellAction({
+      actionId: 'attach',
+      skipRunPrompt: true,
+      selectedRunId: 'run-a',
+      abortSignal: controller.signal,
+      write: () => {},
+      question: async () => 'run-a',
+    }),
+    (err) => err?.name === 'AbortError',
+  );
 });
