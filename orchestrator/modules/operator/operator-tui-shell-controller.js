@@ -22,6 +22,8 @@ const {
  * @typedef {'none'|'session_end'|'ink_local'|'ink_local_remount'|'native_workflow'|'slash_message'|'nested_execute'} ShellActionEffectKind
  */
 
+/** @typedef {'session_end'|'ink_local'|'native_workflow'|'nested_execute'} ShellPresentationRouteKind */
+
 /** Actions that require nested operator modules (fresh query / prompts). */
 const NESTED_EXECUTE_ACTIONS = Object.freeze(new Set([
   'attach',
@@ -30,13 +32,18 @@ const NESTED_EXECUTE_ACTIONS = Object.freeze(new Set([
 ]));
 
 /**
+ * Hotkey / nav presentation route for Ink render (seeded surfaces stay mounted).
+ * Slash tokens and explicit operator queries use resolveShellActionEffect instead.
  * @param {unknown} actionId
- * @returns {ShellActionEffectKind}
+ * @returns {ShellPresentationRouteKind}
  */
-function classifyShellActionEffect(actionId) {
+function classifyShellPresentationRoute(actionId) {
   if (isShellSessionEndAction(actionId)) return 'session_end';
-  if (isInkLocalShellAction(actionId)) return 'ink_local';
-  return 'nested';
+  const id = String(actionId ?? '').trim().toLowerCase();
+  if (isNativeWorkflowAction(id) && id !== NATIVE_LAUNCHER_EXECUTE_ACTION) return 'native_workflow';
+  if (requiresNestedExecute(id)) return 'nested_execute';
+  if (isInkLocalShellAction(id)) return 'ink_local';
+  return 'nested_execute';
 }
 
 /**
@@ -319,9 +326,91 @@ function mergeActionOutcomeIntoEntryState(state, outcome) {
   return next;
 }
 
+/**
+ * Build a shell model from entry-loop authoritative snapshots plus optional patch.
+ * @param {object} snapshot
+ * @param {object} [patch]
+ * @returns {object}
+ */
+function buildEntryShellModel(snapshot, patch = {}) {
+  return buildShellModel({
+    aboutInfo: snapshot.aboutInfo,
+    credentials: snapshot.credentials,
+    pathActivation: snapshot.pathActivation,
+    runsPayload: snapshot.runsPayload,
+    statusResult: snapshot.statusResult,
+    evidenceModel: snapshot.evidenceModel,
+    configModel: snapshot.configModel,
+    launcherModel: snapshot.launcherModel,
+    actionResult: snapshot.actionResult,
+    lifecycleSource: snapshot.lifecycleSource,
+    monitorSource: snapshot.monitorSource,
+    selectedRunId: snapshot.selectedRunId,
+    columns: snapshot.columns,
+    rows: snapshot.rows,
+    colorEnabled: snapshot.colorEnabled,
+    productVersion: snapshot.aboutInfo.version,
+    ...patch,
+  });
+}
+
+/**
+ * Apply a controller effect to entry-loop state for the next Ink remount.
+ * Returns null when the effect cannot be materialized here.
+ * @param {object} effect
+ * @param {object} snapshot
+ * @param {object} model — current shell model (for fallbacks)
+ * @returns {{ model: object, statePatch: object } | null}
+ */
+function materializeEntryRemountFromEffect(effect, snapshot, model) {
+  if (effect.kind === 'native_workflow' && effect.opts) {
+    return {
+      model: buildEntryShellModel(snapshot, {
+        ...effect.opts,
+        selectedRunId: effect.runId ?? snapshot.selectedRunId,
+        focus: 'content',
+      }),
+      statePatch: {},
+    };
+  }
+  if ((effect.kind === 'ink_local' || effect.kind === 'ink_local_remount') && effect.transition) {
+    const transition = effect.transition;
+    const surface = transition.contentSurface ?? 'home';
+    const statePatch = { contentSurface: surface };
+    if (transition.configModel) statePatch.configModel = transition.configModel;
+    if (transition.statusResult) statePatch.statusResult = transition.statusResult;
+    if (transition.monitorSource) statePatch.monitorSource = transition.monitorSource;
+    return {
+      model: buildEntryShellModel(snapshot, {
+        ...transition,
+        selectedRunId: effect.runId ?? snapshot.selectedRunId,
+        selectedNavId: transition.selectedNavId ?? selectedNavIdForSurface(surface),
+        contentSurface: surface,
+        focus: 'nav',
+        activeWorkflow: null,
+      }),
+      statePatch,
+    };
+  }
+  if (effect.kind === 'slash_message') {
+    const next = buildSlashMessageTransition(model, {
+      plan: effect.plan,
+      parsed: effect.parsed,
+    });
+    return {
+      model: next,
+      statePatch: {
+        contentSurface: next.contentSurface,
+        actionResult: next.actionResult,
+      },
+    };
+  }
+  return null;
+}
+
 module.exports = {
   NESTED_EXECUTE_ACTIONS,
-  classifyShellActionEffect,
+  classifyShellPresentationRoute,
   requiresNestedExecute,
   normalizeInkLocalActionToken,
   selectedNavIdForSurface,
@@ -333,4 +422,6 @@ module.exports = {
   resolveShellActionEffect,
   shouldHandleLeakedInkLocalAction,
   mergeActionOutcomeIntoEntryState,
+  buildEntryShellModel,
+  materializeEntryRemountFromEffect,
 };

@@ -9,7 +9,7 @@ const {
   isInkLocalRemountFallbackAction,
 } = require('../../modules/operator/operator-tui-shell-model');
 const {
-  classifyShellActionEffect,
+  classifyShellPresentationRoute,
   normalizeInkLocalActionToken,
   selectedNavIdForSurface,
   buildInkLocalSurfaceTransition,
@@ -20,6 +20,8 @@ const {
   resolveShellActionEffect,
   requiresNestedExecute,
   shouldHandleLeakedInkLocalAction,
+  buildEntryShellModel,
+  materializeEntryRemountFromEffect,
 } = require('../../modules/operator/operator-tui-shell-controller');
 const { resolveSlashCommandPlan } = require('../../modules/operator/operator-tui-shell-actions');
 
@@ -41,10 +43,14 @@ function baseModel(overrides = {}) {
   });
 }
 
-test('classifyShellActionEffect partitions session-end, ink-local, nested', () => {
-  assert.equal(classifyShellActionEffect('q'), 'session_end');
-  assert.equal(classifyShellActionEffect('help'), 'ink_local');
-  assert.equal(classifyShellActionEffect('attach'), 'nested');
+test('classifyShellPresentationRoute partitions session-end, ink-local, native, nested', () => {
+  assert.equal(classifyShellPresentationRoute('q'), 'session_end');
+  assert.equal(classifyShellPresentationRoute('help'), 'ink_local');
+  assert.equal(classifyShellPresentationRoute('launcher'), 'native_workflow');
+  assert.equal(classifyShellPresentationRoute('status'), 'nested_execute');
+  assert.equal(classifyShellPresentationRoute('explain'), 'nested_execute');
+  assert.equal(classifyShellPresentationRoute('attach'), 'nested_execute');
+  assert.equal(classifyShellPresentationRoute('monitor'), 'ink_local');
 });
 
 test('normalizeInkLocalActionToken maps /doctor to config', () => {
@@ -226,6 +232,56 @@ test('monitor transition seeds monitorSource from status snapshot', () => {
   assert.equal(next.contentSurface, 'monitor');
   assert.equal(next.selectedNavId, 'monitor');
   assert.equal(next.monitorSource?.run_id, 'run-1');
+});
+
+test('materializeEntryRemountFromEffect builds native workflow model from snapshot', () => {
+  const model = baseModel();
+  const effect = resolveShellActionEffect(model, 'launcher');
+  const snapshot = {
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: model.runs,
+    statusResult: null,
+    evidenceModel: null,
+    configModel: null,
+    launcherModel: null,
+    actionResult: null,
+    lifecycleSource: null,
+    monitorSource: null,
+    selectedRunId: null,
+    columns: 100,
+    rows: 30,
+    colorEnabled: true,
+  };
+  const material = materializeEntryRemountFromEffect(effect, snapshot, model);
+  assert.ok(material);
+  assert.equal(material.model.contentSurface, 'launcher_workflow');
+  assert.ok(material.model.activeWorkflow);
+});
+
+test('buildEntryShellModel preserves authoritative snapshot fields', () => {
+  const model = baseModel({ selectedRunId: 'run-1' });
+  const snapshot = {
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: { result_code: 'RUNS_EMPTY', runs: [], next_safe_action: 'none' },
+    statusResult: null,
+    evidenceModel: null,
+    configModel: null,
+    launcherModel: null,
+    actionResult: null,
+    lifecycleSource: null,
+    monitorSource: null,
+    selectedRunId: 'run-1',
+    columns: 100,
+    rows: 30,
+    colorEnabled: true,
+  };
+  const built = buildEntryShellModel(snapshot, { contentSurface: 'home' });
+  assert.equal(built.selectedRunId, 'run-1');
+  assert.equal(built.contentSurface, 'home');
 });
 
 test('shouldHandleLeakedInkLocalAction covers remount fallback and other ink-local ids', () => {
