@@ -13,12 +13,12 @@ const {
   closeHelpTopic,
   resolveShellKeypress,
   shellModelToOptions,
-  isInkLocalShellAction,
-  contentSurfaceForLocalAction,
-  seedConfigModelFromShell,
-  seedStatusResultFromSelectedRun,
   navItemsForMovement,
 } = require('./operator-tui-shell-model.js');
+const {
+  applyInkLocalSurfaceTransition,
+  normalizeInkLocalActionToken,
+} = require('./operator-tui-shell-controller.js');
 const { resolveShellTheme, focusBorderColor, toneColor, splashToneColor, brandGradientStop } = require('./operator-tui-theme.js');
 const { chromeIcon, resolveIconMode } = require('./operator-tui-icons.js');
 const {
@@ -928,40 +928,12 @@ function ShellApp(props) {
         }
       }
       // Landing surfaces stay mounted — unmount+clear looks like TUI_SHELL_OK.
-      if (isInkLocalShellAction(actionId)) {
-        const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
-        const opts = {
-          ...shellModelToOptions(current),
-          contentSurface: surface,
-          selectedNavId: surface === 'diagnostics' ? 'diagnostics'
-            : (surface === 'config' ? 'config' : surface),
-          focus: 'nav',
-          commandInput: '',
-          activeWorkflow: null,
-          helpOpenTopicId: surface === 'help' ? null : current.helpOpenTopicId,
-          helpSelectedTopicId: surface === 'help'
-            ? (current.helpSelectedTopicId ?? undefined)
-            : current.helpSelectedTopicId,
-        };
-        if (surface === 'config') {
-          opts.configModel = seedConfigModelFromShell(current);
+      {
+        const next = applyInkLocalSurfaceTransition(current, actionId);
+        if (next) {
+          commit(next);
+          return;
         }
-        if (surface === 'status' || surface === 'monitor') {
-          const keepAuthoritative = current.status?.available === true
-            && current.selectedRunId
-            && String(current.status.run_id) === String(current.selectedRunId);
-          if (!keepAuthoritative) {
-            const seeded = seedStatusResultFromSelectedRun(current);
-            if (seeded) opts.statusResult = seeded;
-          }
-          // Monitor stays Ink-local: seed from status snapshot (no nested executeAction).
-          if (surface === 'monitor') {
-            opts.monitorSource = opts.statusResult ?? current.statusResult ?? current.monitorSource;
-            opts.selectedNavId = 'monitor';
-          }
-        }
-        commit(buildShellModel(opts));
-        return;
       }
       requestAction(actionId);
       return;
@@ -1041,34 +1013,12 @@ function ShellApp(props) {
           return;
         }
         // Bare help/home/diagnostics (and /home, /diagnostics) switch surfaces without unmount.
-        const localToken = token === '/home' || token === 'home' ? 'home'
-          : (token === '/diagnostics' || token === 'diagnostics' ? 'diagnostics'
-            : (token === 'help' || token === '?' ? 'help' : token));
-        if (isInkLocalShellAction(localToken)) {
-          const surface = contentSurfaceForLocalAction(localToken) ?? 'home';
-          const opts = {
-            ...shellModelToOptions(current),
-            contentSurface: surface,
-            selectedNavId: surface === 'diagnostics' ? 'diagnostics'
-              : (surface === 'config' ? 'config' : surface),
-            focus: 'nav',
-            commandInput: '',
-            activeWorkflow: null,
-          };
-          if (surface === 'config') {
-            opts.configModel = seedConfigModelFromShell(current);
+        {
+          const next = applyInkLocalSurfaceTransition(current, normalizeInkLocalActionToken(token));
+          if (next) {
+            commit(next);
+            return;
           }
-          if (surface === 'status') {
-            const keepAuthoritative = current.status?.available === true
-              && current.selectedRunId
-              && String(current.status.run_id) === String(current.selectedRunId);
-            if (!keepAuthoritative) {
-              const seeded = seedStatusResultFromSelectedRun(current);
-              if (seeded) opts.statusResult = seeded;
-            }
-          }
-          commit(buildShellModel(opts));
-          return;
         }
         requestAction(actionId);
       }

@@ -19,12 +19,13 @@ const {
   formatShellText,
   isShellSessionEndAction,
   isInkLocalRemountFallbackAction,
-  isInkLocalShellAction,
-  contentSurfaceForLocalAction,
-  seedConfigModelFromShell,
-  seedStatusResultFromSelectedRun,
   shellModelToOptions,
 } = require('./operator-tui-shell-model');
+const {
+  buildInkLocalSurfaceTransition,
+  shouldHandleLeakedInkLocalAction,
+  selectedNavIdForSurface,
+} = require('./operator-tui-shell-controller');
 const {
   executeShellAction,
   resolveShellActionToken,
@@ -823,7 +824,8 @@ async function runOperatorTuiShell(options = {}) {
           // Overview / Explain / Evidence are Ink-local seeded surfaces — never remount here;
           // slash `/status` / `/explain` fall through to executeAction for a fresh query.
           if (isInkLocalRemountFallbackAction(plan.action_id)) {
-            const surface = contentSurfaceForLocalAction(plan.action_id) ?? 'home';
+            const transition = buildInkLocalSurfaceTransition(model, plan.action_id);
+            const surface = transition?.contentSurface ?? 'home';
             contentSurface = surface;
             prepareInkRemount({ stdin });
             guard = createTerminalGuard({ stdin, stdout });
@@ -840,7 +842,7 @@ async function runOperatorTuiShell(options = {}) {
               lifecycleSource,
               monitorSource,
               selectedRunId: plan.run_id ?? selectedRunId,
-              selectedNavId: surface === 'diagnostics' ? 'diagnostics' : surface,
+              selectedNavId: selectedNavIdForSurface(surface),
               contentSurface: surface,
               columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
               rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
@@ -848,7 +850,8 @@ async function runOperatorTuiShell(options = {}) {
               colorEnabled: useColor && process.env.NO_COLOR == null,
               productVersion: aboutInfo.version,
               activeWorkflow: null,
-              helpOpenTopicId: null,
+              helpOpenTopicId: transition?.helpOpenTopicId ?? null,
+              helpSelectedTopicId: transition?.helpSelectedTopicId,
             });
             if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
               if (!guard.restored) guard.restore('normal');
@@ -1063,21 +1066,13 @@ async function runOperatorTuiShell(options = {}) {
       // must switch inside the active Ink render (render.mjs) — never soft-handoff.
       // If a harness leaks requestAction for an Ink-local id, remount the surface
       // without nested readline (silent-quit lookalike).
-      if (isInkLocalRemountFallbackAction(actionId) || isInkLocalShellAction(actionId)) {
-        const surface = contentSurfaceForLocalAction(actionId) ?? 'home';
+      if (shouldHandleLeakedInkLocalAction(actionId)) {
+        const transition = buildInkLocalSurfaceTransition(model, actionId);
+        const surface = transition?.contentSurface ?? 'home';
         contentSurface = surface;
-        if (surface === 'config') {
-          configModel = seedConfigModelFromShell(model);
-        }
-        if (surface === 'status') {
-          const keepAuthoritative = model.status?.available === true
-            && selectedRunId
-            && String(model.status.run_id) === String(selectedRunId);
-          if (!keepAuthoritative) {
-            const seeded = seedStatusResultFromSelectedRun(model);
-            if (seeded) statusResult = seeded;
-          }
-        }
+        if (transition?.configModel) configModel = transition.configModel;
+        if (transition?.statusResult) statusResult = transition.statusResult;
+        if (transition?.monitorSource) monitorSource = transition.monitorSource;
         prepareInkRemount({ stdin });
         guard = createTerminalGuard({ stdin, stdout });
         model = buildShellModel({
@@ -1093,8 +1088,7 @@ async function runOperatorTuiShell(options = {}) {
           lifecycleSource,
           monitorSource,
           selectedRunId,
-          selectedNavId: surface === 'diagnostics' ? 'diagnostics'
-            : (surface === 'config' ? 'config' : surface),
+          selectedNavId: transition?.selectedNavId ?? selectedNavIdForSurface(surface),
           contentSurface: surface,
           columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
           rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
@@ -1102,7 +1096,8 @@ async function runOperatorTuiShell(options = {}) {
           colorEnabled: useColor && process.env.NO_COLOR == null,
           productVersion: aboutInfo.version,
           activeWorkflow: null,
-          helpOpenTopicId: null,
+          helpOpenTopicId: transition?.helpOpenTopicId ?? null,
+          helpSelectedTopicId: transition?.helpSelectedTopicId,
         });
         if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
           if (!guard.restored) guard.restore('normal');
