@@ -21,22 +21,16 @@ const {
   shellModelToOptions,
 } = require('./operator-tui-shell-model');
 const {
-  resolveShellActionEffect,
   mergeActionOutcomeIntoEntryState,
-  buildEntryShellModel,
-  materializeEntryRemountFromEffect,
-  resolveEntryActionEffect,
+  buildEntryModelAfterNestedExecute,
 } = require('./operator-tui-shell-controller');
 const {
   executeShellAction,
-  resolveShellActionToken,
-  resolveSlashCommandPlan,
 } = require('./operator-tui-shell-actions');
 const {
   createTerminalGuard,
   withTerminalGuard,
   prepareNestedPaneIo,
-  prepareInkRemount,
   drainStdinColdStart,
 } = require('./operator-tui-terminal-guard');
 const { adaptActionResult } = require('./operator-tui-adapters');
@@ -364,11 +358,15 @@ async function runOperatorTuiShell(options = {}) {
 
   let inkLoaded = false;
   let reactLoaded = false;
-  let loops = 0;
+  let nestedExecutions = 0;
   /** @type {number} */
   let lastExitCode = 0;
   /** @type {{ renderOperatorTuiShell: Function } | null} */
   let cachedRenderer = null;
+  /** @type {Error | null} */
+  let nestedExecuteError = null;
+  let nestedSessionComplete = false;
+  let nestedQuit = false;
 
   /**
    * Drain leftover stdin before an Ink mount. On safety-ceiling truncation,
@@ -497,229 +495,63 @@ async function runOperatorTuiShell(options = {}) {
   if (preShellAbort) return preShellAbort;
 
   try {
-    while (loops < maxLoops) {
-      loops += 1;
-      let requestedAction = null;
-      let aborted = false;
+    if (options.injectFailure === 'renderer' && !wantsSplash) {
+      await withTerminalGuard(guard, async () => {
+        throw new Error('simulated renderer exception');
+      }, 'renderer_exception');
+    }
 
-      if (options.injectFailure === 'renderer' && loops === 1 && !wantsSplash) {
-        await withTerminalGuard(guard, async () => {
-          throw new Error('simulated renderer exception');
-        }, 'renderer_exception');
-      }
+    if (!cachedRenderer) {
+      cachedRenderer = await importRenderer();
+    }
+    const renderer = cachedRenderer;
+    inkLoaded = true;
+    reactLoaded = true;
 
-      // Cache Ink/React module after first load — dynamic import is cached by Node,
-      // but skip re-awaiting the promise machinery every remount loop.
-      if (!cachedRenderer) {
-        cachedRenderer = await importRenderer();
-      }
-      const renderer = cachedRenderer;
-      inkLoaded = true;
-      reactLoaded = true;
+    const entrySnapshot = () => ({
+      aboutInfo,
+      credentials,
+      pathActivation,
+      runsPayload,
+      statusResult,
+      evidenceModel,
+      configModel,
+      launcherModel,
+      actionResult,
+      lifecycleSource,
+      monitorSource,
+      selectedRunId,
+      contentSurface,
+      columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
+      rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
+      colorEnabled: useColor && process.env.NO_COLOR == null,
+    });
 
-      // Splash already handled (or skipped for harness). Shell remount never re-shows splash.
-      const renderResult = await withTerminalGuard(guard, async () => renderer.renderOperatorTuiShell({
-        model,
-        stdin,
-        stdout,
-        stderr: options.stderr ?? process.stderr,
-        autoQuitMs: options.autoQuitMs,
-        showSplash: false,
-        onModelChange: (next) => {
-          model = next;
-          selectedRunId = next.selectedRunId;
-        },
-        onRequestAction: (actionId) => {
-          requestedAction = actionId;
-        },
-      }), 'normal');
-
-      aborted = Boolean(renderResult?.aborted);
-      if (!requestedAction && renderResult?.requestedAction) {
-        requestedAction = renderResult.requestedAction;
-      }
-
-      if (aborted && !requestedAction) {
-        if (!guard.restored) guard.restore('abort');
-        return {
-          ok: true,
-          exitCode: 0,
-          reason_code: TUI_SHELL_REASON.ABORT,
-          ink_loaded: inkLoaded,
-          react_loaded: reactLoaded,
-          text: formatShellText(model),
-          model,
-          guard,
-        };
-      }
-
-      if (!requestedAction) {
-        // Soft handoff from withTerminalGuard must become a full session-end restore.
-        if (!guard.restored) guard.restore('normal');
-        return {
-          ok: true,
-          exitCode: 0,
-          reason_code: TUI_SHELL_REASON.OK,
-          ink_loaded: inkLoaded,
-          react_loaded: reactLoaded,
-          text: formatShellText(model),
-          model,
-          guard,
-        };
-      }
-
-      // Intentional session end — never treat pane hotkeys (1/2/s/…) as quit.
-      if (isShellSessionEndAction(requestedAction)) {
-        if (!guard.restored) guard.restore('quit');
-        return {
-          ok: true,
-          exitCode: 0,
-          reason_code: TUI_SHELL_REASON.QUIT,
-          ink_loaded: inkLoaded,
-          react_loaded: reactLoaded,
-          text: formatShellText(model),
-          model,
-          guard,
-        };
-      }
-
-      const entrySnapshot = () => ({
-        aboutInfo,
-        credentials,
-        pathActivation,
-        runsPayload,
-        statusResult,
-        evidenceModel,
-        configModel,
-        launcherModel,
-        actionResult,
-        lifecycleSource,
-        monitorSource,
-        selectedRunId,
-        columns: typeof stdout.columns === 'number' ? stdout.columns : model.columns,
-        rows: typeof stdout.rows === 'number' ? stdout.rows : model.rows,
-        colorEnabled: useColor && process.env.NO_COLOR == null,
-      });
-
-      const remountAfterEffect = (nextModel, statePatch = {}) => {
-        if (statePatch.contentSurface) contentSurface = statePatch.contentSurface;
-        if (statePatch.actionResult) actionResult = statePatch.actionResult;
-        if (statePatch.configModel) configModel = statePatch.configModel;
-        if (statePatch.statusResult) statusResult = statePatch.statusResult;
-        if (statePatch.monitorSource) monitorSource = statePatch.monitorSource;
-        model = nextModel;
-        prepareInkRemount({ stdin });
-        guard = createTerminalGuard({ stdin, stdout });
-      };
-
-      const finishLoopIteration = (ok = true, exitCode = lastExitCode) => {
-        if (Number.isFinite(options.autoQuitMs) || loops >= maxLoops) {
-          if (!guard.restored) guard.restore('normal');
-          return {
-            ok,
-            exitCode,
-            reason_code: TUI_SHELL_REASON.OK,
-            ink_loaded: inkLoaded,
-            react_loaded: reactLoaded,
-            text: formatShellText(model),
-            model,
-            guard,
-          };
-        }
-        return null;
-      };
-
-      const slashPlan = resolveSlashCommandPlan(requestedAction, { selectedRunId });
-      let resolvedActionId = requestedAction;
-      let effect = resolveEntryActionEffect(model, requestedAction, {
-        slashPlan,
-        launcherSelections: model.pendingLauncherSelections,
-      });
-
-      if (!slashPlan) {
-        const token = resolveShellActionToken(requestedAction, model.selectedNavId);
-        if (!token) {
-          actionResult = {
-            action_id: requestedAction,
-            ok: false,
-            exitCode: 1,
-            reason_code: 'TUI_SHELL_UNKNOWN_ACTION',
-            text: 'Unknown action. Choose 1-5, s, e, m, or q.',
-          };
-          contentSurface = 'action_result';
-          model = buildEntryShellModel(entrySnapshot(), {
-            actionResult,
-            contentSurface,
-            selectedNavId: model.selectedNavId,
-            focus: 'nav',
-          });
-          guard = createTerminalGuard({ stdin, stdout });
-          continue;
-        }
-        resolvedActionId = token;
-        effect = resolveEntryActionEffect(model, requestedAction, { resolvedToken: token });
-      }
-
-      if (effect.kind === 'session_end') {
-        if (!guard.restored) guard.restore('quit');
-        return {
-          ok: true,
-          exitCode: 0,
-          reason_code: TUI_SHELL_REASON.QUIT,
-          ink_loaded: inkLoaded,
-          react_loaded: reactLoaded,
-          text: formatShellText(model),
-          model,
-          guard,
-        };
-      }
-
-      const remountMaterial = materializeEntryRemountFromEffect(effect, entrySnapshot(), model);
-      if (remountMaterial) {
-        remountAfterEffect(remountMaterial.model, remountMaterial.statePatch);
-        const loopExit = finishLoopIteration(effect.kind === 'slash_message'
-          ? remountMaterial.model.actionResult?.ok === true
-          : true, effect.kind === 'slash_message'
-          ? (remountMaterial.model.actionResult?.exit_code ?? 1)
-          : lastExitCode);
-        if (loopExit) return loopExit;
-        continue;
-      }
-
-      if (effect.kind !== 'nested_execute') {
-        continue;
-      }
-
-      const nestedBanner = effect.actionId === NATIVE_LAUNCHER_EXECUTE_ACTION
+    const runNestedShellAction = async (nested) => {
+      nestedExecutions += 1;
+      const nestedActionId = nested?.actionId ?? '';
+      const nestedBanner = nestedActionId === NATIVE_LAUNCHER_EXECUTE_ACTION
         ? 'ai-minions tui · launching (session still active)'
         : 'ai-minions tui · nested pane (session still active)';
       prepareNestedPaneIo({ stdin, stdout, banner: nestedBanner });
+
       let actionOutcome;
       try {
         actionOutcome = await executeAction({
-          actionId: effect.actionId ?? resolvedActionId,
-          selectedRunId: effect.runId ?? selectedRunId,
-          skipRunPrompt: effect.skipRunPrompt === true,
+          actionId: nestedActionId,
+          selectedRunId: nested.runId ?? selectedRunId,
+          skipRunPrompt: nested.skipRunPrompt === true,
           cwd: options.cwd,
           useColor,
           stdin,
           stdout,
           modelPolicy: aboutInfo.model_policy,
-          launcherSelections: effect.launcherSelections ?? undefined,
+          launcherSelections: nested.launcherSelections ?? undefined,
         });
       } catch (err) {
+        nestedExecuteError = err instanceof Error ? err : new Error(String(err));
         if (!guard.restored) guard.restore('action_failure');
-        return {
-          ok: false,
-          exitCode: 1,
-          reason_code: TUI_SHELL_REASON.ACTION_FAILURE,
-          ink_loaded: inkLoaded,
-          react_loaded: reactLoaded,
-          text: formatShellText(model),
-          model,
-          guard,
-          error: String(err && err.message ? err.message : err),
-        };
+        return { error: String(nestedExecuteError.message) };
       }
 
       ({
@@ -750,49 +582,133 @@ async function runOperatorTuiShell(options = {}) {
 
       if (actionOutcome.quit) {
         if (!guard.restored) guard.restore('quit');
-        return {
-          ok: true,
-          exitCode: 0,
-          reason_code: TUI_SHELL_REASON.QUIT,
-          ink_loaded: inkLoaded,
-          react_loaded: reactLoaded,
-          text: formatShellText(model),
-          model,
-          guard,
-        };
+        nestedQuit = true;
+        return { quit: true, model };
       }
 
-      prepareInkRemount({ stdin });
-      guard = createTerminalGuard({ stdin, stdout });
-      const nestedActionId = effect.actionId ?? resolvedActionId;
       if (nestedActionId === 'config') {
         aboutInfo = buildAbout({ cwd: options.cwd });
         credentials = assessCredentials({ modelPolicy: aboutInfo.model_policy });
         pathActivation = assessPath();
       }
-      model = buildEntryShellModel(entrySnapshot(), {
-        selectedNavId: nestedActionId === NATIVE_LAUNCHER_EXECUTE_ACTION
-          ? 'launcher'
-          : (nestedActionId === 'quit' ? model.selectedNavId : nestedActionId),
-        contentSurface,
-        focus: nestedActionId === NATIVE_LAUNCHER_EXECUTE_ACTION ? 'nav' : 'input',
-        activeWorkflow: null,
-        pendingLauncherSelections: nestedActionId === NATIVE_LAUNCHER_EXECUTE_ACTION
-          ? null
-          : model.pendingLauncherSelections,
-      });
 
-      const nestedLoopExit = finishLoopIteration(lastExitCode === 0, lastExitCode);
-      if (nestedLoopExit) return nestedLoopExit;
-      continue;
+      model = buildEntryModelAfterNestedExecute(entrySnapshot(), model, nestedActionId);
+      if (actionOutcome.actionResult?.exit_code != null) {
+        lastExitCode = actionOutcome.actionResult.exit_code;
+      }
 
+      if (
+        nestedExecutions >= maxLoops
+        && !Number.isFinite(options.autoQuitMs)
+      ) {
+        nestedSessionComplete = true;
+        return { sessionComplete: true, model };
+      }
+
+      return { model };
+    };
+
+    let requestedAction = null;
+    let aborted = false;
+
+    const renderResult = await withTerminalGuard(guard, async () => renderer.renderOperatorTuiShell({
+      model,
+      stdin,
+      stdout,
+      stderr: options.stderr ?? process.stderr,
+      autoQuitMs: options.autoQuitMs,
+      showSplash: false,
+      onModelChange: (next) => {
+        model = next;
+        selectedRunId = next.selectedRunId;
+      },
+      onRequestAction: (actionId) => {
+        requestedAction = actionId;
+      },
+      onNestedExecute: runNestedShellAction,
+    }), 'normal');
+
+    aborted = Boolean(renderResult?.aborted);
+    if (!requestedAction && renderResult?.requestedAction) {
+      requestedAction = renderResult.requestedAction;
+    }
+
+    if (nestedExecuteError) {
+      return {
+        ok: false,
+        exitCode: 1,
+        reason_code: TUI_SHELL_REASON.ACTION_FAILURE,
+        ink_loaded: inkLoaded,
+        react_loaded: reactLoaded,
+        text: formatShellText(model),
+        model,
+        guard,
+        error: String(nestedExecuteError.message),
+      };
+    }
+
+    if (nestedQuit) {
+      return {
+        ok: true,
+        exitCode: 0,
+        reason_code: TUI_SHELL_REASON.QUIT,
+        ink_loaded: inkLoaded,
+        react_loaded: reactLoaded,
+        text: formatShellText(model),
+        model,
+        guard,
+      };
+    }
+
+    if (aborted && !requestedAction) {
+      if (!guard.restored) guard.restore('abort');
+      return {
+        ok: true,
+        exitCode: 0,
+        reason_code: TUI_SHELL_REASON.ABORT,
+        ink_loaded: inkLoaded,
+        react_loaded: reactLoaded,
+        text: formatShellText(model),
+        model,
+        guard,
+      };
+    }
+
+    if (isShellSessionEndAction(requestedAction)) {
+      if (!guard.restored) guard.restore('quit');
+      return {
+        ok: true,
+        exitCode: 0,
+        reason_code: TUI_SHELL_REASON.QUIT,
+        ink_loaded: inkLoaded,
+        react_loaded: reactLoaded,
+        text: formatShellText(model),
+        model,
+        guard,
+      };
+    }
+
+    if (!requestedAction) {
+      if (!guard.restored) guard.restore('normal');
+      return {
+        ok: nestedSessionComplete ? lastExitCode === 0 : true,
+        exitCode: nestedSessionComplete ? lastExitCode : 0,
+        reason_code: nestedSessionComplete && nestedExecutions >= maxLoops
+          ? TUI_SHELL_REASON.MAX_LOOPS
+          : TUI_SHELL_REASON.OK,
+        ink_loaded: inkLoaded,
+        react_loaded: reactLoaded,
+        text: formatShellText(model),
+        model,
+        guard,
+      };
     }
 
     if (!guard.restored) guard.restore('normal');
     return {
-      ok: lastExitCode === 0,
-      exitCode: lastExitCode,
-      reason_code: TUI_SHELL_REASON.MAX_LOOPS,
+      ok: true,
+      exitCode: 0,
+      reason_code: TUI_SHELL_REASON.OK,
       ink_loaded: inkLoaded,
       react_loaded: reactLoaded,
       text: formatShellText(model),

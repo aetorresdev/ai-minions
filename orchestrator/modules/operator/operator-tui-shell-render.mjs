@@ -733,10 +733,11 @@ function SplashApp(props) {
 }
 
 function ShellApp(props) {
-  const { initialModel, autoQuitMs, onModelChange, onAbort, onRequestAction } = props;
+  const { initialModel, autoQuitMs, onModelChange, onAbort, onRequestAction, onNestedExecute } = props;
   const { exit } = useApp();
   const { stdout } = useStdout();
   const [model, setModel] = useState(initialModel);
+  const [nestedBusy, setNestedBusy] = useState(false);
   const modelRef = useRef(model);
   modelRef.current = model;
   const transitionGateRef = useRef(createAsyncTransitionGate());
@@ -748,6 +749,46 @@ function ShellApp(props) {
   const commit = (next) => {
     setModel(next);
     if (typeof onModelChange === 'function') onModelChange(next);
+  };
+
+  const requestAction = (actionId) => {
+    const id = actionId == null || String(actionId).trim() === ''
+      ? null
+      : String(actionId);
+    // Never unmount without an action id — that returns TUI_SHELL_OK and looks like a silent quit.
+    if (!id) return;
+    if (typeof onRequestAction === 'function') {
+      onRequestAction(id);
+    }
+    exit();
+  };
+
+  const requestNestedExecute = (actionId) => {
+    requestAction(actionId);
+  };
+
+  const runNestedExecute = (nestedPayload) => {
+    if (typeof onNestedExecute !== 'function') {
+      requestNestedExecute(nestedPayload?.actionId ?? nestedPayload);
+      return;
+    }
+    void (async () => {
+      setNestedBusy(true);
+      try {
+        const result = await onNestedExecute(nestedPayload);
+        if (result?.error) {
+          exit();
+          return;
+        }
+        if (result?.quit || result?.sessionComplete) {
+          exit();
+          return;
+        }
+        if (result?.model) commit(result.model);
+      } finally {
+        setNestedBusy(false);
+      }
+    })();
   };
 
   const commitWorkflowResult = (current, result) => {
@@ -771,7 +812,11 @@ function ShellApp(props) {
         contentSurface: 'launcher_workflow',
         focus: 'content',
       }));
-      requestNestedExecute(NATIVE_LAUNCHER_EXECUTE_ACTION);
+      runNestedExecute({
+        kind: 'nested_execute',
+        actionId: NATIVE_LAUNCHER_EXECUTE_ACTION,
+        launcherSelections: result.selections,
+      });
       return;
     }
     if (
@@ -822,22 +867,6 @@ function ShellApp(props) {
     return () => clearTimeout(timer);
   }, [autoQuitMs, exit]);
 
-  const requestAction = (actionId) => {
-    const id = actionId == null || String(actionId).trim() === ''
-      ? null
-      : String(actionId);
-    // Never unmount without an action id — that returns TUI_SHELL_OK and looks like a silent quit.
-    if (!id) return;
-    if (typeof onRequestAction === 'function') {
-      onRequestAction(id);
-    }
-    exit();
-  };
-
-  const requestNestedExecute = (actionId) => {
-    requestAction(actionId);
-  };
-
   const commitRenderAction = (actionId, ctx = {}) => {
     const current = modelRef.current;
     const outcome = applyShellActionEffectInRender(current, actionId, ctx);
@@ -850,14 +879,18 @@ function ShellApp(props) {
       return true;
     }
     if (outcome.nested) {
-      requestNestedExecute(outcome.nested.actionId ?? actionId);
+      runNestedExecute({
+        ...outcome.nested,
+        actionId: outcome.nested.actionId ?? actionId,
+      });
       return true;
     }
-    requestNestedExecute(actionId);
+    runNestedExecute({ kind: 'nested_execute', actionId: String(actionId ?? '') });
     return false;
   };
 
   useInput((input, key) => {
+    if (nestedBusy) return;
     // Always resolve against the latest model — avoid stale focus after nav moves.
     const current = modelRef.current;
     const intent = resolveShellKeypress(input, key, current);
@@ -1186,6 +1219,7 @@ function OperatorTuiRoot(props) {
     onModelChange,
     onAbort,
     onRequestAction,
+    onNestedExecute,
   } = props;
   const { exit } = useApp();
   const [phase, setPhase] = useState(showSplash ? 'splash' : 'shell');
@@ -1212,6 +1246,7 @@ function OperatorTuiRoot(props) {
     onModelChange,
     onAbort,
     onRequestAction,
+    onNestedExecute,
   });
 }
 
@@ -1379,6 +1414,7 @@ function buildContentLines(model) {
  *   interactive?: boolean,
  *   onModelChange?: (model: object) => void,
  *   onRequestAction?: (actionId: string) => void,
+ *   onNestedExecute?: (nested: object) => Promise<{ model?: object, quit?: boolean, error?: string, sessionComplete?: boolean } | void>,
  * }} options
  */
 export async function renderOperatorTuiShell(options) {
@@ -1412,6 +1448,7 @@ export async function renderOperatorTuiShell(options) {
             options.onRequestAction(actionId);
           }
         },
+        onNestedExecute: options.onNestedExecute,
       }),
       {
         stdin: options.stdin,

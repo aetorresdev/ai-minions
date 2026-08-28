@@ -460,6 +460,27 @@ function mergeActionOutcomeIntoEntryState(state, outcome) {
  * @param {object} [patch]
  * @returns {object}
  */
+/**
+ * Rebuild shell model after nested executeAction completes (single-mount path).
+ * @param {object} snapshot — post-merge entry snapshot
+ * @param {object} model — current shell model
+ * @param {string} nestedActionId
+ * @returns {object}
+ */
+function buildEntryModelAfterNestedExecute(snapshot, model, nestedActionId) {
+  return buildEntryShellModel(snapshot, {
+    selectedNavId: nestedActionId === NATIVE_LAUNCHER_EXECUTE_ACTION
+      ? 'launcher'
+      : (nestedActionId === 'quit' ? model.selectedNavId : nestedActionId),
+    contentSurface: snapshot.contentSurface ?? model.contentSurface,
+    focus: nestedActionId === NATIVE_LAUNCHER_EXECUTE_ACTION ? 'nav' : 'input',
+    activeWorkflow: null,
+    pendingLauncherSelections: nestedActionId === NATIVE_LAUNCHER_EXECUTE_ACTION
+      ? null
+      : model.pendingLauncherSelections,
+  });
+}
+
 function buildEntryShellModel(snapshot, patch = {}) {
   return buildShellModel({
     aboutInfo: snapshot.aboutInfo,
@@ -551,6 +572,7 @@ module.exports = {
   shouldHandleLeakedInkLocalAction,
   mergeActionOutcomeIntoEntryState,
   buildEntryShellModel,
+  buildEntryModelAfterNestedExecute,
   materializeEntryRemountFromEffect,
   resolvePresentationEffect,
   resolveEntryActionEffect,

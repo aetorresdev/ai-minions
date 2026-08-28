@@ -21,12 +21,14 @@ const {
   requiresNestedExecute,
   shouldHandleLeakedInkLocalAction,
   buildEntryShellModel,
+  buildEntryModelAfterNestedExecute,
   materializeEntryRemountFromEffect,
   resolvePresentationEffect,
   resolveEntryActionEffect,
   applyShellActionEffectInRender,
   shellActionStaysMountedInRender,
 } = require('../../modules/operator/operator-tui-shell-controller');
+const { NATIVE_LAUNCHER_EXECUTE_ACTION } = require('../../modules/operator/operator-tui-native-workflows');
 const { resolveSlashCommandPlan } = require('../../modules/operator/operator-tui-shell-actions');
 
 function baseModel(overrides = {}) {
@@ -345,6 +347,36 @@ test('materializeEntryRemountFromEffect builds native workflow model from snapsh
   assert.ok(material);
   assert.equal(material.model.contentSurface, 'launcher_workflow');
   assert.ok(material.model.activeWorkflow);
+});
+
+test('buildEntryModelAfterNestedExecute clears launcher pending on execute', () => {
+  const model = baseModel({
+    pendingLauncherSelections: { goal: 'x' },
+    contentSurface: 'launcher_workflow',
+  });
+  const snapshot = {
+    aboutInfo: { version: '0.26.0-beta.1', model_policy: 'local_only' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: { result_code: 'RUNS_EMPTY', runs: [], next_safe_action: 'none' },
+    statusResult: null,
+    evidenceModel: null,
+    configModel: null,
+    launcherModel: null,
+    actionResult: { action_id: 'launcher', ok: false, exit_code: 1, reason_code: 'LAUNCHER_RUN_FAILED' },
+    lifecycleSource: null,
+    monitorSource: null,
+    selectedRunId: null,
+    contentSurface: 'action_result',
+    columns: 100,
+    rows: 30,
+    colorEnabled: true,
+  };
+  const built = buildEntryModelAfterNestedExecute(snapshot, model, NATIVE_LAUNCHER_EXECUTE_ACTION);
+  assert.equal(built.selectedNavId, 'launcher');
+  assert.equal(built.contentSurface, 'action_result');
+  assert.equal(built.pendingLauncherSelections, null);
+  assert.equal(built.focus, 'nav');
 });
 
 test('buildEntryShellModel preserves authoritative snapshot fields', () => {
