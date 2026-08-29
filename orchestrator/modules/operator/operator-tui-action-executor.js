@@ -136,11 +136,12 @@ function policyForActionKind(actionKind) {
  * @param {{ scope: 'session'|'run' }} policy
  * @returns {boolean}
  */
-function contextsMatch(requestCtx, activeCtx, policy) {
+function contextsMatch(requestCtx, activeCtx, policy, actionKind) {
   if (policy.scope === 'session') return true;
   const reqRun = requestCtx?.runId ?? null;
   const activeRun = activeCtx?.runId ?? null;
   if (reqRun !== activeRun) return false;
+  if (!activeKeyIncludesSurface(actionKind)) return true;
   const reqSurface = requestCtx?.surface ?? null;
   const activeSurface = activeCtx?.surface ?? null;
   if (reqSurface == null || activeSurface == null) return true;
@@ -170,6 +171,61 @@ function buildTerminalActionResult(actionId, reasonCode, text) {
     exit_code: 0,
     reason_code: reasonCode,
     text: text ?? reasonCode,
+  };
+}
+
+/**
+ * Map abort/signal interruption to the executor's terminal request state.
+ * Timeout and supersede also abort the signal — prefer those over CANCELLED.
+ * @param {object | null | undefined} request
+ * @returns {{ status: string, reason_code: string, text: string }}
+ */
+function resolveAbortedRequestOutcome(request) {
+  if (!request) {
+    return {
+      status: TUI_ACTION_STATUS.CANCELLED,
+      reason_code: TUI_ACTION_REASON.CANCELLED,
+      text: 'Action cancelled.',
+    };
+  }
+  if (request.status === TUI_ACTION_STATUS.TIMED_OUT) {
+    return {
+      status: TUI_ACTION_STATUS.TIMED_OUT,
+      reason_code: TUI_ACTION_REASON.TIMED_OUT,
+      text: 'Action timed out.',
+    };
+  }
+  if (request.status === TUI_ACTION_STATUS.SUPERSEDED) {
+    return {
+      status: TUI_ACTION_STATUS.SUPERSEDED,
+      reason_code: request.reason_code ?? TUI_ACTION_REASON.SUPERSEDED,
+      text: 'Action superseded.',
+    };
+  }
+  if (request.status === TUI_ACTION_STATUS.CANCELLED) {
+    return {
+      status: TUI_ACTION_STATUS.CANCELLED,
+      reason_code: TUI_ACTION_REASON.CANCELLED,
+      text: 'Action cancelled.',
+    };
+  }
+  return {
+    status: TUI_ACTION_STATUS.CANCELLED,
+    reason_code: TUI_ACTION_REASON.CANCELLED,
+    text: 'Action cancelled.',
+  };
+}
+
+/**
+ * @param {string} actionKind
+ * @param {string | null} runId
+ * @param {string | null} surface
+ * @returns {{ runId: string | null, surface: string | null }}
+ */
+function actionContextForKind(actionKind, runId, surface) {
+  return {
+    runId: runId ?? null,
+    surface: activeKeyIncludesSurface(actionKind) ? (surface ?? null) : null,
   };
 }
 
@@ -288,7 +344,7 @@ function createTuiActionExecutor(options = {}) {
     };
     for (const req of requests.values()) {
       if (req.status !== TUI_ACTION_STATUS.PENDING) continue;
-      if (contextsMatch(req.context, currentContext, req.policy)) continue;
+      if (contextsMatch(req.context, currentContext, req.policy, req.action_kind)) continue;
       req.status = TUI_ACTION_STATUS.SUPERSEDED;
       req.reason_code = TUI_ACTION_REASON.STALE_CONTEXT;
       req.completed_at = now();
@@ -313,7 +369,7 @@ function createTuiActionExecutor(options = {}) {
     if (req.status !== TUI_ACTION_STATUS.PENDING) {
       return { apply: false, reason_code: req.reason_code ?? TUI_ACTION_REASON.STALE_CONTEXT };
     }
-    if (!contextsMatch(req.context, context, req.policy)) {
+    if (!contextsMatch(req.context, context, req.policy, req.action_kind)) {
       req.status = TUI_ACTION_STATUS.SUPERSEDED;
       req.reason_code = TUI_ACTION_REASON.STALE_CONTEXT;
       req.completed_at = now();
@@ -448,6 +504,8 @@ module.exports = {
   labelForActionKind,
   buildPendingOperatorAction,
   buildTerminalActionResult,
+  resolveAbortedRequestOutcome,
+  actionContextForKind,
   activeKeyIncludesSurface,
   mapShellActionToActionKind,
   policyForActionKind,

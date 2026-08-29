@@ -1115,6 +1115,7 @@ test('slow nested status for run A does not overwrite after switching to run B',
           pendingResult?.model?.actionResult?.reason_code,
           'TUI_ACTION_STALE_CONTEXT',
         );
+        assert.equal(pendingResult?.model?.contentSurface, 'action_result');
         return { aborted: false, requestedAction: null };
       },
     }),
@@ -1184,8 +1185,10 @@ test('cross-class nested submit while Io in flight returns TUI_ACTION_NESTED_IO_
         await new Promise((resolve) => setImmediate(resolve));
         const blocked = await onNestedExecute({ actionId: 'status', runId: 'run-a' });
         assert.equal(blocked?.model?.actionResult?.reason_code, 'TUI_ACTION_NESTED_IO_BUSY');
+        assert.equal(blocked?.syncModel, false);
         releaseFirst();
-        await first;
+        const firstResult = await first;
+        assert.equal(firstResult?.model?.actionResult?.reason_code, 'ATTACH_OK');
         return { aborted: false, requestedAction: null };
       },
     }),
@@ -1259,6 +1262,7 @@ test('ink-local status refresh stale after surface change exposes reason code', 
         releaseStatus();
         const outcome = await pending;
         assert.equal(outcome?.actionResult?.reason_code, 'TUI_ACTION_STALE_CONTEXT');
+        assert.equal(outcome?.contentSurface, 'action_result');
         return { aborted: false, requestedAction: null };
       },
     }),

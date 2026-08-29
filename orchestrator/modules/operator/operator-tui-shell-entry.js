@@ -30,6 +30,8 @@ const {
   createTuiActionExecutor,
   mapShellActionToActionKind,
   buildTerminalActionResult,
+  resolveAbortedRequestOutcome,
+  actionContextForKind,
   TUI_ACTION_STATUS,
   TUI_ACTION_REASON,
 } = require('./operator-tui-action-executor');
@@ -549,42 +551,48 @@ async function runOperatorTuiShell(options = {}) {
     let nestedIoInFlight = false;
 
     const buildTerminalShellModel = (actionId, reasonCode, text, patch = {}) => {
-      actionResult = buildTerminalActionResult(actionId, reasonCode, text);
-      contentSurface = patch.contentSurface ?? 'action_result';
-      return buildEntryShellModel(entrySnapshot(), {
-        actionResult,
-        contentSurface,
+      const terminalResult = buildTerminalActionResult(actionId, reasonCode, text);
+      const built = buildEntryShellModel(entrySnapshot(), {
+        actionResult: terminalResult,
+        contentSurface: 'action_result',
         selectedNavId: patch.selectedNavId ?? model.selectedNavId,
-        focus: patch.focus ?? model.focus,
+        focus: patch.focus ?? 'nav',
       });
+      if (patch.syncEntryState !== false) {
+        actionResult = terminalResult;
+        contentSurface = 'action_result';
+      }
+      return built;
     };
+
+    const ephemeralTerminalOutcome = (actionId, reasonCode, text, patch = {}) => ({
+      model: buildTerminalShellModel(actionId, reasonCode, text, { ...patch, syncEntryState: false }),
+      syncModel: false,
+    });
 
     const runNestedShellAction = async (nested) => {
       const nestedActionId = nested?.actionId ?? '';
       if (nested?.rejectOnly === true || nestedIoInFlight) {
-        return {
-          model: buildTerminalShellModel(
-            nestedActionId,
-            TUI_ACTION_REASON.NESTED_IO_BUSY,
-            'Another operator action is already running.',
-          ),
-        };
+        return ephemeralTerminalOutcome(
+          nestedActionId,
+          TUI_ACTION_REASON.NESTED_IO_BUSY,
+          'Another operator action is already running.',
+        );
       }
 
       const actionKind = mapShellActionToActionKind(nestedActionId);
-      const actionContext = {
-        runId: nested.runId ?? selectedRunId ?? null,
-        surface: contentSurface ?? model.contentSurface ?? null,
-      };
+      const actionContext = actionContextForKind(
+        actionKind,
+        nested.runId ?? selectedRunId ?? null,
+        contentSurface ?? model.contentSurface ?? null,
+      );
       const begun = actionExecutor.beginRequest({ actionKind, context: actionContext });
       if (!begun.accepted) {
-        return {
-          model: buildTerminalShellModel(
-            nestedActionId,
-            begun.reason_code ?? TUI_ACTION_REASON.DUPLICATE_REJECTED,
-            'Action already in progress.',
-          ),
-        };
+        return ephemeralTerminalOutcome(
+          nestedActionId,
+          begun.reason_code ?? TUI_ACTION_REASON.DUPLICATE_REJECTED,
+          'Action already in progress.',
+        );
       }
 
       nestedExecutions += 1;
@@ -619,16 +627,19 @@ async function runOperatorTuiShell(options = {}) {
           });
         } catch (err) {
           if (err?.name === 'AbortError' || begun.request.abortController?.signal?.aborted) {
-            actionExecutor.completeRequest(activeRequestId, {
-              status: TUI_ACTION_STATUS.CANCELLED,
-              reason_code: TUI_ACTION_REASON.CANCELLED,
-            });
+            const activeReq = actionExecutor.getRequest(activeRequestId);
+            const terminal = resolveAbortedRequestOutcome(activeReq);
+            if (activeReq?.status === TUI_ACTION_STATUS.PENDING) {
+              actionExecutor.completeRequest(activeRequestId, {
+                status: terminal.status,
+                reason_code: terminal.reason_code,
+              });
+            }
             return {
               model: buildTerminalShellModel(
                 nestedActionId,
-                TUI_ACTION_REASON.CANCELLED,
-                'Action cancelled.',
-                { contentSurface: contentSurface ?? model.contentSurface },
+                terminal.reason_code,
+                terminal.text,
               ),
             };
           }
@@ -649,7 +660,15 @@ async function runOperatorTuiShell(options = {}) {
               nestedActionId,
               TUI_ACTION_REASON.TIMED_OUT,
               'Action timed out.',
-              { contentSurface: contentSurface ?? model.contentSurface },
+            ),
+          };
+        }
+        if (activeReq?.status === TUI_ACTION_STATUS.SUPERSEDED) {
+          return {
+            model: buildTerminalShellModel(
+              nestedActionId,
+              activeReq.reason_code ?? TUI_ACTION_REASON.SUPERSEDED,
+              'Action superseded.',
             ),
           };
         }
@@ -659,16 +678,17 @@ async function runOperatorTuiShell(options = {}) {
           surface: contentSurface,
         });
         if (!applyGate.apply) {
-          actionExecutor.completeRequest(activeRequestId, {
-            status: TUI_ACTION_STATUS.SUPERSEDED,
-            reason_code: applyGate.reason_code ?? TUI_ACTION_REASON.STALE_CONTEXT,
-          });
+          if (activeReq?.status === TUI_ACTION_STATUS.PENDING) {
+            actionExecutor.completeRequest(activeRequestId, {
+              status: TUI_ACTION_STATUS.SUPERSEDED,
+              reason_code: applyGate.reason_code ?? TUI_ACTION_REASON.STALE_CONTEXT,
+            });
+          }
           return {
             model: buildTerminalShellModel(
               nestedActionId,
               applyGate.reason_code ?? TUI_ACTION_REASON.STALE_CONTEXT,
               'Action result no longer matches the active run or surface.',
-              { contentSurface: contentSurface ?? model.contentSurface },
             ),
           };
         }
@@ -770,20 +790,20 @@ async function runOperatorTuiShell(options = {}) {
       if (!isInkLocalAsyncReadAction(actionId)) return null;
       const normalized = String(actionId ?? '').trim().toLowerCase();
       const actionKind = mapShellActionToActionKind(actionId);
-      const context = {
-        runId: runId ?? selectedRunId ?? null,
-        surface: surface ?? contentSurface ?? null,
-      };
+      const context = actionContextForKind(
+        actionKind,
+        runId ?? selectedRunId ?? null,
+        surface ?? contentSurface ?? null,
+      );
       if (!context.runId) return null;
 
       const begun = actionExecutor.beginRequest({ actionKind, context });
       if (!begun.accepted) {
-        return buildTerminalShellModel(
+        return ephemeralTerminalOutcome(
           normalized,
           begun.reason_code ?? TUI_ACTION_REASON.DUPLICATE_REJECTED,
           'Refresh already in progress.',
-          { contentSurface: context.surface ?? contentSurface },
-        );
+        ).model;
       }
 
       const requestId = begun.request.request_id;
@@ -806,7 +826,13 @@ async function runOperatorTuiShell(options = {}) {
             normalized,
             TUI_ACTION_REASON.TIMED_OUT,
             'Refresh timed out.',
-            { contentSurface: context.surface ?? contentSurface },
+          );
+        }
+        if (activeReq?.status === TUI_ACTION_STATUS.SUPERSEDED) {
+          return buildTerminalShellModel(
+            normalized,
+            activeReq.reason_code ?? TUI_ACTION_REASON.SUPERSEDED,
+            'Refresh superseded.',
           );
         }
 
@@ -815,15 +841,16 @@ async function runOperatorTuiShell(options = {}) {
           surface: contentSurface,
         });
         if (!gate.apply) {
-          actionExecutor.completeRequest(requestId, {
-            status: TUI_ACTION_STATUS.SUPERSEDED,
-            reason_code: gate.reason_code ?? TUI_ACTION_REASON.STALE_CONTEXT,
-          });
+          if (activeReq?.status === TUI_ACTION_STATUS.PENDING) {
+            actionExecutor.completeRequest(requestId, {
+              status: TUI_ACTION_STATUS.SUPERSEDED,
+              reason_code: gate.reason_code ?? TUI_ACTION_REASON.STALE_CONTEXT,
+            });
+          }
           return buildTerminalShellModel(
             normalized,
             gate.reason_code ?? TUI_ACTION_REASON.STALE_CONTEXT,
             'Refresh result no longer matches the active run or surface.',
-            { contentSurface: contentSurface ?? model.contentSurface },
           );
         }
 
@@ -883,34 +910,29 @@ async function runOperatorTuiShell(options = {}) {
         });
       } catch (err) {
         if (err?.name === 'AbortError' || begun.request.abortController?.signal?.aborted) {
-          actionExecutor.completeRequest(requestId, {
-            status: TUI_ACTION_STATUS.CANCELLED,
-            reason_code: TUI_ACTION_REASON.CANCELLED,
-          });
+          const activeReq = actionExecutor.getRequest(requestId);
+          const terminal = resolveAbortedRequestOutcome(activeReq);
+          if (activeReq?.status === TUI_ACTION_STATUS.PENDING) {
+            actionExecutor.completeRequest(requestId, {
+              status: terminal.status,
+              reason_code: terminal.reason_code,
+            });
+          }
           return buildTerminalShellModel(
             normalized,
-            TUI_ACTION_REASON.CANCELLED,
-            'Refresh cancelled.',
-            { contentSurface: contentSurface ?? model.contentSurface },
+            terminal.reason_code,
+            terminal.text,
           );
         }
         actionExecutor.completeRequest(requestId, {
           status: TUI_ACTION_STATUS.FAILED,
           reason_code: 'TUI_SHELL_ACTION_FAILURE',
         });
-        actionResult = adaptActionResult({
-          action_id: normalized,
-          ok: false,
-          exitCode: 1,
-          reason_code: 'TUI_SHELL_ACTION_FAILURE',
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return buildEntryShellModel(entrySnapshot(), {
-          actionResult,
-          contentSurface: context.surface ?? contentSurface,
-          selectedNavId: model.selectedNavId,
-          focus: model.focus,
-        });
+        return buildTerminalShellModel(
+          normalized,
+          'TUI_SHELL_ACTION_FAILURE',
+          err instanceof Error ? err.message : String(err),
+        );
       } finally {
         timeoutHandle.cancel();
       }

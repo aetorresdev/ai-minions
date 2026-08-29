@@ -759,8 +759,9 @@ function ShellApp(props) {
     truecolor: model.truecolor,
   });
 
-  const commit = (next) => {
+  const commit = (next, opts = {}) => {
     setModel(next);
+    if (opts.syncModel === false) return;
     if (typeof onModelChange === 'function') onModelChange(next);
   };
 
@@ -785,7 +786,7 @@ function ShellApp(props) {
       commit(buildShellModel({
         ...shellModelToOptions(result.model),
         pendingOperatorAction: null,
-      }));
+      }), { syncModel: result.syncModel });
     }
   };
 

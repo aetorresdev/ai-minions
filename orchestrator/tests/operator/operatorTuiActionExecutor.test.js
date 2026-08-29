@@ -8,6 +8,8 @@ const {
   TUI_ACTION_KIND,
   TUI_ACTION_REASON,
   buildPendingOperatorAction,
+  resolveAbortedRequestOutcome,
+  actionContextForKind,
   mapShellActionToActionKind,
   createTuiActionExecutor,
 } = require('../../modules/operator/operator-tui-action-executor');
@@ -219,6 +221,37 @@ test('noteContextChange supersedes pending read when surface changes on same run
   });
   assert.equal(gate.apply, false);
   assert.equal(gate.reason_code, TUI_ACTION_REASON.STALE_CONTEXT);
+});
+
+test('mutating run-scoped actions ignore surface-only context changes', () => {
+  const executor = createTuiActionExecutor({ createId: () => 'attach-req' });
+  executor.beginRequest({
+    actionKind: TUI_ACTION_KIND.ATTACH_GENERATION,
+    context: actionContextForKind(TUI_ACTION_KIND.ATTACH_GENERATION, 'run-a', 'home'),
+  });
+  executor.noteContextChange({ runId: 'run-a', surface: 'action_result' });
+  const gate = executor.shouldApplyResult('attach-req', {
+    runId: 'run-a',
+    surface: 'action_result',
+  });
+  assert.equal(gate.apply, true);
+});
+
+test('resolveAbortedRequestOutcome prefers timed_out over cancelled', () => {
+  const outcome = resolveAbortedRequestOutcome({
+    status: TUI_ACTION_STATUS.TIMED_OUT,
+    reason_code: TUI_ACTION_REASON.TIMED_OUT,
+  });
+  assert.equal(outcome.reason_code, TUI_ACTION_REASON.TIMED_OUT);
+  assert.equal(outcome.status, TUI_ACTION_STATUS.TIMED_OUT);
+});
+
+test('resolveAbortedRequestOutcome prefers superseded over cancelled', () => {
+  const outcome = resolveAbortedRequestOutcome({
+    status: TUI_ACTION_STATUS.SUPERSEDED,
+    reason_code: TUI_ACTION_REASON.SUPERSEDED,
+  });
+  assert.equal(outcome.reason_code, TUI_ACTION_REASON.SUPERSEDED);
 });
 
 test('cancelAllPending aborts every pending request', () => {
