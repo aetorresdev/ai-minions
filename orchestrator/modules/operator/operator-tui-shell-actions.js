@@ -46,10 +46,20 @@ const { NATIVE_LAUNCHER_EXECUTE_ACTION } = require('./operator-tui-native-workfl
  *   runLauncherPane?: typeof runOperatorGuidedLauncherPane,
  *   modelPolicy?: string,
  *   launcherSelections?: object | null,
+ *   abortSignal?: AbortSignal | null,
  * }} options
  */
 async function executeShellAction(options) {
   const actionId = String(options.actionId);
+  const abortSignal = options.abortSignal ?? null;
+  const assertNotAborted = () => {
+    if (abortSignal?.aborted) {
+      const err = new Error('The operation was aborted');
+      err.name = 'AbortError';
+      throw err;
+    }
+  };
+  assertNotAborted();
   const useColor = options.useColor === true;
   const skipRunPrompt = options.skipRunPrompt === true;
   const launcherSelections = options.launcherSelections && typeof options.launcherSelections === 'object'
@@ -79,11 +89,13 @@ async function executeShellAction(options) {
    * @returns {Promise<string | null>}
    */
   async function resolveRunId(label, selected) {
+    assertNotAborted();
     if (skipRunPrompt) {
       return selected || null;
     }
     const promptLabel = selected ? `${label} [${selected}]: ` : `${label}: `;
     const typed = String(await question(promptLabel)).trim();
+    assertNotAborted();
     return typed || selected || null;
   }
 
@@ -194,6 +206,7 @@ async function executeShellAction(options) {
           // Native Ink workflow already collected choices — skip nested readline prompts.
           selections: launcherSelections ?? undefined,
         });
+        assertNotAborted();
         launcherModel = result.model ?? null;
         contentSurface = launcherModel ? 'launcher' : 'action_result';
         write(`${result.text || ''}\n`);
@@ -216,6 +229,7 @@ async function executeShellAction(options) {
           runsPayload: null,
         };
       } catch (err) {
+        if (err?.name === 'AbortError') throw err;
         const message = err instanceof Error ? err.message : String(err);
         write(`${message}\n`);
         return {
@@ -269,6 +283,7 @@ async function executeShellAction(options) {
         useColor,
         cwd: options.cwd,
       });
+      assertNotAborted();
       if (result.selected_run_id) selectedRunId = result.selected_run_id;
       // Operator returns status_pane (not model/pane_model) — map into status adapter input.
       statusResult = result.status_pane
@@ -298,6 +313,7 @@ async function executeShellAction(options) {
     if (actionId === 'evidence') {
       const promptLabel = selectedRunId ? `run-id [${selectedRunId}]: ` : 'run-id: ';
       const typed = String(await question(promptLabel)).trim();
+      assertNotAborted();
       const runId = typed || selectedRunId;
       if (!runId) {
         write('evidence/attach pane skipped: run-id required (or use select first).\n');
@@ -326,6 +342,7 @@ async function executeShellAction(options) {
         useColor,
         cwd: options.cwd,
       });
+      assertNotAborted();
       // Operator returns pane (not model/pane_model) — map into evidence adapter input.
       evidenceModel = result.pane
         ?? result.model
@@ -536,6 +553,7 @@ async function executeShellAction(options) {
         json: false,
         useColor,
       });
+      assertNotAborted();
       write(`${result.text || ''}\n`);
       return {
         quit: false,
@@ -566,6 +584,7 @@ async function executeShellAction(options) {
           cwd: options.cwd,
           modelPolicy: options.modelPolicy,
         });
+        assertNotAborted();
         // Operator returns nested pane — adaptConfigReadiness normalizes path/creds/remediations.
         configModel = result.pane
           ?? result.model
@@ -591,6 +610,7 @@ async function executeShellAction(options) {
           launcherModel: null,
         };
       } catch (err) {
+        if (err?.name === 'AbortError') throw err;
         const message = err instanceof Error ? err.message : String(err);
         write(`${message}\n`);
         return {
