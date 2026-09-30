@@ -11,9 +11,9 @@
  * terminal left to probe: that mode instead requires the restore attempt to
  * report a non-completed outcome caused by the dead PTY.
  *
- * Linux and macOS run this against a pseudoterminal from python3's pty.openpty.
- * The parent keeps one unread slave fd so macOS does not return EIO on the
- * master the moment the child exits (the echo probe needs the slave alive).
+ * Linux and macOS run this against a pseudoterminal from python3's pty.fork.
+ * macOS revokes the PTY when the session leader exits (master writes then
+ * fail with EIO), so the echo probe runs while the child is still alive.
  * macOS cannot be executed on a Linux host. The macOS test is skipped here
  * with an explicit reason. A skip is not a pass and must not be reported as
  * macOS evidence. The same scenario function runs on darwin when that host
@@ -46,28 +46,9 @@ const PTY_DRIVER = String.raw`
 import json, os, pty, select, signal, sys, termios, time
 
 node, fixture, mode, result_path, transcript_path = sys.argv[1:6]
-# pty.fork() closes the slave in the parent. On macOS the master then returns
-# EIO (errno 5) as soon as the child exits and drops the last slave, so the
-# echo probe fails even when termios was restored (ICANON|ECHO already true).
-# Hold one slave fd open in the parent, unread and unwritten, until the probe
-# finishes. It is not the controlling terminal (O_NOCTTY).
-master, slave = pty.openpty()
-hold = os.open(os.ttyname(slave), os.O_RDWR | os.O_NOCTTY)
-pid = os.fork()
+pid, fd = pty.fork()
 if pid == 0:
-    os.close(master)
-    os.close(hold)
-    os.setsid()
-    os.dup2(slave, 0)
-    os.dup2(slave, 1)
-    os.dup2(slave, 2)
-    if slave > 2:
-        os.close(slave)
-    controlling = os.open(os.ttyname(1), os.O_RDWR)
-    os.close(controlling)
     os.execv(node, [node, fixture, mode, result_path])
-os.close(slave)
-fd = master
 
 transcript = b''
 deadline = time.time() + 8
@@ -77,6 +58,9 @@ signaled = False
 nav_at = None
 child_status = None
 timed_out = False
+parent_probed = False
+parent = {'icanon': False, 'echo': False, 'stdin_usable': False, 'echo_byte': None, 'io_error': None,
+          'timed_out': False, 'exit_code': None, 'exit_signal': None}
 
 def pump():
     global transcript
@@ -89,6 +73,47 @@ def pump():
         return
     if chunk:
         transcript += chunk
+
+def probe_parent():
+    global parent_probed, transcript
+    if parent_probed or fd < 0:
+        return
+    parent_probed = True
+    # Drop bytes the child already painted so the echo is not leftover output.
+    while True:
+        ready, _, _ = select.select([fd], [], [], 0.05)
+        if not ready:
+            break
+        try:
+            chunk = os.read(fd, 4096)
+        except OSError:
+            break
+        if not chunk:
+            break
+        transcript += chunk
+    try:
+        attr = termios.tcgetattr(fd)
+        parent['icanon'] = bool(attr[3] & termios.ICANON)
+        parent['echo'] = bool(attr[3] & termios.ECHO)
+    except OSError as exc:
+        parent['io_error'] = exc.errno
+        return
+    # Newline so a cooked (ICANON) read in the child unblocks. ECHO still
+    # paints the byte on the master before the child consumes the line.
+    for _attempt in range(4):
+        try:
+            os.write(fd, b'Z\n')
+            ready, _, _ = select.select([fd], [], [], 0.3)
+            if not ready:
+                continue
+            data = os.read(fd, 64)
+            parent['echo_byte'] = data.decode('utf-8', 'replace')
+            if b'Z' in data:
+                parent['stdin_usable'] = True
+                break
+        except OSError as exc:
+            parent['io_error'] = exc.errno
+            time.sleep(0.05)
 
 SIGNAL_MODES = {'sigint': signal.SIGINT, 'sigterm': signal.SIGTERM, 'sighup': signal.SIGHUP}
 
@@ -126,6 +151,17 @@ while time.time() < deadline:
         os.close(fd)
         fd = -1
         signaled = True
+    elif alive and fd >= 0 and (not parent_probed):
+        # macOS returns EIO on the master once this session leader exits, so
+        # the echo probe has to run while the child is blocked in its hold.
+        # Clean exits publish the result file first. Signal and fatal exits
+        # publish the restore record and then block inside the re-raise.
+        ready_for_probe = os.path.exists(result_path) or (
+            mode in ('sigint', 'sigterm', 'sighup', 'fatal')
+            and os.path.exists(result_path + '.restore.json')
+        )
+        if ready_for_probe:
+            probe_parent()
 
 if child_status is None:
     try:
@@ -138,50 +174,16 @@ if child_status is None:
     except ChildProcessError:
         pass
 
-# Drain bytes the child already wrote so the echo probe is not leftover output.
-if fd >= 0:
-    while True:
-        ready, _, _ = select.select([fd], [], [], 0.05)
-        if not ready:
-            break
-        try:
-            chunk = os.read(fd, 4096)
-        except OSError:
-            break
-        if not chunk:
-            break
-        transcript += chunk
-
-parent = {'icanon': False, 'echo': False, 'stdin_usable': False, 'echo_byte': None, 'io_error': None,
-          'timed_out': timed_out, 'exit_code': None, 'exit_signal': None}
+parent['timed_out'] = timed_out
 if child_status is not None:
     if os.WIFEXITED(child_status):
         parent['exit_code'] = os.WEXITSTATUS(child_status)
     elif os.WIFSIGNALED(child_status):
         parent['exit_signal'] = os.WTERMSIG(child_status)
-try:
-    if fd < 0:
-        raise OSError(9, 'master closed by driver')
-    attr = termios.tcgetattr(fd)
-    parent['icanon'] = bool(attr[3] & termios.ICANON)
-    parent['echo'] = bool(attr[3] & termios.ECHO)
-except OSError as exc:
-    parent['io_error'] = exc.errno
-else:
-    for _attempt in range(4):
-        try:
-            os.write(fd, b'Z')
-            ready, _, _ = select.select([fd], [], [], 0.3)
-            if not ready:
-                continue
-            data = os.read(fd, 64)
-            parent['echo_byte'] = data.decode('utf-8', 'replace')
-            if b'Z' in data:
-                parent['stdin_usable'] = True
-                break
-        except OSError as exc:
-            parent['io_error'] = exc.errno
-            time.sleep(0.05)
+# Fallback for a child that exited before the in-loop probe (Linux still
+# accepts a master write after the slave closes). macOS will not.
+if not parent_probed:
+    probe_parent()
 
 with open(result_path + '.parent.json', 'w', encoding='utf-8') as handle:
     json.dump(parent, handle)
@@ -192,10 +194,6 @@ if fd >= 0:
         os.close(fd)
     except OSError:
         pass
-try:
-    os.close(hold)
-except OSError:
-    pass
 `;
 
 function runPtyMode(mode, dir, envOverrides = {}) {

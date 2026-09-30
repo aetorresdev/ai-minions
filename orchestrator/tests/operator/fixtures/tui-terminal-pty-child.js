@@ -15,6 +15,44 @@ const guardModule = require('../../../modules/operator/operator-tui-terminal-gua
 const mode = process.argv[2];
 const resultPath = process.argv[3];
 
+// macOS revokes a PTY when its session leader exits, and the master then
+// fails writes with EIO. Block here, after restore, until the parent has
+// echoed a byte. A closed master (hangup) makes the read fail and we move on.
+let probeHeld = false;
+function holdForParentProbe() {
+  if (probeHeld) return;
+  probeHeld = true;
+  try {
+    if (process.stdin.isRaw === true && typeof process.stdin.setRawMode === 'function') {
+      process.stdin.setRawMode(false);
+    }
+  } catch {
+    // slave already hung up
+  }
+  try {
+    if (typeof process.stdin.pause === 'function') process.stdin.pause();
+  } catch {
+    // ignore
+  }
+  try {
+    fs.readSync(0, Buffer.alloc(8), 0, 1);
+  } catch {
+    // EIO: master closed. Do not block the hangup or fatal path.
+  }
+}
+
+const realExit = process.exit.bind(process);
+process.exit = (code) => {
+  holdForParentProbe();
+  realExit(code);
+};
+const realKill = process.kill.bind(process);
+const HELD_SIGNALS = new Set(['SIGINT', 'SIGTERM', 'SIGHUP']);
+process.kill = (pid, sig) => {
+  if (pid === process.pid && HELD_SIGNALS.has(String(sig))) holdForParentProbe();
+  return realKill(pid, sig);
+};
+
 // A signal handler re-raises after restore, so the process dies before main()
 // can report. Persist every restore outcome synchronously as it happens.
 // Patched before the shell entry is required so the entry binds this wrapper.
