@@ -11,7 +11,9 @@
  * terminal left to probe: that mode instead requires the restore attempt to
  * report a non-completed outcome caused by the dead PTY.
  *
- * Linux runs this against a pseudoterminal allocated by python3's pty.fork.
+ * Linux and macOS run this against a pseudoterminal from python3's pty.openpty.
+ * The parent keeps one unread slave fd so macOS does not return EIO on the
+ * master the moment the child exits (the echo probe needs the slave alive).
  * macOS cannot be executed on a Linux host. The macOS test is skipped here
  * with an explicit reason. A skip is not a pass and must not be reported as
  * macOS evidence. The same scenario function runs on darwin when that host
@@ -44,9 +46,28 @@ const PTY_DRIVER = String.raw`
 import json, os, pty, select, signal, sys, termios, time
 
 node, fixture, mode, result_path, transcript_path = sys.argv[1:6]
-pid, fd = pty.fork()
+# pty.fork() closes the slave in the parent. On macOS the master then returns
+# EIO (errno 5) as soon as the child exits and drops the last slave, so the
+# echo probe fails even when termios was restored (ICANON|ECHO already true).
+# Hold one slave fd open in the parent, unread and unwritten, until the probe
+# finishes. It is not the controlling terminal (O_NOCTTY).
+master, slave = pty.openpty()
+hold = os.open(os.ttyname(slave), os.O_RDWR | os.O_NOCTTY)
+pid = os.fork()
 if pid == 0:
+    os.close(master)
+    os.close(hold)
+    os.setsid()
+    os.dup2(slave, 0)
+    os.dup2(slave, 1)
+    os.dup2(slave, 2)
+    if slave > 2:
+        os.close(slave)
+    controlling = os.open(os.ttyname(1), os.O_RDWR)
+    os.close(controlling)
     os.execv(node, [node, fixture, mode, result_path])
+os.close(slave)
+fd = master
 
 transcript = b''
 deadline = time.time() + 8
@@ -171,6 +192,10 @@ if fd >= 0:
         os.close(fd)
     except OSError:
         pass
+try:
+    os.close(hold)
+except OSError:
+    pass
 `;
 
 function runPtyMode(mode, dir, envOverrides = {}) {
