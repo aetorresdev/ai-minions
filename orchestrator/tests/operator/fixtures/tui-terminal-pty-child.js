@@ -69,6 +69,16 @@ function shellOptions() {
       next_safe_action: 'none',
       json: { result_code: 'RUNS_EMPTY', runs: [], next_safe_action: 'none' },
     }),
+    // Ink (is-in-ci) defaults to non-interactive when CI is set, even on a TTY:
+    // it writes no frames until unmount, so the PTY driver never sees output and
+    // never sends keys. This fixture runs on a real PTY, so it forces interactive
+    // for its own mounts only; product and the rest of the CI env keep defaults.
+    importRenderer: async () => {
+      const mod = await import('../../../modules/operator/operator-tui-shell-render.mjs');
+      return {
+        renderOperatorTuiShell: (opts) => mod.renderOperatorTuiShell({ ...opts, interactive: true }),
+      };
+    },
   };
 }
 

@@ -173,7 +173,7 @@ if fd >= 0:
         pass
 `;
 
-function runPtyMode(mode, dir) {
+function runPtyMode(mode, dir, envOverrides = {}) {
   const resultPath = path.join(dir, `${mode}-result.json`);
   const transcriptPath = path.join(dir, `${mode}-transcript.bin`);
   return new Promise((resolve, reject) => {
@@ -185,7 +185,7 @@ function runPtyMode(mode, dir) {
       mode,
       resultPath,
       transcriptPath,
-    ], { stdio: ['ignore', 'pipe', 'pipe'] });
+    ], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...envOverrides } });
     let stderr = '';
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString('utf8');
@@ -208,9 +208,53 @@ function runPtyMode(mode, dir) {
       const restorations = fs.existsSync(restorePath)
         ? JSON.parse(fs.readFileSync(restorePath, 'utf8'))
         : [];
-      resolve({ code, stderr, result, transcript, parent, restorations });
+      resolve({
+        mode,
+        ciEnv: 'CI' in envOverrides ? envOverrides.CI : (process.env.CI ?? null),
+        code,
+        stderr,
+        result,
+        resultFileExists: fs.existsSync(resultPath),
+        transcript,
+        parent,
+        restorations,
+      });
     });
   });
+}
+
+function diagnose(run) {
+  const tail = run.transcript.subarray(Math.max(0, run.transcript.length - 240)).toString('utf8');
+  return [
+    `scenario=${run.mode}`,
+    `bytes_received=${run.transcript.length}`,
+    `timed_out=${run.parent.timed_out}`,
+    `exit_code=${run.parent.exit_code}`,
+    `exit_signal=${run.parent.exit_signal}`,
+    `result_file=${run.resultFileExists ? 'present' : 'missing'}`,
+    `ci_env=${JSON.stringify(run.ciEnv)}`,
+    `pty_tail=${JSON.stringify(tail)}`,
+    `stderr_tail=${JSON.stringify(String(run.stderr || '').slice(-240))}`,
+  ].join(' ');
+}
+
+/**
+ * Fails with a scenario diagnosis before any result field is read.
+ * @returns {object} the child result
+ */
+function requireResult(run) {
+  assert.equal(run.parent.timed_out, false, `${run.mode} timed out and was killed: ${diagnose(run)}`);
+  assert.ok(run.transcript.length > 0, `${run.mode} emitted no bytes on the PTY: ${diagnose(run)}`);
+  assert.ok(
+    run.result !== null && typeof run.result === 'object',
+    `${run.mode} produced no result file: ${diagnose(run)}`,
+  );
+  assert.equal(
+    run.result.error,
+    undefined,
+    `${run.mode} child reported an error (${run.result.error}): ${diagnose(run)}`,
+  );
+  return run.result;
 }
 
 function assertParentTerminalUsable(parent, mode) {
@@ -235,13 +279,34 @@ function assertRestoreSequence(transcript, mode) {
   );
 }
 
-async function assertRealPtyEvidence() {
+async function assertPythonPty() {
   const python = spawn('python3', ['-c', 'import pty']);
   const pythonOk = await new Promise((resolve) => {
     python.on('error', () => resolve(false));
     python.on('close', (code) => resolve(code === 0));
   });
   assert.equal(pythonOk, true, 'python3 pty module is required for real PTY evidence');
+}
+
+function assertQuitThroughNavigation(quit) {
+  const result = requireResult(quit);
+  const why = diagnose(quit);
+  assert.equal(result.stdout_is_tty, true, `quit stdout is not a TTY: ${why}`);
+  assert.equal(result.integrated_shell, true, why);
+  assert.equal(result.ink_loaded, true, why);
+  assert.equal(result.react_loaded, true, why);
+  assert.equal(result.content_surface, 'help', `quit did not navigate to help: ${why}`);
+  assert.equal(result.stdin_is_raw, false, why);
+  assert.equal(result.guard_raw_mode, false, why);
+  assert.equal(result.restored.ok, true, why);
+  assert.equal(result.restored.outcome, 'completed', why);
+  assert.equal(result.reason_code, 'TUI_SHELL_QUIT', why);
+  assertRestoreSequence(quit.transcript, 'quit');
+  assertParentTerminalUsable(quit.parent, 'quit');
+}
+
+async function assertRealPtyEvidence() {
+  await assertPythonPty();
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tui-pty-'));
   try {
@@ -250,45 +315,40 @@ async function assertRealPtyEvidence() {
       runs[mode] = await runPtyMode(mode, dir);
     }
 
-    const quit = runs.quit;
-    assert.equal(quit.result.stdout_is_tty, true);
-    assert.equal(quit.result.integrated_shell, true);
-    assert.equal(quit.result.ink_loaded, true);
-    assert.equal(quit.result.react_loaded, true);
-    assert.equal(quit.result.content_surface, 'help');
-    assert.equal(quit.result.stdin_is_raw, false);
-    assert.equal(quit.result.guard_raw_mode, false);
-    assert.equal(quit.result.restored.ok, true);
-    assert.equal(quit.result.restored.outcome, 'completed');
-    assert.equal(quit.result.reason_code, 'TUI_SHELL_QUIT');
-    assertRestoreSequence(quit.transcript, 'quit');
-    assertParentTerminalUsable(quit.parent, 'quit');
+    assertQuitThroughNavigation(runs.quit);
 
     const ctrlC = runs['ctrl-c'];
-    assert.equal(ctrlC.parent.timed_out, false, 'ctrl-c did not end the session');
-    assert.equal(ctrlC.result.integrated_shell, true);
-    assert.equal(ctrlC.result.reason_code, 'TUI_SHELL_ABORT');
-    assert.equal(ctrlC.result.stdin_is_raw, false);
-    assert.equal(ctrlC.result.guard_raw_mode, false);
-    assert.equal(ctrlC.result.restored.ok, true);
-    assert.equal(ctrlC.result.restored.outcome, 'completed');
+    const ctrlCResult = requireResult(ctrlC);
+    const ctrlCWhy = diagnose(ctrlC);
+    assert.equal(ctrlCResult.integrated_shell, true, ctrlCWhy);
+    assert.equal(ctrlCResult.reason_code, 'TUI_SHELL_ABORT', ctrlCWhy);
+    assert.equal(ctrlCResult.stdin_is_raw, false, ctrlCWhy);
+    assert.equal(ctrlCResult.guard_raw_mode, false, ctrlCWhy);
+    assert.equal(ctrlCResult.restored.ok, true, ctrlCWhy);
+    assert.equal(ctrlCResult.restored.outcome, 'completed', ctrlCWhy);
     assertRestoreSequence(ctrlC.transcript, 'ctrl-c');
     assertParentTerminalUsable(ctrlC.parent, 'ctrl-c');
 
     for (const mode of ['sigint', 'sigterm', 'sighup', 'fatal']) {
       const run = runs[mode];
-      assert.equal(run.parent.timed_out, false, `${mode} did not terminate the child`);
-      assert.equal(run.result, null, `${mode} should exit from the signal or fatal handler`);
+      const why = diagnose(run);
+      assert.equal(run.parent.timed_out, false, `${mode} did not terminate the child: ${why}`);
+      assert.ok(run.transcript.length > 0, `${mode} produced no terminal output: ${why}`);
+      assert.equal(run.result, null, `${mode} should exit from the signal or fatal handler: ${why}`);
       assertRestoreSequence(run.transcript, mode);
       assertParentTerminalUsable(run.parent, mode);
-      assert.ok(run.transcript.length > 0, `${mode} produced no terminal output`);
     }
-    assert.equal(runs.sigint.parent.exit_signal, 2, 'SIGINT must still terminate the TUI process');
+    assert.equal(
+      runs.sigint.parent.exit_signal,
+      2,
+      `SIGINT must still terminate the TUI process: ${diagnose(runs.sigint)}`,
+    );
 
     const hangup = runs['master-close'];
-    assert.equal(hangup.parent.timed_out, false, 'master close left the child running');
-    assert.equal(hangup.result, null, 'master close must end the child from the hangup path');
-    assert.ok(hangup.restorations.length >= 1, 'master close ran no restore');
+    const hangupWhy = diagnose(hangup);
+    assert.equal(hangup.parent.timed_out, false, `master close left the child running: ${hangupWhy}`);
+    assert.equal(hangup.result, null, `master close must end the child from the hangup path: ${hangupWhy}`);
+    assert.ok(hangup.restorations.length >= 1, `master close ran no restore: ${hangupWhy}`);
     const deadRestore = hangup.restorations[hangup.restorations.length - 1];
     assert.equal(deadRestore.ok, false, 'a closed master cannot prove the terminal was restored');
     assert.notEqual(deadRestore.outcome, 'completed');
@@ -296,12 +356,14 @@ async function assertRealPtyEvidence() {
 
     for (const mode of ['handoff-close', 'handoff-failure']) {
       const run = runs[mode];
-      assert.equal(run.result.stdout_is_tty, true);
-      assert.equal(run.result.handoff, true);
-      assert.equal(run.result.stdin_is_raw, false);
-      assert.equal(run.result.guard_raw_mode, false);
-      assert.equal(run.result.restored.ok, true);
-      assert.equal(run.result.restored.outcome, 'completed');
+      const result = requireResult(run);
+      const why = diagnose(run);
+      assert.equal(result.stdout_is_tty, true, why);
+      assert.equal(result.handoff, true, why);
+      assert.equal(result.stdin_is_raw, false, why);
+      assert.equal(result.guard_raw_mode, false, why);
+      assert.equal(result.restored.ok, true, why);
+      assert.equal(result.restored.outcome, 'completed', why);
       assertRestoreSequence(run.transcript, mode);
       assertParentTerminalUsable(run.parent, mode);
     }
@@ -310,6 +372,30 @@ async function assertRealPtyEvidence() {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
+
+/**
+ * CI runners export CI=true. Ink then defaults to non-interactive and paints
+ * nothing on the PTY, so the driver never sends keys and the child is killed.
+ * The fixture must still render and quit through navigation under CI=true.
+ */
+async function assertCiEnvStillInteractive() {
+  await assertPythonPty();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tui-pty-ci-'));
+  try {
+    const quit = await runPtyMode('quit', dir, { CI: 'true' });
+    assertQuitThroughNavigation(quit);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('real PTY under CI=true still renders, navigates, and quits', {
+  skip: process.platform === 'linux' || process.platform === 'darwin'
+    ? false
+    : `real PTY is not available on ${process.platform}; skip is not a pass`,
+}, async () => {
+  await assertCiEnvStillInteractive();
+});
 
 test('Linux real PTY runs the shell for quit, Ctrl+C, SIGINT, SIGTERM, SIGHUP, fatal, master close, plus handoff restore', {
   skip: process.platform === 'linux'
