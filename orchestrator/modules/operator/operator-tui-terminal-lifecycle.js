@@ -9,9 +9,17 @@
  * restored: callers must read `outcome`, and `ok` is true only for `completed`.
  *
  * Stock Ink 7 `render()` settles when the app exits. A React commit is not
- * evidence the terminal displayed a frame. `first_paint_ms` closes on the
- * first stdout write after the paint window opens (`observes: stdout_write`).
+ * evidence the terminal displayed a frame. `first_paint_ms` and
+ * `render_frame_ms` close only after stdout accepts the write. A throw or
+ * `EPIPE` is a failed attempt: `measured` stays false.
+ * `surface_transition_ms` starts when the surface change is requested and
+ * ends on that accepted write, so the interval can span real work.
  * No Ink fork: the gap is observation, covered by the write hook.
+ *
+ * When no operator request is in flight, frames and surface transitions use
+ * `IDLE_FRAME_REQUEST_ID` (`tui-shell-idle`) so the accepted write still
+ * correlates to the transition. Callers must not substitute null while a
+ * request id exists.
  */
 
 const fs = require('node:fs');
@@ -37,8 +45,8 @@ const METRIC_DEFINITIONS = Object.freeze({
   }),
   surface_transition_ms: Object.freeze({
     start: 'surface_change_begin',
-    end: 'surface_change_end',
-    observes: 'shell_state_transition',
+    end: 'accepted_stdout_write',
+    observes: 'accepted_stdout_write',
   }),
   operator_action_ms: Object.freeze({
     start: 'operator_action_begin',
@@ -62,6 +70,12 @@ const METRIC_NAMES = Object.freeze(Object.keys(METRIC_DEFINITIONS));
 const METRIC_RETENTION_LIMIT = 64;
 const RESIZE_COALESCE_DEFAULT_MS = 32;
 const RESIZE_BURST_LIMIT = 64;
+/**
+ * Correlation id for a frame or surface transition when the shell has no
+ * in-flight operator request. The accepted write keeps this id so the frame
+ * and the transition stay correlated. It is not a successful paint by itself.
+ */
+const IDLE_FRAME_REQUEST_ID = 'tui-shell-idle';
 
 const DEAD_STREAM_CODES = new Set([
   'EIO',
@@ -562,7 +576,20 @@ function createTuiMetrics(options = {}) {
   let firstPaintClosed = false;
   /** @type {object | null} */
   let openFrame = null;
+  /** @type {object | null} */
+  let openTransition = null;
   let seq = 0;
+  let writeAttempts = 0;
+  let writeAccepted = 0;
+  let writeFailed = 0;
+  /** @type {string | null} */
+  let lastWriteFailure = null;
+  /** @type {string | null} */
+  let paintFailureReason = null;
+  /** @type {string | null} */
+  let frameFailureReason = null;
+  /** @type {string | null} */
+  let transitionFailureReason = null;
 
   function push(sample) {
     const stored = {
@@ -644,11 +671,37 @@ function createTuiMetrics(options = {}) {
       return { react_commits: reactCommits, first_paint_closed: firstPaintClosed };
     },
     /**
-     * Terminal bytes were written. Closes first paint and any armed frame.
-     * Does not store the payload.
+     * A write was attempted. Does not close paint, frame, or transition.
+     */
+    noteTerminalWriteAttempt() {
+      writeAttempts += 1;
+      return { attempts: writeAttempts };
+    },
+    /**
+     * The writer rejected the bytes (throw or EPIPE). Not a paint.
+     * @param {unknown} err
+     */
+    noteTerminalWriteFailure(err) {
+      writeFailed += 1;
+      const reason = err && err.code ? String(err.code) : 'write_failed';
+      lastWriteFailure = reason;
+      if (paintOpenedAt != null && !firstPaintClosed) paintFailureReason = reason;
+      if (openFrame && !openFrame.closed) frameFailureReason = reason;
+      if (openTransition && !openTransition.closed) transitionFailureReason = reason;
+      return { failed: writeFailed, failure_reason: reason };
+    },
+    /**
+     * Terminal bytes were accepted by the writer. Closes first paint, any
+     * armed frame, and any open surface transition. Does not store the payload.
+     * A failed attempt must not call this.
      * @param {unknown} [_chunk]
      */
     noteTerminalWrite(_chunk) {
+      writeAccepted += 1;
+      lastWriteFailure = null;
+      paintFailureReason = null;
+      frameFailureReason = null;
+      transitionFailureReason = null;
       const closed = [];
       if (paintOpenedAt != null && !firstPaintClosed) {
         const endedAt = now();
@@ -672,10 +725,19 @@ function createTuiMetrics(options = {}) {
         openFrame = null;
         closed.push(endInterval(frame));
       }
+      if (openTransition) {
+        const transition = openTransition;
+        openTransition = null;
+        closed.push(endInterval(transition));
+      }
       return closed;
     },
     armRenderFrame(meta = {}) {
-      if (openFrame) return openFrame;
+      if (openFrame && !openFrame.closed) {
+        if (meta.request_id != null) openFrame.request_id = String(meta.request_id);
+        if (meta.surface != null) openFrame.surface = String(meta.surface);
+        return openFrame;
+      }
       openFrame = beginInterval('render_frame_ms', meta);
       return openFrame;
     },
@@ -694,12 +756,33 @@ function createTuiMetrics(options = {}) {
       renderCount += 1;
       return renderCount;
     },
+    /**
+     * Open a surface transition. The interval stays open until the
+     * corresponding stdout write is accepted — it is not closed in this call.
+     * A later begin before that write keeps the original start and refreshes
+     * correlation ids.
+     * @param {{ request_id?: string | null, surface?: string | null }} [meta]
+     */
     recordSurfaceTransition(meta = {}) {
-      const handle = beginInterval('surface_transition_ms', meta);
-      return endInterval(handle, meta);
+      if (openTransition && !openTransition.closed) {
+        if (meta.request_id != null) openTransition.request_id = String(meta.request_id);
+        if (meta.surface != null) openTransition.surface = String(meta.surface);
+        return openTransition;
+      }
+      openTransition = beginInterval('surface_transition_ms', meta);
+      return openTransition;
+    },
+    beginSurfaceTransition(meta = {}) {
+      return this.recordSurfaceTransition(meta);
     },
     snapshot() {
       /** @type {Record<string, object | null>} */
+      const failureFor = (name) => {
+        if (name === 'first_paint_ms') return paintFailureReason;
+        if (name === 'render_frame_ms') return frameFailureReason;
+        if (name === 'surface_transition_ms') return transitionFailureReason;
+        return null;
+      };
       const intervals = {};
       for (const name of METRIC_NAMES) {
         const sample = latest.get(name);
@@ -713,6 +796,7 @@ function createTuiMetrics(options = {}) {
             end: sample.end,
             request_id: sample.request_id,
             surface: sample.surface,
+            failure_reason: null,
           }
           : {
             ms: null,
@@ -723,6 +807,7 @@ function createTuiMetrics(options = {}) {
             end: METRIC_DEFINITIONS[name].end,
             request_id: null,
             surface: null,
+            failure_reason: failureFor(name),
           };
       }
       return {
@@ -733,14 +818,22 @@ function createTuiMetrics(options = {}) {
         retained: samples.length,
         retention_limit: limit,
         samples: samples.slice(),
+        terminal_writes: {
+          attempts: writeAttempts,
+          accepted: writeAccepted,
+          failed: writeFailed,
+          last_failure_reason: lastWriteFailure,
+        },
       };
     },
   };
 }
 
 /**
- * Coalesce resize bursts into one flush. Excess events beyond maxBurst are counted
- * and dropped instead of queued.
+ * Coalesce resize bursts into one flush.
+ * The wait starts on the first event of a batch and is not reset by later
+ * events, so a continuous stream cannot postpone the commit past `waitMs`
+ * (default 32). Hitting `maxBurst` (default 64) commits immediately.
  * @param {{ waitMs?: number, maxBurst?: number, onFlush?: Function, setTimer?: Function, clearTimer?: Function }} [options]
  */
 function createResizeCoalescer(options = {}) {
@@ -756,20 +849,34 @@ function createResizeCoalescer(options = {}) {
   let flushes = 0;
   let last = null;
 
+  function flushNow() {
+    if (timer != null) {
+      clearTimer(timer);
+      timer = null;
+    }
+    if (pending === 0) return;
+    const count = pending;
+    pending = 0;
+    flushes += 1;
+    if (typeof options.onFlush === 'function') {
+      options.onFlush({ count, dropped, sample: last });
+    }
+  }
+
   function push(sample) {
     if (pending >= maxBurst) dropped += 1;
     else pending += 1;
     last = sample;
-    if (timer != null) clearTimer(timer);
-    timer = setTimer(() => {
-      timer = null;
-      const count = pending;
-      pending = 0;
-      flushes += 1;
-      if (typeof options.onFlush === 'function') {
-        options.onFlush({ count, dropped, sample: last });
-      }
-    }, waitMs);
+    if (pending >= maxBurst) {
+      flushNow();
+      return { pending, dropped };
+    }
+    if (timer == null) {
+      timer = setTimer(() => {
+        timer = null;
+        flushNow();
+      }, waitMs);
+    }
     return { pending, dropped };
   }
 
@@ -790,8 +897,14 @@ function createResizeCoalescer(options = {}) {
 
 /**
  * Observe stdout writes without retaining payload bytes.
- * @param {{ write?: Function }} stdout
- * @param {{ noteTerminalWrite: (chunk: unknown) => void }} metrics
+ * Paint and frame intervals close only after the original writer accepts
+ * the write. A throw or synchronous stream error is a failed attempt.
+ * @param {{ write?: Function, on?: Function, off?: Function, removeListener?: Function }} stdout
+ * @param {{
+ *   noteTerminalWrite: (chunk: unknown) => void,
+ *   noteTerminalWriteAttempt?: () => void,
+ *   noteTerminalWriteFailure?: (err: unknown) => void,
+ * }} metrics
  * @returns {() => void}
  */
 function observeTerminalWrites(stdout, metrics) {
@@ -800,13 +913,73 @@ function observeTerminalWrites(stdout, metrics) {
   }
   if (stdout.__aimTerminalWriteObserved === true) return () => {};
   const original = stdout.write;
-  function wrapped(chunk, encoding, cb) {
+
+  const safeAttempt = () => {
+    if (typeof metrics.noteTerminalWriteAttempt !== 'function') return;
+    try {
+      metrics.noteTerminalWriteAttempt();
+    } catch {
+      // diagnostics must not break the write
+    }
+  };
+  const safeAccepted = (chunk) => {
     try {
       metrics.noteTerminalWrite(chunk);
     } catch {
       // diagnostics must not break the write
     }
-    return original.call(stdout, chunk, encoding, cb);
+  };
+  const safeFailed = (err) => {
+    if (typeof metrics.noteTerminalWriteFailure !== 'function') return;
+    try {
+      metrics.noteTerminalWriteFailure(err);
+    } catch {
+      // diagnostics must not break the write
+    }
+  };
+
+  function wrapped(chunk, encoding, cb) {
+    let enc = encoding;
+    let callback = cb;
+    if (typeof enc === 'function') {
+      callback = enc;
+      enc = undefined;
+    }
+    safeAttempt();
+    let syncError = null;
+    const onError = (err) => {
+      syncError = err;
+    };
+    if (typeof stdout.on === 'function') stdout.on('error', onError);
+    try {
+      if (typeof callback === 'function') {
+        const returned = enc === undefined
+          ? original.call(stdout, chunk, (err) => {
+            if (err) safeFailed(err);
+            else safeAccepted(chunk);
+            callback(err);
+          })
+          : original.call(stdout, chunk, enc, (err) => {
+            if (err) safeFailed(err);
+            else safeAccepted(chunk);
+            callback(err);
+          });
+        if (syncError) safeFailed(syncError);
+        return returned;
+      }
+      const returned = enc === undefined
+        ? original.call(stdout, chunk)
+        : original.call(stdout, chunk, enc);
+      if (syncError) safeFailed(syncError);
+      else safeAccepted(chunk);
+      return returned;
+    } catch (err) {
+      safeFailed(err);
+      throw err;
+    } finally {
+      if (typeof stdout.off === 'function') stdout.off('error', onError);
+      else if (typeof stdout.removeListener === 'function') stdout.removeListener('error', onError);
+    }
   }
   stdout.write = wrapped;
   stdout.__aimTerminalWriteObserved = true;
@@ -823,6 +996,7 @@ module.exports = {
   METRIC_RETENTION_LIMIT,
   RESIZE_COALESCE_DEFAULT_MS,
   RESIZE_BURST_LIMIT,
+  IDLE_FRAME_REQUEST_ID,
   DEAD_STREAM_CODES,
   redactDiagnostic,
   isDeadStreamError,

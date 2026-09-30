@@ -50,6 +50,7 @@ const {
   attachOwnedSignalCleanup,
   createTuiMetrics,
   observeTerminalWrites,
+  IDLE_FRAME_REQUEST_ID,
 } = require('./operator-tui-terminal-lifecycle');
 const { adaptActionResult } = require('./operator-tui-adapters');
 const { shouldSkipSplash } = require('./operator-tui-splash');
@@ -316,6 +317,17 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
   const wantsSplash = shouldShowProductionSplash(options);
 
   const metrics = createTuiMetrics();
+  /**
+   * In-flight operator request, if any. Frames and surface transitions use
+   * this id. With none in flight they use IDLE_FRAME_REQUEST_ID so the
+   * accepted write still correlates to the transition.
+   */
+  let activeShellRequestId = null;
+  const correlationRequestId = () => (
+    activeShellRequestId == null || activeShellRequestId === ''
+      ? IDLE_FRAME_REQUEST_ID
+      : activeShellRequestId
+  );
   metrics.markBootStart({ surface: 'home', request_id: null });
   let model = buildFirstPaintShellModel({
     aboutInfo,
@@ -479,7 +491,7 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
 
       metrics.openPaintWindow({
         surface: model.contentSurface || 'home',
-        request_id: null,
+        request_id: correlationRequestId(),
       });
       const splashResult = await withTerminalGuard(guard, async () => splashRenderer.renderOperatorTuiShell({
         model,
@@ -647,6 +659,7 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
 
       nestedExecutions += 1;
       const activeRequestId = begun.request.request_id;
+      activeShellRequestId = activeRequestId;
       const timeoutMs = begun.request.policy?.timeout_ms;
       const timeoutHandle = Number.isFinite(timeoutMs) && timeoutMs > 0
         ? actionExecutor.scheduleTimeout(activeRequestId, timeoutMs)
@@ -854,6 +867,7 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
         return { model };
       } finally {
         nestedIoInFlight = false;
+        if (activeShellRequestId === activeRequestId) activeShellRequestId = null;
         timeoutHandle.cancel();
         guard.resumeExternal();
         if (resumeInk && !guard.restored) {
@@ -883,6 +897,7 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
       }
 
       const requestId = begun.request.request_id;
+      activeShellRequestId = requestId;
       const timeoutMs = begun.request.policy?.timeout_ms;
       const timeoutHandle = Number.isFinite(timeoutMs) && timeoutMs > 0
         ? actionExecutor.scheduleTimeout(requestId, timeoutMs)
@@ -1022,6 +1037,7 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
           err instanceof Error ? err.message : String(err),
         );
       } finally {
+        if (activeShellRequestId === requestId) activeShellRequestId = null;
         timeoutHandle.cancel();
       }
     };
@@ -1035,7 +1051,7 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
 
     metrics.openPaintWindow({
       surface: model.contentSurface || 'home',
-      request_id: null,
+      request_id: correlationRequestId(),
     });
     const renderResult = await withTerminalGuard(guard, async () => renderer.renderOperatorTuiShell({
       model,
@@ -1047,19 +1063,20 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
       onModelChange: (next) => {
         const prevRunId = model.selectedRunId;
         const prevSurface = model.contentSurface;
+        const frameRequestId = correlationRequestId();
         model = next;
         metrics.noteRender();
-        metrics.armRenderFrame({
-          surface: next.contentSurface ?? null,
-          request_id: null,
-        });
         if (prevSurface !== next.contentSurface) {
           guard.noteLocalNavigation({
             from: prevSurface ?? null,
             to: next.contentSurface ?? null,
-            request_id: null,
+            request_id: frameRequestId,
           });
         }
+        metrics.armRenderFrame({
+          surface: next.contentSurface ?? null,
+          request_id: frameRequestId,
+        });
         selectedRunId = next.selectedRunId;
         contentSurface = next.contentSurface ?? contentSurface;
         if (prevRunId !== next.selectedRunId || prevSurface !== next.contentSurface) {

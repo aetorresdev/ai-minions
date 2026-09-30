@@ -15,6 +15,99 @@ const {
   createTuiMetrics,
 } = require('./operator-tui-terminal-lifecycle');
 
+/** One lease per stdin (or stdout) object. A second default guard overlaps. */
+const sharedTerminalLeases = new WeakMap();
+
+/**
+ * Default guards share the lease of the terminal they bind. An explicit
+ * `options.lease` is used as given. After a definitive release the next
+ * acquire gets a fresh lease so a later session can take the terminal.
+ * @param {object | null | undefined} stdin
+ * @param {object | null | undefined} stdout
+ */
+function sharedLeaseFor(stdin, stdout) {
+  const key = stdin && (typeof stdin === 'object' || typeof stdin === 'function')
+    ? stdin
+    : (stdout && (typeof stdout === 'object' || typeof stdout === 'function') ? stdout : null);
+  if (!key) return createTerminalLease();
+  const existing = sharedTerminalLeases.get(key);
+  if (!existing || existing.snapshot().definitiveClose === true) {
+    const created = createTerminalLease();
+    sharedTerminalLeases.set(key, created);
+    return created;
+  }
+  return existing;
+}
+
+/**
+ * Overlap (or any failed acquire) stops before the terminal is touched.
+ * @param {{
+ *   stdin: object,
+ *   stdout: object,
+ *   metrics: object,
+ *   lease: object,
+ *   mutations: { kind: string, value?: unknown }[],
+ *   reasonCode: string,
+ * }} input
+ */
+function createRejectedTerminalGuard(input) {
+  const { stdin, stdout, metrics, lease, mutations, reasonCode } = input;
+  mutations.push({ kind: 'lease_rejected', value: reasonCode });
+  const rejected = {
+    ok: false,
+    outcome: 'impossible',
+    restoration_reason: reasonCode,
+  };
+  return {
+    stdin,
+    stdout,
+    mutations,
+    metrics,
+    lease,
+    get leaseGeneration() {
+      return null;
+    },
+    get rawMode() {
+      return Boolean(stdin && stdin.isRaw);
+    },
+    get restored() {
+      return false;
+    },
+    get restoration() {
+      return null;
+    },
+    markMounted() {},
+    noteLocalNavigation() {
+      const snap = lease.snapshot();
+      return {
+        lease_touched: false,
+        lease_unchanged: true,
+        lease_state: snap.state,
+        remount_count: metrics.snapshot().remount_count,
+      };
+    },
+    suspendExternal() {
+      return { ok: false, reason_code: reasonCode };
+    },
+    resumeExternal() {
+      return { ok: false, reason_code: reasonCode, definitive: true };
+    },
+    withExternalWorkflow() {
+      return Promise.resolve({
+        ok: false,
+        suspend: { ok: false, reason_code: reasonCode },
+        resume: null,
+      });
+    },
+    soften(reason = reasonCode) {
+      return { ok: false, already: false, reason, soft: true, rejected: true };
+    },
+    restore(reason = 'normal') {
+      return { ...rejected, already: false, reason };
+    },
+  };
+}
+
 /**
  * Full session-end restore: leave alt-screen, show cursor, disable bracketed
  * paste, reset attrs. Ink enables bracketed paste while mounted; this is the
@@ -286,10 +379,10 @@ function createTerminalGuard(options = {}) {
   const stdin = options.stdin ?? process.stdin;
   const stdout = options.stdout ?? process.stdout;
   const metrics = options.metrics || createTuiMetrics();
-  const lease = options.lease || createTerminalLease();
+  const lease = options.lease || sharedLeaseFor(stdin, stdout);
   /** @type {{ kind: string, value?: unknown }[]} */
   const mutations = [];
-  let rawMode = Boolean(stdin.isRaw);
+  let rawMode = Boolean(stdin && stdin.isRaw);
   let restored = false;
   /** @type {object | null} */
   let lastRestoration = null;
@@ -299,12 +392,19 @@ function createTerminalGuard(options = {}) {
   let leaseHeld = leaseGeneration != null;
   if (leaseGeneration == null) {
     const acquired = lease.acquire(options.holderId || 'tui-session');
+    if (!acquired.ok) {
+      return createRejectedTerminalGuard({
+        stdin,
+        stdout,
+        metrics,
+        lease,
+        mutations,
+        reasonCode: acquired.reason_code,
+      });
+    }
     leaseGeneration = acquired.generation;
-    leaseHeld = acquired.ok === true;
-    mutations.push({
-      kind: acquired.ok ? 'lease_acquired' : 'lease_rejected',
-      value: acquired.reason_code,
-    });
+    leaseHeld = true;
+    mutations.push({ kind: 'lease_acquired', value: acquired.reason_code });
   } else {
     mutations.push({ kind: 'lease_adopted', value: leaseGeneration });
   }
@@ -312,12 +412,13 @@ function createTerminalGuard(options = {}) {
     ? stdin.setRawMode.bind(stdin)
     : null;
 
-  if (originalSetRawMode) {
+  if (originalSetRawMode && leaseHeld) {
     stdin.setRawMode = (mode) => {
       const next = Boolean(mode);
       mutations.push({ kind: 'setRawMode', value: next });
-      rawMode = next;
-      return originalSetRawMode(next);
+      const returned = originalSetRawMode(next);
+      rawMode = typeof stdin.isRaw === 'boolean' ? stdin.isRaw : next;
+      return returned;
     };
   }
 
@@ -327,14 +428,27 @@ function createTerminalGuard(options = {}) {
     sequence: seq,
   });
 
-  const disableRawAndUnwrap = () => {
-    const attempted = Boolean(originalSetRawMode && rawMode);
-    /** @type {{ attempted: boolean, ok: boolean, error: Error | null }} */
-    const result = { attempted, ok: true, error: null };
-    if (attempted) {
+  /**
+   * Turn raw mode off from the observed stdin flag, not only the tracked one.
+   * Soften keeps the wrapper so a later setRawMode(true) stays visible.
+   * Full restore unwraps, then refuses completed if raw mode is still on.
+   * @param {{ unwrap: boolean }} opts
+   */
+  const disableRaw = ({ unwrap }) => {
+    const observedRaw = Boolean(stdin && stdin.isRaw === true);
+    const attempted = Boolean(originalSetRawMode && (rawMode || observedRaw));
+    /** @type {{ attempted: boolean, ok: boolean, error: Error | null, stillRaw: boolean }} */
+    const result = { attempted, ok: true, error: null, stillRaw: false };
+    if (!originalSetRawMode && observedRaw) {
+      result.attempted = true;
+      result.ok = false;
+      result.stillRaw = true;
+      const err = new Error('stdin left in raw mode');
+      err.code = 'RAW_MODE_STILL_ENABLED';
+      result.error = err;
+    } else if (attempted) {
       try {
         originalSetRawMode(false);
-        rawMode = false;
         mutations.push({ kind: 'setRawMode', value: false });
       } catch (err) {
         result.ok = false;
@@ -345,8 +459,29 @@ function createTerminalGuard(options = {}) {
         });
       }
     }
-    if (originalSetRawMode && stdin.setRawMode !== originalSetRawMode) {
+    const stillRaw = Boolean(stdin && stdin.isRaw === true);
+    if (stillRaw) {
+      result.stillRaw = true;
+      result.ok = false;
+      result.attempted = true;
+      rawMode = true;
+      if (!result.error) {
+        const err = new Error('stdin left in raw mode');
+        err.code = 'RAW_MODE_STILL_ENABLED';
+        result.error = err;
+      }
+    } else if (stdin && typeof stdin.isRaw === 'boolean') {
+      rawMode = false;
+    } else if (attempted && result.ok) {
+      rawMode = false;
+    }
+    if (unwrap && originalSetRawMode && stdin.setRawMode !== originalSetRawMode) {
       stdin.setRawMode = originalSetRawMode;
+    }
+    if (stdin && typeof stdin.isRaw === 'boolean' && rawMode !== stdin.isRaw) {
+      result.ok = false;
+      result.stillRaw = stdin.isRaw === true;
+      rawMode = stdin.isRaw;
     }
     return result;
   };
@@ -438,7 +573,7 @@ function createTerminalGuard(options = {}) {
         mutations.push({ kind: 'soften_skipped', value: reason });
         return { ok: true, already: true, reason, soft: true };
       }
-      disableRawAndUnwrap();
+      disableRaw({ unwrap: false });
       const written = writeSeq(SOFT_HANDOFF_SEQUENCE);
       if (!written.ok) {
         mutations.push({
@@ -478,7 +613,7 @@ function createTerminalGuard(options = {}) {
         };
       }
       restored = true;
-      const raw = disableRawAndUnwrap();
+      const raw = disableRaw({ unwrap: true });
       const written = writeSeq(RESTORE_SEQUENCE);
       if (written.ok) {
         mutations.push({ kind: 'restore_sequence', value: reason });
@@ -488,11 +623,13 @@ function createTerminalGuard(options = {}) {
           value: String(written.error && written.error.message ? written.error.message : written.error),
         });
       }
+      const leftRaw = stdin.isRaw === true || raw.stillRaw === true
+        || (typeof stdin.isRaw === 'boolean' && rawMode !== stdin.isRaw);
       const classified = classifyRestoration({
         writeOk: written.ok,
         writeError: written.error,
-        rawAttempted: raw.attempted,
-        rawOk: raw.ok,
+        rawAttempted: leftRaw || raw.attempted === true,
+        rawOk: !leftRaw,
         rawError: raw.error,
         streamWritable: written.streamWritable,
       });

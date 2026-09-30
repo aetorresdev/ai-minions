@@ -6,6 +6,8 @@ const test = require('node:test');
 
 const {
   createTerminalGuard,
+  resumeInkSession,
+  withTerminalGuard,
   RESTORE_SEQUENCE,
 } = require('../../modules/operator/operator-tui-terminal-guard');
 const {
@@ -14,7 +16,9 @@ const {
   createTuiMetrics,
   createResizeCoalescer,
   attachOwnedSignalCleanup,
+  observeTerminalWrites,
   METRIC_DEFINITIONS,
+  IDLE_FRAME_REQUEST_ID,
 } = require('../../modules/operator/operator-tui-terminal-lifecycle');
 
 function rawStdin() {
@@ -161,11 +165,16 @@ test('local navigation does not release or reacquire the lease and does not remo
   assert.equal(nav.lease_state, 'open');
   assert.equal(guard.metrics.snapshot().remount_count, remounts);
   assert.equal(guard.lease.snapshot().state, 'open');
+  const opened = guard.metrics.snapshot().intervals.surface_transition_ms;
+  assert.equal(opened.measured, false, 'transition must stay open until the frame write');
+  assert.equal(opened.ms, null);
+  guard.metrics.noteTerminalWrite('frame');
   const interval = guard.metrics.snapshot().intervals.surface_transition_ms;
   assert.equal(interval.measured, true);
   assert.equal(interval.surface, 'overview');
   assert.equal(interval.request_id, 'nav-1');
-  assert.equal(interval.observes, 'shell_state_transition');
+  assert.equal(interval.observes, 'accepted_stdout_write');
+  assert.equal(interval.end, 'accepted_stdout_write');
 });
 
 test('shutdown stops owned listeners, timers, and auxiliary processes only', () => {
@@ -272,14 +281,19 @@ test('first_paint_ms observes stdout write, not a React commit, and unmeasured s
 });
 
 test('metric samples redact secrets and honor the retention limit', () => {
-  const metrics = createTuiMetrics({ retentionLimit: 3, now: () => 10 });
-  metrics.recordSurfaceTransition({ surface: 'home', request_id: 'r1' });
-  metrics.recordSurfaceTransition({ surface: 'runs', request_id: 'r2' });
-  metrics.recordSurfaceTransition({ surface: 'overview', request_id: 'r3' });
-  metrics.recordSurfaceTransition({
-    surface: 'help',
-    request_id: 'sk-supersecretvalue123456',
-  });
+  let clock = 10;
+  const metrics = createTuiMetrics({ retentionLimit: 3, now: () => clock });
+  const closeTransition = (surface, requestId) => {
+    const handle = metrics.recordSurfaceTransition({ surface, request_id: requestId });
+    assert.equal(handle.closed, false);
+    clock += 5;
+    metrics.noteTerminalWrite('frame');
+    assert.equal(handle.closed, true);
+  };
+  closeTransition('home', 'r1');
+  closeTransition('runs', 'r2');
+  closeTransition('overview', 'r3');
+  closeTransition('help', 'sk-supersecretvalue123456');
   const snap = metrics.snapshot();
   assert.equal(snap.retained, 3);
   assert.equal(snap.retention_limit, 3);
@@ -287,27 +301,236 @@ test('metric samples redact secrets and honor the retention limit', () => {
   assert.equal(snap.samples.some((sample) => String(sample.request_id).includes('supersecret')), false);
   assert.match(snap.intervals.surface_transition_ms.request_id, /redacted/);
   assert.equal(snap.intervals.surface_transition_ms.start, 'surface_change_begin');
-  assert.equal(snap.intervals.surface_transition_ms.end, 'surface_change_end');
+  assert.equal(snap.intervals.surface_transition_ms.end, 'accepted_stdout_write');
+  assert.ok(snap.intervals.surface_transition_ms.ms >= 5);
 });
 
-test('resize bursts flush once and drop events past the burst ceiling', async () => {
+test('surface transition stays open until the accepted write and keeps request_id', () => {
+  let clock = 1000;
+  const metrics = createTuiMetrics({ now: () => clock });
+  const handle = metrics.beginSurfaceTransition({ surface: 'runs', request_id: 'req-9' });
+  assert.equal(handle.closed, false);
+  const mid = metrics.snapshot().intervals.surface_transition_ms;
+  assert.equal(mid.measured, false);
+  assert.equal(mid.ms, null);
+  clock = 1030;
+  metrics.noteTerminalWrite('frame-bytes');
+  assert.equal(handle.closed, true);
+  const done = metrics.snapshot().intervals.surface_transition_ms;
+  assert.equal(done.measured, true);
+  assert.equal(done.ms, 30);
+  assert.equal(done.request_id, 'req-9');
+  assert.equal(done.surface, 'runs');
+  assert.equal(done.end, 'accepted_stdout_write');
+  assert.equal(IDLE_FRAME_REQUEST_ID, 'tui-shell-idle');
+});
+
+test('failed stdout write is not first paint', () => {
+  let clock = 2000;
+  const metrics = createTuiMetrics({ now: () => clock });
+  metrics.openPaintWindow({ surface: 'home', request_id: 'paint-fail' });
+  metrics.armRenderFrame({ surface: 'home', request_id: 'paint-fail' });
+  const stdout = {
+    write() {
+      const err = new Error('broken pipe');
+      err.code = 'EPIPE';
+      throw err;
+    },
+  };
+  observeTerminalWrites(stdout, metrics);
+  assert.throws(() => stdout.write('frame'), (err) => err && err.code === 'EPIPE');
+  const paint = metrics.snapshot().intervals.first_paint_ms;
+  assert.equal(paint.measured, false);
+  assert.equal(paint.ms, null);
+  assert.equal(paint.failure_reason, 'EPIPE');
+  const frame = metrics.snapshot().intervals.render_frame_ms;
+  assert.equal(frame.measured, false);
+  assert.equal(frame.failure_reason, 'EPIPE');
+  const writes = metrics.snapshot().terminal_writes;
+  assert.equal(writes.attempts, 1);
+  assert.equal(writes.accepted, 0);
+  assert.equal(writes.failed, 1);
+  assert.equal(writes.last_failure_reason, 'EPIPE');
+
+  clock = 2040;
+  metrics.noteTerminalWrite('accepted-later');
+  const painted = metrics.snapshot().intervals.first_paint_ms;
+  assert.equal(painted.measured, true);
+  assert.equal(painted.ms, 40);
+  assert.equal(painted.failure_reason, null);
+});
+
+test('handoff then resume then close does not report completed while stdin stays raw', () => {
+  const stdin = rawStdin();
+  const guard = createTerminalGuard({
+    stdin,
+    writeRestore() {},
+  });
+  stdin.setRawMode(true);
+  guard.soften('handoff');
+  resumeInkSession({ stdin, stdout: { write() {} } });
+  assert.equal(stdin.isRaw, true);
+  const result = guard.restore('quit');
+  assert.equal(stdin.isRaw, false);
+  assert.equal(guard.rawMode, false);
+  assert.equal(result.ok, true);
+  assert.equal(result.outcome, 'completed');
+});
+
+test('handoff then resume then failure does not report completed while stdin stays raw', async () => {
+  const stdin = rawStdin();
+  const guard = createTerminalGuard({
+    stdin,
+    writeRestore() {},
+  });
+  stdin.setRawMode(true);
+  guard.soften('handoff');
+  resumeInkSession({ stdin, stdout: { write() {} } });
+  await assert.rejects(
+    () => withTerminalGuard(guard, async () => {
+      throw new Error('fatal after handoff');
+    }, 'fatal_error'),
+    /fatal after handoff/,
+  );
+  assert.equal(stdin.isRaw, false);
+  assert.equal(guard.rawMode, false);
+  assert.equal(guard.restoration.ok, true);
+  assert.equal(guard.restoration.outcome, 'completed');
+  assert.equal(guard.restoration.reason, 'fatal_error');
+});
+
+test('restore is not completed when observed raw mode cannot be cleared', () => {
+  const stdin = {
+    isTTY: true,
+    isRaw: true,
+    setRawMode(mode) {
+      if (mode) this.isRaw = true;
+    },
+  };
+  const guard = createTerminalGuard({
+    stdin,
+    writeRestore() {},
+  });
+  const result = guard.restore('quit');
+  assert.equal(stdin.isRaw, true);
+  assert.equal(result.ok, false);
+  assert.notEqual(result.outcome, 'completed');
+  assert.match(result.restoration_reason, /raw_mode|RAW_MODE/);
+});
+
+test('lease overlap on the shared terminal does not mutate it', () => {
+  const stdin = rawStdin();
+  let writes = 0;
+  const first = createTerminalGuard({
+    stdin,
+    writeRestore() {},
+  });
+  const wrapped = stdin.setRawMode;
+  stdin.setRawMode(true);
+  const second = createTerminalGuard({
+    stdin,
+    writeRestore() {
+      writes += 1;
+    },
+  });
+  assert.equal(
+    second.mutations.some((item) => item.kind === 'lease_rejected' && item.value === 'TERMINAL_LEASE_OVERLAP'),
+    true,
+  );
+  assert.equal(stdin.setRawMode, wrapped);
+  const rawBefore = stdin.isRaw;
+  const rejected = second.restore('quit');
+  assert.equal(writes, 0);
+  assert.equal(stdin.isRaw, rawBefore);
+  assert.equal(stdin.setRawMode, wrapped);
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.restoration_reason, 'TERMINAL_LEASE_OVERLAP');
+
+  const lease = createTerminalLease();
+  const sharedStdin = rawStdin();
+  const owner = createTerminalGuard({
+    stdin: sharedStdin,
+    lease,
+    writeRestore() {},
+  });
+  const ownerWrapped = sharedStdin.setRawMode;
+  let sharedWrites = 0;
+  const other = createTerminalGuard({
+    stdin: sharedStdin,
+    lease,
+    writeRestore() {
+      sharedWrites += 1;
+    },
+  });
+  assert.equal(sharedStdin.setRawMode, ownerWrapped);
+  other.restore('quit');
+  assert.equal(sharedWrites, 0);
+  assert.equal(other.restoration, null);
+  owner.restore('quit');
+  assert.equal(sharedStdin.isRaw, false);
+});
+
+test('sustained resize burst commits at the ceiling without a quiet gap', () => {
   let flushes = 0;
   let lastCount = 0;
   const coalescer = createResizeCoalescer({
-    waitMs: 15,
-    maxBurst: 4,
+    waitMs: 1000,
+    maxBurst: 64,
+    setTimer() {
+      return 1;
+    },
+    clearTimer() {},
     onFlush: (info) => {
       flushes += 1;
       lastCount = info.count;
     },
   });
-  for (let i = 0; i < 10; i += 1) coalescer.push({ columns: 80 + i });
-  assert.equal(flushes, 0);
-  assert.equal(coalescer.stats().dropped, 6);
-  await new Promise((resolve) => {
-    setTimeout(resolve, 40);
+  for (let i = 0; i < 200; i += 1) coalescer.push({ columns: i });
+  assert.ok(flushes >= 1, 'a sustained burst must commit at the ceiling');
+  assert.equal(lastCount, 64);
+  coalescer.dispose();
+});
+
+test('resize events do not postpone the commit past the max wait', async () => {
+  let flushes = 0;
+  const timers = [];
+  const coalescer = createResizeCoalescer({
+    waitMs: 32,
+    maxBurst: 100,
+    setTimer(fn, ms) {
+      const id = timers.length + 1;
+      timers.push({ id, fn, ms, cleared: false });
+      return id;
+    },
+    clearTimer(id) {
+      const timer = timers.find((item) => item.id === id);
+      if (timer) timer.cleared = true;
+    },
+    onFlush: () => {
+      flushes += 1;
+    },
   });
+  for (let i = 0; i < 30; i += 1) coalescer.push({ columns: i });
+  assert.equal(timers.length, 1);
+  assert.equal(timers[0].cleared, false);
+  assert.equal(timers[0].ms, 32);
+  assert.equal(flushes, 0);
+  timers[0].fn();
   assert.equal(flushes, 1);
-  assert.equal(lastCount, 4);
+
+  let trailed = 0;
+  const trailing = createResizeCoalescer({
+    waitMs: 30,
+    maxBurst: 50,
+    onFlush: () => {
+      trailed += 1;
+    },
+  });
+  trailing.push({ columns: 1 });
+  await new Promise((resolve) => { setTimeout(resolve, 10); });
+  trailing.push({ columns: 2 });
+  await new Promise((resolve) => { setTimeout(resolve, 40); });
+  assert.equal(trailed, 1);
+  trailing.dispose();
   coalescer.dispose();
 });
