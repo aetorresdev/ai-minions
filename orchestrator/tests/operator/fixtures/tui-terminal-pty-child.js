@@ -18,17 +18,13 @@ const resultPath = process.argv[3];
 // macOS revokes a PTY when its session leader exits, and the master then
 // fails writes with EIO. Block here, after restore, until the parent has
 // echoed a byte. A closed master (hangup) makes the read fail and we move on.
+// Do not clear raw mode here. setRawMode(false) in this hold would cook the
+// terminal after a failed restore, and the parent probe would pass without
+// observing the product.
 let probeHeld = false;
 function holdForParentProbe() {
   if (probeHeld) return;
   probeHeld = true;
-  try {
-    if (process.stdin.isRaw === true && typeof process.stdin.setRawMode === 'function') {
-      process.stdin.setRawMode(false);
-    }
-  } catch {
-    // slave already hung up
-  }
   // Ink leaves the TTY non-blocking. readSync then returns EAGAIN and the
   // process exits before the parent can echo a byte. macOS revokes the PTY
   // on that exit, so the probe has to be a real blocking read.
@@ -73,11 +69,20 @@ guardModule.createTerminalGuard = (options) => {
   const baseRestore = guard.restore.bind(guard);
   guard.restore = (reason) => {
     const outcome = baseRestore(reason);
+    // Capture raw mode at the product restore, before exit/kill enter the
+    // parent-probe hold. A later fixture read must not be the evidence.
+    let stdinIsRaw = null;
+    try {
+      stdinIsRaw = process.stdin.isRaw === true;
+    } catch {
+      stdinIsRaw = null;
+    }
     restorations.push({
       reason: outcome && outcome.reason,
       ok: outcome ? outcome.ok : null,
       outcome: outcome ? outcome.outcome : null,
       restoration_reason: outcome ? outcome.restoration_reason : null,
+      stdin_is_raw: stdinIsRaw,
     });
     fs.writeFileSync(`${resultPath}.restore.json`, JSON.stringify(restorations));
     return outcome;

@@ -7,9 +7,13 @@
  * Ctrl+C (0x03 in raw mode), SIGINT, SIGTERM, SIGHUP, fatal, and a real
  * master close. Handoff modes run soften → resumeInkSession → restore on the
  * same PTY. Parent usability is termios (cooked) plus an echoed byte on the
- * PTY master — not a temp-file probe. After a master close there is no
- * terminal left to probe: that mode instead requires the restore attempt to
- * report a non-completed outcome caused by the dead PTY.
+ * PTY master — not a temp-file probe. SIGINT, SIGTERM, SIGHUP, and fatal
+ * publish no shell result file; their evidence is the restore record written
+ * inside guard.restore, including stdin isRaw captured before the child holds
+ * for the parent probe. A partial restore that leaves raw mode on fails that
+ * evidence even when the parent termios probe looks cooked. After a master
+ * close there is no terminal left to probe: that mode instead requires the
+ * restore attempt to report a non-completed outcome caused by the dead PTY.
  *
  * Linux and macOS run this against a pseudoterminal from python3's pty.fork.
  * macOS revokes the PTY when the session leader exits (master writes then
@@ -311,6 +315,50 @@ async function assertPythonPty() {
   assert.equal(pythonOk, true, 'python3 pty module is required for real PTY evidence');
 }
 
+const SIGNAL_OR_FATAL_MODES = ['sigint', 'sigterm', 'sighup', 'fatal'];
+
+/**
+ * Problems in the restore record written before the parent-probe hold.
+ * Tokens are stable so a negative test can require each failed check by name.
+ * @param {object | null | undefined} recorded
+ * @returns {string[]}
+ */
+function recordedRestoreProblems(recorded) {
+  if (!recorded || typeof recorded !== 'object') return ['missing_record'];
+  const problems = [];
+  if (recorded.ok !== true) problems.push('ok_not_true');
+  if (recorded.outcome !== 'completed') problems.push('outcome_not_completed');
+  if (recorded.stdin_is_raw !== false) problems.push('stdin_still_raw');
+  return problems;
+}
+
+/**
+ * SIGINT / SIGTERM / SIGHUP / fatal evidence. The parent termios probe is
+ * necessary and not sufficient: the record must show a completed restore and
+ * cooked stdin captured before any fixture hold.
+ * @param {object} run
+ */
+function assertSignalOrFatalEvidence(run) {
+  const mode = run.mode;
+  const why = diagnose(run);
+  assert.equal(run.parent.timed_out, false, `${mode} did not terminate the child: ${why}`);
+  assert.ok(run.transcript.length > 0, `${mode} produced no terminal output: ${why}`);
+  assert.equal(run.result, null, `${mode} should exit from the signal or fatal handler: ${why}`);
+  assert.ok(
+    Array.isArray(run.restorations) && run.restorations.length >= 1,
+    `${mode} recorded no restore: ${why}`,
+  );
+  const recorded = run.restorations[run.restorations.length - 1];
+  const problems = recordedRestoreProblems(recorded);
+  assert.equal(
+    problems.length,
+    0,
+    `${mode} product restore was not completed with stdin cooked before the probe hold: ${problems.join(',')} record=${JSON.stringify(recorded)} ${why}`,
+  );
+  assertRestoreSequence(run.transcript, mode);
+  assertParentTerminalUsable(run.parent, mode);
+}
+
 function assertQuitThroughNavigation(quit) {
   const result = requireResult(quit);
   const why = diagnose(quit);
@@ -352,14 +400,8 @@ async function assertRealPtyEvidence() {
     assertRestoreSequence(ctrlC.transcript, 'ctrl-c');
     assertParentTerminalUsable(ctrlC.parent, 'ctrl-c');
 
-    for (const mode of ['sigint', 'sigterm', 'sighup', 'fatal']) {
-      const run = runs[mode];
-      const why = diagnose(run);
-      assert.equal(run.parent.timed_out, false, `${mode} did not terminate the child: ${why}`);
-      assert.ok(run.transcript.length > 0, `${mode} produced no terminal output: ${why}`);
-      assert.equal(run.result, null, `${mode} should exit from the signal or fatal handler: ${why}`);
-      assertRestoreSequence(run.transcript, mode);
-      assertParentTerminalUsable(run.parent, mode);
+    for (const mode of SIGNAL_OR_FATAL_MODES) {
+      assertSignalOrFatalEvidence(runs[mode]);
     }
     assert.equal(
       runs.sigint.parent.exit_signal,
@@ -411,6 +453,61 @@ async function assertCiEnvStillInteractive() {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
+
+test('partial restore that leaves raw mode active fails signal evidence', () => {
+  // Parent probe is intentionally cooked. That is the case the old hold hid:
+  // termios looked restored because the fixture cleared raw mode. Evidence
+  // must still fail from the recorded product restore.
+  const cookedParent = {
+    timed_out: false,
+    icanon: true,
+    echo: true,
+    stdin_usable: true,
+    echo_byte: 'Z\n',
+    exit_code: null,
+    exit_signal: 15,
+    io_error: null,
+  };
+  const transcript = Buffer.from(`${RESTORE_SEQUENCE}shell\n`, 'utf8');
+  const hidden = {
+    mode: 'sigterm',
+    transcript,
+    result: null,
+    resultFileExists: false,
+    stderr: '',
+    ciEnv: null,
+    parent: cookedParent,
+    restorations: [{
+      reason: 'signal_SIGTERM',
+      ok: false,
+      outcome: 'partial',
+      restoration_reason: 'RAW_MODE_STILL_ENABLED',
+      stdin_is_raw: true,
+    }],
+  };
+  const completed = {
+    ...hidden,
+    restorations: [{
+      reason: 'signal_SIGTERM',
+      ok: true,
+      outcome: 'completed',
+      restoration_reason: 'owned_modes_restored',
+      stdin_is_raw: false,
+    }],
+  };
+  assert.doesNotThrow(() => assertSignalOrFatalEvidence(completed));
+  assert.throws(
+    () => assertSignalOrFatalEvidence(hidden),
+    (err) => {
+      const msg = String(err && err.message ? err.message : err);
+      assert.match(msg, /ok_not_true/);
+      assert.match(msg, /outcome_not_completed/);
+      assert.match(msg, /stdin_still_raw/);
+      assert.doesNotMatch(msg, /without ICANON|without ECHO|could not read an echoed byte/);
+      return true;
+    },
+  );
+});
 
 test('real PTY under CI=true still renders, navigates, and quits', {
   skip: process.platform === 'linux' || process.platform === 'darwin'
