@@ -2,11 +2,121 @@
 
 /**
  * Terminal restoration for the production Ink 7 fullscreen TUI shell.
+ * Acquire/release classification, the exclusive lease, and metrics live in
+ * operator-tui-terminal-lifecycle.js. This module applies those rules to the
+ * stdin/stdout session the shell already holds.
  * Tracks raw-mode / cursor / alternate-screen mutations for deterministic tests.
  */
 
-/** Full session-end restore: leave alt-screen (if any), show cursor, reset attrs. */
-const RESTORE_SEQUENCE = '\u001b[?1049l\u001b[?25h\u001b[0m';
+const {
+  classifyRestoration,
+  writeTerminalSequence,
+  createTerminalLease,
+  createTuiMetrics,
+} = require('./operator-tui-terminal-lifecycle');
+
+/** One lease per stdin (or stdout) object. A second default guard overlaps. */
+const sharedTerminalLeases = new WeakMap();
+
+/**
+ * Default guards share the lease of the terminal they bind. An explicit
+ * `options.lease` is used as given. After a definitive release the next
+ * acquire gets a fresh lease so a later session can take the terminal.
+ * @param {object | null | undefined} stdin
+ * @param {object | null | undefined} stdout
+ */
+function sharedLeaseFor(stdin, stdout) {
+  const key = stdin && (typeof stdin === 'object' || typeof stdin === 'function')
+    ? stdin
+    : (stdout && (typeof stdout === 'object' || typeof stdout === 'function') ? stdout : null);
+  if (!key) return createTerminalLease();
+  const existing = sharedTerminalLeases.get(key);
+  if (!existing || existing.snapshot().definitiveClose === true) {
+    const created = createTerminalLease();
+    sharedTerminalLeases.set(key, created);
+    return created;
+  }
+  return existing;
+}
+
+/**
+ * Overlap (or any failed acquire) stops before the terminal is touched.
+ * @param {{
+ *   stdin: object,
+ *   stdout: object,
+ *   metrics: object,
+ *   lease: object,
+ *   mutations: { kind: string, value?: unknown }[],
+ *   reasonCode: string,
+ * }} input
+ */
+function createRejectedTerminalGuard(input) {
+  const { stdin, stdout, metrics, lease, mutations, reasonCode } = input;
+  mutations.push({ kind: 'lease_rejected', value: reasonCode });
+  const rejected = {
+    ok: false,
+    outcome: 'impossible',
+    restoration_reason: reasonCode,
+  };
+  return {
+    stdin,
+    stdout,
+    mutations,
+    metrics,
+    lease,
+    rejected: true,
+    reason_code: reasonCode,
+    get leaseGeneration() {
+      return null;
+    },
+    get rawMode() {
+      return Boolean(stdin && stdin.isRaw);
+    },
+    get restored() {
+      return false;
+    },
+    get restoration() {
+      return null;
+    },
+    markMounted() {},
+    noteLocalNavigation() {
+      const snap = lease.snapshot();
+      return {
+        lease_touched: false,
+        lease_unchanged: true,
+        lease_state: snap.state,
+        remount_count: metrics.snapshot().remount_count,
+      };
+    },
+    suspendExternal() {
+      return { ok: false, reason_code: reasonCode };
+    },
+    resumeExternal() {
+      return { ok: false, reason_code: reasonCode, definitive: true };
+    },
+    withExternalWorkflow() {
+      return Promise.resolve({
+        ok: false,
+        suspend: { ok: false, reason_code: reasonCode },
+        resume: null,
+      });
+    },
+    soften(reason = reasonCode) {
+      return { ok: false, already: false, reason, soft: true, rejected: true };
+    },
+    restore(reason = 'normal') {
+      return { ...rejected, already: false, reason };
+    },
+  };
+}
+
+/**
+ * Full session-end restore: leave alt-screen, show cursor, disable bracketed
+ * paste, reset attrs. Ink enables bracketed paste while mounted; this is the
+ * session-end backstop when Ink's own cleanup does not run. Disabling paste
+ * is a no-op when it was not enabled. Soft handoff must not emit this.
+ */
+const RESTORE_SEQUENCE = '\u001b[?1049l\u001b[?25h\u001b[?2004l\u001b[0m';
 /**
  * Soft handoff before nested readline — keep session visually "inside" the TUI.
  * Must NOT emit CSI ?1049l (alt-screen exit); that blank primary buffer looks like a quit.
@@ -270,62 +380,192 @@ function resumeInkSession(options = {}) {
 function createTerminalGuard(options = {}) {
   const stdin = options.stdin ?? process.stdin;
   const stdout = options.stdout ?? process.stdout;
+  const metrics = options.metrics || createTuiMetrics();
+  const lease = options.lease || sharedLeaseFor(stdin, stdout);
   /** @type {{ kind: string, value?: unknown }[]} */
   const mutations = [];
-  let rawMode = Boolean(stdin.isRaw);
+  let rawMode = Boolean(stdin && stdin.isRaw);
   let restored = false;
+  /** @type {object | null} */
+  let lastRestoration = null;
+  let leaseGeneration = Number.isInteger(options.leaseGeneration)
+    ? options.leaseGeneration
+    : null;
+  let leaseHeld = leaseGeneration != null;
+  if (leaseGeneration == null) {
+    const acquired = lease.acquire(options.holderId || 'tui-session');
+    if (!acquired.ok) {
+      return createRejectedTerminalGuard({
+        stdin,
+        stdout,
+        metrics,
+        lease,
+        mutations,
+        reasonCode: acquired.reason_code,
+      });
+    }
+    leaseGeneration = acquired.generation;
+    leaseHeld = true;
+    mutations.push({ kind: 'lease_acquired', value: acquired.reason_code });
+  } else {
+    mutations.push({ kind: 'lease_adopted', value: leaseGeneration });
+  }
   const originalSetRawMode = typeof stdin.setRawMode === 'function'
     ? stdin.setRawMode.bind(stdin)
     : null;
 
-  if (originalSetRawMode) {
+  if (originalSetRawMode && leaseHeld) {
     stdin.setRawMode = (mode) => {
       const next = Boolean(mode);
       mutations.push({ kind: 'setRawMode', value: next });
-      rawMode = next;
-      return originalSetRawMode(next);
+      const returned = originalSetRawMode(next);
+      rawMode = typeof stdin.isRaw === 'boolean' ? stdin.isRaw : next;
+      return returned;
     };
   }
 
-  const writeSeq = (seq) => {
-    const writer = typeof options.writeRestore === 'function'
-      ? options.writeRestore
-      : (s) => {
-        if (stdout && typeof stdout.write === 'function') stdout.write(s);
-      };
-    writer(seq);
-  };
+  const writeSeq = (seq) => writeTerminalSequence({
+    stdout,
+    writeRestore: options.writeRestore,
+    sequence: seq,
+  });
 
-  const disableRawAndUnwrap = () => {
-    if (originalSetRawMode && rawMode) {
+  /**
+   * Turn raw mode off from the observed stdin flag, not only the tracked one.
+   * Soften keeps the wrapper so a later setRawMode(true) stays visible.
+   * Full restore unwraps, then refuses completed if raw mode is still on.
+   * @param {{ unwrap: boolean }} opts
+   */
+  const disableRaw = ({ unwrap }) => {
+    const observedRaw = Boolean(stdin && stdin.isRaw === true);
+    const attempted = Boolean(originalSetRawMode && (rawMode || observedRaw));
+    /** @type {{ attempted: boolean, ok: boolean, error: Error | null, stillRaw: boolean }} */
+    const result = { attempted, ok: true, error: null, stillRaw: false };
+    if (!originalSetRawMode && observedRaw) {
+      result.attempted = true;
+      result.ok = false;
+      result.stillRaw = true;
+      const err = new Error('stdin left in raw mode');
+      err.code = 'RAW_MODE_STILL_ENABLED';
+      result.error = err;
+    } else if (attempted) {
       try {
         originalSetRawMode(false);
-        rawMode = false;
         mutations.push({ kind: 'setRawMode', value: false });
       } catch (err) {
+        result.ok = false;
+        result.error = err;
         mutations.push({
           kind: 'setRawMode_error',
           value: String(err && err.message ? err.message : err),
         });
       }
     }
-    if (originalSetRawMode && stdin.setRawMode !== originalSetRawMode) {
+    const stillRaw = Boolean(stdin && stdin.isRaw === true);
+    if (stillRaw) {
+      result.stillRaw = true;
+      result.ok = false;
+      result.attempted = true;
+      rawMode = true;
+      if (!result.error) {
+        const err = new Error('stdin left in raw mode');
+        err.code = 'RAW_MODE_STILL_ENABLED';
+        result.error = err;
+      }
+    } else if (stdin && typeof stdin.isRaw === 'boolean') {
+      rawMode = false;
+    } else if (attempted && result.ok) {
+      rawMode = false;
+    }
+    if (unwrap && originalSetRawMode && stdin.setRawMode !== originalSetRawMode) {
       stdin.setRawMode = originalSetRawMode;
     }
+    if (stdin && typeof stdin.isRaw === 'boolean' && rawMode !== stdin.isRaw) {
+      result.ok = false;
+      result.stillRaw = stdin.isRaw === true;
+      rawMode = stdin.isRaw;
+    }
+    return result;
+  };
+
+  const releaseLease = () => {
+    if (!leaseHeld || leaseGeneration == null) {
+      return { ok: false, reason_code: 'TERMINAL_LEASE_NOT_HELD' };
+    }
+    const released = lease.release(leaseGeneration);
+    leaseHeld = false;
+    return released;
   };
 
   return {
     stdin,
     stdout,
     mutations,
+    metrics,
+    lease,
+    rejected: false,
+    reason_code: null,
+    get leaseGeneration() {
+      return leaseGeneration;
+    },
     get rawMode() {
       return rawMode;
     },
     get restored() {
       return restored;
     },
+    get restoration() {
+      return lastRestoration;
+    },
     markMounted() {
       mutations.push({ kind: 'mounted' });
+      metrics.noteInkMount();
+    },
+    /**
+     * Local navigation records a surface interval and does not touch the lease.
+     * @param {{ from?: string | null, to?: string | null, surface?: string | null, request_id?: string | null }} [meta]
+     */
+    noteLocalNavigation(meta = {}) {
+      const before = lease.snapshot();
+      const surface = meta.to != null ? meta.to : meta.surface;
+      metrics.recordSurfaceTransition({
+        surface: surface == null ? null : surface,
+        request_id: meta.request_id == null ? null : meta.request_id,
+      });
+      const noted = metrics.noteLocalNavigation({ surface });
+      const after = lease.snapshot();
+      return {
+        ...noted,
+        lease_state: after.state,
+        lease_unchanged: before.state === after.state && before.generation === after.generation,
+      };
+    },
+    suspendExternal() {
+      if (leaseGeneration == null) {
+        return { ok: false, reason_code: 'TERMINAL_LEASE_NOT_HELD' };
+      }
+      return lease.suspend(leaseGeneration);
+    },
+    resumeExternal() {
+      if (leaseGeneration == null) {
+        return { ok: false, reason_code: 'TERMINAL_LEASE_LATE_RESUME', definitive: true };
+      }
+      return lease.resume(leaseGeneration);
+    },
+    /**
+     * Suspend for an external/nested workflow and resume on success, throw, and cancellation.
+     * A definitive close inside fn makes the resume a late-resume rejection.
+     * @param {() => Promise<unknown> | unknown} fn
+     */
+    withExternalWorkflow(fn) {
+      if (leaseGeneration == null) {
+        return Promise.resolve({
+          ok: false,
+          suspend: { ok: false, reason_code: 'TERMINAL_LEASE_NOT_HELD' },
+          resume: null,
+        });
+      }
+      return lease.withSuspended(leaseGeneration, fn);
     },
     /**
      * Soft handoff after Ink unmount when a nested pane / remount will follow.
@@ -337,16 +577,16 @@ function createTerminalGuard(options = {}) {
         mutations.push({ kind: 'soften_skipped', value: reason });
         return { ok: true, already: true, reason, soft: true };
       }
-      disableRawAndUnwrap();
-      try {
-        writeSeq(SOFT_HANDOFF_SEQUENCE);
-        mutations.push({ kind: 'soften_sequence', value: reason });
-      } catch (err) {
+      disableRaw({ unwrap: false });
+      const written = writeSeq(SOFT_HANDOFF_SEQUENCE);
+      if (!written.ok) {
         mutations.push({
           kind: 'soften_write_error',
-          value: String(err && err.message ? err.message : err),
+          value: String(written.error && written.error.message ? written.error.message : written.error),
         });
+        return { ok: false, already: false, reason, soft: true };
       }
+      mutations.push({ kind: 'soften_sequence', value: reason });
       return { ok: true, already: false, reason, soft: true };
     },
     /**
@@ -357,26 +597,58 @@ function createTerminalGuard(options = {}) {
      * Idempotent. Emits alt-screen exit — session-end only.
      * @param {string} [reason]
      */
+    /**
+     * Full restore. `ok` is true only when outcome is `completed`.
+     * A failed write is `partial` or `impossible` and must not report ok.
+     * The attempt is consumed: a second call does not write again.
+     * @param {string} [reason]
+     */
     restore(reason = 'normal') {
       if (restored) {
         mutations.push({ kind: 'restore_skipped', value: reason });
-        return { ok: true, already: true, reason };
+        return {
+          ok: Boolean(lastRestoration && lastRestoration.ok),
+          already: true,
+          reason,
+          outcome: lastRestoration ? lastRestoration.outcome : RESTORATION_OUTCOME_FALLBACK,
+          restoration_reason: lastRestoration
+            ? lastRestoration.restoration_reason
+            : 'restore_already_attempted',
+        };
       }
       restored = true;
-      disableRawAndUnwrap();
-      try {
-        writeSeq(RESTORE_SEQUENCE);
+      const raw = disableRaw({ unwrap: true });
+      const written = writeSeq(RESTORE_SEQUENCE);
+      if (written.ok) {
         mutations.push({ kind: 'restore_sequence', value: reason });
-      } catch (err) {
+      } else {
         mutations.push({
           kind: 'restore_write_error',
-          value: String(err && err.message ? err.message : err),
+          value: String(written.error && written.error.message ? written.error.message : written.error),
         });
       }
-      return { ok: true, already: false, reason };
+      const leftRaw = stdin.isRaw === true || raw.stillRaw === true
+        || (typeof stdin.isRaw === 'boolean' && rawMode !== stdin.isRaw);
+      const classified = classifyRestoration({
+        writeOk: written.ok,
+        writeError: written.error,
+        rawAttempted: leftRaw || raw.attempted === true,
+        rawOk: !leftRaw,
+        rawError: raw.error,
+        streamWritable: written.streamWritable,
+      });
+      lastRestoration = {
+        ...classified,
+        already: false,
+        reason,
+      };
+      releaseLease();
+      return lastRestoration;
     },
   };
 }
+
+const RESTORATION_OUTCOME_FALLBACK = 'impossible';
 
 /**
  * Run fn under a mount mark. On success: soft handoff (remount/pane may follow).
