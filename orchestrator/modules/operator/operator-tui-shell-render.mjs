@@ -746,6 +746,7 @@ function ShellApp(props) {
     onInkLocalAsyncRead,
     onCancelPendingAction,
     onNestedExecuteFailure,
+    loadRunStatusPane,
   } = props;
   const { exit } = useApp();
   const { stdout } = useStdout();
@@ -997,6 +998,12 @@ function ShellApp(props) {
     return false;
   };
 
+  const nativeWorkflowCtx = () => ({
+    loadFixturePrompt: defaultLoadFixturePrompt,
+    deferFixtureLoad: true,
+    ...(typeof loadRunStatusPane === 'function' ? { loadPane: loadRunStatusPane } : {}),
+  });
+
   useInput((input, key) => {
     const current = modelRef.current;
     const intent = resolveShellKeypress(input, key, current);
@@ -1022,10 +1029,7 @@ function ShellApp(props) {
         if (isEscape) {
           const token = gate.invalidate();
           void (async () => {
-            const result = await applyNativeWorkflowKeypress(current, input, key, {
-              loadFixturePrompt: defaultLoadFixturePrompt,
-              deferFixtureLoad: true,
-            });
+            const result = await applyNativeWorkflowKeypress(current, input, key, nativeWorkflowCtx());
             if (!gate.isCurrent(token)) return;
             commitWorkflowResult(modelRef.current, result);
           })();
@@ -1036,10 +1040,7 @@ function ShellApp(props) {
       const token = gate.begin();
       void (async () => {
         const snapshot = modelRef.current;
-        const result = await applyNativeWorkflowKeypress(snapshot, input, key, {
-          loadFixturePrompt: defaultLoadFixturePrompt,
-          deferFixtureLoad: true,
-        });
+        const result = await applyNativeWorkflowKeypress(snapshot, input, key, nativeWorkflowCtx());
         if (!gate.isCurrent(token)) return;
 
         if (result.action === 'busy' && result.pending?.type === 'fixture_load') {
@@ -1334,6 +1335,7 @@ function OperatorTuiRoot(props) {
     onInkLocalAsyncRead,
     onCancelPendingAction,
     onNestedExecuteFailure,
+    loadRunStatusPane,
   } = props;
   const { exit } = useApp();
   const [phase, setPhase] = useState(showSplash ? 'splash' : 'shell');
@@ -1364,6 +1366,7 @@ function OperatorTuiRoot(props) {
     onInkLocalAsyncRead,
     onCancelPendingAction,
     onNestedExecuteFailure,
+    loadRunStatusPane,
   });
 }
 
@@ -1533,6 +1536,7 @@ function buildContentLines(model) {
  *   onRequestAction?: (actionId: string) => void,
  *   onNestedExecute?: (nested: object) => Promise<{ model?: object, quit?: boolean, error?: string, sessionComplete?: boolean } | void>,
  *   onInkLocalAsyncRead?: (input: { actionId: string, runId?: string | null, surface?: string | null }) => Promise<object | null | void>,
+ *   loadRunStatusPane?: (entry: object, options?: object) => object | Promise<object>,
  *   onCancelPendingAction?: () => void,
  *   onNestedExecuteFailure?: (message: string) => void,
  * }} options
@@ -1570,6 +1574,7 @@ export async function renderOperatorTuiShell(options) {
         },
         onNestedExecute: options.onNestedExecute,
         onInkLocalAsyncRead: options.onInkLocalAsyncRead,
+        loadRunStatusPane: options.loadRunStatusPane,
         onCancelPendingAction: options.onCancelPendingAction,
         onNestedExecuteFailure: options.onNestedExecuteFailure,
       }),

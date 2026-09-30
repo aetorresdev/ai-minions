@@ -32,6 +32,7 @@ const {
   buildTerminalActionResult,
   resolveAbortedRequestOutcome,
   actionContextForKind,
+  TUI_ACTION_KIND,
   TUI_ACTION_STATUS,
   TUI_ACTION_REASON,
 } = require('./operator-tui-action-executor');
@@ -61,6 +62,7 @@ const {
   isInkLocalAsyncReadAction,
   loadInkLocalReadPayload,
 } = require('./operator-tui-ink-local-reads');
+const { loadRunStatusPane } = require('./operator-run-selector-tui');
 
 const TUI_SHELL_REASON = Object.freeze({
   NON_TTY: 'COCKPIT_TTY_REQUIRED',
@@ -207,6 +209,7 @@ function shouldShowProductionSplash(options = {}, env = process.env) {
  *   runExplain?: typeof runOperatorExplain,
  *   executeAction?: typeof executeShellAction,
  *   importRenderer?: () => Promise<{ renderOperatorTuiShell: Function }>,
+ *   loadRunStatusPane?: typeof loadRunStatusPane,
  *   runLegacyCockpit?: typeof runOperatorCockpit,
  *   selectedRunId?: string | null,
  *   statusResult?: object | null,
@@ -324,6 +327,13 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
    * accepted write still correlates to the transition.
    */
   let activeShellRequestId = null;
+  /**
+   * Overview load creates this id before loadRunStatusPane and holds it until
+   * the frame that presents run_overview is armed.
+   */
+  let presentRequestId = null;
+  /** remount_count at the start of that overview load (includes the initial mount). */
+  let overviewRemountBefore = null;
   /**
    * Async read results keep their request id after the read settles. The
    * renderer applies the result later, when activeShellRequestId is already
@@ -1075,6 +1085,58 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
 
     let requestedAction = null;
     let aborted = false;
+    const paneLoad = typeof options.loadRunStatusPane === 'function'
+      ? options.loadRunStatusPane
+      : loadRunStatusPane;
+
+    // Request id exists before the pane read. runtime_action_ms wraps that read.
+    // The id stays active until the frame that presents run_overview is armed.
+    const loadOverviewPaneCorrelated = async (entry, loadOptions = {}) => {
+      const runId = entry && entry.run_id != null && entry.run_id !== ''
+        ? String(entry.run_id)
+        : null;
+      const surface = 'run_overview';
+      const begun = actionExecutor.beginRequest({
+        actionKind: TUI_ACTION_KIND.READ_SURFACE,
+        context: actionContextForKind(TUI_ACTION_KIND.READ_SURFACE, runId, null),
+      });
+      const requestId = begun.accepted ? begun.request.request_id : correlationRequestId();
+      let completeOverview = begun.accepted;
+      if (begun.accepted) {
+        activeShellRequestId = requestId;
+        presentRequestId = requestId;
+      }
+      overviewRemountBefore = metrics.snapshot().remount_count;
+      const runtimeInterval = metrics.beginInterval('runtime_action_ms', {
+        request_id: requestId,
+        surface,
+      });
+      try {
+        return await Promise.resolve(paneLoad(entry, loadOptions));
+      } catch (err) {
+        if (completeOverview) {
+          actionExecutor.completeRequest(requestId, {
+            status: TUI_ACTION_STATUS.FAILED,
+            reason_code: 'TUI_SHELL_ACTION_FAILURE',
+          });
+          completeOverview = false;
+        }
+        if (activeShellRequestId === requestId) activeShellRequestId = null;
+        presentRequestId = null;
+        throw err;
+      } finally {
+        metrics.endInterval(runtimeInterval, {
+          request_id: requestId,
+          surface,
+        });
+        if (completeOverview) {
+          actionExecutor.completeRequest(requestId, {
+            status: TUI_ACTION_STATUS.SUCCESS,
+            context: { runId, surface },
+          });
+        }
+      }
+    };
 
     metrics.openPaintWindow({
       surface: model.contentSurface || 'home',
@@ -1087,10 +1149,13 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
       stderr: options.stderr ?? process.stderr,
       autoQuitMs: options.autoQuitMs,
       showSplash: false,
+      loadRunStatusPane: loadOverviewPaneCorrelated,
       onModelChange: (next, meta) => {
         const prevRunId = model.selectedRunId;
         const prevSurface = model.contentSurface;
-        const carriedRequestId = meta && meta.source ? resultRequestIds.get(meta.source) : undefined;
+        const carriedRequestId = meta && meta.request_id
+          ? meta.request_id
+          : (meta && meta.source ? resultRequestIds.get(meta.source) : undefined);
         const frameRequestId = carriedRequestId ?? correlationRequestId();
         model = next;
         metrics.noteRender();
@@ -1100,11 +1165,35 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
             to: next.contentSurface ?? null,
             request_id: frameRequestId,
           });
+        } else if (carriedRequestId && carriedRequestId !== IDLE_FRAME_REQUEST_ID) {
+          // Hotkey o commits the destination surface before the runtime read,
+          // so the open transition is still tui-shell-idle. The result frame
+          // inherits the runtime id; retarget that transition to the same id.
+          guard.noteLocalNavigation({
+            from: prevSurface ?? null,
+            to: next.contentSurface ?? null,
+            request_id: carriedRequestId,
+          });
         }
         metrics.armRenderFrame({
           surface: next.contentSurface ?? null,
           request_id: frameRequestId,
         });
+        if (
+          presentRequestId
+          && frameRequestId === presentRequestId
+          && next.contentSurface === 'run_overview'
+        ) {
+          const after = metrics.snapshot().remount_count;
+          const before = overviewRemountBefore == null ? after : overviewRemountBefore;
+          guard.overviewNavigationRemount = {
+            before,
+            after,
+            delta: after - before,
+          };
+          if (activeShellRequestId === presentRequestId) activeShellRequestId = null;
+          presentRequestId = null;
+        }
         selectedRunId = next.selectedRunId;
         contentSurface = next.contentSurface ?? contentSurface;
         if (prevRunId !== next.selectedRunId || prevSurface !== next.contentSurface) {

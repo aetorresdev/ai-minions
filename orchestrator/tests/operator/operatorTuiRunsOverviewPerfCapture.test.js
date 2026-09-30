@@ -8,10 +8,11 @@
  * runOperatorTuiShell. The child forces interactive only for this mount, the
  * same way the PTY evidence fixture does, so a CI=true parent still paints.
  *
- * The overview pane load runs inside the workflow key handler before any
- * surface interval opens, so runtime_action_ms and operator_action_ms stay
- * unmeasured. The recorded intervals are the commit-to-accepted-write pair.
- * Do not treat a missing sample as zero.
+ * The overview request id is created before loadRunStatusPane. runtime_action_ms
+ * wraps that read and the same id is kept on surface_transition_ms and
+ * render_frame_ms. operator_action_ms stays unmeasured. Do not treat a missing
+ * sample as zero, and do not treat the commit-to-write window as the
+ * navigation total.
  */
 
 const assert = require('node:assert/strict');
@@ -19,9 +20,19 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { PassThrough } = require('node:stream');
 const test = require('node:test');
 
+const { TUI_SHELL_REASON, runOperatorTuiShell } = require('../../modules/operator/operator-tui-shell-entry');
+const { loadRunStatusPane } = require('../../modules/operator/operator-run-selector-tui');
+const {
+  buildShellModel,
+  shellModelToOptions,
+} = require('../../modules/operator/operator-tui-shell-model');
+
 const ORCHESTRATOR_ROOT = path.join(__dirname, '..', '..');
+const CLOCK_SKEW_MS = 5;
+const INJECTED_LOAD_DELAY_MS = 60;
 
 const CHILD_SOURCE = String.raw`
 'use strict';
@@ -90,6 +101,7 @@ async function main() {
       ? result.model.activeWorkflow.step
       : null,
     remount_count: snap ? snap.remount_count : null,
+    overview_navigation_remount: result.guard ? result.guard.overviewNavigationRemount : null,
     render_count: snap ? snap.render_count : null,
     intervals: snap ? snap.intervals : null,
     samples: snap ? snap.samples : null,
@@ -262,9 +274,13 @@ test('real PTY Runs to Overview records transition and frame without a remount',
     const browser = sampleFor(samples, 'surface_transition_ms', 'run_browser');
     const transition = sampleFor(samples, 'surface_transition_ms', 'run_overview');
     const frame = sampleFor(samples, 'render_frame_ms', 'run_overview');
-    assert.equal(browser.request_id, frame.request_id);
-    assert.equal(transition.request_id, frame.request_id);
-    for (const sample of [browser, transition, frame]) {
+    const runtime = sampleFor(samples, 'runtime_action_ms', 'run_overview');
+    assert.equal(browser.request_id, 'tui-shell-idle');
+    assert.match(String(runtime.request_id), /^tui-req-/);
+    assert.equal(transition.request_id, runtime.request_id);
+    assert.equal(frame.request_id, runtime.request_id);
+    assert.notEqual(transition.request_id, 'tui-shell-idle');
+    for (const sample of [browser, transition, frame, runtime]) {
       assert.equal(typeof sample.ms, 'number');
       assert.ok(sample.ms >= 0);
       assert.equal(sample.measured, true);
@@ -275,18 +291,25 @@ test('real PTY Runs to Overview records transition and frame without a remount',
     assert.equal(frame.start, 'frame_armed');
     assert.equal(frame.end, 'stdout_write');
     assert.equal(frame.observes, 'stdout_write');
-    assert.equal(transition.started_at, frame.started_at);
-    assert.equal(transition.ended_at, frame.ended_at);
+    assert.equal(runtime.start, 'runtime_read_begin');
+    assert.equal(runtime.end, 'runtime_read_end');
+    // Same accepted write. Node's clock can step 1ms between the two closes.
+    assert.ok(Math.abs(transition.ended_at - frame.ended_at) <= CLOCK_SKEW_MS);
+    assert.ok(Math.abs(transition.started_at - frame.started_at) <= CLOCK_SKEW_MS);
+    assert.ok(runtime.ended_at <= frame.started_at + CLOCK_SKEW_MS);
 
-    assert.equal(result.intervals.runtime_action_ms.measured, false);
-    assert.equal(result.intervals.runtime_action_ms.ms, null);
     assert.equal(result.intervals.operator_action_ms.measured, false);
     assert.equal(result.intervals.operator_action_ms.ms, null);
-    // Session enter calls markMounted once. The two surface changes must not add mounts.
-    assert.equal(result.remount_count, 1);
+    // Live remount_count includes the initial session mount. That mount is not
+    // a remount. The contract invariant is delta 0 across this navigation.
+    assert.ok(result.overview_navigation_remount);
+    assert.equal(result.overview_navigation_remount.delta, 0);
+    assert.ok(result.overview_navigation_remount.before >= 1);
+    assert.equal(result.remount_count, result.overview_navigation_remount.after);
     assert.ok(result.render_count >= 2);
 
-    const totalMs = transition.ended_at - transition.started_at;
+    const navigationTotalMs = transition.ended_at - runtime.started_at;
+    assert.ok(navigationTotalMs + CLOCK_SKEW_MS >= runtime.ms);
     console.log(JSON.stringify({
       navigation: 'home -2-> run_browser -Enter-> run_overview',
       request_id: transition.request_id,
@@ -294,13 +317,121 @@ test('real PTY Runs to Overview records transition and frame without a remount',
       to: 'run_overview',
       surface_transition_ms: transition.ms,
       render_frame_ms: frame.ms,
-      runtime_action_ms: null,
+      runtime_action_ms: runtime.ms,
       operator_action_ms: null,
-      total_ms: totalMs,
+      navigation_total_ms: navigationTotalMs,
+      commit_to_write_ms: transition.ms,
       remount_count: result.remount_count,
-      remount_increment_on_navigation: 0,
+      remount_increment_on_navigation: result.overview_navigation_remount.delta,
     }));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+function ttyStreams() {
+  const stdin = new PassThrough();
+  stdin.isTTY = true;
+  stdin.isRaw = false;
+  stdin.setRawMode = (mode) => {
+    stdin.isRaw = Boolean(mode);
+    return stdin;
+  };
+  stdin.ref = () => stdin;
+  stdin.unref = () => stdin;
+  const stdout = new PassThrough();
+  stdout.isTTY = true;
+  stdout.columns = 100;
+  stdout.rows = 40;
+  stdout.getColorDepth = () => 1;
+  stdout.ref = () => stdout;
+  stdout.unref = () => stdout;
+  stdout.resume();
+  return { stdin, stdout };
+}
+
+test('delayed loadRunStatusPane is inside runtime_action_ms and the navigation window', async () => {
+  const { stdin, stdout } = ttyStreams();
+  const result = await runOperatorTuiShell({
+    isTTY: true,
+    skipSplash: true,
+    useColor: false,
+    columns: 100,
+    rows: 40,
+    stdin,
+    stdout,
+    selectedRunId: 'run-perf-1',
+    buildAbout: () => ({
+      version: '0.0.0-pty',
+      model_policy: 'local_only',
+      git_commit: 'pty',
+    }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    loadRuns: () => ({
+      ok: true,
+      exitCode: 0,
+      result_code: 'RUNS_FOUND',
+      next_safe_action: 'none',
+      json: {
+        result_code: 'RUNS_FOUND',
+        next_safe_action: 'none',
+        runs: [{
+          run_id: 'run-perf-1',
+          status: 'running',
+          outcome: 'running',
+          result_code: 'RUN_FOUND',
+          goal_summary: 'perf capture fixture',
+        }],
+      },
+    }),
+    loadRunStatusPane: async (entry, options) => {
+      await new Promise((resolve) => { setTimeout(resolve, INJECTED_LOAD_DELAY_MS); });
+      return loadRunStatusPane(entry, options);
+    },
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ model, loadRunStatusPane: loadPane, onModelChange, stdout: out }) => {
+        assert.equal(typeof loadPane, 'function');
+        await loadPane({
+          run_id: 'run-perf-1',
+          status: 'running',
+          outcome: 'running',
+          result_code: 'RUN_FOUND',
+          goal_summary: 'perf capture fixture',
+        }, {});
+        onModelChange(buildShellModel({
+          ...shellModelToOptions(model),
+          contentSurface: 'run_overview',
+          selectedRunId: 'run-perf-1',
+          focus: 'content',
+        }));
+        await new Promise((resolve) => { out.write('overview-frame', () => resolve()); });
+        return { aborted: false, requestedAction: 'quit' };
+      },
+    }),
+  });
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  const samples = result.guard.metrics.snapshot().samples;
+  const runtime = sampleFor(samples, 'runtime_action_ms', 'run_overview');
+  const transition = sampleFor(samples, 'surface_transition_ms', 'run_overview');
+  const frame = sampleFor(samples, 'render_frame_ms', 'run_overview');
+  assert.match(String(runtime.request_id), /^tui-req-/);
+  assert.equal(transition.request_id, runtime.request_id);
+  assert.equal(frame.request_id, runtime.request_id);
+  assert.notEqual(runtime.request_id, 'tui-shell-idle');
+  assert.ok(runtime.ms + CLOCK_SKEW_MS >= INJECTED_LOAD_DELAY_MS);
+  // Navigation total is request-open to the accepted write. The delay sits
+  // inside that window. It is not the commit-to-write sample, and render_frame_ms
+  // is a later interval that is not added onto runtime_action_ms.
+  const navigationTotalMs = transition.ended_at - runtime.started_at;
+  assert.ok(navigationTotalMs + CLOCK_SKEW_MS >= runtime.ms);
+  assert.ok(navigationTotalMs > transition.ms);
+  assert.ok(runtime.ended_at <= frame.started_at + CLOCK_SKEW_MS);
+  assert.equal(runtime.ms, Math.max(0, runtime.ended_at - runtime.started_at));
+  assert.equal(frame.ms, Math.max(0, frame.ended_at - frame.started_at));
+  // Live remount_count includes the initial mount. Initial mount is not a remount.
+  assert.equal(result.guard.overviewNavigationRemount.delta, 0);
+  assert.ok(result.guard.overviewNavigationRemount.before >= 1);
+  stdin.destroy();
+  stdout.destroy();
 });

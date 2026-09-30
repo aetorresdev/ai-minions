@@ -160,6 +160,36 @@ test('terminal lease rejects overlap and late resume after definitive close', as
   assert.equal(again.reason_code, 'TERMINAL_LEASE_CLOSED');
 });
 
+test('terminal lease withSuspended returns the callback value and resumes the same lease once', async () => {
+  const lease = createTerminalLease();
+  const first = lease.acquire('session');
+  assert.equal(first.ok, true);
+  const outcome = await lease.withSuspended(first.generation, async () => {
+    assert.equal(lease.snapshot().state, 'suspended');
+    assert.equal(lease.snapshot().generation, first.generation);
+    return 'pane-ready';
+  });
+  assert.equal(outcome.ok, true);
+  assert.equal(outcome.value, 'pane-ready');
+  assert.equal(outcome.error, null);
+  assert.equal(outcome.resume.ok, true);
+  assert.equal(outcome.resume.reason_code, 'TERMINAL_LEASE_RESUMED');
+  assert.equal(outcome.resume.generation, first.generation);
+  assert.equal(lease.snapshot().state, 'open');
+  assert.equal(lease.snapshot().generation, first.generation);
+  assert.equal(lease.snapshot().holder, 'session');
+
+  const next = lease.suspend(first.generation);
+  assert.equal(next.ok, true, 'the same lease stays usable after resume');
+  const resumed = lease.resume(first.generation);
+  assert.equal(resumed.ok, true);
+  const secondResume = lease.resume(first.generation);
+  assert.equal(secondResume.ok, false);
+  assert.equal(secondResume.reason_code, 'TERMINAL_LEASE_NOT_SUSPENDED');
+  assert.equal(lease.snapshot().state, 'open');
+  assert.equal(lease.snapshot().generation, first.generation);
+});
+
 test('local navigation does not release or reacquire the lease and does not remount', () => {
   const guard = createTerminalGuard({
     stdin: rawStdin(),
@@ -802,6 +832,67 @@ test('ink-local status refresh keeps its request id on runtime_action_ms and ren
   assert.equal(intervals.render_frame_ms.request_id, runtimeId);
   assert.notEqual(intervals.render_frame_ms.request_id, IDLE_FRAME_REQUEST_ID);
   assert.equal(intervals.surface_transition_ms.request_id, runtimeId);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('hotkey o keeps the surface transition on the same request id as the runtime frame', async () => {
+  const { stdin, stdout } = sharedTtyStreams();
+  // Production order for hotkey o (action id status): the destination surface
+  // commits before the read, then the result commit carries the runtime id.
+  const result = await runOperatorTuiShell(shellFixtures({
+    stdin,
+    stdout,
+    selectedRunId: 'run-a',
+    runStatus: async ({ runId }) => {
+      await new Promise((resolve) => { setTimeout(resolve, 40); });
+      return {
+        ok: true,
+        exitCode: 0,
+        json: {
+          run_id: runId,
+          status: 'running',
+          operator_trace_summary: { outcome: 'running', next_safe_action: 'none' },
+          run_state_visibility: { blocking_reason_code: null },
+        },
+      };
+    },
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async ({ onInkLocalAsyncRead, onModelChange, stdout: out, model }) => {
+        const early = buildShellModel({
+          ...shellModelToOptions(model),
+          contentSurface: 'status',
+          selectedNavId: 'status',
+          focus: 'nav',
+          selectedRunId: 'run-a',
+        });
+        onModelChange(early);
+        const readResult = await onInkLocalAsyncRead({
+          actionId: 'status',
+          runId: 'run-a',
+          surface: 'status',
+        });
+        assert.ok(readResult, 'hotkey o read returned no result model');
+        onModelChange(buildShellModel({
+          ...shellModelToOptions(readResult),
+          pendingOperatorAction: null,
+        }), { source: readResult });
+        await new Promise((resolve) => { out.write('overview-frame', () => resolve()); });
+        return { aborted: false, requestedAction: 'quit' };
+      },
+    }),
+  }));
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  const intervals = result.guard.metrics.snapshot().intervals;
+  const runtimeId = intervals.runtime_action_ms.request_id;
+  assert.match(String(runtimeId), /^tui-req-/);
+  assert.equal(intervals.runtime_action_ms.measured, true);
+  assert.equal(intervals.render_frame_ms.measured, true);
+  assert.equal(intervals.surface_transition_ms.measured, true);
+  assert.equal(intervals.render_frame_ms.request_id, runtimeId);
+  assert.equal(intervals.surface_transition_ms.request_id, runtimeId);
+  assert.notEqual(intervals.surface_transition_ms.request_id, IDLE_FRAME_REQUEST_ID);
+  assert.notEqual(intervals.render_frame_ms.request_id, IDLE_FRAME_REQUEST_ID);
   stdin.destroy();
   stdout.destroy();
 });
