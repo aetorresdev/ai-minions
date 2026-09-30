@@ -45,6 +45,12 @@ const {
   resumeInkSession,
   drainStdinColdStart,
 } = require('./operator-tui-terminal-guard');
+const {
+  createOwnedProcessSet,
+  attachOwnedSignalCleanup,
+  createTuiMetrics,
+  observeTerminalWrites,
+} = require('./operator-tui-terminal-lifecycle');
 const { adaptActionResult } = require('./operator-tui-adapters');
 const { shouldSkipSplash } = require('./operator-tui-splash');
 const {
@@ -206,6 +212,17 @@ function shouldShowProductionSplash(options = {}, env = process.env) {
  * }} [options]
  */
 async function runOperatorTuiShell(options = {}) {
+  let releaseOwned = () => {};
+  try {
+    return await runOperatorTuiShellBody(options, (release) => {
+      releaseOwned = typeof release === 'function' ? release : () => {};
+    });
+  } finally {
+    releaseOwned();
+  }
+}
+
+async function runOperatorTuiShellBody(options = {}, registerCleanup) {
   const stdin = options.stdin ?? process.stdin;
   const stdout = options.stdout ?? process.stdout;
   const isTTY = options.isTTY != null
@@ -298,6 +315,8 @@ async function runOperatorTuiShell(options = {}) {
   const iconMode = options.icons ?? options.iconMode;
   const wantsSplash = shouldShowProductionSplash(options);
 
+  const metrics = createTuiMetrics();
+  metrics.markBootStart({ surface: 'home', request_id: null });
   let model = buildFirstPaintShellModel({
     aboutInfo,
     columns,
@@ -306,6 +325,7 @@ async function runOperatorTuiShell(options = {}) {
     icons: iconMode,
   });
   selectedRunId = model.selectedRunId;
+  metrics.markBootEnd({ surface: model.contentSurface || 'home', request_id: null });
 
   /**
    * Populate readiness + runs after splash continuation (or immediately when splash is skipped).
@@ -348,7 +368,27 @@ async function runOperatorTuiShell(options = {}) {
     selectedRunId = model.selectedRunId;
   }
 
-  let guard = createTerminalGuard({ stdin, stdout });
+  let guard = createTerminalGuard({ stdin, stdout, metrics });
+  const ownership = createOwnedProcessSet();
+  const signalTarget = options.signalTarget
+    ?? ((options.stdin == null && options.stdout == null) ? process : null);
+  const detachSignals = attachOwnedSignalCleanup(signalTarget, {
+    ownership,
+    persistentExecution: options.persistentExecution ?? null,
+    reRaise: signalTarget === process,
+    onCleanup: (reason) => {
+      ownership.refusePersistent(options.persistentExecution ?? null);
+      if (guard && !guard.restored) guard.restore(reason);
+    },
+  });
+  const unobserveWrites = observeTerminalWrites(stdout, metrics);
+  if (typeof registerCleanup === 'function') {
+    registerCleanup(() => {
+      detachSignals();
+      unobserveWrites();
+      ownership.shutdown({ persistentExecution: options.persistentExecution ?? null });
+    });
+  }
   const maxLoops = Number.isInteger(options.maxLoops) && options.maxLoops > 0
     ? options.maxLoops
     : Number.POSITIVE_INFINITY;
@@ -437,6 +477,10 @@ async function runOperatorTuiShell(options = {}) {
         }, 'renderer_exception');
       }
 
+      metrics.openPaintWindow({
+        surface: model.contentSurface || 'home',
+        request_id: null,
+      });
       const splashResult = await withTerminalGuard(guard, async () => splashRenderer.renderOperatorTuiShell({
         model,
         stdin,
@@ -475,7 +519,13 @@ async function runOperatorTuiShell(options = {}) {
     }
 
     discoverShellBootstrap();
-    guard = createTerminalGuard({ stdin, stdout });
+    guard = createTerminalGuard({
+      stdin,
+      stdout,
+      metrics,
+      lease: guard.lease,
+      leaseGeneration: guard.leaseGeneration,
+    });
   } else {
     discoverShellBootstrap();
   }
@@ -606,6 +656,20 @@ async function runOperatorTuiShell(options = {}) {
         ? 'ai-minions tui · launching (session still active)'
         : 'ai-minions tui · nested pane (session still active)';
 
+      const suspendedLease = guard.suspendExternal();
+      if (!suspendedLease.ok) {
+        timeoutHandle.cancel();
+        actionExecutor.completeRequest(activeRequestId, {
+          status: TUI_ACTION_STATUS.FAILED,
+          reason_code: suspendedLease.reason_code,
+        });
+        return ephemeralTerminalOutcome(
+          nestedActionId,
+          TUI_ACTION_REASON.NESTED_IO_BUSY,
+          'Terminal lease is not available for a nested workflow.',
+        );
+      }
+
       nestedIoInFlight = true;
       prepareNestedPaneIo({ stdin, stdout, banner: nestedBanner });
 
@@ -613,7 +677,12 @@ async function runOperatorTuiShell(options = {}) {
       try {
         let actionOutcome;
         try {
-          actionOutcome = await executeAction({
+          const operatorInterval = metrics.beginInterval('operator_action_ms', {
+            request_id: activeRequestId,
+            surface: contentSurface ?? model.contentSurface ?? null,
+          });
+          try {
+            actionOutcome = await executeAction({
             actionId: nestedActionId,
             selectedRunId: nested.runId ?? selectedRunId,
             skipRunPrompt: nested.skipRunPrompt === true,
@@ -625,6 +694,12 @@ async function runOperatorTuiShell(options = {}) {
             launcherSelections: nested.launcherSelections ?? undefined,
             abortSignal: begun.request.abortController?.signal ?? undefined,
           });
+          } finally {
+            metrics.endInterval(operatorInterval, {
+              request_id: activeRequestId,
+              surface: contentSurface ?? model.contentSurface ?? null,
+            });
+          }
         } catch (err) {
           if (err?.name === 'AbortError' || begun.request.abortController?.signal?.aborted) {
             const activeReq = actionExecutor.getRequest(activeRequestId);
@@ -780,6 +855,7 @@ async function runOperatorTuiShell(options = {}) {
       } finally {
         nestedIoInFlight = false;
         timeoutHandle.cancel();
+        guard.resumeExternal();
         if (resumeInk && !guard.restored) {
           resumeInkSession({ stdin, stdout });
         }
@@ -813,12 +889,24 @@ async function runOperatorTuiShell(options = {}) {
         : { cancel() {} };
 
       try {
-        const payload = await loadInkLocalReadPayload(actionId, {
+        const runtimeInterval = metrics.beginInterval('runtime_action_ms', {
+          request_id: requestId,
+          surface: surface ?? contentSurface ?? null,
+        });
+        let payload;
+        try {
+          payload = await loadInkLocalReadPayload(actionId, {
           runId: context.runId,
           runStatus,
           runExplain,
           abortSignal: begun.request.abortController?.signal ?? undefined,
         });
+        } finally {
+          metrics.endInterval(runtimeInterval, {
+            request_id: requestId,
+            surface: surface ?? contentSurface ?? null,
+          });
+        }
 
         const activeReq = actionExecutor.getRequest(requestId);
         if (activeReq?.status === TUI_ACTION_STATUS.TIMED_OUT) {
@@ -945,6 +1033,10 @@ async function runOperatorTuiShell(options = {}) {
     let requestedAction = null;
     let aborted = false;
 
+    metrics.openPaintWindow({
+      surface: model.contentSurface || 'home',
+      request_id: null,
+    });
     const renderResult = await withTerminalGuard(guard, async () => renderer.renderOperatorTuiShell({
       model,
       stdin,
@@ -956,6 +1048,18 @@ async function runOperatorTuiShell(options = {}) {
         const prevRunId = model.selectedRunId;
         const prevSurface = model.contentSurface;
         model = next;
+        metrics.noteRender();
+        metrics.armRenderFrame({
+          surface: next.contentSurface ?? null,
+          request_id: null,
+        });
+        if (prevSurface !== next.contentSurface) {
+          guard.noteLocalNavigation({
+            from: prevSurface ?? null,
+            to: next.contentSurface ?? null,
+            request_id: null,
+          });
+        }
         selectedRunId = next.selectedRunId;
         contentSurface = next.contentSurface ?? contentSurface;
         if (prevRunId !== next.selectedRunId || prevSurface !== next.contentSurface) {

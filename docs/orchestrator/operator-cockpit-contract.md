@@ -325,8 +325,17 @@ Failed automated gate → **fail**. Missing required platform evidence → **blo
 | Action dispatch | `modules/operator/operator-tui-shell-actions.js` |
 | Slash commands | `modules/operator/operator-tui-slash-commands.js` |
 | Terminal guard | `modules/operator/operator-tui-terminal-guard.js` |
+| Terminal lifecycle (acquire/release, lease, restoration class, owned cleanup, intervals) | `modules/operator/operator-tui-terminal-lifecycle.js` |
 | Ink renderer (ESM) | `modules/operator/operator-tui-shell-render.mjs` |
 | Legacy readline cockpit | `modules/operator/operator-cockpit-tui.js` (`AI_MINIONS_TUI_LEGACY=1` only) |
+
+## Terminal lifecycle
+
+`operator-tui-terminal-lifecycle.js` is the owner of acquire/release. Ordinary surface changes call `noteLocalNavigation` and do not acquire or release. Nested workflows suspend and resume the same lease; resume runs on success, error, and cancellation. `release` is definitive — a later resume is rejected.
+
+Session-end restore classifies `completed`, `partial`, or `impossible`. `ok: true` is only `completed`. A dead PTY (`EIO` / `EPIPE` / not writable) cannot report success. Shutdown removes listeners, timers, and auxiliary processes the TUI registered. It does not cancel a persistent execution or announce that execution's termination.
+
+`first_paint_ms` and `render_frame_ms` close on stdout write, not on a React commit. Unmeasured intervals stay `ms: null`. Samples are capped (`METRIC_RETENTION_LIMIT`) and redacted. Resize bursts coalesce to one model commit.
 
 ## Rollback
 

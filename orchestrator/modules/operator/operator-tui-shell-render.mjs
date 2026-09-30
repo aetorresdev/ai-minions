@@ -55,6 +55,7 @@ const {
 } = require('./operator-run-list.js');
 const { pathToFileURL, fileURLToPath } = require('node:url');
 const path = require('node:path');
+const { createResizeCoalescer } = require('./operator-tui-terminal-lifecycle.js');
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const FIXTURES_DATA = path.join(REPO_ROOT, 'scripts', 'lib', 'canonical-real-task-fixtures-data.mjs');
@@ -893,24 +894,35 @@ function ShellApp(props) {
   };
 
   // Resize only — do not rebind on every nav/keystroke (was a remount/listener thrash).
+  // Bursts collapse to one commit so intermediate widths do not remount.
   useEffect(() => {
+    const coalescer = createResizeCoalescer({
+      onFlush: () => {
+        const current = modelRef.current;
+        const columns = stdout?.columns ?? current.columns;
+        const rows = stdout?.rows ?? current.rows;
+        commit(buildShellModel({
+          ...shellModelToOptions(current),
+          columns,
+          rows,
+        }));
+      },
+    });
     const onResize = () => {
-      const current = modelRef.current;
-      const columns = stdout?.columns ?? current.columns;
-      const rows = stdout?.rows ?? current.rows;
-      commit(buildShellModel({
-        ...shellModelToOptions(current),
-        columns,
-        rows,
-      }));
+      coalescer.push({
+        columns: stdout?.columns,
+        rows: stdout?.rows,
+      });
     };
     if (stdout && typeof stdout.on === 'function') {
       stdout.on('resize', onResize);
       return () => {
+        coalescer.dispose();
         if (typeof stdout.off === 'function') stdout.off('resize', onResize);
         else if (typeof stdout.removeListener === 'function') stdout.removeListener('resize', onResize);
       };
     }
+    coalescer.dispose();
     return undefined;
   }, [stdout]);
 
