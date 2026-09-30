@@ -763,7 +763,9 @@ function ShellApp(props) {
   const commit = (next, opts = {}) => {
     setModel(next);
     if (opts.syncModel === false) return;
-    if (typeof onModelChange === 'function') onModelChange(next);
+    if (typeof onModelChange !== 'function') return;
+    if (opts.source) onModelChange(next, { source: opts.source });
+    else onModelChange(next);
   };
 
   const requestAction = (actionId) => {
@@ -952,7 +954,7 @@ function ShellApp(props) {
           commit(buildShellModel({
             ...shellModelToOptions(result),
             pendingOperatorAction: null,
-          }));
+          }), { source: result });
           return;
         }
         commit(buildShellModel({

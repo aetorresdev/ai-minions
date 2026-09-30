@@ -2,7 +2,19 @@
 
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
+const path = require('node:path');
+const { PassThrough, Writable } = require('node:stream');
+const { pathToFileURL } = require('node:url');
 const test = require('node:test');
+
+const {
+  TUI_SHELL_REASON,
+  runOperatorTuiShell,
+} = require('../../modules/operator/operator-tui-shell-entry');
+const {
+  buildShellModel,
+  shellModelToOptions,
+} = require('../../modules/operator/operator-tui-shell-model');
 
 const {
   createTerminalGuard,
@@ -533,4 +545,313 @@ test('resize events do not postpone the commit past the max wait', async () => {
   assert.equal(trailed, 1);
   trailing.dispose();
   coalescer.dispose();
+});
+
+const nextTurn = () => new Promise((resolve) => { setImmediate(resolve); });
+
+function sharedTtyStreams() {
+  const counters = { writes: 0, rawCalls: 0 };
+  const stdin = new PassThrough();
+  stdin.isTTY = true;
+  stdin.isRaw = false;
+  stdin.setRawMode = (mode) => {
+    counters.rawCalls += 1;
+    stdin.isRaw = Boolean(mode);
+    return stdin;
+  };
+  stdin.ref = () => stdin;
+  stdin.unref = () => stdin;
+  const stdout = new PassThrough();
+  stdout.isTTY = true;
+  stdout.columns = 100;
+  stdout.rows = 30;
+  stdout.getColorDepth = () => 1;
+  stdout.ref = () => stdout;
+  stdout.unref = () => stdout;
+  stdout.resume();
+  const baseWrite = stdout.write.bind(stdout);
+  stdout.write = (...args) => {
+    counters.writes += 1;
+    return baseWrite(...args);
+  };
+  return { stdin, stdout, counters };
+}
+
+function shellFixtures(extra = {}) {
+  return {
+    isTTY: true,
+    skipSplash: true,
+    useColor: false,
+    buildAbout: () => ({ version: '0.0.0-test', model_policy: 'local_only', git_commit: 'test' }),
+    assessCredentials: () => ({ credential_sufficiency: 'not_required', providers: [] }),
+    assessPath: () => ({ status: 'ready', on_path: true }),
+    loadRuns: () => ({
+      ok: true,
+      exitCode: 0,
+      result_code: 'RUNS_FOUND',
+      next_safe_action: 'none',
+      json: {
+        result_code: 'RUNS_FOUND',
+        next_safe_action: 'none',
+        runs: [{ run_id: 'run-a', status: 'running', result_code: 'RUN_FOUND' }],
+      },
+    }),
+    ...extra,
+  };
+}
+
+test('second shell on a terminal owned by another session aborts before touching it', async () => {
+  const { stdin, stdout, counters } = sharedTtyStreams();
+  let releaseOwner;
+  const ownerGate = new Promise((resolve) => { releaseOwner = resolve; });
+  let ownerMounted;
+  const ownerReady = new Promise((resolve) => { ownerMounted = resolve; });
+
+  const ownerRun = runOperatorTuiShell(shellFixtures({
+    stdin,
+    stdout,
+    importRenderer: async () => ({
+      renderOperatorTuiShell: async (opts) => {
+        opts.stdin.setRawMode(true);
+        opts.stdout.write('owner-frame');
+        ownerMounted();
+        await ownerGate;
+        opts.stdin.setRawMode(false);
+        return { aborted: false, requestedAction: 'quit' };
+      },
+    }),
+  }));
+  await ownerReady;
+  assert.equal(stdin.isRaw, true);
+
+  const before = { ...counters };
+  let secondImported = false;
+  let secondMounted = false;
+  const second = await runOperatorTuiShell(shellFixtures({
+    stdin,
+    stdout,
+    importRenderer: async () => {
+      secondImported = true;
+      return {
+        // What stock Ink does on mount: raw mode on, a frame, then quit.
+        renderOperatorTuiShell: async (opts) => {
+          secondMounted = true;
+          opts.stdin.setRawMode(true);
+          opts.stdout.write('intruder-frame');
+          return { aborted: false, requestedAction: 'quit' };
+        },
+      };
+    },
+  }));
+
+  assert.equal(counters.writes, before.writes, 'second session wrote to the owned terminal');
+  assert.equal(counters.rawCalls, before.rawCalls, 'second session toggled raw mode');
+  assert.equal(stdin.isRaw, true, 'owner raw mode changed under the second session');
+  assert.equal(secondImported, false);
+  assert.equal(secondMounted, false);
+  assert.equal(second.ok, false);
+  assert.notEqual(second.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.equal(second.reason_code, TUI_SHELL_REASON.TERMINAL_LEASE_REJECTED);
+  assert.equal(second.lease_reason_code, 'TERMINAL_LEASE_OVERLAP');
+  assert.match(second.text, /TERMINAL_LEASE_OVERLAP/);
+  assert.equal(second.ink_loaded, false);
+  assert.equal(
+    second.guard.mutations.some((item) => item.kind === 'lease_rejected' && item.value === 'TERMINAL_LEASE_OVERLAP'),
+    true,
+  );
+  assert.equal(second.guard.restored, false);
+
+  releaseOwner();
+  const owner = await ownerRun;
+  assert.equal(owner.ok, true);
+  assert.equal(owner.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.equal(owner.guard.restoration.outcome, 'completed');
+  assert.equal(stdin.isRaw, false);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('no-callback write that fails on a later turn is a failed attempt, not a paint', async () => {
+  const metrics = createTuiMetrics();
+  metrics.openPaintWindow({ surface: 'home', request_id: 'paint-async' });
+  metrics.armRenderFrame({ surface: 'home', request_id: 'paint-async' });
+  const stdout = new Writable({
+    write(_chunk, _encoding, callback) {
+      setImmediate(() => {
+        const err = new Error('broken pipe');
+        err.code = 'EPIPE';
+        callback(err);
+      });
+    },
+  });
+  const streamErrors = [];
+  stdout.on('error', (err) => streamErrors.push(err.code));
+  observeTerminalWrites(stdout, metrics);
+
+  const returned = stdout.write('frame');
+  assert.equal(typeof returned, 'boolean');
+  const pending = metrics.snapshot();
+  assert.equal(pending.intervals.first_paint_ms.measured, false, 'write return is not acceptance');
+  assert.equal(pending.terminal_writes.accepted, 0);
+
+  await nextTurn();
+  await nextTurn();
+  const snap = metrics.snapshot();
+  assert.deepEqual(streamErrors, ['EPIPE']);
+  assert.equal(snap.intervals.first_paint_ms.measured, false);
+  assert.equal(snap.intervals.first_paint_ms.ms, null);
+  assert.equal(snap.intervals.first_paint_ms.failure_reason, 'EPIPE');
+  assert.equal(snap.intervals.render_frame_ms.measured, false);
+  assert.equal(snap.intervals.render_frame_ms.failure_reason, 'EPIPE');
+  assert.equal(snap.terminal_writes.attempts, 1);
+  assert.equal(snap.terminal_writes.accepted, 0);
+  assert.equal(snap.terminal_writes.failed, 1);
+  assert.equal(snap.terminal_writes.last_failure_reason, 'EPIPE');
+});
+
+test('async write observation keeps both writer forms and closes paint only on completion', async () => {
+  const metrics = createTuiMetrics();
+  metrics.openPaintWindow({ surface: 'home', request_id: 'paint-ok' });
+  const stdout = new Writable({
+    write(_chunk, _encoding, callback) {
+      setImmediate(() => callback());
+    },
+  });
+  observeTerminalWrites(stdout, metrics);
+
+  assert.equal(stdout.write('no-callback'), true);
+  assert.equal(metrics.snapshot().intervals.first_paint_ms.measured, false);
+  await nextTurn();
+  await nextTurn();
+  assert.equal(metrics.snapshot().intervals.first_paint_ms.measured, true);
+
+  const calls = [];
+  stdout.write('with-callback', (err) => calls.push(err ?? null));
+  stdout.write('with-encoding', 'utf8', (err) => calls.push(err ?? null));
+  await nextTurn();
+  await nextTurn();
+  assert.deepEqual(calls, [null, null]);
+  const writes = metrics.snapshot().terminal_writes;
+  assert.equal(writes.attempts, 3);
+  assert.equal(writes.accepted, 3);
+  assert.equal(writes.failed, 0);
+
+  const failing = new Writable({
+    write(_chunk, _encoding, callback) {
+      setImmediate(() => {
+        const err = new Error('input/output error');
+        err.code = 'EIO';
+        callback(err);
+      });
+    },
+  });
+  failing.on('error', () => {});
+  const failMetrics = createTuiMetrics();
+  observeTerminalWrites(failing, failMetrics);
+  const failCalls = [];
+  failing.write('frame', (err) => failCalls.push(err && err.code));
+  await nextTurn();
+  await nextTurn();
+  assert.deepEqual(failCalls, ['EIO'], 'caller callback still receives the error once');
+  assert.equal(failMetrics.snapshot().terminal_writes.failed, 1);
+  assert.equal(failMetrics.snapshot().terminal_writes.accepted, 0);
+});
+
+test('ink-local status refresh keeps its request id on runtime_action_ms and render_frame_ms', async () => {
+  const { stdin, stdout } = sharedTtyStreams();
+  let appliedMeta = null;
+  const result = await runOperatorTuiShell(shellFixtures({
+    stdin,
+    stdout,
+    selectedRunId: 'run-a',
+    runStatus: async ({ runId }) => {
+      await nextTurn();
+      return {
+        ok: true,
+        exitCode: 0,
+        json: {
+          run_id: runId,
+          status: 'running',
+          operator_trace_summary: { outcome: 'running', next_safe_action: 'none' },
+          run_state_visibility: { blocking_reason_code: null },
+        },
+      };
+    },
+    importRenderer: async () => ({
+      // Same result path as the Ink renderer: await the read, rebuild the
+      // model from the result, commit it with the result as source, then paint.
+      renderOperatorTuiShell: async ({ onInkLocalAsyncRead, onModelChange, stdout: out }) => {
+        const readResult = await onInkLocalAsyncRead({ actionId: 'status', runId: 'run-a', surface: 'status' });
+        assert.ok(readResult, 'status refresh returned no result model');
+        appliedMeta = { source: readResult };
+        onModelChange(buildShellModel({
+          ...shellModelToOptions(readResult),
+          pendingOperatorAction: null,
+        }), appliedMeta);
+        await new Promise((resolve) => { out.write('status-frame', () => resolve()); });
+        return { aborted: false, requestedAction: 'quit' };
+      },
+    }),
+  }));
+  assert.equal(result.reason_code, TUI_SHELL_REASON.QUIT);
+  assert.ok(appliedMeta);
+  const intervals = result.guard.metrics.snapshot().intervals;
+  const runtimeId = intervals.runtime_action_ms.request_id;
+  assert.match(String(runtimeId), /^tui-req-/);
+  assert.equal(intervals.render_frame_ms.measured, true);
+  assert.equal(intervals.render_frame_ms.request_id, runtimeId);
+  assert.notEqual(intervals.render_frame_ms.request_id, IDLE_FRAME_REQUEST_ID);
+  assert.equal(intervals.surface_transition_ms.request_id, runtimeId);
+  stdin.destroy();
+  stdout.destroy();
+});
+
+test('Ink renderer commits an async read result with that result as its source', async () => {
+  const { renderOperatorTuiShell } = await import(
+    pathToFileURL(path.join(__dirname, '..', '..', 'modules', 'operator', 'operator-tui-shell-render.mjs')).href
+  );
+  const { stdin, stdout } = sharedTtyStreams();
+  const base = {
+    aboutInfo: { version: '0.0.0-test', model_policy: 'local_only', git_commit: 'test' },
+    credentials: { credential_sufficiency: 'not_required', providers: [] },
+    pathActivation: { status: 'ready', on_path: true },
+    runsPayload: {
+      result_code: 'RUNS_FOUND',
+      next_safe_action: 'none',
+      runs: [{ run_id: 'run-a', status: 'running', result_code: 'RUN_FOUND' }],
+    },
+    selectedRunId: 'run-a',
+    columns: 100,
+    rows: 30,
+    colorEnabled: false,
+  };
+  const model = buildShellModel({ ...base, contentSurface: 'status', selectedNavId: 'status', focus: 'content' });
+  const readResult = buildShellModel({ ...base, contentSurface: 'status', selectedNavId: 'status', focus: 'content' });
+  const commits = [];
+  let reads = 0;
+  const rendered = renderOperatorTuiShell({
+    model,
+    stdin,
+    stdout,
+    stderr: new PassThrough(),
+    showSplash: false,
+    onModelChange: (next, meta) => commits.push({ surface: next.contentSurface, source: meta ? meta.source : undefined }),
+    onInkLocalAsyncRead: async () => {
+      reads += 1;
+      return readResult;
+    },
+    onRequestAction: () => {},
+  });
+  await new Promise((resolve) => { setTimeout(resolve, 150); });
+  stdin.write('\r');
+  for (let i = 0; i < 40 && !commits.some((c) => c.source === readResult); i += 1) {
+    await new Promise((resolve) => { setTimeout(resolve, 25); });
+  }
+  stdin.write('q');
+  await rendered;
+  assert.equal(reads, 1, 'Enter on the status surface did not trigger the async read');
+  const applied = commits.filter((c) => c.source === readResult);
+  assert.equal(applied.length, 1, 'result commit did not carry the read result as its source');
+  stdin.destroy();
+  stdout.destroy();
 });

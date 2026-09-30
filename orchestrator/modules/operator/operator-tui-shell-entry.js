@@ -73,6 +73,7 @@ const TUI_SHELL_REASON = Object.freeze({
   LEGACY: 'TUI_SHELL_LEGACY',
   MAX_LOOPS: 'TUI_SHELL_MAX_LOOPS',
   COLD_START_DRAIN_TRUNCATED: 'TUI_SHELL_COLD_START_DRAIN_TRUNCATED',
+  TERMINAL_LEASE_REJECTED: 'TUI_SHELL_TERMINAL_LEASE_REJECTED',
 });
 
 /**
@@ -323,6 +324,13 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
    * accepted write still correlates to the transition.
    */
   let activeShellRequestId = null;
+  /**
+   * Async read results keep their request id after the read settles. The
+   * renderer applies the result later, when activeShellRequestId is already
+   * cleared, so the frame that shows it must take the id from here.
+   * @type {WeakMap<object, string>}
+   */
+  const resultRequestIds = new WeakMap();
   const correlationRequestId = () => (
     activeShellRequestId == null || activeShellRequestId === ''
       ? IDLE_FRAME_REQUEST_ID
@@ -381,6 +389,21 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
   }
 
   let guard = createTerminalGuard({ stdin, stdout, metrics });
+  // Another session owns this terminal: stop before signal listeners, cleanup
+  // hooks, the stdin drain, or any mount can write or toggle raw mode.
+  if (guard.rejected === true) {
+    return {
+      ok: false,
+      exitCode: 1,
+      reason_code: TUI_SHELL_REASON.TERMINAL_LEASE_REJECTED,
+      lease_reason_code: guard.reason_code,
+      ink_loaded: false,
+      react_loaded: false,
+      text: `Terminal is owned by another ai-minions session (${guard.reason_code}).`,
+      model,
+      guard,
+    };
+  }
   const ownership = createOwnedProcessSet();
   const signalTarget = options.signalTarget
     ?? ((options.stdin == null && options.stdout == null) ? process : null);
@@ -902,6 +925,10 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
       const timeoutHandle = Number.isFinite(timeoutMs) && timeoutMs > 0
         ? actionExecutor.scheduleTimeout(requestId, timeoutMs)
         : { cancel() {} };
+      const carry = (built) => {
+        if (built && typeof built === 'object') resultRequestIds.set(built, requestId);
+        return built;
+      };
 
       try {
         const runtimeInterval = metrics.beginInterval('runtime_action_ms', {
@@ -925,18 +952,18 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
 
         const activeReq = actionExecutor.getRequest(requestId);
         if (activeReq?.status === TUI_ACTION_STATUS.TIMED_OUT) {
-          return buildTerminalShellModel(
+          return carry(buildTerminalShellModel(
             normalized,
             TUI_ACTION_REASON.TIMED_OUT,
             'Refresh timed out.',
-          );
+          ));
         }
         if (activeReq?.status === TUI_ACTION_STATUS.SUPERSEDED) {
-          return buildTerminalShellModel(
+          return carry(buildTerminalShellModel(
             normalized,
             activeReq.reason_code ?? TUI_ACTION_REASON.SUPERSEDED,
             'Refresh superseded.',
-          );
+          ));
         }
 
         const gate = actionExecutor.shouldApplyResult(requestId, {
@@ -950,11 +977,11 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
               reason_code: gate.reason_code ?? TUI_ACTION_REASON.STALE_CONTEXT,
             });
           }
-          return buildTerminalShellModel(
+          return carry(buildTerminalShellModel(
             normalized,
             gate.reason_code ?? TUI_ACTION_REASON.STALE_CONTEXT,
             'Refresh result no longer matches the active run or surface.',
-          );
+          ));
         }
 
         if (payload.ok === false) {
@@ -966,12 +993,12 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
             reason_code: payload.reason_code ?? 'TUI_SHELL_ACTION_FAILURE',
             text: payload.text ?? 'read failed',
           });
-          return buildEntryShellModel(entrySnapshot(), {
+          return carry(buildEntryShellModel(entrySnapshot(), {
             actionResult,
             contentSurface: context.surface ?? contentSurface,
             selectedNavId: model.selectedNavId,
             focus: model.focus,
-          });
+          }));
         }
 
         if (normalized === 'explain') {
@@ -989,12 +1016,12 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
             status: TUI_ACTION_STATUS.SUCCESS,
             context: { runId: selectedRunId, surface: contentSurface },
           });
-          return buildEntryShellModel(entrySnapshot(), {
+          return carry(buildEntryShellModel(entrySnapshot(), {
             actionResult,
             contentSurface: 'status',
             selectedNavId: 'status',
             focus: model.focus,
-          });
+          }));
         }
 
         statusResult = payload;
@@ -1006,11 +1033,11 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
           status: TUI_ACTION_STATUS.SUCCESS,
           context: { runId: selectedRunId, surface: contentSurface },
         });
-        return buildEntryShellModel(entrySnapshot(), {
+        return carry(buildEntryShellModel(entrySnapshot(), {
           contentSurface: normalized === 'monitor' ? 'monitor' : 'status',
           selectedNavId: normalized === 'monitor' ? 'monitor' : 'status',
           focus: model.focus,
-        });
+        }));
       } catch (err) {
         if (err?.name === 'AbortError' || begun.request.abortController?.signal?.aborted) {
           const activeReq = actionExecutor.getRequest(requestId);
@@ -1021,21 +1048,21 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
               reason_code: terminal.reason_code,
             });
           }
-          return buildTerminalShellModel(
+          return carry(buildTerminalShellModel(
             normalized,
             terminal.reason_code,
             terminal.text,
-          );
+          ));
         }
         actionExecutor.completeRequest(requestId, {
           status: TUI_ACTION_STATUS.FAILED,
           reason_code: 'TUI_SHELL_ACTION_FAILURE',
         });
-        return buildTerminalShellModel(
+        return carry(buildTerminalShellModel(
           normalized,
           'TUI_SHELL_ACTION_FAILURE',
           err instanceof Error ? err.message : String(err),
-        );
+        ));
       } finally {
         if (activeShellRequestId === requestId) activeShellRequestId = null;
         timeoutHandle.cancel();
@@ -1060,10 +1087,11 @@ async function runOperatorTuiShellBody(options = {}, registerCleanup) {
       stderr: options.stderr ?? process.stderr,
       autoQuitMs: options.autoQuitMs,
       showSplash: false,
-      onModelChange: (next) => {
+      onModelChange: (next, meta) => {
         const prevRunId = model.selectedRunId;
         const prevSurface = model.contentSurface;
-        const frameRequestId = correlationRequestId();
+        const carriedRequestId = meta && meta.source ? resultRequestIds.get(meta.source) : undefined;
+        const frameRequestId = carriedRequestId ?? correlationRequestId();
         model = next;
         metrics.noteRender();
         if (prevSurface !== next.contentSurface) {

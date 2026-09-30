@@ -2,21 +2,43 @@
 
 /**
  * Child process for real-PTY evidence. Stdio is the slave side of a PTY.
- * quit / SIGTERM / SIGHUP / fatal go through runOperatorTuiShell (real Ink).
+ * quit / ctrl-c / SIGINT / SIGTERM / SIGHUP / fatal / master-close go through
+ * runOperatorTuiShell (real Ink).
  * handoff-close / handoff-failure reproduce soften → resumeInkSession → restore
  * on that same PTY. The shell's nested path resumes before soften, so this
  * sequence is the one that leaves raw mode on if restore trusts the wrapper.
  */
 
 const fs = require('node:fs');
-const { runOperatorTuiShell } = require('../../../modules/operator/operator-tui-shell-entry');
-const {
-  createTerminalGuard,
-  resumeInkSession,
-} = require('../../../modules/operator/operator-tui-terminal-guard');
+const guardModule = require('../../../modules/operator/operator-tui-terminal-guard');
 
 const mode = process.argv[2];
 const resultPath = process.argv[3];
+
+// A signal handler re-raises after restore, so the process dies before main()
+// can report. Persist every restore outcome synchronously as it happens.
+// Patched before the shell entry is required so the entry binds this wrapper.
+const restorations = [];
+const baseCreateTerminalGuard = guardModule.createTerminalGuard;
+guardModule.createTerminalGuard = (options) => {
+  const guard = baseCreateTerminalGuard(options);
+  const baseRestore = guard.restore.bind(guard);
+  guard.restore = (reason) => {
+    const outcome = baseRestore(reason);
+    restorations.push({
+      reason: outcome && outcome.reason,
+      ok: outcome ? outcome.ok : null,
+      outcome: outcome ? outcome.outcome : null,
+      restoration_reason: outcome ? outcome.restoration_reason : null,
+    });
+    fs.writeFileSync(`${resultPath}.restore.json`, JSON.stringify(restorations));
+    return outcome;
+  };
+  return guard;
+};
+
+const { runOperatorTuiShell } = require('../../../modules/operator/operator-tui-shell-entry');
+const { createTerminalGuard, resumeInkSession } = guardModule;
 
 function report(payload) {
   fs.writeFileSync(resultPath, JSON.stringify({

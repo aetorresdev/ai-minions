@@ -23,6 +23,7 @@
  */
 
 const fs = require('node:fs');
+const { Writable } = require('node:stream');
 
 const RESTORATION_OUTCOME = Object.freeze({
   COMPLETED: 'completed',
@@ -896,9 +897,22 @@ function createResizeCoalescer(options = {}) {
 }
 
 /**
+ * @param {unknown} stream
+ * @returns {boolean}
+ */
+function isNodeWritable(stream) {
+  if (!stream || typeof stream !== 'object') return false;
+  if (stream instanceof Writable) return true;
+  return typeof stream._writableState === 'object' && stream._writableState !== null;
+}
+
+/**
  * Observe stdout writes without retaining payload bytes.
  * Paint and frame intervals close only after the original writer accepts
- * the write. A throw or synchronous stream error is a failed attempt.
+ * the write. On a Node Writable that means the write callback reported
+ * success, with or without a caller callback. A throw, a stream error, or a
+ * callback error — including one delivered on a later turn — is a failed
+ * attempt.
  * @param {{ write?: Function, on?: Function, off?: Function, removeListener?: Function }} stdout
  * @param {{
  *   noteTerminalWrite: (chunk: unknown) => void,
@@ -938,6 +952,11 @@ function observeTerminalWrites(stdout, metrics) {
     }
   };
 
+  // A Node Writable reports the real outcome through the write callback, which
+  // can arrive on a later turn (EPIPE/EIO after return). A plain writer object
+  // has no such contract: only a throw or a synchronous 'error' is observable.
+  const reportsCompletion = isNodeWritable(stdout);
+
   function wrapped(chunk, encoding, cb) {
     let enc = encoding;
     let callback = cb;
@@ -946,35 +965,37 @@ function observeTerminalWrites(stdout, metrics) {
       enc = undefined;
     }
     safeAttempt();
+    let settled = false;
+    const settle = (err) => {
+      if (settled) return;
+      settled = true;
+      if (err) safeFailed(err);
+      else safeAccepted(chunk);
+    };
     let syncError = null;
     const onError = (err) => {
       syncError = err;
     };
     if (typeof stdout.on === 'function') stdout.on('error', onError);
     try {
-      if (typeof callback === 'function') {
+      if (reportsCompletion || typeof callback === 'function') {
+        const done = (err) => {
+          settle(err || null);
+          if (typeof callback === 'function') callback(err);
+        };
         const returned = enc === undefined
-          ? original.call(stdout, chunk, (err) => {
-            if (err) safeFailed(err);
-            else safeAccepted(chunk);
-            callback(err);
-          })
-          : original.call(stdout, chunk, enc, (err) => {
-            if (err) safeFailed(err);
-            else safeAccepted(chunk);
-            callback(err);
-          });
-        if (syncError) safeFailed(syncError);
+          ? original.call(stdout, chunk, done)
+          : original.call(stdout, chunk, enc, done);
+        if (syncError) settle(syncError);
         return returned;
       }
       const returned = enc === undefined
         ? original.call(stdout, chunk)
         : original.call(stdout, chunk, enc);
-      if (syncError) safeFailed(syncError);
-      else safeAccepted(chunk);
+      settle(syncError);
       return returned;
     } catch (err) {
-      safeFailed(err);
+      settle(err);
       throw err;
     } finally {
       if (typeof stdout.off === 'function') stdout.off('error', onError);

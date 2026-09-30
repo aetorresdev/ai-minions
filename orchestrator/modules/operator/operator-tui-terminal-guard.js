@@ -64,6 +64,8 @@ function createRejectedTerminalGuard(input) {
     mutations,
     metrics,
     lease,
+    rejected: true,
+    reason_code: reasonCode,
     get leaseGeneration() {
       return null;
     },
@@ -501,6 +503,8 @@ function createTerminalGuard(options = {}) {
     mutations,
     metrics,
     lease,
+    rejected: false,
+    reason_code: null,
     get leaseGeneration() {
       return leaseGeneration;
     },
