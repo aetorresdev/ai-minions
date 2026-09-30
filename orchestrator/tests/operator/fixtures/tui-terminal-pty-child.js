@@ -29,6 +29,16 @@ function holdForParentProbe() {
   } catch {
     // slave already hung up
   }
+  // Ink leaves the TTY non-blocking. readSync then returns EAGAIN and the
+  // process exits before the parent can echo a byte. macOS revokes the PTY
+  // on that exit, so the probe has to be a real blocking read.
+  try {
+    if (process.stdin._handle && typeof process.stdin._handle.setBlocking === 'function') {
+      process.stdin._handle.setBlocking(true);
+    }
+  } catch {
+    // ignore
+  }
   try {
     if (typeof process.stdin.pause === 'function') process.stdin.pause();
   } catch {
@@ -37,7 +47,7 @@ function holdForParentProbe() {
   try {
     fs.readSync(0, Buffer.alloc(8), 0, 1);
   } catch {
-    // EIO: master closed. Do not block the hangup or fatal path.
+    // EAGAIN/EIO: master closed or still non-blocking. Do not block hangup.
   }
 }
 
