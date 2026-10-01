@@ -56,7 +56,11 @@ jobs:
       matrix:
         node-version: ["22", "24", "26"]
     steps:
+      # Full history: the integrated revalidation asserts HEAD descends from the
+      # corrective merge. Default fetch-depth 1 does not contain that commit.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Verify harness env name scope
         run: bash orchestrator/scripts/ci-check-harness-scope.sh
