@@ -123,12 +123,7 @@ function createRunBrowserWorkflow(opts = {}) {
  *   loadPane?: typeof loadRunStatusPane,
  * }} [opts]
  */
-function openRunOverview(workflow, entry, opts = {}) {
-  const loadPane = opts.loadPane ?? loadRunStatusPane;
-  const loaded = loadPane(entry, {
-    tracesDir: opts.tracesDir,
-    loadContext: opts.loadContext,
-  });
+function overviewFromLoaded(workflow, entry, loaded) {
   const pane = loaded.pane ?? buildRunStatusPaneModel(entry, loaded.ctx);
   const overviewLines = formatRunStatusPaneText(pane, { useColor: false })
     .split('\n');
@@ -142,6 +137,19 @@ function openRunOverview(workflow, entry, opts = {}) {
       : null,
     select: workflow.select,
   };
+}
+
+function openRunOverview(workflow, entry, opts = {}) {
+  const loadPane = opts.loadPane ?? loadRunStatusPane;
+  const loaded = loadPane(entry, {
+    tracesDir: opts.tracesDir,
+    loadContext: opts.loadContext,
+  });
+  // A test double may return a promise (injected delay). Sync callers stay sync.
+  if (loaded && typeof loaded.then === 'function') {
+    return loaded.then((resolved) => overviewFromLoaded(workflow, entry, resolved));
+  }
+  return overviewFromLoaded(workflow, entry, loaded);
 }
 
 /**
@@ -267,16 +275,18 @@ function applyRunBrowserWorkflowKeypress(workflow, input, key = {}, ctx = {}) {
         workflow: { ...workflow, inlineError: 'Unknown run selection' },
       };
     }
-    const next = openRunOverview(
+    const opened = openRunOverview(
       { ...workflow, select: resolved.state ?? workflow.select },
       entry,
       ctx,
     );
-    return {
+    const pack = (next) => ({
       action: 'selected',
       workflow: next,
       selectedRunId: String(entry.run_id),
-    };
+    });
+    if (opened && typeof opened.then === 'function') return opened.then(pack);
+    return pack(opened);
   }
   return { action: 'ignore' };
 }
