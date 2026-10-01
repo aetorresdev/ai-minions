@@ -104,6 +104,7 @@ const ENTRIES = {
   'tests/operator/operatorEvidenceAttachPaneTui.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiQualityGate.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiIntegratedQualityGate.test.js': { owner: 'operator', kind: 'unit' },
+  'tests/operator/operatorTuiIntegratedRevalidation.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiUxAcceptanceGate.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/slashProductDocsHonesty.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorCostTokenSummary.test.js': { owner: 'operator', kind: 'unit' },
