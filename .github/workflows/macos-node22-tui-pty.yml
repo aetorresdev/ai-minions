@@ -1,0 +1,128 @@
+# macOS Node 22 real-PTY acceptance for the fullscreen TUI.
+#
+# Runs on the self-hosted macOS ARM64 runner. The gate is deterministic:
+# python3 pty.fork drives the production Ink shell. No Ollama or other model
+# runtime is installed or called.
+#
+# Untrusted-code boundary: workflow_dispatch, or pull_request only when the
+# head repository is this repository. Fork PRs are skipped. pull_request_target
+# is not used. The checkout token is not persisted on the runner.
+#
+# Evidence is the checked-out HEAD, which for pull_request is the PR head SHA
+# (github.sha on that event is the merge commit and is recorded separately).
+
+name: macOS Node 22 TUI PTY
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: macos-node22-tui-pty-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - ".github/workflows/macos-node22-tui-pty.yml"
+      - "orchestrator/scripts/assert-macos-node22-pty-evidence.js"
+      - "orchestrator/tests/operator/operatorTuiTerminalPtyEvidence.test.js"
+      - "orchestrator/tests/operator/fixtures/tui-terminal-pty-child.js"
+      - "orchestrator/tests/operator/macosNode22PtyEvidence.test.js"
+      - "orchestrator/modules/operator/operator-tui-terminal-guard.js"
+      - "orchestrator/modules/operator/operator-tui-shell-entry.js"
+      - "orchestrator/modules/operator/operator-tui-shell-render.mjs"
+
+jobs:
+  macos-node22-real-pty:
+    name: macOS Node 22 real PTY
+    runs-on: [self-hosted, macOS, ARM64]
+    if: >-
+      github.repository == 'aetorresdev/ai-minions' &&
+      (github.event_name == 'workflow_dispatch' ||
+        github.event.pull_request.head.repo.full_name == github.repository)
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      ARTIFACT_DIR: ${{ github.workspace }}/artifacts/macos-node22-pty
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+
+      - name: Require the exact commit
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          echo "head_sha=${head}"
+          echo "expected_sha=${EXPECTED_SHA}"
+          test "${#EXPECTED_SHA}" -eq 40
+          test "$head" = "$EXPECTED_SHA"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Require macOS arm64 Node 22 and python3 pty
+        run: |
+          set -euo pipefail
+          node -e '
+            const os = require("node:os");
+            const parts = process.versions.node.split(".").map(Number);
+            if (os.platform() !== "darwin" || os.arch() !== "arm64" || os.type() !== "Darwin") {
+              console.error("host", os.platform(), os.arch(), os.type());
+              process.exit(1);
+            }
+            if (parts[0] !== 22 || parts[1] < 13) {
+              console.error("node", process.version);
+              process.exit(1);
+            }
+            console.log(process.version, os.platform(), os.arch(), os.release());
+          '
+          python3 -c 'import pty, termios, select; print("python3 pty ok")'
+
+      - name: Install orchestrator dependencies
+        working-directory: orchestrator
+        run: npm ci
+
+      - name: Run macOS real PTY acceptance
+        id: pty
+        working-directory: orchestrator
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACT_DIR"
+          node --test \
+            --test-reporter=spec \
+            --test-reporter=tap \
+            --test-reporter-destination=stdout \
+            --test-reporter-destination="$ARTIFACT_DIR/test.tap" \
+            tests/operator/operatorTuiTerminalPtyEvidence.test.js
+
+      - name: Write exact-SHA evidence
+        if: always()
+        working-directory: orchestrator
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACT_DIR"
+          node scripts/assert-macos-node22-pty-evidence.js \
+            --tap "$ARTIFACT_DIR/test.tap" \
+            --out "$ARTIFACT_DIR/evidence.json" \
+            --test-exit ${{ steps.pty.outcome == 'success' && '0' || '1' }}
+
+      - name: Upload PTY evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-node22-pty-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          path: artifacts/macos-node22-pty/
+          if-no-files-found: warn
+          retention-days: 14

@@ -91,6 +91,7 @@ const ENTRIES = {
   'tests/operator/operatorTuiSplashTheme.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiTerminalLifecycle.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiTerminalPtyEvidence.test.js': { owner: 'operator', kind: 'unit' },
+  'tests/operator/macosNode22PtyEvidence.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiRunsOverviewPerfCapture.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiLanding.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/operatorTuiPixelArt.test.js': { owner: 'operator', kind: 'unit' },
