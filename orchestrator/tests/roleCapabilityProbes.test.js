@@ -73,6 +73,13 @@ describe('capability probe fixtures', () => {
     assert.equal(r.gate_id, 'output_budget');
   });
 
+  it('output_budget probe accepts unlimited (-1) and still rejects unset', () => {
+    const unlimited = evaluateCapabilityProbe('output_budget', '', { num_predict: -1, min_num_predict: 4096 });
+    assert.equal(unlimited.ok, true);
+    const unset = evaluateCapabilityProbe('output_budget', '', { min_num_predict: 4096 });
+    assert.equal(unset.ok, false);
+  });
+
   it('pass fixture planning_json validates', () => {
     const r = evaluateCapabilityProbe('planning_json', PROBE_FIXTURES_PASS.planning_json);
     assert.equal(r.ok, true);

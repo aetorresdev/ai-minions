@@ -64,6 +64,8 @@ function evaluateCapabilityProbe(probeId, output, meta = {}) {
   if (id === 'output_budget') {
     const min = Number(meta.min_num_predict ?? 4096);
     const got = Number(meta.num_predict);
+    // num_predict <= 0 is Ollama's unlimited budget: it satisfies any minimum.
+    if (Number.isFinite(got) && got <= 0) return { ok: true, probe_id: id };
     if (!Number.isFinite(got) || got < min) {
       return {
         ok: false,

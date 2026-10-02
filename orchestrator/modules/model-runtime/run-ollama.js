@@ -20,6 +20,23 @@ const { resolveOllamaNumPredict, resolveOllamaThink } = require('./inference-pro
 const { assessOllamaThinkingCompliance } = require('./ollama-thinking-compliance');
 
 /**
+ * Local generation with an unbounded output budget (and thinking models) can
+ * legitimately run for minutes; the per-call timeout is the bound.
+ */
+const DEFAULT_OLLAMA_TIMEOUT_MS = 600000;
+
+/**
+ * Per-call Ollama request timeout: explicit argument → CLAUDE_CLI_TIMEOUT → default.
+ * @param {number | undefined} timeoutMs
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {number}
+ */
+function resolveOllamaTimeoutMs(timeoutMs, env = process.env) {
+  if (Number.isFinite(timeoutMs) && timeoutMs > 0) return timeoutMs;
+  return parseInt(env.CLAUDE_CLI_TIMEOUT, 10) || DEFAULT_OLLAMA_TIMEOUT_MS;
+}
+
+/**
  * @param {{
  *   cwd?: string,
  *   host?: string,
@@ -144,6 +161,7 @@ function runOllama(
   const budget = Number.isFinite(numPredictOverride) && numPredictOverride > 0
     ? {
         num_predict: Math.floor(numPredictOverride),
+        num_predict_unlimited: false,
         profile_source: 'call_override',
         inference_profile_mode: 'applied',
         role: traceRole ?? null,
@@ -180,7 +198,7 @@ function runOllama(
   const body = JSON.stringify(payload);
 
   return new Promise((resolve, reject) => {
-    const ms = timeoutMs ?? (parseInt(process.env.CLAUDE_CLI_TIMEOUT, 10) || 180000);
+    const ms = resolveOllamaTimeoutMs(timeoutMs);
     const transport = ollamaHttpTransport(target.protocol);
     /** @type {import('http').RequestOptions} */
     const requestOpts = {
@@ -251,6 +269,7 @@ function runOllama(
              *   eval_count?: number,
              *   done_reason?: string | null,
              *   num_predict?: number,
+             *   num_predict_unlimited?: boolean,
              *   profile_source?: string | null,
              *   inference_profile_mode?: string,
              *   think_requested?: boolean | null,
@@ -262,6 +281,7 @@ function runOllama(
               content,
               tool_calls: toolCalls,
               num_predict: budget.num_predict,
+              num_predict_unlimited: budget.num_predict_unlimited === true,
               profile_source: budget.profile_source,
               inference_profile_mode: budget.inference_profile_mode,
               think: thinking.think ?? null,
@@ -356,4 +376,10 @@ async function runOllamaWithTools(systemPrompt, messages, options = {}) {
   return { ...out, tools_used: toolsUsed, tool_rounds: rounds };
 }
 
-module.exports = { runOllama, runOllamaWithTools, resolveRunOllamaHttpTarget };
+module.exports = {
+  runOllama,
+  runOllamaWithTools,
+  resolveRunOllamaHttpTarget,
+  resolveOllamaTimeoutMs,
+  DEFAULT_OLLAMA_TIMEOUT_MS,
+};

@@ -640,7 +640,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
     let rawOut = raw.content == null ? "" : String(raw.content);
     if (!rawOut.trim() && raw.done_reason === "length") {
       const err = new Error(
-        `[output contract] ${agentId}: output budget exhausted (done_reason=length; num_predict=${raw.num_predict ?? "?"})`,
+        `[output contract] ${agentId}: output budget exhausted (done_reason=length; num_predict=${raw.num_predict_unlimited === true ? "unlimited (context window reached)" : (raw.num_predict ?? "?")})`,
       );
       err.gate_id = "OUTPUT_BUDGET_EXHAUSTED";
       err.rawModelOutput = rawOut.slice(0, 8000);
@@ -649,7 +649,9 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       if (raw.prompt_eval_count != null) failStats.ollama_prompt_tokens = raw.prompt_eval_count;
       if (raw.eval_count != null) failStats.ollama_completion_tokens = raw.eval_count;
       if (raw.num_predict != null) failStats.num_predict = raw.num_predict;
+      if (raw.num_predict_unlimited === true) failStats.num_predict_unlimited = 1;
       if (raw.inference_profile_mode) failStats.inference_profile_mode = raw.inference_profile_mode;
+      if (raw.profile_source) failStats.profile_source = raw.profile_source;
       if (raw.think != null) failStats.ollama_think_requested = raw.think === true ? 1 : 0;
       if (raw.ollama_thinking_observed != null) failStats.ollama_thinking_observed = raw.ollama_thinking_observed;
       if (raw.ollama_think != null) failStats.ollama_think = raw.ollama_think;
@@ -706,10 +708,15 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       throw err;
     }
     const extracted = extractContextStats(agentId, rawOut).context_stats;
-    /** @type {Record<string, number>} */
+    /** @type {Record<string, number | string>} */
     const context_stats = { ...extracted, ...(check.context_stats || {}) };
     if (raw.prompt_eval_count != null) context_stats.ollama_prompt_tokens = raw.prompt_eval_count;
     if (raw.eval_count != null) context_stats.ollama_completion_tokens = raw.eval_count;
+    // Output budget in the trace: num_predict is -1 (Ollama sentinel) when unlimited.
+    if (raw.num_predict != null) context_stats.num_predict = raw.num_predict;
+    if (raw.num_predict_unlimited === true) context_stats.num_predict_unlimited = 1;
+    if (raw.inference_profile_mode) context_stats.inference_profile_mode = raw.inference_profile_mode;
+    if (raw.profile_source) context_stats.profile_source = raw.profile_source;
     if (raw.ollama_think_requested != null) context_stats.ollama_think_requested = raw.ollama_think_requested;
     if (raw.ollama_thinking_observed != null) context_stats.ollama_thinking_observed = raw.ollama_thinking_observed;
     if (raw.ollama_think != null) context_stats.ollama_think = raw.ollama_think;

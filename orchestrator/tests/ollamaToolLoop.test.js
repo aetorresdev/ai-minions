@@ -429,6 +429,61 @@ describe("askAgent local tool path", () => {
     assert.equal(context_stats.ollama_retried_after_empty, undefined);
   });
 
+  it("records the unlimited output budget in context_stats for traces", async () => {
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "files_read:\n  - a.js\nfiles_modified:\n  - a.js\nvalidation_run: none",
+      tool_calls: [],
+      tools_used: [],
+      num_predict: -1,
+      num_predict_unlimited: true,
+      profile_source: "local_unbounded_default",
+      inference_profile_mode: "unbounded_default",
+    });
+    const { context_stats } = await agents.askAgent("dev-frontend", "Create a.js", { cwd: tmpDir });
+    assert.equal(context_stats.num_predict, -1);
+    assert.equal(context_stats.num_predict_unlimited, 1);
+    assert.equal(context_stats.profile_source, "local_unbounded_default");
+    assert.equal(context_stats.inference_profile_mode, "unbounded_default");
+  });
+
+  it("capped budgets do not set num_predict_unlimited in context_stats", async () => {
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "files_read:\n  - a.js\nfiles_modified:\n  - a.js\nvalidation_run: none",
+      tool_calls: [],
+      tools_used: [],
+      num_predict: 8192,
+      num_predict_unlimited: false,
+      profile_source: "installer_default",
+      inference_profile_mode: "applied",
+    });
+    const { context_stats } = await agents.askAgent("dev-frontend", "Create a.js", { cwd: tmpDir });
+    assert.equal(context_stats.num_predict, 8192);
+    assert.equal(context_stats.num_predict_unlimited, undefined);
+  });
+
+  it("empty length-truncated reply under an unlimited budget still raises OUTPUT_BUDGET_EXHAUSTED", async () => {
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "",
+      tool_calls: [],
+      tools_used: [],
+      done_reason: "length",
+      num_predict: -1,
+      num_predict_unlimited: true,
+      profile_source: "local_unbounded_default",
+      inference_profile_mode: "unbounded_default",
+    });
+    await assert.rejects(
+      () => agents.askAgent("dev-frontend", "Create a.js", { cwd: tmpDir }),
+      (err) => {
+        assert.equal(err.gate_id, "OUTPUT_BUDGET_EXHAUSTED");
+        assert.match(err.message, /num_predict=unlimited \(context window reached\)/);
+        assert.equal(err.context_stats.num_predict, -1);
+        assert.equal(err.context_stats.num_predict_unlimited, 1);
+        return true;
+      },
+    );
+  });
+
   it("dev contract passes when files were actually written via write_file (YAML contract missing)", async () => {
     ollamaRuntime.runOllamaWithTools = async () => ({
       content: "Created the page with an inline grid and actions.",
