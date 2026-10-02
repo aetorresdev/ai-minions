@@ -202,6 +202,7 @@ function adaptSelectedRunStatus(statusResult) {
   const outcome = (summary.outcome != null ? summary.outcome : undefined) ?? statusResult.outcome;
   const resultCode = statusResult.result_code
     ?? (json && json.result_code != null ? json.result_code : undefined)
+    ?? (runState.result_code != null ? runState.result_code : undefined)
     ?? null;
   const reasonCode = statusResult.reason_code
     ?? (runState.blocking_reason_code != null ? runState.blocking_reason_code : undefined)
@@ -212,13 +213,21 @@ function adaptSelectedRunStatus(statusResult) {
   const currentPhase = statusResult.current_phase
     ?? (summary.current_phase != null ? summary.current_phase : undefined)
     ?? (runState.current_phase != null ? runState.current_phase : undefined)
+    ?? (json && json.current_phase != null ? json.current_phase : undefined)
     ?? null;
+  // `runOperatorStatus` puts title and timestamps on the JSON body, not on the
+  // wrapper and not inside operator_trace_summary.
   const goalSummary = statusResult.goal_summary
+    ?? (json && json.goal_summary != null ? json.goal_summary : undefined)
     ?? (summary.goal != null ? summary.goal : undefined)
     ?? (summary.goal_summary != null ? summary.goal_summary : undefined)
     ?? null;
-  const createdAt = statusResult.created_at == null ? null : String(statusResult.created_at);
-  const lastEventAt = statusResult.last_event_at == null ? null : String(statusResult.last_event_at);
+  const createdAt = statusResult.created_at
+    ?? (json && json.created_at != null ? json.created_at : undefined)
+    ?? null;
+  const lastEventAt = statusResult.last_event_at
+    ?? (json && json.last_event_at != null ? json.last_event_at : undefined)
+    ?? null;
   return {
     schema: ADAPTER_SCHEMA,
     kind: 'selected_run_status',
@@ -230,8 +239,8 @@ function adaptSelectedRunStatus(statusResult) {
     next_safe_action: nextSafe == null ? null : String(nextSafe),
     current_phase: currentPhase == null ? null : String(currentPhase),
     goal_summary: goalSummary == null || goalSummary === '' ? null : String(goalSummary),
-    created_at: createdAt,
-    last_event_at: lastEventAt,
+    created_at: createdAt == null || createdAt === '' ? null : String(createdAt),
+    last_event_at: lastEventAt == null || lastEventAt === '' ? null : String(lastEventAt),
     // Absent/blank → unavailable; invalid forces unavailable (even if inspect).
     // Do not invent Inspect from status/outcome when the field was missing.
     action_eligibility: normalizeActionEligibility(statusResult.action_eligibility, status),

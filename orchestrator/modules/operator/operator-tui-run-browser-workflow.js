@@ -69,12 +69,21 @@ function shortRunTitle(run) {
  * @param {object} run
  * @returns {string[]}
  */
+function clipField(value, max) {
+  const text = fieldOrUnavailable(value);
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(1, max - 3))}...`;
+}
+
 function browseNoteLines(run) {
+  // One short field per line. A single updated·phase·reason row wrapped inside
+  // the content column and overprinted title and execution time on resize.
   return [
-    `title: ${fieldOrUnavailable(run?.goal_summary ?? run?.summary)}`,
-    `updated: ${fieldOrUnavailable(run?.last_event_at ?? run?.updated_at)}`
-      + ` · phase: ${fieldOrUnavailable(run?.current_phase)}`
-      + ` · reason: ${fieldOrUnavailable(run?.reason_code)}`,
+    `title: ${clipField(run?.goal_summary ?? run?.summary, 48)}`,
+    `created: ${fieldOrUnavailable(run?.created_at)}`,
+    `updated: ${fieldOrUnavailable(run?.last_event_at ?? run?.updated_at)}`,
+    `phase: ${fieldOrUnavailable(run?.current_phase)}`,
+    `reason: ${clipField(run?.reason_code, 42)}`,
     `action: ${actionEligibilityDisplayLabel(
       run?.action_eligibility == null || run.action_eligibility === ''
         ? 'unavailable'
@@ -208,6 +217,81 @@ function formatRunBrowserWorkflowEntries(workflow) {
 }
 
 /**
+ * Fit structured list entries into `maxRows` terminal rows while keeping the
+ * selected run, the selection footer and the key hint on screen. Ink does not
+ * clip children by default, so an unwindowed list taller than the content box
+ * overprints the footer and the rows below it.
+ * @param {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>} entries
+ * @param {number} maxRows
+ * @returns {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>}
+ */
+function windowEntriesToHeight(entries, maxRows) {
+  const limit = Math.floor(Number(maxRows));
+  if (!Number.isFinite(limit) || limit <= 0 || entries.length <= limit) return entries;
+
+  const firstOption = entries.findIndex((e) => e.kind === 'option');
+  if (firstOption < 0) return entries.slice(0, limit);
+
+  let tailStart = entries.length;
+  while (
+    tailStart > firstOption
+    && ['hint', 'footer', 'spacer'].includes(entries[tailStart - 1].kind)
+  ) {
+    tailStart -= 1;
+  }
+  let head = entries.slice(0, firstOption);
+  const tail = entries.slice(tailStart);
+
+  const blocks = [];
+  for (let i = firstOption; i < tailStart; i += 1) {
+    if (entries[i].kind === 'option') blocks.push([]);
+    blocks[blocks.length - 1].push(entries[i]);
+  }
+  const minBlock = Math.min(...blocks.map((b) => b.length));
+  const reserved = 2; // "more above" / "more below" markers
+  let budget = limit - head.length - tail.length - reserved;
+  if (budget < minBlock) {
+    // Short viewport: drop breathing room and notes before dropping runs.
+    head = head.filter((e) => e.kind !== 'spacer' && e.kind !== 'note');
+    budget = limit - head.length - tail.length - reserved;
+  }
+  budget = Math.max(budget, 1);
+
+  let selected = blocks.findIndex((b) => b[0].selected === true);
+  if (selected < 0) selected = 0;
+  let start = selected;
+  let end = selected;
+  let used = blocks[selected].length;
+  for (;;) {
+    let grew = false;
+    if (end + 1 < blocks.length && used + blocks[end + 1].length <= budget) {
+      end += 1;
+      used += blocks[end].length;
+      grew = true;
+    }
+    if (start > 0 && used + blocks[start - 1].length <= budget) {
+      start -= 1;
+      used += blocks[start].length;
+      grew = true;
+    }
+    if (!grew) break;
+  }
+
+  let visible = blocks.slice(start, end + 1).flat();
+  if (visible.length > budget) visible = visible.slice(0, budget);
+  while (visible.length && visible[visible.length - 1].kind === 'spacer') visible.pop();
+
+  const out = [...head];
+  if (start > 0) out.push({ text: `  ... ${start} more above`, muted: true, kind: 'more' });
+  out.push(...visible);
+  if (end < blocks.length - 1) {
+    out.push({ text: `  ... ${blocks.length - 1 - end} more below`, muted: true, kind: 'more' });
+  }
+  out.push(...tail);
+  return out;
+}
+
+/**
  * @param {object} workflow
  * @returns {string[]}
  */
@@ -297,5 +381,6 @@ module.exports = {
   openRunOverview,
   formatRunBrowserWorkflowEntries,
   formatRunBrowserWorkflowLines,
+  windowEntriesToHeight,
   applyRunBrowserWorkflowKeypress,
 };

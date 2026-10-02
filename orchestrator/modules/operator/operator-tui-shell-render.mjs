@@ -45,6 +45,7 @@ const {
   createAsyncTransitionGate,
   NATIVE_LAUNCHER_EXECUTE_ACTION,
 } = require('./operator-tui-native-workflows.js');
+const { windowEntriesToHeight } = require('./operator-tui-run-browser-workflow.js');
 const {
   completeFixtureLoad,
 } = require('./operator-tui-launcher-workflow.js');
@@ -1243,6 +1244,7 @@ function ShellApp(props) {
         {
           flexDirection: 'column',
           flexGrow: 1,
+          overflow: 'hidden',
           borderStyle: model.focus === 'content' ? 'double' : 'single',
           borderColor: focusBorderColor(theme, model.focus === 'content'),
           paddingX: 1,
@@ -1276,8 +1278,8 @@ function ShellApp(props) {
                 color: selected
                   ? theme.selected
                   : (muted ? theme.muted : undefined),
-                // Truncate unselected noise; keep selected rows wrapping so the › marker stays visible.
-                wrap: selected ? 'wrap' : 'truncate',
+                // Wrap stacked lines on top of the next row when the window height changed.
+                wrap: 'truncate',
               },
               line,
             );
@@ -1371,12 +1373,36 @@ function OperatorTuiRoot(props) {
 }
 
 /**
+ * Rows left for content entries once the fixed shell chrome is accounted for:
+ * header box, content box border/title, command input box, wrapped footer
+ * lines, and the stacked Navigate box in the narrow layout.
+ * @param {object} model
+ * @returns {number}
+ */
+function contentViewportRows(model) {
+  const rows = Math.max(1, Math.floor(Number(model.rows)) || 24);
+  const columns = Math.max(20, Math.floor(Number(model.columns)) || 80);
+  const wrapRows = (text) => Math.max(1, Math.ceil(String(text ?? '').length / Math.max(1, columns - 2)));
+  const header = 4;
+  const input = 3;
+  const contentChrome = 5;
+  const footer = wrapRows(model.footerHints) + wrapRows(model.disclaimer);
+  const nav = model.layout === 'narrow'
+    ? (Array.isArray(model.navItems) ? model.navItems.length : 0) + 4 + (model.selectedRunId ? 1 : 0)
+    : 0;
+  return Math.max(1, rows - header - input - contentChrome - footer - nav);
+}
+
+/**
  * @param {object} model
  * @returns {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>}
  */
 function buildContentEntries(model) {
   if (model.activeWorkflow) {
-    return formatNativeWorkflowEntries(model.activeWorkflow);
+    const entries = formatNativeWorkflowEntries(model.activeWorkflow);
+    return model.activeWorkflow.kind === 'run_browser'
+      ? windowEntriesToHeight(entries, contentViewportRows(model))
+      : entries;
   }
   return buildContentLines(model).map((text) => ({
     text: String(text),
