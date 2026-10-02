@@ -132,7 +132,7 @@ async function main() {
     ...(traceScenarioFromMinions ? { traceScenarioId: traceScenarioFromMinions } : {}),
   });
 
-  // Note: each agent call uses CLAUDE_CLI_TIMEOUT (default 3 min).
+  // Note: each agent call uses CLAUDE_CLI_TIMEOUT (default 3 min for Claude CLI, 10 min for local Ollama).
   // With gates enabled, budget ~5-8 min per iteration for real tasks.
 
   console.log("\n─── Result ───────────────────────────────────────────────");

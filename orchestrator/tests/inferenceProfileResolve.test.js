@@ -6,7 +6,8 @@ const {
   resolveOllamaNumPredict,
   resolveOllamaThink,
   ollamaThinkFlagFromMode,
-  DEFAULT_NUM_PREDICT,
+  UNLIMITED_NUM_PREDICT,
+  UNBOUNDED_DEFAULT_PROFILE_SOURCE,
 } = require("../modules/model-runtime/inference-profile-resolve");
 
 describe("resolveOllamaNumPredict", () => {
@@ -69,15 +70,104 @@ describe("resolveOllamaNumPredict", () => {
     assert.equal(out.inference_profile_mode, "applied");
   });
 
-  it("defaults to 2048 when no profile", () => {
+  it("defaults to unlimited (-1) when no cap is configured", () => {
     const out = resolveOllamaNumPredict({
       env: {},
       role: "QA",
       loadPolicy: () => ({ policy: {} }),
     });
-    assert.equal(out.num_predict, DEFAULT_NUM_PREDICT);
-    assert.equal(out.inference_profile_mode, "default");
-    assert.equal(out.profile_source, null);
+    assert.equal(UNLIMITED_NUM_PREDICT, -1);
+    assert.equal(out.num_predict, UNLIMITED_NUM_PREDICT);
+    assert.equal(out.num_predict_unlimited, true);
+    assert.equal(out.inference_profile_mode, "unbounded_default");
+    assert.equal(out.profile_source, UNBOUNDED_DEFAULT_PROFILE_SOURCE);
+  });
+
+  it("defaults to unlimited when model_policy.json cannot be loaded", () => {
+    const out = resolveOllamaNumPredict({
+      env: {},
+      role: "DEV",
+      loadPolicy: () => {
+        throw new Error("no policy");
+      },
+    });
+    assert.equal(out.num_predict, UNLIMITED_NUM_PREDICT);
+    assert.equal(out.num_predict_unlimited, true);
+    assert.equal(out.inference_profile_mode, "unbounded_default");
+  });
+
+  it("defaults to unlimited when the ollama profile only carries thinking knobs", () => {
+    const out = resolveOllamaNumPredict({
+      env: {},
+      role: "DEV",
+      loadPolicy: () => ({
+        policy: {
+          provider_inference_profiles: {
+            ollama: { default: { thinking_mode: "disabled" }, by_role: { DEV: { effort: "low" } } },
+          },
+        },
+      }),
+    });
+    assert.equal(out.num_predict, UNLIMITED_NUM_PREDICT);
+    assert.equal(out.num_predict_unlimited, true);
+    assert.equal(out.thinking_mode, "disabled");
+    assert.equal(out.think, false);
+  });
+
+  it("ignores non-positive configured max_tokens and stays unlimited", () => {
+    const out = resolveOllamaNumPredict({
+      env: { OLLAMA_NUM_PREDICT: "0" },
+      role: "DEV",
+      loadPolicy: () => ({
+        policy: {
+          provider_inference_profiles: { ollama: { default: { max_tokens: -5 }, by_role: { DEV: { max_tokens: 0 } } } },
+        },
+      }),
+    });
+    assert.equal(out.num_predict, UNLIMITED_NUM_PREDICT);
+    assert.equal(out.num_predict_unlimited, true);
+  });
+
+  it("flags capped budgets as not unlimited", () => {
+    const out = resolveOllamaNumPredict({
+      env: { OLLAMA_NUM_PREDICT: "512" },
+      role: "DEV",
+      loadPolicy: () => ({ policy: {} }),
+    });
+    assert.equal(out.num_predict_unlimited, false);
+  });
+
+  it("OLLAMA_NUM_PREDICT=-1 or 'unlimited' overrides configured caps", () => {
+    const loadPolicy = () => ({
+      policy: {
+        provider_inference_profiles: {
+          ollama: {
+            default: { max_tokens: 8192, profile_source: "installer_default" },
+            by_role: { DEV: { max_tokens: 16384, profile_source: "installer_default" } },
+          },
+        },
+      },
+    });
+    for (const raw of ["-1", "unlimited", " UNLIMITED "]) {
+      const out = resolveOllamaNumPredict({ env: { OLLAMA_NUM_PREDICT: raw }, role: "DEV", loadPolicy });
+      assert.equal(out.num_predict, UNLIMITED_NUM_PREDICT, raw);
+      assert.equal(out.num_predict_unlimited, true, raw);
+      assert.equal(out.inference_profile_mode, "env", raw);
+      assert.equal(out.profile_source, "env_ollama_num_predict", raw);
+    }
+  });
+
+  it("by_role cap wins over default cap and env wins over both (precedence chain)", () => {
+    const loadPolicy = () => ({
+      policy: {
+        provider_inference_profiles: {
+          ollama: { default: { max_tokens: 8192 }, by_role: { DEV: { max_tokens: 16384 } } },
+        },
+      },
+    });
+    assert.equal(resolveOllamaNumPredict({ env: {}, role: "DEV", loadPolicy }).num_predict, 16384);
+    assert.equal(resolveOllamaNumPredict({ env: {}, role: "QA", loadPolicy }).num_predict, 8192);
+    assert.equal(resolveOllamaNumPredict({ env: { OLLAMA_NUM_PREDICT: "300" }, role: "DEV", loadPolicy }).num_predict, 300);
   });
 
   it("falls back to AI_MINIONS_HOME when goal cwd has no .ai-minions config", () => {

@@ -14,6 +14,7 @@ const {
   MODEL_CAPABILITY_INSUFFICIENT,
   normalizeRoleKey,
 } = require('./role-capability-profile');
+const { UNLIMITED_NUM_PREDICT } = require('./inference-profile-resolve');
 
 /** Deterministic pass fixtures (canonical contract shapes). */
 const PROBE_FIXTURES_PASS = Object.freeze({
@@ -63,13 +64,21 @@ function evaluateCapabilityProbe(probeId, output, meta = {}) {
   const id = String(probeId || '').trim();
   if (id === 'output_budget') {
     const min = Number(meta.min_num_predict ?? 4096);
-    const got = Number(meta.num_predict);
+    const raw = meta.num_predict;
+    // Validate the raw value before any coercion: Number(null), Number('') and
+    // Number(false) are all 0 and must not read as an unlimited budget. The
+    // resolver only ever reports the numeric sentinel -1 for "unlimited".
+    if (raw === UNLIMITED_NUM_PREDICT) return { ok: true, probe_id: id };
+    const got = typeof raw === 'number'
+      ? raw
+      : (typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN);
     if (!Number.isFinite(got) || got < min) {
+      const shown = raw == null ? 'unset' : (Number.isFinite(got) ? String(got) : 'invalid');
       return {
         ok: false,
         probe_id: id,
         gate_id: 'output_budget',
-        reason: `num_predict ${Number.isFinite(got) ? got : 'unset'} < required ${min}`,
+        reason: `num_predict ${shown} < required ${min}`,
       };
     }
     return { ok: true, probe_id: id };

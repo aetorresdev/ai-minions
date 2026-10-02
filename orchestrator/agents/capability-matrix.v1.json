@@ -21,8 +21,8 @@
       "notes": "Scope and acceptance; Claude session read/query."
     },
     "architect": {
-      "domains": ["filesystem", "remote_model", "mcp"],
-      "notes": "Design and diagrams; no implementation apply."
+      "domains": ["filesystem", "remote_model", "mcp", "network"],
+      "notes": "Design and diagrams; no implementation apply. network only for the Ollama HTTP call under local-only routing (egress still limited by the permission profile allow_hosts)."
     },
     "dev-backend": {
       "domains": ["filesystem", "shell", "remote_model", "local_model", "network", "mcp", "git"],

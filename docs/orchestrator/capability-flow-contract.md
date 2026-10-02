@@ -57,7 +57,7 @@ Logical shape — concrete YAML may live in `docs/` or repo config:
 | Role id | Domains allowed (subset) | MCP | Notes |
 |---------|----------------------------|-----|-------|
 | `orchestrator` | plan metadata only; no shell | optional read-only discover | Plan/decide only in strict split |
-| `architect` | filesystem read, `remote_model` read path | optional | No apply |
+| `architect` | filesystem read, `remote_model` read path, `network` (Ollama HTTP under local-only) | optional | No apply |
 | `dev-backend` | filesystem rw within workspace; `local_model`; `shell` if policy allows | tool allow-list | |
 | `qa` | read artifacts; `remote_model` | optional | |
 | `cerberus` | read outputs; no elevation | deny write | Hard ceiling per permissions.js |

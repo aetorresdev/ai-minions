@@ -283,9 +283,12 @@ function validateInferenceProfileEntry(profile, label) {
       `provider_inference_profiles: ${label}.thinking_display must be omit|summary|full`,
     );
   }
-  const maxTokens = Number(entry.max_tokens);
-  if (!Number.isFinite(maxTokens) || maxTokens <= 0) {
-    throw new Error(`provider_inference_profiles: ${label}.max_tokens must be a positive number`);
+  // max_tokens is optional: an absent cap means "provider default" (unlimited for local Ollama).
+  if (entry.max_tokens != null) {
+    const maxTokens = Number(entry.max_tokens);
+    if (!Number.isFinite(maxTokens) || maxTokens <= 0) {
+      throw new Error(`provider_inference_profiles: ${label}.max_tokens must be a positive number`);
+    }
   }
   if (entry.profile_source != null && typeof entry.profile_source !== 'string') {
     throw new Error(`provider_inference_profiles: ${label}.profile_source must be a string`);

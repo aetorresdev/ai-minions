@@ -1,6 +1,10 @@
 /**
  * Resolve Ollama num_predict from env + provider_inference_profiles (ollama).
- * Precedence: OLLAMA_NUM_PREDICT → by_role max_tokens → default max_tokens → 2048.
+ * Precedence: OLLAMA_NUM_PREDICT → by_role max_tokens → default max_tokens → unlimited.
+ *
+ * Local inference costs time, not money, so with no configured cap the output
+ * budget is unlimited (Ollama `num_predict: -1`). The per-call timeout and the
+ * iteration limit bound a runaway generation; configured caps are honored as-is.
  *
  * Config lookup: run/goal cwd first, then AI_MINIONS_HOME / REPO_ROOT when that
  * points at a product install with .ai-minions config. Without this, runs
@@ -14,7 +18,9 @@ const fs = require('fs');
 const path = require('path');
 const { loadModelPolicyConfig } = require('./model-policy-config');
 
-const DEFAULT_NUM_PREDICT = 2048;
+/** Ollama sentinel for "generate until stop token / context limit". */
+const UNLIMITED_NUM_PREDICT = -1;
+const UNBOUNDED_DEFAULT_PROFILE_SOURCE = 'local_unbounded_default';
 const TRACE_ROLES = new Set([
   'ORCHESTRATOR',
   'OWNER',
@@ -44,6 +50,18 @@ function positiveInt(value) {
   const n = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
   if (!Number.isFinite(n) || n <= 0) return null;
   return Math.floor(n);
+}
+
+/**
+ * OLLAMA_NUM_PREDICT: positive int = explicit cap; `-1` / `unlimited` = explicit
+ * unlimited (lets an operator override caps written into model_policy.json).
+ * @param {unknown} raw
+ * @returns {number | null}
+ */
+function parseNumPredictEnv(raw) {
+  const text = String(raw ?? '').trim().toLowerCase();
+  if (text === 'unlimited' || text === String(UNLIMITED_NUM_PREDICT)) return UNLIMITED_NUM_PREDICT;
+  return positiveInt(text);
 }
 
 /**
@@ -82,8 +100,9 @@ function parseThinkEnv(raw) {
  * }} [options]
  * @returns {{
  *   num_predict: number,
+ *   num_predict_unlimited: boolean,
  *   profile_source: string | null,
- *   inference_profile_mode: 'applied' | 'env' | 'default',
+ *   inference_profile_mode: 'applied' | 'env' | 'unbounded_default',
  *   role: string | null,
  *   thinking_mode: string | null,
  *   think: boolean | undefined,
@@ -113,7 +132,7 @@ function resolveOllamaNumPredict(options = {}) {
   const envMap = options.env ?? process.env;
   const baseCwd = options.cwd != null ? String(options.cwd) : process.cwd();
   const role = normalizeTraceRole(options.role);
-  const envPredict = positiveInt(envMap.OLLAMA_NUM_PREDICT);
+  const envPredict = parseNumPredictEnv(envMap.OLLAMA_NUM_PREDICT);
 
   const candidates = [baseCwd];
   for (const key of ['AI_MINIONS_HOME', 'REPO_ROOT']) {
@@ -156,6 +175,7 @@ function resolveOllamaNumPredict(options = {}) {
   if (envPredict != null) {
     return {
       num_predict: envPredict,
+      num_predict_unlimited: envPredict === UNLIMITED_NUM_PREDICT,
       profile_source: 'env_ollama_num_predict',
       inference_profile_mode: 'env',
       role,
@@ -166,9 +186,10 @@ function resolveOllamaNumPredict(options = {}) {
 
   if (!policy) {
     return {
-      num_predict: DEFAULT_NUM_PREDICT,
-      profile_source: null,
-      inference_profile_mode: 'default',
+      num_predict: UNLIMITED_NUM_PREDICT,
+      num_predict_unlimited: true,
+      profile_source: UNBOUNDED_DEFAULT_PROFILE_SOURCE,
+      inference_profile_mode: 'unbounded_default',
       role,
       thinking_mode: profileThinkingMode,
       think: thinkFromProfile,
@@ -179,6 +200,7 @@ function resolveOllamaNumPredict(options = {}) {
   if (roleTokens != null) {
     return {
       num_predict: roleTokens,
+      num_predict_unlimited: false,
       profile_source: typeof roleEntry.profile_source === 'string'
         ? roleEntry.profile_source
         : 'model_policy_json',
@@ -193,6 +215,7 @@ function resolveOllamaNumPredict(options = {}) {
   if (defaultTokens != null) {
     return {
       num_predict: defaultTokens,
+      num_predict_unlimited: false,
       profile_source: typeof defaultEntry.profile_source === 'string'
         ? defaultEntry.profile_source
         : 'model_policy_json',
@@ -204,9 +227,10 @@ function resolveOllamaNumPredict(options = {}) {
   }
 
   return {
-    num_predict: DEFAULT_NUM_PREDICT,
-    profile_source: null,
-    inference_profile_mode: 'default',
+    num_predict: UNLIMITED_NUM_PREDICT,
+    num_predict_unlimited: true,
+    profile_source: UNBOUNDED_DEFAULT_PROFILE_SOURCE,
+    inference_profile_mode: 'unbounded_default',
     role,
     thinking_mode: profileThinkingMode,
     think: thinkFromProfile,
@@ -239,7 +263,8 @@ function resolveOllamaThink(options = {}) {
 }
 
 module.exports = {
-  DEFAULT_NUM_PREDICT,
+  UNLIMITED_NUM_PREDICT,
+  UNBOUNDED_DEFAULT_PROFILE_SOURCE,
   resolveOllamaNumPredict,
   resolveOllamaThink,
   ollamaThinkFlagFromMode,

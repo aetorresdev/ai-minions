@@ -20,6 +20,23 @@ const { resolveOllamaNumPredict, resolveOllamaThink } = require('./inference-pro
 const { assessOllamaThinkingCompliance } = require('./ollama-thinking-compliance');
 
 /**
+ * Local generation with an unbounded output budget (and thinking models) can
+ * legitimately run for minutes; the per-call timeout is the bound.
+ */
+const DEFAULT_OLLAMA_TIMEOUT_MS = 600000;
+
+/**
+ * Per-call Ollama request timeout: explicit argument → CLAUDE_CLI_TIMEOUT → default.
+ * @param {number | undefined} timeoutMs
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {number}
+ */
+function resolveOllamaTimeoutMs(timeoutMs, env = process.env) {
+  if (Number.isFinite(timeoutMs) && timeoutMs > 0) return timeoutMs;
+  return parseInt(env.CLAUDE_CLI_TIMEOUT, 10) || DEFAULT_OLLAMA_TIMEOUT_MS;
+}
+
+/**
  * @param {{
  *   cwd?: string,
  *   host?: string,
@@ -144,6 +161,7 @@ function runOllama(
   const budget = Number.isFinite(numPredictOverride) && numPredictOverride > 0
     ? {
         num_predict: Math.floor(numPredictOverride),
+        num_predict_unlimited: false,
         profile_source: 'call_override',
         inference_profile_mode: 'applied',
         role: traceRole ?? null,
@@ -179,8 +197,27 @@ function runOllama(
   }
   const body = JSON.stringify(payload);
 
-  return new Promise((resolve, reject) => {
-    const ms = timeoutMs ?? (parseInt(process.env.CLAUDE_CLI_TIMEOUT, 10) || 180000);
+  return new Promise((resolveCall, rejectCall) => {
+    const ms = resolveOllamaTimeoutMs(timeoutMs);
+    // Elapsed deadline for the whole call (connect + request + response). A
+    // socket inactivity timeout is not enough: a response that keeps trickling
+    // bytes would reset it forever. One timer, cleared on every exit path;
+    // `settled` guarantees a single resolve/reject.
+    /** @type {NodeJS.Timeout | null} */
+    let deadline = null;
+    let settled = false;
+    /** @type {import('http').IncomingMessage | null} */
+    let activeRes = null;
+    const finish = (fn, value) => {
+      if (settled) return false;
+      settled = true;
+      if (deadline) clearTimeout(deadline);
+      deadline = null;
+      fn(value);
+      return true;
+    };
+    const resolve = (value) => finish(resolveCall, value);
+    const reject = (err) => finish(rejectCall, err);
     const transport = ollamaHttpTransport(target.protocol);
     /** @type {import('http').RequestOptions} */
     const requestOpts = {
@@ -202,8 +239,13 @@ function runOllama(
     const req = transport.request(
       requestOpts,
       (res) => {
+        activeRes = res;
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
+        res.on('error', (err) => reject(err));
+        res.on('close', () => {
+          if (!res.complete) reject(new Error('Ollama connection closed before the response completed'));
+        });
         res.on('end', () => {
           try {
             const parsed = JSON.parse(data);
@@ -241,6 +283,10 @@ function runOllama(
                 ollama_think_requested: compliance.ollama_think_requested,
                 ollama_thinking_observed: compliance.ollama_thinking_observed,
                 ollama_think: compliance.ollama_think,
+                num_predict: budget.num_predict,
+                ...(budget.num_predict_unlimited === true ? { num_predict_unlimited: 1 } : {}),
+                ...(budget.profile_source ? { profile_source: budget.profile_source } : {}),
+                inference_profile_mode: budget.inference_profile_mode,
               };
               reject(err);
               return;
@@ -251,6 +297,7 @@ function runOllama(
              *   eval_count?: number,
              *   done_reason?: string | null,
              *   num_predict?: number,
+             *   num_predict_unlimited?: boolean,
              *   profile_source?: string | null,
              *   inference_profile_mode?: string,
              *   think_requested?: boolean | null,
@@ -262,6 +309,7 @@ function runOllama(
               content,
               tool_calls: toolCalls,
               num_predict: budget.num_predict,
+              num_predict_unlimited: budget.num_predict_unlimited === true,
               profile_source: budget.profile_source,
               inference_profile_mode: budget.inference_profile_mode,
               think: thinking.think ?? null,
@@ -290,8 +338,15 @@ function runOllama(
         });
       },
     );
-    req.setTimeout(ms, () => req.destroy(new Error(`Ollama timed out after ${ms}ms`)));
     req.on('error', reject);
+    deadline = setTimeout(() => {
+      const err = new Error(`Ollama timed out after ${ms}ms`);
+      // Reject first so the socket errors raised by the aborts below are ignored.
+      if (reject(err)) {
+        if (activeRes) activeRes.destroy();
+        req.destroy();
+      }
+    }, ms);
     req.write(body);
     req.end();
   });
@@ -356,4 +411,10 @@ async function runOllamaWithTools(systemPrompt, messages, options = {}) {
   return { ...out, tools_used: toolsUsed, tool_rounds: rounds };
 }
 
-module.exports = { runOllama, runOllamaWithTools, resolveRunOllamaHttpTarget };
+module.exports = {
+  runOllama,
+  runOllamaWithTools,
+  resolveRunOllamaHttpTarget,
+  resolveOllamaTimeoutMs,
+  DEFAULT_OLLAMA_TIMEOUT_MS,
+};

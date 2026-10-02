@@ -105,7 +105,7 @@ Use this to pick the right setup for your situation.
 | No Ollama / want pure API | Unset `OLLAMA_MODEL` | Orchestrator/summarizer fall back to `claude-haiku` automatically |
 | Ollama available | `OLLAMA_MODEL=qwen2.5-coder:7b` | Free planning + summarization, no API cost for orchestrator role |
 | Ollama not on `localhost:11434` | `OLLAMA_HOST`, `OLLAMA_PORT` | `runOllama()` (agent calls) uses these; defaults match local `ollama serve` |
-| Slow machine / CI | `CLAUDE_CLI_TIMEOUT=300000` | Default 180s may be too short for cold starts |
+| Slow machine / CI | `CLAUDE_CLI_TIMEOUT=300000` | Claude CLI default 180s may be too short for cold starts (local Ollama calls default to 600s) |
 | Sensitive goal (logs to disk) | `TRACE_REDACT_GOAL=1` | Goal text omitted from trace files; only SHA-256 hash retained |
 | Local debug: verbatim trace strings | `ORCH_TRACE_SKIP_SECRET_REDACT=1` | Disables deterministic secret-shaped redaction in `_sanitize` **and** read-time `sanitizeTraceRowsForRead` (export, dashboard, `token-trace-report`, `explain-run`) — **local only**; combined with **`CI=true`** (or `1` / `yes`) the process **exits** on load / first redaction call |
 | Single focused task | `--iterations 1`, `--flow single_agent` | Skip multi-agent overhead; one DEV + CERBERUS pass |
@@ -464,7 +464,8 @@ ORCHESTRATOR_STATE_ROOT=/my/custom/path node run-orchestrator.js "goal"
 
 | Variable | Default | Effect |
 |----------|---------|--------|
-| `CLAUDE_CLI_TIMEOUT` | `180000` | Timeout per `claude` CLI call (ms) — increase for slow machines |
+| `CLAUDE_CLI_TIMEOUT` | `180000` (`600000` for local Ollama calls) | Timeout per `claude` CLI / Ollama call (ms) — increase for slow machines or very long local generations |
+| `OLLAMA_NUM_PREDICT` | unset (unlimited) | Output token cap for Ollama calls; unset = no cap, `-1`/`unlimited` forces no cap over configured profile caps |
 | `AI_TEAM_STEP_SUMMARY` | `1` | Set to `0` to disable Ollama handoff summaries between steps |
 | `AI_TEAM_MAX_CONTEXT_CHARS` | `12000` | Max chars of prior output passed to next agent (`0` = no limit) |
 | `AI_TEAM_SUMMARY_MODEL` | `qwen2.5-coder:7b` | Ollama model for handoff summaries |

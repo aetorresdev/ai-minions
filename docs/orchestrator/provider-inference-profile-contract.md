@@ -1,7 +1,7 @@
 # Provider inference profile contract
 
 Declarative provider inference knobs recorded at install time in `.ai-minions/model_policy.json`.
-**Ollama runtime:** `max_tokens` is applied as `options.num_predict` via `resolveOllamaNumPredict` (precedence: `OLLAMA_NUM_PREDICT` → `by_role` → `default` → `2048`). Other providers remain declarative until their adapters enforce profiles.
+**Ollama runtime:** `max_tokens` is applied as `options.num_predict` via `resolveOllamaNumPredict` (precedence: `OLLAMA_NUM_PREDICT` → `by_role` → `default` → **unlimited**). With no configured cap the request sends `num_predict: -1`. Other providers remain declarative until their adapters enforce profiles.
 
 **Implementation:** `orchestrator/install-model-config.js` · `orchestrator/modules/model-runtime/model-policy-config.js` · `orchestrator/modules/model-runtime/inference-profile-resolve.js` · `orchestrator/modules/model-runtime/run-ollama.js`
 **Consumer:** `scripts/install-ai-minions.mjs` (config-write phase); Ollama chat path at runtime
@@ -64,7 +64,7 @@ Install report adds:
 | `effort` | `low` \| `medium` \| `high` |
 | `thinking_mode` | `disabled` \| `adaptive` \| `enabled` |
 | `thinking_display` | `omit` \| `summary` \| `full` |
-| `max_tokens` | positive number |
+| `max_tokens` | positive number; optional (absent = no cap: unlimited for local Ollama) |
 | `profile_source` | optional string (e.g. `installer_default`) |
 
 ## Profile application status
@@ -74,14 +74,15 @@ Install report adds:
 | `declarative` | Recorded at install; not yet enforced for that provider |
 | `applied` | Runtime used profile values (Ollama `max_tokens` → `num_predict`) |
 | `env` | Operator override via `OLLAMA_NUM_PREDICT` |
-| `default` | Built-in fallback (`2048`) when no profile/env |
+| `unbounded_default` | No cap configured (no env, no `by_role`/`default` `max_tokens`): local Ollama output is unlimited (`num_predict: -1`) |
 | `provider_default` | Provider default used; must be traced |
 | `unsupported_provider` | No profile schema entry for provider |
 
 ## Trace fields (minimum)
 
-- `num_predict`, `profile_source`, `inference_profile_mode` on Ollama responses
-- Empty content with `done_reason=length` → gate_id `OUTPUT_BUDGET_EXHAUSTED` (not generic `empty_output`)
+- `num_predict`, `num_predict_unlimited`, `profile_source`, `inference_profile_mode` on Ollama responses; the same values are copied into the agent `context_stats` row on success and into `err.context_stats` on every Ollama failure that has a response: ordinary output-contract failures, `OUTPUT_BUDGET_EXHAUSTED`, and `OLLAMA_THINKING_NOT_DISABLED`. In `context_stats`, `num_predict_unlimited` is the numeric flag `1` (absent when capped), like the other `ollama_*` flags
+- Unlimited budget is traced as `num_predict: -1`, `num_predict_unlimited: 1`, `inference_profile_mode: unbounded_default`, `profile_source: local_unbounded_default`. Consumers must treat `num_predict <= 0` as "no cap", never as a number of tokens
+- Empty content with `done_reason=length` → gate_id `OUTPUT_BUDGET_EXHAUSTED` (not generic `empty_output`). Under an unlimited budget this means the context window was reached, not a token cap
 
 ## Failure / reason codes
 
@@ -99,17 +100,39 @@ Install report adds:
 - Credential collection
 - Enforcing anthropic/openai profile knobs at runtime (still declarative)
 
+## Local Ollama: unlimited output by default
+
+Local inference costs time, not money, so the default Ollama output budget is **unlimited** (`num_predict: -1`, Ollama's "generate until stop token or context limit" sentinel). The old `2048` default truncated reasoning models (thinking tokens consume `num_predict`) and ended runs in `OUTPUT_BUDGET_EXHAUSTED` with no deliverable.
+
+| Precedence | Source | Result |
+|------------|--------|--------|
+| 1 | `OLLAMA_NUM_PREDICT=<n>` | cap of `n` tokens (`env`) |
+| 1 | `OLLAMA_NUM_PREDICT=-1` or `unlimited` | explicit unlimited, overrides configured caps (`env`) |
+| 2 | `provider_inference_profiles.ollama.by_role.<ROLE>.max_tokens` | cap (`applied`) |
+| 3 | `provider_inference_profiles.ollama.default.max_tokens` | cap (`applied`) |
+| 4 | none of the above | unlimited (`unbounded_default`) |
+
+Configured caps are honored exactly. The installer no longer writes `max_tokens` into the `ollama` profile (`default` and `by_role`), so fresh installs inherit the unlimited default. Workspaces installed earlier are **not** migrated or rewritten: their existing `max_tokens` (`installer_default`, 8192/16384) stay in effect until the entry is removed by hand or `OLLAMA_NUM_PREDICT=-1` is set. Remote provider entries (`anthropic`) still carry `max_tokens`.
+
+Bounds for a runaway generation (e.g. repetition loop) are the per-call timeout and the iteration limit, not a token cap; context pressure near the limit is handled by the compact-handoff and snapshot hooks.
+
+**Timeout:** the Ollama request timeout defaults to `600000` ms (was `180000`). Precedence: explicit `timeoutMs` argument → `CLAUDE_CLI_TIMEOUT` (ms) → `600000`. It is an **elapsed deadline** for the whole call (connect, request and response): a response that keeps trickling bytes is still aborted at the deadline, the request and response are destroyed, and the single timer is cleared on every exit path. It is not a socket inactivity timeout. Discovery (`/api/tags`) and the Python MCP helpers keep their own short timeouts. Other fixed timeouts are unchanged: handoff summarizer `AI_TEAM_SUMMARY_TIMEOUT_MS` (`240000`), MCP direct `ORCH_MCP_DIRECT_TIMEOUT_MS` (`180000`), and the Claude CLI path (`180000`).
+
+**Remote providers are unchanged:** token caps stay meaningful for external providers (cost); their `max_tokens` entries remain declarative and are not weakened by this default.
+
 ## Installer defaults (conservative)
 
 - Default `effort` is `medium` for most roles
 - `effort: high` only for `ARCHITECT` in `by_role` (documented tier mapping)
-- `ollama` profile included for local backend parity
+- `ollama` profile included for local backend parity (effort/thinking knobs only; no `max_tokens`, so the local output budget stays unlimited)
 - `anthropic` (and other remote provider) entries may be written under **`local_only`** as **declarative placeholders only** — they do **not** enable that provider, do **not** collect credentials, and do **not** override `--model-policy local_only` for runtime routing
 
 ## Tests
 
-- `orchestrator/tests/installModelConfig.test.js` — build/write + profile validation
+- `orchestrator/tests/installModelConfig.test.js` — build/write + profile validation (ollama profile has no `max_tokens`; `max_tokens` optional but validated when present)
 - `orchestrator/tests/modelPolicyConfig.test.js` — `validateProviderInferenceProfiles`
-- `orchestrator/tests/inferenceProfileResolve.test.js` — num_predict precedence
-- `orchestrator/tests/localCapGateTransportBudget.test.js` — applied budget + `done_reason`
+- `orchestrator/tests/inferenceProfileResolve.test.js` — num_predict precedence + unlimited default
+- `orchestrator/tests/localCapGateTransportBudget.test.js` — applied/unlimited budget, `done_reason`, timeout default + `CLAUDE_CLI_TIMEOUT` override, elapsed deadline (dribbling, silent and fast responses; timer and socket cleanup)
+- `orchestrator/tests/ollamaToolLoop.test.js` — budget fields in `context_stats` on success, ordinary contract failure and `OUTPUT_BUDGET_EXHAUSTED`
+- `orchestrator/tests/roleCapabilityProbes.test.js` — `output_budget` probe accepts the unlimited sentinel `-1` only; null, blank, boolean, non-finite and non-numeric evidence stay failing
 - `tests/install-ai-minions.test.mjs` — config-write phase and report fields
