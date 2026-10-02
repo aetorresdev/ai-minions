@@ -45,6 +45,7 @@ const {
   createAsyncTransitionGate,
   NATIVE_LAUNCHER_EXECUTE_ACTION,
 } = require('./operator-tui-native-workflows.js');
+const { windowEntriesToHeight, windowTargetRows } = require('./operator-tui-run-browser-workflow.js');
 const {
   completeFixtureLoad,
 } = require('./operator-tui-launcher-workflow.js');
@@ -1147,8 +1148,11 @@ function ShellApp(props) {
     }
   });
 
-  const narrow = model.layout === 'narrow';
-  const contentEntries = buildContentEntries(model);
+  const chromePlan = resolveShellChrome(model);
+  const chrome = chromePlan.chrome;
+  // Side-by-side nav only while the full Navigate box still fits; otherwise stack.
+  const narrow = model.layout === 'narrow' || chrome.nav !== 'full';
+  const contentEntries = buildContentEntries(model, chromePlan);
   const readinessColor = model.readiness === 'ready'
     ? theme.ready
     : (model.readiness === 'blocked'
@@ -1170,7 +1174,19 @@ function ShellApp(props) {
   return React.createElement(
     Box,
     { flexDirection: 'column', width: model.columns, height: Math.max(1, Number(model.rows) || 24) },
-    React.createElement(
+    chrome.header === 'off' ? null : (chrome.header === 'line'
+      ? React.createElement(
+        Box,
+        { paddingX: 1, flexShrink: 0 },
+        React.createElement(
+          Text,
+          { color: readinessColor, wrap: 'truncate' },
+          `readiness=${model.readiness}`
+            + (model.selectedRunId ? ` · run=${model.selectedRunId}` : '')
+            + ` · ${model.title} v${model.version} [${model.layout}]`,
+        ),
+      )
+      : React.createElement(
       Box,
       {
         borderStyle: 'double',
@@ -1198,15 +1214,30 @@ function ShellApp(props) {
         `readiness=${model.readiness}`
           + (model.selectedRunId ? ` · run=${model.selectedRunId}` : ''),
       ),
-    ),
+    )),
     React.createElement(
       Box,
       { flexDirection: narrow ? 'column' : 'row', flexGrow: 1 },
-      React.createElement(
+      chrome.nav === 'off' ? null : (chrome.nav === 'line'
+        ? React.createElement(
+          Box,
+          { paddingX: 1, flexShrink: 0 },
+          React.createElement(
+            Text,
+            {
+              wrap: 'truncate',
+              bold: model.focus === 'nav',
+              color: model.focus === 'nav' ? theme.selected : theme.muted,
+            },
+            compactNavLine(model),
+          ),
+        )
+        : React.createElement(
         Box,
         {
           flexDirection: 'column',
           width: narrow ? undefined : 28,
+          flexShrink: 0,
           borderStyle: model.focus === 'nav' ? 'double' : 'single',
           borderColor: focusBorderColor(theme, model.focus === 'nav'),
           paddingX: 1,
@@ -1237,25 +1268,26 @@ function ShellApp(props) {
             `run=${model.selectedRunId}`,
           )
           : null,
-      ),
+      )),
       React.createElement(
         Box,
         {
           flexDirection: 'column',
           flexGrow: 1,
+          overflow: 'hidden',
           borderStyle: model.focus === 'content' ? 'double' : 'single',
           borderColor: focusBorderColor(theme, model.focus === 'content'),
           paddingX: 1,
         },
         React.createElement(
           Box,
-          { flexDirection: 'column', paddingTop: 1 },
-          React.createElement(
+          { flexDirection: 'column', paddingTop: chrome.contentChrome === 'full' ? 1 : 0 },
+          chrome.contentChrome === 'bare' ? null : React.createElement(
             Text,
-            { bold: theme.sectionBold, color: theme.accent },
+            { bold: theme.sectionBold, color: theme.accent, wrap: 'truncate' },
             `Content · ${model.contentSurface}`,
           ),
-          React.createElement(Text, { key: 'c-pad' }, ' '),
+          chrome.contentChrome === 'full' ? React.createElement(Text, { key: 'c-pad' }, ' ') : null,
           ...contentEntries.map((entry, idx) => {
             const line = entry.text ?? '';
             const selected = entry.selected === true;
@@ -1276,8 +1308,8 @@ function ShellApp(props) {
                 color: selected
                   ? theme.selected
                   : (muted ? theme.muted : undefined),
-                // Truncate unselected noise; keep selected rows wrapping so the › marker stays visible.
-                wrap: selected ? 'wrap' : 'truncate',
+                // Wrap stacked lines on top of the next row when the window height changed.
+                wrap: 'truncate',
               },
               line,
             );
@@ -1285,7 +1317,17 @@ function ShellApp(props) {
         ),
       ),
     ),
-    React.createElement(
+    chrome.input === 'off' ? null : (chrome.input === 'line'
+      ? React.createElement(
+        Box,
+        { paddingX: 1, flexShrink: 0 },
+        React.createElement(
+          Text,
+          { color: theme.brand, wrap: 'truncate' },
+          `> ${model.commandInput}${model.focus === 'input' ? '█' : ''}`,
+        ),
+      )
+      : React.createElement(
       Box,
       {
         borderStyle: model.focus === 'input' ? 'double' : 'single',
@@ -1298,7 +1340,7 @@ function ShellApp(props) {
         { dimColor: true, color: theme.selected },
         model.focus === 'input' ? '█' : '',
       ),
-    ),
+    )),
     React.createElement(
       Box,
       { paddingX: 1 },
@@ -1308,7 +1350,7 @@ function ShellApp(props) {
         model.footerHints,
       ),
     ),
-    React.createElement(
+    chrome.disclaimer === 'off' ? null : React.createElement(
       Box,
       { paddingX: 1 },
       React.createElement(Text, { dimColor: true, color: theme.muted }, model.disclaimer),
@@ -1370,13 +1412,106 @@ function OperatorTuiRoot(props) {
   });
 }
 
+const FULL_CHROME = Object.freeze({
+  header: 'full',
+  nav: 'full',
+  contentChrome: 'full',
+  input: 'full',
+  disclaimer: 'full',
+});
+
+/**
+ * Chrome relaxation ladder for the native run browser. Each rung trades the
+ * least useful decoration for content rows; rungs are applied in order and only
+ * until the content viewport reaches its target, so roomy terminals keep the
+ * full shell. The footer key hints and the content border always remain; the
+ * last three rungs only matter below the supported narrow minimum.
+ */
+const CHROME_LADDER = Object.freeze([
+  { disclaimer: 'off' },
+  { contentChrome: 'tight' }, // drop padding + spacer under the content title
+  { nav: 'line' }, // Navigate box -> one-line key summary (stacked layout)
+  { header: 'line' }, // header box -> one status line
+  { input: 'line' }, // command input box -> one prompt line
+  { contentChrome: 'bare' }, // drop the content title row
+  { header: 'off' },
+  { nav: 'off' },
+  { input: 'off' },
+]);
+
+function wrappedRows(text, columns) {
+  return Math.max(1, Math.ceil(String(text ?? '').length / Math.max(1, columns - 2)));
+}
+
+/**
+ * Rows available to content entries for a given chrome arrangement, or -1 when
+ * the arrangement itself cannot fit (side-by-side nav taller than the frame).
+ * Heights mirror what ShellApp renders for each level.
+ * @param {object} model
+ * @param {typeof FULL_CHROME} chrome
+ * @returns {number}
+ */
+function contentRowsForChrome(model, chrome) {
+  const rows = Math.max(1, Math.floor(Number(model.rows)) || 24);
+  const columns = Math.max(20, Math.floor(Number(model.columns)) || 80);
+  const header = { full: 4, line: 1, off: 0 }[chrome.header];
+  const input = { full: 3, line: 1, off: 0 }[chrome.input];
+  const contentChrome = { full: 5, tight: 3, bare: 2 }[chrome.contentChrome];
+  const footer = wrappedRows(model.footerHints, columns);
+  const disclaimer = chrome.disclaimer === 'off' ? 0 : wrappedRows(model.disclaimer, columns);
+  const navItems = Array.isArray(model.navItems) ? model.navItems.length : 0;
+  const navFull = navItems + 4 + (model.selectedRunId ? 1 : 0);
+  const middle = rows - header - input - footer - disclaimer;
+  if (model.layout !== 'narrow' && chrome.nav === 'full') {
+    return middle >= navFull ? middle - contentChrome : -1;
+  }
+  const nav = { full: navFull, line: 1, off: 0 }[chrome.nav];
+  return middle - nav - contentChrome;
+}
+
+/**
+ * Pick the chrome arrangement and content viewport for the current frame.
+ * Only the native run browser is planned; other surfaces keep the full chrome.
+ * @param {object} model
+ * @returns {{ chrome: typeof FULL_CHROME, contentRows: number | null }}
+ */
+function resolveShellChrome(model) {
+  if (!model.activeWorkflow || model.activeWorkflow.kind !== 'run_browser') {
+    return { chrome: FULL_CHROME, contentRows: null };
+  }
+  const target = windowTargetRows(formatNativeWorkflowEntries(model.activeWorkflow));
+  let chrome = FULL_CHROME;
+  for (let step = 0; ; step += 1) {
+    const available = contentRowsForChrome(model, chrome);
+    if (available >= target || step >= CHROME_LADDER.length) {
+      return { chrome, contentRows: Math.max(0, available) };
+    }
+    chrome = { ...chrome, ...CHROME_LADDER[step] };
+  }
+}
+
+/**
+ * One-line Navigate summary used when the Navigate box no longer fits.
+ * @param {object} model
+ * @returns {string}
+ */
+function compactNavLine(model) {
+  const items = Array.isArray(model.navItems) ? model.navItems : [];
+  const current = items.find((item) => item.id === model.selectedNavId);
+  return `Nav${current ? ` › ${current.key}. ${current.label}` : ''} · keys ${items.map((item) => item.key).join(' ')}`;
+}
+
 /**
  * @param {object} model
+ * @param {{ contentRows: number | null }} [plan]
  * @returns {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>}
  */
-function buildContentEntries(model) {
+function buildContentEntries(model, plan = resolveShellChrome(model)) {
   if (model.activeWorkflow) {
-    return formatNativeWorkflowEntries(model.activeWorkflow);
+    const entries = formatNativeWorkflowEntries(model.activeWorkflow);
+    return plan.contentRows != null
+      ? windowEntriesToHeight(entries, plan.contentRows)
+      : entries;
   }
   return buildContentLines(model).map((text) => ({
     text: String(text),

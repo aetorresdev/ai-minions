@@ -59,6 +59,7 @@ Automated tests assert model + hierarchy text at those sizes. Capture scripts un
 - Color is never the only status, focus, or selection signal (selection marker required).
 - `RUNNING`, `VERIFYING`, `READY`, `WARN`, `ACTION REQUIRED`, `BLOCKED`, and `FAILED` remain textually distinct in the status-token inventory.
 - Narrow layout must not hide the primary action or recovery path.
+- Run browser at 60×20 and 60×24: the shell relaxes chrome only as far as needed (disclaimer, content padding, Navigate box to one line, header box to one line, command input to one line) so the selected numbered run, the `selected N/M` counter, the list key hint and the footer key hints stay on screen without overlapping rows. The selected run is never clipped; below the supported minimum chrome drops further, down to a selected-run-plus-counter minimum.
 - Long run IDs must not displace the primary nav contract.
 - Splash skip remains deterministic (existing splash tests).
 

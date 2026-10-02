@@ -201,6 +201,26 @@ test('home / runs / status / evidence / config / action adapters are framework-n
     },
   });
   assert.equal(status.run_id, 'r1');
+  const fromStatusJson = adaptSelectedRunStatus({
+    ok: true,
+    json: {
+      run_id: 'task-c7fcc0d',
+      status: 'blocked',
+      goal_summary: 'Build a small self-contained Sudoku HTML app',
+      created_at: '2026-08-10T22:40:29.663Z',
+      last_event_at: '2026-08-10T22:41:27.138Z',
+      operator_trace_summary: { outcome: 'blocked', current_phase: 'review', next_safe_action: 'inspect' },
+      run_state_visibility: {
+        result_code: 'RUN_FOUND',
+        blocking_reason_code: 'MAX_ITERATIONS_CERBERUS_BLOCKERS',
+      },
+    },
+  });
+  assert.equal(fromStatusJson.goal_summary, 'Build a small self-contained Sudoku HTML app');
+  assert.equal(fromStatusJson.created_at, '2026-08-10T22:40:29.663Z');
+  assert.equal(fromStatusJson.last_event_at, '2026-08-10T22:41:27.138Z');
+  assert.equal(fromStatusJson.current_phase, 'review');
+  assert.equal(fromStatusJson.result_code, 'RUN_FOUND');
   const evidence = adaptEvidenceAttachState({
     run_id: 'r1',
     result_code: 'OK',
@@ -1927,10 +1947,17 @@ test('run browser keeps one numbered row per run when notes are long (no wrap ma
     selectedNavId: 'runs',
   });
   const out = renderOperatorTuiShellToString(browserModel, { columns: 80, rows: 40 });
-  // Tall viewport must still show the first numbered row (no scroll-off of headers).
+  // The list is windowed to the terminal height: the selected numbered row stays
+  // visible and runs scrolled out of view are announced, not drawn over the footer.
   assert.match(out, /1\. task-5d3cdbc7/);
-  assert.match(out, /2\. task-aaaa1111/);
-  assert.match(out, /3\. task-bbbb2222/);
+  assert.match(out, /\d+ more below/);
+  assert.match(out, /selected 1\/3/);
+  assert.ok(out.split('\n').length <= 40, 'frame must not exceed terminal rows');
+  // With enough rows every numbered row is on screen, in order.
+  const tall = renderOperatorTuiShellToString(browserModel, { columns: 80, rows: 70 });
+  assert.match(tall, /1\. task-5d3cdbc7/);
+  assert.match(tall, /2\. task-aaaa1111/);
+  assert.match(tall, /3\. task-bbbb2222/);
   const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
   for (const line of out.split('\n')) {
     const visible = line.replace(ansiPattern, '');
