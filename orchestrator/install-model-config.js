@@ -77,26 +77,22 @@ function buildProviderInferenceProfiles(modelPolicy) {
         effort: 'medium',
         thinking_mode: 'disabled',
         thinking_display: 'omit',
-        max_tokens: 8192,
         profile_source: 'installer_default',
       },
-      // Role knobs for local models. Kept at default budget on purpose: with
-      // thinking_mode=disabled actually wired to think:false, 8192 output
-      // tokens go to the visible answer instead of hidden reasoning. Bump a
-      // role here only after measuring with thinking disabled.
+      // No max_tokens on purpose: local inference costs time, not money, so the
+      // output budget stays unlimited (the per-call timeout bounds it). Add a
+      // max_tokens here only to cap a role deliberately.
       by_role: {
         ARCHITECT: {
           effort: 'medium',
           thinking_mode: 'disabled',
           thinking_display: 'omit',
-          max_tokens: 8192,
           profile_source: 'installer_default',
         },
         CERBERUS: {
           effort: 'medium',
           thinking_mode: 'disabled',
           thinking_display: 'omit',
-          max_tokens: 8192,
           profile_source: 'installer_default',
         },
       },

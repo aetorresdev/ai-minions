@@ -73,10 +73,15 @@ describe('install-model-config — build', () => {
     assert.ok(built.jsonPolicy.provider_inference_profiles.ollama);
     const ollamaProfiles = built.jsonPolicy.provider_inference_profiles.ollama;
     assert.ok(ollamaProfiles.by_role, 'ollama by_role profile present');
-    assert.equal(ollamaProfiles.by_role.ARCHITECT.max_tokens, 8192);
     assert.equal(ollamaProfiles.by_role.ARCHITECT.thinking_mode, 'disabled');
-    assert.equal(ollamaProfiles.by_role.CERBERUS.max_tokens, 8192);
     assert.equal(ollamaProfiles.by_role.CERBERUS.thinking_mode, 'disabled');
+    // Local Ollama inherits the unlimited output default: no installer-written cap.
+    assert.equal('max_tokens' in ollamaProfiles.default, false);
+    assert.equal('max_tokens' in ollamaProfiles.by_role.ARCHITECT, false);
+    assert.equal('max_tokens' in ollamaProfiles.by_role.CERBERUS, false);
+    // Remote provider caps stay declarative and untouched.
+    assert.equal(built.jsonPolicy.provider_inference_profiles.anthropic.default.max_tokens, 8192);
+    assert.equal(built.jsonPolicy.provider_inference_profiles.anthropic.by_role.ARCHITECT.max_tokens, 16384);
     validateRuntimeYamlPolicy(built.yamlPolicy);
     validateModelPolicy(built.jsonPolicy);
   });
@@ -249,6 +254,28 @@ describe('install-model-config — write', () => {
 });
 
 describe('install-model-config — profile validation', () => {
+  it('validateProviderInferenceProfiles accepts an entry without max_tokens', () => {
+    assert.doesNotThrow(() =>
+      validateProviderInferenceProfiles({
+        ollama: {
+          default: { effort: 'medium', thinking_mode: 'disabled', thinking_display: 'omit' },
+        },
+      }),
+    );
+  });
+
+  it('validateProviderInferenceProfiles still rejects a non-positive max_tokens', () => {
+    assert.throws(
+      () =>
+        validateProviderInferenceProfiles({
+          ollama: {
+            default: { effort: 'medium', thinking_mode: 'disabled', thinking_display: 'omit', max_tokens: 0 },
+          },
+        }),
+      /max_tokens must be a positive number/,
+    );
+  });
+
   it('validateProviderInferenceProfiles rejects invalid effort', () => {
     assert.throws(
       () =>

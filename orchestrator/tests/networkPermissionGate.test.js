@@ -93,6 +93,54 @@ describe("Network permission gate — Ollama trace", () => {
     assert.equal(gateLine.role, "DEV");
   });
 
+  it("runOllama passes the network gate for ARCHITECT (agentId architect)", async () => {
+    const { _test_beginMcpAudit, _test_clearMcpAudit } = require("../orchestrator.js");
+    const { runOllama } = require("../agents/runtime/run-ollama.js");
+
+    const taskId = "task-net-gate-architect";
+    _test_beginMcpAudit(taskId);
+    let out;
+    try {
+      out = await runOllama("sys", [{ role: "user", content: "hi" }], {
+        model: "m",
+        cwd: tmpDir,
+        traceRole: "ARCHITECT",
+        traceAgentId: "architect",
+        timeoutMs: 5000,
+      });
+    } finally {
+      _test_clearMcpAudit();
+    }
+    assert.equal(out.content, "ok");
+
+    const lines = fs
+      .readFileSync(path.join(tmpDir, `${taskId}.jsonl`), "utf8")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l));
+    const gateLine = lines.find((r) => r.event === "permission_check" && r.tool === "ollama_chat");
+    assert.ok(gateLine, "expected ollama_chat permission_check line");
+    assert.equal(gateLine.role, "ARCHITECT");
+    assert.equal(gateLine.decision, "allow");
+    assert.equal(gateLine.reason_code, "network_allowlist_allowed");
+  });
+
+  it("runOllama still denies OWNER at the network gate (matrix unchanged for other roles)", async () => {
+    const { runOllama } = require("../agents/runtime/run-ollama.js");
+    await assert.rejects(
+      async () => runOllama("sys", [{ role: "user", content: "hi" }], {
+        model: "m",
+        cwd: tmpDir,
+        traceRole: "OWNER",
+        traceAgentId: "owner",
+        timeoutMs: 5000,
+      }),
+      (err) => err.code === "OLLAMA_NETWORK_DENIED"
+        && err.permission_decision?.reason_code === "role_capability_domain_denied",
+    );
+  });
+
   it("runOllama uses Olla path prefix for /api/chat", async () => {
     const { runOllama } = require("../agents/runtime/run-ollama.js");
     const ollaPort = serverPort + 1;

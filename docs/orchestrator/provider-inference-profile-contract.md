@@ -64,7 +64,7 @@ Install report adds:
 | `effort` | `low` \| `medium` \| `high` |
 | `thinking_mode` | `disabled` \| `adaptive` \| `enabled` |
 | `thinking_display` | `omit` \| `summary` \| `full` |
-| `max_tokens` | positive number |
+| `max_tokens` | positive number; optional (absent = no cap: unlimited for local Ollama) |
 | `profile_source` | optional string (e.g. `installer_default`) |
 
 ## Profile application status
@@ -112,7 +112,7 @@ Local inference costs time, not money, so the default Ollama output budget is **
 | 3 | `provider_inference_profiles.ollama.default.max_tokens` | cap (`applied`) |
 | 4 | none of the above | unlimited (`unbounded_default`) |
 
-Configured caps are honored exactly. Note: the installer still writes `max_tokens` (`installer_default`) into the `ollama` profile, so installed workspaces keep that cap until the entry is removed or `OLLAMA_NUM_PREDICT=-1` is set.
+Configured caps are honored exactly. The installer no longer writes `max_tokens` into the `ollama` profile (`default` and `by_role`), so fresh installs inherit the unlimited default. Workspaces installed earlier are **not** migrated or rewritten: their existing `max_tokens` (`installer_default`, 8192/16384) stay in effect until the entry is removed by hand or `OLLAMA_NUM_PREDICT=-1` is set. Remote provider entries (`anthropic`) still carry `max_tokens`.
 
 Bounds for a runaway generation (e.g. repetition loop) are the per-call timeout and the iteration limit, not a token cap; context pressure near the limit is handled by the compact-handoff and snapshot hooks.
 
@@ -124,12 +124,12 @@ Bounds for a runaway generation (e.g. repetition loop) are the per-call timeout 
 
 - Default `effort` is `medium` for most roles
 - `effort: high` only for `ARCHITECT` in `by_role` (documented tier mapping)
-- `ollama` profile included for local backend parity
+- `ollama` profile included for local backend parity (effort/thinking knobs only; no `max_tokens`, so the local output budget stays unlimited)
 - `anthropic` (and other remote provider) entries may be written under **`local_only`** as **declarative placeholders only** — they do **not** enable that provider, do **not** collect credentials, and do **not** override `--model-policy local_only` for runtime routing
 
 ## Tests
 
-- `orchestrator/tests/installModelConfig.test.js` — build/write + profile validation
+- `orchestrator/tests/installModelConfig.test.js` — build/write + profile validation (ollama profile has no `max_tokens`; `max_tokens` optional but validated when present)
 - `orchestrator/tests/modelPolicyConfig.test.js` — `validateProviderInferenceProfiles`
 - `orchestrator/tests/inferenceProfileResolve.test.js` — num_predict precedence + unlimited default
 - `orchestrator/tests/localCapGateTransportBudget.test.js` — applied/unlimited budget, `done_reason`, timeout default + `CLAUDE_CLI_TIMEOUT` override

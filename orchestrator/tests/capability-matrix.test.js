@@ -104,6 +104,13 @@ describe("capability matrix", () => {
     assert.equal(roleCanUseDomains("cerberus", ["mcp"]).ok, false);
   });
 
+  it("architect declares network for local-only Ollama routing without gaining other domains", () => {
+    assert.equal(roleCanUseDomains("architect", ["network"]).ok, true);
+    assert.equal(roleCanUseDomains("architect", ["shell"]).ok, false);
+    assert.equal(roleCanUseDomains("architect", ["git"]).ok, false);
+    assert.equal(roleCanUseDomains("owner", ["network"]).ok, false);
+  });
+
   it("validatePlanCredentialCeiling allows filesystem-only domains under read session", () => {
     const r = validatePlanCredentialCeiling(
       [{ agentId: "qa", task: "x", requiredDomains: ["filesystem", "remote_model"] }],
