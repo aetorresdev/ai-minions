@@ -524,3 +524,240 @@ describe("resolveOllamaTimeoutMs", () => {
     assert.equal(resolveOllamaTimeoutMs(1234, { CLAUDE_CLI_TIMEOUT: "900000" }), 1234);
   });
 });
+
+describe("runOllama elapsed deadline", () => {
+  const { setInterval, clearInterval } = require("timers");
+  let server;
+  let tmpDir;
+  let savedEnv;
+  /** @type {"dribble" | "silent" | "fast"} */
+  let mode = "fast";
+  const sockets = new Set();
+  const intervals = new Set();
+  /** @type {Promise<void>} */
+  let serverSideClosed;
+  let markClosed;
+
+  /** Spy on global timers so a test can prove the call's own timer is cleared. */
+  function spyTimers(delayMs) {
+    const created = [];
+    const cleared = new Set();
+    const realSet = global.setTimeout;
+    const realClear = global.clearTimeout;
+    global.setTimeout = (fn, ms, ...rest) => {
+      const handle = realSet(fn, ms, ...rest);
+      if (ms === delayMs) created.push(handle);
+      return handle;
+    };
+    global.clearTimeout = (handle) => {
+      cleared.add(handle);
+      return realClear(handle);
+    };
+    return {
+      created,
+      cleared,
+      restore() {
+        global.setTimeout = realSet;
+        global.clearTimeout = realClear;
+      },
+    };
+  }
+
+  beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "orch-deadline-"));
+    savedEnv = {
+      ORCH_SKIP_NETWORK_PERMISSION_GATE: process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE,
+      OLLAMA_HOST: process.env.OLLAMA_HOST,
+      OLLAMA_PORT: process.env.OLLAMA_PORT,
+      OLLAMA_NUM_PREDICT: process.env.OLLAMA_NUM_PREDICT,
+      CLAUDE_CLI_TIMEOUT: process.env.CLAUDE_CLI_TIMEOUT,
+    };
+    process.env.ORCH_SKIP_NETWORK_PERMISSION_GATE = "1";
+    delete process.env.OLLAMA_NUM_PREDICT;
+    delete process.env.CLAUDE_CLI_TIMEOUT;
+    serverSideClosed = new Promise((resolve) => { markClosed = resolve; });
+
+    server = http.createServer((req, res) => {
+      req.on("data", () => {});
+      req.on("end", () => {
+        if (mode === "silent") return;
+        res.writeHead(200, { "Content-Type": "application/json" });
+        if (mode === "fast") {
+          res.end(JSON.stringify({ message: { content: "ok" }, done_reason: "stop" }));
+          return;
+        }
+        // dribble: valid-looking body that never ends, bytes every 20 ms.
+        const iv = setInterval(() => res.write(" "), 20);
+        intervals.add(iv);
+        res.on("close", () => {
+          clearInterval(iv);
+          intervals.delete(iv);
+          markClosed();
+        });
+      });
+    });
+    server.on("connection", (sock) => {
+      sockets.add(sock);
+      sock.on("close", () => {
+        sockets.delete(sock);
+        if (mode === "silent") markClosed();
+      });
+    });
+    await new Promise((resolve, reject) => {
+      server.listen(0, "127.0.0.1", (err) => (err ? reject(err) : resolve()));
+    });
+    process.env.OLLAMA_HOST = "127.0.0.1";
+    process.env.OLLAMA_PORT = String(server.address().port);
+  });
+
+  afterEach(async () => {
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    for (const iv of intervals) clearInterval(iv);
+    intervals.clear();
+    for (const sock of sockets) sock.destroy();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    await new Promise((resolve) => server.close(() => resolve()));
+  });
+
+  const call = (opts) => {
+    const { runOllama } = require("../modules/model-runtime/run-ollama");
+    return runOllama("sys", [{ role: "user", content: "hi" }], {
+      model: "m",
+      cwd: tmpDir,
+      traceRole: "DEV",
+      ...opts,
+    });
+  };
+
+  it("rejects a never-ending dribbling response near the deadline and closes the socket", async () => {
+    mode = "dribble";
+    const timers = spyTimers(150);
+    const started = Date.now();
+    try {
+      await assert.rejects(() => call({ timeoutMs: 150 }), /Ollama timed out after 150ms/);
+    } finally {
+      timers.restore();
+    }
+    const elapsed = Date.now() - started;
+    // Inactivity-only timeouts never fire here (a byte arrives every 20 ms).
+    assert.ok(elapsed >= 140, `rejected too early: ${elapsed}ms`);
+    assert.ok(elapsed < 750, `deadline not enforced: ${elapsed}ms`);
+    await Promise.race([
+      serverSideClosed,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("server-side response not closed")), 2000)),
+    ]);
+    assert.equal(intervals.size, 0, "server dribble interval must be cleared once the client aborts");
+    assert.equal(timers.created.length, 1, "exactly one deadline timer per call");
+    assert.ok(timers.cleared.has(timers.created[0]), "deadline timer must be cleared");
+  });
+
+  it("rejects a silent hung server at the deadline and closes the socket", async () => {
+    mode = "silent";
+    const timers = spyTimers(120);
+    const started = Date.now();
+    try {
+      await assert.rejects(() => call({ timeoutMs: 120 }), /Ollama timed out after 120ms/);
+    } finally {
+      timers.restore();
+    }
+    assert.ok(Date.now() - started < 600);
+    await Promise.race([
+      serverSideClosed,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("server-side socket not closed")), 2000)),
+    ]);
+    assert.equal(timers.created.length, 1);
+    assert.ok(timers.cleared.has(timers.created[0]));
+  });
+
+  it("a fast response resolves and leaves no pending deadline timer", async () => {
+    mode = "fast";
+    const timers = spyTimers(60000);
+    let out;
+    try {
+      out = await call({ timeoutMs: 60000 });
+    } finally {
+      timers.restore();
+    }
+    assert.equal(out.content, "ok");
+    assert.equal(timers.created.length, 1);
+    assert.ok(timers.cleared.has(timers.created[0]), "deadline timer must be cleared on success");
+    // Node marks a cleared (or fired) Timeout as destroyed: nothing stays pending.
+    assert.equal(timers.created[0]._destroyed, true, "deadline timer must not remain pending");
+  });
+
+  it("CLAUDE_CLI_TIMEOUT drives the elapsed deadline when no explicit timeoutMs is given", async () => {
+    mode = "dribble";
+    process.env.CLAUDE_CLI_TIMEOUT = "130";
+    await assert.rejects(() => call({}), /Ollama timed out after 130ms/);
+  });
+
+  it("an explicit timeoutMs still beats CLAUDE_CLI_TIMEOUT", async () => {
+    mode = "dribble";
+    process.env.CLAUDE_CLI_TIMEOUT = "60000";
+    await assert.rejects(() => call({ timeoutMs: 110 }), /Ollama timed out after 110ms/);
+  });
+
+  it("a response that closes early rejects instead of hanging until the deadline", async () => {
+    await new Promise((resolve) => server.close(() => resolve()));
+    for (const sock of sockets) sock.destroy();
+    server = http.createServer((req, res) => {
+      req.on("data", () => {});
+      req.on("end", () => {
+        res.writeHead(200, { "Content-Type": "application/json", "Content-Length": "500" });
+        res.write("{\"message\":");
+        setTimeout(() => res.destroy(), 20);
+      });
+    });
+    await new Promise((resolve, reject) => {
+      server.listen(Number(process.env.OLLAMA_PORT), "127.0.0.1", (err) => (err ? reject(err) : resolve()));
+    });
+    const started = Date.now();
+    await assert.rejects(() => call({ timeoutMs: 5000 }));
+    assert.ok(Date.now() - started < 2000);
+  });
+
+  it("thinking-not-disabled failures carry the budget fields in context_stats", async () => {
+    await new Promise((resolve) => server.close(() => resolve()));
+    for (const sock of sockets) sock.destroy();
+    server = http.createServer((req, res) => {
+      req.on("data", () => {});
+      req.on("end", () => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ message: { content: "", thinking: "hidden" }, done_reason: "length" }));
+      });
+    });
+    await new Promise((resolve, reject) => {
+      server.listen(Number(process.env.OLLAMA_PORT), "127.0.0.1", (err) => (err ? reject(err) : resolve()));
+    });
+    // think:false requested through the profile so compliance fails.
+    fs.mkdirSync(path.join(tmpDir, ".ai-minions"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, ".ai-minions", "model_policy.json"),
+      JSON.stringify({
+        model_policy_version: 1,
+        default_tier: "standard",
+        tiers: { cheap: ["m"], standard: ["m"], strong: ["m"], frontier: [] },
+        role_defaults: { ORCHESTRATOR: "standard", OWNER: "standard", ARCHITECT: "strong", DEV: "standard", QA: "standard", CERBERUS: "strong" },
+        rules: [],
+        provider_inference_profiles: {
+          ollama: { default: { effort: "medium", thinking_mode: "disabled", thinking_display: "omit" } },
+        },
+      }),
+    );
+    await assert.rejects(
+      () => call({ timeoutMs: 5000 }),
+      (err) => {
+        assert.equal(err.code, "OLLAMA_THINKING_NOT_DISABLED");
+        assert.equal(err.context_stats.num_predict, -1);
+        assert.equal(err.context_stats.num_predict_unlimited, 1);
+        assert.equal(err.context_stats.profile_source, "local_unbounded_default");
+        assert.equal(err.context_stats.inference_profile_mode, "unbounded_default");
+        return true;
+      },
+    );
+  });
+});
+

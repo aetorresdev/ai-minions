@@ -80,6 +80,26 @@ describe('capability probe fixtures', () => {
     assert.equal(unset.ok, false);
   });
 
+  it('output_budget probe rejects missing or invalid budget evidence (not read as unlimited)', () => {
+    for (const bad of [null, undefined, '', '   ', false, true, Number.NaN, 'abc', Infinity, -Infinity, 0, -2, '-1']) {
+      const r = evaluateCapabilityProbe('output_budget', '', { num_predict: bad, min_num_predict: 4096 });
+      assert.equal(r.ok, false, `num_predict=${String(bad)} must not pass`);
+      assert.equal(r.gate_id, 'output_budget');
+    }
+  });
+
+  it('evaluateRoleCapability does not pass output_budget for num_predict null / blank / boolean', () => {
+    for (const bad of [null, '', '   ', false, true]) {
+      const result = evaluateRoleCapability('CERBERUS', { use_pass_fixtures: true, num_predict: bad });
+      assert.equal(result.ok, false, `num_predict=${JSON.stringify(bad)}`);
+      assert.ok(!result.passed_probes.includes('output_budget'));
+      assert.ok(result.failed_probes.some((f) => f.probe_id === 'output_budget'));
+    }
+    const unlimited = evaluateRoleCapability('CERBERUS', { use_pass_fixtures: true, num_predict: -1 });
+    assert.equal(unlimited.ok, true);
+    assert.ok(unlimited.passed_probes.includes('output_budget'));
+  });
+
   it('pass fixture planning_json validates', () => {
     const r = evaluateCapabilityProbe('planning_json', PROBE_FIXTURES_PASS.planning_json);
     assert.equal(r.ok, true);

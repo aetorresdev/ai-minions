@@ -461,6 +461,57 @@ describe("askAgent local tool path", () => {
     assert.equal(context_stats.num_predict_unlimited, undefined);
   });
 
+  it("ordinary output-contract failure keeps the budget fields next to token usage", async () => {
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "validation_run: none",
+      tool_calls: [],
+      tools_used: [],
+      done_reason: "stop",
+      prompt_eval_count: 11,
+      eval_count: 7,
+      num_predict: -1,
+      num_predict_unlimited: true,
+      profile_source: "local_unbounded_default",
+      inference_profile_mode: "unbounded_default",
+    });
+    await assert.rejects(
+      () => agents.askAgent("dev-frontend", "Create a.js", { cwd: tmpDir }),
+      (err) => {
+        assert.equal(err.gate_id, "files_read_missing");
+        assert.equal(err.context_stats.ollama_prompt_tokens, 11);
+        assert.equal(err.context_stats.ollama_completion_tokens, 7);
+        assert.equal(err.context_stats.num_predict, -1);
+        // Numeric flag like the other ollama_* stats flags (1 = unlimited).
+        assert.equal(err.context_stats.num_predict_unlimited, 1);
+        assert.equal(err.context_stats.profile_source, "local_unbounded_default");
+        assert.equal(err.context_stats.inference_profile_mode, "unbounded_default");
+        return true;
+      },
+    );
+  });
+
+  it("capped budget on an ordinary contract failure is kept without the unlimited flag", async () => {
+    ollamaRuntime.runOllamaWithTools = async () => ({
+      content: "validation_run: none",
+      tool_calls: [],
+      tools_used: [],
+      done_reason: "stop",
+      num_predict: 8192,
+      num_predict_unlimited: false,
+      profile_source: "installer_default",
+      inference_profile_mode: "applied",
+    });
+    await assert.rejects(
+      () => agents.askAgent("dev-frontend", "Create a.js", { cwd: tmpDir }),
+      (err) => {
+        assert.equal(err.context_stats.num_predict, 8192);
+        assert.equal(err.context_stats.num_predict_unlimited, undefined);
+        assert.equal(err.context_stats.inference_profile_mode, "applied");
+        return true;
+      },
+    );
+  });
+
   it("empty length-truncated reply under an unlimited budget still raises OUTPUT_BUDGET_EXHAUSTED", async () => {
     ollamaRuntime.runOllamaWithTools = async () => ({
       content: "",

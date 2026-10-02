@@ -462,6 +462,22 @@ function tryEmitModelSelection(agentId, agent, opts = {}) {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+/**
+ * Output-budget fields of a runOllama result for trace / context_stats rows
+ * (num_predict is -1 when unlimited). Shared by success and every failure path.
+ * @param {Record<string, unknown>} raw
+ * @returns {Record<string, number | string>}
+ */
+function ollamaBudgetStats(raw) {
+  /** @type {Record<string, number | string>} */
+  const out = {};
+  if (raw.num_predict != null) out.num_predict = /** @type {number} */ (raw.num_predict);
+  if (raw.num_predict_unlimited === true) out.num_predict_unlimited = 1;
+  if (raw.inference_profile_mode) out.inference_profile_mode = String(raw.inference_profile_mode);
+  if (raw.profile_source) out.profile_source = String(raw.profile_source);
+  return out;
+}
+
 async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase, traceContext } = {}) {
   const agent = AGENTS[agentId];
   if (!agent) throw new Error(`Unknown agent "${agentId}". Available: ${Object.keys(AGENTS).join(", ")}`);
@@ -648,10 +664,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       const failStats = {};
       if (raw.prompt_eval_count != null) failStats.ollama_prompt_tokens = raw.prompt_eval_count;
       if (raw.eval_count != null) failStats.ollama_completion_tokens = raw.eval_count;
-      if (raw.num_predict != null) failStats.num_predict = raw.num_predict;
-      if (raw.num_predict_unlimited === true) failStats.num_predict_unlimited = 1;
-      if (raw.inference_profile_mode) failStats.inference_profile_mode = raw.inference_profile_mode;
-      if (raw.profile_source) failStats.profile_source = raw.profile_source;
+      Object.assign(failStats, ollamaBudgetStats(raw));
       if (raw.think != null) failStats.ollama_think_requested = raw.think === true ? 1 : 0;
       if (raw.ollama_thinking_observed != null) failStats.ollama_thinking_observed = raw.ollama_thinking_observed;
       if (raw.ollama_think != null) failStats.ollama_think = raw.ollama_think;
@@ -696,10 +709,11 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       const err = new Error(`[output contract] ${check.reason}`);
       err.gate_id = check.gate_id;
       err.rawModelOutput = rawOut.slice(0, 8000);
-      /** @type {Record<string, number>} */
+      /** @type {Record<string, number | string>} */
       const failStats = { ...(check.context_stats || {}) };
       if (raw.prompt_eval_count != null) failStats.ollama_prompt_tokens = raw.prompt_eval_count;
       if (raw.eval_count != null) failStats.ollama_completion_tokens = raw.eval_count;
+      Object.assign(failStats, ollamaBudgetStats(raw));
       if (raw.think != null) failStats.ollama_think_requested = raw.think === true ? 1 : 0;
       if (raw.ollama_thinking_observed != null) failStats.ollama_thinking_observed = raw.ollama_thinking_observed;
       if (raw.ollama_think != null) failStats.ollama_think = raw.ollama_think;
@@ -712,11 +726,7 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
     const context_stats = { ...extracted, ...(check.context_stats || {}) };
     if (raw.prompt_eval_count != null) context_stats.ollama_prompt_tokens = raw.prompt_eval_count;
     if (raw.eval_count != null) context_stats.ollama_completion_tokens = raw.eval_count;
-    // Output budget in the trace: num_predict is -1 (Ollama sentinel) when unlimited.
-    if (raw.num_predict != null) context_stats.num_predict = raw.num_predict;
-    if (raw.num_predict_unlimited === true) context_stats.num_predict_unlimited = 1;
-    if (raw.inference_profile_mode) context_stats.inference_profile_mode = raw.inference_profile_mode;
-    if (raw.profile_source) context_stats.profile_source = raw.profile_source;
+    Object.assign(context_stats, ollamaBudgetStats(raw));
     if (raw.ollama_think_requested != null) context_stats.ollama_think_requested = raw.ollama_think_requested;
     if (raw.ollama_thinking_observed != null) context_stats.ollama_thinking_observed = raw.ollama_thinking_observed;
     if (raw.ollama_think != null) context_stats.ollama_think = raw.ollama_think;

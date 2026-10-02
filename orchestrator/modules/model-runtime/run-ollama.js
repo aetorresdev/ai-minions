@@ -197,8 +197,27 @@ function runOllama(
   }
   const body = JSON.stringify(payload);
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolveCall, rejectCall) => {
     const ms = resolveOllamaTimeoutMs(timeoutMs);
+    // Elapsed deadline for the whole call (connect + request + response). A
+    // socket inactivity timeout is not enough: a response that keeps trickling
+    // bytes would reset it forever. One timer, cleared on every exit path;
+    // `settled` guarantees a single resolve/reject.
+    /** @type {NodeJS.Timeout | null} */
+    let deadline = null;
+    let settled = false;
+    /** @type {import('http').IncomingMessage | null} */
+    let activeRes = null;
+    const finish = (fn, value) => {
+      if (settled) return false;
+      settled = true;
+      if (deadline) clearTimeout(deadline);
+      deadline = null;
+      fn(value);
+      return true;
+    };
+    const resolve = (value) => finish(resolveCall, value);
+    const reject = (err) => finish(rejectCall, err);
     const transport = ollamaHttpTransport(target.protocol);
     /** @type {import('http').RequestOptions} */
     const requestOpts = {
@@ -220,8 +239,13 @@ function runOllama(
     const req = transport.request(
       requestOpts,
       (res) => {
+        activeRes = res;
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
+        res.on('error', (err) => reject(err));
+        res.on('close', () => {
+          if (!res.complete) reject(new Error('Ollama connection closed before the response completed'));
+        });
         res.on('end', () => {
           try {
             const parsed = JSON.parse(data);
@@ -259,6 +283,10 @@ function runOllama(
                 ollama_think_requested: compliance.ollama_think_requested,
                 ollama_thinking_observed: compliance.ollama_thinking_observed,
                 ollama_think: compliance.ollama_think,
+                num_predict: budget.num_predict,
+                ...(budget.num_predict_unlimited === true ? { num_predict_unlimited: 1 } : {}),
+                ...(budget.profile_source ? { profile_source: budget.profile_source } : {}),
+                inference_profile_mode: budget.inference_profile_mode,
               };
               reject(err);
               return;
@@ -310,8 +338,15 @@ function runOllama(
         });
       },
     );
-    req.setTimeout(ms, () => req.destroy(new Error(`Ollama timed out after ${ms}ms`)));
     req.on('error', reject);
+    deadline = setTimeout(() => {
+      const err = new Error(`Ollama timed out after ${ms}ms`);
+      // Reject first so the socket errors raised by the aborts below are ignored.
+      if (reject(err)) {
+        if (activeRes) activeRes.destroy();
+        req.destroy();
+      }
+    }, ms);
     req.write(body);
     req.end();
   });
