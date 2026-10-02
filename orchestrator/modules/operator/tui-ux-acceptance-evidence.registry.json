@@ -5,14 +5,35 @@
   "automatedUxOk": true,
   "manualEvidence": {
     "status": "blocked",
-    "note": "first-time-user script evidence not recorded on release platforms"
+    "note": "first-time-user script evidence not recorded on release platforms; live canonical Sudoku fixture stays deferred and separate"
   },
   "platformEvidence": {
     "automatedGateOk": true,
     "overrides": {
       "macos_node22_tty": {
-        "status": "blocked",
-        "evidence": "pending interactive macOS Node 22 TTY smoke"
+        "status": "pass",
+        "evidence": "MacStudio real PTY, not a Linux omission. Artifact macos-node22-pty-e56261e3d557b196092c3f4fea4dfc0d7a9c19ef from https://github.com/aetorresdev/ai-minions/actions/runs/36894443382 (job https://github.com/aetorresdev/ai-minions/actions/runs/36894443382/job/110477777456). Runner MacStudio, darwin arm64, Node 22.23.3. Recorded head e56261e3d557b196092c3f4fea4dfc0d7a9c19ef. Integrated master e056cd2b83b96be3ac5357966add7dec5610bc78 has the same tree a1827c2de75f233c3a0769acffe67aadf386f603. Counts 4 tests, 3 pass, 0 fail, 1 skip: the Linux real-PTY case was skipped on this host and is not a Linux pass. Linux test:tui-quality does not satisfy this slot. Live canonical Sudoku fixture stays deferred.",
+        "artifact": "macos-node22-pty-e56261e3d557b196092c3f4fea4dfc0d7a9c19ef",
+        "run_id": "36894443382",
+        "run_url": "https://github.com/aetorresdev/ai-minions/actions/runs/36894443382",
+        "job_url": "https://github.com/aetorresdev/ai-minions/actions/runs/36894443382/job/110477777456",
+        "recorded_head_sha": "e56261e3d557b196092c3f4fea4dfc0d7a9c19ef",
+        "integrated_sha": "e056cd2b83b96be3ac5357966add7dec5610bc78",
+        "tree_sha": "a1827c2de75f233c3a0769acffe67aadf386f603",
+        "runner_name": "MacStudio",
+        "node": "22.23.3",
+        "platform": "darwin",
+        "arch": "arm64",
+        "counts": {
+          "tests": 4,
+          "pass": 3,
+          "fail": 0,
+          "skipped": 1
+        }
+      },
+      "live_canonical_fixture": {
+        "status": "deferred",
+        "evidence": "Live Sudoku / canonical fixture remains deferred and is not replaced by the macOS real-PTY artifact."
       }
     }
   }
