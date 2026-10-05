@@ -5,6 +5,7 @@ const os = require("os");
 const path = require("path");
 const https = require("https");
 const { validateHandoffForMode } = require("./qa-spec-flow");
+const { isVacuousFindingVal } = require("../gates/review-record");
 const { _hashGoal, TRACE_REDACT_GOAL } = require("../trace/trace-writer");
 const { runNetworkPermissionGate } = require("../../security/network-permission-gate");
 const { emitPermissionCheckTrace } = require("../tools");
@@ -286,8 +287,24 @@ function validateHandoffStructure(mode, yaml, { strict = false, requireQaSpecRef
 
 const BLOCKER_LINE_RE = /^.*\bblocker\b.*$/gim;
 
+/** `blocker: <value>` (optional bullet / quote / bold / brackets); capture 1 = the value. */
+const BLOCKER_VALUE_RE = /^[\s>*_`#-]*\[?blocker\]?[\s*_`]*:[\s*_`]*(.*)$/i;
+
+/**
+ * True for an explicit empty finding (`blocker: (none)`, `n/a`, …). Same vacuity rule as the review
+ * record. A bare `blocker:` with no value is NOT vacuous here: the finding may follow on later lines,
+ * so it keeps blocking (fail closed).
+ */
+function isVacuousBlockerLine(line) {
+  const m = BLOCKER_VALUE_RE.exec(line);
+  if (!m) return false;
+  const raw = m[1].replace(/[\s*_`]+$/, "").trim();
+  if (raw === "") return false;
+  return isVacuousFindingVal(raw) || isVacuousFindingVal(raw.replace(/\.+$/, ""));
+}
+
 function detectBlockers(cerberusOutput) {
-  const matches = cerberusOutput.match(BLOCKER_LINE_RE) || [];
+  const matches = (cerberusOutput.match(BLOCKER_LINE_RE) || []).filter((l) => !isVacuousBlockerLine(l));
   return { count: matches.length, items: matches.map((l) => l.trim()) };
 }
 

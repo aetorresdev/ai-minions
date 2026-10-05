@@ -72,6 +72,56 @@ describe("detectBlockers", () => {
     const r = detectBlockers("");
     assert.equal(r.count, 0);
   });
+
+  describe("vacuous blocker values do not block", () => {
+    const VACUOUS_LINES = [
+      "blocker: (none)",
+      "blocker: none",
+      "blocker: None.",
+      "BLOCKER: (None)",
+      "- blocker: (none)",
+      "* **blocker:** (none)",
+      "**blocker**: n/a",
+      "[blocker]: (none)",
+      "> blocker: N/A",
+      "blocker: -",
+      "blocker: ...",
+    ];
+    for (const line of VACUOUS_LINES) {
+      it(`ignores ${JSON.stringify(line)}`, () => {
+        const r = detectBlockers(`${line}\nimprovement: add tests\nnice-to-have: (none)`);
+        assert.equal(r.count, 0);
+        assert.deepEqual(r.items, []);
+      });
+    }
+
+    it("ignores the vacuous blocker line in a full triple with nothing to report", () => {
+      const r = detectBlockers("blocker: (none)\nimprovement: (none)\nnice-to-have: (none)");
+      assert.equal(r.count, 0);
+    });
+
+    it("counts only the real blocker when a vacuous line sits next to it", () => {
+      const r = detectBlockers("blocker: (none)\n- blocker: missing auth check\nimprovement: (none)");
+      assert.equal(r.count, 1);
+      assert.match(r.items[0], /missing auth check/);
+    });
+  });
+
+  describe("real blockers keep blocking (fail closed)", () => {
+    const REAL_LINES = [
+      "blocker: missing auth check",
+      "blocker: none of the tests pass",
+      "blocker: no rate limiting",
+      "- **blocker** — SQL injection risk",
+      "blocker:",
+    ];
+    for (const line of REAL_LINES) {
+      it(`counts ${JSON.stringify(line)}`, () => {
+        const r = detectBlockers(`${line}\nimprovement: (none)\nnice-to-have: (none)`);
+        assert.equal(r.count, 1);
+      });
+    }
+  });
 });
 
 // ── validateHandoffStructure ──────────────────────────────────────────────────
