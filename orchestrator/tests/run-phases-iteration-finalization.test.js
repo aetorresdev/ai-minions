@@ -367,6 +367,69 @@ describe("run-phases/iteration-finalization — CERBERUS contract failure is ter
   });
 });
 
+describe("run-phases/iteration-finalization — strict CERBERUS handoff failure blocks success", () => {
+  const strictDeps = (askAgent, extra = {}) => ({
+    askAgent,
+    skipStateMcp: false,
+    requireHandoff: true,
+    callCompactHandoff: () => {
+      throw new Error("compactor unavailable");
+    },
+    ...extra,
+  });
+  const decideDone = async () => ({ output: '{"done": true, "summary": "All good"}' });
+
+  it("at the iteration cap: no decide, done=false, manual review, gate-blocked artifact kept", async () => {
+    const { askAgent, calls } = recordingAskAgent({
+      cerberus: async () => ({ output: CERBERUS_VACUOUS_BLOCKER_OUTPUT }),
+      orchestrator: decideDone,
+    });
+    const { ctx, traces, deps } = makeIterDeps({ deps: { ...strictDeps(askAgent), maxIterations: 1 } });
+    const out = await executeIterationFinalizationPhase(ctx, deps);
+
+    assert.deepEqual(calls.map((c) => c.agentId), ["cerberus"], "decide must not run");
+    assert.equal(out.done, false);
+    assert.equal(out.manualReview, true);
+    assert.match(out.summary, /manual review/i);
+    assert.match(out.summary, /compact_handoff/i);
+    assert.equal(out.artifactsToPush.some((a) => a.agentId === "cerberus" && a.gateBlocked === true), true);
+
+    const iter = terminalIterationDone(traces);
+    assert.equal(iter.outcome, "max_iterations_with_gate_blocks");
+    assert.equal(iter.transition_reason.reason_code, "MAX_ITERATIONS_GATE_BLOCKED_ARTIFACTS");
+  });
+
+  it("below the cap: existing gate-block iteration, never decide or done", async () => {
+    const { askAgent, calls } = recordingAskAgent({
+      cerberus: async () => ({ output: CERBERUS_VACUOUS_BLOCKER_OUTPUT }),
+      orchestrator: decideDone,
+    });
+    const { ctx, traces, deps } = makeIterDeps({ deps: { ...strictDeps(askAgent), maxIterations: 3 } });
+    const out = await executeIterationFinalizationPhase(ctx, deps);
+
+    assert.deepEqual(calls.map((c) => c.agentId), ["cerberus"], "decide must not run");
+    assert.notEqual(out.done, true);
+    assert.equal(out.action, "continue");
+    assert.equal(traces.some((t) => t.event === "gate_blocked_completion"), true);
+    const iter = terminalIterationDone(traces);
+    assert.equal(iter.outcome, "gate_blocked_iterate");
+    assert.equal(iter.transition_reason.gate_id, "compact_handoff");
+  });
+
+  it("non-strict handoff failure stays degraded and can still finish (control)", async () => {
+    const { askAgent } = recordingAskAgent({
+      cerberus: async () => ({ output: CERBERUS_VACUOUS_BLOCKER_OUTPUT }),
+      orchestrator: decideDone,
+    });
+    const { ctx, traces, deps } = makeIterDeps({
+      deps: { ...strictDeps(askAgent, { requireHandoff: false }), maxIterations: 1 },
+    });
+    const out = await executeIterationFinalizationPhase(ctx, deps);
+    assert.equal(out.done, true);
+    assert.equal(terminalIterationDone(traces).outcome, "done");
+  });
+});
+
 describe("run-phases/iteration-finalization — decide failure is terminal", () => {
   const cases = [
     {

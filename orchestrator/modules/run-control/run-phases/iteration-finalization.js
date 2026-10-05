@@ -544,7 +544,9 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
     };
   }
 
-  const gateBlockedArtifacts = artifacts.filter((a) => a.gateBlocked);
+  // Include blocks created in this phase (e.g. strict CERBERUS compact_handoff failure): they are only
+  // merged into `artifacts` by the caller after this phase returns, so success must not ignore them.
+  const gateBlockedArtifacts = [...artifacts, ...artifactsToPush].filter((a) => a.gateBlocked);
   const gateBlockedDecision = decideGateBlockedArtifactsBranch({
     artifactCount: gateBlockedArtifacts.length,
     iterations,

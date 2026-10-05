@@ -8,6 +8,8 @@
  *   1. `blocker: (none)` must not count as a blocker.
  *   2. A CERBERUS output-contract failure must stop the run for manual review, never `done`.
  *   3. A failed or invalid orchestrator decide must stop the run for manual review, never `done`.
+ *   4. A strict-mode CERBERUS compact_handoff failure must keep blocking success now that `blocker: (none)`
+ *      no longer forces an iteration.
  */
 
 "use strict";
@@ -70,7 +72,7 @@ function clearOrchestratorModuleCaches() {
 }
 
 /**
- * @param {{ cerberus: string, decide: string }} script
+ * @param {{ cerberus: string, decide: string, failCerberusCompactHandoff?: boolean }} script
  * @param {{ calls: string[] }} record
  */
 function makeSpawnSync(script, record) {
@@ -80,7 +82,20 @@ function makeSpawnSync(script, record) {
       const prompt = String(args[1]);
       if (prompt.includes("compact-handoff.compact_handoff")) {
         record.calls.push("compact_handoff");
+        if (script.failCerberusCompactHandoff && prompt.includes('mode_completed="CERBERUS"')) {
+          return { error: null, status: 1, stdout: "", stderr: "compactor unavailable" };
+        }
         return { error: null, status: 0, stdout: `${DEV_HANDOFF_YAML}\n`, stderr: "" };
+      }
+      const mcp = /orchestrator-state\.(\w+)/.exec(prompt);
+      if (mcp) {
+        const tool = mcp[1];
+        const body =
+          tool === "register_task" ? { ok: true, envelope_path: "/tmp/envelope.json" }
+            : tool === "validate_goal_alignment" ? { ok: true, aligned: true, confidence: 1, notes: "" }
+              : tool === "validate_transition" ? { allowed: true, errors: [] }
+                : { ok: true };
+        return { error: null, status: 0, stdout: `${JSON.stringify(body)}\n`, stderr: "" };
       }
       return { error: null, status: 0, stdout: "{}\n", stderr: "" };
     }
@@ -114,9 +129,10 @@ function makeSpawnSync(script, record) {
 
 /**
  * Runs `run()` with the scripted backend and returns result + parsed trace rows.
- * @param {{ cerberus: string, decide: string }} script
+ * @param {{ cerberus: string, decide: string, failCerberusCompactHandoff?: boolean }} script
+ * @param {Record<string, unknown>} [runOptions] overrides for run()
  */
-async function runScripted(script) {
+async function runScripted(script, runOptions = {}) {
   const prev = {
     OLLAMA_MODEL: process.env.OLLAMA_MODEL,
     ORCH_TRACES_DIR: process.env.ORCH_TRACES_DIR,
@@ -140,6 +156,7 @@ async function runScripted(script) {
       skipStateMcp: true,
       requireHandoff: false,
       stepSummary: false,
+      ...runOptions,
     });
     const tracePath = path.join(tracesDir, `${taskId}.jsonl`);
     const rows = fs.existsSync(tracePath)
@@ -222,5 +239,31 @@ describe("terminal gate failures — through run()", () => {
     const out = await runScripted({ cerberus: CERB_CLEAN, decide: '{"status": "ok"}' });
 
     assertManualReviewStop(out, { summaryMatches: [/decide/i] });
+  });
+  it("strict CERBERUS compact_handoff failure + blocker: (none) never reaches decide or done", async () => {
+    const out = await runScripted(
+      { cerberus: CERB_VACUOUS_BLOCKER, decide: DECIDE_DONE, failCerberusCompactHandoff: true },
+      { skipStateMcp: false, requireHandoff: true, maxIterations: 1 },
+    );
+
+    assert.equal(out.calls.includes("decide"), false, "decide must not run when a mandatory handoff failed");
+    assert.equal(out.result.done, false, "result.done must be false");
+    assert.equal(out.result.runState.run.status, "aborted", "final run state must be aborted, not done");
+    assert.match(out.result.summary, /manual review/i);
+    assert.match(out.result.summary, /cerberus/i);
+    const blocked = out.result.artifacts.find((a) => a.agentId === "cerberus" && a.gateBlocked === true);
+    assert.ok(blocked, "gate-blocked CERBERUS artifact must stay visible");
+    assert.equal(blocked.gate_kind, "compact_handoff");
+
+    const sessionEnd = out.rows.find((r) => r.event === "session_end");
+    assert.equal(sessionEnd.done, false, "session_end.done must be false");
+    assert.equal(sessionEnd.manual_review_recommended, true);
+    const iterRows = out.rows.filter((r) => r.event === "iteration_done");
+    assert.equal(iterRows.some((r) => r.outcome === "done"), false);
+    assert.equal(iterRows[iterRows.length - 1].outcome, "max_iterations_with_gate_blocks");
+    assert.equal(
+      out.rows.some((r) => r.event === "compact_handoff_failed" && r.agent === "cerberus"),
+      true,
+    );
   });
 });
