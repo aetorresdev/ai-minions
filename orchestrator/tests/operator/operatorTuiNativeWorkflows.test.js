@@ -305,7 +305,10 @@ describe('operator-tui-run-browser-workflow', () => {
     assert.match(text, /detail lines are not selectable/);
     // Detail lines exist but are not numbered.
     assert.match(text, /^\s+title: Build sudoku\.html$/m);
-    assert.match(text, /updated:.*phase:.*reason:/);
+    assert.match(text, /^\s+created: 2026-08-01T12:00:00\.000Z$/m);
+    assert.match(text, /^\s+updated: 2026-08-01T12:05:00\.000Z$/m);
+    assert.match(text, /^\s+phase: review$/m);
+    assert.match(text, /^\s+reason: finding_classification_missing$/m);
     assert.doesNotMatch(text, /^\s+\d+\.\s+title:/m);
     const { formatRunBrowserWorkflowEntries } = require('../../modules/operator/operator-tui-run-browser-workflow.js');
     const entries = formatRunBrowserWorkflowEntries(wf);

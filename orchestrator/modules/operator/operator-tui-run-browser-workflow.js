@@ -69,12 +69,21 @@ function shortRunTitle(run) {
  * @param {object} run
  * @returns {string[]}
  */
+function clipField(value, max) {
+  const text = fieldOrUnavailable(value);
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(1, max - 3))}...`;
+}
+
 function browseNoteLines(run) {
+  // One short field per line. A single updated·phase·reason row wrapped inside
+  // the content column and overprinted title and execution time on resize.
   return [
-    `title: ${fieldOrUnavailable(run?.goal_summary ?? run?.summary)}`,
-    `updated: ${fieldOrUnavailable(run?.last_event_at ?? run?.updated_at)}`
-      + ` · phase: ${fieldOrUnavailable(run?.current_phase)}`
-      + ` · reason: ${fieldOrUnavailable(run?.reason_code)}`,
+    `title: ${clipField(run?.goal_summary ?? run?.summary, 48)}`,
+    `created: ${fieldOrUnavailable(run?.created_at)}`,
+    `updated: ${fieldOrUnavailable(run?.last_event_at ?? run?.updated_at)}`,
+    `phase: ${fieldOrUnavailable(run?.current_phase)}`,
+    `reason: ${clipField(run?.reason_code, 42)}`,
     `action: ${actionEligibilityDisplayLabel(
       run?.action_eligibility == null || run.action_eligibility === ''
         ? 'unavailable'
@@ -207,6 +216,188 @@ function formatRunBrowserWorkflowEntries(workflow) {
   ];
 }
 
+/** Detail lines (title / created / updated) kept for the selected run in compact windows. */
+const CORE_DETAIL_LINES = 3;
+
+/**
+ * Split formatted list entries into the pieces windowing works on.
+ * @param {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>} entries
+ * @returns {{ head: object[], blocks: object[][], tail: object[], selected: number } | null}
+ */
+function splitListEntries(entries) {
+  const firstOption = entries.findIndex((e) => e.kind === 'option');
+  if (firstOption < 0) return null;
+  let tailStart = entries.length;
+  while (
+    tailStart > firstOption
+    && ['hint', 'footer', 'spacer'].includes(entries[tailStart - 1].kind)
+  ) {
+    tailStart -= 1;
+  }
+  const blocks = [];
+  for (let i = firstOption; i < tailStart; i += 1) {
+    if (entries[i].kind === 'option') blocks.push([]);
+    blocks[blocks.length - 1].push(entries[i]);
+  }
+  let selected = blocks.findIndex((b) => b[0].selected === true);
+  if (selected < 0) selected = 0;
+  return {
+    head: entries.slice(0, firstOption),
+    blocks,
+    tail: entries.slice(tailStart),
+    selected,
+  };
+}
+
+function trimTrailingSpacers(rows) {
+  const out = rows.slice();
+  while (out.length && out[out.length - 1].kind === 'spacer') out.pop();
+  return out;
+}
+
+/**
+ * Rows a windowed list needs to stay useful: the selected run with its core
+ * detail lines, the selection counter, the key hint and both scroll markers.
+ * Non-list content (overview, empty state) simply needs all of its rows.
+ * The shell relaxes its chrome until the viewport reaches this size.
+ * @param {Array<{ kind?: string }>} entries
+ * @returns {number}
+ */
+function windowTargetRows(entries) {
+  const parts = splitListEntries(entries);
+  if (!parts) return entries.length;
+  const selectedBlock = trimTrailingSpacers(parts.blocks[parts.selected]);
+  const counter = parts.tail.filter((e) => e.kind === 'footer' || e.kind === 'hint').length;
+  return Math.min(
+    entries.length,
+    1 + Math.min(selectedBlock.length - 1, CORE_DETAIL_LINES) + counter + 2,
+  );
+}
+
+/**
+ * Fit structured list entries into at most `maxRows` terminal rows. The result
+ * never exceeds `maxRows`; Ink does not clip children, so an oversized list
+ * overprints the rows around it.
+ *
+ * Tiers, from roomy to tight:
+ * 1. Whole run blocks around the selected run (title / created / updated ...)
+ *    with "more above/below" markers, headings and the footer + hint.
+ * 2. Compact: when the selected block no longer fits, keep it by priority:
+ *    selected numbered row, `selected N/M` counter, key hint, core detail
+ *    lines, scroll markers, headings, remaining detail lines, then neighbour
+ *    runs as single numbered rows.
+ *
+ * The minimal representation is the selected numbered row plus the counter
+ * (budget 2); a budget of 1 keeps only the selected numbered row and a budget
+ * of 0 yields no rows. The selected run is never dropped while budget >= 1.
+ * @param {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>} entries
+ * @param {number} maxRows
+ * @returns {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>}
+ */
+function windowEntriesToHeight(entries, maxRows) {
+  const limit = Math.floor(Number(maxRows));
+  if (!Number.isFinite(limit)) return entries;
+  if (limit <= 0) return [];
+  if (entries.length <= limit) return entries;
+
+  const parts = splitListEntries(entries);
+  if (!parts) return entries.slice(0, limit);
+  const { blocks, tail, selected } = parts;
+  let { head } = parts;
+
+  const moreMarker = (text) => ({ text: `  ... ${text}`, muted: true, kind: 'more' });
+  const selectedBlock = trimTrailingSpacers(blocks[selected]);
+
+  // Tier 1: whole blocks.
+  const reserved = 2; // "more above" / "more below" markers
+  let budget = limit - head.length - tail.length - reserved;
+  if (budget < Math.min(...blocks.map((b) => b.length))) {
+    // Short viewport: drop breathing room and notes before dropping runs.
+    head = head.filter((e) => e.kind !== 'spacer' && e.kind !== 'note');
+    budget = limit - head.length - tail.length - reserved;
+  }
+  if (budget >= selectedBlock.length) {
+    let start = selected;
+    let end = selected;
+    let used = blocks[selected].length;
+    for (;;) {
+      let grew = false;
+      if (end + 1 < blocks.length && used + blocks[end + 1].length <= budget) {
+        end += 1;
+        used += blocks[end].length;
+        grew = true;
+      }
+      if (start > 0 && used + blocks[start - 1].length <= budget) {
+        start -= 1;
+        used += blocks[start].length;
+        grew = true;
+      }
+      if (!grew) break;
+    }
+    const out = [...head];
+    if (start > 0) out.push(moreMarker(`${start} more above`));
+    out.push(...trimTrailingSpacers(blocks.slice(start, end + 1).flat()));
+    if (end < blocks.length - 1) out.push(moreMarker(`${blocks.length - 1 - end} more below`));
+    out.push(...tail);
+    return out;
+  }
+
+  // Tier 2: compact, priority-driven.
+  const footer = tail.find((e) => e.kind === 'footer');
+  const hint = [...tail].reverse().find((e) => e.kind === 'hint');
+  const titles = head.filter((e) => e.kind === 'title');
+  const headings = head.filter((e) => e.kind === 'heading');
+  const details = selectedBlock.slice(1);
+
+  let room = limit;
+  const take = (n = 1) => {
+    if (room < n) return false;
+    room -= n;
+    return true;
+  };
+  const keep = { option: false, footer: false, hint: false, titles: false, headings: false };
+  let detailCount = 0;
+  let markerAbove = false;
+  let markerBelow = false;
+
+  keep.option = take();
+  if (footer) keep.footer = take();
+  if (hint) keep.hint = take();
+  while (detailCount < Math.min(CORE_DETAIL_LINES, details.length) && take()) detailCount += 1;
+  if (selected > 0) markerAbove = take();
+  if (selected < blocks.length - 1) markerBelow = take();
+  if (titles.length && take(titles.length)) keep.titles = true;
+  if (headings.length && take(headings.length)) keep.headings = true;
+  while (detailCount < details.length && take()) detailCount += 1;
+  let start = selected;
+  let end = selected;
+  for (;;) {
+    let grew = false;
+    if (end + 1 < blocks.length && take()) {
+      end += 1;
+      grew = true;
+    }
+    if (start > 0 && take()) {
+      start -= 1;
+      grew = true;
+    }
+    if (!grew) break;
+  }
+
+  const out = [];
+  if (keep.headings) out.push(...headings);
+  if (keep.titles) out.push(...titles);
+  if (start > 0 && markerAbove) out.push(moreMarker(`${start} more above`));
+  for (let i = start; i < selected; i += 1) out.push(blocks[i][0]);
+  if (keep.option) out.push(selectedBlock[0]);
+  out.push(...details.slice(0, detailCount));
+  for (let i = selected + 1; i <= end; i += 1) out.push(blocks[i][0]);
+  if (end < blocks.length - 1 && markerBelow) out.push(moreMarker(`${blocks.length - 1 - end} more below`));
+  if (keep.footer) out.push(footer);
+  if (keep.hint) out.push(hint);
+  return out;
+}
+
 /**
  * @param {object} workflow
  * @returns {string[]}
@@ -297,5 +488,7 @@ module.exports = {
   openRunOverview,
   formatRunBrowserWorkflowEntries,
   formatRunBrowserWorkflowLines,
+  windowEntriesToHeight,
+  windowTargetRows,
   applyRunBrowserWorkflowKeypress,
 };
