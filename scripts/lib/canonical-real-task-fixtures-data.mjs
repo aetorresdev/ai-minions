@@ -6,6 +6,8 @@
  * Hybrid matrix rows remain honest-skip (MATRIX_SKIP_HYBRID_UNSUPPORTED).
  */
 
+import { executeInlineScripts } from "./fixture-script-execution.mjs";
+
 /** @typedef {'canonical' | 'secondary'} FixtureStatus */
 /** @typedef {'string_present' | 'regex' | 'no_external_network_assets'} ArtifactCheckKind */
 
@@ -346,6 +348,17 @@ export function validateFixtureArtifact(fixture, htmlText) {
       errors.push(`${check.id}: failed — ${check.label}`);
     }
     checks.push({ id: check.id, ok, label: check.label });
+  }
+
+  // Source-text checks cannot see an app that throws while loading; run its inline scripts as well.
+  const execution = executeInlineScripts(text);
+  checks.push({
+    id: "executes_without_error",
+    ok: execution.ok,
+    label: "Inline scripts run at load without throwing",
+  });
+  if (!execution.ok) {
+    errors.push(`executes_without_error: ${execution.phase ?? "load"} — ${execution.error}`);
   }
 
   return { ok: errors.length === 0, errors, checks };

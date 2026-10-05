@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
@@ -16,6 +17,10 @@ import {
   validateFixtureData,
   validateFixtureDoc,
 } from "../scripts/lib/canonical-real-task-fixtures-data.mjs";
+import {
+  executeInlineScripts,
+  extractInlineScripts,
+} from "../scripts/lib/fixture-script-execution.mjs";
 import {
   formatReportText,
   runCanonicalFixtureVerify,
@@ -102,5 +107,93 @@ describe("verify-canonical-real-task-fixtures", () => {
       fixtureId: "sudoku-html-app",
     });
     assert.equal(report.ok, true, formatReportText(report));
+  });
+});
+
+/** Passes every source-text check but throws while loading (flat arrays spread as if nested). */
+const CRASH_ON_LOAD_HTML = `<html><body><div id="board" class="grid cell"></div>
+<button id="check">Check</button><button id="reset">Reset</button>
+<script>
+  // sudoku
+  const clone = (a) => a.map((r) => [...r]);
+  clone([1, 2, 3]);
+  document.getElementById("board").textContent = "rendered";
+</script></body></html>`;
+
+describe("fixture script execution", () => {
+  it("fails an artifact that crashes on load even though every source-text check passes", () => {
+    const fixture = getFixture("sudoku-html-app");
+    const result = validateFixtureArtifact(fixture, CRASH_ON_LOAD_HTML);
+    const exec = result.checks.find((c) => c.id === "executes_without_error");
+    assert.equal(exec?.ok, false);
+    assert.ok(
+      result.checks.filter((c) => c.id !== "executes_without_error").every((c) => c.ok),
+      "source-text checks alone must pass for this regression to prove anything",
+    );
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.some((e) => /executes_without_error: load .*not iterable/.test(e)), result.errors.join("; "));
+  });
+
+  it("passes the shipped sample and reports the execution check as ok", () => {
+    const fixture = getFixture("sudoku-html-app");
+    const result = validateFixtureArtifact(fixture, fs.readFileSync(SAMPLE_SUDOKU, "utf8"));
+    assert.equal(result.checks.find((c) => c.id === "executes_without_error")?.ok, true);
+  });
+
+  it("surfaces an exception thrown by a DOMContentLoaded handler", () => {
+    const html = `<script>document.addEventListener("DOMContentLoaded", () => { null.x; });</script>`;
+    const result = executeInlineScripts(html);
+    assert.equal(result.ok, false);
+    assert.equal(result.phase, "init");
+  });
+
+  it("stops a script that never returns", () => {
+    const result = executeInlineScripts("<script>while (true) {}</script>", { timeoutMs: 300 });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /timed out/);
+  });
+
+  it("fails closed when there is no inline script", () => {
+    const result = executeInlineScripts(`<html><script src="app.js"></script></html>`);
+    assert.equal(result.ok, false);
+    assert.equal(result.phase, "extract");
+  });
+
+  it("ignores external and non-JavaScript script blocks when extracting", () => {
+    const html = `<script src="a.js"></script><script type="application/json">{"a":1}</script><script>var x = 1;</script>`;
+    assert.deepEqual(extractInlineScripts(html), ["var x = 1;"]);
+  });
+
+  it("blocks filesystem and process access even through a vm escape", () => {
+    const marker = path.join(os.tmpdir(), `fixture-exec-probe-${process.pid}`);
+    const escape = (body) =>
+      `<script>const P = this.constructor.constructor("return process")(); ${body}</script>`;
+    const read = executeInlineScripts(escape(`P.getBuiltinModule("fs").readFileSync(${JSON.stringify(import.meta.filename)})`));
+    const write = executeInlineScripts(escape(`P.getBuiltinModule("fs").writeFileSync(${JSON.stringify(marker)}, "x")`));
+    const spawn = executeInlineScripts(escape(`P.getBuiltinModule("child_process").execSync("id")`));
+    for (const r of [read, write, spawn]) {
+      assert.equal(r.ok, false);
+      assert.match(r.error, /restricted/);
+    }
+    assert.equal(fs.existsSync(marker), false);
+  });
+
+  it("artifact mode fails with FIXTURE_ARTIFACT_FAIL for a crash-on-load file", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fixture-exec-"));
+    try {
+      const file = path.join(dir, "sudoku.html");
+      fs.writeFileSync(file, CRASH_ON_LOAD_HTML);
+      const report = runCanonicalFixtureVerify({
+        repoRoot: REPO_ROOT,
+        artifactPath: file,
+        fixtureId: "sudoku-html-app",
+      });
+      const step = report.steps.find((s) => s.id === "artifact");
+      assert.equal(report.ok, false);
+      assert.equal(step?.reason_code, REASON_CODES.ARTIFACT_FAIL);
+      assert.match(step?.message ?? "", /executes_without_error/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
