@@ -1181,9 +1181,7 @@ function ShellApp(props) {
         React.createElement(
           Text,
           { color: readinessColor, wrap: 'truncate' },
-          `readiness=${model.readiness}`
-            + (model.selectedRunId ? ` · run=${model.selectedRunId}` : '')
-            + ` · ${model.title} v${model.version} [${model.layout}]`,
+          headerLineText(model, Math.max(1, model.columns - 2)),
         ),
       )
       : React.createElement(
@@ -1193,26 +1191,26 @@ function ShellApp(props) {
         borderColor: theme.brand,
         paddingX: 1,
         flexDirection: 'column',
+        flexShrink: 0,
       },
       React.createElement(
         Box,
         { justifyContent: 'space-between' },
         React.createElement(
           Text,
-          { bold: theme.titleBold, color: theme.brand },
+          { bold: theme.titleBold, color: theme.brand, wrap: 'truncate' },
           `${model.title} v${model.version}`,
         ),
         React.createElement(
           Text,
-          { color: theme.muted },
+          { color: theme.muted, wrap: 'truncate' },
           `[${model.layout}]`,
         ),
       ),
       React.createElement(
         Text,
-        { color: readinessColor },
-        `readiness=${model.readiness}`
-          + (model.selectedRunId ? ` · run=${model.selectedRunId}` : ''),
+        { color: readinessColor, wrap: 'truncate' },
+        headerStatusText(model, Math.max(1, model.columns - 4)),
       ),
     )),
     React.createElement(
@@ -1236,16 +1234,16 @@ function ShellApp(props) {
         Box,
         {
           flexDirection: 'column',
-          width: narrow ? undefined : 28,
+          width: narrow ? undefined : NAV_BOX_WIDTH,
           flexShrink: 0,
           borderStyle: model.focus === 'nav' ? 'double' : 'single',
           borderColor: focusBorderColor(theme, model.focus === 'nav'),
           paddingX: 1,
         },
-        React.createElement(Text, { bold: theme.sectionBold, color: theme.accent }, 'Navigate'),
+        React.createElement(Text, { bold: theme.sectionBold, color: theme.accent, wrap: 'truncate' }, 'Navigate'),
         React.createElement(
           Text,
-          { dimColor: true, color: theme.muted },
+          { dimColor: true, color: theme.muted, wrap: 'truncate' },
           'keyboard — not clickable',
         ),
         ...model.navItems.map((item) => {
@@ -1257,6 +1255,7 @@ function ShellApp(props) {
               key: item.id,
               bold: selected,
               color: selected ? theme.selected : undefined,
+              wrap: 'truncate',
             },
             `${prefix}${selected ? '›' : ' '} ${item.key}. ${item.label}`,
           );
@@ -1264,8 +1263,8 @@ function ShellApp(props) {
         model.selectedRunId
           ? React.createElement(
             Text,
-            { dimColor: true, color: theme.muted },
-            `run=${model.selectedRunId}`,
+            { dimColor: true, color: theme.muted, wrap: 'truncate' },
+            navRunText(model, narrow ? model.columns - 4 : NAV_BOX_WIDTH - 4),
           )
           : null,
       )),
@@ -1323,7 +1322,7 @@ function ShellApp(props) {
         { paddingX: 1, flexShrink: 0 },
         React.createElement(
           Text,
-          { color: theme.brand, wrap: 'truncate' },
+          { color: theme.brand, wrap: 'truncate-start' },
           `> ${model.commandInput}${model.focus === 'input' ? '█' : ''}`,
         ),
       )
@@ -1333,28 +1332,25 @@ function ShellApp(props) {
         borderStyle: model.focus === 'input' ? 'double' : 'single',
         borderColor: focusBorderColor(theme, model.focus === 'input'),
         paddingX: 1,
+        flexShrink: 0,
       },
-      React.createElement(Text, { color: theme.brand }, `> ${model.commandInput}`),
+      React.createElement(Text, { color: theme.brand, wrap: 'truncate-start' }, `> ${model.commandInput}`),
       React.createElement(
         Text,
-        { dimColor: true, color: theme.selected },
+        { dimColor: true, color: theme.selected, wrap: 'truncate' },
         model.focus === 'input' ? '█' : '',
       ),
     )),
-    React.createElement(
+    ...fixedLines(model.footerHints, model.columns - 2).map((line, idx) => React.createElement(
       Box,
-      { paddingX: 1 },
-      React.createElement(
-        Text,
-        { dimColor: true, color: theme.muted },
-        model.footerHints,
-      ),
-    ),
-    chrome.disclaimer === 'off' ? null : React.createElement(
+      { key: `footer-${idx}`, paddingX: 1, flexShrink: 0 },
+      React.createElement(Text, { dimColor: true, color: theme.muted, wrap: 'truncate' }, line),
+    )),
+    ...(chrome.disclaimer === 'off' ? [] : fixedLines(model.disclaimer, model.columns - 2).map((line, idx) => React.createElement(
       Box,
-      { paddingX: 1 },
-      React.createElement(Text, { dimColor: true, color: theme.muted }, model.disclaimer),
-    ),
+      { key: `disclaimer-${idx}`, paddingX: 1, flexShrink: 0 },
+      React.createElement(Text, { dimColor: true, color: theme.muted, wrap: 'truncate' }, line),
+    ))),
   );
 }
 
@@ -1439,34 +1435,123 @@ const CHROME_LADDER = Object.freeze([
   { input: 'off' },
 ]);
 
-function wrappedRows(text, columns) {
-  return Math.max(1, Math.ceil(String(text ?? '').length / Math.max(1, columns - 2)));
+/** Width of the side-by-side Navigate box in the wide layout (border + padding included). */
+const NAV_BOX_WIDTH = 28;
+
+function textLength(text) {
+  return [...String(text ?? '')].length;
+}
+
+/**
+ * Shorten `text` to `width` characters with a middle ellipsis, keeping a
+ * recognizable prefix and the distinguishing suffix (run ids end in a counter).
+ * @param {string} text
+ * @param {number} width
+ * @returns {string}
+ */
+function fitMiddle(text, width) {
+  const chars = [...String(text ?? '')];
+  const max = Math.max(1, Math.floor(width));
+  if (chars.length <= max) return chars.join('');
+  if (max <= 3) return `${chars.slice(0, max - 1).join('')}…`;
+  const tail = Math.floor((max - 1) / 3);
+  const head = max - 1 - tail;
+  return `${chars.slice(0, head).join('')}…${chars.slice(chars.length - tail).join('')}`;
+}
+
+/**
+ * Split chrome text into explicit rows (greedy word wrap, over-long words are
+ * hard-split). Each row is rendered as its own truncating Text, so the number
+ * of rows computed here is exactly the number of rows Ink renders.
+ * @param {string} text
+ * @param {number} width
+ * @returns {string[]}
+ */
+function fixedLines(text, width) {
+  const max = Math.max(1, Math.floor(width));
+  const lines = [];
+  let current = '';
+  const flush = () => {
+    lines.push(current);
+    current = '';
+  };
+  for (const word of String(text ?? '').split(/\s+/).filter(Boolean)) {
+    let rest = [...word];
+    if (current && textLength(current) + 1 + rest.length <= max) {
+      current += ` ${rest.join('')}`;
+      continue;
+    }
+    if (current) flush();
+    while (rest.length > max) {
+      lines.push(rest.slice(0, max).join(''));
+      rest = rest.slice(max);
+    }
+    current = rest.join('');
+  }
+  if (current || !lines.length) flush();
+  return lines;
+}
+
+/** `readiness=… · run=<id>` for the boxed header; the id is shortened to fit one row. */
+function headerStatusText(model, width) {
+  const lead = `readiness=${model.readiness}`;
+  if (!model.selectedRunId) return lead;
+  const prefix = `${lead} · run=`;
+  return `${prefix}${fitMiddle(model.selectedRunId, Math.max(8, width - textLength(prefix)))}`;
+}
+
+/** One-line header: status, then product title and layout when the id still fits. */
+function headerLineText(model, width) {
+  const tail = ` · ${model.title} v${model.version} [${model.layout}]`;
+  const withTail = headerStatusText(model, width - textLength(tail));
+  const full = `${withTail}${tail}`;
+  if (textLength(full) <= width && textLength(withTail) <= width - textLength(tail)) return full;
+  return headerStatusText(model, width);
+}
+
+/** `run=<id>` row under Navigate, shortened to the Navigate box inner width. */
+function navRunText(model, innerWidth) {
+  return `run=${fitMiddle(model.selectedRunId, Math.max(8, innerWidth - 4))}`;
+}
+
+/**
+ * Rendered row count of every chrome element for a given arrangement. Each
+ * element is a fixed number of rows by construction (single truncating rows or
+ * explicit line lists), which keeps the planner in lockstep with ShellApp.
+ * @param {object} model
+ * @param {typeof FULL_CHROME} chrome
+ */
+function chromeRowBreakdown(model, chrome) {
+  const columns = Math.max(20, Math.floor(Number(model.columns)) || 80);
+  const navItems = Array.isArray(model.navItems) ? model.navItems.length : 0;
+  return {
+    header: { full: 4, line: 1, off: 0 }[chrome.header],
+    nav: { full: navItems + 4 + (model.selectedRunId ? 1 : 0), line: 1, off: 0 }[chrome.nav],
+    // Rows above the first entry inside the content box (border included).
+    contentTop: { full: 4, tight: 2, bare: 1 }[chrome.contentChrome],
+    contentBottom: 1,
+    input: { full: 3, line: 1, off: 0 }[chrome.input],
+    footer: fixedLines(model.footerHints, columns - 2).length,
+    disclaimer: chrome.disclaimer === 'off' ? 0 : fixedLines(model.disclaimer, columns - 2).length,
+  };
 }
 
 /**
  * Rows available to content entries for a given chrome arrangement, or -1 when
  * the arrangement itself cannot fit (side-by-side nav taller than the frame).
- * Heights mirror what ShellApp renders for each level.
  * @param {object} model
  * @param {typeof FULL_CHROME} chrome
  * @returns {number}
  */
 function contentRowsForChrome(model, chrome) {
   const rows = Math.max(1, Math.floor(Number(model.rows)) || 24);
-  const columns = Math.max(20, Math.floor(Number(model.columns)) || 80);
-  const header = { full: 4, line: 1, off: 0 }[chrome.header];
-  const input = { full: 3, line: 1, off: 0 }[chrome.input];
-  const contentChrome = { full: 5, tight: 3, bare: 2 }[chrome.contentChrome];
-  const footer = wrappedRows(model.footerHints, columns);
-  const disclaimer = chrome.disclaimer === 'off' ? 0 : wrappedRows(model.disclaimer, columns);
-  const navItems = Array.isArray(model.navItems) ? model.navItems.length : 0;
-  const navFull = navItems + 4 + (model.selectedRunId ? 1 : 0);
-  const middle = rows - header - input - footer - disclaimer;
+  const r = chromeRowBreakdown(model, chrome);
+  const contentChrome = r.contentTop + r.contentBottom;
+  const middle = rows - r.header - r.input - r.footer - r.disclaimer;
   if (model.layout !== 'narrow' && chrome.nav === 'full') {
-    return middle >= navFull ? middle - contentChrome : -1;
+    return middle >= r.nav ? middle - contentChrome : -1;
   }
-  const nav = { full: navFull, line: 1, off: 0 }[chrome.nav];
-  return middle - nav - contentChrome;
+  return middle - r.nav - contentChrome;
 }
 
 /**
@@ -1758,6 +1843,10 @@ export {
   OperatorTuiRoot,
   buildContentEntries,
   buildContentLines,
+  resolveShellChrome,
+  chromeRowBreakdown,
+  fixedLines,
+  fitMiddle,
   formatField,
   shouldSkipSplash,
   resolveSplashDurationMs,

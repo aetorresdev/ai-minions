@@ -22,9 +22,17 @@ const strip = (text) => text.replace(ANSI, '');
 
 const GOAL = 'Build a small self-contained Sudoku HTML app as a single file named sudoku.html';
 
-function makeRuns(count) {
+// idLength 0 -> short `task-00000001` ids; otherwise a long, space-free id that
+// hard-wraps unless the chrome truncates it.
+function runIdFor(index, idLength = 0) {
+  return idLength
+    ? `run-${'x'.repeat(idLength)}-${index + 1}`
+    : `task-${String(index + 1).padStart(8, '0')}`;
+}
+
+function makeRuns(count, idLength = 0) {
   return Array.from({ length: count }, (_, i) => ({
-    run_id: `task-${String(i + 1).padStart(8, '0')}`,
+    run_id: runIdFor(i, idLength),
     status: 'blocked',
     outcome: 'blocked',
     result_code: 'RUN_FOUND',
@@ -37,12 +45,12 @@ function makeRuns(count) {
   }));
 }
 
-function browserModel({ columns, rows, runCount, cursor, runs }) {
+function browserModel({ columns, rows, runCount, cursor, runs, idLength = 0 }) {
   const base = buildShellModel({
     columns,
     rows,
     skipSplash: true,
-    runsPayload: { runs: runs ?? makeRuns(runCount), result_code: 'RUNS_OK' },
+    runsPayload: { runs: runs ?? makeRuns(runCount, idLength), result_code: 'RUNS_OK' },
   });
   const opened = openNativeWorkflow(base, 'runs');
   const workflow = { ...opened, select: { ...opened.select, cursorIndex: cursor } };
@@ -62,8 +70,8 @@ async function renderModel(model, columns, rows) {
   return strip(renderOperatorTuiShellToString(model, { columns, rows })).split('\n');
 }
 
-async function renderBrowser({ columns, rows, runCount, cursor, runs }) {
-  return renderModel(browserModel({ columns, rows, runCount, cursor, runs }), columns, rows);
+async function renderBrowser({ columns, rows, runCount, cursor, runs, idLength = 0 }) {
+  return renderModel(browserModel({ columns, rows, runCount, cursor, runs, idLength }), columns, rows);
 }
 
 /**
@@ -72,15 +80,17 @@ async function renderBrowser({ columns, rows, runCount, cursor, runs }) {
  * Ink overprints by writing a row into cells that already hold other text, so
  * a mangled row cannot match its exact expected text and box borders break.
  */
-function assertCleanBrowserFrame(lines, { columns, rows, cursor, total, label }) {
-  const selectedId = `task-${String(cursor + 1).padStart(8, '0')}`;
+function assertCleanBrowserFrame(lines, { columns, rows, cursor, total, label, idLength = 0 }) {
+  const selectedId = runIdFor(cursor, idLength);
+  const idPrefix = selectedId.slice(0, 12);
+  const headerId = runIdFor(0, idLength); // the shell selects the first run by default
   const count = (predicate) => lines.filter(predicate).length;
 
   assert.ok(lines.length <= rows, `${label}: frame is ${lines.length} rows, terminal has ${rows}`);
   assert.ok(lines.every((line) => [...line].length <= columns), `${label}: a line exceeds ${columns} columns`);
 
   assert.equal(
-    count((line) => line.includes(`› ${cursor + 1}. ${selectedId}`)),
+    count((line) => line.includes(`› ${cursor + 1}. ${idPrefix}`)),
     1,
     `${label}: selected numbered row must appear exactly once`,
   );
@@ -102,7 +112,7 @@ function assertCleanBrowserFrame(lines, { columns, rows, cursor, total, label })
 
   // Numbered runs: consecutive, ascending, each once, selected one inside.
   const numbered = lines
-    .map((line) => /(\d+)\. task-(\d{8})/.exec(line))
+    .map((line) => /(\d+)\. (?:task|run)-/.exec(line))
     .filter(Boolean)
     .map((m) => Number(m[1]));
   assert.ok(numbered.includes(cursor + 1), `${label}: selected run missing from numbered rows`);
@@ -134,7 +144,21 @@ function assertCleanBrowserFrame(lines, { columns, rows, cursor, total, label })
     for (const item of ['h. Home', '1. New Run', '2. Runs', '3. System Status', '4. Settings', '5. Help']) {
       assert.equal(count((line) => line.includes(item)), 1, `${label}: Navigate item "${item}" missing or overprinted`);
     }
+    assert.ok(
+      lines.some((line) => /│ run=\S+ *│/.test(line) && line.includes(`run=${headerId.slice(0, 8)}`)),
+      `${label}: Navigate run row missing`,
+    );
+  } else {
+    assert.equal(count((line) => /Nav › 2\. Runs · keys h 1 2 3 4 5/.test(line)), 1, `${label}: nav summary missing`);
   }
+  // Header: product title (boxed header) or status line, always with a recognizable run id.
+  assert.ok(
+    lines.some((line) => line.includes('readiness=') && line.includes(`run=${headerId.slice(0, 8)}`)),
+    `${label}: header status row with run id missing`,
+  );
+  assert.ok(count((line) => line.includes('Content · run_browser')) <= 1, `${label}: content title duplicated`);
+  // Fixed chrome rows never leak partial text from a neighbour (e.g. "aboveser").
+  assert.equal(count((line) => /more above\S/.test(line) || /more below\S/.test(line)), 0, `${label}: marker corrupted`);
 }
 
 const VIEWPORTS = [
@@ -327,6 +351,90 @@ test('wide -> narrow -> wide resize restores the exact wide frame', async () => 
   assertCleanBrowserFrame(squeezed, { ...narrow, cursor: 7, total: 20, label: 'resized 60x20' });
   assert.deepEqual(after, fresh, 'wide frame after resize differs from a fresh render');
   assert.deepEqual(after, before, 'wide frame after resize differs from the frame before it');
+});
+
+const LONG_ID_LENGTHS = [0, 18, 40, 80, 200];
+const LONG_ID_SIZES = [[60, 20], [60, 24], [80, 24], [100, 30], [160, 50], [300, 90]];
+
+test('long run ids never overprint chrome or content at any supported size', async () => {
+  for (const idLength of LONG_ID_LENGTHS) {
+    for (const [columns, rows] of LONG_ID_SIZES) {
+      for (const cursor of [0, 7, 19]) {
+        const label = `id+${idLength} ${columns}x${rows} cursor=${cursor}`;
+        const lines = await renderBrowser({ columns, rows, runCount: 20, cursor, idLength });
+        assertCleanBrowserFrame(lines, { columns, rows, cursor, total: 20, label, idLength });
+        assert.match(lines.join('\n'), /Esc cancel/, `${label}: recovery hint missing`);
+      }
+    }
+  }
+});
+
+test('a long id with one to three runs keeps the narrow minimum clean', async () => {
+  for (const [columns, rows] of [[60, 20], [80, 24]]) {
+    for (const total of [1, 3]) {
+      for (let cursor = 0; cursor < total; cursor += 1) {
+        const label = `long id ${columns}x${rows} ${cursor + 1}/${total}`;
+        const lines = await renderBrowser({ columns, rows, runCount: total, cursor, idLength: 80 });
+        assertCleanBrowserFrame(lines, { columns, rows, cursor, total, label, idLength: 80 });
+      }
+    }
+  }
+});
+
+test('shortened ids keep a recognizable prefix and the distinguishing suffix', async () => {
+  const { fitMiddle } = await import('../../modules/operator/operator-tui-shell-render.mjs');
+  const id = runIdFor(6, 80);
+  const short = fitMiddle(id, 24);
+  assert.equal([...short].length, 24);
+  assert.ok(short.startsWith('run-xxxx'));
+  assert.ok(short.endsWith('-7'));
+  assert.ok(short.includes('…'));
+  assert.equal(fitMiddle('task-sudoku-default-r1', 40), 'task-sudoku-default-r1');
+});
+
+test('planned chrome rows equal rendered chrome rows for long ids', async () => {
+  const { resolveShellChrome, chromeRowBreakdown, buildContentEntries } = await import(
+    '../../modules/operator/operator-tui-shell-render.mjs'
+  );
+  for (const idLength of LONG_ID_LENGTHS) {
+    for (const [columns, rows] of LONG_ID_SIZES) {
+      for (const cursor of [0, 7, 19]) {
+        const label = `id+${idLength} ${columns}x${rows} cursor=${cursor}`;
+        const model = browserModel({ columns, rows, runCount: 20, cursor, idLength });
+        const plan = resolveShellChrome(model);
+        const parts = chromeRowBreakdown(model, plan.chrome);
+        const entries = buildContentEntries(model, plan);
+        const lines = await renderModel(model, columns, rows);
+
+        assert.equal(lines.length, rows, `${label}: frame is not exactly ${rows} rows`);
+        assert.ok(entries.length <= plan.contentRows, `${label}: ${entries.length} entries exceed ${plan.contentRows} planned rows`);
+
+        const probe = (text) => text.trim().slice(0, 16);
+        const first = lines.findIndex((line) => line.includes(probe(entries[0].text)));
+        const last = lines.length - 1 - [...lines].reverse().findIndex((line) => line.includes(probe(entries[entries.length - 1].text)));
+        const sideBySide = model.layout !== 'narrow' && plan.chrome.nav === 'full';
+        const above = parts.header + (sideBySide ? 0 : parts.nav) + parts.contentTop;
+        const below = (plan.contentRows - entries.length) + parts.contentBottom + parts.input + parts.footer + parts.disclaimer;
+        assert.equal(first, above, `${label}: rows above the content differ from the plan`);
+        assert.equal(lines.length - 1 - last, below, `${label}: rows below the content differ from the plan`);
+      }
+    }
+  }
+});
+
+test('wide -> narrow -> wide resize with long ids stays clean and restores the wide frame', async () => {
+  for (const idLength of [22, 80]) {
+    const sizes = [[160, 50], [60, 20], [80, 24], [60, 24], [160, 50]];
+    const state = shellModelToOptions(browserModel({ columns: 160, rows: 50, runCount: 20, cursor: 7, idLength }));
+    for (const [columns, rows] of sizes) {
+      const label = `id+${idLength} resize ${columns}x${rows}`;
+      const frame = await renderModel(buildShellModel({ ...state, columns, rows }), columns, rows);
+      assertCleanBrowserFrame(frame, { columns, rows, cursor: 7, total: 20, label, idLength });
+    }
+    const last = await renderModel(buildShellModel({ ...state, columns: 160, rows: 50 }), 160, 50);
+    const fresh = await renderBrowser({ columns: 160, rows: 50, runCount: 20, cursor: 7, idLength });
+    assert.deepEqual(last, fresh, `id+${idLength}: final wide frame differs from a fresh render`);
+  }
 });
 
 test('status surface shows title and dates from a real trace, not (unavailable)', async () => {
