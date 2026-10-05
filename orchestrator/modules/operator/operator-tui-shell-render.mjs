@@ -34,6 +34,8 @@ const {
   formatHelpLines,
   formatDiagnosticsLines,
   formatRecentRunEntryLine,
+  formatLandingMenuLine,
+  formatLandingOverallLine,
 } = require('./operator-tui-landing.js');
 const {
   isNativeWorkflowAction,
@@ -227,9 +229,15 @@ function LandingHomeView(props) {
     && landing.show_guardian === true
     && Array.isArray(landing.guardian_rows)
     && landing.guardian_rows.length > 0;
-  const quickItems = (navItemsForMovement(model) || [])
-    .filter((item) => ['launcher', 'runs', 'diagnostics', 'config', 'help'].includes(item.id))
-    .slice(0, Math.max(1, Number(comp.quick_start_limit) || 1));
+  const menuItems = (navItemsForMovement(model) || [])
+    .filter((item) => ['launcher', 'runs', 'diagnostics', 'config', 'help'].includes(item.id));
+  const quickItems = menuItems.slice(0, Math.max(1, Number(comp.quick_start_limit) || 1));
+  // Short TTY: one keyed line with every action instead of dropping entries.
+  const menuLine = () => formatLandingMenuLine(menuItems, {
+    selectedId: model.selectedNavId,
+    marker: selectedMark,
+    width: Math.max(8, Number(model.columns) - 4),
+  });
 
   const quickStartPanel = comp.show_quick_start
     ? React.createElement(
@@ -255,7 +263,13 @@ function LandingHomeView(props) {
           'keyboard — not clickable',
         )]
         : []),
-      ...quickItems.map((item) => {
+      ...(comp.quick_start_compact
+        ? [React.createElement(
+          Text,
+          { key: 'qs-menu', bold: true, color: theme.brand, wrap: 'truncate' },
+          menuLine(),
+        )]
+        : quickItems.map((item) => {
         const selected = item.id === model.selectedNavId;
         const label = item.id === 'launcher'
           ? 'Start New Run'
@@ -273,7 +287,7 @@ function LandingHomeView(props) {
           },
           `${selected ? selectedMark : ' '} ${item.key}. ${label}`,
         );
-      }),
+      })),
     )
     : null;
 
@@ -295,8 +309,8 @@ function LandingHomeView(props) {
     ),
     React.createElement(
       Text,
-      { color: readinessColor, bold: true },
-      `Overall: ${landing.overall.label}`,
+      { color: readinessColor, bold: true, wrap: 'truncate' },
+      formatLandingOverallLine(landing, comp),
     ),
     ...(comp.show_readiness_next
       ? [React.createElement(
@@ -425,8 +439,12 @@ function LandingHomeView(props) {
         key: 'cta',
         bold: true,
         color: model.selectedNavId === 'launcher' ? theme.selected : theme.brand,
+        wrap: 'truncate',
       },
-      `${model.selectedNavId === 'launcher' ? selectedMark : ' '} 1. Start New Run`,
+      comp.show_quick_start
+        ? `${model.selectedNavId === 'launcher' ? selectedMark : ' '} 1. Start New Run`
+        // Quick Start dropped for height: the primary row carries every action.
+        : menuLine(),
     ));
   }
   if (comp.show_guardian_note) {

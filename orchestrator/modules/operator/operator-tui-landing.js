@@ -55,6 +55,7 @@ function landingLayoutForViewport(columns, rows) {
  *   show_quick_start: boolean,
  *   show_quick_start_hint: boolean,
  *   quick_start_limit: number,
+ *   quick_start_compact: boolean,
  *   show_readiness: boolean,
  *   show_readiness_next: boolean,
  *   show_readiness_details: boolean,
@@ -85,6 +86,7 @@ function defaultLandingComposition(layout) {
     show_quick_start: true,
     show_quick_start_hint: true,
     quick_start_limit: 5,
+    quick_start_compact: false,
     show_readiness: true,
     show_readiness_next: true,
     show_readiness_details: true,
@@ -157,8 +159,11 @@ const LANDING_COMPOSITION_DROP_STEPS = Object.freeze([
     },
   },
   {
-    id: 'quick_start_primary_only',
+    // Short TTY: collapse the menu into one line. Every action stays visible
+    // and reachable (the selection marker follows ↑/↓); never drop entries.
+    id: 'quick_start_compact',
     apply(c) {
+      c.quick_start_compact = true;
       c.quick_start_limit = 1;
       c.show_quick_start_hint = false;
     },
@@ -354,6 +359,71 @@ function resolveLandingComposition(columns, rows, opts = {}) {
   }
 
   return { layout, composition, estimated_rows: estimated };
+}
+
+/** Short labels used by the one-line menu when the full labels do not fit. */
+const LANDING_MENU_SHORT_LABELS = Object.freeze({
+  launcher: 'Start New Run',
+  runs: 'Runs',
+  diagnostics: 'Status',
+  config: 'Settings',
+  help: 'Help',
+});
+
+/**
+ * One-line landing menu for short terminals. Every entry stays visible and
+ * keyed (`1`–`5`); labels are added greedily (selected entry first, then the
+ * primary action, then the rest) while they fit `width`, so nothing reachable
+ * is ever dropped. The selected entry carries `marker`.
+ * @param {ReadonlyArray<{ key: string, id: string }>} items
+ * @param {{ selectedId?: string | null, marker?: string, width?: number }} [opts]
+ * @returns {string}
+ */
+function formatLandingMenuLine(items, opts = {}) {
+  const list = Array.isArray(items) ? items : [];
+  const marker = opts.marker ?? '>';
+  const selectedId = opts.selectedId == null ? 'launcher' : String(opts.selectedId);
+  const width = Number.isFinite(Number(opts.width)) ? Math.max(8, Math.floor(Number(opts.width))) : 80;
+  const sep = ' · ';
+  const labelFor = (item) => LANDING_MENU_SHORT_LABELS[item.id] ?? String(item.label ?? item.key);
+  const piece = (item, labelled) => {
+    const body = labelled ? `${item.key}. ${labelFor(item)}` : String(item.key);
+    return item.id === selectedId ? `${marker} ${body}` : body;
+  };
+  const labelled = new Set();
+  const render = () => list.map((item) => piece(item, labelled.has(item.id))).join(sep);
+  const order = [
+    ...list.filter((item) => item.id === selectedId),
+    ...list.filter((item) => item.id === 'launcher' && item.id !== selectedId),
+    ...list.filter((item) => item.id !== selectedId && item.id !== 'launcher'),
+  ];
+  for (const item of order) {
+    labelled.add(item.id);
+    if ([...render()].length > width) {
+      labelled.delete(item.id);
+      // Keep labels contiguous after the priority entries (no "3 · 4 · 5. Help" gaps).
+      if (item.id !== selectedId && item.id !== 'launcher') break;
+    }
+  }
+  return render();
+}
+
+/**
+ * `Overall: <label>` plus the recovery hint inline when the dedicated `next:`
+ * row was dropped for height (non-ready, non-loading states only).
+ * @param {{ overall: { state: string, label: string, next_action?: string } }} landing
+ * @param {{ show_readiness_next?: boolean }} comp
+ * @returns {string}
+ */
+function formatLandingOverallLine(landing, comp) {
+  const { overall } = landing;
+  const hint = comp.show_readiness_next === false
+    && overall.state !== 'ready'
+    && overall.state !== 'loading'
+    && overall.next_action
+    ? ` · ${overall.next_action}`
+    : '';
+  return `Overall: ${overall.label}${hint}`;
 }
 
 /**
@@ -895,7 +965,7 @@ function buildLandingViewModel(options = {}) {
       && (
         step.id === 'hide_readiness_details'
         || step.id === 'hide_readiness_next'
-        || step.id === 'quick_start_primary_only'
+        || step.id === 'quick_start_compact'
       )
     ) {
       continue;
@@ -1072,8 +1142,12 @@ function buildLandingViewModel(options = {}) {
     : String(options.version);
 
   const quickStartAll = landingQuickStartActions();
+  // Compact mode keeps every entry (rendered on one line); only the roomy
+  // layout is trimmed by quick_start_limit.
   const quickStart = composition.show_quick_start
-    ? quickStartAll.slice(0, Math.max(1, Number(composition.quick_start_limit) || 1))
+    ? (composition.quick_start_compact
+      ? quickStartAll
+      : quickStartAll.slice(0, Math.max(1, Number(composition.quick_start_limit) || 1)))
     : [];
 
   const sectionIcons = {
@@ -1134,6 +1208,9 @@ function buildLandingViewModel(options = {}) {
     },
     overall,
     quick_start: quickStart,
+    // Full action list; always reachable even when Quick Start is compacted or hidden.
+    menu: quickStartAll,
+    menu_width: Math.max(8, columns - 4),
     readiness_rows: readinessRows,
     recent_runs: recent,
     recent_runs_total: runs.length,
@@ -1177,8 +1254,17 @@ function formatLandingLines(landing, options = {}) {
   if (comp.show_tagline) lines.push(landing.hero.tagline);
   lines.push(`v${String(landing.version).replace(/^v/i, '')}`);
   if (comp.show_primary_cta) {
-    const marker = selectedNavId == null || selectedNavId === 'launcher' ? '>' : ' ';
-    lines.push(`${marker} 1. Start New Run`);
+    if (comp.show_quick_start) {
+      const marker = selectedNavId == null || selectedNavId === 'launcher' ? '>' : ' ';
+      lines.push(`${marker} 1. Start New Run`);
+    } else {
+      // Quick Start dropped for height: the primary row carries the whole menu.
+      lines.push(formatLandingMenuLine(landing.menu, {
+        selectedId: selectedNavId,
+        marker: '>',
+        width: Number(landing.menu_width) || 76,
+      }));
+    }
   }
   if (comp.show_guardian_note) lines.push(landing.hero.guardian_note);
   if (comp.show_quick_start && landing.quick_start.length) {
@@ -1197,7 +1283,7 @@ function formatLandingLines(landing, options = {}) {
   lines.push(
     comp.show_readiness_next
       ? `Overall: ${landing.overall.label} · next: ${landing.overall.next_action}`
-      : `Overall: ${landing.overall.label}`,
+      : formatLandingOverallLine(landing, comp),
   );
   if (comp.show_readiness_details) {
     for (const row of landing.readiness_rows) {
@@ -1450,6 +1536,8 @@ module.exports = {
   estimateLandingCompositionRows,
   resolveLandingComposition,
   landingQuickStartActions,
+  formatLandingMenuLine,
+  formatLandingOverallLine,
   adaptShellNavigation,
   deriveLandingOverall,
   classifyRunActivity,

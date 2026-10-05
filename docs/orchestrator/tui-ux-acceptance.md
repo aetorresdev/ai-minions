@@ -60,6 +60,7 @@ Automated tests assert model + hierarchy text at those sizes. Capture scripts un
 - `RUNNING`, `VERIFYING`, `READY`, `WARN`, `ACTION REQUIRED`, `BLOCKED`, and `FAILED` remain textually distinct in the status-token inventory.
 - Narrow layout must not hide the primary action or recovery path.
 - Run browser at 60×20 and 60×24: the shell relaxes chrome only as far as needed (disclaimer, content padding, Navigate box to one line, header box to one line, command input to one line) so the selected numbered run, the `selected N/M` counter, the list key hint and the footer key hints stay on screen without overlapping rows. The selected run is never clipped; below the supported minimum chrome drops further, down to a selected-run-plus-counter minimum.
+- Landing at 60×20, 60×24 and wide-short terminals (for example 250×16 or 300×20): under height pressure the Quick Start panel collapses to one keyed line (and, below that, into the primary row) instead of dropping entries, so `1`–`5` stay visible and the selection marker follows ↑/↓; the recovery hint stays inline on the `Overall:` line when the dedicated `next:` row is dropped; the input row and footer key hints always remain.
 - Long run IDs must not displace the primary nav contract.
 - Splash skip remains deterministic (existing splash tests).
 

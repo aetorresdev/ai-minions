@@ -588,7 +588,7 @@ test('typical ≥80×24 Semantic keeps full Quick Start + System Readiness', () 
     assert.ok(landing.quick_start.length >= 5, `${id}: full QS actions`);
     assert.ok(landing.readiness_rows.length >= 4, `${id}: readiness detail rows`);
     assert.ok(
-      !landing.composition.drops.includes('quick_start_primary_only'),
+      !landing.composition.drops.includes('quick_start_compact'),
       `${id}: must not cut QS on typical viewport`,
     );
     assert.ok(
