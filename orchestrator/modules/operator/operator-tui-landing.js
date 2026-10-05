@@ -361,6 +361,10 @@ function resolveLandingComposition(columns, rows, opts = {}) {
   return { layout, composition, estimated_rows: estimated };
 }
 
+/** Where each recovery hint sends the operator (nav id + the label the hint names). */
+const RECOVERY_SETTINGS = Object.freeze({ id: 'config', label: 'Settings' });
+const RECOVERY_STATUS = Object.freeze({ id: 'diagnostics', label: 'System Status' });
+
 /** Short labels used by the one-line menu when the full labels do not fit. */
 const LANDING_MENU_SHORT_LABELS = Object.freeze({
   launcher: 'Start New Run',
@@ -372,11 +376,19 @@ const LANDING_MENU_SHORT_LABELS = Object.freeze({
 
 /**
  * One-line landing menu for short terminals. Every entry stays visible and
- * keyed (`1`–`5`); labels are added greedily (selected entry first, then the
- * primary action, then the rest) while they fit `width`, so nothing reachable
- * is ever dropped. The selected entry carries `marker`.
+ * keyed (`1`–`5`); nothing reachable is ever dropped. The selected entry carries
+ * `marker`.
+ *
+ * Label priority (width budget, no fixed cut-offs):
+ *  1. the selected entry and the recovery destination (`priorityIds`) are
+ *     always labelled, so the operator never sees a bare key for the entry they
+ *     are on or for the place the recovery hint points to;
+ *  2. then the primary action (`launcher`) while it fits `width`;
+ *  3. then the remaining entries in menu order while each fits, stopping at the
+ *     first that does not (so labels stay contiguous). Entries left without a
+ *     label keep their bare key, which stays unambiguous (`1`–`5`).
  * @param {ReadonlyArray<{ key: string, id: string }>} items
- * @param {{ selectedId?: string | null, marker?: string, width?: number }} [opts]
+ * @param {{ selectedId?: string | null, marker?: string, width?: number, priorityIds?: ReadonlyArray<string> }} [opts]
  * @returns {string}
  */
 function formatLandingMenuLine(items, opts = {}) {
@@ -392,38 +404,85 @@ function formatLandingMenuLine(items, opts = {}) {
   };
   const labelled = new Set();
   const render = () => list.map((item) => piece(item, labelled.has(item.id))).join(sep);
-  const order = [
-    ...list.filter((item) => item.id === selectedId),
-    ...list.filter((item) => item.id === 'launcher' && item.id !== selectedId),
-    ...list.filter((item) => item.id !== selectedId && item.id !== 'launcher'),
+  const must = new Set([selectedId, ...(opts.priorityIds ?? []).map(String)]);
+  for (const item of list) {
+    if (must.has(item.id)) labelled.add(item.id);
+  }
+  const optional = [
+    ...list.filter((item) => item.id === 'launcher' && !must.has(item.id)),
+    ...list.filter((item) => item.id !== 'launcher' && !must.has(item.id)),
   ];
-  for (const item of order) {
+  for (const item of optional) {
     labelled.add(item.id);
     if ([...render()].length > width) {
       labelled.delete(item.id);
-      // Keep labels contiguous after the priority entries (no "3 · 4 · 5. Help" gaps).
-      if (item.id !== selectedId && item.id !== 'launcher') break;
+      // Keep labels contiguous after the primary action (no "3 · 4 · 5. Help" gaps).
+      if (item.id !== 'launcher') break;
     }
   }
   return render();
 }
 
 /**
- * `Overall: <label>` plus the recovery hint inline when the dedicated `next:`
- * row was dropped for height (non-ready, non-loading states only).
- * @param {{ overall: { state: string, label: string, next_action?: string } }} landing
- * @param {{ show_readiness_next?: boolean }} comp
+ * Fit a recovery hint to `budget` characters without ever cutting its
+ * destination (for example "Settings"): the descriptive words around it are
+ * shortened first, from the side that does not hold the destination.
+ * @param {string} hint
+ * @param {string | null | undefined} destination
+ * @param {number} budget
  * @returns {string}
  */
-function formatLandingOverallLine(landing, comp) {
+function fitRecoveryHint(hint, destination, budget) {
+  const chars = [...String(hint ?? '')];
+  const max = Math.max(1, Math.floor(budget));
+  if (chars.length <= max) return chars.join('');
+  const dest = destination ? [...String(destination)] : [];
+  const text = chars.join('');
+  const at = dest.length ? text.indexOf(dest.join('')) : -1;
+  if (at < 0) return `${chars.slice(0, Math.max(1, max - 1)).join('')}…`;
+  const startChar = [...text.slice(0, at)].length;
+  const end = startChar + dest.length;
+  if (dest.length >= max) return dest.join('');
+  if (end <= max - 1) return `${chars.slice(0, max - 1).join('')}…`; // destination survives a right cut
+  if (end <= max) return chars.slice(0, end).join('');
+  // Destination sits late: keep the tail that ends with it, starting at a word boundary.
+  let from = end - (max - 1);
+  while (from < startChar && chars[from] !== ' ') from += 1;
+  if (chars[from] === ' ') from += 1;
+  return `…${chars.slice(from, end).join('')}`;
+}
+
+/**
+ * `Overall: <label>` plus the recovery hint inline when the dedicated `next:`
+ * row was dropped for height (non-ready, non-loading states only). With a
+ * `width` the line is built to fit it: the hint is shortened around its
+ * destination, falling back to the destination alone, so it never truncates
+ * the place the operator must go to.
+ * @param {{ overall: { state: string, label: string, next_action?: string, recovery_destination?: { label: string } | null } }} landing
+ * @param {{ show_readiness_next?: boolean }} comp
+ * @param {number} [width]
+ * @returns {string}
+ */
+function formatLandingOverallLine(landing, comp, width) {
   const { overall } = landing;
-  const hint = comp.show_readiness_next === false
-    && overall.state !== 'ready'
-    && overall.state !== 'loading'
-    && overall.next_action
-    ? ` · ${overall.next_action}`
-    : '';
-  return `Overall: ${overall.label}${hint}`;
+  const lead = `Overall: ${overall.label}`;
+  if (
+    comp.show_readiness_next !== false
+    || overall.state === 'ready'
+    || overall.state === 'loading'
+    || !overall.next_action
+  ) {
+    return lead;
+  }
+  const dest = overall.recovery_destination?.label ?? null;
+  if (!Number.isFinite(Number(width))) return `${lead} · ${overall.next_action}`;
+  const budget = Math.floor(Number(width)) - [...lead].length - 3;
+  if (budget >= (dest ? [...dest].length : 1)) {
+    return `${lead} · ${fitRecoveryHint(overall.next_action, dest, budget)}`;
+  }
+  // Too narrow for the lead: keep the state word and the destination.
+  const bare = `${overall.label} · ${dest ?? ''}`.trim();
+  return [...bare].length <= width ? bare : (dest ?? lead);
 }
 
 /**
@@ -545,6 +604,7 @@ function adaptShellNavigation(options = {}) {
  *   label: string,
  *   next_action: string,
  *   reason_hint: string | null,
+ *   recovery_destination: { id: string, label: string } | null,
  * }}
  */
 function deriveLandingOverall(home = {}) {
@@ -559,6 +619,7 @@ function deriveLandingOverall(home = {}) {
       label: 'Loading',
       next_action: 'Wait for readiness discovery to finish',
       reason_hint: null,
+      recovery_destination: null,
     };
   }
 
@@ -568,6 +629,7 @@ function deriveLandingOverall(home = {}) {
       label: 'Failed',
       next_action: 'Open System Status, then retry the readiness probe',
       reason_hint: pathStatus,
+      recovery_destination: RECOVERY_STATUS,
     };
   }
 
@@ -582,6 +644,7 @@ function deriveLandingOverall(home = {}) {
       label: 'Blocked',
       next_action: 'Open Settings and complete the required remediation',
       reason_hint: creds || pathStatus,
+      recovery_destination: RECOVERY_SETTINGS,
     };
   }
 
@@ -597,6 +660,7 @@ function deriveLandingOverall(home = {}) {
       label: 'Needs setup',
       next_action: 'Open Settings for the exact remediation path',
       reason_hint: pathStatus || creds,
+      recovery_destination: RECOVERY_SETTINGS,
     };
   }
 
@@ -608,6 +672,7 @@ function deriveLandingOverall(home = {}) {
         label: 'Blocked',
         next_action: 'Provide required remote credentials via Settings',
         reason_hint: creds,
+        recovery_destination: RECOVERY_SETTINGS,
       };
     }
     return {
@@ -615,6 +680,7 @@ function deriveLandingOverall(home = {}) {
       label: 'Ready',
       next_action: 'Start New Run — try the canonical fixture for a low-risk first success',
       reason_hint: null,
+      recovery_destination: null,
     };
   }
 
@@ -624,6 +690,7 @@ function deriveLandingOverall(home = {}) {
       label: 'Unknown',
       next_action: 'Open System Status to inspect available readiness fields',
       reason_hint: null,
+      recovery_destination: RECOVERY_STATUS,
     };
   }
 
@@ -632,6 +699,7 @@ function deriveLandingOverall(home = {}) {
     label: 'Needs setup',
     next_action: 'Open System Status, then Settings if remediation is listed',
     reason_hint: pathStatus || creds,
+    recovery_destination: RECOVERY_STATUS,
   };
 }
 
@@ -1012,6 +1080,7 @@ function buildLandingViewModel(options = {}) {
       label: 'Loading',
       next_action: 'Wait for readiness discovery to finish',
       reason_hint: null,
+      recovery_destination: null,
     }
     : deriveLandingOverall(home);
 
@@ -1236,6 +1305,12 @@ function formatLandingLines(landing, options = {}) {
   const comp = landing.composition && typeof landing.composition === 'object'
     ? landing.composition
     : defaultLandingComposition(landing.layout || 'compact');
+  const compactMenuLine = () => formatLandingMenuLine(landing.menu, {
+    selectedId: selectedNavId,
+    marker: '>',
+    width: Number(landing.menu_width) || 76,
+    priorityIds: landing.overall.recovery_destination ? [landing.overall.recovery_destination.id] : [],
+  });
   const lines = [];
   if (comp.show_guardian && landing.show_guardian && landing.guardian_lines.length) {
     lines.push('== Guardian ==');
@@ -1259,31 +1334,32 @@ function formatLandingLines(landing, options = {}) {
       lines.push(`${marker} 1. Start New Run`);
     } else {
       // Quick Start dropped for height: the primary row carries the whole menu.
-      lines.push(formatLandingMenuLine(landing.menu, {
-        selectedId: selectedNavId,
-        marker: '>',
-        width: Number(landing.menu_width) || 76,
-      }));
+      lines.push(compactMenuLine());
     }
   }
   if (comp.show_guardian_note) lines.push(landing.hero.guardian_note);
   if (comp.show_quick_start && landing.quick_start.length) {
     lines.push('', '== Quick Start ==');
-    for (const item of landing.quick_start) {
-      const marker = item.id === selectedNavId || (selectedNavId == null && item.primary)
-        ? '>'
-        : ' ';
-      lines.push(
-        `${marker} ${item.key}. ${item.label}`
-        + (narrow || !comp.show_quick_start_hint ? '' : ` — ${item.description}`),
-      );
+    if (comp.quick_start_compact) {
+      // Same single keyed line Ink renders (parity with the compact layout).
+      lines.push(compactMenuLine());
+    } else {
+      for (const item of landing.quick_start) {
+        const marker = item.id === selectedNavId || (selectedNavId == null && item.primary)
+          ? '>'
+          : ' ';
+        lines.push(
+          `${marker} ${item.key}. ${item.label}`
+          + (narrow || !comp.show_quick_start_hint ? '' : ` — ${item.description}`),
+        );
+      }
     }
   }
   lines.push('', '== System Readiness ==');
   lines.push(
     comp.show_readiness_next
       ? `Overall: ${landing.overall.label} · next: ${landing.overall.next_action}`
-      : formatLandingOverallLine(landing, comp),
+      : formatLandingOverallLine(landing, comp, landing.menu_width),
   );
   if (comp.show_readiness_details) {
     for (const row of landing.readiness_rows) {

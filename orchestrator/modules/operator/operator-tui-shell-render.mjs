@@ -237,6 +237,7 @@ function LandingHomeView(props) {
     selectedId: model.selectedNavId,
     marker: selectedMark,
     width: Math.max(8, Number(model.columns) - 4),
+    priorityIds: landing.overall.recovery_destination ? [landing.overall.recovery_destination.id] : [],
   });
 
   const quickStartPanel = comp.show_quick_start
@@ -310,7 +311,7 @@ function LandingHomeView(props) {
     React.createElement(
       Text,
       { color: readinessColor, bold: true, wrap: 'truncate' },
-      formatLandingOverallLine(landing, comp),
+      formatLandingOverallLine(landing, comp, Math.max(8, Number(model.columns) - 4)),
     ),
     ...(comp.show_readiness_next
       ? [React.createElement(
