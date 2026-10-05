@@ -247,6 +247,8 @@ All agents share the global guardrail in `CLAUDE.md`:
 
 `detectBlockers(cerberusOutput)` in `orchestrator.js` parses CERBERUS output with a regex (`/^.*\bblocker\b.*$/gim`) — no model interpretation.
 
+Lines whose value is explicitly empty (`blocker: (none)`, `none`, `n/a`, `-`, `...`) are not counted — same vacuity rule as the review record. A bare `blocker:` with no value on the line still counts (fail closed: the finding may follow on later lines).
+
 ### Decision tree after CERBERUS
 
 ```
@@ -256,6 +258,8 @@ blockers = 0 AND no gateBlocked    → orchestrator decides freely (done or corr
 any artifact gateBlocked AND iter < max  → force retry of blocked steps
 any artifact gateBlocked AND iter >= max → done=false, summary lists each blocked agent + reason
 ```
+
+A CERBERUS call that fails (output contract or transport) is **terminal**: the run stops in that iteration with `done=false`, `manual_review_recommended`, and a summary starting `Manual review required: CERBERUS review failed — <reason>`; decide is never reached and no further iteration is started. Likewise a decide call that throws, or whose reply has neither `done=true` nor non-empty `corrections`, stops with `Manual review required: orchestrator decide …` — never `done=true`. Both emit `iteration_done` with `outcome: stopped` and `CONTRACT_OR_DECIDE_FAILURE`.
 
 The orchestrator model **cannot** declare `done=true` when blockers exist — the code enforces iterate before the decide prompt is even sent. A `cerberus_check` trace event records blocker count and matched lines per iteration.
 

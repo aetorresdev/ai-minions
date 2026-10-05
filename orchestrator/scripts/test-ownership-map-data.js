@@ -115,6 +115,7 @@ const ENTRIES = {
   'tests/operator/steeringHandlerPolicyGate.test.js': { owner: 'operator', kind: 'unit' },
   'tests/operator/terminalStyle.test.js': { owner: 'operator', kind: 'unit' },
   'tests/flowHookBridge.test.js': { owner: 'model-runtime', kind: 'unit' },
+  'tests/gateTerminalFailures.integration.test.js': { owner: 'run-control', kind: 'integration' },
   'tests/goldenPath.test.js': { owner: 'run-control', kind: 'integration' },
   'tests/governance-gate.test.js': { owner: 'gates', kind: 'unit' },
   'tests/guardrails.test.js': { owner: 'run-control', kind: 'unit' },

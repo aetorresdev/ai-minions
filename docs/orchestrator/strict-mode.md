@@ -481,7 +481,7 @@ The writer computes **`failure_type`** / **`failure_axis`** with **`failureTypeF
 | `CERBERUS_BLOCKERS_ITERATE` | `iterate` | CERBERUS blockers + corrections path | `contract_mismatch` | `cerberus` |
 | `ORCHESTRATOR_NO_CORRECTIONS_JSON` | `iterate_fallback` | Decide JSON missing / empty corrections | `contract_mismatch` | `orchestrate` |
 | `ORCHESTRATOR_DECIDE_CORRECTIONS` | `iterate` | Decide returned corrections | `contract_mismatch` | `orchestrate` |
-| `CONTRACT_OR_DECIDE_FAILURE` | `stopped` | Invalid decide / contract stop | `contract_mismatch` | `contract` |
+| `CONTRACT_OR_DECIDE_FAILURE` | `stopped` | Invalid or failed decide, or CERBERUS call failure — run ends `done=false` with manual review | `contract_mismatch` | `contract` |
 | `VALIDATION_FAILURE_GENERIC` | e.g. `stopped` | Emit with `transitionReason("VALIDATION_FAIL", details)` when adding early validation exits; **`iterationDoneEmitterContract.test.js`** holds a schema-valid example | `contract_mismatch` | `unknown` |
 | `GATE_ARTIFACT_OR_HANDOFF` | `gate_blocked_iterate` | `ctx.gateKinds` includes **`compact_handoff`** | `tool_error` | `gate_tool` |
 | `GATE_ARTIFACT_OR_HANDOFF` | `gate_blocked_iterate` | Other / empty `gateKinds` (e.g. `handoff_structure`, `goal_alignment`) | `contract_mismatch` | `gate_artifact` |

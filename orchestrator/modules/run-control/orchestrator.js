@@ -938,11 +938,11 @@ async function run(goal, options = {}) {
       for (const a of iterFinalOut.artifactsToPush) artifacts.push(a);
     }
     if (iterFinalOut.currentMode) currentMode = iterFinalOut.currentMode;
-    if (iterFinalOut.action === "break_orchestration") break orchestration;
     if (typeof iterFinalOut.done === "boolean") done = iterFinalOut.done;
     if (typeof iterFinalOut.manualReview === "boolean") manualReview = iterFinalOut.manualReview;
     if (typeof iterFinalOut.summary === "string" && iterFinalOut.summary) summary = iterFinalOut.summary;
     if (iterFinalOut.plan) plan = iterFinalOut.plan;
+    if (iterFinalOut.action === "break_orchestration") break orchestration;
   }
 
   const sessionEndCtx = createPhaseContext({

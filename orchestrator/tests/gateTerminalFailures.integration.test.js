@@ -1,0 +1,269 @@
+/**
+ * Integration: terminal gate failures through the real `run()` loop — deterministic, no LLM, no network, no Ollama.
+ *
+ * The `claude` CLI is replaced by a scripted `child_process.spawnSync` stub (same pattern as
+ * compactHandoffStrict.integration.test.js). Traces go to a per-test temp dir (`ORCH_TRACES_DIR`).
+ *
+ * Covered defects (each test fails on the pre-fix tree and passes with the fix):
+ *   1. `blocker: (none)` must not count as a blocker.
+ *   2. A CERBERUS output-contract failure must stop the run for manual review, never `done`.
+ *   3. A failed or invalid orchestrator decide must stop the run for manual review, never `done`.
+ *   4. A strict-mode CERBERUS compact_handoff failure must keep blocking success now that `blocker: (none)`
+ *      no longer forces an iteration.
+ */
+
+"use strict";
+
+const { describe, it } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const cp = require("child_process");
+
+const PLAN = JSON.stringify({
+  steps: [{ agentId: "dev-backend", task: "Add a comment to src/x.js" }],
+});
+
+const DEV_OK = [
+  "files_read:",
+  "  - src/x.js",
+  "files_modified:",
+  "  - src/x.js",
+  "validation_run: npm test — passed",
+].join("\n");
+
+// Valid DEV → next handoff (compact_handoff MCP is also served by the scripted `claude` stub).
+const DEV_HANDOFF_YAML = [
+  "from_mode: DEV",
+  "files_modified:",
+  "  - src/x.js",
+  "validation_run: npm test — passed",
+].join("\n");
+
+const CERB_VACUOUS_BLOCKER = [
+  "blocker: (none)",
+  "improvement: reviewed `src/x.js` and the validation_run output; no change required",
+  "nice-to-have: (none)",
+].join("\n");
+
+// No `blocker` token anywhere — isolates decide behavior from blocker parsing.
+const CERB_CLEAN = "- improvement: reviewed deliverables; no further issues";
+
+// No blocker/improvement/nice-to-have classification at all → output contract failure.
+const CERB_CONTRACT_FAIL = "Looks fine to me.";
+
+const DECIDE_DONE = JSON.stringify({ done: true, summary: "All good" });
+
+const origSpawnSync = cp.spawnSync;
+
+function clearOrchestratorModuleCaches() {
+  const paths = new Set([
+    path.resolve(__dirname, "..", "agents.js"),
+    path.resolve(__dirname, "..", "modules", "shared", "agents.js"),
+    path.resolve(__dirname, "..", "orchestrator.js"),
+    path.resolve(__dirname, "..", "modules", "run-control", "orchestrator.js"),
+    path.resolve(__dirname, "..", "agents", "routing", "model-routing.js"),
+    path.resolve(__dirname, "..", "modules", "model-runtime", "model-routing.js"),
+  ]);
+  for (const k of Object.keys(require.cache)) {
+    if (paths.has(k)) delete require.cache[k];
+  }
+}
+
+/**
+ * @param {{ cerberus: string, decide: string, failCerberusCompactHandoff?: boolean }} script
+ * @param {{ calls: string[] }} record
+ */
+function makeSpawnSync(script, record) {
+  return function scriptedSpawnSync(cmd, args, opts) {
+    if (cmd !== "claude") return origSpawnSync.call(cp, cmd, args, opts);
+    if (args[1] !== "-") {
+      const prompt = String(args[1]);
+      if (prompt.includes("compact-handoff.compact_handoff")) {
+        record.calls.push("compact_handoff");
+        if (script.failCerberusCompactHandoff && prompt.includes('mode_completed="CERBERUS"')) {
+          return { error: null, status: 1, stdout: "", stderr: "compactor unavailable" };
+        }
+        return { error: null, status: 0, stdout: `${DEV_HANDOFF_YAML}\n`, stderr: "" };
+      }
+      const mcp = /orchestrator-state\.(\w+)/.exec(prompt);
+      if (mcp) {
+        const tool = mcp[1];
+        const body =
+          tool === "register_task" ? { ok: true, envelope_path: "/tmp/envelope.json" }
+            : tool === "validate_goal_alignment" ? { ok: true, aligned: true, confidence: 1, notes: "" }
+              : tool === "validate_transition" ? { allowed: true, errors: [] }
+                : { ok: true };
+        return { error: null, status: 0, stdout: `${JSON.stringify(body)}\n`, stderr: "" };
+      }
+      return { error: null, status: 0, stdout: "{}\n", stderr: "" };
+    }
+
+    const input = opts && opts.input != null ? String(opts.input) : "";
+    const reply = (stdout) => ({ error: null, status: 0, stdout: `${stdout}\n`, stderr: "" });
+
+    if (input.includes("MODE: ORCHESTRATOR") && input.includes("Decompose")) {
+      record.calls.push("plan");
+      return reply(PLAN);
+    }
+    if (input.includes("Classify each finding")) {
+      record.calls.push("cerberus");
+      return reply(script.cerberus);
+    }
+    if (input.includes("Confirm completion or list any remaining corrections")) {
+      record.calls.push("decide");
+      return reply(script.decide);
+    }
+    if (input.includes("List the correction steps required")) {
+      record.calls.push("correct");
+      return reply("{}");
+    }
+    if (input.includes("Your task:")) {
+      record.calls.push("dev");
+      return reply(DEV_OK);
+    }
+    return reply("{}");
+  };
+}
+
+/**
+ * Runs `run()` with the scripted backend and returns result + parsed trace rows.
+ * @param {{ cerberus: string, decide: string, failCerberusCompactHandoff?: boolean }} script
+ * @param {Record<string, unknown>} [runOptions] overrides for run()
+ */
+async function runScripted(script, runOptions = {}) {
+  const prev = {
+    OLLAMA_MODEL: process.env.OLLAMA_MODEL,
+    ORCH_TRACES_DIR: process.env.ORCH_TRACES_DIR,
+  };
+  delete process.env.OLLAMA_MODEL;
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orch-gate-terminal-"));
+  const tracesDir = path.join(tmp, "traces");
+  fs.mkdirSync(tracesDir, { recursive: true });
+  process.env.ORCH_TRACES_DIR = tracesDir;
+  const record = { calls: [] };
+  const taskId = `task-gate-${Math.random().toString(16).slice(2, 10)}`;
+  try {
+    clearOrchestratorModuleCaches();
+    cp.spawnSync = makeSpawnSync(script, record);
+    const { run } = require("../orchestrator");
+    const result = await run("gate terminal failure goal", {
+      cwd: tmp,
+      taskId,
+      maxIterations: 3,
+      flowMode: "single_agent",
+      skipStateMcp: true,
+      requireHandoff: false,
+      stepSummary: false,
+      ...runOptions,
+    });
+    const tracePath = path.join(tracesDir, `${taskId}.jsonl`);
+    const rows = fs.existsSync(tracePath)
+      ? fs.readFileSync(tracePath, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l))
+      : [];
+    return { result, rows, calls: record.calls };
+  } finally {
+    cp.spawnSync = origSpawnSync;
+    for (const [k, v] of Object.entries(prev)) {
+      if (v !== undefined) process.env[k] = v;
+      else delete process.env[k];
+    }
+    clearOrchestratorModuleCaches();
+    try {
+      fs.rmSync(tmp, { recursive: true });
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** The run must not present itself as success in result, final run state, or trace. */
+function assertManualReviewStop({ result, rows, calls }, { summaryMatches }) {
+  assert.equal(result.done, false, "result.done must be false");
+  assert.equal(result.runState.run.status, "aborted", "final run state must be aborted, not done");
+  assert.match(result.summary, /manual review/i);
+  for (const re of summaryMatches) assert.match(result.summary, re);
+
+  const sessionEnd = rows.find((r) => r.event === "session_end");
+  assert.ok(sessionEnd, "session_end must be traced");
+  assert.equal(sessionEnd.done, false, "session_end.done must be false");
+  assert.equal(sessionEnd.manual_review_recommended, true);
+
+  const iterRows = rows.filter((r) => r.event === "iteration_done");
+  assert.equal(iterRows.length, 1, "stop must happen in the first iteration (no new automatic cycle)");
+  assert.notEqual(iterRows[0].outcome, "done");
+  assert.equal(iterRows.some((r) => r.outcome === "done"), false);
+  assert.equal(iterRows[0].transition_reason.type, "CONTRACT_FAIL");
+  assert.equal(iterRows[0].transition_reason.reason_code, "CONTRACT_OR_DECIDE_FAILURE");
+
+  assert.equal(calls.filter((c) => c === "dev").length, 1, "DEV must not be retried");
+  assert.equal(calls.filter((c) => c === "correct").length, 0, "no correction round");
+}
+
+describe("terminal gate failures — through run()", () => {
+  it("blocker: (none) does not block: run completes in one iteration", async () => {
+    const out = await runScripted({ cerberus: CERB_VACUOUS_BLOCKER, decide: DECIDE_DONE });
+
+    assert.equal(out.result.done, true);
+    assert.equal(out.result.iterations, 1);
+    assert.deepEqual(out.calls.filter((c) => c !== "compact_handoff"), ["plan", "dev", "cerberus", "decide"]);
+    const check = out.rows.find((r) => r.event === "cerberus_check");
+    assert.equal(check.blockers, 0);
+    const sessionEnd = out.rows.find((r) => r.event === "session_end");
+    assert.equal(sessionEnd.done, true);
+  });
+
+  it("CERBERUS contract failure stops for manual review and never reaches decide or done", async () => {
+    const out = await runScripted({ cerberus: CERB_CONTRACT_FAIL, decide: DECIDE_DONE });
+
+    assertManualReviewStop(out, { summaryMatches: [/CERBERUS/, /contract/i] });
+    assert.equal(out.calls.includes("decide"), false, "decide must not run after a CERBERUS failure");
+    assert.equal(out.calls.filter((c) => c === "cerberus").length, 1, "CERBERUS must not be retried");
+    assert.equal(
+      out.rows.some((r) => r.event === "contract_fail" && r.agent === "cerberus"),
+      true,
+    );
+    const blocked = out.result.artifacts.find((a) => a.agentId === "cerberus");
+    assert.ok(blocked && blocked.gateBlocked === true, "gate-blocked CERBERUS artifact must stay visible");
+  });
+
+  it("decide returning invalid output stops for manual review and never reports done", async () => {
+    const out = await runScripted({ cerberus: CERB_CLEAN, decide: "We are all done, nice work." });
+
+    assertManualReviewStop(out, { summaryMatches: [/decide/i] });
+    assert.equal(out.calls.filter((c) => c === "decide").length, 1, "decide must not be retried");
+  });
+
+  it("decide returning JSON that is neither done nor corrections stops for manual review", async () => {
+    const out = await runScripted({ cerberus: CERB_CLEAN, decide: '{"status": "ok"}' });
+
+    assertManualReviewStop(out, { summaryMatches: [/decide/i] });
+  });
+  it("strict CERBERUS compact_handoff failure + blocker: (none) never reaches decide or done", async () => {
+    const out = await runScripted(
+      { cerberus: CERB_VACUOUS_BLOCKER, decide: DECIDE_DONE, failCerberusCompactHandoff: true },
+      { skipStateMcp: false, requireHandoff: true, maxIterations: 1 },
+    );
+
+    assert.equal(out.calls.includes("decide"), false, "decide must not run when a mandatory handoff failed");
+    assert.equal(out.result.done, false, "result.done must be false");
+    assert.equal(out.result.runState.run.status, "aborted", "final run state must be aborted, not done");
+    assert.match(out.result.summary, /manual review/i);
+    assert.match(out.result.summary, /cerberus/i);
+    const blocked = out.result.artifacts.find((a) => a.agentId === "cerberus" && a.gateBlocked === true);
+    assert.ok(blocked, "gate-blocked CERBERUS artifact must stay visible");
+    assert.equal(blocked.gate_kind, "compact_handoff");
+
+    const sessionEnd = out.rows.find((r) => r.event === "session_end");
+    assert.equal(sessionEnd.done, false, "session_end.done must be false");
+    assert.equal(sessionEnd.manual_review_recommended, true);
+    const iterRows = out.rows.filter((r) => r.event === "iteration_done");
+    assert.equal(iterRows.some((r) => r.outcome === "done"), false);
+    assert.equal(iterRows[iterRows.length - 1].outcome, "max_iterations_with_gate_blocks");
+    assert.equal(
+      out.rows.some((r) => r.event === "compact_handoff_failed" && r.agent === "cerberus"),
+      true,
+    );
+  });
+});

@@ -280,6 +280,26 @@ nice-to-have: ...`;
       gateReason: err.message,
       gate_kind: gateId || "cerberus_output_contract",
     });
+
+    // Terminal: without a CERBERUS verdict nothing may advance to decide/done, and no new automatic cycle starts.
+    const summary = `Manual review required: CERBERUS review failed — ${reason}`;
+    ctx.log("orchestrator", `⚠ ${summary}`);
+    traceIterationDone(
+      ctx.taskId,
+      iterations,
+      "stopped",
+      transitionReason("CONTRACT_FAIL", `cerberus: ${reason}`, gateId ? { gate_id: gateId } : {}),
+      { summary: summary.slice(0, 200) },
+      iterationDoneCtx(),
+    );
+    return {
+      action: "break_orchestration",
+      done: false,
+      manualReview: true,
+      summary,
+      currentMode,
+      artifactsToPush,
+    };
   }
 
   if (!skipStateMcp) {
@@ -524,7 +544,9 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
     };
   }
 
-  const gateBlockedArtifacts = artifacts.filter((a) => a.gateBlocked);
+  // Include blocks created in this phase (e.g. strict CERBERUS compact_handoff failure): they are only
+  // merged into `artifacts` by the caller after this phase returns, so success must not ignore them.
+  const gateBlockedArtifacts = [...artifacts, ...artifactsToPush].filter((a) => a.gateBlocked);
   const gateBlockedDecision = decideGateBlockedArtifactsBranch({
     artifactCount: gateBlockedArtifacts.length,
     iterations,
@@ -608,6 +630,8 @@ No blockers were found. Confirm completion or list any remaining corrections.
 Reply with JSON only.`;
 
   let decideResponse = "";
+  /** @type {string | null} set when askAgent threw (distinct from a reply that parses to no usable decision) */
+  let decideFailure = null;
   try {
     const { output, context_stats: decideCtx } = await askAgent("orchestrator", decidePrompt, {
       cwd: ctx.cwd,
@@ -627,8 +651,9 @@ Reply with JSON only.`;
       return { action: "break_orchestration", currentMode };
     }
   } catch (decideErr) {
-    ctx.log("orchestrator", `⚠ Decide contract failed (${decideErr.message}) — treating as stopped`);
+    ctx.log("orchestrator", `⚠ Decide contract failed (${decideErr.message}) — stopping for manual review`);
     ctx.traceEvent(ctx.taskId, { event: "decide_contract_fail", reason: decideErr.message });
+    decideFailure = String(decideErr.message || decideErr).slice(0, 300);
   }
   const decide = extractJson(decideResponse);
   const loopDecision = decideFromOrchestratorDecide(decide);
@@ -675,19 +700,25 @@ Reply with JSON only.`;
     };
   }
 
-  const summary = /** @type {string} */ (mapped.summary);
-  ctx.log("orchestrator", summary);
+  // Terminal: a failed or unusable decide is never success and never starts another automatic cycle.
+  const stopReason =
+    decideFailure !== null
+      ? `orchestrator decide failed — ${decideFailure}`
+      : "orchestrator decide response invalid (expected done=true or non-empty corrections)";
+  const summary = `Manual review required: ${stopReason}`;
+  ctx.log("orchestrator", `⚠ ${summary}`);
   traceIterationDone(
     ctx.taskId,
     iterations,
     "stopped",
     transitionReason("CONTRACT_FAIL", summary),
-    { summary },
+    { summary: summary.slice(0, 200) },
     iterationDoneCtx(),
   );
   return {
-    action: "continue",
-    done: true,
+    action: "break_orchestration",
+    done: false,
+    manualReview: true,
     summary,
     currentMode,
     ...(artifactsToPush.length ? { artifactsToPush } : {}),
