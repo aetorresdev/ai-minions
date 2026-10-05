@@ -430,6 +430,71 @@ describe("run-phases/iteration-finalization — strict CERBERUS handoff failure 
   });
 });
 
+describe("run-phases/iteration-finalization — CERBERUS state-MCP failure is terminal", () => {
+  const decideDone = async () => ({ output: '{"done": true, "summary": "All good"}' });
+  const cleanCerberus = async () => ({ output: CERBERUS_CLEAN_OUTPUT });
+  const cases = [
+    {
+      label: "validate_transition throws",
+      callStateMcp: (tool) => {
+        if (tool === "validate_transition") throw new Error("mcp transport down");
+        return { ok: true };
+      },
+      tool: "validate_transition",
+      reason: /mcp transport down/,
+    },
+    {
+      label: "validate_transition returns ok=false",
+      callStateMcp: (tool) => (tool === "validate_transition" ? { ok: false, error: "unknown task" } : { ok: true }),
+      tool: "validate_transition",
+      reason: /unknown task/,
+    },
+    {
+      label: "advance_mode throws",
+      callStateMcp: (tool) => {
+        if (tool === "advance_mode") throw new Error("advance crashed");
+        return { ok: true, allowed: true };
+      },
+      tool: "advance_mode",
+      reason: /advance crashed/,
+    },
+    {
+      label: "advance_mode returns ok=false",
+      callStateMcp: (tool) => (tool === "advance_mode" ? { ok: false, error: "task is closed" } : { ok: true, allowed: true }),
+      tool: "advance_mode",
+      reason: /task is closed/,
+    },
+  ];
+  for (const c of cases) {
+    it(`${c.label}: stops for manual review, never reaches decide or done`, async () => {
+      const { askAgent, calls } = recordingAskAgent({ cerberus: cleanCerberus, orchestrator: decideDone });
+      const { ctx, traces, deps } = makeIterDeps({
+        deps: { askAgent, skipStateMcp: false, callStateMcp: c.callStateMcp },
+      });
+      const out = await executeIterationFinalizationPhase(ctx, deps);
+
+      assert.equal(out.action, "break_orchestration");
+      assert.equal(out.done, false);
+      assert.equal(out.manualReview, true);
+      assert.match(out.summary, /manual review required/i);
+      assert.match(out.summary, new RegExp(`state-MCP ${c.tool} failed`));
+      assert.match(out.summary, c.reason);
+      assert.deepEqual(calls.map((x) => x.agentId), ["cerberus"], "decide/correct must not run");
+      const fail = traces.find((t) => t.event === "state_mcp_failure");
+      assert.ok(fail);
+      assert.equal(fail.tool, c.tool);
+      assert.equal(traces.some((t) => t.event === "iteration_done" && t.outcome === "done"), false);
+    });
+  }
+
+  it("healthy state-MCP still finishes (control)", async () => {
+    const { askAgent } = recordingAskAgent({ cerberus: cleanCerberus, orchestrator: decideDone });
+    const { ctx, deps } = makeIterDeps({ deps: { askAgent, skipStateMcp: false } });
+    const out = await executeIterationFinalizationPhase(ctx, deps);
+    assert.equal(out.done, true);
+  });
+});
+
 describe("run-phases/iteration-finalization — decide failure is terminal", () => {
   const cases = [
     {

@@ -1,6 +1,7 @@
 "use strict";
 
 const { flattenIterationFinalizationDeps } = require("./phase-deps");
+const { stateMcpResponseFailure, stateMcpTransitionFailure, buildStateMcpStop } = require("./phase-context");
 
 /**
  * Iteration finalization (slice 5): per-step summarizer + artifact, then cerberus
@@ -367,6 +368,9 @@ nice-to-have: ...`;
       }
     }
     if (cerberusHandoff) {
+      // Gates are required (no --skip-gates): a state-MCP failure here ends the run for manual review
+      // instead of letting decide report success on an unrecorded review.
+      let stateMcpStage = "validate_transition";
       try {
         const vt = callStateMcp(
           "validate_transition",
@@ -379,9 +383,12 @@ nice-to-have: ...`;
           },
           { cwd: ctx.cwd },
         );
+        const vtFailure = stateMcpTransitionFailure(vt);
+        if (vtFailure) throw new Error(vtFailure);
 
         if (vt.allowed) {
-          callStateMcp(
+          stateMcpStage = "advance_mode";
+          const adv = callStateMcp(
             "advance_mode",
             {
               task_id: ctx.taskId,
@@ -392,10 +399,29 @@ nice-to-have: ...`;
             },
             { cwd: ctx.cwd },
           );
+          const advFailure = stateMcpResponseFailure(adv);
+          if (advFailure) throw new Error(advFailure);
           currentMode = "ORCHESTRATOR";
         }
       } catch (err) {
-        ctx.log("gate", `WARNING: Cerberus transition gate error (${err.message})`);
+        const stop = buildStateMcpStop(stateMcpStage, err.message);
+        ctx.log("gate", `🟥 ${stop.summary}`);
+        ctx.traceEvent(ctx.taskId, {
+          event: "state_mcp_failure",
+          tool: stateMcpStage,
+          stage: "cerberus_advance",
+          agent: "cerberus",
+          iteration: iterations,
+          reason: stop.reason,
+        });
+        return {
+          action: "break_orchestration",
+          done: false,
+          manualReview: true,
+          summary: stop.summary,
+          artifactsToPush,
+          currentMode,
+        };
       }
     }
   }

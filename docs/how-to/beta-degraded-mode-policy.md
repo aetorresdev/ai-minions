@@ -23,7 +23,7 @@ A run **cannot** count as beta success when `risk_acceptance_reason` includes an
 | Code | Typical trace signal |
 |------|----------------------|
 | `DEGRADED_SKIP_GATES` | `degraded_mode` with `skipStateMcp=true` / `--skip-gates` |
-| `DEGRADED_MCP_MISSING` | State store / `register_task` / orchestrator-state MCP unavailable |
+| `DEGRADED_MCP_MISSING` | State store / `register_task` / orchestrator-state MCP unavailable (legacy traces; current runs stop with `state_mcp_failure` and `done=false`) |
 | `DEGRADED_NETWORK_GATE_BYPASSED` | `ORCH_SKIP_NETWORK_PERMISSION_GATE=1` evidenced in trace |
 | `DEGRADED_PRIVACY_SCAN_REMOTE_UNAVAILABLE` | `PRIVACY_SCAN_UNAVAILABLE` on a remote-capable run |
 

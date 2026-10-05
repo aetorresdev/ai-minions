@@ -224,6 +224,73 @@ describe("run-phases/gate-handling — executeGateHandlingPhase (integration)", 
     assert.equal(gateResults(traces, "transition")[0].passed, false);
   });
 
+  describe("state-MCP failure is terminal (never proceeds ungated)", () => {
+    const okTools = {
+      validate_goal_alignment: { ok: true, aligned: true, confidence: 0.9 },
+      validate_transition: { allowed: true, errors: [] },
+      advance_mode: { ok: true },
+    };
+    const cases = [
+      {
+        label: "validate_goal_alignment throws",
+        tool: "validate_goal_alignment",
+        impl: () => { throw new Error("mcp transport down"); },
+        reason: /mcp transport down/,
+        later: ["validate_transition", "advance_mode"],
+      },
+      {
+        label: "validate_goal_alignment returns ok=false",
+        tool: "validate_goal_alignment",
+        impl: () => ({ ok: false, error: "unknown task" }),
+        reason: /unknown task/,
+        later: ["validate_transition", "advance_mode"],
+      },
+      {
+        label: "validate_transition throws",
+        tool: "validate_transition",
+        impl: () => { throw new Error("gate crashed"); },
+        reason: /gate crashed/,
+        later: ["advance_mode"],
+      },
+      {
+        label: "advance_mode returns ok=false",
+        tool: "advance_mode",
+        impl: () => ({ ok: false, error: "task is closed" }),
+        reason: /task is closed/,
+        later: [],
+      },
+    ];
+    for (const c of cases) {
+      it(`${c.label}: break_orchestration with manual review and a blocked artifact`, async () => {
+        const called = [];
+        const { ctx, traces, deps } = makeGateDeps({
+          callStateMcp: (tool) => {
+            called.push(tool);
+            return tool === c.tool ? c.impl() : okTools[tool];
+          },
+        });
+        const out = await executeGateHandlingPhase(ctx, deps);
+
+        assert.equal(out.action, "break_orchestration");
+        assert.equal(out.done, false);
+        assert.equal(out.manualReview, true);
+        assert.match(out.summary, /manual review required/i);
+        assert.match(out.summary, new RegExp(`state-MCP ${c.tool} failed`));
+        assert.match(out.summary, c.reason);
+        assert.equal(out.artifact.gateBlocked, true);
+        assert.equal(out.artifact.gate_kind, "state_mcp");
+        assert.equal(out.artifact.agentId, "dev-backend");
+        const fail = traces.find((t) => t.event === "state_mcp_failure");
+        assert.ok(fail, "state_mcp_failure trace required");
+        assert.equal(fail.tool, c.tool);
+        assert.equal(fail.step_id, "step-dev-1");
+        for (const later of c.later) {
+          assert.equal(called.includes(later), false, `${later} must not run after ${c.tool} failed`);
+        }
+      });
+    }
+  });
+
   it("skips compaction for agents outside AGENTS_REQUIRING_GATE", async () => {
     const { ctx, traces, deps } = makeGateDeps({
       agentId: "owner",

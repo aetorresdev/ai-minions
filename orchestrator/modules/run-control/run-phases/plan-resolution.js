@@ -1,5 +1,7 @@
 "use strict";
 
+const { stateMcpResponseFailure, buildStateMcpStop } = require("./phase-context");
+
 const { redactSensitivePlaintext } = require("../../trace/trace-redact");
 
 /**
@@ -253,16 +255,24 @@ Assign one agent per step. Reply with JSON only.${multiAgentPlanConstraint}`;
     const firstAgent = plan.steps[0]?.agentId;
     if (!skipStateMcp && firstAgent && AGENT_TO_MODE[firstAgent]) {
       try {
-        callStateMcp("advance_mode", {
+        const adv = callStateMcp("advance_mode", {
           task_id: taskId,
           to_mode: AGENT_TO_MODE[firstAgent],
           from_mode: "ORCHESTRATOR",
           handoff_yaml: "",
           iteration: -1,
         }, { cwd });
+        const failure = stateMcpResponseFailure(adv);
+        if (failure) throw new Error(failure);
         currentMode = AGENT_TO_MODE[firstAgent];
       } catch (err) {
-        log("gate", `WARNING: advance_mode failed (${err.message})`);
+        // Gates are required (no --skip-gates): do not start the loop ungated.
+        const stop = buildStateMcpStop("advance_mode", err.message);
+        log("gate", `🟥 ${stop.summary}`);
+        traceEvent(taskId, { event: "state_mcp_failure", tool: "advance_mode", stage: "plan_resolution", reason: stop.reason });
+        summary = stop.summary;
+        manualReview = true;
+        skipMainOrchestrationLoop = true;
       }
     }
   }

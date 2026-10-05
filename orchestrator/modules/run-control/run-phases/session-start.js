@@ -1,5 +1,7 @@
 "use strict";
 
+const { stateMcpResponseFailure, buildStateMcpStop } = require("./phase-context");
+
 /**
  * Session lifecycle start: local model setup, session_start trace, degraded banner,
  * register_task. Observable boundary ends before plan resolution.
@@ -38,7 +40,8 @@
  *   CONTRACT_VERSION: string,
  *   orchTestSystemPathHarnessOn: () => boolean,
  * }} deps
- * @returns {Promise<{ localOnlyCtx: object }>}
+ * @returns {Promise<{ localOnlyCtx: object, action?: "break_orchestration", done?: false, manualReview?: true, summary?: string }>}
+ *   `action: "break_orchestration"` when register_task failed with gates required (run must not continue).
  */
 async function executeSessionStartPhase(deps) {
   const {
@@ -184,11 +187,15 @@ async function executeSessionStartPhase(deps) {
         registerPayload.enforce_goal_alignment = false;
       }
       const reg = callStateMcp("register_task", registerPayload, { cwd });
-      if (!reg.ok) throw new Error(reg.error || "register_task failed");
+      const failure = stateMcpResponseFailure(reg);
+      if (failure) throw new Error(failure);
       log("gate", `Task registered — envelope: ${reg.envelope_path}`);
     } catch (err) {
-      log("gate", `\x1b[33m\x1b[1m⚠  DEGRADED MODE — state store unavailable\x1b[0m (${err.message}). Continuing without hard gates.`);
-      traceEvent(taskId, { event: "degraded_mode", reason: err.message });
+      // Gates are required (no --skip-gates): without the state store the run must not continue ungated.
+      const stop = buildStateMcpStop("register_task", err.message);
+      log("gate", `🟥 ${stop.summary}`);
+      traceEvent(taskId, { event: "state_mcp_failure", tool: "register_task", stage: "session_start", reason: stop.reason });
+      return { localOnlyCtx, ...stop };
     }
   }
 
