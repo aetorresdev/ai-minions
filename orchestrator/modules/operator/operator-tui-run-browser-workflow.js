@@ -275,6 +275,22 @@ function windowTargetRows(entries) {
 }
 
 /**
+ * Fit non-list content (status, diagnostics, help, ...) into `limit` rows: keep the leading rows and
+ * say how many were left out, so a short terminal never renders a frame taller than itself.
+ * @param {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>} entries
+ * @param {number} limit rows available (>= 1, fewer than entries.length)
+ * @returns {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>}
+ */
+function windowPlainEntries(entries, limit) {
+  if (limit <= 1) return entries.slice(0, limit);
+  const kept = limit - 1;
+  return [
+    ...entries.slice(0, kept),
+    { text: `  ... ${entries.length - kept} more below`, muted: true, kind: 'more' },
+  ];
+}
+
+/**
  * Fit structured list entries into at most `maxRows` terminal rows. The result
  * never exceeds `maxRows`; Ink does not clip children, so an oversized list
  * overprints the rows around it.
@@ -301,7 +317,7 @@ function windowEntriesToHeight(entries, maxRows) {
   if (entries.length <= limit) return entries;
 
   const parts = splitListEntries(entries);
-  if (!parts) return entries.slice(0, limit);
+  if (!parts) return windowPlainEntries(entries, limit);
   const { blocks, tail, selected } = parts;
   let { head } = parts;
 
