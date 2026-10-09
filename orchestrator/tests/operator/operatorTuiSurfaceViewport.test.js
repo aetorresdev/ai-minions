@@ -14,6 +14,10 @@ const assert = require('node:assert/strict');
 
 const { buildShellModel, shellModelToOptions } = require('../../modules/operator/operator-tui-shell-model');
 const { windowEntriesToHeight } = require('../../modules/operator/operator-tui-run-browser-workflow');
+const {
+  createLauncherWorkflow,
+  applyLauncherWorkflowKeypress,
+} = require('../../modules/operator/operator-tui-launcher-workflow');
 
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`, 'g');
 const strip = (text) => text.replace(ANSI, '');
@@ -157,4 +161,55 @@ test('windowEntriesToHeight leaves list windowing untouched and bounds plain ent
   const cut = windowEntriesToHeight(plain, 4);
   assert.equal(cut.length, 4);
   assert.deepEqual(cut.map((e) => e.text), ['line 1', 'line 2', 'line 3', '  ... 6 more below']);
+});
+
+async function launcherPreview(localBackendReachable) {
+  let workflow = createLauncherWorkflow();
+  const ctx = { localBackendReachable, credentials: {} };
+  for (let step = 0; step < 4; step += 1) {
+    const out = await applyLauncherWorkflowKeypress(workflow, '', { return: true }, ctx);
+    assert.equal(out.action, 'update');
+    workflow = out.workflow;
+  }
+  assert.equal(workflow.step, 'preview');
+  return workflow;
+}
+
+test('launcher preview keeps readiness, block reason and recovery on a short terminal', async () => {
+  const blocked = await launcherPreview(false);
+  assert.equal(blocked.previewModel.can_launch, false);
+  assert.equal(blocked.previewModel.blocked_reason_code, 'MATRIX_SKIP_LOCAL_BACKEND_MISSING');
+  const ready = await launcherPreview(true);
+  assert.equal(ready.previewModel.can_launch, true);
+
+  for (const [rows, columns, workflow, expects] of [
+    [20, 300, blocked, [/readiness:\s*skip/, /MATRIX_SKIP_LOCAL_BACKEND_MISSING/, /cannot launch:/, /ollama serve/, /equivalent_command:/]],
+    [24, 80, blocked, [/readiness:\s*skip/, /MATRIX_SKIP_LOCAL_BACKEND_MISSING/, /cannot launch:/, /ollama serve/, /equivalent_command:/]],
+    [20, 300, ready, [/readiness:\s*ready/, /equivalent_command:\s+\S/]],
+    [24, 80, ready, [/readiness:\s*ready/, /equivalent_command:\s+\S/]],
+  ]) {
+    const model = buildShellModel({
+      ...shellModelToOptions(buildShellModel({
+        columns,
+        rows,
+        skipSplash: true,
+        icons: 'unicode',
+        contentSurface: 'launcher_workflow',
+        focus: 'content',
+        activeWorkflow: workflow,
+      })),
+      columns,
+      rows,
+    });
+    const lines = await renderFrame(model, columns, rows);
+    const text = lines.join('\n');
+    const label = `${rows}x${columns} can_launch=${workflow.previewModel.can_launch}`;
+    assert.ok(lines.length <= rows, `${label}: frame is ${lines.length} rows`);
+    for (const pattern of expects) {
+      assert.match(text, pattern, `${label}: missing ${pattern}\n${text}`);
+    }
+    if (workflow.previewModel.can_launch) {
+      assert.doesNotMatch(text, /equivalent_command: unavailable/, `${label}: confirmation command missing\n${text}`);
+    }
+  }
 });
