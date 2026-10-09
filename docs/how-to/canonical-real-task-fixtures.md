@@ -98,6 +98,7 @@ Run against the produced file (also exercised on the shipped sample under `tests
 | `has_reset_or_new` | Reset / New puzzle / Clear action present |
 | `has_board_cells` | Board/grid/cell structure present |
 | `no_external_network_assets` | No external http(s) asset URLs / remote calls |
+| `executes_without_error` | Inline scripts run at load without throwing (isolated child process, stubbed DOM; a crash on load fails even if the source looks right) |
 
 ```bash
 node scripts/verify-canonical-real-task-fixtures.mjs \
