@@ -49,6 +49,8 @@ const {
 const {
   isQaSpecBeforeDevEnabled,
   applyQaSpecBeforeDevPlan,
+  tagCorrectionQaPhases,
+  ensureQaSpecFormatInTasks,
   resolveHandoffMode,
   qaSpecFlowTraceExtras,
   shouldEmitQaReviewRecord,

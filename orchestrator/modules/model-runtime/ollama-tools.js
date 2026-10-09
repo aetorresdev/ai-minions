@@ -53,7 +53,10 @@ const TOOL_DEFS = Object.freeze({
  */
 function toolNamesForAgent(agentId) {
   const id = String(agentId ?? '');
-  if (id.startsWith('dev-')) return ['read_file', 'write_file'];
+  // architect writes design notes (DESIGN.md) under local-only routing; without write_file it can
+  // only describe the file, and strict mode then blocks the transition because the declared file
+  // was never created. It still cannot run shell or git.
+  if (id.startsWith('dev-') || id === 'architect') return ['read_file', 'write_file'];
   if (id === 'qa' || id === 'cerberus') return ['read_file'];
   return [];
 }

@@ -183,6 +183,8 @@ async function executeIterationFinalizationPhase(ctx, deps) {
     planStepsAfterCorrectionsResponse,
     formatGateBlockedReasonLines,
     planStepsReplayFromGateBlockedArtifacts,
+    tagCorrectionQaPhases,
+    ensureQaSpecFormatInTasks,
     summaryMaxIterationsGateBlocked,
     decideFromOrchestratorDecide,
     mapDecideLoopToPlanOutcome,
@@ -512,6 +514,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       maxBlockersInTask: 2,
     });
     const steps = /** @type {Array<{ agentId?: string, task: string }>} */ (planOut.steps);
+    planOut.steps = ensureQaSpecFormatInTasks(tagCorrectionQaPhases(planOut.steps));
     if (planOut.traceBranch === "iterate_corrections_json") {
       ctx.log("orchestrator", `↻ Correcting — ${steps.length} step(s):`);
       steps.forEach((c) =>
@@ -602,7 +605,7 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
     );
     return {
       action: "continue",
-      plan: { steps: planStepsReplayFromGateBlockedArtifacts(gateBlockedArtifacts) },
+      plan: { steps: ensureQaSpecFormatInTasks(tagCorrectionQaPhases(planStepsReplayFromGateBlockedArtifacts(gateBlockedArtifacts))) },
       currentMode,
       ...(artifactsToPush.length ? { artifactsToPush } : {}),
     };
@@ -720,7 +723,7 @@ Reply with JSON only.`;
     );
     return {
       action: "continue",
-      plan: { steps: corrections },
+      plan: { steps: ensureQaSpecFormatInTasks(tagCorrectionQaPhases(corrections)) },
       currentMode,
       ...(artifactsToPush.length ? { artifactsToPush } : {}),
     };

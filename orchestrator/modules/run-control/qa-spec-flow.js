@@ -14,6 +14,52 @@ const QA_SPEC_DEFAULT_TASK =
   "Do not write or modify production code.";
 
 /**
+ * Appended to every QA_SPEC task. The contract is validated by literal key presence
+ * (`acceptance_criteria:`, `test_strategy:` or `required_tests:`, `validation_commands:`), so the
+ * required shape has to be in the task the model sees — including correction steps, which the
+ * orchestrator phrases itself and which otherwise carry none of it.
+ */
+const QA_SPEC_FORMAT_SUFFIX =
+  "Required output format — include these literal lines: " +
+  "`acceptance_criteria:` (one or more criteria), `test_strategy:` or `required_tests:`, " +
+  "and `validation_commands:` (the exact commands that prove the criteria).";
+
+/**
+ * Re-apply QA_SPEC tagging to steps the orchestrator produces mid-run (corrections, gate-block
+ * replays). `applyQaSpecBeforeDevPlan` only runs on the initial plan, so a correction whose task
+ * is "define acceptance criteria" would otherwise be validated as a QA_EXEC review and fail the
+ * finding-classification contract. A qa step is spec when it precedes the first dev step, or when
+ * its task defines acceptance criteria without asking for an implementation review.
+ * @param {Array<{ agentId?: string, task?: string, qaPhase?: string }>} steps
+ * @returns {typeof steps}
+ */
+function tagCorrectionQaPhases(steps) {
+  if (!Array.isArray(steps)) return steps;
+  const firstDevIdx = steps.findIndex((s) => s?.agentId && DEV_AGENT_RE.test(String(s.agentId).trim()));
+  return steps.map((step, i) => {
+    if (!step || step.agentId !== "qa" || step.qaPhase) return step;
+    const task = String(step.task ?? "");
+    const definesAcceptance = /\bacceptance criteria\b/i.test(task) && !/\breview\b/i.test(task);
+    const spec = (firstDevIdx >= 0 && i < firstDevIdx) || definesAcceptance;
+    return spec ? { ...step, qaPhase: "spec" } : { ...step, qaPhase: "exec" };
+  });
+}
+
+/**
+ * Ensure every spec step's task states the literal keys the contract checks.
+ * @param {Array<{ agentId?: string, task?: string, qaPhase?: string }>} steps
+ * @returns {typeof steps}
+ */
+function ensureQaSpecFormatInTasks(steps) {
+  if (!Array.isArray(steps)) return steps;
+  return steps.map((step) => {
+    if (!step || step.qaPhase !== "spec") return step;
+    if (String(step.task ?? "").includes("acceptance_criteria:")) return step;
+    return { ...step, task: `${String(step.task ?? "").trim()} ${QA_SPEC_FORMAT_SUFFIX}`.trim() };
+  });
+}
+
+/**
  * @param {string} [flowMode]
  * @returns {boolean}
  */
@@ -236,6 +282,8 @@ module.exports = {
   shouldEmitQaReviewRecord,
   resolveHandoffMode,
   applyQaSpecBeforeDevPlan,
+  tagCorrectionQaPhases,
+  ensureQaSpecFormatInTasks,
   validateHandoffForMode,
   shallowHandoffVerdict,
   qaSpecFlowTraceExtras,
