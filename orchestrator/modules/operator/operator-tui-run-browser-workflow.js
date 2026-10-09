@@ -275,6 +275,66 @@ function windowTargetRows(entries) {
 }
 
 /**
+ * Lines a short frame must keep even when the rest of a plain surface is cut. The launcher preview
+ * puts readiness, the block reason and the recovery command at the end; a prefix cut hides them and
+ * there is no scroll to bring them back.
+ */
+const PLAIN_PIN_RANK = Object.freeze([
+  /^readiness:/,
+  /^blocked_reason_code:/,
+  /^cannot launch:/,
+  /^remediation:/,
+  /^equivalent_command:/,
+]);
+
+function plainPinRank(entry) {
+  const text = String(entry?.text ?? '').trim();
+  return PLAIN_PIN_RANK.findIndex((re) => re.test(text));
+}
+
+/**
+ * Fit non-list content (status, diagnostics, help, launcher preview, ...) into `limit` rows.
+ * Without pinned lines, keep the leading rows. With pinned lines (launcher readiness, block reason,
+ * remediation, equivalent command), keep those first and fill the rest from the top, so a short
+ * terminal cannot hide why a launch is blocked. A marker counts what was left out.
+ * @param {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>} entries
+ * @param {number} limit rows available (>= 1, fewer than entries.length)
+ * @returns {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>}
+ */
+function windowPlainEntries(entries, limit) {
+  if (limit <= 1) return entries.slice(0, limit);
+  const ranks = entries.map((entry) => plainPinRank(entry));
+  const pins = ranks
+    .map((rank, index) => ({ rank, index }))
+    .filter((item) => item.rank >= 0)
+    .sort((a, b) => a.rank - b.rank || a.index - b.index);
+  if (pins.length === 0) {
+    const kept = limit - 1;
+    return [
+      ...entries.slice(0, kept),
+      { text: `  ... ${entries.length - kept} more below`, muted: true, kind: 'more' },
+    ];
+  }
+  const slots = limit - 1;
+  const keep = new Set();
+  for (const pin of pins) {
+    if (keep.size >= slots) break;
+    keep.add(pin.index);
+  }
+  for (let i = 0; i < entries.length && keep.size < slots; i += 1) {
+    if (ranks[i] >= 0) continue;
+    keep.add(i);
+  }
+  const shown = entries.filter((_, index) => keep.has(index));
+  const omitted = entries.length - shown.length;
+  if (omitted <= 0) return entries;
+  return [
+    ...shown,
+    { text: `  ... ${omitted} more omitted`, muted: true, kind: 'more' },
+  ];
+}
+
+/**
  * Fit structured list entries into at most `maxRows` terminal rows. The result
  * never exceeds `maxRows`; Ink does not clip children, so an oversized list
  * overprints the rows around it.
@@ -301,7 +361,7 @@ function windowEntriesToHeight(entries, maxRows) {
   if (entries.length <= limit) return entries;
 
   const parts = splitListEntries(entries);
-  if (!parts) return entries.slice(0, limit);
+  if (!parts) return windowPlainEntries(entries, limit);
   const { blocks, tail, selected } = parts;
   let { head } = parts;
 

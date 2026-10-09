@@ -1574,16 +1574,39 @@ function contentRowsForChrome(model, chrome) {
 }
 
 /**
+ * Content rows a plain (non-list) surface asks the chrome ladder for. These surfaces cannot scroll,
+ * so beyond this the extra rows are windowed with a marker instead of stripping more chrome.
+ */
+const PLAIN_SURFACE_TARGET_ROWS = 12;
+
+/**
+ * Entries shown in the content box for the current surface, before any viewport windowing.
+ * @param {object} model
+ * @returns {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>}
+ */
+function contentEntriesFor(model) {
+  if (model.activeWorkflow) return formatNativeWorkflowEntries(model.activeWorkflow);
+  return buildContentLines(model).map((text) => ({
+    text: String(text),
+    muted: String(text).startsWith('('),
+  }));
+}
+
+/**
  * Pick the chrome arrangement and content viewport for the current frame.
- * Only the native run browser is planned; other surfaces keep the full chrome.
+ * Every surface is planned except the landing, which composes its own frame
+ * (see LANDING_COMPOSITION_DROP_STEPS in operator-tui-landing.js).
  * @param {object} model
  * @returns {{ chrome: typeof FULL_CHROME, contentRows: number | null }}
  */
 function resolveShellChrome(model) {
-  if (!model.activeWorkflow || model.activeWorkflow.kind !== 'run_browser') {
+  if (!model.activeWorkflow && model.contentSurface === 'home') {
     return { chrome: FULL_CHROME, contentRows: null };
   }
-  const target = windowTargetRows(formatNativeWorkflowEntries(model.activeWorkflow));
+  const entries = contentEntriesFor(model);
+  const isRunBrowser = model.activeWorkflow && model.activeWorkflow.kind === 'run_browser';
+  const wanted = windowTargetRows(entries);
+  const target = isRunBrowser ? wanted : Math.min(wanted, PLAIN_SURFACE_TARGET_ROWS);
   let chrome = FULL_CHROME;
   for (let step = 0; ; step += 1) {
     const available = contentRowsForChrome(model, chrome);
@@ -1611,16 +1634,10 @@ function compactNavLine(model) {
  * @returns {Array<{ text: string, selected?: boolean, muted?: boolean, kind?: string }>}
  */
 function buildContentEntries(model, plan = resolveShellChrome(model)) {
-  if (model.activeWorkflow) {
-    const entries = formatNativeWorkflowEntries(model.activeWorkflow);
-    return plan.contentRows != null
-      ? windowEntriesToHeight(entries, plan.contentRows)
-      : entries;
-  }
-  return buildContentLines(model).map((text) => ({
-    text: String(text),
-    muted: String(text).startsWith('('),
-  }));
+  const entries = contentEntriesFor(model);
+  return plan.contentRows != null
+    ? windowEntriesToHeight(entries, plan.contentRows)
+    : entries;
 }
 
 /**
