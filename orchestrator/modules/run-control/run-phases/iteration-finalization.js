@@ -86,6 +86,7 @@ async function finalizeStepArtifact(ctx, deps) {
     gateBlocked: false,
     step_id: stepId,
     intent_id: intentId,
+    ...(step && step.qaPhase ? { qaPhase: step.qaPhase } : {}),
     ...(handoffSummary ? { handoffSummary } : {}),
     ...(Object.keys(handoffCompressionMeta).length ? handoffCompressionMeta : {}),
   };

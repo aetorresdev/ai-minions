@@ -216,12 +216,14 @@ function formatGateBlockedReasonLines(artifacts) {
 
 /**
  * Replay plan: same worker steps as the gate-blocked artifacts (deterministic iteration).
- * @param {ReadonlyArray<{ agentId?: string, task?: string }>} artifacts
- * @returns {Array<{ agentId?: string, task?: string }>}
+ * The replay preserves qaPhase, otherwise an originally QA_SPEC step would come back as QA_EXEC
+ * and fail the finding-classification contract on the retry.
+ * @param {ReadonlyArray<{ agentId?: string, task?: string, qaPhase?: string }>} artifacts
+ * @returns {Array<{ agentId?: string, task?: string, qaPhase?: string }>}
  */
 function planStepsReplayFromGateBlockedArtifacts(artifacts) {
   if (!Array.isArray(artifacts)) return [];
-  return artifacts.map((a) => ({ agentId: a.agentId, task: a.task }));
+  return artifacts.map((a) => ({ agentId: a.agentId, task: a.task, ...(a.qaPhase ? { qaPhase: a.qaPhase } : {}) }));
 }
 
 /**

@@ -39,7 +39,7 @@ function tagCorrectionQaPhases(steps) {
   return steps.map((step) => {
     if (!step || step.agentId !== "qa" || step.qaPhase) return step;
     const task = String(step.task ?? "");
-    const definesAcceptance = /\bacceptance criteria\b/i.test(task) && !/\breview\b/i.test(task);
+    const definesAcceptance = /\bacceptance[ _]criteria\b/i.test(task) && !/\breview\b/i.test(task);
     return definesAcceptance ? { ...step, qaPhase: "spec" } : { ...step, qaPhase: "exec" };
   });
 }

@@ -254,6 +254,63 @@ describe("run-phases/iteration-finalization — executeIterationFinalizationPhas
     const done = traces.find((t) => t.event === "iteration_done");
     assert.equal(done.outcome, "gate_blocked_iterate");
   });
+
+  it("a gate-blocked QA_SPEC artifact replays as spec, not QA_EXEC", async () => {
+    const specTask = "Define acceptance_criteria:, test_strategy: and validation_commands: for the Sudoku app.";
+    const { ctx, deps } = makeIterDeps({
+      artifacts: [
+        {
+          agentId: "qa",
+          task: specTask,
+          result: "",
+          gateBlocked: true,
+          gateReason: "handoff_structure: invalid",
+          gate_kind: "handoff_structure",
+          step_id: "s-qa-spec",
+          intent_id: "i-qa",
+          qaPhase: "spec",
+        },
+      ],
+      deps: {
+        askAgent: async (agentId) => {
+          if (agentId === "cerberus") {
+            return { output: CERBERUS_CLEAN_OUTPUT };
+          }
+          throw new Error(`unexpected askAgent call: ${agentId}`);
+        },
+      },
+    });
+    const out = await executeIterationFinalizationPhase(ctx, deps);
+    assert.equal(out.action, "continue");
+    assert.equal(out.plan.steps[0].qaPhase, "spec", "replay must keep the explicit phase");
+    assert.equal(out.plan.steps[0].task, specTask, "already-complete spec task gains no duplicate suffix");
+    assert.equal(shouldEmitQaReviewRecord("qa", out.plan.steps[0]), false);
+  });
+
+  it("a spec-looking task without qaPhase still replays as spec (underscore form)", async () => {
+    const { ctx, deps } = makeIterDeps({
+      artifacts: [
+        {
+          agentId: "qa",
+          task: "Define acceptance_criteria: and validation_commands: for the parser.",
+          result: "",
+          gateBlocked: true,
+          gateReason: "handoff_structure: invalid",
+          gate_kind: "handoff_structure",
+          step_id: "s-qa-spec2",
+          intent_id: "i-qa2",
+        },
+      ],
+      deps: {
+        askAgent: async (agentId) => {
+          if (agentId === "cerberus") return { output: CERBERUS_CLEAN_OUTPUT };
+          throw new Error(`unexpected askAgent call: ${agentId}`);
+        },
+      },
+    });
+    const out = await executeIterationFinalizationPhase(ctx, deps);
+    assert.equal(out.plan.steps[0].qaPhase, "spec");
+  });
 });
 
 /** No `blocker` token anywhere — isolates decide/contract behavior from blocker parsing. */
