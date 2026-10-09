@@ -148,6 +148,7 @@ async function executeStepAgentInvocation(ctx, step) {
     const artifact = {
       agentId,
       task: stepDef.task,
+      ...(stepDef.qaPhase ? { qaPhase: stepDef.qaPhase } : {}),
       result: typeof err.rawModelOutput === "string" ? err.rawModelOutput : "",
       gateBlocked: true,
       gateReason: err.message,

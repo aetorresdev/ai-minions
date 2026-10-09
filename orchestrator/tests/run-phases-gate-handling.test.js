@@ -20,6 +20,7 @@ const {
   compactHandoffDegradedMeta,
   compactHandoffStrictFailureFields,
 } = require("../orchestrator");
+const { planStepsReplayFromGateBlockedArtifacts } = require("../decision-engine");
 
 const VALID_DEV_YAML = "files_modified:\n  - src/foo.js\nvalidation_run: npm test — pass\n";
 
@@ -307,5 +308,118 @@ describe("run-phases/gate-handling — executeGateHandlingPhase (integration)", 
     assert.equal(out.action, "proceed");
     assert.equal(compactCalled, false);
     assert.equal(traces.length, 0);
+  });
+});
+
+describe("run-phases/gate-handling — qaPhase survives step → gate block → artifact → replay", () => {
+  // Deliberately no "acceptance criteria" wording: the phase must come from the
+  // explicit step.qaPhase, never from task text sniffing.
+  const SPEC_TASK = "Define measurable pass/fail checks and how they are executed for the Sudoku app.";
+  const VALID_QA_SPEC_YAML =
+    "acceptance_criteria:\n  - board renders\n" +
+    "test_strategy:\n  - fixture verifier\n" +
+    "validation_commands:\n  - npm test\n";
+
+  function makeSpecGateDeps(overrides = {}) {
+    const specStep = { agentId: "qa", task: SPEC_TASK, qaPhase: "spec" };
+    return makeGateDeps({
+      agentId: "qa",
+      step: specStep,
+      steps: [specStep, { agentId: "dev-backend", task: "implement the checks" }],
+      // QA_SPEC handoff contract: acceptance_criteria + test_strategy + validation_commands.
+      callCompactHandoff: () => ({
+        yaml: VALID_QA_SPEC_YAML,
+        ollama_prompt_tokens: 5,
+        ollama_completion_tokens: 7,
+      }),
+      ...overrides,
+    });
+  }
+
+  const blockingScenarios = [
+    {
+      label: "compact_handoff strict failure",
+      overrides: {
+        callCompactHandoff: () => { throw new Error("mcp unavailable"); },
+      },
+      gateKind: "compact_handoff",
+      action: "continue",
+    },
+    {
+      label: "handoff_structure gate block",
+      overrides: {
+        callCompactHandoff: () => ({ yaml: "empty: true\n", ollama_prompt_tokens: 1, ollama_completion_tokens: 1 }),
+      },
+      gateKind: "handoff_structure",
+      action: "continue",
+    },
+    {
+      label: "goal_alignment gate block",
+      overrides: {
+        orchTestSystemPathHarnessOn: () => false,
+        callStateMcp: (tool) => (tool === "validate_goal_alignment"
+          ? { ok: true, aligned: false, confidence: 0.2, notes: "scope drift" }
+          : { ok: true }),
+      },
+      gateKind: "goal_alignment",
+      action: "continue",
+    },
+    {
+      label: "transition gate block",
+      overrides: {
+        callStateMcp: (tool) => {
+          if (tool === "validate_goal_alignment") return { ok: true, aligned: true, confidence: 0.9 };
+          if (tool === "validate_transition") return { allowed: false, errors: ["invalid MODE chain"] };
+          return { ok: true };
+        },
+      },
+      gateKind: "transition",
+      action: "continue",
+    },
+    {
+      label: "state-MCP terminal failure",
+      overrides: {
+        callStateMcp: () => { throw new Error("mcp transport down"); },
+      },
+      gateKind: "state_mcp",
+      action: "break_orchestration",
+    },
+  ];
+
+  for (const scenario of blockingScenarios) {
+    it(`${scenario.label}: blocked artifact keeps the explicit qaPhase`, async () => {
+      const { ctx, deps } = makeSpecGateDeps(scenario.overrides);
+      const out = await executeGateHandlingPhase(ctx, deps);
+
+      assert.equal(out.action, scenario.action);
+      assert.equal(out.artifact.gate_kind, scenario.gateKind);
+      assert.equal(out.artifact.qaPhase, "spec");
+      assert.equal(out.artifact.task, SPEC_TASK);
+    });
+  }
+
+  it("handoff_structure block: artifact → replay keeps the step spec with the same task", async () => {
+    const { ctx, deps } = makeSpecGateDeps({
+      callCompactHandoff: () => ({ yaml: "empty: true\n", ollama_prompt_tokens: 1, ollama_completion_tokens: 1 }),
+    });
+    const out = await executeGateHandlingPhase(ctx, deps);
+    assert.equal(out.action, "continue");
+
+    const replay = planStepsReplayFromGateBlockedArtifacts([out.artifact]);
+    assert.equal(replay.length, 1);
+    assert.equal(replay[0].agentId, "qa");
+    assert.equal(replay[0].task, SPEC_TASK);
+    assert.equal(replay[0].qaPhase, "spec");
+  });
+
+  it("blocked artifact has no qaPhase key when the step had none", async () => {
+    const { ctx, deps } = makeGateDeps({
+      callCompactHandoff: () => ({ yaml: "empty: true\n", ollama_prompt_tokens: 1, ollama_completion_tokens: 1 }),
+    });
+    const out = await executeGateHandlingPhase(ctx, deps);
+    assert.equal(out.action, "continue");
+    assert.equal(Object.prototype.hasOwnProperty.call(out.artifact, "qaPhase"), false);
+    const replay = planStepsReplayFromGateBlockedArtifacts([out.artifact]);
+    assert.equal(Object.prototype.hasOwnProperty.call(replay[0], "qaPhase"), false);
   });
 });
