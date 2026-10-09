@@ -152,6 +152,29 @@ describe("run-phases/plan-resolution — executePlanResolutionPhase", () => {
     assert.equal(traces.some((t) => t.event === "iteration_done"), false);
   });
 
+  for (const [label, impl, reason] of [
+    ["throws", () => { throw new Error("orchestrator-state unreachable"); }, /orchestrator-state unreachable/],
+    ["returns ok=false", () => ({ ok: false, error: "task closed" }), /task closed/],
+  ]) {
+    it(`initial advance_mode ${label}: stops for manual review instead of continuing ungated`, async () => {
+      const { deps, traces } = makeDeps({
+        skipStateMcp: false,
+        callStateMcp: (tool) => (tool === "advance_mode" ? impl() : { ok: true }),
+      });
+      const out = await executePlanResolutionPhase(deps);
+      assert.equal(out.skipMainOrchestrationLoop, true);
+      assert.equal(out.manualReview, true);
+      assert.equal(out.currentMode, "ORCHESTRATOR");
+      assert.match(out.summary, /manual review required/i);
+      assert.match(out.summary, /state-MCP advance_mode failed/);
+      assert.match(out.summary, reason);
+      const fail = traces.find((t) => t.event === "state_mcp_failure");
+      assert.ok(fail);
+      assert.equal(fail.tool, "advance_mode");
+      assert.equal(traces.some((t) => t.event === "iteration_done"), false);
+    });
+  }
+
   it("emits plan_normalized when multi_agent degraded strip removes leading steps", async () => {
     const { deps, traces } = makeDeps({
       flowMode: "multi_agent",

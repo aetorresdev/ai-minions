@@ -514,7 +514,7 @@ async function run(goal, options = {}) {
   }
   let currentMode = "ORCHESTRATOR";
   const degradedInRun = new Set(); // agents that ran in fallback at least once this run
-  await executeSessionStartPhase({
+  const sessionStartOut = await executeSessionStartPhase({
     taskId,
     cwd,
     flowMode,
@@ -549,47 +549,54 @@ async function run(goal, options = {}) {
     orchTestSystemPathHarnessOn,
   });
 
-  ({
-    plan,
-    summary,
-    manualReview,
-    skipMainOrchestrationLoop,
-    currentMode,
-  } = await executePlanResolutionPhase({
-    taskId,
-    cwd,
-    flowMode,
-    goal,
-    maxIterations,
-    sessionEnv,
-    skipStateMcp,
-    credentialSessionMode,
-    plan,
-    summary,
-    manualReview,
-    skipMainOrchestrationLoop,
-    currentMode,
-    getLastBudgetMeta: () => lastBudgetMeta,
-    log,
-    traceEvent,
-    askAgent,
-    emitModelFallbackLifecycleIfNeeded,
-    emitContextStatsRows,
-    maybeEmitBudgetWarning,
-    checkCostGuard,
-    budgetEventFields,
-    traceIterationDone,
-    transitionReason,
-    roundUsd6,
-    extractJson,
-    stripLeadingOwnerArchitectForDegradedMultiAgent,
-    isQaSpecBeforeDevEnabled,
-    applyQaSpecBeforeDevPlan,
-    validatePlanStepsCapability,
-    CAPABILITY_MATRIX_VERSION,
-    callStateMcp,
-    AGENT_TO_MODE,
-  }));
+  if (sessionStartOut.action === "break_orchestration") {
+    // Gates required but the state store is unavailable: no planning, no loop, manual review.
+    summary = sessionStartOut.summary;
+    manualReview = true;
+    skipMainOrchestrationLoop = true;
+  } else {
+    ({
+      plan,
+      summary,
+      manualReview,
+      skipMainOrchestrationLoop,
+      currentMode,
+    } = await executePlanResolutionPhase({
+      taskId,
+      cwd,
+      flowMode,
+      goal,
+      maxIterations,
+      sessionEnv,
+      skipStateMcp,
+      credentialSessionMode,
+      plan,
+      summary,
+      manualReview,
+      skipMainOrchestrationLoop,
+      currentMode,
+      getLastBudgetMeta: () => lastBudgetMeta,
+      log,
+      traceEvent,
+      askAgent,
+      emitModelFallbackLifecycleIfNeeded,
+      emitContextStatsRows,
+      maybeEmitBudgetWarning,
+      checkCostGuard,
+      budgetEventFields,
+      traceIterationDone,
+      transitionReason,
+      roundUsd6,
+      extractJson,
+      stripLeadingOwnerArchitectForDegradedMultiAgent,
+      isQaSpecBeforeDevEnabled,
+      applyQaSpecBeforeDevPlan,
+      validatePlanStepsCapability,
+      CAPABILITY_MATRIX_VERSION,
+      callStateMcp,
+      AGENT_TO_MODE,
+    }));
+  }
 
   // ── Main loop ─────────────────────────────────────────────────────────────────
   const RED = "\x1b[31m", BOLD_C = "\x1b[1m", RESET_C = "\x1b[0m";
@@ -870,6 +877,14 @@ async function run(goal, options = {}) {
       if (gateOut.action === "continue") {
         if (gateOut.artifact) artifacts.push(gateOut.artifact);
         continue;
+      }
+      if (gateOut.action === "break_orchestration") {
+        // State-MCP failure with gates required: terminal, manual review, never done.
+        if (gateOut.artifact) artifacts.push(gateOut.artifact);
+        done = gateOut.done;
+        manualReview = gateOut.manualReview;
+        summary = gateOut.summary;
+        break orchestration;
       }
       const handoffYaml = gateOut.handoffYaml ?? "";
       const handoffCompressionMeta = gateOut.handoffCompressionMeta ?? {};

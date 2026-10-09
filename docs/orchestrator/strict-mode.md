@@ -262,6 +262,8 @@ If the MCPs are not registered or `--skip-gates` is passed, the runner prints:
 
 This is not a soft warning buried in logs — it is printed before the run starts. **Output contracts (`validateOutput`) remain active** in degraded mode; only the MCP gate sequence is skipped.
 
+**`--skip-gates` is the only degraded path.** Without it, state-MCP is mandatory and fails closed: if `register_task`, the initial `advance_mode`, a per-step `validate_goal_alignment` / `validate_transition` / `advance_mode`, or the CERBERUS→ORCHESTRATOR `validate_transition` / `advance_mode` throws or returns `ok: false`, the run stops with `done=false` and `Manual review required: state-MCP <tool> failed — <reason>`. The trace carries a `state_mcp_failure` event (`tool`, `stage`, `reason`) and no `degraded_mode` event; the run never continues ungated and never reaches decide or `done`. A policy block (`validate_transition` returning `allowed: false`) is not an outage and keeps its gate-blocked retry path.
+
 ---
 
 ## Rejection path — what each gate failure looks like

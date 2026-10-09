@@ -11,7 +11,7 @@ Define when a **degraded** orchestrator run may be used for diagnostics but **ca
 1. Degraded mode is allowed for diagnostics.
 2. A run **disqualifies** external-beta success when any trigger applies:
    - `--skip-gates` / `skipStateMcp=true` (`DEGRADED_SKIP_GATES`)
-   - Required MCP / state store unavailable (`DEGRADED_MCP_MISSING`)
+   - Required MCP / state store unavailable (`DEGRADED_MCP_MISSING`) — legacy `degraded_mode` traces only; current runs without `--skip-gates` stop with `done=false` and a `state_mcp_failure` event instead of continuing degraded
    - Network permission gate bypassed (`DEGRADED_NETWORK_GATE_BYPASSED`)
    - Privacy scan unavailable on a remote-capable path (`DEGRADED_PRIVACY_SCAN_REMOTE_UNAVAILABLE`)
 3. Inspect and bundle outputs must surface `degraded_mode`, `disqualifies_beta_success`, and `risk_acceptance_reason`.

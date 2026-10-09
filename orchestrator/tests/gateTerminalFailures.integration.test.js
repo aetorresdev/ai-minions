@@ -10,6 +10,8 @@
  *   3. A failed or invalid orchestrator decide must stop the run for manual review, never `done`.
  *   4. A strict-mode CERBERUS compact_handoff failure must keep blocking success now that `blocker: (none)`
  *      no longer forces an iteration.
+ *   5. Without --skip-gates, a state-MCP failure (register_task, per-step gates, CERBERUS transition) must stop
+ *      the run for manual review instead of continuing ungated and finishing done.
  */
 
 "use strict";
@@ -40,6 +42,29 @@ const DEV_HANDOFF_YAML = [
   "  - src/x.js",
   "validation_run: npm test — passed",
 ].join("\n");
+
+// Architect handoff satisfies the real approval policy so a later DEV step may run
+// without a test-only system-path bypass. `design_summary` keeps the handoff structurally valid.
+const ARCHITECT_APPROVAL_YAML = [
+  "design_summary: scope and design accepted",
+  "scope_validation_passed: true",
+  "architecture_validation_passed: true",
+  "validation_passed: true",
+  "required_fields_present: true",
+  "human_product_scope_granted: true",
+  "human_architecture_granted: true",
+  "human_dev_execution_granted: true",
+  "input_type: task",
+  "risk_level: low",
+  "unresolved_assumptions: 0",
+].join("\n");
+
+const PLAN_WITH_ARCHITECT = JSON.stringify({
+  steps: [
+    { agentId: "architect", task: "Confirm scope and design" },
+    { agentId: "dev-backend", task: "Add a comment to src/x.js" },
+  ],
+});
 
 const CERB_VACUOUS_BLOCKER = [
   "blocker: (none)",
@@ -72,7 +97,7 @@ function clearOrchestratorModuleCaches() {
 }
 
 /**
- * @param {{ cerberus: string, decide: string, failCerberusCompactHandoff?: boolean }} script
+ * @param {{ cerberus: string, decide: string, plan?: string, failCerberusCompactHandoff?: boolean, mcpFail?: (tool: string, prompt: string) => boolean }} script
  * @param {{ calls: string[] }} record
  */
 function makeSpawnSync(script, record) {
@@ -85,11 +110,16 @@ function makeSpawnSync(script, record) {
         if (script.failCerberusCompactHandoff && prompt.includes('mode_completed="CERBERUS"')) {
           return { error: null, status: 1, stdout: "", stderr: "compactor unavailable" };
         }
-        return { error: null, status: 0, stdout: `${DEV_HANDOFF_YAML}\n`, stderr: "" };
+        const yaml = prompt.includes('mode_completed="ARCHITECT"') ? ARCHITECT_APPROVAL_YAML : DEV_HANDOFF_YAML;
+        return { error: null, status: 0, stdout: `${yaml}\n`, stderr: "" };
       }
       const mcp = /orchestrator-state\.(\w+)/.exec(prompt);
       if (mcp) {
         const tool = mcp[1];
+        record.calls.push(`mcp:${tool}`);
+        if (script.mcpFail && script.mcpFail(tool, prompt)) {
+          return { error: null, status: 1, stdout: "", stderr: `simulated ${tool} outage` };
+        }
         const body =
           tool === "register_task" ? { ok: true, envelope_path: "/tmp/envelope.json" }
             : tool === "validate_goal_alignment" ? { ok: true, aligned: true, confidence: 1, notes: "" }
@@ -105,7 +135,7 @@ function makeSpawnSync(script, record) {
 
     if (input.includes("MODE: ORCHESTRATOR") && input.includes("Decompose")) {
       record.calls.push("plan");
-      return reply(PLAN);
+      return reply(script.plan || PLAN);
     }
     if (input.includes("Classify each finding")) {
       record.calls.push("cerberus");
@@ -129,15 +159,18 @@ function makeSpawnSync(script, record) {
 
 /**
  * Runs `run()` with the scripted backend and returns result + parsed trace rows.
- * @param {{ cerberus: string, decide: string, failCerberusCompactHandoff?: boolean }} script
+ * @param {{ cerberus: string, decide: string, plan?: string, failCerberusCompactHandoff?: boolean, mcpFail?: (tool: string, prompt: string) => boolean }} script
  * @param {Record<string, unknown>} [runOptions] overrides for run()
+ * @param {Record<string, string>} [envOverrides] env set for the duration of the run
  */
-async function runScripted(script, runOptions = {}) {
+async function runScripted(script, runOptions = {}, envOverrides = {}) {
   const prev = {
     OLLAMA_MODEL: process.env.OLLAMA_MODEL,
     ORCH_TRACES_DIR: process.env.ORCH_TRACES_DIR,
+    ...Object.fromEntries(Object.keys(envOverrides).map((k) => [k, process.env[k]])),
   };
   delete process.env.OLLAMA_MODEL;
+  Object.assign(process.env, envOverrides);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orch-gate-terminal-"));
   const tracesDir = path.join(tmp, "traces");
   fs.mkdirSync(tracesDir, { recursive: true });
@@ -265,5 +298,71 @@ describe("terminal gate failures — through run()", () => {
       out.rows.some((r) => r.event === "compact_handoff_failed" && r.agent === "cerberus"),
       true,
     );
+  });
+  describe("state-MCP failure without --skip-gates is terminal", () => {
+    const strict = { skipStateMcp: false, requireHandoff: false, maxIterations: 3 };
+    const agentStarts = (rows, agent) => rows.filter((r) => r.event === "agent_start" && r.agent === agent).length;
+
+    function assertStateMcpStop(out, tool) {
+      assert.equal(out.result.done, false, "result.done must be false");
+      assert.equal(out.result.runState.run.status, "aborted", "final run state must be aborted, not done");
+      assert.match(out.result.summary, /manual review required/i);
+      assert.match(out.result.summary, new RegExp(`state-MCP ${tool} failed`));
+      const fail = out.rows.find((r) => r.event === "state_mcp_failure");
+      assert.ok(fail, "state_mcp_failure must be traced");
+      assert.equal(fail.tool, tool);
+      const sessionEnd = out.rows.find((r) => r.event === "session_end");
+      assert.equal(sessionEnd.done, false);
+      assert.equal(sessionEnd.manual_review_recommended, true);
+      assert.equal(out.rows.some((r) => r.event === "iteration_done" && r.outcome === "done"), false);
+    }
+
+    it("register_task outage: no agent runs, run stops for manual review", async () => {
+      const out = await runScripted(
+        { cerberus: CERB_CLEAN, decide: DECIDE_DONE, mcpFail: (tool) => tool === "register_task" },
+        strict,
+      );
+      assertStateMcpStop(out, "register_task");
+      assert.equal(out.rows.some((r) => r.event === "agent_start"), false, "no agent may run without the state store");
+      assert.equal(out.result.artifacts.length, 0);
+      assert.equal(out.rows.some((r) => r.event === "degraded_mode"), false, "not a degraded continue");
+    });
+
+    it("per-step gate outage (validate_goal_alignment): step blocked, no CERBERUS, no done", async () => {
+      const out = await runScripted(
+        {
+          cerberus: CERB_CLEAN,
+          decide: DECIDE_DONE,
+          plan: PLAN_WITH_ARCHITECT,
+          mcpFail: (tool, prompt) => tool === "validate_goal_alignment" && prompt.includes("files_modified"),
+        },
+        strict,
+      );
+      assertStateMcpStop(out, "validate_goal_alignment");
+      assert.equal(agentStarts(out.rows, "dev-backend"), 1, "DEV must not be retried");
+      assert.equal(out.rows.some((r) => r.event === "cerberus_check"), false, "review must not run on an ungated step");
+      const blocked = out.result.artifacts.find((a) => a.gate_kind === "state_mcp");
+      assert.ok(blocked && blocked.gateBlocked === true);
+    });
+
+    it("CERBERUS transition outage (validate_transition from CERBERUS): no decide, no done", async () => {
+      const out = await runScripted(
+        {
+          cerberus: CERB_CLEAN,
+          decide: DECIDE_DONE,
+          plan: PLAN_WITH_ARCHITECT,
+          mcpFail: (tool, prompt) => tool === "validate_transition" && prompt.includes('from_mode="CERBERUS"'),
+        },
+        strict,
+      );
+      assertStateMcpStop(out, "validate_transition");
+      assert.equal(out.rows.some((r) => r.event === "cerberus_check"), false);
+    });
+
+    it("healthy state-MCP still completes (control)", async () => {
+      const out = await runScripted({ cerberus: CERB_CLEAN, decide: DECIDE_DONE, plan: PLAN_WITH_ARCHITECT }, strict);
+      assert.equal(out.result.done, true);
+      assert.equal(out.rows.some((r) => r.event === "state_mcp_failure"), false);
+    });
   });
 });

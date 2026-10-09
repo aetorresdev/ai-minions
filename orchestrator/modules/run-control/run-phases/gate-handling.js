@@ -1,5 +1,7 @@
 "use strict";
 
+const { stateMcpResponseFailure, stateMcpTransitionFailure, buildStateMcpStop } = require("./phase-context");
+
 const { flattenGateHandlingDeps } = require("./phase-deps");
 
 /**
@@ -43,7 +45,10 @@ const { flattenGateHandlingDeps } = require("./phase-deps");
  *   markStepRetryingAfterGate: (runState: object) => void,
  * } | ReturnType<import("./phase-deps").buildGateHandlingDeps>} deps
  * @returns {Promise<{
- *   action: "continue" | "proceed",
+ *   action: "continue" | "proceed" | "break_orchestration",
+ *   done?: false,
+ *   manualReview?: true,
+ *   summary?: string,
  *   artifact?: object,
  *   handoffYaml?: string,
  *   handoffCompressionMeta?: object,
@@ -257,6 +262,9 @@ async function executeGateHandlingPhase(ctx, deps) {
   }
 
   if (!skipStateMcp && handoffYaml) {
+    // Gates are required (no --skip-gates): a state-MCP failure ends the run for manual review
+    // instead of letting the step proceed ungated.
+    let stateMcpStage = "validate_goal_alignment";
     try {
       ctx.log("gate", `Validating goal alignment for ${agentId}...`);
       const alignment = callStateMcp(
@@ -265,9 +273,9 @@ async function executeGateHandlingPhase(ctx, deps) {
         { cwd: ctx.cwd },
       );
 
-      if (!alignment.ok) {
-        ctx.log("gate", `WARNING: validate_goal_alignment failed: ${alignment.error}`);
-      } else if (alignment.aligned === false) {
+      const alignmentFailure = stateMcpResponseFailure(alignment);
+      if (alignmentFailure) throw new Error(alignmentFailure);
+      if (alignment.aligned === false) {
         if (orchTestSystemPathHarnessOn()) {
           ctx.log("gate", "⚠ test system-path harness: goal alignment returned false — continuing (test harness only; not prod semantics)");
           ctx.traceEvent(ctx.taskId, {
@@ -330,6 +338,7 @@ async function executeGateHandlingPhase(ctx, deps) {
       }
 
       ctx.log("gate", `validate_transition: ${nextCurrentMode} → ${nextMode} (iteration ${ctx.iterations()})`);
+      stateMcpStage = "validate_transition";
       const vt = callStateMcp(
         "validate_transition",
         {
@@ -342,6 +351,8 @@ async function executeGateHandlingPhase(ctx, deps) {
         { cwd: ctx.cwd },
       );
 
+      const vtFailure = stateMcpTransitionFailure(vt);
+      if (vtFailure) throw new Error(vtFailure);
       if (!vt.allowed) {
         ctx.log("gate", `🟥 Transition blocked: ${(vt.errors || []).join("; ")}`);
         ctx.traceEvent(ctx.taskId, {
@@ -389,6 +400,7 @@ async function executeGateHandlingPhase(ctx, deps) {
         to_mode: nextMode,
         passed: true,
       });
+      stateMcpStage = "advance_mode";
       const adv = callStateMcp(
         "advance_mode",
         {
@@ -401,14 +413,42 @@ async function executeGateHandlingPhase(ctx, deps) {
         { cwd: ctx.cwd },
       );
 
-      if (adv.ok) {
-        nextCurrentMode = nextMode;
-        ctx.log("gate", `Mode advanced → ${nextCurrentMode}`);
-      } else {
-        ctx.log("gate", `WARNING: advance_mode returned ok=false: ${adv.error || JSON.stringify(adv.errors)}`);
-      }
+      const advFailure = stateMcpResponseFailure(adv);
+      if (advFailure) throw new Error(advFailure);
+      nextCurrentMode = nextMode;
+      ctx.log("gate", `Mode advanced → ${nextCurrentMode}`);
     } catch (err) {
-      ctx.log("gate", `WARNING: State MCP gate error (${err.message}). Continuing without gate.`);
+      const stop = buildStateMcpStop(stateMcpStage, err.message);
+      ctx.log("gate", `🟥 ${stop.summary}`);
+      ctx.traceEvent(ctx.taskId, {
+        event: "state_mcp_failure",
+        tool: stateMcpStage,
+        stage: "gate_handling",
+        agent: agentId,
+        iteration: ctx.iterations(),
+        step_id: stepId,
+        step_index: stepIndex,
+        ...graphMeta,
+        ...intentStep,
+        reason: stop.reason,
+      });
+      return {
+        action: "break_orchestration",
+        done: false,
+        manualReview: true,
+        summary: stop.summary,
+        artifact: {
+          agentId,
+          task: step.task,
+          result,
+          handoffYaml,
+          gateBlocked: true,
+          gateReason: `state_mcp: ${stateMcpStage} failed — ${stop.reason}`,
+          step_id: stepId,
+          intent_id: intentId,
+          gate_kind: "state_mcp",
+        },
+      };
     }
   }
 

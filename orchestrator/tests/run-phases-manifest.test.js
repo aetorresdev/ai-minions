@@ -9,7 +9,12 @@ const RUN_PHASES_DIR = path.join(__dirname, "..", "run-phases");
 
 /** Locked manifest — update only with intentional phase additions. */
 const PHASE_MANIFEST = [
-  { file: "phase-context.js", exports: ["createPhaseContext"] },
+  { file: "phase-context.js", exports: [
+    "createPhaseContext",
+    "stateMcpResponseFailure",
+    "stateMcpTransitionFailure",
+    "buildStateMcpStop",
+  ] },
   { file: "phase-deps.js", exports: [
     "buildGateHandlingDeps",
     "flattenGateHandlingDeps",

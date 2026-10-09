@@ -98,15 +98,45 @@ describe("run-phases/session-start — executeSessionStartPhase", () => {
     assert.equal(traces.some((t) => t.event === "degraded_mode"), false);
   });
 
-  it("emits degraded_mode when register_task fails", async () => {
+  it("register_task ok=false stops the run for manual review (no degraded continue)", async () => {
     const { deps, traces } = makeDeps({
       skipStateMcp: false,
       callStateMcp: () => ({ ok: false, error: "state store down" }),
     });
-    await executeSessionStartPhase(deps);
-    const degraded = traces.find((t) => t.event === "degraded_mode");
-    assert.ok(degraded);
-    assert.match(String(degraded.reason), /state store down/);
+    const out = await executeSessionStartPhase(deps);
+    assert.equal(out.action, "break_orchestration");
+    assert.equal(out.done, false);
+    assert.equal(out.manualReview, true);
+    assert.match(out.summary, /manual review required/i);
+    assert.match(out.summary, /state-MCP register_task failed/);
+    assert.match(out.summary, /state store down/);
+    const fail = traces.find((t) => t.event === "state_mcp_failure");
+    assert.ok(fail, "state_mcp_failure trace required");
+    assert.equal(fail.tool, "register_task");
+    assert.match(String(fail.reason), /state store down/);
+    assert.equal(traces.some((t) => t.event === "degraded_mode"), false, "not a degraded continue");
+  });
+
+  it("register_task throwing (transport unavailable) stops the run for manual review", async () => {
+    const { deps, traces } = makeDeps({
+      skipStateMcp: false,
+      callStateMcp: () => {
+        throw new Error("GATE_TRANSPORT_UNAVAILABLE: claude CLI not found");
+      },
+    });
+    const out = await executeSessionStartPhase(deps);
+    assert.equal(out.action, "break_orchestration");
+    assert.equal(out.done, false);
+    assert.equal(out.manualReview, true);
+    assert.match(out.summary, /GATE_TRANSPORT_UNAVAILABLE/);
+    assert.equal(traces.filter((t) => t.event === "state_mcp_failure").length, 1);
+  });
+
+  it("register_task ok does not stop (control)", async () => {
+    const { deps, traces } = makeDeps({ skipStateMcp: false });
+    const out = await executeSessionStartPhase(deps);
+    assert.equal(out.action, undefined);
+    assert.equal(traces.some((t) => t.event === "state_mcp_failure"), false);
   });
 
   it("emits budget_config_invalid traces when parsers report invalid config", async () => {
