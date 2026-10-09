@@ -28,6 +28,7 @@ const {
 const {
   tagCorrectionQaPhases,
   ensureQaSpecFormatInTasks,
+  shouldEmitQaReviewRecord,
 } = require("../qa-spec-flow");
 const { truncateForContext } = require("../context-utils");
 const {
@@ -594,5 +595,36 @@ describe("run-phases/iteration-finalization — decide failure is terminal", () 
     assert.equal(out.plan.steps[0].qaPhase, "spec");
     assert.match(out.plan.steps[0].task, /acceptance_criteria:/);
     assert.match(out.plan.steps[0].task, /validation_commands:/);
+  });
+
+  it("a qa review stays exec through the correction branch and review_record still emits", async () => {
+    const { askAgent } = recordingAskAgent({
+      cerberus: async () => ({ output: CERBERUS_CLEAN_OUTPUT }),
+      orchestrator: async () => ({
+        output: '{"done": false, "corrections": [{"agentId": "qa", "task": "Review the existing implementation for regressions"}]}',
+      }),
+    });
+    const { ctx, deps } = makeIterDeps({ deps: { askAgent } });
+    const out = await executeIterationFinalizationPhase(ctx, deps);
+    assert.equal(out.action, "continue");
+    assert.equal(out.plan.steps[0].qaPhase, "exec");
+    assert.doesNotMatch(out.plan.steps[0].task, /acceptance_criteria:/);
+    assert.equal(shouldEmitQaReviewRecord("qa", out.plan.steps[0]), true);
+  });
+
+  it("fails loudly when the correction helpers are not wired through the run loop", async () => {
+    const { askAgent } = recordingAskAgent({
+      cerberus: async () => ({ output: CERBERUS_CLEAN_OUTPUT }),
+      orchestrator: async () => ({
+        output: '{"done": false, "corrections": [{"agentId": "dev-backend", "task": "fix"}]}',
+      }),
+    });
+    const { ctx, deps } = makeIterDeps({
+      deps: { askAgent, tagCorrectionQaPhases: undefined, ensureQaSpecFormatInTasks: undefined },
+    });
+    await assert.rejects(
+      executeIterationFinalizationPhase(ctx, deps),
+      /tagCorrectionQaPhases is not a function|not a function/,
+    );
   });
 });

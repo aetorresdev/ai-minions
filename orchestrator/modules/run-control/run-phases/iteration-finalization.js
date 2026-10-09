@@ -513,8 +513,10 @@ List the correction steps required. Reply with JSON: { "done": false, "correctio
       blockerItems: cerberusBlockers.items,
       maxBlockersInTask: 2,
     });
-    const steps = /** @type {Array<{ agentId?: string, task: string }>} */ (planOut.steps);
-    planOut.steps = ensureQaSpecFormatInTasks(tagCorrectionQaPhases(planOut.steps));
+    const steps = /** @type {Array<{ agentId?: string, task: string }>} */ (
+      ensureQaSpecFormatInTasks(tagCorrectionQaPhases(planOut.steps))
+    );
+    planOut.steps = steps;
     if (planOut.traceBranch === "iterate_corrections_json") {
       ctx.log("orchestrator", `↻ Correcting — ${steps.length} step(s):`);
       steps.forEach((c) =>

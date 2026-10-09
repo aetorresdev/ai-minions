@@ -74,6 +74,14 @@ describe("qa-spec-flow", () => {
     assert.equal(out[1].agentId, "dev-frontend");
   });
 
+  it("keeps a review exec even when it runs before the first dev step", () => {
+    const [step] = tagCorrectionQaPhases([
+      { agentId: "qa", task: "Review the existing implementation for regressions" },
+    ]);
+    assert.equal(step.qaPhase, "exec");
+    assert.equal(shouldEmitQaReviewRecord("qa", step), true);
+  });
+
   it("a qa correction that defines acceptance criteria is spec even with no dev step", () => {
     const [step] = tagCorrectionQaPhases([
       { agentId: "qa", task: "Define acceptance criteria for puzzle uniqueness" },
@@ -97,6 +105,16 @@ describe("qa-spec-flow", () => {
     assert.equal(out[1].task, "Implement it.");
     const again = ensureQaSpecFormatInTasks(out);
     assert.equal(again[0].task, out[0].task);
+  });
+
+  it("appends the suffix when a spec task only names acceptance_criteria", () => {
+    const [step] = ensureQaSpecFormatInTasks([
+      { agentId: "qa", qaPhase: "spec", task: "Output acceptance_criteria: for the feature." },
+    ]);
+    assert.match(step.task, /test_strategy:/);
+    assert.match(step.task, /validation_commands:/);
+    const again = ensureQaSpecFormatInTasks([step]);
+    assert.equal(again[0].task, step.task);
   });
 
   it("shouldEmitQaReviewRecord allows QA_EXEC", () => {

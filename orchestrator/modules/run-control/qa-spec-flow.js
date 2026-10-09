@@ -28,20 +28,19 @@ const QA_SPEC_FORMAT_SUFFIX =
  * Re-apply QA_SPEC tagging to steps the orchestrator produces mid-run (corrections, gate-block
  * replays). `applyQaSpecBeforeDevPlan` only runs on the initial plan, so a correction whose task
  * is "define acceptance criteria" would otherwise be validated as a QA_EXEC review and fail the
- * finding-classification contract. A qa step is spec when it precedes the first dev step, or when
- * its task defines acceptance criteria without asking for an implementation review.
+ * finding-classification contract. A qa step is spec only when its task defines acceptance criteria
+ * without asking for an implementation review. A review stays exec, wherever it sits, so
+ * review_record keeps emitting.
  * @param {Array<{ agentId?: string, task?: string, qaPhase?: string }>} steps
  * @returns {typeof steps}
  */
 function tagCorrectionQaPhases(steps) {
   if (!Array.isArray(steps)) return steps;
-  const firstDevIdx = steps.findIndex((s) => s?.agentId && DEV_AGENT_RE.test(String(s.agentId).trim()));
-  return steps.map((step, i) => {
+  return steps.map((step) => {
     if (!step || step.agentId !== "qa" || step.qaPhase) return step;
     const task = String(step.task ?? "");
     const definesAcceptance = /\bacceptance criteria\b/i.test(task) && !/\breview\b/i.test(task);
-    const spec = (firstDevIdx >= 0 && i < firstDevIdx) || definesAcceptance;
-    return spec ? { ...step, qaPhase: "spec" } : { ...step, qaPhase: "exec" };
+    return definesAcceptance ? { ...step, qaPhase: "spec" } : { ...step, qaPhase: "exec" };
   });
 }
 
@@ -54,8 +53,12 @@ function ensureQaSpecFormatInTasks(steps) {
   if (!Array.isArray(steps)) return steps;
   return steps.map((step) => {
     if (!step || step.qaPhase !== "spec") return step;
-    if (String(step.task ?? "").includes("acceptance_criteria:")) return step;
-    return { ...step, task: `${String(step.task ?? "").trim()} ${QA_SPEC_FORMAT_SUFFIX}`.trim() };
+    const task = String(step.task ?? "");
+    const hasAcceptance = task.includes("acceptance_criteria:");
+    const hasStrategy = task.includes("test_strategy:") || task.includes("required_tests:");
+    const hasCommands = task.includes("validation_commands:");
+    if (hasAcceptance && hasStrategy && hasCommands) return step;
+    return { ...step, task: `${task.trim()} ${QA_SPEC_FORMAT_SUFFIX}`.trim() };
   });
 }
 

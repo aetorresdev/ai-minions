@@ -947,6 +947,8 @@ async function run(goal, options = {}) {
       planStepsAfterCorrectionsResponse,
       formatGateBlockedReasonLines,
       planStepsReplayFromGateBlockedArtifacts,
+      tagCorrectionQaPhases,
+      ensureQaSpecFormatInTasks,
       summaryMaxIterationsGateBlocked,
       decideFromOrchestratorDecide,
       mapDecideLoopToPlanOutcome,
