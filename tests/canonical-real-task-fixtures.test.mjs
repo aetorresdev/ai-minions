@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -176,6 +177,62 @@ describe("fixture script execution", () => {
       assert.match(r.error, /restricted/);
     }
     assert.equal(fs.existsSync(marker), false);
+  });
+
+  it("blocks node:sqlite file creation and reads after a vm escape", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fixture-sqlite-"));
+    const created = path.join(dir, "created.sqlite");
+    const existing = path.join(dir, "existing.sqlite");
+    const escape = (body) =>
+      `<script>const P = this.constructor.constructor("return process")(); ${body}</script>`;
+    try {
+      const db = new DatabaseSync(existing);
+      db.exec("CREATE TABLE marker (v TEXT)");
+      db.prepare("INSERT INTO marker (v) VALUES (?)").run("parent-marker");
+      db.close();
+      const write = executeInlineScripts(escape(
+        `const {DatabaseSync}=P.getBuiltinModule("node:sqlite"); const db=new DatabaseSync(${JSON.stringify(created)}); db.exec("CREATE TABLE harmless_probe (id INTEGER)"); db.close();`,
+      ));
+      const read = executeInlineScripts(escape(
+        `const {DatabaseSync}=P.getBuiltinModule("node:sqlite"); const db=new DatabaseSync(${JSON.stringify(existing)}, {readOnly:true}); db.prepare("SELECT v FROM marker").get();`,
+      ));
+      assert.equal(write.ok, false);
+      assert.equal(read.ok, false);
+      assert.match(`${write.error} ${read.error}`, /restricted/);
+      assert.equal(fs.existsSync(created), false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when an async DOMContentLoaded handler or window.onload throws", () => {
+    const asyncHandler = executeInlineScripts(
+      `<script>document.addEventListener("DOMContentLoaded", async () => { throw new Error("async init crash"); });</script>`,
+    );
+    const onload = executeInlineScripts(
+      `<script>window.onload = () => { throw new Error("onload crash"); };</script>`,
+    );
+    assert.equal(asyncHandler.ok, false);
+    assert.equal(asyncHandler.phase, "init");
+    assert.match(asyncHandler.error, /async init crash/);
+    assert.equal(onload.ok, false);
+    assert.equal(onload.phase, "init");
+    assert.match(onload.error, /onload crash/);
+  });
+
+  it("rejects a forged ok result, including one followed by a non-zero exit", () => {
+    const escape = (body) =>
+      `<script>const P = this.constructor.constructor("return process")(); ${body}</script>`;
+    const exited = executeInlineScripts(escape(
+      `P.stdout.write(JSON.stringify({ok:true})+"\\n"); P.exit(7);`,
+    ));
+    const zero = executeInlineScripts(escape(
+      `P.stdout.write(JSON.stringify({ok:true})+"\\n"); P.exit(0);`,
+    ));
+    assert.equal(exited.ok, false);
+    assert.equal(zero.ok, false);
+    assert.match(exited.error, /untrusted/);
+    assert.match(zero.error, /untrusted/);
   });
 
   it("artifact mode fails with FIXTURE_ARTIFACT_FAIL for a crash-on-load file", () => {

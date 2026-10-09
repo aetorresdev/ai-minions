@@ -6,12 +6,18 @@
  * the inline <script> blocks against a tolerant DOM stub and fails on any uncaught exception.
  *
  * The artifact is model-generated, so it never runs in the calling process: it is executed in a child
- * Node process started with the permission model (`--permission`, no fs write/child_process/worker/net
- * grants) and a hard timeout. This is a smoke check for "does not crash on load", not a browser test.
+ * Node process. `--permission` is not a filesystem barrier: Node documents that it does not cover every
+ * API, and `node:sqlite` can create and read files with no fs grant. Before any artifact code runs, the
+ * child seals `getBuiltinModule`, `binding` and `dlopen`, so an escape that reaches `process` still
+ * cannot open those APIs. The result line carries a proof token that exists only in the child's local
+ * scope and is written with a `writeSync` bound before the artifact runs; a forged `{ok:true}` or a
+ * non-zero exit cannot pass. This is a crash-on-load smoke check, not a browser test.
  *
- * Limits: Node 22's permission model does not restrict network access, so the child gets an empty
- * environment (no tokens) and no readable filesystem; it is not a substitute for a real browser sandbox.
+ * Limits: network access is not restricted. Timers scheduled by the artifact are not run (the stub
+ * `setTimeout` does not fire). Init handlers are: `DOMContentLoaded` and `load` listeners, including
+ * ones that return a promise, and a `window.onload` property assignment.
  */
+import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
 const EXEC_TIMEOUT_MS = 4000;
@@ -35,13 +41,24 @@ export function extractInlineScripts(htmlText) {
   return out;
 }
 
-/** Runs inside the child process. Reads `{ scripts, timeoutMs }` from stdin, prints one JSON line. */
+/** Runs inside the child process. Reads `{ scripts, timeoutMs, proof }` from stdin, prints one JSON line. */
 const CHILD_RUNNER = String.raw`
+const fs = require("node:fs");
 const vm = require("node:vm");
+const writeFd = fs.writeSync.bind(fs);
+function deny(what) {
+  const err = new Error("Access to this API has been restricted (" + what + ")");
+  err.code = "ERR_ACCESS_DENIED";
+  throw err;
+}
+process.getBuiltinModule = (id) => deny("getBuiltinModule " + id);
+process.binding = (id) => deny("binding " + id);
+process.dlopen = () => deny("dlopen");
+process.mainModule = undefined;
 const chunks = [];
 process.stdin.on("data", (c) => chunks.push(c));
 process.stdin.on("end", () => {
-  const { scripts, timeoutMs } = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  const { scripts, timeoutMs, proof } = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   const listeners = { document: {}, window: {} };
   const byId = new Map();
   const emptyIter = () => ({ next: () => ({ done: true, value: undefined }) });
@@ -100,18 +117,40 @@ process.stdin.on("end", () => {
   try {
     for (const code of scripts) new vm.Script(code, { filename: "inline.js" }).runInContext(context, { timeout: timeoutMs });
   } catch (e) { fail("load", e); }
+  const pending = [];
+  const callHandler = (h) => {
+    if (typeof h !== "function" || !result.ok) return;
+    try {
+      const returned = h({});
+      if (returned && typeof returned.then === "function") {
+        pending.push(Promise.resolve(returned).then(() => {}, (e) => fail("init", e)));
+      }
+    } catch (e) { fail("init", e); }
+  };
   if (result.ok) {
     const handlers = [
       ...(listeners.document.DOMContentLoaded || []),
       ...(listeners.window.DOMContentLoaded || []),
       ...(listeners.window.load || []),
     ];
-    for (const h of handlers) {
-      try { h({}); } catch (e) { fail("init", e); break; }
-    }
+    for (const h of handlers) callHandler(h);
+    callHandler(win.onload);
   }
-  process.stdout.write(JSON.stringify(result) + "\n");
-  process.exit(0);
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    writeFd(1, JSON.stringify({ ok: result.ok, phase: result.phase, error: result.error, proof }) + "\n");
+    process.exit(result.ok ? 0 : 1);
+  };
+  if (pending.length === 0) finish();
+  else {
+    const timer = setTimeout(() => {
+      if (result.ok) fail("init", new Error("init handler timed out"));
+      finish();
+    }, timeoutMs);
+    Promise.all(pending).then(() => { clearTimeout(timer); finish(); }, () => { clearTimeout(timer); finish(); });
+  }
 });
 `;
 
@@ -125,11 +164,12 @@ export function executeInlineScripts(htmlText, options = {}) {
   if (scripts.length === 0) {
     return { ok: false, phase: "extract", error: "no inline script to execute" };
   }
+  const proof = randomBytes(16).toString("hex");
   const child = spawnSync(
     process.execPath,
     ["--permission", "-e", CHILD_RUNNER],
     {
-      input: JSON.stringify({ scripts, timeoutMs: options.timeoutMs ?? EXEC_TIMEOUT_MS }),
+      input: JSON.stringify({ scripts, timeoutMs: options.timeoutMs ?? EXEC_TIMEOUT_MS, proof }),
       encoding: "utf8",
       timeout: CHILD_TIMEOUT_MS,
       maxBuffer: 1024 * 1024,
@@ -139,13 +179,28 @@ export function executeInlineScripts(htmlText, options = {}) {
   if (child.error) {
     return { ok: false, phase: "spawn", error: `script execution unavailable: ${child.error.message}`.slice(0, MAX_ERROR_CHARS) };
   }
-  const lastLine = String(child.stdout ?? "").trim().split("\n").pop() ?? "";
-  try {
-    const parsed = JSON.parse(lastLine);
-    if (parsed.ok) return { ok: true };
-    return { ok: false, phase: parsed.phase, error: String(parsed.error).slice(0, MAX_ERROR_CHARS) };
-  } catch {
-    const detail = String(child.stderr ?? "").trim().split("\n").filter(Boolean).pop() ?? `exit ${child.status}`;
-    return { ok: false, phase: "child", error: `script execution failed: ${detail}`.slice(0, MAX_ERROR_CHARS) };
+  if (child.signal) {
+    return { ok: false, phase: "child", error: `script execution killed (${child.signal})` };
   }
+  const lastLine = String(child.stdout ?? "").trim().split("\n").pop() ?? "";
+  let parsed;
+  try {
+    parsed = JSON.parse(lastLine);
+  } catch {
+    parsed = null;
+  }
+  if (!parsed || parsed.proof !== proof) {
+    return {
+      ok: false,
+      phase: "child",
+      error: `untrusted script result (exit ${child.status ?? "?"})`.slice(0, MAX_ERROR_CHARS),
+    };
+  }
+  if (parsed.ok === true) {
+    if (child.status !== 0) {
+      return { ok: false, phase: "child", error: `script child exited ${child.status}` };
+    }
+    return { ok: true };
+  }
+  return { ok: false, phase: parsed.phase, error: String(parsed.error ?? "script error").slice(0, MAX_ERROR_CHARS) };
 }
