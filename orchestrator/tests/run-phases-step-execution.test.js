@@ -4,6 +4,7 @@ const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const { createPhaseContext } = require("../run-phases/phase-context");
 const { executeStepAgentInvocation } = require("../run-phases/step-execution");
+const { planStepsReplayFromGateBlockedArtifacts } = require("../decision-engine");
 
 function traceEvents(traces) {
   return traces.map((t) => t.event);
@@ -176,5 +177,41 @@ describe("run-phases/step-execution — executeStepAgentInvocation", () => {
     assert.equal(out.action, "break_orchestration");
     assert.equal(out.result, "done output");
     assertSubsequence(traceEvents(traces), ["agent_start", "agent_done"]);
+  });
+
+  describe("qaPhase preservation on output-contract block", () => {
+    const SPEC_TASK = "Define measurable pass/fail checks and how they are executed for the Sudoku app.";
+
+    it("contract_fail artifact carries the step qaPhase and the replay keeps it", async () => {
+      const { ctx } = makeCtx();
+      const { step } = makeStepDeps({
+        agentId: "qa",
+        step: { agentId: "qa", task: SPEC_TASK, qaPhase: "spec" },
+        askAgent: async () => {
+          throw new Error("missing finding_classification block");
+        },
+      });
+      const out = await executeStepAgentInvocation(ctx, step);
+      assert.equal(out.action, "break_iteration");
+      assert.equal(out.artifact.qaPhase, "spec");
+
+      const replay = planStepsReplayFromGateBlockedArtifacts([out.artifact]);
+      assert.equal(replay.length, 1);
+      assert.equal(replay[0].qaPhase, "spec");
+      assert.equal(replay[0].task, SPEC_TASK);
+    });
+
+    it("contract_fail artifact has no qaPhase key when the step had none", async () => {
+      const { ctx } = makeCtx();
+      const { step } = makeStepDeps({
+        askAgent: async () => {
+          throw new Error("plain failure");
+        },
+      });
+      const out = await executeStepAgentInvocation(ctx, step);
+      assert.equal(Object.prototype.hasOwnProperty.call(out.artifact, "qaPhase"), false);
+      const replay = planStepsReplayFromGateBlockedArtifacts([out.artifact]);
+      assert.equal(Object.prototype.hasOwnProperty.call(replay[0], "qaPhase"), false);
+    });
   });
 });

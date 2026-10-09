@@ -237,6 +237,17 @@ test("planStepsReplayFromGateBlockedArtifacts — maps agentId and task", () => 
   ]);
 });
 
+test("planStepsReplayFromGateBlockedArtifacts — preserves qaPhase through replay", () => {
+  const steps = planStepsReplayFromGateBlockedArtifacts([
+    { agentId: "qa", task: "Define acceptance criteria", qaPhase: "spec" },
+    { agentId: "dev-backend", task: "do X" },
+  ]);
+  assert.deepEqual(steps, [
+    { agentId: "qa", task: "Define acceptance criteria", qaPhase: "spec" },
+    { agentId: "dev-backend", task: "do X" },
+  ]);
+});
+
 test("planStepsDevFallbackFromBlockers — only dev-* and joins blockers", () => {
   const steps = planStepsDevFallbackFromBlockers({
     artifacts: [

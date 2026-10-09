@@ -49,6 +49,8 @@ const {
 const {
   isQaSpecBeforeDevEnabled,
   applyQaSpecBeforeDevPlan,
+  tagCorrectionQaPhases,
+  ensureQaSpecFormatInTasks,
   resolveHandoffMode,
   qaSpecFlowTraceExtras,
   shouldEmitQaReviewRecord,
@@ -945,6 +947,8 @@ async function run(goal, options = {}) {
       planStepsAfterCorrectionsResponse,
       formatGateBlockedReasonLines,
       planStepsReplayFromGateBlockedArtifacts,
+      tagCorrectionQaPhases,
+      ensureQaSpecFormatInTasks,
       summaryMaxIterationsGateBlocked,
       decideFromOrchestratorDecide,
       mapDecideLoopToPlanOutcome,

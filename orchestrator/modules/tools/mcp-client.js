@@ -290,6 +290,16 @@ function invokeMcpDirect(server, toolName, args, gateOpts = {}) {
     throw new Error(`mcp-direct.py not found at ${script}`);
   }
   const py = process.env.ORCH_PYTHON || "python3";
+  // The Python servers pick their Ollama model from the environment (ORCHESTRATOR_OLLAMA_MODEL,
+  // default qwen2.5-coder:7b). A local_only run resolves its own model, which is often not the
+  // default, and /api/generate answers 404 for a model that is not pulled — goal alignment then
+  // fails on every step. Hand the resolved model down unless the operator set one explicitly.
+  const env = { ...process.env };
+  // The resolved model is published on the env by the local-only launcher (see runner-launcher). Reading
+  // it here keeps tools/ free of a dependency on model-runtime, which the module boundary forbids.
+  if (!env.ORCHESTRATOR_OLLAMA_MODEL && server === "orchestrator-state" && env.ORCH_ALIGNMENT_OLLAMA_MODEL) {
+    env.ORCHESTRATOR_OLLAMA_MODEL = env.ORCH_ALIGNMENT_OLLAMA_MODEL;
+  }
   const payload = JSON.stringify({ server, tool: toolName, args });
   const timeoutMs = parseInt(process.env.ORCH_MCP_DIRECT_TIMEOUT_MS, 10) || 180000;
   const t0 = Date.now();
@@ -300,6 +310,7 @@ function invokeMcpDirect(server, toolName, args, gateOpts = {}) {
       maxBuffer: 8 * 1024 * 1024,
       timeout: timeoutMs,
       windowsHide: true,
+      env,
     });
     if (result.error) throw result.error;
     if (result.status !== 0) {

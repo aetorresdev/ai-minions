@@ -182,6 +182,7 @@ async function executeGateHandlingPhase(ctx, deps) {
         artifact: {
           agentId,
           task: step.task,
+          ...(step.qaPhase ? { qaPhase: step.qaPhase } : {}),
           result,
           step_id: stepId,
           intent_id: intentId,
@@ -226,6 +227,7 @@ async function executeGateHandlingPhase(ctx, deps) {
       artifact: {
         agentId,
         task: step.task,
+        ...(step.qaPhase ? { qaPhase: step.qaPhase } : {}),
         result,
         handoffYaml,
         gateBlocked: true,
@@ -311,6 +313,7 @@ async function executeGateHandlingPhase(ctx, deps) {
             artifact: {
               agentId,
               task: step.task,
+              ...(step.qaPhase ? { qaPhase: step.qaPhase } : {}),
               result,
               handoffYaml,
               gateBlocked: true,
@@ -375,6 +378,7 @@ async function executeGateHandlingPhase(ctx, deps) {
           artifact: {
             agentId,
             task: step.task,
+            ...(step.qaPhase ? { qaPhase: step.qaPhase } : {}),
             result,
             handoffYaml,
             gateBlocked: true,
@@ -440,6 +444,7 @@ async function executeGateHandlingPhase(ctx, deps) {
         artifact: {
           agentId,
           task: step.task,
+          ...(step.qaPhase ? { qaPhase: step.qaPhase } : {}),
           result,
           handoffYaml,
           gateBlocked: true,

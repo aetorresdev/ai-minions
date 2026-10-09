@@ -6,6 +6,8 @@ const assert = require("node:assert/strict");
 const {
   isQaSpecBeforeDevEnabled,
   applyQaSpecBeforeDevPlan,
+  tagCorrectionQaPhases,
+  ensureQaSpecFormatInTasks,
   resolveHandoffMode,
   validateHandoffForMode,
   shouldEmitQaReviewRecord,
@@ -56,7 +58,70 @@ describe("qa-spec-flow", () => {
     assert.equal(resolveHandoffMode("qa", out[2], "QA"), "QA_EXEC");
   });
 
-  it("shouldEmitQaReviewRecord skips QA_SPEC and allows QA_EXEC", () => {
+  it("shouldEmitQaReviewRecord skips QA_SPEC", () => {
+    assert.equal(shouldEmitQaReviewRecord("qa", { qaPhase: "spec" }), false);
+  });
+
+  it("tags a correction plan: qa before dev is spec, qa reviewing after dev is exec", () => {
+    const steps = [
+      { agentId: "qa", task: "Update acceptance criteria to include performance constraints" },
+      { agentId: "dev-frontend", task: "Implement the timeout safeguard" },
+      { agentId: "qa", task: "Review the implementation against the acceptance criteria" },
+    ];
+    const out = tagCorrectionQaPhases(steps);
+    assert.equal(out[0].qaPhase, "spec");
+    assert.equal(out[2].qaPhase, "exec");
+    assert.equal(out[1].agentId, "dev-frontend");
+  });
+
+  it("keeps a review exec even when it runs before the first dev step", () => {
+    const [step] = tagCorrectionQaPhases([
+      { agentId: "qa", task: "Review the existing implementation for regressions" },
+    ]);
+    assert.equal(step.qaPhase, "exec");
+    assert.equal(shouldEmitQaReviewRecord("qa", step), true);
+  });
+
+  it("a qa correction that defines acceptance criteria is spec even with no dev step", () => {
+    const [step] = tagCorrectionQaPhases([
+      { agentId: "qa", task: "Define acceptance criteria for puzzle uniqueness" },
+    ]);
+    assert.equal(step.qaPhase, "spec");
+  });
+
+  it("does not retag a step that already declares its phase", () => {
+    const [step] = tagCorrectionQaPhases([{ agentId: "qa", qaPhase: "exec", task: "Define acceptance criteria" }]);
+    assert.equal(step.qaPhase, "exec");
+  });
+
+  it("appends the literal contract keys to spec tasks and leaves other tasks untouched", () => {
+    const out = ensureQaSpecFormatInTasks([
+      { agentId: "qa", qaPhase: "spec", task: "Define acceptance criteria." },
+      { agentId: "dev-frontend", task: "Implement it." },
+    ]);
+    assert.match(out[0].task, /acceptance_criteria:/);
+    assert.match(out[0].task, /test_strategy:/);
+    assert.match(out[0].task, /validation_commands:/);
+    assert.equal(out[1].task, "Implement it.");
+    const again = ensureQaSpecFormatInTasks(out);
+    assert.equal(again[0].task, out[0].task);
+  });
+
+  it("appends the suffix when a spec task only names acceptance_criteria", () => {
+    const [step] = ensureQaSpecFormatInTasks([
+      { agentId: "qa", qaPhase: "spec", task: "Output acceptance_criteria: for the feature." },
+    ]);
+    assert.match(step.task, /test_strategy:/);
+    assert.match(step.task, /validation_commands:/);
+    const again = ensureQaSpecFormatInTasks([step]);
+    assert.equal(again[0].task, step.task);
+  });
+
+  it("shouldEmitQaReviewRecord allows QA_EXEC", () => {
+    assert.equal(shouldEmitQaReviewRecord("qa", { qaPhase: "exec" }), true);
+  });
+
+  it("buildReviewRecord for QA_EXEC", () => {
     const specOutput = [
       "test_strategy: unit",
       "acceptance_criteria:",
@@ -64,9 +129,6 @@ describe("qa-spec-flow", () => {
       "validation_commands:",
       "  - npm test",
     ].join("\n");
-    assert.equal(shouldEmitQaReviewRecord("qa", { qaPhase: "spec" }), false);
-    assert.equal(shouldEmitQaReviewRecord("qa", { qaPhase: "exec" }), true);
-
     const specReview = buildReviewRecord({
       reviewerRole: "qa",
       output: specOutput,

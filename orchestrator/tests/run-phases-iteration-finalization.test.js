@@ -24,6 +24,12 @@ const {
   decideFromOrchestratorDecide,
   mapDecideLoopToPlanOutcome,
 } = require("../decision-engine");
+
+const {
+  tagCorrectionQaPhases,
+  ensureQaSpecFormatInTasks,
+  shouldEmitQaReviewRecord,
+} = require("../qa-spec-flow");
 const { truncateForContext } = require("../context-utils");
 const {
   compactHandoffStrictFailureFields,
@@ -172,6 +178,8 @@ function makeIterDeps(overrides = {}) {
     planStepsAfterCorrectionsResponse,
     formatGateBlockedReasonLines,
     planStepsReplayFromGateBlockedArtifacts,
+    tagCorrectionQaPhases,
+    ensureQaSpecFormatInTasks,
     summaryMaxIterationsGateBlocked,
     decideFromOrchestratorDecide,
     mapDecideLoopToPlanOutcome,
@@ -245,6 +253,63 @@ describe("run-phases/iteration-finalization — executeIterationFinalizationPhas
     assert.equal(traces.some((t) => t.event === "gate_blocked_completion"), true);
     const done = traces.find((t) => t.event === "iteration_done");
     assert.equal(done.outcome, "gate_blocked_iterate");
+  });
+
+  it("a gate-blocked QA_SPEC artifact replays as spec, not QA_EXEC", async () => {
+    const specTask = "Define acceptance_criteria:, test_strategy: and validation_commands: for the Sudoku app.";
+    const { ctx, deps } = makeIterDeps({
+      artifacts: [
+        {
+          agentId: "qa",
+          task: specTask,
+          result: "",
+          gateBlocked: true,
+          gateReason: "handoff_structure: invalid",
+          gate_kind: "handoff_structure",
+          step_id: "s-qa-spec",
+          intent_id: "i-qa",
+          qaPhase: "spec",
+        },
+      ],
+      deps: {
+        askAgent: async (agentId) => {
+          if (agentId === "cerberus") {
+            return { output: CERBERUS_CLEAN_OUTPUT };
+          }
+          throw new Error(`unexpected askAgent call: ${agentId}`);
+        },
+      },
+    });
+    const out = await executeIterationFinalizationPhase(ctx, deps);
+    assert.equal(out.action, "continue");
+    assert.equal(out.plan.steps[0].qaPhase, "spec", "replay must keep the explicit phase");
+    assert.equal(out.plan.steps[0].task, specTask, "already-complete spec task gains no duplicate suffix");
+    assert.equal(shouldEmitQaReviewRecord("qa", out.plan.steps[0]), false);
+  });
+
+  it("a spec-looking task without qaPhase still replays as spec (underscore form)", async () => {
+    const { ctx, deps } = makeIterDeps({
+      artifacts: [
+        {
+          agentId: "qa",
+          task: "Define acceptance_criteria: and validation_commands: for the parser.",
+          result: "",
+          gateBlocked: true,
+          gateReason: "handoff_structure: invalid",
+          gate_kind: "handoff_structure",
+          step_id: "s-qa-spec2",
+          intent_id: "i-qa2",
+        },
+      ],
+      deps: {
+        askAgent: async (agentId) => {
+          if (agentId === "cerberus") return { output: CERBERUS_CLEAN_OUTPUT };
+          throw new Error(`unexpected askAgent call: ${agentId}`);
+        },
+      },
+    });
+    const out = await executeIterationFinalizationPhase(ctx, deps);
+    assert.equal(out.plan.steps[0].qaPhase, "spec");
   });
 });
 
@@ -573,5 +638,50 @@ describe("run-phases/iteration-finalization — decide failure is terminal", () 
     assert.equal(out.action, "continue");
     assert.equal(out.plan.steps.length, 1);
     assert.equal(terminalIterationDone(traces).outcome, "iterate");
+  });
+
+  it("a qa correction that defines acceptance criteria is tagged spec and told the required keys", async () => {
+    const { askAgent } = recordingAskAgent({
+      cerberus: async () => ({ output: CERBERUS_CLEAN_OUTPUT }),
+      orchestrator: async () => ({
+        output: '{"done": false, "corrections": [{"agentId": "qa", "task": "Define acceptance criteria for puzzle uniqueness"}]}',
+      }),
+    });
+    const { ctx, deps } = makeIterDeps({ deps: { askAgent } });
+    const out = await executeIterationFinalizationPhase(ctx, deps);
+    assert.equal(out.plan.steps[0].qaPhase, "spec");
+    assert.match(out.plan.steps[0].task, /acceptance_criteria:/);
+    assert.match(out.plan.steps[0].task, /validation_commands:/);
+  });
+
+  it("a qa review stays exec through the correction branch and review_record still emits", async () => {
+    const { askAgent } = recordingAskAgent({
+      cerberus: async () => ({ output: CERBERUS_CLEAN_OUTPUT }),
+      orchestrator: async () => ({
+        output: '{"done": false, "corrections": [{"agentId": "qa", "task": "Review the existing implementation for regressions"}]}',
+      }),
+    });
+    const { ctx, deps } = makeIterDeps({ deps: { askAgent } });
+    const out = await executeIterationFinalizationPhase(ctx, deps);
+    assert.equal(out.action, "continue");
+    assert.equal(out.plan.steps[0].qaPhase, "exec");
+    assert.doesNotMatch(out.plan.steps[0].task, /acceptance_criteria:/);
+    assert.equal(shouldEmitQaReviewRecord("qa", out.plan.steps[0]), true);
+  });
+
+  it("fails loudly when the correction helpers are not wired through the run loop", async () => {
+    const { askAgent } = recordingAskAgent({
+      cerberus: async () => ({ output: CERBERUS_CLEAN_OUTPUT }),
+      orchestrator: async () => ({
+        output: '{"done": false, "corrections": [{"agentId": "dev-backend", "task": "fix"}]}',
+      }),
+    });
+    const { ctx, deps } = makeIterDeps({
+      deps: { askAgent, tagCorrectionQaPhases: undefined, ensureQaSpecFormatInTasks: undefined },
+    });
+    await assert.rejects(
+      executeIterationFinalizationPhase(ctx, deps),
+      /tagCorrectionQaPhases is not a function|not a function/,
+    );
   });
 });

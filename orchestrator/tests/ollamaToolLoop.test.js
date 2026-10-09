@@ -164,6 +164,7 @@ describe("ollama-tools executors", () => {
     assert.deepEqual(toolNamesForAgent("dev-frontend"), ["read_file", "write_file"]);
     assert.deepEqual(toolNamesForAgent("qa"), ["read_file"]);
     assert.deepEqual(toolNamesForAgent("cerberus"), ["read_file"]);
+    assert.deepEqual(toolNamesForAgent("architect"), ["read_file", "write_file"]);
     assert.deepEqual(toolNamesForAgent("orchestrator"), []);
     assert.equal(toolDefsForAgent("qa").length, 1);
   });

@@ -154,6 +154,7 @@ async function launchRun(options) {
   // Root path until run-control physical slice moves orchestrator.js.
   const runFn = options.run ?? require("../../orchestrator").run;
   const envKeys = [
+    'ORCH_ALIGNMENT_OLLAMA_MODEL',
     'ORCH_MODEL_MODE',
     'ORCH_ALLOW_REMOTE_MODELS',
     'ORCH_NON_INTERACTIVE',
@@ -167,6 +168,11 @@ async function launchRun(options) {
   try {
     if (preflight.model_policy === 'local_only') {
       process.env.ORCH_MODEL_MODE = 'local_only';
+      // orchestrator-state reads ORCHESTRATOR_OLLAMA_MODEL for goal alignment and otherwise defaults to a
+      // model that may not be pulled (404 on /api/generate). Publish the model this run resolved.
+      if (!process.env.ORCHESTRATOR_OLLAMA_MODEL && preflight.selected_model) {
+        process.env.ORCH_ALIGNMENT_OLLAMA_MODEL = preflight.selected_model;
+      }
       process.env.ORCH_NON_INTERACTIVE = '1';
       if (preflight.resolved_endpoint) {
         process.env.OLLAMA_HOST = preflight.resolved_endpoint.host;

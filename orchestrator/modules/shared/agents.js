@@ -709,6 +709,13 @@ async function askAgent(agentId, userMessage, { cwd, sessionEnv, phase, qaPhase,
       const err = new Error(`[output contract] ${check.reason}`);
       err.gate_id = check.gate_id;
       err.rawModelOutput = rawOut.slice(0, 8000);
+      // An empty completion after tool rounds is ambiguous: the model may have delivered its work
+      // through tools and then produced no final answer. Record the rounds so the trace shows it
+      // instead of a bare "empty output".
+      if (check.gate_id === "empty_output" && Array.isArray(raw.tools_used) && raw.tools_used.length) {
+        const wrote = raw.tools_used.filter((t) => t.name === "write_file" && t.succeeded === true).length;
+        err.message += ` (after ${raw.tools_used.length} tool call(s), ${wrote} successful write(s); no final answer)`;
+      }
       /** @type {Record<string, number | string>} */
       const failStats = { ...(check.context_stats || {}) };
       if (raw.prompt_eval_count != null) failStats.ollama_prompt_tokens = raw.prompt_eval_count;
