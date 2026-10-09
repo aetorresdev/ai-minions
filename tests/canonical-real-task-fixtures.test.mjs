@@ -205,6 +205,50 @@ describe("fixture script execution", () => {
     }
   });
 
+  it("blocks node:sqlite reached through require after a vm escape", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fixture-sqlite-require-"));
+    const created = path.join(dir, "created.sqlite");
+    const existing = path.join(dir, "existing.sqlite");
+    const createdGlobal = path.join(dir, "created-global.sqlite");
+    try {
+      const db = new DatabaseSync(existing);
+      db.exec("CREATE TABLE marker (v TEXT)");
+      db.prepare("INSERT INTO marker (v) VALUES (?)").run("parent-marker");
+      db.close();
+      const write = executeInlineScripts(`<script>
+        const Module = this.constructor.constructor("return module")();
+        const req = Module.createRequire(${JSON.stringify(created)});
+        const { DatabaseSync } = req("node:sqlite");
+        const db = new DatabaseSync(${JSON.stringify(created)});
+        db.exec("CREATE TABLE harmless_probe (id INTEGER)");
+        db.close();
+        const read = new DatabaseSync(${JSON.stringify(existing)}, { readOnly: true });
+        read.prepare("SELECT v FROM marker").get();
+        read.close();
+      </script>`);
+      const viaGlobal = executeInlineScripts(`<script>
+        const sqlite = this.constructor.constructor('return globalThis["node:sqlite"]')();
+        const db = new sqlite.DatabaseSync(${JSON.stringify(createdGlobal)});
+        db.exec("CREATE TABLE harmless_probe (id INTEGER)");
+        db.close();
+      </script>`);
+      const viaLoad = executeInlineScripts(`<script>
+        const Module = this.constructor.constructor("return module")();
+        const { DatabaseSync } = Module._load("node:sqlite");
+        const db = new DatabaseSync(${JSON.stringify(createdGlobal)});
+        db.exec("CREATE TABLE harmless_probe (id INTEGER)");
+        db.close();
+      </script>`);
+      assert.equal(write.ok, false);
+      assert.equal(viaGlobal.ok, false);
+      assert.equal(viaLoad.ok, false);
+      assert.equal(fs.existsSync(created), false);
+      assert.equal(fs.existsSync(createdGlobal), false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("fails when an async DOMContentLoaded handler or window.onload throws", () => {
     const asyncHandler = executeInlineScripts(
       `<script>document.addEventListener("DOMContentLoaded", async () => { throw new Error("async init crash"); });</script>`,
@@ -233,6 +277,35 @@ describe("fixture script execution", () => {
     assert.equal(zero.ok, false);
     assert.match(exited.error, /untrusted/);
     assert.match(zero.error, /untrusted/);
+  });
+
+  it("rejects a throw rewritten through JSON.stringify and process.exit", () => {
+    const rewritten = executeInlineScripts(`<script>
+      const P = this.constructor.constructor("return process")();
+      const orig = JSON.stringify;
+      JSON.stringify = function (value, ...rest) {
+        if (value && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, "proof")) {
+          return orig({ ok: true, proof: value.proof });
+        }
+        return orig.call(JSON, value, ...rest);
+      };
+      P.exit = function () { return P.reallyExit(0); };
+      throw new Error("forged pass");
+    </script>`);
+    const viaToJson = executeInlineScripts(`<script>
+      Object.prototype.toJSON = function () {
+        if (this && Object.prototype.hasOwnProperty.call(this, "proof")) return { ok: true, proof: this.proof };
+      };
+      const P = this.constructor.constructor("return process")();
+      P.exit = function () { return P.reallyExit(0); };
+      throw new Error("tojson pass");
+    </script>`);
+    assert.equal(rewritten.ok, false);
+    assert.equal(rewritten.phase, "load");
+    assert.match(rewritten.error, /forged pass/);
+    assert.equal(viaToJson.ok, false);
+    assert.equal(viaToJson.phase, "load");
+    assert.match(viaToJson.error, /tojson pass/);
   });
 
   it("artifact mode fails with FIXTURE_ARTIFACT_FAIL for a crash-on-load file", () => {

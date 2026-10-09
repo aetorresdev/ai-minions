@@ -7,11 +7,14 @@
  *
  * The artifact is model-generated, so it never runs in the calling process: it is executed in a child
  * Node process. `--permission` is not a filesystem barrier: Node documents that it does not cover every
- * API, and `node:sqlite` can create and read files with no fs grant. Before any artifact code runs, the
- * child seals `getBuiltinModule`, `binding` and `dlopen`, so an escape that reaches `process` still
- * cannot open those APIs. The result line carries a proof token that exists only in the child's local
- * scope and is written with a `writeSync` bound before the artifact runs; a forged `{ok:true}` or a
- * non-zero exit cannot pass. This is a crash-on-load smoke check, not a browser test.
+ * API, and `node:sqlite` can create and read files with no fs grant. `node -e` is CommonJS, and in that
+ * evaluator `new Function` can see `require`. The child is started with `--input-type=module`. Node
+ * still exposes the CommonJS `Module` constructor as `globalThis.module` (`createRequire`, `_load`) and
+ * exposes `node:sqlite` itself as a global, so those are removed before the artifact runs. The child
+ * also seals `getBuiltinModule`, `binding`, `dlopen` and `_linkedBinding`. The result line is encoded
+ * with a `JSON.stringify` captured before the artifact runs and the process is stopped with the
+ * captured `reallyExit`, so replacing `JSON.stringify` or `process.exit` cannot turn a throw into a
+ * pass. This is a crash-on-load smoke check, not a browser test.
  *
  * Limits: network access is not restricted. Timers scheduled by the artifact are not run (the stub
  * `setTimeout` does not fire). Init handlers are: `DOMContentLoaded` and `load` listeners, including
@@ -43,18 +46,41 @@ export function extractInlineScripts(htmlText) {
 
 /** Runs inside the child process. Reads `{ scripts, timeoutMs, proof }` from stdin, prints one JSON line. */
 const CHILD_RUNNER = String.raw`
-const fs = require("node:fs");
-const vm = require("node:vm");
+import fs from "node:fs";
+import vm from "node:vm";
 const writeFd = fs.writeSync.bind(fs);
+const quote = JSON.stringify;
+const halt = process.reallyExit;
+const setTimer = setTimeout;
+const clearTimer = clearTimeout;
 function deny(what) {
   const err = new Error("Access to this API has been restricted (" + what + ")");
   err.code = "ERR_ACCESS_DENIED";
   throw err;
 }
-process.getBuiltinModule = (id) => deny("getBuiltinModule " + id);
-process.binding = (id) => deny("binding " + id);
-process.dlopen = () => deny("dlopen");
-process.mainModule = undefined;
+function seal(name) {
+  Object.defineProperty(process, name, {
+    value: () => deny(name),
+    writable: false,
+    configurable: false,
+  });
+}
+for (const name of ["getBuiltinModule", "binding", "dlopen", "_linkedBinding"]) seal(name);
+Object.defineProperty(process, "mainModule", {
+  value: undefined,
+  writable: false,
+  configurable: false,
+});
+function hideGlobal(name) {
+  Object.defineProperty(globalThis, name, {
+    value: undefined,
+    writable: false,
+    configurable: false,
+  });
+}
+const nodeGlobals = Object.getOwnPropertyNames(globalThis).filter((name) => name.startsWith("node:"));
+hideGlobal("module");
+for (const name of nodeGlobals) hideGlobal(name);
 const chunks = [];
 process.stdin.on("data", (c) => chunks.push(c));
 process.stdin.on("end", () => {
@@ -140,16 +166,20 @@ process.stdin.on("end", () => {
   const finish = () => {
     if (finished) return;
     finished = true;
-    writeFd(1, JSON.stringify({ ok: result.ok, phase: result.phase, error: result.error, proof }) + "\n");
-    process.exit(result.ok ? 0 : 1);
+    const line = '{"ok":' + (result.ok ? "true" : "false")
+      + (result.phase ? ',"phase":' + quote(String(result.phase)) : "")
+      + (result.error ? ',"error":' + quote(String(result.error)) : "")
+      + ',"proof":' + quote(String(proof)) + "}\n";
+    writeFd(1, line);
+    halt(result.ok ? 0 : 1);
   };
   if (pending.length === 0) finish();
   else {
-    const timer = setTimeout(() => {
+    const timer = setTimer(() => {
       if (result.ok) fail("init", new Error("init handler timed out"));
       finish();
     }, timeoutMs);
-    Promise.all(pending).then(() => { clearTimeout(timer); finish(); }, () => { clearTimeout(timer); finish(); });
+    Promise.all(pending).then(() => { clearTimer(timer); finish(); }, () => { clearTimer(timer); finish(); });
   }
 });
 `;
@@ -167,7 +197,7 @@ export function executeInlineScripts(htmlText, options = {}) {
   const proof = randomBytes(16).toString("hex");
   const child = spawnSync(
     process.execPath,
-    ["--permission", "-e", CHILD_RUNNER],
+    ["--permission", "--input-type=module", "-e", CHILD_RUNNER],
     {
       input: JSON.stringify({ scripts, timeoutMs: options.timeoutMs ?? EXEC_TIMEOUT_MS, proof }),
       encoding: "utf8",
