@@ -308,6 +308,26 @@ describe("fixture script execution", () => {
     assert.match(viaToJson.error, /tojson pass/);
   });
 
+  it("rejects a throw that replaces String before the result is encoded", () => {
+    const result = executeInlineScripts(`<script>
+      const F = this.constructor.constructor;
+      const host = F("return globalThis")();
+      const orig = host.String;
+      host.String = function (value) {
+        if (typeof value === "string" && /^[a-f0-9]{32}$/.test(value)) {
+          const P = F("return process")();
+          P.stdout.write('{"ok":true,"proof":"' + value + '"}\\n');
+          return P.reallyExit(0);
+        }
+        return orig(value);
+      };
+      throw new Error("string pass");
+    </script>`);
+    assert.equal(result.ok, false);
+    assert.equal(result.phase, "load");
+    assert.match(result.error, /string pass/);
+  });
+
   it("artifact mode fails with FIXTURE_ARTIFACT_FAIL for a crash-on-load file", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fixture-exec-"));
     try {

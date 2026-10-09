@@ -12,9 +12,9 @@
  * still exposes the CommonJS `Module` constructor as `globalThis.module` (`createRequire`, `_load`) and
  * exposes `node:sqlite` itself as a global, so those are removed before the artifact runs. The child
  * also seals `getBuiltinModule`, `binding`, `dlopen` and `_linkedBinding`. The result line is encoded
- * with a `JSON.stringify` captured before the artifact runs and the process is stopped with the
- * captured `reallyExit`, so replacing `JSON.stringify` or `process.exit` cannot turn a throw into a
- * pass. This is a crash-on-load smoke check, not a browser test.
+ * with a `JSON.stringify` and a `String` captured before the artifact runs, and the process is
+ * stopped with the captured `reallyExit`. Replacing `JSON.stringify`, `String`, or `process.exit`
+ * cannot turn a throw into a pass. This is a crash-on-load smoke check, not a browser test.
  *
  * Limits: network access is not restricted. Timers scheduled by the artifact are not run (the stub
  * `setTimeout` does not fire). Init handlers are: `DOMContentLoaded` and `load` listeners, including
@@ -50,6 +50,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 const writeFd = fs.writeSync.bind(fs);
 const quote = JSON.stringify;
+const asString = String;
 const halt = process.reallyExit;
 const setTimer = setTimeout;
 const clearTimer = clearTimeout;
@@ -167,9 +168,9 @@ process.stdin.on("end", () => {
     if (finished) return;
     finished = true;
     const line = '{"ok":' + (result.ok ? "true" : "false")
-      + (result.phase ? ',"phase":' + quote(String(result.phase)) : "")
-      + (result.error ? ',"error":' + quote(String(result.error)) : "")
-      + ',"proof":' + quote(String(proof)) + "}\n";
+      + (result.phase ? ',"phase":' + quote(asString(result.phase)) : "")
+      + (result.error ? ',"error":' + quote(asString(result.error)) : "")
+      + ',"proof":' + quote(asString(proof)) + "}\n";
     writeFd(1, line);
     halt(result.ok ? 0 : 1);
   };
