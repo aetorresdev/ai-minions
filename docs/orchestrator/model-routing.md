@@ -191,6 +191,8 @@ Worker roles on the Ollama route run a **tool-calling loop** (`runOllamaWithTool
 
 **DEV contract evidence from tools:** on the Ollama route only, when `validateOutput()` fails with `files_read_missing` / `files_read_empty` / `validation_run_missing` **and** at least one `write_file` call has `allowed === true && succeeded === true`, the contract is synthesized from the written paths (`files_read` / `files_modified` = written paths, `validation_run: write_file tool executed`) and re-validated. An allowed-but-failed or unallowed write never triggers this. **QA / CERBERUS have no bypass** — their finding-classification contract is always enforced as written.
 
+**Prose-only DEV reply stays blocked:** when a thinking-disabled local model answers a `dev-*` step in prose with no tool calls and an empty `files_read`, the step is gate-blocked with `files_read_empty` (no retry, no file written). `orchestrator/tests/devProseContractBlockedReplay.test.js` replays this from `orchestrator/tests/fixtures/ollama-replay/dev-prose-no-write-file.json` offline, under a guard that fails on any socket, DNS or fetch call. This is a regression fixture, not a statement that any model is supported.
+
 ### Orchestrator with Ollama (plan / decide JSON)
 
 When **`OLLAMA_MODEL`** is set, the orchestrator role uses **`runOllama`** like other Ollama-backed roles. Small coders often reply with markdown or prose instead of a single JSON object, which makes **`validateOutput("orchestrator", …)`** fail with **`orchestrator: output is not valid JSON`** before any DEV step runs.
