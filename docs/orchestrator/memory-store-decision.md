@@ -185,6 +185,57 @@ Not implemented — documentation only.
 | Review | `orchestrator/review-record.js` |
 | Project snapshot (operator) | `state/project_state.md` at repo root — human/LLM resumption, not runtime SoT |
 | Flow hook state | `scripts/hooks/flow-metrics.py` session JSON — metrics only |
+| Advisory semantic memory (optional) | `scripts/hooks/mem0-search.py` + `mem0_scope.py` — explicit identity/project scope, see [Mem0 hook identity and scope](#mem0-hook-identity-and-scope) |
+
+---
+
+## Mem0 hook identity and scope
+
+The optional host hooks `scripts/hooks/mem0-search.py` (UserPromptSubmit) and `scripts/hooks/mem0-stop.sh` (Stop) have **no built-in user id** and no global fallback. Scope logic lives in `scripts/hooks/mem0_scope.py`; tests in `scripts/hooks/tests/test_mem0_scope.py`. Both hooks still exit immediately unless `AI_MINIONS_ACTIVE=1` and `AI_MINIONS_RUN_ID` are set ([activation.md](activation.md)).
+
+### Configuration (environment only; no other source)
+
+| Variable | Default | Rule |
+|----------|---------|------|
+| `AI_MINIONS_MEM0_USER_ID` | none (required) | Stable, non-secret slug `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`. No e-mail, no spaces. Sent as OpenMemory `user_id`. |
+| `AI_MINIONS_MEM0_PROJECT` | none (required) | Same slug rule. Must equal the OpenMemory **app name** = MCP client name used when writing (`<url>/mcp/<project>/sse/<user_id>`). |
+| `AI_MINIONS_MEM0_URL` | `http://localhost:8765` | `http`/`https`, loopback host only (`localhost`, `127.0.0.0/8`, `::1`), no credentials in the URL. |
+| `AI_MINIONS_MEM0_MODE` | `local` | `local` is the only supported value. `shared` is explicitly **blocked**. |
+| `AI_MINIONS_MEM0_TIMEOUT_S` | `4` | Per-request timeout, `0 < t <= 30`. |
+
+Set them in the shell that runs `ai-minions start`, or in the per-project Claude Code settings `env` block, so they are inherited by the hooks. If none is set, retrieval is **disabled** (no request is made; stderr diagnostic `outcome=disabled reason=not_configured`).
+
+### Backend scoping facts (self-hosted OpenMemory API)
+
+- `user_id` is caller-supplied and the REST API has no authentication: it selects a namespace, it is **not** an authorization boundary.
+- `POST /api/v1/memories/filter` scopes rows server-side by `user_id` and returns `app_name` per row; there is no server-side filter by app name on this route (only by app UUID).
+- The self-hosted API does not expose `POST /api/v1/memories/search/` (some Mem0 builds do). The hook tries it and falls back to filter; **both** paths pass through the same client-side check.
+
+### Retrieval rules
+
+1. A row is injected only if its `app_name` (or `metadata_.mcp_client`) equals `AI_MINIONS_MEM0_PROJECT`, and, when the row carries a `user_id`, it equals `AI_MINIONS_MEM0_USER_ID`. Rows with no project scope (legacy/unscoped) or a different scope are dropped.
+2. Rows that read like directives to change policy, gates, roles, activation or permissions are withheld. Injected text is flattened to one bounded line under an `ADVISORY-ONLY` header that labels it untrusted data, not instructions.
+3. Because a shared backend cannot be isolated by this hook, `AI_MINIONS_MEM0_MODE=shared` or any non-loopback URL is **blocked** before any request. Two operators must not point the hook at one OpenMemory instance and expect isolation.
+
+### Outcomes
+
+| Outcome | Reasons | Injected context |
+|---------|---------|------------------|
+| `ok` | `search`, `filter` | `ADVISORY-ONLY` block with scoped hints |
+| `empty` | `no_scoped_match` | `ADVISORY MEMORY STATUS: empty (...)` — the scoped call succeeded with no match |
+| `blocked` | `missing_user_id`, `invalid_user_id`, `missing_project_scope`, `invalid_project_scope`, `shared_backend_unsupported`, `invalid_mode`, `invalid_url`, `invalid_timeout` | status line; no request made |
+| `unavailable` | `timeout`, `unreachable`, `http_error`, `bad_response`, `identity_not_found`, `<reason>_after_search_timeout` | status line; never reported as an empty successful search |
+| `disabled` | `not_configured` | nothing |
+
+Every run writes one stderr line `mem0-search: outcome=<o> reason=<r> [dropped_foreign=N dropped_unscoped=N withheld_directive=N]` — codes and counts only, never the user id, project, URL or memory content. Status lines state that absence of hints is not evidence. The hook never blocks the prompt.
+
+### Migration from the previous fixed identity
+
+Earlier versions queried a fixed maintainer user id and injected rows from **any** app. This is a breaking change:
+
+- Without configuration the hook now retrieves nothing (`disabled`).
+- Existing rows stay where they are; nothing is merged or rewritten. They are reachable only if you set `AI_MINIONS_MEM0_USER_ID` to the id they were written under **and** `AI_MINIONS_MEM0_PROJECT` to the app name they were written under (e.g. the MCP client name used before). Choosing that is an explicit operator decision per project; rows under other app names remain inaccessible to the hook.
+- To scope new memories per project, configure the OpenMemory MCP server URL as `http://localhost:8765/mcp/<project>/sse/<user_id>` with the same values as the env vars.
 
 ---
 

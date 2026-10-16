@@ -6,6 +6,10 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+### Changed
+
+- **Mem0 hook identity/scope (breaking for existing local installs):** `mem0-search.py` / `mem0-stop.sh` no longer use a fixed maintainer user id. Identity and project scope come only from `AI_MINIONS_MEM0_USER_ID` / `AI_MINIONS_MEM0_PROJECT`; search and filter fallback apply the same client-side scope check; shared or non-loopback backends are blocked; missing scope, backend errors and timeouts report distinct `blocked` / `unavailable` outcomes instead of an empty result. Migration notes: [`docs/orchestrator/memory-store-decision.md`](docs/orchestrator/memory-store-decision.md#mem0-hook-identity-and-scope).
+
 ## [0.26.0-beta.1] - 2026-07-31
 
 Twenty-sixth beta pre-release: **Fullscreen TUI Completion + Live Harness Evidence** — Node.js 22 baseline, Ink 7 fullscreen shell with task-first landing composition, guided launcher, live run monitor, native Ink workflows, slash commands, integrated TUI quality gate plus UX acceptance companion gate, live canonical-fixture harness path, Cerberus brand splash with arcade/pixel-art guardians and semantic theme tokens, GUI art handoff, first-run reason-code honesty, and Trivy gate PASS/BLOCKED/SKIPPED honesty — without production TUI SLA, Web UI, mouse interaction, durable resume, canonical Loop Contract, Execution Graph runtime, context-package runtime, progressive disclosure runtime, hybrid cloud routing, RAG, or cohort gate change.

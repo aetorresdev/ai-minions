@@ -16,6 +16,8 @@
 
 Claude Code hooks under `scripts/hooks/` (including `context-efficiency.py`, `skill-registry-enforcer.py`, `agent-metrics.py`, and `mem0-search.py`) call the activation helper (or bash equivalent) and **exit 0** when inactive. They must not treat prompt text, `ORCH_SKILL_REGISTRY_ENFORCE=1`, or legacy `orch-session` flags as activation.
 
+When active, `mem0-search.py` additionally requires an explicit Mem0 identity and project scope (`AI_MINIONS_MEM0_USER_ID`, `AI_MINIONS_MEM0_PROJECT`); there is no built-in user id, and shared backends are blocked. See [memory-store-decision.md — Mem0 hook identity and scope](memory-store-decision.md#mem0-hook-identity-and-scope).
+
 ## Cursor
 
 `.cursor/rules/orchestrator.mdc` stays `alwaysApply: false` (manual / @-mention only). Do not enable every-chat orchestration. Ordinary Cursor work in this repo must not emit role blocks or create orchestrator state.
