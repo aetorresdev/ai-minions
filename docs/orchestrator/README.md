@@ -78,6 +78,8 @@ Flat paths below — grouped for discoverability only (no 1:1 module mirror). Se
 | [local-model-policy.md](local-model-policy.md) | Local-only run policy (`ORCH_MODEL_MODE=local_only`) |
 | [local-model-discovery.md](local-model-discovery.md) | List local backends/models without inference |
 | [local-model-selection.md](local-model-selection.md) | Model override precedence and trace fields |
+| [local-model-eval-protocol.md](local-model-eval-protocol.md) | Local model / serving-stack evaluation protocol for Mac 64 GB (protocol only, no results) |
+| [local-model-eval-evidence.md](local-model-eval-evidence.md) | Evidence table for that protocol (empty until runs are recorded) |
 | [worktree-isolation-contract.md](worktree-isolation-contract.md) | Git worktree per run — binding, workdir contract, lifecycle trace, cleanup safety (v0.3 alpha) |
 | [worktree-result-promotion-contract.md](worktree-result-promotion-contract.md) | Explicit promotion path for worktree outputs — operator approve, trace, separate from cleanup |
 | [dynamic-workflow-contract.md](dynamic-workflow-contract.md) | Dynamic workflow proposal vs executable plan — limits, preview, approval (design-first; no runtime) |
