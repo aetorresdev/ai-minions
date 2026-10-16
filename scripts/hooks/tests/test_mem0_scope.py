@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -184,9 +185,9 @@ class TestResolveScope(unittest.TestCase):
         src = (HOOKS_DIR / "mem0-search.py").read_text(encoding="utf-8")
         src += (HOOKS_DIR / "mem0_scope.py").read_text(encoding="utf-8")
         src += STOP_HOOK.read_text(encoding="utf-8")
-        self.assertNotIn("USER_ID = \"", src)
-        self.assertNotIn("user_id=andres", src)
-        self.assertNotIn("\"andres\"", src)
+        # No literal identity assignment or literal user_id query value.
+        self.assertIsNone(re.search(r'USER_ID\s*=\s*["\'][A-Za-z]', src))
+        self.assertIsNone(re.search(r'["?&]user_id=[A-Za-z]', src))
         self.assertEqual(self._err({}), ("disabled", "not_configured"))
 
     def test_missing_and_invalid_scope_are_blocked(self):
