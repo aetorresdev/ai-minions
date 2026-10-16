@@ -78,6 +78,17 @@ describe("validateChangelogReleaseFormat", () => {
     assert.ok(result.errors.includes("missing:release_claim"));
   });
 
+  it("blocks a secret-scan PASS claim backed only by current-tree checks", () => {
+    const changelog = fs.readFileSync(CHANGELOG_PATH, "utf8");
+    const section = parseReleaseSections(changelog).find((s) => s.version === "0.8.0-alpha.1");
+    assert.ok(section);
+    const treeOnly = `${section.body}\n- Secret scan: PASS (security-trivy-scan)\n`;
+    const result = validateReleaseSection(treeOnly, "alpha");
+    assert.ok(result.errors.includes("forbidden:secret_scan_pass_without_history_evidence"));
+    const withHistory = `${section.body}\n- Secret scan: PASS (scm-secret-scan release scope)\n`;
+    assert.equal(validateReleaseSection(withHistory, "alpha").ok, true);
+  });
+
   it("enforcement floor is 0.6.0-alpha.1", () => {
     assert.equal(ALPHA_ENFORCE_FROM, "0.6.0-alpha.1");
     assert.equal(profileForVersion("0.6.0-alpha.1"), "alpha");

@@ -31,6 +31,7 @@ Checklist items and governance fields are **phase-bound**. Do not mark post-tag 
 | A2 | `cd orchestrator && npm test` green on release-prep tree | Workspace validation log row |
 | A3 | CI green: unit · trivy · e2e on **release-prep head**, **or** inherited from lane tip when release-prep is **doc-only** (`CHANGELOG.md` / `docs/**` only vs lane merge SHA) and path-filtered workflows did not re-run | Link to Actions run URLs on prep head **or** lane merge SHA with checklist note |
 | A4 | `bash scripts/release-trivy-gate.sh` — record the printed `status=` (`PASS`/`BLOCKED`/`FAIL`/`SKIPPED`, see [security-posture.md](security-posture.md#gate-status-semantics-machine-readable)); local run is an optional duplicate of CI trivy, never a substitute for it | Vulnerability gate row — must quote actual status, never assume `PASS` |
+| A4b | `node scripts/scm-secret-scan.mjs --scope release --ref <release-prep head> --out <file>`, or the CI `scm-secret-scan` run on that SHA. Record the printed `status=`, `commits_scanned` and `evidence_hash`; see [scm-secret-scan-contract.md](scm-secret-scan-contract.md). The Trivy `secret` scanner (A4) and runtime privacy checks read the current tree only, and are not a substitute for this row | Repository-history secret row: quote the actual status, never assume `PASS` |
 | A5 | Root `CHANGELOG.md` section drafted for target version | Changelog section id recorded — **draft OK pre-tag** |
 | A6 | `alpha-release-checklist.md` version section: must-haves + forbidden claims | No `[x]` on tag / URL / branch until Phase B |
 | A7 | CERBERUS **Approve** on release-prep PR | Verdict recorded in PR thread |
@@ -92,3 +93,4 @@ Alpha cuts remain **non-production** per [harness-engineering-positioning.md](ha
 - [release-governance-contract.md](release-governance-contract.md) — evidence record + fail-closed validator
 - [merge-governance-contract.md](merge-governance-contract.md) — PR-boundary gate
 - `scripts/release-trivy-gate.sh` — local pre-tag vulnerability scan
+- `scripts/scm-secret-scan.mjs` — Git-history secret scan ([scm-secret-scan-contract.md](scm-secret-scan-contract.md))

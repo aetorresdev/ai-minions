@@ -6,6 +6,21 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- **SCM secret scan gate:** `scripts/scm-secret-scan.mjs` scans Git history for committed credentials in two scopes:
+  - `pr` covers every commit in base..head, so a secret added and then deleted inside a PR still fails.
+  - `release` covers all history reachable from the candidate ref.
+
+  Details:
+  - The adapter uses Gitleaks 8.30.1, pinned by checksum in CI. Output is normalized evidence with `PASS`/`FAIL`/`BLOCKED`/`SKIPPED` status words and exit codes matching the Trivy gate.
+  - Merge commits are diffed against each parent (`git log -m`), so a secret introduced while resolving a merge, including an octopus merge, is scanned.
+  - The scanner config is the Gitleaks default ruleset with every location-based allowlist removed (no skipping of `node_modules/`, lockfiles and similar paths), pinned by SHA-256 in the gate.
+  - It fails closed: a missing or unverified scanner, shallow history, a scanner error, or a scanner config that is unpinned or carries location allowlists is `BLOCKED`.
+  - Only rule, commit, file and line are recorded, never the value.
+  - Suppressions live only in the fingerprinted, expiring `.scm-secret-scan-baseline.json`.
+  - New CI workflow: `scm-secret-scan`. Contract: [`docs/orchestrator/scm-secret-scan-contract.md`](docs/orchestrator/scm-secret-scan-contract.md).
+
 ### Changed
 
 - **Mem0 hook identity/scope (breaking for existing local installs):** `mem0-search.py` / `mem0-stop.sh` no longer use a fixed maintainer user id. Identity and project scope come only from `AI_MINIONS_MEM0_USER_ID` / `AI_MINIONS_MEM0_PROJECT`; search and filter fallback apply the same client-side scope check, and rows without a backend-reported string owner are dropped (the stock self-hosted `/filter` returns none, so it reports `blocked:owner_unverifiable`); shared or non-loopback backends are blocked; missing scope, backend errors and timeouts report distinct `blocked` / `unavailable` outcomes instead of an empty result. Migration notes: [`docs/orchestrator/memory-store-decision.md`](docs/orchestrator/memory-store-decision.md#mem0-hook-identity-and-scope).
