@@ -7,6 +7,7 @@ This document helps operators choose **single-agent**, **sequential multi-role**
 - [local-model-policy.md](local-model-policy.md) — local-only enforcement
 - [local-model-discovery.md](local-model-discovery.md) — list backends/models without inference
 - [local-model-selection.md](local-model-selection.md) — override precedence
+- [local-model-eval-protocol.md](local-model-eval-protocol.md) — how to measure models and serving stacks on your machine (protocol only)
 - [token-hygiene-guide.md](token-hygiene-guide.md) — operator habits after a run
 - [runner-tui-contract.md](runner-tui-contract.md) — preflight and `local_only` runs
 
