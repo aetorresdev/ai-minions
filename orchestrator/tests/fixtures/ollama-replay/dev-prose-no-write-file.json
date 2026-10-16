@@ -1,0 +1,19 @@
+{
+  "_fixture": {
+    "kind": "synthetic",
+    "shape": "Ollama /api/chat non-streaming response body (think:false honored: no message.thinking)",
+    "scenario": "thinking-disabled local model answers a dev-* step in prose, makes zero tool calls, never calls write_file, and declares an empty files_read list",
+    "expected_gate_id": "files_read_empty",
+    "expected_outcome": "BLOCKED"
+  },
+  "model": "fixture-local-model",
+  "created_at": "2026-01-01T00:00:00Z",
+  "message": {
+    "role": "assistant",
+    "content": "Here is the complete Sudoku page. Save it as sudoku.html in the project root.\n\n```html\n<!doctype html>\n<html>\n<head><title>Sudoku</title></head>\n<body>\n<div id=\"grid\"></div>\n<button id=\"check\">Check</button>\n<script>\nconst grid = document.getElementById('grid');\nfor (let i = 0; i < 81; i++) { const c = document.createElement('input'); c.maxLength = 1; grid.appendChild(c); }\n</script>\n</body>\n</html>\n```\n\nThe grid renders 81 inputs and the Check button validates rows, columns and boxes.\n\nfiles_read: []\nfiles_modified: []\nvalidation_run: none"
+  },
+  "done": true,
+  "done_reason": "stop",
+  "prompt_eval_count": 3120,
+  "eval_count": 4540
+}
