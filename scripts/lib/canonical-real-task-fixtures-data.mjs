@@ -7,9 +7,10 @@
  */
 
 import { executeInlineScripts } from "./fixture-script-execution.mjs";
+import { checkSudokuArtifactSolution } from "./sudoku-solution-check.mjs";
 
 /** @typedef {'canonical' | 'secondary'} FixtureStatus */
-/** @typedef {'string_present' | 'regex' | 'no_external_network_assets'} ArtifactCheckKind */
+/** @typedef {'string_present' | 'regex' | 'no_external_network_assets' | 'sudoku_solution_grid'} ArtifactCheckKind */
 
 /**
  * @typedef {Object} ArtifactCheck
@@ -142,6 +143,11 @@ export const REAL_TASK_FIXTURES = Object.freeze([
         id: "no_external_network_assets",
         kind: "no_external_network_assets",
         label: "No external http(s) asset URLs",
+      },
+      {
+        id: "valid_sudoku_solution",
+        kind: "sudoku_solution_grid",
+        label: "Embedded solution is a valid 9x9 Sudoku that keeps every puzzle given",
       },
     ]),
     visual_reviewer_checklist: Object.freeze([
@@ -339,6 +345,14 @@ export function validateFixtureArtifact(fixture, htmlText) {
           `${check.id}: external network patterns found (${hits.join(", ")})`,
         );
       }
+    } else if (check.kind === "sudoku_solution_grid") {
+      const grid = checkSudokuArtifactSolution(text);
+      for (const e of grid.errors) {
+        const where = e.puzzle_index === null ? "" : `puzzle[${e.puzzle_index}] `;
+        errors.push(`${check.id}: ${where}${e.code} — ${e.message}`);
+      }
+      checks.push({ id: check.id, ok: grid.ok, label: check.label });
+      continue;
     } else {
       errors.push(`${check.id}: unknown check kind`);
       checks.push({ id: check.id, ok: false, label: check.label });

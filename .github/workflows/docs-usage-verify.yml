@@ -41,6 +41,7 @@ on:
       - "scripts/verify-canonical-real-task-fixtures.mjs"
       - "scripts/lib/canonical-real-task-fixtures-data.mjs"
       - "scripts/lib/fixture-script-execution.mjs"
+      - "scripts/lib/sudoku-solution-check.mjs"
       - "scripts/generate-mode-comparison-report.mjs"
       - "scripts/lib/mode-comparison-report-data.mjs"
       - "scripts/lib/degraded-mode-evidence.mjs"
