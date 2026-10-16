@@ -8,7 +8,7 @@ All notable changes to this repository are documented here. Format follows [Keep
 
 ### Changed
 
-- **Mem0 hook identity/scope (breaking for existing local installs):** `mem0-search.py` / `mem0-stop.sh` no longer use a fixed maintainer user id. Identity and project scope come only from `AI_MINIONS_MEM0_USER_ID` / `AI_MINIONS_MEM0_PROJECT`; search and filter fallback apply the same client-side scope check; shared or non-loopback backends are blocked; missing scope, backend errors and timeouts report distinct `blocked` / `unavailable` outcomes instead of an empty result. Migration notes: [`docs/orchestrator/memory-store-decision.md`](docs/orchestrator/memory-store-decision.md#mem0-hook-identity-and-scope).
+- **Mem0 hook identity/scope (breaking for existing local installs):** `mem0-search.py` / `mem0-stop.sh` no longer use a fixed maintainer user id. Identity and project scope come only from `AI_MINIONS_MEM0_USER_ID` / `AI_MINIONS_MEM0_PROJECT`; search and filter fallback apply the same client-side scope check, and rows without a backend-reported string owner are dropped (the stock self-hosted `/filter` returns none, so it reports `blocked:owner_unverifiable`); shared or non-loopback backends are blocked; missing scope, backend errors and timeouts report distinct `blocked` / `unavailable` outcomes instead of an empty result. Migration notes: [`docs/orchestrator/memory-store-decision.md`](docs/orchestrator/memory-store-decision.md#mem0-hook-identity-and-scope).
 
 ## [0.26.0-beta.1] - 2026-07-31
 

@@ -8,23 +8,17 @@ if [[ "${AI_MINIONS_ACTIVE:-}" != "1" || -z "${AI_MINIONS_RUN_ID:-}" ]]; then
   exit 0
 fi
 
-USER_ID="${AI_MINIONS_MEM0_USER_ID:-}"
-PROJECT="${AI_MINIONS_MEM0_PROJECT:-}"
-MODE="${AI_MINIONS_MEM0_MODE:-local}"
-MEM0_URL="${AI_MINIONS_MEM0_URL:-http://localhost:8765}"
-TOKEN_RE='^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Fail closed: no identity/scope, shared mode, or non-loopback backend -> no reminder.
-[[ "$MODE" == "local" ]] || exit 0
-[[ "$USER_ID" =~ $TOKEN_RE ]] || exit 0
-[[ "$PROJECT" =~ $TOKEN_RE ]] || exit 0
-case "$MEM0_URL" in
-  http://localhost|http://localhost:*|http://127.0.0.1|http://127.0.0.1:*|http://\[::1\]|http://\[::1\]:*) ;;
-  *) exit 0 ;;
-esac
+# Fail closed: identity, project scope, mode and URL are validated by the same
+# parser as mem0-search.py (mem0_scope.resolve_scope). Missing/invalid scope,
+# shared mode, userinfo in the URL or a non-loopback host -> no reminder and
+# no network call. Only the parsed, validated base URL is used below.
+MEM0_URL="$(python3 -I "${HOOK_DIR}/mem0_scope.py" validated-url 2>/dev/null)" || exit 0
+[[ -n "$MEM0_URL" ]] || exit 0
 
 # Check if OpenMemory is up (no identity in the probe).
-if ! curl -sf --max-time 2 "${MEM0_URL%/}/openapi.json" > /dev/null 2>&1; then
+if ! curl -sf --max-time 2 "${MEM0_URL}/openapi.json" > /dev/null 2>&1; then
   exit 0  # silent — don't block session end if mem0 is down
 fi
 

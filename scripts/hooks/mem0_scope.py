@@ -19,6 +19,9 @@ Consequences:
 - Shared backends cannot be isolated by this hook, so ``shared`` mode and
   non-loopback URLs are blocked for retrieval (fail closed).
 - Rows without a matching project scope (legacy/unscoped/foreign) are dropped.
+- Rows without a backend-reported string owner equal to the identity are
+  dropped. The self-hosted ``/filter`` response has no per-row owner, so that
+  path ends ``blocked:owner_unverifiable`` instead of injecting anything.
 - Retrieved text is untrusted data; rows that read like directives to change
   policy, gates, roles or permissions are withheld.
 """
@@ -146,12 +149,19 @@ def resolve_scope(env: dict) -> ScopeConfig:
     if not SCOPE_TOKEN_RE.match(raw_project):
         raise ScopeError(OUTCOME_BLOCKED, "invalid_project_scope")
 
-    parsed = urllib.parse.urlparse(raw_url)
-    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+    try:
+        parsed = urllib.parse.urlparse(raw_url)
+        host = parsed.hostname
+        _ = parsed.port  # raises ValueError on a malformed port
+    except ValueError:
+        raise ScopeError(OUTCOME_BLOCKED, "invalid_url") from None
+    if parsed.scheme not in ("http", "https") or not host:
         raise ScopeError(OUTCOME_BLOCKED, "invalid_url")
-    if parsed.username or parsed.password:
+    if "@" in parsed.netloc or parsed.username or parsed.password:
         raise ScopeError(OUTCOME_BLOCKED, "invalid_url")
-    if not _is_loopback_host(parsed.hostname):
+    if parsed.path not in ("", "/") or parsed.query or parsed.fragment or parsed.params:
+        raise ScopeError(OUTCOME_BLOCKED, "invalid_url")
+    if not _is_loopback_host(host):
         # A non-loopback backend is a shared backend from this hook's view.
         raise ScopeError(OUTCOME_BLOCKED, "shared_backend_unsupported")
 
@@ -224,6 +234,11 @@ def _record_project(rec: dict) -> str | None:
 
 
 def _record_user(rec: dict) -> str | None:
+    """Owner the backend reported for this row, or None when unverifiable.
+
+    Missing, empty, whitespace-only and non-string values (e.g. numbers) are
+    unverifiable. The hook never fills in its own identity for a row.
+    """
     val = rec.get("user_id")
     if isinstance(val, str) and val.strip():
         return val.strip()
@@ -253,13 +268,22 @@ def neutralize(text: str) -> str:
 def scope_records(cfg: ScopeConfig, rows: list) -> tuple[list[dict], dict[str, int]]:
     """Keep only rows proven to belong to cfg.user_id and cfg.project."""
     kept: list[dict] = []
-    counts = {"dropped_foreign": 0, "dropped_unscoped": 0, "withheld_directive": 0}
+    counts = {
+        "dropped_foreign": 0,
+        "dropped_unscoped": 0,
+        "dropped_unverified": 0,
+        "withheld_directive": 0,
+    }
     for rec in rows:
         if not isinstance(rec, dict):
-            counts["dropped_unscoped"] += 1
+            counts["dropped_unverified"] += 1
             continue
         user = _record_user(rec)
-        if user is not None and user != cfg.user_id:
+        if user is None:
+            # Ownership must be asserted by the backend on every row.
+            counts["dropped_unverified"] += 1
+            continue
+        if user != cfg.user_id:
             counts["dropped_foreign"] += 1
             continue
         project = _record_project(rec)
@@ -359,6 +383,10 @@ def retrieve(cfg: ScopeConfig, query: str) -> RetrievalResult:
         return RetrievalResult(OUTCOME_UNAVAILABLE, "bad_response", [], counts)
     kept, c = scope_records(cfg, rows)
     _merge_counts(counts, c)
+    if not kept and c["dropped_unverified"]:
+        # The self-hosted OpenMemory /filter response carries no per-row owner,
+        # so rows cannot be attributed to this identity: block, do not inject.
+        return RetrievalResult(OUTCOME_BLOCKED, "owner_unverifiable", [], counts)
     ranked = _keyword_rank(query, kept)
     lines = _render(ranked)
     if lines:
@@ -372,3 +400,23 @@ def run(env: dict, query: str) -> RetrievalResult:
     except ScopeError as exc:
         return RetrievalResult(exc.outcome, exc.reason)
     return retrieve(cfg, query)
+
+
+def _cli_validated_url(argv: list[str]) -> int:
+    """``python3 -I mem0_scope.py validated-url``: print base URL or exit 1."""
+    import os
+
+    if argv[1:] != ["validated-url"]:
+        return 2
+    try:
+        cfg = resolve_scope(dict(os.environ))
+    except ScopeError:
+        return 1
+    print(cfg.base_url)
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(_cli_validated_url(sys.argv))
