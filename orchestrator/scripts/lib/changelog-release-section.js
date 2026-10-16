@@ -93,6 +93,9 @@ function parseReleaseSections(changelog) {
   return sections;
 }
 
+const SECRET_SCAN_PASS_CLAIM_RE =
+  /\b(?:secrets?|repository[- ]history|git[- ]history)[- ](?:scan|scanning)\b[^\n]{0,120}\bPASS\b/i;
+
 /**
  * @param {string} sectionBody
  * @param {ChangelogReleaseProfile} profile
@@ -125,6 +128,12 @@ function validateReleaseSection(sectionBody, profile) {
 
   if (profile === "alpha" && !/release-trivy-gate|security-trivy-scan/i.test(sectionBody)) {
     errors.push("missing:evidence_trivy");
+  }
+
+  // Trivy's secret scanner and runtime privacy checks read the current tree only;
+  // a secret-scan PASS claim must cite the Git-history gate.
+  if (SECRET_SCAN_PASS_CLAIM_RE.test(sectionBody) && !/scm-secret-scan/i.test(sectionBody)) {
+    errors.push("forbidden:secret_scan_pass_without_history_evidence");
   }
 
   if (TICKET_ID_RE.test(sectionBody)) {

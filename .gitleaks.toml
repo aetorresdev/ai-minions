@@ -1,0 +1,18 @@
+# Scanner config for scripts/scm-secret-scan.mjs (contract: docs/orchestrator/scm-secret-scan-contract.md).
+# Extends the pinned Gitleaks default ruleset. Suppressions do not belong here:
+# use the fingerprinted baseline in .scm-secret-scan-baseline.json.
+title = "ai-minions SCM secret scan"
+
+[extend]
+useDefault = true
+
+# The default generic-api-key rule drops some high-entropy values through its
+# stopword filter, so .env assignments get a dedicated rule scoped to .env files.
+[[rules]]
+id = "dotenv-secret-assignment"
+description = "Secret-named assignment in a .env file"
+regex = '''(?im)^[ \t]*(?:export[ \t]+)?[A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY|CREDENTIALS?)[A-Z0-9_]*[ \t]*=[ \t]*["']?([^\s"'#]{12,})'''
+secretGroup = 1
+entropy = 3.0
+path = '''(?:^|/)\.env(?:\.[^/]+)?$'''
+keywords = ["password", "passwd", "secret", "token", "key", "credential"]
