@@ -21,6 +21,8 @@ All notable changes to this repository are documented here. Format follows [Keep
   - Suppressions live only in the fingerprinted, expiring `.scm-secret-scan-baseline.json`.
   - New CI workflow: `scm-secret-scan`. Contract: [`docs/orchestrator/scm-secret-scan-contract.md`](docs/orchestrator/scm-secret-scan-contract.md).
 
+- **Legacy local output cap migration:** `orchestrator/scripts/migrate-legacy-local-output-caps.js` reports, and with `--apply` removes, the `max_tokens: 8192` caps that older installers wrote into the local `ollama` inference profiles of `.ai-minions/model_policy.json`. It backs up the file first, removes only caps it can attribute to the installer (`profile_source: installer_default`, value 8192, `default`/`ARCHITECT`/`CERBERUS`), reports user-set caps without changing them, and is a no-op on re-run. Details: [`docs/orchestrator/provider-inference-profile-contract.md`](docs/orchestrator/provider-inference-profile-contract.md#legacy-local-cap-migration).
+
 ### Changed
 
 - **Mem0 hook identity/scope (breaking for existing local installs):** `mem0-search.py` / `mem0-stop.sh` no longer use a fixed maintainer user id. Identity and project scope come only from `AI_MINIONS_MEM0_USER_ID` / `AI_MINIONS_MEM0_PROJECT`; search and filter fallback apply the same client-side scope check, and rows without a backend-reported string owner are dropped (the stock self-hosted `/filter` returns none, so it reports `blocked:owner_unverifiable`); shared or non-loopback backends are blocked; missing scope, backend errors and timeouts report distinct `blocked` / `unavailable` outcomes instead of an empty result. Migration notes: [`docs/orchestrator/memory-store-decision.md`](docs/orchestrator/memory-store-decision.md#mem0-hook-identity-and-scope).

@@ -128,6 +128,7 @@ const ENTRIES = {
   'tests/ollamaFixtureProxy.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/localBackendAdapter.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/installModelConfig.test.js': { owner: 'model-runtime', kind: 'unit' },
+  'tests/legacyLocalOutputCaps.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/inferenceProfileResolve.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/roleCapabilityProbes.test.js': { owner: 'model-runtime', kind: 'unit' },
   'tests/runtimePreflight.test.js': { owner: 'model-runtime', kind: 'unit' },
