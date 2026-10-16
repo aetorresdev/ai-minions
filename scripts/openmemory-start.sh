@@ -14,8 +14,8 @@ docker-compose up -d mem0_store openmemory-mcp
 
 # Espera hasta que el API responda (max 15s)
 for i in $(seq 1 15); do
-  if curl -sf --max-time 1 "http://localhost:8765/api/v1/memories/" \
-       -G --data-urlencode "user_id=andres" > /dev/null 2>&1; then
+  # Health probe without any user identity.
+  if curl -sf --max-time 1 "http://localhost:8765/openapi.json" > /dev/null 2>&1; then
     echo "OpenMemory listo en http://localhost:8765"
     exit 0
   fi
