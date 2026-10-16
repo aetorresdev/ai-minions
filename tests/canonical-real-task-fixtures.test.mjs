@@ -318,6 +318,51 @@ describe("sudoku solution grid check", () => {
       assert.deepEqual(codes(checkSudokuArtifactSolution(single)), ["empty_puzzle", "incomplete_grid"]);
     });
 
+    // Raw entry text, so comments and empty literals reach the extractor as written.
+    const withRawEntry = (raw) =>
+      sampleWithPuzzles([valid, valid]).replace("const PUZZLES = [", () => `const PUZZLES = [\n      ${raw},`);
+    const rawCases = {
+      "block comments between key and value": `{ puzzle: /* c */ "${blankZeros}", solution: /* c */ "${blankZeros}" }`,
+      "line comments between key and value": `{ puzzle: // c\n "${blankZeros}", solution: // c\n "${blankZeros}" }`,
+      "mixed comments between key and value": `{ puzzle: /* c */ "${blankZeros}", solution: // c\n "${blankZeros}" }`,
+      "empty strings in a data entry": `{ puzzle: "", solution: "" }`,
+      "empty arrays in a data entry": `{ puzzle: [], solution: [] }`,
+      "quoted keys with comments": `{ "puzzle": /* c */ "${blankZeros}", 'solution' /* c */ : "${blankZeros}" }`,
+    };
+    for (const [name, raw] of Object.entries(rawCases)) {
+      it(`fails ${name} with FIXTURE_ARTIFACT_FAIL at puzzle[0]`, () => {
+        const html = withRawEntry(raw);
+        const sudoku = checkSudokuArtifactSolution(html);
+        assert.equal(sudoku.puzzles.length, 3, "the raw entry is extracted, not skipped");
+        assert.deepEqual(sudoku.puzzles.filter((p) => !p.ok).map((p) => p.index), [0]);
+        assert.deepEqual(sudoku.puzzles[0].codes.sort(), ["empty_puzzle", "incomplete_grid"]);
+
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sudoku-raw-"));
+        const file = path.join(dir, "sudoku.html");
+        fs.writeFileSync(file, html);
+        const cli = spawnSync(process.execPath, [VERIFY_SCRIPT, "--artifact", file, "--fixture", "sudoku-html-app"], { encoding: "utf8", cwd: REPO_ROOT });
+        assert.equal(cli.status, 1);
+        assert.match(cli.stdout + cli.stderr, /FIXTURE_ARTIFACT_FAIL/);
+        assert.match(cli.stdout + cli.stderr, /puzzle\[0\] empty_puzzle/);
+      });
+    }
+
+    it("keeps the empty-literal exemption to standalone let/var state and reassignments", () => {
+      const html = sampleWithPuzzles([valid, valid]).replace(
+        "<script>",
+        `<script>
+    let puzzle = [];
+    var solution = "";
+    let puzzles = /* reset */ [];
+    function reset() { solution = ""; puzzle = []; }
+    const label = (flag) => (flag ? puzzle : "");
+`,
+      );
+      assert.equal(checkSudokuArtifactSolution(html).ok, true);
+      const constEmpty = sampleWithPuzzles([valid, valid]).replace("<script>", `<script>\n    const solution = "";\n`);
+      assert.equal(checkSudokuArtifactSolution(constEmpty).ok, false, "const is not runtime state");
+    });
+
     it("still ignores empty runtime state and non-grid names next to valid pairs", () => {
       const html = sampleWithPuzzles([valid, valid]).replace(
         "<script>",

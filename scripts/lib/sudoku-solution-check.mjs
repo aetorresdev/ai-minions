@@ -98,6 +98,15 @@ export function validateSudokuSolution(puzzleRaw, solutionRaw) {
   const errors = [];
   const add = (code, message) => errors.push({ code, message });
 
+  const isEmptyRaw = (r) => (typeof r === "string" && r.trim() === "") || (Array.isArray(r) && r.length === 0);
+  if (isEmptyRaw(puzzleRaw) || isEmptyRaw(solutionRaw)) {
+    if (isEmptyRaw(puzzleRaw)) add(SUDOKU_CHECK_CODES.EMPTY_PUZZLE, "puzzle is empty");
+    else if (!normalizeGrid(puzzleRaw).ok) add(SUDOKU_CHECK_CODES.MALFORMED_GRID, `puzzle: ${normalizeGrid(puzzleRaw).error}`);
+    if (isEmptyRaw(solutionRaw)) add(SUDOKU_CHECK_CODES.INCOMPLETE_GRID, "solution is empty");
+    else if (!normalizeGrid(solutionRaw).ok) add(SUDOKU_CHECK_CODES.MALFORMED_GRID, `solution: ${normalizeGrid(solutionRaw).error}`);
+    return { ok: false, errors };
+  }
+
   const puzzle = normalizeGrid(puzzleRaw);
   const solution = normalizeGrid(solutionRaw);
   if (!puzzle.ok) add(SUDOKU_CHECK_CODES.MALFORMED_GRID, `puzzle: ${puzzle.error}`);
@@ -180,20 +189,62 @@ function isGridArray(v) {
 const DATA_NAME = /^(?:[a-z]*_)?(?:puzzles?|solutions?|solved|givens?|clues?|answers?)(?:_?(?:grids?|strings?|str|data|digits|cells|list))?$/i;
 
 /**
- * Identifier directly before a literal at `start`, as in `name: <lit>`, `"name": <lit>` or
- * `name = <lit>`; null when the literal is not directly assigned.
+ * Replace JavaScript comments with spaces (newlines kept), leaving strings intact, so offsets
+ * are preserved and a comment between a name and its value cannot hide the assignment.
+ * @param {string} code
+ */
+export function maskComments(code) {
+  let out = "";
+  let i = 0;
+  while (i < code.length) {
+    const c = code[i];
+    if (c === '"' || c === "'" || c === "`") {
+      let j = i + 1;
+      while (j < code.length && code[j] !== c) j += code[j] === "\\" ? 2 : 1;
+      out += code.slice(i, j + 1);
+      i = j + 1;
+    } else if (c === "/" && code[i + 1] === "/") {
+      const nl = code.indexOf("\n", i);
+      const end = nl < 0 ? code.length : nl;
+      out += " ".repeat(end - i);
+      i = end;
+    } else if (c === "/" && code[i + 1] === "*") {
+      const close = code.indexOf("*/", i + 2);
+      const end = close < 0 ? code.length : close + 2;
+      out += code.slice(i, end).replace(/[^\n]/g, " ");
+      i = end;
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out.slice(0, code.length);
+}
+
+/**
+ * Name directly assigned the literal at `start` (`name: <lit>`, `"name": <lit>`,
+ * `name = <lit>`), or null. `runtimeState` is true only for a standalone `let`/`var`
+ * declaration or a bare reassignment statement, never for an object property or `const`.
+ * Expects comment-masked code.
  * @param {string} code
  * @param {number} start
+ * @returns {{ name: string, runtimeState: boolean } | null}
  */
 function assignedName(code, start) {
   const before = code.slice(Math.max(0, start - 200), start);
-  const m = /([A-Za-z_$][\w$]*)["']?\s*(:|=)\s*$/.exec(before);
+  // A key is a bare identifier or one wrapped in matching quotes ("puzzle": ...).
+  const m = /(?:(["'])([A-Za-z_$][\w$]*)\1|([A-Za-z_$][\w$]*))\s*(:|=)\s*$/.exec(before);
   if (!m) return null;
-  if (m[2] === "=") {
-    const prev = before[m.index + m[0].lastIndexOf("=") - 1];
-    if (prev && /[=!<>+\-*/%&|^?]/.test(prev)) return null;
+  const name = m[2] ?? m[3];
+  const lead = before.slice(0, m.index);
+  if (m[4] === ":") {
+    // Only an object property; a ternary branch (`cond ? x : ""`) is not an assignment.
+    return /(?:^|[{,])\s*$/.test(lead) ? { name, runtimeState: false } : null;
   }
-  return m[1];
+  const prev = before[m.index + m[0].lastIndexOf("=") - 1];
+  if (prev && /[=!<>+\-*/%&|^?]/.test(prev)) return null;
+  const runtimeState = /(?:^|[;{}\n])\s*(?:(?:let|var)\s+)?$/.test(lead) && !/\bconst\s+$/.test(lead);
+  return { name, runtimeState };
 }
 
 /**
@@ -268,7 +319,8 @@ function roleForName(name) {
  * @param {string} code
  * @returns {{ start: number, end: number, value: unknown, role: 'puzzle' | 'solution' | null }[]}
  */
-export function scanGridLiterals(code) {
+export function scanGridLiterals(source) {
+  const code = maskComments(source);
   /** @type {{ start: number, end: number, value: unknown, role: 'puzzle' | 'solution' | null }[]} */
   const out = [];
   let i = 0;
@@ -284,8 +336,9 @@ export function scanGridLiterals(code) {
       let j = i + 1;
       while (j < code.length && code[j] !== c) j += code[j] === "\\" ? 2 : 1;
       const body = code.slice(i + 1, j);
-      const name = assignedName(code, i);
-      if (name && DATA_NAME.test(name) && body.trim() !== "") {
+      const assigned = assignedName(code, i);
+      const name = assigned?.name;
+      if (name && DATA_NAME.test(name) && (body.trim() !== "" || !assigned.runtimeState)) {
         out.push({ start: i, end: j + 1, value: body, role: roleForName(name) });
       } else if (isGridString(body)) {
         out.push({ start: i, end: j + 1, value: body, role: null });
@@ -299,12 +352,16 @@ export function scanGridLiterals(code) {
       }
       const text = code.slice(i, end);
       const parsed = parseArrayText(text);
-      const name = assignedName(code, i);
+      const assigned = assignedName(code, i);
+      const name = assigned?.name;
       if (name && DATA_NAME.test(name)) {
         const role = roleForName(name);
         if (parsed.ok && Array.isArray(parsed.value)) {
           if (parsed.value.length > 0) {
             for (const g of namedArrayGrids(name, parsed.value)) out.push({ start: i, end, value: g, role });
+          } else if (!assigned.runtimeState) {
+            // `puzzle: []` inside a data entry is an empty grid, not runtime state.
+            out.push({ start: i, end, value: [], role });
           }
           i = end;
         } else if (text.includes("{")) {
@@ -342,7 +399,8 @@ export function extractEmbeddedPuzzles(htmlText) {
   const puzzles = [];
   /** @type {unknown[]} */
   const solutions = [];
-  for (const code of extractInlineScripts(htmlText)) {
+  for (const script of extractInlineScripts(htmlText)) {
+    const code = maskComments(script);
     /** @type {'puzzle' | 'solution' | null} */
     let role = null;
     let prevEnd = 0;
