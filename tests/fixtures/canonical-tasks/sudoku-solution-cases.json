@@ -187,10 +187,13 @@
     },
     {
       "id": "missing_solution_key",
-      "description": "block has no solution field",
+      "description": "puzzle without a solution",
       "puzzle": "530070000600195000098000060800060003400803001700020006060000280000419005000080079",
       "expect": [
         "malformed_grid"
+      ],
+      "artifact_expect": [
+        "puzzle_data_unparseable"
       ]
     },
     {
@@ -200,6 +203,9 @@
       "solution": "534678912672195348198342567859761423426853791713924856961537284287419635345286179",
       "expect": [
         "empty_puzzle"
+      ],
+      "artifact_expect": [
+        "puzzle_data_unparseable"
       ]
     }
   ]

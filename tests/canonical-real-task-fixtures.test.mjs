@@ -25,9 +25,10 @@ import {
 import {
   SUDOKU_CHECK_CODES,
   checkSudokuArtifactSolution,
-  extractSolutionBlocks,
+  extractEmbeddedPuzzles,
   validateSudokuSolution,
 } from "../scripts/lib/sudoku-solution-check.mjs";
+import { createHash } from "node:crypto";
 import {
   formatReportText,
   runCanonicalFixtureVerify,
@@ -45,18 +46,30 @@ const SOLUTION_CASES = JSON.parse(
     "utf8",
   ),
 );
-const SOLUTION_BLOCK_RE = /<script type="application\/json" id="sudoku-solution">[\s\S]*?<\/script>/;
+const FIVE_VALID = path.join(REPO_ROOT, "tests/fixtures/canonical-tasks/sudoku-five-puzzles-valid.html");
+const FIVE_THREE_INVALID = path.join(
+  REPO_ROOT,
+  "tests/fixtures/canonical-tasks/sudoku-five-puzzles-three-invalid.html",
+);
+const SAMPLE_PUZZLES_RE = /const PUZZLES = \[[\s\S]*?\n {4}\];/;
 
 /**
- * The shipped sample with its solution block replaced; `null` removes the block.
- * @param {string | null} blockBody
+ * The shipped sample with its embedded PUZZLES literal replaced by `{ puzzle, solution }` entries,
+ * keeping the sample's real inline-script shape.
+ * @param {{ puzzle?: unknown, solution?: unknown }[]} entries
  */
-function sampleWithSolutionBlock(blockBody) {
+function sampleWithPuzzles(entries) {
   const html = fs.readFileSync(SAMPLE_SUDOKU, "utf8");
-  assert.match(html, SOLUTION_BLOCK_RE);
-  const replacement =
-    blockBody === null ? "" : `<script type="application/json" id="sudoku-solution">${blockBody}</script>`;
-  return html.replace(SOLUTION_BLOCK_RE, () => replacement);
+  assert.match(html, SAMPLE_PUZZLES_RE);
+  const body = entries
+    .map((e) => {
+      const fields = [];
+      if (e.puzzle !== undefined) fields.push(`puzzle: ${JSON.stringify(e.puzzle)}`);
+      if (e.solution !== undefined) fields.push(`solution: ${JSON.stringify(e.solution)}`);
+      return `      { ${fields.join(", ")} },`;
+    })
+    .join("\n");
+  return html.replace(SAMPLE_PUZZLES_RE, () => `const PUZZLES = [\n${body}\n    ];`);
 }
 
 describe("canonical-real-task-fixtures-data", () => {
@@ -140,64 +153,113 @@ describe("sudoku solution grid check", () => {
   const fixture = getFixture("sudoku-html-app");
   /** @param {{ errors: { code: string }[] }} r */
   const codes = (r) => [...new Set(r.errors.map((e) => e.code))].sort();
+  const valid = SOLUTION_CASES.valid;
 
-  it("prompt and doc require the embedded solution block", () => {
-    assert.match(SUDOKU_PROMPT, /id="sudoku-solution"/);
-    assert.ok(fixture.functional_checks.some((c) => c.kind === "sudoku_solution_grid"));
+  it("keeps the canonical Sudoku prompt byte-stable (sha256 of --print-prompt output)", () => {
+    const hash = createHash("sha256").update(`${getFixturePrompt("sudoku-html-app")}\n`).digest("hex");
+    assert.equal(hash, "51d267cb2b194e19dab246abb859f0120cef4b11218ab9b83f26f2820126291f");
   });
 
-  it("passes the valid grid and the shipped sample", () => {
-    assert.deepEqual(validateSudokuSolution(SOLUTION_CASES.valid.puzzle, SOLUTION_CASES.valid.solution), {
-      ok: true,
-      errors: [],
-    });
+  it("passes the shipped sample through its inline-script PUZZLES data", () => {
     const html = fs.readFileSync(SAMPLE_SUDOKU, "utf8");
-    assert.equal(extractSolutionBlocks(html).length, 1);
-    assert.equal(checkSudokuArtifactSolution(html).ok, true);
+    assert.equal(html.includes("application/json"), false);
+    const { puzzles, solutions } = extractEmbeddedPuzzles(html);
+    assert.equal(puzzles.length, 2);
+    assert.equal(solutions.length, 2);
+    const grid = checkSudokuArtifactSolution(html);
+    assert.equal(grid.ok, true, JSON.stringify(grid.errors));
+    assert.deepEqual(grid.puzzles.map((p) => p.ok), [true, true]);
     const result = validateFixtureArtifact(fixture, html);
     assert.equal(result.checks.find((c) => c.id === "valid_sudoku_solution")?.ok, true);
   });
 
-  it("accepts 9x9 row arrays and '.' for empty puzzle cells", () => {
+  it("passes an artifact whose five embedded puzzles are all valid (9x9 row arrays)", () => {
+    const html = fs.readFileSync(FIVE_VALID, "utf8");
+    const grid = checkSudokuArtifactSolution(html);
+    assert.equal(grid.ok, true, JSON.stringify(grid.errors));
+    assert.equal(grid.puzzles.length, 5);
+    assert.equal(validateFixtureArtifact(fixture, html).ok, true);
+  });
+
+  it("fails an artifact with five embedded puzzles where three solutions are invalid", () => {
+    const html = fs.readFileSync(FIVE_THREE_INVALID, "utf8");
+    const grid = checkSudokuArtifactSolution(html);
+    assert.equal(grid.ok, false);
+    assert.deepEqual(
+      grid.puzzles.map((p) => ({ index: p.index, ok: p.ok, codes: [...p.codes].sort() })),
+      [
+        { index: 0, ok: true, codes: [] },
+        { index: 1, ok: false, codes: ["row_invalid"] },
+        { index: 2, ok: true, codes: [] },
+        { index: 3, ok: false, codes: ["given_changed"] },
+        { index: 4, ok: false, codes: ["box_invalid", "column_invalid", "row_invalid"] },
+      ],
+    );
+    assert.deepEqual([...new Set(grid.errors.map((e) => e.puzzle_index))], [1, 3, 4]);
+
+    const result = validateFixtureArtifact(fixture, html);
+    assert.equal(result.ok, false);
+    assert.deepEqual(result.checks.filter((k) => !k.ok).map((k) => k.id), ["valid_sudoku_solution"]);
+    for (const i of [1, 3, 4]) {
+      assert.ok(result.errors.some((e) => e.startsWith(`valid_sudoku_solution: puzzle[${i}] `)), `puzzle[${i}]`);
+    }
+    for (const i of [0, 2]) {
+      assert.equal(result.errors.some((e) => e.includes(`puzzle[${i}]`)), false, `puzzle[${i}] must not be reported`);
+    }
+  });
+
+  it("artifact mode fails the three-of-five fixture with FIXTURE_ARTIFACT_FAIL", () => {
+    const report = runCanonicalFixtureVerify({
+      repoRoot: REPO_ROOT,
+      artifactPath: FIVE_THREE_INVALID,
+      fixtureId: "sudoku-html-app",
+    });
+    const step = report.steps.find((s) => s.id === "artifact");
+    assert.equal(report.ok, false);
+    assert.equal(step?.reason_code, REASON_CODES.ARTIFACT_FAIL);
+    assert.match(step?.message ?? "", /puzzle\[1\] row_invalid/);
+    assert.match(step?.message ?? "", /puzzle\[3\] given_changed/);
+    assert.match(step?.message ?? "", /puzzle\[4\] box_invalid/);
+  });
+
+  it("pairs parallel PUZZLES / SOLUTIONS arrays and nested row arrays", () => {
     const rows = (g) => Array.from({ length: 9 }, (_, r) => g.slice(r * 9, r * 9 + 9).split("").map(Number));
-    const dotted = SOLUTION_CASES.valid.puzzle.replace(/0/g, ".");
-    assert.equal(validateSudokuSolution(dotted, rows(SOLUTION_CASES.valid.solution)).ok, true);
-    assert.equal(validateSudokuSolution(rows(SOLUTION_CASES.valid.puzzle), SOLUTION_CASES.valid.solution).ok, true);
+    const parallel = `<script>
+      const PUZZLES = ["${valid.puzzle.replace(/0/g, ".")}"];
+      const SOLUTIONS = [${JSON.stringify(rows(valid.solution))}];
+    </script>`;
+    assert.equal(checkSudokuArtifactSolution(parallel).ok, true);
+    const mismatched = `<script>
+      const PUZZLES = ["${valid.puzzle}"];
+      const SOLUTIONS = ["${valid.solution.replace(/[12]/g, (d) => (d === "1" ? "2" : "1"))}"];
+    </script>`;
+    assert.deepEqual(codes(checkSudokuArtifactSolution(mismatched)), ["given_changed"]);
   });
 
   it("covers every grid failure class with a fixture case", () => {
-    const covered = new Set(SOLUTION_CASES.cases.flatMap((c) => c.expect));
-    for (const code of [
-      SUDOKU_CHECK_CODES.ROW_INVALID,
-      SUDOKU_CHECK_CODES.COLUMN_INVALID,
-      SUDOKU_CHECK_CODES.BOX_INVALID,
-      SUDOKU_CHECK_CODES.GIVEN_CHANGED,
-      SUDOKU_CHECK_CODES.GIVEN_MISSING,
-      SUDOKU_CHECK_CODES.MALFORMED_GRID,
-      SUDOKU_CHECK_CODES.INCOMPLETE_GRID,
-      SUDOKU_CHECK_CODES.EMPTY_PUZZLE,
-    ]) {
+    const covered = new Set(SOLUTION_CASES.cases.flatMap((c) => [...c.expect, ...(c.artifact_expect ?? [])]));
+    for (const code of Object.values(SUDOKU_CHECK_CODES)) {
       assert.ok(covered.has(code), `no negative case for ${code}`);
     }
   });
 
   for (const c of SOLUTION_CASES.cases) {
+    const artifactExpect = c.artifact_expect ?? c.expect;
     it(`rejects ${c.id} (${c.expect.join(", ")})`, () => {
       assert.deepEqual(codes(validateSudokuSolution(c.puzzle, c.solution)), [...c.expect].sort());
-      // Embedded in an otherwise passing artifact, only the solution check fails.
-      const body = JSON.stringify({ puzzle: c.puzzle, solution: c.solution });
-      const result = validateFixtureArtifact(fixture, sampleWithSolutionBlock(body));
+      // As the second puzzle of the sample's real PUZZLES shape, next to a valid first puzzle.
+      const html = sampleWithPuzzles([valid, { puzzle: c.puzzle, solution: c.solution }]);
+      const result = validateFixtureArtifact(fixture, html);
       assert.equal(result.ok, false);
-      assert.deepEqual(
-        result.checks.filter((k) => !k.ok).map((k) => k.id),
-        ["valid_sudoku_solution"],
-      );
-      for (const code of c.expect) {
+      assert.deepEqual(result.checks.filter((k) => !k.ok).map((k) => k.id), ["valid_sudoku_solution"]);
+      for (const code of artifactExpect) {
+        const where = code === SUDOKU_CHECK_CODES.PUZZLE_DATA_UNPARSEABLE ? "" : "puzzle[1] ";
         assert.ok(
-          result.errors.some((e) => e.startsWith(`valid_sudoku_solution: ${code} `)),
+          result.errors.some((e) => e.startsWith(`valid_sudoku_solution: ${where}${code} `)),
           result.errors.join("; "),
         );
       }
+      assert.equal(result.errors.some((e) => e.includes("puzzle[0]")), false);
     });
   }
 
@@ -212,54 +274,33 @@ describe("sudoku solution grid check", () => {
     assert.ok(messages("given_missing").includes("given 5 at r1c1 is blank in the solution"));
   });
 
-  it("rejects a missing, duplicated, unparsable or non-object solution block", () => {
-    const valid = JSON.stringify(SOLUTION_CASES.valid);
+  it("reports puzzle_data_unparseable when no puzzle/solution data can be read", () => {
     const cases = [
-      { html: sampleWithSolutionBlock(null), code: SUDOKU_CHECK_CODES.BLOCK_MISSING },
-      {
-        html: sampleWithSolutionBlock(
-          `${valid}</script><script type="application/json" id="sudoku-solution">${valid}`,
-        ),
-        code: SUDOKU_CHECK_CODES.BLOCK_DUPLICATE,
-      },
-      { html: sampleWithSolutionBlock("{puzzle: 1"), code: SUDOKU_CHECK_CODES.BLOCK_INVALID_JSON },
-      { html: sampleWithSolutionBlock("[]"), code: SUDOKU_CHECK_CODES.MALFORMED_GRID },
+      // Runtime generator with no embedded grids.
+      `<script>const grid = new Array(81).fill(0); function generate() { return grid; }</script>`,
+      // Puzzles without solutions.
+      `<script>const PUZZLES = ["${valid.puzzle}", "${valid.puzzle}"];</script>`,
+      // Counts that cannot be paired.
+      `<script>const PUZZLES = ["${valid.puzzle}", "${valid.puzzle}"]; const SOLUTIONS = ["${valid.solution}"];</script>`,
+      // Grid-like text only in a comment or a non-JavaScript block.
+      `<script>// "${valid.puzzle}"\n</script><script type="application/json">{"puzzle":"${valid.puzzle}","solution":"${valid.solution}"}</script>`,
     ];
-    for (const { html, code } of cases) {
-      assert.deepEqual(codes(checkSudokuArtifactSolution(html)), [code]);
-      const result = validateFixtureArtifact(fixture, html);
-      assert.equal(result.ok, false);
-      assert.ok(result.errors.some((e) => e.startsWith(`valid_sudoku_solution: ${code} `)), result.errors.join("; "));
+    for (const html of cases) {
+      const grid = checkSudokuArtifactSolution(html);
+      assert.deepEqual(codes(grid), [SUDOKU_CHECK_CODES.PUZZLE_DATA_UNPARSEABLE], html);
+      assert.equal(grid.errors[0].puzzle_index, null);
     }
-  });
-
-  it("artifact mode fails with FIXTURE_ARTIFACT_FAIL for an invalid solution", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fixture-sudoku-grid-"));
-    try {
-      const bad = SOLUTION_CASES.cases.find((c) => c.id === "row_duplicate");
-      const file = path.join(dir, "sudoku.html");
-      fs.writeFileSync(file, sampleWithSolutionBlock(JSON.stringify({ puzzle: bad.puzzle, solution: bad.solution })));
-      const report = runCanonicalFixtureVerify({
-        repoRoot: REPO_ROOT,
-        artifactPath: file,
-        fixtureId: "sudoku-html-app",
-      });
-      const step = report.steps.find((s) => s.id === "artifact");
-      assert.equal(report.ok, false);
-      assert.equal(step?.reason_code, REASON_CODES.ARTIFACT_FAIL);
-      assert.match(step?.message ?? "", /valid_sudoku_solution: row_invalid/);
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
+    const result = validateFixtureArtifact(fixture, sampleWithPuzzles([]));
+    assert.ok(result.errors.some((e) => e.startsWith("valid_sudoku_solution: puzzle_data_unparseable ")));
   });
 });
 
 /** Passes every source-text check but throws while loading (flat arrays spread as if nested). */
 const CRASH_ON_LOAD_HTML = `<html><body><div id="board" class="grid cell"></div>
 <button id="check">Check</button><button id="reset">Reset</button>
-<script type="application/json" id="sudoku-solution">${JSON.stringify(SOLUTION_CASES.valid)}</script>
 <script>
   // sudoku
+  const PUZZLES = [{ puzzle: "${SOLUTION_CASES.valid.puzzle}", solution: "${SOLUTION_CASES.valid.solution}" }];
   const clone = (a) => a.map((r) => [...r]);
   clone([1, 2, 3]);
   document.getElementById("board").textContent = "rendered";
