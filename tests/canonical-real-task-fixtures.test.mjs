@@ -29,6 +29,7 @@ import {
   validateSudokuSolution,
 } from "../scripts/lib/sudoku-solution-check.mjs";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import {
   formatReportText,
   runCanonicalFixtureVerify,
@@ -262,6 +263,70 @@ describe("sudoku solution grid check", () => {
       assert.equal(result.errors.some((e) => e.includes("puzzle[0]")), false);
     });
   }
+
+  describe("never skips a named puzzle/solution entry next to valid pairs", () => {
+    const VERIFY_SCRIPT = path.join(REPO_ROOT, "scripts/verify-canonical-real-task-fixtures.mjs");
+    const blankZeros = "0".repeat(81);
+    const blankDots = ".".repeat(81);
+    const mixed = {
+      "81 zeros prepended": { entries: [{ puzzle: blankZeros, solution: blankZeros }, valid, valid], bad: 0, codes: ["empty_puzzle", "incomplete_grid"] },
+      "81 dots appended": { entries: [valid, valid, { puzzle: blankDots, solution: blankDots }], bad: 2, codes: ["empty_puzzle", "incomplete_grid"] },
+      "81-zero puzzle with a valid solution": { entries: [valid, { puzzle: blankZeros, solution: valid.solution }], bad: 1, codes: ["empty_puzzle"] },
+      "54-digit strings": { entries: [valid, { puzzle: valid.puzzle.slice(0, 54), solution: valid.solution.slice(0, 54) }], bad: 1, codes: ["malformed_grid"] },
+      "108-digit strings": { entries: [{ puzzle: valid.puzzle + valid.puzzle.slice(0, 27), solution: valid.solution + valid.solution.slice(0, 27) }, valid], bad: 0, codes: ["malformed_grid"] },
+      "malformed 2D grids": { entries: [valid, { puzzle: [[1, 2, 3], [4, 5, 6]], solution: [[1, 2], [3]] }], bad: 1, codes: ["malformed_grid"] },
+      "9 rows with a short row": {
+        entries: [valid, { puzzle: valid.puzzle, solution: Array.from({ length: 9 }, (_, r) => valid.solution.slice(r * 9, r * 9 + (r === 4 ? 8 : 9)).split("").map(Number)) }],
+        bad: 1,
+        codes: ["malformed_grid"],
+      },
+    };
+
+    for (const [name, c] of Object.entries(mixed)) {
+      it(`fails ${name} with FIXTURE_ARTIFACT_FAIL and reports puzzle[${c.bad}]`, () => {
+        const html = sampleWithPuzzles(c.entries);
+        const sudoku = checkSudokuArtifactSolution(html);
+        assert.equal(sudoku.puzzles.length, c.entries.length, "every entry is extracted, none skipped");
+        assert.deepEqual(sudoku.puzzles.filter((p) => !p.ok).map((p) => p.index), [c.bad]);
+        assert.deepEqual(sudoku.puzzles[c.bad].codes.sort(), [...c.codes].sort());
+
+        const result = validateFixtureArtifact(fixture, html);
+        assert.equal(result.ok, false);
+        assert.deepEqual(result.checks.filter((k) => !k.ok).map((k) => k.id), ["valid_sudoku_solution"]);
+
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sudoku-mixed-"));
+        const file = path.join(dir, "sudoku.html");
+        fs.writeFileSync(file, html);
+        const cli = spawnSync(process.execPath, [VERIFY_SCRIPT, "--artifact", file, "--fixture", "sudoku-html-app"], { encoding: "utf8", cwd: REPO_ROOT });
+        assert.equal(cli.status, 1);
+        assert.match(cli.stdout + cli.stderr, /FIXTURE_ARTIFACT_FAIL/);
+        assert.match(cli.stdout + cli.stderr, new RegExp(`puzzle\\[${c.bad}\\] ${c.codes[0]}`));
+      });
+    }
+
+    it("fails blank or wrong-length entries in parallel PUZZLES / SOLUTIONS lists and named variables", () => {
+      const lists = `<script>
+        const PUZZLES = ["${valid.puzzle}", "${blankZeros}", "${valid.puzzle.slice(0, 54)}"];
+        const SOLUTIONS = ["${valid.solution}", "${blankDots}", "${valid.solution}"];
+      </script>`;
+      const r = checkSudokuArtifactSolution(lists);
+      assert.deepEqual(r.puzzles.map((p) => p.ok), [true, false, false]);
+      const single = `<script>
+        const puzzle = "${blankZeros}";
+        const solution = "${blankZeros}";
+      </script>`;
+      assert.deepEqual(codes(checkSudokuArtifactSolution(single)), ["empty_puzzle", "incomplete_grid"]);
+    });
+
+    it("still ignores empty runtime state and non-grid names next to valid pairs", () => {
+      const html = sampleWithPuzzles([valid, valid]).replace(
+        "<script>",
+        `<script>\n    let puzzle = [];\n    let solution = "";\n    const puzzleTitle = "Daily puzzle";\n`,
+      );
+      assert.equal(checkSudokuArtifactSolution(html).ok, true);
+      assert.equal(validateFixtureArtifact(fixture, html).ok, true);
+    });
+  });
 
   it("names the failing row, column, box and given", () => {
     const byId = Object.fromEntries(SOLUTION_CASES.cases.map((c) => [c.id, c]));

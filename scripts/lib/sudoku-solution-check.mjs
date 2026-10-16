@@ -173,46 +173,103 @@ function isGridArray(v) {
 }
 
 /**
- * Read a numeric array literal starting at `start` (a "[").
+ * Names that mark a literal as puzzle/solution data. A non-empty literal assigned to such a
+ * name, or listed inside an array assigned to one, is always validated, whatever its shape:
+ * a wrong length or an all-blank grid fails instead of being skipped.
+ */
+const DATA_NAME = /^(?:[a-z]*_)?(?:puzzles?|solutions?|solved|givens?|clues?|answers?)(?:_?(?:grids?|strings?|str|data|digits|cells|list))?$/i;
+
+/**
+ * Identifier directly before a literal at `start`, as in `name: <lit>`, `"name": <lit>` or
+ * `name = <lit>`; null when the literal is not directly assigned.
  * @param {string} code
  * @param {number} start
- * @returns {{ end: number, grids: unknown[] } | null}
  */
-function readArrayLiteral(code, start) {
-  let depth = 0;
-  for (let j = start; j < code.length; j++) {
-    const c = code[j];
-    if (c === "[") depth++;
-    else if (c === "]") {
-      depth--;
-      if (depth === 0) {
-        const text = code
-          .slice(start, j + 1)
-          .replace(/'/g, '"')
-          .replace(/,\s*\]/g, "]");
-        let value;
-        try {
-          value = JSON.parse(text);
-        } catch {
-          return null;
-        }
-        if (isGridArray(value)) return { end: j + 1, grids: [value] };
-        if (Array.isArray(value) && value.length > 0 && value.every(isGridArray)) return { end: j + 1, grids: value };
-        return null;
-      }
-    } else if (!/[\d\s,'".\-]/.test(c) && !code.startsWith("null", j)) return null;
-    else if (code.startsWith("null", j)) j += 3;
+function assignedName(code, start) {
+  const before = code.slice(Math.max(0, start - 200), start);
+  const m = /([A-Za-z_$][\w$]*)["']?\s*(:|=)\s*$/.exec(before);
+  if (!m) return null;
+  if (m[2] === "=") {
+    const prev = before[m.index + m[0].lastIndexOf("=") - 1];
+    if (prev && /[=!<>+\-*/%&|^?]/.test(prev)) return null;
   }
-  return null;
+  return m[1];
 }
 
 /**
- * Grid literals in one script, in source order. Comments are skipped.
+ * End index (exclusive) of the bracketed literal starting at `start`, skipping strings and
+ * comments; -1 when unbalanced.
  * @param {string} code
- * @returns {{ start: number, end: number, value: unknown }[]}
+ * @param {number} start
+ */
+function arrayEnd(code, start) {
+  let depth = 0;
+  for (let j = start; j < code.length; j++) {
+    const c = code[j];
+    if (c === '"' || c === "'" || c === "`") {
+      j++;
+      while (j < code.length && code[j] !== c) j += code[j] === "\\" ? 2 : 1;
+    } else if (c === "/" && code[j + 1] === "/") {
+      const nl = code.indexOf("\n", j);
+      j = nl < 0 ? code.length : nl;
+    } else if (c === "/" && code[j + 1] === "*") {
+      const close = code.indexOf("*/", j + 2);
+      j = close < 0 ? code.length : close + 1;
+    } else if (c === "[") depth++;
+    else if (c === "]") {
+      depth--;
+      if (depth === 0) return j + 1;
+    }
+  }
+  return -1;
+}
+
+/** @param {string} text */
+function parseArrayText(text) {
+  try {
+    return { ok: true, value: JSON.parse(text.replace(/'/g, '"').replace(/,\s*\]/g, "]")) };
+  } catch {
+    return { ok: false, value: undefined };
+  }
+}
+
+/** Plural data names (PUZZLES, solutions, givenList, ...) may hold a list of grids. */
+const LIST_NAME = /(?:puzzles|solutions|answers|clues|givens|list)/i;
+
+/**
+ * Split the value of a named data array into grids. A singular name (`puzzle`, `solution`)
+ * always holds one grid. A plural name holds one grid (flat cells or 9 rows) or a list of
+ * grids (strings or arrays). Anything else is returned as one malformed grid so it fails
+ * validation instead of disappearing.
+ * @param {string} name
+ * @param {unknown[]} value
+ * @returns {unknown[]}
+ */
+function namedArrayGrids(name, value) {
+  const isShortCell = (v) => isCell(v) && (typeof v !== "string" || v.length <= 1);
+  if (!LIST_NAME.test(name) || value.every(isShortCell)) return [value];
+  if (value.every((v) => typeof v === "string")) return value;
+  if (value.every((v) => Array.isArray(v))) {
+    const looksLikeRows = value.length === 9 && value.every((row) => row.every(isShortCell) && row.length < MIN_CANDIDATE_CELLS);
+    return looksLikeRows ? [value] : value;
+  }
+  return [value];
+}
+
+/** @param {string} name */
+function roleForName(name) {
+  return SOLUTION_NAME.test(name) ? "solution" : "puzzle";
+}
+
+/**
+ * Grid literals in one script, in source order. Comments are skipped. Literals assigned to a
+ * puzzle/solution name (or listed in an array assigned to one) carry `role` and are always
+ * returned; other literals are returned only when they look like grids.
+ * @param {string} code
+ * @returns {{ start: number, end: number, value: unknown, role: 'puzzle' | 'solution' | null }[]}
  */
 export function scanGridLiterals(code) {
-  /** @type {{ start: number, end: number, value: unknown }[]} */
+  /** @type {{ start: number, end: number, value: unknown, role: 'puzzle' | 'solution' | null }[]} */
   const out = [];
   let i = 0;
   while (i < code.length) {
@@ -227,13 +284,42 @@ export function scanGridLiterals(code) {
       let j = i + 1;
       while (j < code.length && code[j] !== c) j += code[j] === "\\" ? 2 : 1;
       const body = code.slice(i + 1, j);
-      if (isGridString(body)) out.push({ start: i, end: j + 1, value: body });
+      const name = assignedName(code, i);
+      if (name && DATA_NAME.test(name) && body.trim() !== "") {
+        out.push({ start: i, end: j + 1, value: body, role: roleForName(name) });
+      } else if (isGridString(body)) {
+        out.push({ start: i, end: j + 1, value: body, role: null });
+      }
       i = j + 1;
     } else if (c === "[") {
-      const arr = readArrayLiteral(code, i);
-      if (arr) {
-        for (const g of arr.grids) out.push({ start: i, end: arr.end, value: g });
-        i = arr.end;
+      const end = arrayEnd(code, i);
+      if (end < 0) {
+        i++;
+        continue;
+      }
+      const text = code.slice(i, end);
+      const parsed = parseArrayText(text);
+      const name = assignedName(code, i);
+      if (name && DATA_NAME.test(name)) {
+        const role = roleForName(name);
+        if (parsed.ok && Array.isArray(parsed.value)) {
+          if (parsed.value.length > 0) {
+            for (const g of namedArrayGrids(name, parsed.value)) out.push({ start: i, end, value: g, role });
+          }
+          i = end;
+        } else if (text.includes("{")) {
+          // An array of objects: the named fields inside decide.
+          i++;
+        } else {
+          out.push({ start: i, end, value: text, role });
+          i = end;
+        }
+      } else if (parsed.ok && isGridArray(parsed.value)) {
+        out.push({ start: i, end, value: parsed.value, role: null });
+        i = end;
+      } else if (parsed.ok && Array.isArray(parsed.value) && parsed.value.length > 0 && parsed.value.every(isGridArray)) {
+        for (const g of parsed.value) out.push({ start: i, end, value: g, role: null });
+        i = end;
       } else i++;
     } else i++;
   }
@@ -261,6 +347,12 @@ export function extractEmbeddedPuzzles(htmlText) {
     let role = null;
     let prevEnd = 0;
     for (const lit of scanGridLiterals(code)) {
+      if (lit.role !== null) {
+        role = lit.role;
+        (role === "puzzle" ? puzzles : solutions).push(lit.value);
+        prevEnd = lit.end;
+        continue;
+      }
       const gap = code
         .slice(prevEnd, lit.start)
         .replace(/\/\*[\s\S]*?\*\//g, "")

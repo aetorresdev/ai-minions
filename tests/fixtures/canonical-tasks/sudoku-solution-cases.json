@@ -203,9 +203,6 @@
       "solution": "534678912672195348198342567859761423426853791713924856961537284287419635345286179",
       "expect": [
         "empty_puzzle"
-      ],
-      "artifact_expect": [
-        "puzzle_data_unparseable"
       ]
     }
   ]
