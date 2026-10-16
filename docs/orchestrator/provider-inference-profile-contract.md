@@ -112,7 +112,23 @@ Local inference costs time, not money, so the default Ollama output budget is **
 | 3 | `provider_inference_profiles.ollama.default.max_tokens` | cap (`applied`) |
 | 4 | none of the above | unlimited (`unbounded_default`) |
 
-Configured caps are honored exactly. The installer no longer writes `max_tokens` into the `ollama` profile (`default` and `by_role`), so fresh installs inherit the unlimited default. Workspaces installed earlier are **not** migrated or rewritten: their existing `max_tokens` (`installer_default`, 8192/16384) stay in effect until the entry is removed by hand or `OLLAMA_NUM_PREDICT=-1` is set. Remote provider entries (`anthropic`) still carry `max_tokens`.
+Configured caps are honored exactly. The installer no longer writes `max_tokens` into the `ollama` profile (`default` and `by_role`), so fresh installs inherit the unlimited default. Workspaces installed earlier are **not** rewritten automatically: their installer-written `max_tokens: 8192` on `ollama.default`, `ollama.by_role.ARCHITECT` and `ollama.by_role.CERBERUS` stay in effect until removed, or until `OLLAMA_NUM_PREDICT=-1` is set. Remote provider entries (`anthropic`) still carry `max_tokens`.
+
+### Legacy local cap migration
+
+`orchestrator/scripts/migrate-legacy-local-output-caps.js` finds and removes those legacy caps:
+
+```bash
+# Report only (no writes). Exit 1 when legacy caps are present, 0 otherwise.
+node orchestrator/scripts/migrate-legacy-local-output-caps.js --repo <workspace>
+# Back up, then remove the installer-written caps.
+node orchestrator/scripts/migrate-legacy-local-output-caps.js --repo <workspace> --apply
+```
+
+- **Attribution:** a cap counts as installer-written only when it sits at one of the three paths above, its value is exactly `8192`, and its `profile_source` is still `installer_default`. Any other local `max_tokens` (a different value, a changed `profile_source`, or another role) is reported as `preserved` with a reason and never changed. A user who set exactly `8192` and left `profile_source: installer_default` cannot be told apart from the installer; that entry is treated as legacy.
+- **Backup:** before writing, the original file is copied to `.ai-minions/model_policy.json.bak-<timestamp>`. The migrated policy is validated before it replaces the original.
+- **Idempotent:** a re-run on a migrated or clean workspace reports `clean`, writes nothing and creates no backup. A workspace without `model_policy.json` reports `no_config`.
+- **Scope:** only `max_tokens` is removed; every other key, including remote provider caps, is kept. `--json` prints the structured result.
 
 Bounds for a runaway generation (e.g. repetition loop) are the per-call timeout and the iteration limit, not a token cap; context pressure near the limit is handled by the compact-handoff and snapshot hooks.
 
