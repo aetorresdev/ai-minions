@@ -1,0 +1,66 @@
+{
+  "status": "executed-with-findings",
+  "advisory": true,
+  "source": {
+    "root": "orchestrator/",
+    "commit": {
+      "head": "fc7e11041989541481603acd36a2f49137b2ec61",
+      "dirty": false
+    }
+  },
+  "tool": {
+    "eslint": "10.8.0",
+    "node": "v24.11.1",
+    "configSha256": "23b3815e2bf06ebc52717edd82095f2ea7981a3c8ceedc68ba5422047a3dbd70",
+    "provenance": {
+      "reduce-accumulator-copy": {
+        "upstream": "dmmulroy/anti-slop",
+        "rule": "no-reduce-accumulator-copy",
+        "revision": "c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b",
+        "license": "MIT"
+      },
+      "accumulating-spread": {
+        "upstream": "oxc-project/oxc",
+        "rule": "oxc/no-accumulating-spread",
+        "revision": "29caafd7bcc2630274c204892f6fa9a085a1317f",
+        "license": "MIT"
+      }
+    }
+  },
+  "scope": {
+    "supportedExtensions": [
+      ".js",
+      ".mjs",
+      ".cjs"
+    ],
+    "excludedDirectories": [
+      "node_modules",
+      ".git"
+    ],
+    "scannedFiles": 490,
+    "supportedButNotScanned": [],
+    "unsupportedFiles": []
+  },
+  "elapsedMs": 1872,
+  "findingsPerRule": {
+    "lint-pilot/reduce-accumulator-copy": 0,
+    "lint-pilot/accumulating-spread": 2
+  },
+  "findings": [
+    {
+      "rule": "lint-pilot/accumulating-spread",
+      "file": "modules/gates/approval-policy-gate.js",
+      "line": 138,
+      "column": 16,
+      "messageId": "loopSpread"
+    },
+    {
+      "rule": "lint-pilot/accumulating-spread",
+      "file": "modules/operator/operator-tui-shell-render.mjs",
+      "line": 1616,
+      "column": 16,
+      "messageId": "loopSpread"
+    }
+  ],
+  "errors": []
+}
