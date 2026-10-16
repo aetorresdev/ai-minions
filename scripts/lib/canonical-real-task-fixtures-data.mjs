@@ -7,9 +7,10 @@
  */
 
 import { executeInlineScripts } from "./fixture-script-execution.mjs";
+import { checkSudokuArtifactSolution } from "./sudoku-solution-check.mjs";
 
 /** @typedef {'canonical' | 'secondary'} FixtureStatus */
-/** @typedef {'string_present' | 'regex' | 'no_external_network_assets'} ArtifactCheckKind */
+/** @typedef {'string_present' | 'regex' | 'no_external_network_assets' | 'sudoku_solution_grid'} ArtifactCheckKind */
 
 /**
  * @typedef {Object} ArtifactCheck
@@ -65,6 +66,7 @@ export const SUDOKU_PROMPT = Object.freeze(
     "- A Reset or New puzzle / Clear action so the user can start over.",
     "- No network access at runtime: do not use fetch, XMLHttpRequest, WebSocket, or CDN URLs.",
     "- Open the file in a browser with no server required.",
+    '- Embed the startup puzzle and its full solution in one block: <script type="application/json" id="sudoku-solution">{"puzzle": "<81 digits, 0 = empty>", "solution": "<81 digits 1-9>"}</script>',
     "Stop when sudoku.html exists and meets the requirements above.",
   ].join("\n"),
 );
@@ -142,6 +144,11 @@ export const REAL_TASK_FIXTURES = Object.freeze([
         id: "no_external_network_assets",
         kind: "no_external_network_assets",
         label: "No external http(s) asset URLs",
+      },
+      {
+        id: "valid_sudoku_solution",
+        kind: "sudoku_solution_grid",
+        label: "Embedded solution is a valid 9x9 Sudoku that keeps every puzzle given",
       },
     ]),
     visual_reviewer_checklist: Object.freeze([
@@ -339,6 +346,11 @@ export function validateFixtureArtifact(fixture, htmlText) {
           `${check.id}: external network patterns found (${hits.join(", ")})`,
         );
       }
+    } else if (check.kind === "sudoku_solution_grid") {
+      const grid = checkSudokuArtifactSolution(text);
+      for (const e of grid.errors) errors.push(`${check.id}: ${e.code} — ${e.message}`);
+      checks.push({ id: check.id, ok: grid.ok, label: check.label });
+      continue;
     } else {
       errors.push(`${check.id}: unknown check kind`);
       checks.push({ id: check.id, ok: false, label: check.label });

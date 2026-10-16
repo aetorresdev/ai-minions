@@ -23,6 +23,12 @@ import {
   extractInlineScripts,
 } from "../scripts/lib/fixture-script-execution.mjs";
 import {
+  SUDOKU_CHECK_CODES,
+  checkSudokuArtifactSolution,
+  extractSolutionBlocks,
+  validateSudokuSolution,
+} from "../scripts/lib/sudoku-solution-check.mjs";
+import {
   formatReportText,
   runCanonicalFixtureVerify,
 } from "../scripts/verify-canonical-real-task-fixtures.mjs";
@@ -33,6 +39,25 @@ const SAMPLE_SUDOKU = path.join(
   REPO_ROOT,
   "tests/fixtures/canonical-tasks/sudoku-html-app.sample.html",
 );
+const SOLUTION_CASES = JSON.parse(
+  fs.readFileSync(
+    path.join(REPO_ROOT, "tests/fixtures/canonical-tasks/sudoku-solution-cases.json"),
+    "utf8",
+  ),
+);
+const SOLUTION_BLOCK_RE = /<script type="application\/json" id="sudoku-solution">[\s\S]*?<\/script>/;
+
+/**
+ * The shipped sample with its solution block replaced; `null` removes the block.
+ * @param {string | null} blockBody
+ */
+function sampleWithSolutionBlock(blockBody) {
+  const html = fs.readFileSync(SAMPLE_SUDOKU, "utf8");
+  assert.match(html, SOLUTION_BLOCK_RE);
+  const replacement =
+    blockBody === null ? "" : `<script type="application/json" id="sudoku-solution">${blockBody}</script>`;
+  return html.replace(SOLUTION_BLOCK_RE, () => replacement);
+}
 
 describe("canonical-real-task-fixtures-data", () => {
   it("defines exactly one canonical fixture and covers six matrix rows", () => {
@@ -111,9 +136,128 @@ describe("verify-canonical-real-task-fixtures", () => {
   });
 });
 
+describe("sudoku solution grid check", () => {
+  const fixture = getFixture("sudoku-html-app");
+  /** @param {{ errors: { code: string }[] }} r */
+  const codes = (r) => [...new Set(r.errors.map((e) => e.code))].sort();
+
+  it("prompt and doc require the embedded solution block", () => {
+    assert.match(SUDOKU_PROMPT, /id="sudoku-solution"/);
+    assert.ok(fixture.functional_checks.some((c) => c.kind === "sudoku_solution_grid"));
+  });
+
+  it("passes the valid grid and the shipped sample", () => {
+    assert.deepEqual(validateSudokuSolution(SOLUTION_CASES.valid.puzzle, SOLUTION_CASES.valid.solution), {
+      ok: true,
+      errors: [],
+    });
+    const html = fs.readFileSync(SAMPLE_SUDOKU, "utf8");
+    assert.equal(extractSolutionBlocks(html).length, 1);
+    assert.equal(checkSudokuArtifactSolution(html).ok, true);
+    const result = validateFixtureArtifact(fixture, html);
+    assert.equal(result.checks.find((c) => c.id === "valid_sudoku_solution")?.ok, true);
+  });
+
+  it("accepts 9x9 row arrays and '.' for empty puzzle cells", () => {
+    const rows = (g) => Array.from({ length: 9 }, (_, r) => g.slice(r * 9, r * 9 + 9).split("").map(Number));
+    const dotted = SOLUTION_CASES.valid.puzzle.replace(/0/g, ".");
+    assert.equal(validateSudokuSolution(dotted, rows(SOLUTION_CASES.valid.solution)).ok, true);
+    assert.equal(validateSudokuSolution(rows(SOLUTION_CASES.valid.puzzle), SOLUTION_CASES.valid.solution).ok, true);
+  });
+
+  it("covers every grid failure class with a fixture case", () => {
+    const covered = new Set(SOLUTION_CASES.cases.flatMap((c) => c.expect));
+    for (const code of [
+      SUDOKU_CHECK_CODES.ROW_INVALID,
+      SUDOKU_CHECK_CODES.COLUMN_INVALID,
+      SUDOKU_CHECK_CODES.BOX_INVALID,
+      SUDOKU_CHECK_CODES.GIVEN_CHANGED,
+      SUDOKU_CHECK_CODES.GIVEN_MISSING,
+      SUDOKU_CHECK_CODES.MALFORMED_GRID,
+      SUDOKU_CHECK_CODES.INCOMPLETE_GRID,
+      SUDOKU_CHECK_CODES.EMPTY_PUZZLE,
+    ]) {
+      assert.ok(covered.has(code), `no negative case for ${code}`);
+    }
+  });
+
+  for (const c of SOLUTION_CASES.cases) {
+    it(`rejects ${c.id} (${c.expect.join(", ")})`, () => {
+      assert.deepEqual(codes(validateSudokuSolution(c.puzzle, c.solution)), [...c.expect].sort());
+      // Embedded in an otherwise passing artifact, only the solution check fails.
+      const body = JSON.stringify({ puzzle: c.puzzle, solution: c.solution });
+      const result = validateFixtureArtifact(fixture, sampleWithSolutionBlock(body));
+      assert.equal(result.ok, false);
+      assert.deepEqual(
+        result.checks.filter((k) => !k.ok).map((k) => k.id),
+        ["valid_sudoku_solution"],
+      );
+      for (const code of c.expect) {
+        assert.ok(
+          result.errors.some((e) => e.startsWith(`valid_sudoku_solution: ${code} `)),
+          result.errors.join("; "),
+        );
+      }
+    });
+  }
+
+  it("names the failing row, column, box and given", () => {
+    const byId = Object.fromEntries(SOLUTION_CASES.cases.map((c) => [c.id, c]));
+    const messages = (id) =>
+      validateSudokuSolution(byId[id].puzzle, byId[id].solution).errors.map((e) => e.message);
+    assert.deepEqual(messages("row_duplicate").map((m) => m.split(" is")[0]), ["row 1", "row 2"]);
+    assert.deepEqual(messages("column_duplicate").map((m) => m.split(" is")[0]), ["column 4", "column 6"]);
+    assert.ok(messages("box_duplicate").every((m) => m.startsWith("box ")));
+    assert.ok(messages("given_changed").includes("given 1 at r2c4 changed to 2"));
+    assert.ok(messages("given_missing").includes("given 5 at r1c1 is blank in the solution"));
+  });
+
+  it("rejects a missing, duplicated, unparsable or non-object solution block", () => {
+    const valid = JSON.stringify(SOLUTION_CASES.valid);
+    const cases = [
+      { html: sampleWithSolutionBlock(null), code: SUDOKU_CHECK_CODES.BLOCK_MISSING },
+      {
+        html: sampleWithSolutionBlock(
+          `${valid}</script><script type="application/json" id="sudoku-solution">${valid}`,
+        ),
+        code: SUDOKU_CHECK_CODES.BLOCK_DUPLICATE,
+      },
+      { html: sampleWithSolutionBlock("{puzzle: 1"), code: SUDOKU_CHECK_CODES.BLOCK_INVALID_JSON },
+      { html: sampleWithSolutionBlock("[]"), code: SUDOKU_CHECK_CODES.MALFORMED_GRID },
+    ];
+    for (const { html, code } of cases) {
+      assert.deepEqual(codes(checkSudokuArtifactSolution(html)), [code]);
+      const result = validateFixtureArtifact(fixture, html);
+      assert.equal(result.ok, false);
+      assert.ok(result.errors.some((e) => e.startsWith(`valid_sudoku_solution: ${code} `)), result.errors.join("; "));
+    }
+  });
+
+  it("artifact mode fails with FIXTURE_ARTIFACT_FAIL for an invalid solution", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fixture-sudoku-grid-"));
+    try {
+      const bad = SOLUTION_CASES.cases.find((c) => c.id === "row_duplicate");
+      const file = path.join(dir, "sudoku.html");
+      fs.writeFileSync(file, sampleWithSolutionBlock(JSON.stringify({ puzzle: bad.puzzle, solution: bad.solution })));
+      const report = runCanonicalFixtureVerify({
+        repoRoot: REPO_ROOT,
+        artifactPath: file,
+        fixtureId: "sudoku-html-app",
+      });
+      const step = report.steps.find((s) => s.id === "artifact");
+      assert.equal(report.ok, false);
+      assert.equal(step?.reason_code, REASON_CODES.ARTIFACT_FAIL);
+      assert.match(step?.message ?? "", /valid_sudoku_solution: row_invalid/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 /** Passes every source-text check but throws while loading (flat arrays spread as if nested). */
 const CRASH_ON_LOAD_HTML = `<html><body><div id="board" class="grid cell"></div>
 <button id="check">Check</button><button id="reset">Reset</button>
+<script type="application/json" id="sudoku-solution">${JSON.stringify(SOLUTION_CASES.valid)}</script>
 <script>
   // sudoku
   const clone = (a) => a.map((r) => [...r]);

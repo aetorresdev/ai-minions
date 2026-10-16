@@ -65,6 +65,7 @@ Requirements:
 - A Reset or New puzzle / Clear action so the user can start over.
 - No network access at runtime: do not use fetch, XMLHttpRequest, WebSocket, or CDN URLs.
 - Open the file in a browser with no server required.
+- Embed the startup puzzle and its full solution in one block: <script type="application/json" id="sudoku-solution">{"puzzle": "<81 digits, 0 = empty>", "solution": "<81 digits 1-9>"}</script>
 Stop when sudoku.html exists and meets the requirements above.
 ```
 
@@ -98,6 +99,7 @@ Run against the produced file (also exercised on the shipped sample under `tests
 | `has_reset_or_new` | Reset / New puzzle / Clear action present |
 | `has_board_cells` | Board/grid/cell structure present |
 | `no_external_network_assets` | No external http(s) asset URLs / remote calls |
+| `valid_sudoku_solution` | Exactly one `<script type="application/json" id="sudoku-solution">` block whose `puzzle` and `solution` parse as 9x9 grids (81-digit string, flat 81-cell array, or 9 rows of 9). Fails with a stable code on: `solution_block_missing` / `solution_block_duplicate` / `solution_block_invalid_json`; `malformed_grid` (wrong size or a non-digit cell); `incomplete_grid` (blank cell in the solution); `empty_puzzle` (no givens); `row_invalid` / `column_invalid` / `box_invalid` (a row, column or 3x3 box that is not exactly 1-9); `given_changed` / `given_missing` (a puzzle clue not preserved in the solution). The page is not run for this check and the verifier does not solve the puzzle. |
 | `executes_without_error` | Inline scripts run at load without throwing (isolated child process, stubbed DOM; a crash on load fails even if the source looks right) |
 
 ```bash
@@ -256,6 +258,7 @@ Shipped reference (functional checks only — not a gold visual standard):
 |--------|------|
 | `scripts/verify-canonical-real-task-fixtures.mjs` | Doc + data + sample + optional artifact gate |
 | `scripts/lib/canonical-real-task-fixtures-data.mjs` | Prompt + check definitions |
+| `scripts/lib/sudoku-solution-check.mjs` | Sudoku solution grid check (rows, columns, boxes, givens, malformed grids); negative cases in `tests/fixtures/canonical-tasks/sudoku-solution-cases.json` |
 | `scripts/run-tester-six-mode-matrix.mjs` | Six-mode structure / skip assessment |
 | `scripts/generate-mode-comparison-report.mjs` | Mode comparison Markdown + JSON |
 | `scripts/verify-usage-docs.mjs` | Doc marker guards |
