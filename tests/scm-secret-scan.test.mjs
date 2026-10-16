@@ -12,10 +12,14 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
-import { validateBaseline, validateEvidence, applyBaseline } from "../scripts/scm-secret-scan.mjs";
+import crypto from "node:crypto";
+import {
+  validateBaseline, validateEvidence, applyBaseline, validateScannerConfig, SCANNER_CONFIG_SHA256,
+} from "../scripts/scm-secret-scan.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const GATE = path.join(__dirname, "..", "scripts", "scm-secret-scan.mjs");
+const REPO_ROOT = path.join(__dirname, "..");
+const GATE = path.join(REPO_ROOT, "scripts", "scm-secret-scan.mjs");
 const GITLEAKS = process.env.GITLEAKS_BIN || "gitleaks";
 const HAVE_SCANNER = spawnSync(GITLEAKS, ["version"], { encoding: "utf8" }).status === 0;
 const REQUIRE_SCANNER = process.env.SCM_SECRET_SCAN_REQUIRE_SCANNER === "1";
@@ -81,9 +85,9 @@ function commit(dir, files, message, deletes = []) {
   return sh(dir, ["rev-parse", "HEAD"]);
 }
 
-function runGate(args, env = {}) {
+function runGate(args, env = {}, gate = GATE) {
   const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "scm-secret-scan-out-")), "evidence.json");
-  const res = spawnSync(process.execPath, [GATE, ...args, "--out", out], {
+  const res = spawnSync(process.execPath, [gate, ...args, "--out", out], {
     encoding: "utf8",
     env: { ...process.env, GITLEAKS_BIN: GITLEAKS, SCM_SECRET_SCAN_SKIP_REASON: "", ...env },
   });
@@ -313,6 +317,198 @@ describe("baseline suppressions", () => {
       const run = runGate(["--scope", "release", "--ref", "main", "--repo", repo], { SCM_SECRET_SCAN_BASELINE: baselineFile(bad) });
       assert.equal(run.status, "status=BLOCKED");
       assert.equal(run.evidence.result.reason_code, "baseline_invalid");
+    }
+  });
+});
+
+// Merge fixtures: the token exists only in a merge commit's own changes and is
+// deleted afterwards, so neither parent nor the final tree carries it.
+function mergeRepo(kind, seed) {
+  const repo = makeRepo();
+  const base = sh(repo, ["rev-parse", "HEAD"]);
+  const t = tokens(seed);
+  const token = `token: ${t.github}\n`;
+  if (kind === "conflict") {
+    sh(repo, ["checkout", "-q", "-b", "a"]);
+    commit(repo, { "f.txt": "A\n" }, "a");
+    sh(repo, ["checkout", "-q", "-b", "b", base]);
+    commit(repo, { "f.txt": "B\n" }, "b");
+    sh(repo, ["checkout", "-q", "a"]);
+    spawnSync("git", ["merge", "-q", "b"], { cwd: repo });
+    fs.writeFileSync(path.join(repo, "f.txt"), token);
+    sh(repo, ["add", "-A"]);
+    sh(repo, ["commit", "-q", "-m", "resolve"]);
+    const merge = sh(repo, ["rev-parse", "HEAD"]);
+    const head = commit(repo, { "f.txt": "resolved\n" }, "cleanup");
+    return { repo, base, merge, head, secret: t.github, file: "f.txt" };
+  }
+  const branches = kind === "octopus" ? ["a", "b", "c"] : ["a", "b"];
+  for (const name of branches) {
+    sh(repo, ["checkout", "-q", "-b", name, base]);
+    commit(repo, { [`${name}.txt`]: `${name}\n` }, name);
+  }
+  sh(repo, ["checkout", "-q", "a"]);
+  sh(repo, ["merge", "-q", "--no-ff", "--no-commit", ...branches.slice(1)]);
+  fs.writeFileSync(path.join(repo, "evil.yml"), token);
+  sh(repo, ["add", "-A"]);
+  sh(repo, ["commit", "-q", "-m", "merge"]);
+  const merge = sh(repo, ["rev-parse", "HEAD"]);
+  const head = commit(repo, {}, "cleanup", ["evil.yml"]);
+  return { repo, base, merge, head, secret: t.github, file: "evil.yml" };
+}
+
+describe("merge commits", () => {
+  for (const [label, kind, seed] of [["clean merge", "two", 51], ["conflict resolution", "conflict", 52], ["octopus merge", "octopus", 53]]) {
+    sit(`FAILs on a secret introduced by a ${label} and then deleted (pr scope)`, () => {
+      const m = mergeRepo(kind, seed);
+      const finalTree = sh(m.repo, ["ls-files", "-z"]).split("\0").filter(Boolean);
+      assert.ok(finalTree.every((file) => !fs.readFileSync(path.join(m.repo, file), "utf8").includes(m.secret)), "final tree must be clean");
+      // Counterexample: a plain range scan does not look at merge diffs.
+      const plain = spawnSync(GITLEAKS, ["git", "--no-banner", "--redact", "--exit-code", "1", `--log-opts=${m.base}..${m.head}`, m.repo], { encoding: "utf8" });
+      assert.equal(plain.status, 0, "plain range scan misses the merge-only secret");
+      const run = runGate(["--scope", "pr", "--base", m.base, "--head", m.head, "--repo", m.repo]);
+      assert.equal(run.status, "status=FAIL");
+      assert.deepEqual(run.evidence.findings.map((f) => [f.rule_id, f.commit, f.file]), [["github-pat", m.merge, m.file]]);
+      assert.equal(run.evidence.scanner.merge_diffs, "each-parent");
+      assert.deepEqual(validateEvidence(run.evidence), []);
+      assertNoSecrets(run, [m.secret]);
+    });
+    sit(`FAILs on a secret introduced by a ${label} and then deleted (release scope)`, () => {
+      const m = mergeRepo(kind, seed + 10);
+      const run = runGate(["--scope", "release", "--ref", m.head, "--repo", m.repo]);
+      assert.equal(run.status, "status=FAIL");
+      assert.deepEqual(run.evidence.findings.map((f) => f.commit), [m.merge]);
+      assertNoSecrets(run, [m.secret]);
+    });
+  }
+
+  sit("reports a branch secret at its own commit, not again at the merge that brings it in", () => {
+    const repo = makeRepo();
+    sh(repo, ["checkout", "-q", "-b", "feature"]);
+    const t = tokens(71);
+    const side = commit(repo, { "s.yml": `token: ${t.github}\n` }, "side");
+    sh(repo, ["checkout", "-q", "main"]);
+    commit(repo, { "x.txt": "x\n" }, "main work");
+    sh(repo, ["merge", "-q", "--no-ff", "-m", "merge feature", "feature"]);
+    const run = runGate(["--scope", "release", "--ref", "main", "--repo", repo]);
+    assert.equal(run.status, "status=FAIL");
+    assert.deepEqual(run.evidence.findings.map((f) => f.commit), [side]);
+    assert.equal(run.evidence.result.merge_inherited_dropped, 1);
+    assert.deepEqual(validateEvidence(run.evidence), []);
+  });
+
+  sit("does not charge a PR for history it merges in from its base", () => {
+    const repo = makeRepo();
+    const t = tokens(72);
+    commit(repo, { "old.yml": `token: ${t.github}\n` }, "historical leak on main");
+    sh(repo, ["checkout", "-q", "-b", "pr", "main~1"]);
+    const base = sh(repo, ["rev-parse", "main"]);
+    commit(repo, { "feature.js": "module.exports = 1;\n" }, "feature");
+    sh(repo, ["merge", "-q", "--no-ff", "-m", "update branch", "main"]);
+    const run = runGate(["--scope", "pr", "--base", base, "--head", "HEAD", "--repo", repo]);
+    assert.equal(run.status, "status=PASS");
+    assert.equal(run.evidence.result.merge_inherited_dropped, 1);
+    assert.equal(runGate(["--scope", "release", "--ref", "HEAD", "--repo", repo]).status, "status=FAIL", "release scope still sees it");
+  });
+
+  sit("PASSes merges that add no secret", () => {
+    const repo = makeRepo();
+    const base = sh(repo, ["rev-parse", "HEAD"]);
+    for (const name of ["a", "b"]) {
+      sh(repo, ["checkout", "-q", "-b", name, base]);
+      commit(repo, { [`${name}.txt`]: `${name}\n` }, name);
+    }
+    sh(repo, ["checkout", "-q", "a"]);
+    sh(repo, ["merge", "-q", "--no-ff", "-m", "merge", "b"]);
+    const run = runGate(["--scope", "pr", "--base", base, "--head", "HEAD", "--repo", repo]);
+    assert.equal(run.status, "status=PASS");
+  });
+});
+
+describe("scanner config", () => {
+  const shipped = fs.readFileSync(path.join(REPO_ROOT, ".gitleaks.toml"), "utf8");
+  const TQ = "'".repeat(3);
+
+  it("ships the pinned config with no location allowlists or extend", () => {
+    assert.equal(crypto.createHash("sha256").update(shipped).digest("hex"), SCANNER_CONFIG_SHA256);
+    assert.deepEqual(validateScannerConfig(shipped), []);
+    assert.equal((shipped.match(/^\[\[rules\]\]$/gm) || []).length, 223);
+  });
+
+  it("rejects allowlists by path or commit, and [extend]", () => {
+    for (const bad of [
+      "[extend]\nuseDefault = true\n",
+      `[allowlist]\npaths = [${TQ}.*${TQ}]\n`,
+      "[[allowlists]]\ncommits = [\"abc\"]\n",
+      `[[rules]]\nid = "x"\n[[rules.allowlists]]\n"paths" = [${TQ}fixtures/${TQ}]\n`,
+      `rules.allowlist.paths = [${TQ}.*${TQ}]\n`,
+    ]) {
+      assert.ok(validateScannerConfig(bad).length > 0, `should reject: ${bad}`);
+    }
+  });
+
+  sit("BLOCKs a config that differs from the pinned one, such as an added path allowlist", () => {
+    const layout = fs.mkdtempSync(path.join(os.tmpdir(), "scm-secret-scan-layout-"));
+    fs.mkdirSync(path.join(layout, "scripts"));
+    fs.copyFileSync(GATE, path.join(layout, "scripts", "scm-secret-scan.mjs"));
+    fs.copyFileSync(path.join(REPO_ROOT, ".scm-secret-scan-baseline.json"), path.join(layout, ".scm-secret-scan-baseline.json"));
+    fs.writeFileSync(path.join(layout, ".gitleaks.toml"), `${shipped}\n[[allowlists]]\npaths = [${TQ}.*${TQ}]\n`);
+    const repo = makeRepo();
+    const base = sh(repo, ["rev-parse", "HEAD"]);
+    const head = commit(repo, { "app.yml": `token: ${tokens(61).github}\n` }, "leak");
+    const run = runGate(["--scope", "pr", "--base", base, "--head", head, "--repo", repo], {}, path.join(layout, "scripts", "scm-secret-scan.mjs"));
+    assert.equal(run.status, "status=BLOCKED");
+    assert.equal(run.evidence.result.reason_code, "config_unpinned");
+  });
+
+  sit("reports secrets in paths the upstream defaults would skip", () => {
+    const repo = makeRepo();
+    const base = sh(repo, ["rev-parse", "HEAD"]);
+    const t = tokens(62);
+    const files = {
+      "node_modules/pkg/index.js": `const t = "${t.github}";\n`,
+      "orchestrator/package-lock.json": `{"token": "${t.github}"}\n`,
+      "docs/gitleaks.toml": `token = "${t.github}"\n`,
+    };
+    const head = commit(repo, files, "vendored");
+    const run = runGate(["--scope", "pr", "--base", base, "--head", head, "--repo", repo]);
+    assert.equal(run.status, "status=FAIL");
+    assert.deepEqual(run.evidence.findings.map((f) => f.file).sort(), Object.keys(files).sort());
+  });
+});
+
+describe("evidence validator rejects incomplete or contradictory evidence", () => {
+  const rehash = (doc) => {
+    const { evidence_hash: _drop, ...body } = doc;
+    return { ...body, evidence_hash: crypto.createHash("sha256").update(JSON.stringify(body)).digest("hex") };
+  };
+  const without = (obj, key) => Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key));
+  const fp = `${"c".repeat(40)}:a.yml:github-pat:1`;
+
+  sit("rejects rehashed documents with missing or contradictory fields", () => {
+    const repo = makeRepo();
+    const pass = runGate(["--scope", "release", "--ref", "main", "--repo", repo]).evidence;
+    assert.deepEqual(validateEvidence(rehash(pass)), [], "the genuine document stays valid after rehash");
+    const forged = {
+      "baseline missing": without(pass, "baseline"),
+      "refs missing": { ...pass, source: without(pass.source, "refs") },
+      "log range missing": { ...pass, source: { ...pass.source, log_range: null } },
+      "empty scanner version": { ...pass, scanner: { ...pass.scanner, version: "" } },
+      "PASS with expired suppression": { ...pass, baseline: { ...pass.baseline, expired: [fp] } },
+      "PASS with findings": {
+        ...pass,
+        findings: [{ rule_id: "github-pat", commit: "c".repeat(40), file: "a.yml", line: 1, fingerprint: fp }],
+        result: { ...pass.result, findings_total: 1, rules_triggered: { "github-pat": 1 } },
+      },
+      "unpinned config hash": { ...pass, scanner: { ...pass.scanner, config_sha256: "d".repeat(64) } },
+      "range not matching refs": { ...pass, source: { ...pass.source, log_range: "e".repeat(40) } },
+      "merge diffs off": { ...pass, scanner: { ...pass.scanner, merge_diffs: "none" } },
+      "rules_triggered mismatch": { ...pass, result: { ...pass.result, rules_triggered: { "github-pat": 1 } } },
+      "unknown top-level field": { ...pass, extra: "x" },
+      "BLOCKED with unknown reason": { ...pass, result: { ...pass.result, status: "BLOCKED", reason_code: "whatever" } },
+    };
+    for (const [name, doc] of Object.entries(forged)) {
+      assert.ok(validateEvidence(rehash(doc)).length > 0, `${name} must be invalid`);
     }
   });
 });
