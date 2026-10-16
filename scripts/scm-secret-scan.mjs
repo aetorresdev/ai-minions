@@ -218,6 +218,10 @@ function repoIdentity(repo) {
   }
 }
 
+/**
+ * Returns [{ finding, endLine }]. `endLine` is internal only (used to check whether a
+ * merge finding is inherited) and never written to evidence; null means unknown.
+ */
 function normalizeFindings(raw) {
   if (!Array.isArray(raw)) throw blocked("scanner_output_invalid", "scanner report is not a list");
   const byFingerprint = new Map();
@@ -236,10 +240,22 @@ function normalizeFindings(raw) {
     if (finding.fingerprint !== `${finding.commit}:${finding.file}:${finding.rule_id}:${finding.line}`) {
       throw blocked("scanner_output_invalid", "scanner fingerprint does not match its location");
     }
-    // A merge diffed against several parents can report the same location twice.
-    byFingerprint.set(finding.fingerprint, finding);
+    const endLine = Number.isInteger(item.EndLine) && item.EndLine >= item.StartLine ? item.EndLine : null;
+    // A merge diffed against several parents can report the same location twice;
+    // keep the widest span (unknown counts as widest).
+    const previous = byFingerprint.get(finding.fingerprint);
+    let widest = endLine;
+    if (previous) widest = previous.endLine === null || endLine === null ? null : Math.max(previous.endLine, endLine);
+    byFingerprint.set(finding.fingerprint, { finding, endLine: widest });
   }
   return [...byFingerprint.values()];
+}
+
+function containsBlock(lines, block) {
+  for (let start = 0; start + block.length <= lines.length; start += 1) {
+    if (block.every((line, offset) => lines[start + offset] === line)) return true;
+  }
+  return false;
 }
 
 /**
@@ -247,13 +263,16 @@ function normalizeFindings(raw) {
  * repeats everything the merged branch brought in. A merge finding is inherited,
  * and dropped, only when the exact line already exists in the same file in one of
  * the merge's parents; lines the merge itself introduced (evil merges, conflict
- * resolutions) stay. Line text is compared in memory and never recorded.
+ * resolutions) stay. "Exact" covers the whole finding: every line from its start to
+ * its end must appear contiguously in the parent's copy of the file, so a matching
+ * first line (such as a key header) is not enough. When the span is unknown or cannot
+ * be read, the finding is kept. Line text is compared in memory and never recorded.
  */
-function dropInheritedMergeFindings(repo, findings) {
+function dropInheritedMergeFindings(repo, entries) {
   const parentsOf = new Map();
   const kept = [];
   let dropped = 0;
-  for (const finding of findings) {
+  for (const { finding, endLine } of entries) {
     if (!parentsOf.has(finding.commit)) {
       const res = git(repo, ["rev-list", "--parents", "-n", "1", finding.commit]);
       if (res.rc !== 0) throw blocked("scanner_output_invalid", "finding commit is not in the repository");
@@ -265,10 +284,11 @@ function dropInheritedMergeFindings(repo, findings) {
       continue;
     }
     const blob = git(repo, ["show", `${finding.commit}:${finding.file}`]);
-    const line = blob.rc === 0 ? blob.stdout.split("\n")[finding.line - 1] : undefined;
-    const inherited = line !== undefined && parents.some((parent) => {
+    const lines = blob.rc === 0 ? blob.stdout.split("\n") : [];
+    const block = endLine === null || endLine > lines.length ? null : lines.slice(finding.line - 1, endLine);
+    const inherited = block !== null && block.length > 0 && parents.some((parent) => {
       const parentBlob = git(repo, ["show", `${parent}:${finding.file}`]);
-      return parentBlob.rc === 0 && parentBlob.stdout.split("\n").includes(line);
+      return parentBlob.rc === 0 && containsBlock(parentBlob.stdout.split("\n"), block);
     });
     if (inherited) dropped += 1;
     else kept.push(finding);
@@ -458,6 +478,14 @@ function exactKeys(errors, obj, keys, where, optional = []) {
  * not sufficient; every field is checked.
  */
 export function validateEvidence(doc) {
+  try {
+    return checkEvidence(doc);
+  } catch {
+    return ["evidence is malformed"];
+  }
+}
+
+function checkEvidence(doc) {
   const errors = [];
   const need = (cond, message) => { if (!cond) errors.push(message); };
   if (!isObj(doc)) return ["evidence must be an object"];
@@ -476,7 +504,7 @@ export function validateEvidence(doc) {
   need(scanner.name === ADAPTER.name && scanner.adapter_version === ADAPTER.adapter_version, "scanner must be gitleaks adapter v1");
   need(scanner.merge_diffs === MERGE_DIFFS, `scanner.merge_diffs must be ${MERGE_DIFFS}`);
   exactKeys(errors, source, ["repo", "base_ref", "head_ref", "refs", "commit_hash", "log_range", "commits_scanned"], "source");
-  need(Array.isArray(source.refs), "source.refs must be a list");
+  need(Array.isArray(source.refs) && source.refs.every(isObj), "source.refs must be a list of objects");
   exactKeys(errors, baseline, ["path", "sha256", "entries", "expired"], "baseline");
   need(Array.isArray(baseline.expired) && baseline.expired.every(isStr), "baseline.expired must be a list of fingerprints");
   exactKeys(errors, result, ["status", "reason_code", "findings_total", "rules_triggered", "suppressed_total", "merge_inherited_dropped", "skip_reason"], "result", ["detail"]);
@@ -484,12 +512,12 @@ export function validateEvidence(doc) {
   need(isStr(result.reason_code), "result.reason_code required");
   need(isInt(result.findings_total) && isInt(result.suppressed_total) && isInt(result.merge_inherited_dropped), "result counts must be non-negative integers");
   need(isObj(result.rules_triggered) && Object.values(result.rules_triggered).every((n) => isInt(n, 1)), "rules_triggered must map rule ids to positive counts");
+  need(findings.every(isObj), "findings must be a list of objects");
   need(result.detail === undefined || typeof result.detail === "string", "result.detail must be a string");
   if (errors.length) return errors;
 
   // Findings: exact shape and a fingerprint that matches its own location.
   for (const finding of findings) {
-    if (!isObj(finding)) { errors.push("finding must be an object"); continue; }
     exactKeys(errors, finding, ["rule_id", "commit", "file", "line", "fingerprint"], "finding");
     need(isStr(finding.rule_id) && HEX40.test(finding.commit || "") && isStr(finding.file) && isInt(finding.line, 1), "finding fields have wrong types");
     need(finding.fingerprint === `${finding.commit}:${finding.file}:${finding.rule_id}:${finding.line}`, "finding fingerprint does not match its location");
@@ -523,7 +551,8 @@ export function validateEvidence(doc) {
 
   if (scanned) {
     need(SCOPES.includes(doc.scope), "scope required for PASS/FAIL");
-    need(/^\d+\.\d+\.\d+$/.test(scanner.version || ""), "scanner.version required for PASS/FAIL");
+    const major = /^(\d+)\.\d+\.\d+$/.exec(typeof scanner.version === "string" ? scanner.version : "");
+    need(major !== null && Number(major[1]) === ADAPTER.supported_major, `scanner.version must be ${ADAPTER.supported_major}.x.y for PASS/FAIL`);
     need(scanner.config_path === ".gitleaks.toml" && scanner.config_sha256 === SCANNER_CONFIG_SHA256, "scanner config must be the pinned .gitleaks.toml");
     need(HEX64.test(doc.scanner_report_sha256 || ""), "scanner_report_sha256 required for PASS/FAIL");
     need(isStr(source.repo), "source.repo required for PASS/FAIL");
@@ -581,6 +610,7 @@ function main(argv) {
       doc = JSON.parse(fs.readFileSync(args.validate, "utf8"));
     } catch {
       process.stderr.write("scm-secret-scan: cannot read evidence JSON\n");
+      process.stdout.write("evidence=INVALID\n");
       return EXIT.BLOCKED;
     }
     const errors = validateEvidence(doc);

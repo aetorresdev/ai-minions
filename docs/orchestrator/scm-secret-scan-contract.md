@@ -28,8 +28,10 @@ deleted later.
 - `--remerge-diff` was rejected because Git skips it for octopus merges.
 - A location reported more than once (once per parent) is deduplicated by fingerprint.
 - Diffing against the first parent repeats everything the merged branch brought in. A finding on a merge
-  commit is dropped as inherited only when that exact line already exists in the same file in one of the
-  merge's parents. It is then reported at the commit that introduced it, when that commit is in scope.
+  commit is dropped as inherited only when the **whole finding** already exists in the same file in one of
+  the merge's parents: every line from its start line to its end line, contiguously. A shared first line,
+  such as a private-key header in example docs, is not enough. A finding whose span is unknown or unreadable
+  is kept. It is then reported at the commit that introduced it, when that commit is in scope.
   Lines the merge itself introduced are kept. The count is recorded as `result.merge_inherited_dropped`.
   Line text is compared in memory and never recorded.
 - A consequence: in the `pr` scope, a PR that merges its base branch in is not charged for secrets already in
@@ -110,7 +112,7 @@ but not enough. It rejects:
 
 - Missing or unknown keys at any level, and wrong types.
 - `PASS` or `FAIL` without:
-  - a scanner version, and the pinned config path and hash;
+  - a scanner version of the supported major (`8.x.y`), and the pinned config path and hash;
   - a report hash, the repo, and resolved refs;
   - a log range and `log_opts` consistent with those refs, for the scope;
   - `commits_scanned > 0`, and baseline identity.
@@ -124,6 +126,9 @@ but not enough. It rejects:
 - Findings whose fingerprint is not their own `commit:file:rule:line`, or that repeat a fingerprint.
 - `merge_diffs` other than `each-parent`.
 - A mismatched `evidence_hash`.
+
+Malformed input, such as `null` entries in `findings` or `source.refs`, or a non-object section, is reported
+as invalid rather than raising an error. `--validate` then prints `evidence=INVALID` and exits `2`.
 
 ## Privacy of findings
 

@@ -411,6 +411,57 @@ describe("merge commits", () => {
     assert.equal(runGate(["--scope", "release", "--ref", "HEAD", "--repo", repo]).status, "status=FAIL", "release scope still sees it");
   });
 
+  // Parents hold only an example key header; the merge adds a full key block and a
+  // later commit removes it. A matching first line must not count as inherited.
+  function headerOnlyMergeRepo(seed) {
+    const repo = makeRepo();
+    const t = tokens(seed);
+    const header = t.pem.split("\n")[0];
+    const docs = `Example format:\n\n${header}\n...\n`;
+    const base = commit(repo, { "docs/keys.md": docs }, "document key format");
+    for (const name of ["a", "b"]) {
+      sh(repo, ["checkout", "-q", "-b", name, base]);
+      commit(repo, { [`${name}.txt`]: `${name}\n` }, name);
+    }
+    sh(repo, ["checkout", "-q", "a"]);
+    sh(repo, ["merge", "-q", "--no-ff", "--no-commit", "b"]);
+    fs.writeFileSync(path.join(repo, "docs/keys.md"), `${docs}\n${t.pem}\n`);
+    sh(repo, ["add", "-A"]);
+    sh(repo, ["commit", "-q", "-m", "merge"]);
+    const merge = sh(repo, ["rev-parse", "HEAD"]);
+    const head = commit(repo, { "docs/keys.md": docs }, "remove key");
+    return { repo, base, merge, head, secret: t.pem.split("\n")[1] };
+  }
+
+  sit("keeps a multi-line secret added by a merge when parents only share its first line (pr scope)", () => {
+    const m = headerOnlyMergeRepo(73);
+    const run = runGate(["--scope", "pr", "--base", m.base, "--head", m.head, "--repo", m.repo]);
+    assert.equal(run.status, "status=FAIL");
+    assert.deepEqual(run.evidence.findings.map((f) => [f.rule_id, f.commit]), [["private-key", m.merge]]);
+    assert.equal(run.evidence.result.merge_inherited_dropped, 0);
+    assertNoSecrets(run, [m.secret]);
+  });
+
+  sit("keeps a multi-line secret added by a merge when parents only share its first line (release scope)", () => {
+    const m = headerOnlyMergeRepo(74);
+    const run = runGate(["--scope", "release", "--ref", m.head, "--repo", m.repo]);
+    assert.equal(run.status, "status=FAIL");
+    assert.deepEqual(run.evidence.findings.map((f) => [f.rule_id, f.commit]), [["private-key", m.merge]]);
+    assert.equal(run.evidence.result.merge_inherited_dropped, 0);
+  });
+
+  sit("still treats a multi-line secret merged in unchanged from a branch as inherited", () => {
+    const repo = makeRepo();
+    sh(repo, ["checkout", "-q", "-b", "feature"]);
+    const side = commit(repo, { "id.pem": `${tokens(75).pem}\n` }, "side key");
+    sh(repo, ["checkout", "-q", "main"]);
+    commit(repo, { "x.txt": "x\n" }, "main work");
+    sh(repo, ["merge", "-q", "--no-ff", "-m", "merge feature", "feature"]);
+    const run = runGate(["--scope", "release", "--ref", "main", "--repo", repo]);
+    assert.deepEqual(run.evidence.findings.map((f) => [f.rule_id, f.commit]), [["private-key", side]]);
+    assert.equal(run.evidence.result.merge_inherited_dropped, 1);
+  });
+
   sit("PASSes merges that add no secret", () => {
     const repo = makeRepo();
     const base = sh(repo, ["rev-parse", "HEAD"]);
@@ -509,6 +560,31 @@ describe("evidence validator rejects incomplete or contradictory evidence", () =
     };
     for (const [name, doc] of Object.entries(forged)) {
       assert.ok(validateEvidence(rehash(doc)).length > 0, `${name} must be invalid`);
+    }
+  });
+
+  sit("rejects malformed entries and unsupported scanner majors without throwing", () => {
+    const repo = makeRepo();
+    const pass = runGate(["--scope", "release", "--ref", "main", "--repo", repo]).evidence;
+    const forged = {
+      "null finding": { ...pass, findings: [null], result: { ...pass.result, findings_total: 1 } },
+      "null ref": { ...pass, source: { ...pass.source, refs: [null] } },
+      "scanner major 9": { ...pass, scanner: { ...pass.scanner, version: "9.0.0" } },
+      "numeric scanner version": { ...pass, scanner: { ...pass.scanner, version: 8 } },
+      "null source": { ...pass, source: null },
+    };
+    for (const [name, doc] of Object.entries(forged)) {
+      let errors;
+      assert.doesNotThrow(() => { errors = validateEvidence(rehash(doc)); }, `${name} must not throw`);
+      assert.ok(errors.length > 0, `${name} must be invalid`);
+    }
+    for (const doc of [forged["null finding"], forged["null ref"], forged["scanner major 9"]]) {
+      const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "scm-secret-scan-forged-")), "evidence.json");
+      fs.writeFileSync(file, JSON.stringify(rehash(doc)));
+      const res = spawnSync(process.execPath, [GATE, "--validate", file], { encoding: "utf8" });
+      assert.equal(res.stdout.trim(), "evidence=INVALID");
+      assert.equal(res.status, 2);
+      assert.ok(!/TypeError|at .*\.mjs/.test(res.stderr), "no stack trace");
     }
   });
 });
